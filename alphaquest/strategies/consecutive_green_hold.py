@@ -20,12 +20,15 @@ class Parameters:
 
     green_bar_count: int = field(default=3, metadata={
         "description": "Consecutive observed bars with Close > Open required while flat.",
+        "minimum": 1,
     })
     hold_minutes: int = field(default=20, metadata={
         "description": "Elapsed UTC minutes from the actual entry time to the target exit.",
+        "minimum": 1,
     })
     contracts: int = field(default=1, metadata={
         "description": "Fixed contract quantity requested for each long entry.",
+        "minimum": 1,
     })
 
     def __post_init__(self):

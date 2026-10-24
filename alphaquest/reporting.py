@@ -1,6 +1,6 @@
 """Strategy-agnostic summaries and disk-backed exports of authoritative events."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 import csv
 from dataclasses import asdict, fields
 from datetime import datetime, timedelta, timezone
@@ -59,6 +59,7 @@ def _csv_record(record: dict) -> dict:
 def generate_report(
     events: Iterable[Trade | EquityPoint], output_directory: Path, config: ExecutionConfig,
     *, metadata: dict | None = None, expected_bar_count: int | None = None,
+    on_saving: Callable[[], None] | None = None,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -216,6 +217,8 @@ def generate_report(
             },
             "artifacts": {"report": "report.json", "trades_csv": "trades.csv", "equity_csv": "equity.csv"},
         }
+        if on_saving is not None:
+            on_saving()
         with (staging / "report.json").open("w", encoding="utf-8") as report:
             header = json.dumps(manifest, default=json_value, allow_nan=False, indent=2)
             report.write(header[:-1])

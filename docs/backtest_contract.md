@@ -165,6 +165,12 @@ Store monetary values as decimal strings and timestamps as UTC ISO 8601. The ini
 
 The reporter streams arrays/rows to temporary files, validates a flat final point and all P&L/equity reconciliations, then publishes a new output directory. It rejects an existing output directory and leaves no completed report if replay or validation fails. The caller should supply the saved row count, which is checked against the final observed bar number. `alphaquest.run_backtest` wires the existing reader, sample strategy, engine, and reporter together, records dataset and strategy hashes/settings, and always supplies that row count.
 
+### Backtest API
+
+The existing FastAPI server also exposes the tested components through a code-owned strategy allowlist. Each strategy supplies its parameter definitions and validation. API runs require all strategy parameters and execution settings explicitly; financial settings use decimal strings and no instrument values are inferred. A worker thread runs preparation, replay, report saving, and result indexing while the existing progress endpoint exposes stage, processed/total bars, and run ID. Completion is emitted only after durable artifacts and a committed completed-run record exist. Failed runs have no completed record.
+
+Completed summaries/provenance and indexed trade/equity rows are persisted in `backtests.sqlite3` beside the dataset store, with report files in `backtest_runs/RUN_ID/`. Records survive restart and source deletion. Retrieval is paginated (default 100, maximum 1,000 rows), and the equity endpoint follows the requested trade-close CSV format. The full bar-close series remains in the report JSON. See [API endpoints and reproducible commands](backtest_api.md). No portal controls or external task queue are added.
+
 ## 7. Hand-checkable fixtures
 
 Files live in [`tests/fixtures/backtest_contract/`](../tests/fixtures/backtest_contract/). [`expected.json`](../tests/fixtures/backtest_contract/expected.json) contains each fixture's complete resolved settings, expected trades, summary, and full equity path. [`expected_trades.csv`](../tests/fixtures/backtest_contract/expected_trades.csv) is a flat review table of all expected trades. The CSVs are source bars, not engine-generated outputs. The expectations were manually specified and checked by standalone arithmetic; they were not produced by replaying an implemented strategy.

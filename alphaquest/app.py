@@ -17,6 +17,8 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .datasets import MAX_BYTES, DatasetStore, DuplicateDataset, InvalidDataset, validate_csv_file
+from .backtest_api import router as backtest_router
+from .backtest_runs import RunStore
 
 WEB = Path(__file__).parent / "web"
 
@@ -28,11 +30,11 @@ class ProgressTracker:
         self.states = OrderedDict()
         self.lock = Lock()
 
-    def start(self, operation_id):
+    def start(self, operation_id, initial=None):
         with self.lock:
             if operation_id in self.states:
                 raise HTTPException(409, "This progress identifier has already been used.")
-            self.states[operation_id] = {"stage": "uploading", "completed_bytes": 0, "total_bytes": None, "rows_checked": 0}
+            self.states[operation_id] = initial if initial is not None else {"stage": "uploading", "completed_bytes": 0, "total_bytes": None, "rows_checked": 0}
             while len(self.states) > 128:
                 self.states.popitem(last=False)
 
@@ -51,15 +53,30 @@ class ProgressTracker:
             state = self.states.get(operation_id)
             return {key: value for key, value in state.items() if key != "updated_at"} if state else None
 
+    def update_backtest(self, operation_id, run_id, stage, processed, total):
+        with self.lock:
+            previous = self.states.get(operation_id)
+            if previous is not None and previous.get("run_id") == run_id:
+                self.states[operation_id] = {"stage": stage, "bars_processed": processed,
+                                             "total_bars": total, "run_id": previous["run_id"]}
+
+    def fail_backtest(self, operation_id, run_id, error):
+        with self.lock:
+            previous = self.states.get(operation_id)
+            if previous is not None and previous.get("run_id") == run_id:
+                self.states[operation_id] = {**previous, "stage": "failed", "error": error}
+
 
 def create_app(db_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         app.state.store = DatasetStore(db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3")
+        app.state.runs = RunStore(app.state.store.path.parent)
         app.state.progress = ProgressTracker()
         yield
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
+    app.include_router(backtest_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")
@@ -114,7 +131,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         return sorted(available_timezones() | {"UTC"})
 
     @app.get("/api/progress/{progress_id}")
-    def get_progress(progress_id: UUID, request: Request):
+    async def get_progress(progress_id: UUID, request: Request):
         state = request.app.state.progress.get(str(progress_id))
         if state is None:
             raise HTTPException(404, "Progress not found. The server may have restarted.")

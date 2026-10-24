@@ -153,6 +153,10 @@ Generate and independently check all nine reviewed fixtures, retaining isolated 
 .venv/bin/python tests/review_reports.py --output artifacts/report-review
 ```
 
+## Backtest API
+
+The existing server exposes allowlisted strategy discovery, explicit-config backtest execution, live progress, and durable paginated results. See [backtest API commands and behavior](docs/backtest_api.md) for a reproducible saved-fixture run. `POST /api/backtests` stays open while worker-thread processing runs; poll the existing `/api/progress/UUID` endpoint from a separate request. Completed results live in `backtests.sqlite3` and `backtest_runs/` beside the dataset database. The equity endpoint returns starting equity plus one point per completed trade. Portal controls remain a separate subtask.
+
 ## Verify
 
 ```bash
@@ -171,6 +175,9 @@ Tests cover datasets and the portal, reader snapshots and incremental parsing, e
 - `alphaquest/strategies/consecutive_green_hold.py`: sample strategy identity, parameter definitions, and all entry/exit decisions.
 - `alphaquest/reporting.py`: strategy-agnostic summary, reconciliation, and streamed JSON/CSV exports.
 - `alphaquest/run_backtest.py`: sample-strategy command using a saved dataset ID.
+- `alphaquest/backtest_api.py`: validated backtest endpoints and worker orchestration.
+- `alphaquest/backtest_runs.py`: completed-run persistence and indexed result pages.
+- `alphaquest/strategies/registry.py`: code-owned allowlist and script-owned parameter discovery.
 - `alphaquest/app.py`: API and local web server.
 - `alphaquest/web/`: HTML, CSS, JavaScript, and example CSV; no frontend build step or CDN.
 - `tests/`: dataset, API, reader, execution, and strategy checks; runnable fixture reviews.
