@@ -55,7 +55,7 @@ class Bar:
 
 @dataclass(frozen=True, slots=True)
 class Position:
-    """Current long position supplied by the future engine; flat is None."""
+    """Current filled long position supplied by the engine; flat is None."""
 
     contracts: int
     entry_time_utc: datetime
@@ -87,14 +87,21 @@ class ExecutionConfig:
 
 @dataclass(frozen=True, slots=True)
 class EntryIntent:
-    """Request one long entry. No price/fill/cost arithmetic belongs here."""
+    """Request one long entry; optional deadline is strategy-owned metadata.
+
+    The engine records the deadline but never schedules or triggers an exit.
+    No price/fill/cost arithmetic belongs here.
+    """
 
     contracts: int
     reason: str
+    exit_deadline_utc: datetime | None = None
 
     def __post_init__(self):
         _positive_integer("contracts", self.contracts)
         _reason(self.reason)
+        if self.exit_deadline_utc is not None:
+            _utc("exit_deadline_utc", self.exit_deadline_utc)
 
 
 @dataclass(frozen=True, slots=True)

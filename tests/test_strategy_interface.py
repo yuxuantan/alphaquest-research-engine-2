@@ -70,3 +70,15 @@ def test_position_requires_utc_and_keeps_negative_prices_legal():
         replace(position, entry_bar_number=True)
     with pytest.raises(ValueError, match="finite Decimal"):
         replace(position, entry_fill_price=100.25)
+
+
+def test_entry_deadline_is_optional_immutable_utc_metadata():
+    assert EntryIntent(1, "entry").exit_deadline_utc is None
+    deadline = datetime(2026, 1, 5, tzinfo=timezone.utc)
+    entry = EntryIntent(1, "entry", exit_deadline_utc=deadline)
+    assert entry.exit_deadline_utc == deadline
+    with pytest.raises(FrozenInstanceError):
+        entry.exit_deadline_utc = None
+    for stamp in ("2026-01-05", datetime(2026, 1, 5), datetime(2026, 1, 5, tzinfo=timezone(timedelta(hours=8)))):
+        with pytest.raises(ValueError, match="exit_deadline_utc.*UTC"):
+            EntryIntent(1, "entry", exit_deadline_utc=stamp)

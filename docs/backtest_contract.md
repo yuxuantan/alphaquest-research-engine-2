@@ -1,6 +1,6 @@
 # Backtest contract — v1 proposal for review
 
-This document and the fixtures define the proposed behavior for the first backtester. They are review artifacts, not an implemented or approved engine. No strategy, replay engine, or portal backtest feature is introduced by this subtask. Later implementation should follow the reviewed version of this contract.
+This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, and strategy-agnostic execution engine now implement their respective portions; a production sample strategy, reports, and portal backtest controls remain separate subtasks.
 
 ## 1. Dataset and clock
 
@@ -123,7 +123,7 @@ Each completed trade has these fields. `bar_number` is 1-based in data-record or
 | `side` | `long` in this version |
 | `entry_bar_number`, `exit_bar_number` | Data-record ordinals |
 | `entry_time_utc`, `exit_time_utc` | Actual simulated fill timestamps |
-| `exit_deadline_utc` | Entry timestamp plus configured hold minutes |
+| `exit_deadline_utc` | Strategy-supplied deadline; for the sample, entry timestamp plus configured hold minutes |
 | `contracts` | Filled quantity |
 | `entry_reference_price`, `exit_reference_price` | Observed closes used as fill references |
 | `entry_fill_price`, `exit_fill_price` | Prices after adverse slippage |
@@ -135,6 +135,16 @@ Each completed trade has these fields. `bar_number` is 1-based in data-record or
 | `exit_reason` | `hold_elapsed` or `end_of_data` |
 
 Save the resolved strategy parameters and execution settings with each eventual run, along with dataset ID/hash, saved source timezone, timestamp convention, and strategy identity/source hash. Do not infer contract settings from a prior run. Trade exports and summaries must use the same underlying fills and arithmetic.
+
+### Execution interface clarification
+
+The initial interface omitted a way to carry the required deadline into trade records. `EntryIntent` now accepts optional `exit_deadline_utc` metadata, as an aware UTC datetime. A supplied deadline cannot precede the actual entry timestamp. The sample strategy will supply its deadline; a strategy without a deadline may leave it `None` (reported as null). The engine records this value without calculating a holding period or triggering an exit. This does not change any reviewed fixture's decisions or expectations. The current `Position` exposes the actual filled quantity, price, bar number, and entry timestamp.
+
+`alphaquest.execution.execute(bars, strategy, execution_config)` yields immutable `Trade` and `EquityPoint` records. Equity points also expose `realized_net_pnl` as defined in section 5. Monetary operations use operand-derived Decimal precision and do not depend on the strategy's or consumer's Decimal context. No intermediate monetary rounding or second slippage deduction occurs.
+
+The stream retains one equity point until the next observed bar or normal EOF, so the final point includes the `on_finish` fill without emitting a duplicate final point. A trade is emitted when closed, before its associated equity point. The engine pulls no next bar before the current callback and fill have completed. The strategy API supplies no dataset handle or future rows; it is an input boundary, not a Python security sandbox.
+
+Exhaust the stream inside the reader's resource context before treating a run as complete. Previously emitted events are provisional if the reader, strategy, or engine later raises. Invalid input is not normal EOF and does not trigger `on_finish`. An empty input is rejected. Stopping early does not invoke `on_finish`; the caller owns input-resource cleanup. Only one ordinary intent per bar is supported. Entries while holding, closes while flat, unknown/multiple intents, and an entry from `on_finish` raise explicit errors. A successful stream must end flat.
 
 Summary definitions:
 
@@ -189,4 +199,4 @@ All fixture dates are January 5, 2026. UTC is the saved source timezone except f
 - `breakeven_after_costs`: positive reference/gross P&L is not a winning trade after costs. One breakeven trade gives 0/1 = 0% win rate.
 - `last_bar_entry`: entry cash/equity are 9998/9993 immediately after the buy; the following same-time sell leaves 9986. The final bar's stored equity point is 9986.
 
-Review these rules and artifacts before implementing the reader/interface in the next subtask. This document makes no claim that the future engine already passes these cases.
+The execution review command in `tests/review_execution.py` uses predetermined, test-only intent schedules and compares every trade field and equity point with these independent expectations. It checks execution at known decisions, not the correctness of the future sample strategy's green-bar, reset, or holding-period decisions.

@@ -1,6 +1,6 @@
 # AlphaQuest Research Engine 02
 
-A small local research portal. This first increment implements the web interface and CSV dataset management. Strategy execution, slippage, commissions, trades, and performance reports belong to the next component, after review.
+A small local research portal with CSV dataset management, a streaming backtest dataset reader, and a strategy-agnostic execution engine. The production sample strategy, performance reports, and portal backtest controls are pending separate review.
 
 ## Run
 
@@ -76,7 +76,31 @@ with read_bars(store, dataset_id) as bars:
 
 Each immutable `Bar` carries its 1-based data-record number, UTC close timestamp, original Date/Time strings, seven numeric `Decimal` fields, and `source_fields`, an immutable tuple of all nine decoded CSV cell strings including whitespace and original numeric spelling. Original CSV bytes and saved metadata are unchanged. A partial consumer parses only requested rows; a future complete backtest must exhaust the iterator before finishing. Legacy six-column schemas are rejected with an explicit error. A legacy single-blob record with the supported nine-column schema can still be read in chunks.
 
-`alphaquest/strategy.py` defines immutable `Position`, `ExecutionConfig`, `EntryIntent`, and `CloseIntent` values and the `Strategy` protocol: `on_bar(bar, position)` returns an entry/close intent or `None`; `on_finish(last_bar, position)` returns a close intent or `None`. Flat is `position=None`. Callbacks receive no dataset handle or future-bar collection. Execution settings take explicit finite `Decimal` values, and integer quantities/ticks reject booleans and implicit coercion. There is no execution loop, sample strategy, monetary calculation, or new portal/API feature in this increment. See [the backtest contract](docs/backtest_contract.md).
+`alphaquest/strategy.py` defines immutable `Position`, `ExecutionConfig`, `EntryIntent`, and `CloseIntent` values and the `Strategy` protocol: `on_bar(bar, position)` returns an entry/close intent or `None`; `on_finish(last_bar, position)` returns a close intent or `None`. Flat is `position=None`. Callbacks receive no dataset handle or future-bar collection. Execution settings take explicit finite `Decimal` values, and integer quantities/ticks reject booleans and implicit coercion. See [the backtest contract](docs/backtest_contract.md).
+
+## Backtest execution engine
+
+`alphaquest.execution.execute(bars, strategy, config)` yields immutable `Trade` and `EquityPoint` events incrementally. It fills long entries and full closes at the observed Close with adverse slippage, charges commissions on both sides, and calculates cash and mark-to-market equity using exact Decimal monetary arithmetic. Quantity stays fixed for the life of each position. Entry time/price/quantity passed back to the strategy are actual simulated fills. No green-bar counting, holding period, sizing policy, or implicit liquidation sits in the engine.
+
+Consume the execution stream within `read_bars`' context. Write each event to a chosen sink to keep result memory bounded:
+
+```python
+from alphaquest.execution import execute
+
+with read_bars(store, dataset_id) as bars:
+    for event in execute(bars, strategy, config):
+        print(event)
+```
+
+Same-close execution and bar-close timestamps are explicit simulation assumptions. The stream starts with initial equity, then produces one equity point per bar. It retains one point until the next bar or EOF so the final point includes the strategy's `on_finish` close. An entry on the last bar may therefore close at the same timestamp, with both fills charged. A strategy that leaves exposure open raises an error; earlier emitted results remain provisional until the stream finishes successfully. Unsupported intents and non-chronological input are rejected.
+
+`EntryIntent.exit_deadline_utc` is optional strategy-supplied trade metadata. The engine records it without scheduling an exit. Run the small saved-fixture review with predetermined **test-only** intents (no production strategy or portal changes):
+
+```bash
+.venv/bin/python tests/review_execution.py --output artifacts/execution_review.json
+```
+
+The command creates isolated temporary saved datasets, replays them through the existing reader, checks every trade field and equity point, and prints actual-versus-expected values. The JSON contains complete comparisons. The arithmetic fixture yields fills 100.25/101.75, gross P&L 30, commissions 4, net P&L 26, entry equity 9993, and final equity 10026. The final-bar-entry fixture yields net -14 and final equity 9986. The reviewed CSVs and expected results are unchanged.
 
 ## Verify
 
@@ -84,15 +108,16 @@ Each immutable `Bar` carries its 1-based data-record number, UTC close timestamp
 python -m pytest
 ```
 
-Tests cover invalid datasets, timezone/DST boundaries, UTC ordering, gap reporting, exact-byte persistence across store restarts, concurrent duplicate saves, API validation enforcement, upload size limits, and the validate/save/download workflow.
+Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results.
 
 ## Structure
 
 - `alphaquest/datasets.py`: CSV validation and SQLite storage.
 - `alphaquest/backtest_data.py`: saved-dataset snapshot reader and normalized-bar review command.
 - `alphaquest/strategy.py`: immutable strategy inputs, intents, execution settings, and callback protocol.
+- `alphaquest/execution.py`: streaming long-only fills, trade records, cash, and equity.
 - `alphaquest/app.py`: API and local web server.
 - `alphaquest/web/`: HTML, CSS, JavaScript, and example CSV; no frontend build step or CDN.
-- `tests/`: dataset and API checks using isolated temporary databases.
+- `tests/`: dataset, API, reader, and execution checks; runnable fixture review.
 
 The original [AlphaQuest repository](https://github.com/yuxuantan/alphaquest-research-engine) was consulted for context. This increment uses a small new implementation, with no imported governance, campaign, or backtest framework.
