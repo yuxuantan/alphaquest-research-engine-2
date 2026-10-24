@@ -1,6 +1,6 @@
 # AlphaQuest Research Engine 02
 
-A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, and a consecutive-green-bars sample strategy. Performance reports and portal backtest controls are pending separate review.
+A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. Portal backtest controls are pending separate review.
 
 ## Run
 
@@ -122,13 +122,44 @@ Run the actual strategy against all nine reviewed fixtures:
 
 The command checks every expected trade field and equity point using the saved-dataset reader and unchanged execution engine. It prints every entry and exit with its reason, writes complete comparisons to JSON, and saves the table to `artifacts/strategy_review.md`. Expected trade decisions are used only for comparison after the strategy runs. No performance metrics or portal controls are added by this increment.
 
+## Backtest reports
+
+Run the sample strategy on an existing saved dataset ID, with explicit synthetic or instrument execution settings:
+
+```bash
+.venv/bin/python -m alphaquest.run_backtest \
+  --database data/datasets.sqlite3 --dataset-id YOUR_DATASET_ID \
+  --output artifacts/my-backtest \
+  --green-bar-count 3 --hold-minutes 20 --contracts 2 \
+  --initial-capital 10000 --tick-size 0.25 --point-value 10 \
+  --slippage-ticks 1 --commission-per-contract-per-side 1
+```
+
+These example execution settings describe the synthetic fixtures, not NQ or another real instrument. The command uses the dataset's saved timezone and preserves the source CSV/metadata. `--output` must name a new directory. It writes:
+
+- `report.json`: summary, reconciliation checks, full trade records, and the complete equity curve. It records resolved execution/strategy settings, dataset ID/hash/source timezone, strategy ID/source hash, and the bar-close/same-close assumptions.
+- `trades.csv`: every field from the engine's completed trades, including reference/fill prices, both commissions, gross/net P&L, holding time, deadline, and reasons. Zero trades produces headers only.
+- `equity.csv`: starting equity followed by one row per completed trade, with columns `trade_number,exit_time_utc,net_pnl,equity`. The starting row uses trade number 0, a blank exit timestamp, and zero trade P&L. Each subsequent row records that trade's net P&L and the engine's equity immediately after closing, with all costs included. Breakeven and end-of-data exits each get a row; zero trades produces only the starting row. The full bar-close equity curve remains in `report.json`.
+
+JSON monetary values and financial CSV cells use exact Decimal strings with no display rounding. JSON timestamps use UTC ISO 8601; null timestamps/deadlines become blank CSV cells. Win rate uses **net** winning trades divided by all completed trades, including breakevens. Zero trades produces JSON `null` and the command displays **N/A**. Recurring percentages use 28 significant Decimal digits; integer win/loss/breakeven counts remain authoritative.
+
+The strategy-agnostic reporter consumes engine events once. It preserves engine fills, costs, and equity, aggregates trade values with exact arithmetic, and verifies final equity against initial capital plus summed net P&L. It does not replay a strategy or recalculate fills, costs, or unrealized P&L. JSON arrays and CSV rows stream through disk-backed staging files, so memory does not grow with result length. A successful complete replay and reconciliation atomically publish the new directory; failures leave no completed report. Existing reports are not overwritten.
+
+Other strategies can use `alphaquest.reporting.generate_report(events, output_directory, config, metadata=..., expected_bar_count=...)`. Consume the complete engine iterator inside the dataset reader's context; pass the saved row count so a truncated flat stream cannot masquerade as a full run. The returned manifest contains the summary/checks; the on-disk JSON additionally contains full trade/equity arrays.
+
+Generate and independently check all nine reviewed fixtures, retaining isolated saved datasets and each report for inspection:
+
+```bash
+.venv/bin/python tests/review_reports.py --output artifacts/report-review
+```
+
 ## Verify
 
 ```bash
 python -m pytest
 ```
 
-Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter.
+Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter. Report checks compare every summary/trade/equity field and CSV row with independent expectations, verify reconciliations and precision, and exercise failure cleanup and bounded-memory export.
 
 ## Structure
 
@@ -136,7 +167,10 @@ Tests cover datasets and the portal, reader snapshots and incremental parsing, e
 - `alphaquest/backtest_data.py`: saved-dataset snapshot reader and normalized-bar review command.
 - `alphaquest/strategy.py`: immutable strategy inputs, intents, execution settings, and callback protocol.
 - `alphaquest/execution.py`: streaming long-only fills, trade records, cash, and equity.
+- `alphaquest/decimal_math.py`: exact shared Decimal addition, subtraction, and multiplication.
 - `alphaquest/strategies/consecutive_green_hold.py`: sample strategy identity, parameter definitions, and all entry/exit decisions.
+- `alphaquest/reporting.py`: strategy-agnostic summary, reconciliation, and streamed JSON/CSV exports.
+- `alphaquest/run_backtest.py`: sample-strategy command using a saved dataset ID.
 - `alphaquest/app.py`: API and local web server.
 - `alphaquest/web/`: HTML, CSS, JavaScript, and example CSV; no frontend build step or CDN.
 - `tests/`: dataset, API, reader, execution, and strategy checks; runnable fixture reviews.

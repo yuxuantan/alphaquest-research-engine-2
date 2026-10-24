@@ -3,9 +3,10 @@
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from decimal import Context, Decimal, Inexact, InvalidOperation, MAX_EMAX, MIN_EMIN, Overflow
+from decimal import Context, Decimal
 from typing import Literal
 
+from .decimal_math import add as _add, multiply as _mul, subtract as _sub
 from .strategy import Bar, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
 
 
@@ -52,30 +53,6 @@ class EquityPoint:
     unrealized_pnl: Decimal
     equity: Decimal
     position_contracts: int
-
-
-def _context(precision: int) -> Context:
-    # Independent of caller/strategy Decimal settings. Never leave a localcontext
-    # active across a yield. Sufficient operand-derived precision avoids silently
-    # rounding accepted CSV prices with more than the default 28 digits.
-    return Context(prec=max(1, precision), Emin=MIN_EMIN, Emax=MAX_EMAX,
-                   traps=[Inexact, InvalidOperation, Overflow])
-
-
-def _sum_context(a: Decimal, b: Decimal) -> Context:
-    return _context(max(a.adjusted(), b.adjusted()) - min(a.as_tuple().exponent, b.as_tuple().exponent) + 2)
-
-
-def _add(a: Decimal, b: Decimal) -> Decimal:
-    return _sum_context(a, b).add(a, b)
-
-
-def _sub(a: Decimal, b: Decimal) -> Decimal:
-    return _sum_context(a, b).subtract(a, b)
-
-
-def _mul(a: Decimal, b: Decimal) -> Decimal:
-    return _context(len(a.as_tuple().digits) + len(b.as_tuple().digits)).multiply(a, b)
 
 
 def _pnl(exit_price: Decimal, entry_price: Decimal, contracts: int, point_value: Decimal) -> Decimal:

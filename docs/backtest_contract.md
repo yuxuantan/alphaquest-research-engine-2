@@ -1,6 +1,6 @@
 # Backtest contract — v1 proposal for review
 
-This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, and consecutive-green-bars sample strategy now implement their respective portions; reports and portal backtest controls remain separate subtasks.
+This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, and report generation now implement their respective portions; portal backtest controls remain a separate subtask.
 
 ## 1. Dataset and clock
 
@@ -155,6 +155,16 @@ Summary definitions:
 - With a completed flat run, `final_equity = initial_capital + total_net_pnl` and `total_net_pnl = sum(trade.net_pnl)`.
 - With zero trades: all monetary totals and trade counts are zero, equity stays at initial capital, the trade array is empty, and no dummy trade is created.
 
+### Report artifacts and precision
+
+`alphaquest.reporting.generate_report` consumes a complete engine event stream independently of the strategy. It writes `report.json` (summary, provenance/configuration, reconciliation results, full trades, and full equity), `trades.csv`, and `equity.csv`. It copies the engine's trade and equity values and only aggregates authoritative trade fields; it does not recalculate fills, costs, or unrealized P&L. Shared exact Decimal arithmetic supports both execution and aggregation without relying on the caller's Decimal precision.
+
+Following the requested export change, `equity.csv` contains **starting equity and one row after each completed trade**, rather than one row per observed bar. Its columns are `trade_number,exit_time_utc,net_pnl,equity`. The starting row is trade number 0 with a blank exit timestamp, zero trade P&L, and initial equity. A trade row uses the trade's exact net P&L and its corresponding engine equity point after closing and charging all costs. Include breakeven trades and end-of-data exits, even when entry/exit timestamps coincide. Zero trades produces just the starting row. The engine and `report.json` retain the bar-close curve defined in section 5, including unrealized P&L, for reconciliation.
+
+Store monetary values as decimal strings and timestamps as UTC ISO 8601. The initial JSON equity timestamp remains null; null values become blank CSV cells. A zero-trade CSV has the normal trade header and no data rows. A recurring win-rate percentage is represented with 28 significant Decimal digits using round-half-even; counts remain exact and authoritative. Zero-trade win rate remains null, displayed as N/A by the command.
+
+The reporter streams arrays/rows to temporary files, validates a flat final point and all P&L/equity reconciliations, then publishes a new output directory. It rejects an existing output directory and leaves no completed report if replay or validation fails. The caller should supply the saved row count, which is checked against the final observed bar number. `alphaquest.run_backtest` wires the existing reader, sample strategy, engine, and reporter together, records dataset and strategy hashes/settings, and always supplies that row count.
+
 ## 7. Hand-checkable fixtures
 
 Files live in [`tests/fixtures/backtest_contract/`](../tests/fixtures/backtest_contract/). [`expected.json`](../tests/fixtures/backtest_contract/expected.json) contains each fixture's complete resolved settings, expected trades, summary, and full equity path. [`expected_trades.csv`](../tests/fixtures/backtest_contract/expected_trades.csv) is a flat review table of all expected trades. The CSVs are source bars, not engine-generated outputs. The expectations were manually specified and checked by standalone arithmetic; they were not produced by replaying an implemented strategy.
@@ -202,3 +212,5 @@ All fixture dates are January 5, 2026. UTC is the saved source timezone except f
 The execution review command in `tests/review_execution.py` uses predetermined, test-only intent schedules and compares every trade field and equity point with these independent expectations. It checks execution at known decisions, independently of sample strategy logic.
 
 The separate command in `tests/review_strategy.py` instantiates `ConsecutiveGreenHold` from `alphaquest/strategies/consecutive_green_hold.py` using each fixture's parameters. It reads the saved CSV through the existing reader, executes the actual strategy through the unchanged engine, and only then compares all trade fields and equity points. It prints an entry/exit table with reasons. The original source fixtures and expectations are unchanged.
+
+`tests/review_reports.py` runs the same strategy on saved fixture IDs and checks every summary field, full trade record, equity point, and CSV row against the independent expectations. Generated reports and isolated saved fixture databases remain in the requested output directory for review.
