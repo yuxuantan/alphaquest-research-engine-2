@@ -1,0 +1,1085 @@
+{
+  "contract_version": "v1-proposal-for-review",
+  "expectation_source": "Manually specified source bars, trade decisions, monetary results, and equity checkpoints. No replay engine or signal generator was used.",
+  "monetary_unit": "Synthetic currency units (CU); not real instrument specifications.",
+  "strategy_id": "consecutive_green_hold",
+  "fixtures": [
+    {
+      "id": "arithmetic_5m",
+      "csv": "arithmetic_5m.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 2
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 1,
+        "commission_per_contract_per_side": "1"
+      },
+      "bar_count": 7,
+      "review_notes": "Five-minute bars; target 20-minute hold means four timestamp intervals, not 20 bars. Entry equity 9993 includes entry commission and adverse fill.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 7,
+          "entry_time_utc": "2026-01-05T10:10:00Z",
+          "exit_deadline_utc": "2026-01-05T10:30:00Z",
+          "exit_time_utc": "2026-01-05T10:30:00Z",
+          "contracts": 2,
+          "entry_reference_price": "100",
+          "entry_fill_price": "100.25",
+          "exit_reference_price": "102",
+          "exit_fill_price": "101.75",
+          "entry_commission": "2",
+          "exit_commission": "2",
+          "total_commissions": "4",
+          "reference_gross_pnl": "40",
+          "slippage_cost": "10",
+          "gross_pnl": "30",
+          "net_pnl": "26",
+          "actual_holding_minutes": "20",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10026",
+        "trades_taken": 1,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "breakeven_trades": 0,
+        "win_rate_pct": "100",
+        "total_gross_pnl": "30",
+        "total_slippage_cost": "10",
+        "total_commissions": "4",
+        "total_net_pnl": "26",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:05:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:10:00Z",
+          "cash_balance": "9998",
+          "unrealized_pnl": "-5",
+          "equity": "9993",
+          "position_contracts": 2
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T10:15:00Z",
+          "cash_balance": "9998",
+          "unrealized_pnl": "15",
+          "equity": "10013",
+          "position_contracts": 2
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T10:20:00Z",
+          "cash_balance": "9998",
+          "unrealized_pnl": "5",
+          "equity": "10003",
+          "position_contracts": 2
+        },
+        {
+          "bar_number": 6,
+          "timestamp_utc": "2026-01-05T10:25:00Z",
+          "cash_balance": "9998",
+          "unrealized_pnl": "25",
+          "equity": "10023",
+          "position_contracts": 2
+        },
+        {
+          "bar_number": 7,
+          "timestamp_utc": "2026-01-05T10:30:00Z",
+          "cash_balance": "10026",
+          "unrealized_pnl": "0",
+          "equity": "10026",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "doji_and_red_reset",
+      "csv": "doji_and_red_reset.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 2,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 0,
+        "commission_per_contract_per_side": "0"
+      },
+      "bar_count": 11,
+      "review_notes": "Doji at bar 3 and red at bar 6 each reset a two-green streak. First entry is bar 9.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 9,
+          "exit_bar_number": 11,
+          "entry_time_utc": "2026-01-05T10:08:00Z",
+          "exit_deadline_utc": "2026-01-05T10:10:00Z",
+          "exit_time_utc": "2026-01-05T10:10:00Z",
+          "contracts": 1,
+          "entry_reference_price": "105",
+          "entry_fill_price": "105",
+          "exit_reference_price": "107",
+          "exit_fill_price": "107",
+          "entry_commission": "0",
+          "exit_commission": "0",
+          "total_commissions": "0",
+          "reference_gross_pnl": "20",
+          "slippage_cost": "0",
+          "gross_pnl": "20",
+          "net_pnl": "20",
+          "actual_holding_minutes": "2",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10020",
+        "trades_taken": 1,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "breakeven_trades": 0,
+        "win_rate_pct": "100",
+        "total_gross_pnl": "20",
+        "total_slippage_cost": "0",
+        "total_commissions": "0",
+        "total_net_pnl": "20",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:02:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T10:03:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T10:04:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 6,
+          "timestamp_utc": "2026-01-05T10:05:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 7,
+          "timestamp_utc": "2026-01-05T10:06:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 8,
+          "timestamp_utc": "2026-01-05T10:07:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 9,
+          "timestamp_utc": "2026-01-05T10:08:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 10,
+          "timestamp_utc": "2026-01-05T10:09:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "10",
+          "equity": "10010",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 11,
+          "timestamp_utc": "2026-01-05T10:10:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "0",
+          "equity": "10020",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "no_pyramiding",
+      "csv": "no_pyramiding.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 2,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 0,
+        "commission_per_contract_per_side": "0"
+      },
+      "bar_count": 10,
+      "review_notes": "All ten bars are green. No entry while holding or on an exit bar. Bars 6–8 supply the new streak for trade 2.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 5,
+          "entry_time_utc": "2026-01-05T10:02:00Z",
+          "exit_deadline_utc": "2026-01-05T10:04:00Z",
+          "exit_time_utc": "2026-01-05T10:04:00Z",
+          "contracts": 1,
+          "entry_reference_price": "102",
+          "entry_fill_price": "102",
+          "exit_reference_price": "104",
+          "exit_fill_price": "104",
+          "entry_commission": "0",
+          "exit_commission": "0",
+          "total_commissions": "0",
+          "reference_gross_pnl": "20",
+          "slippage_cost": "0",
+          "gross_pnl": "20",
+          "net_pnl": "20",
+          "actual_holding_minutes": "2",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        },
+        {
+          "trade_number": 2,
+          "side": "long",
+          "entry_bar_number": 8,
+          "exit_bar_number": 10,
+          "entry_time_utc": "2026-01-05T10:07:00Z",
+          "exit_deadline_utc": "2026-01-05T10:09:00Z",
+          "exit_time_utc": "2026-01-05T10:09:00Z",
+          "contracts": 1,
+          "entry_reference_price": "107",
+          "entry_fill_price": "107",
+          "exit_reference_price": "109",
+          "exit_fill_price": "109",
+          "entry_commission": "0",
+          "exit_commission": "0",
+          "total_commissions": "0",
+          "reference_gross_pnl": "20",
+          "slippage_cost": "0",
+          "gross_pnl": "20",
+          "net_pnl": "20",
+          "actual_holding_minutes": "2",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10040",
+        "trades_taken": 2,
+        "winning_trades": 2,
+        "losing_trades": 0,
+        "breakeven_trades": 0,
+        "win_rate_pct": "100",
+        "total_gross_pnl": "40",
+        "total_slippage_cost": "0",
+        "total_commissions": "0",
+        "total_net_pnl": "40",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:02:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T10:03:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "10",
+          "equity": "10010",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T10:04:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "0",
+          "equity": "10020",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 6,
+          "timestamp_utc": "2026-01-05T10:05:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "0",
+          "equity": "10020",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 7,
+          "timestamp_utc": "2026-01-05T10:06:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "0",
+          "equity": "10020",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 8,
+          "timestamp_utc": "2026-01-05T10:07:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "0",
+          "equity": "10020",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 9,
+          "timestamp_utc": "2026-01-05T10:08:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "10",
+          "equity": "10030",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 10,
+          "timestamp_utc": "2026-01-05T10:09:00Z",
+          "cash_balance": "10040",
+          "unrealized_pnl": "0",
+          "equity": "10040",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "gap_deadline",
+      "csv": "gap_deadline.csv",
+      "source_timezone": "America/New_York",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 0,
+        "commission_per_contract_per_side": "0"
+      },
+      "bar_count": 6,
+      "review_notes": "Source 14:02 is UTC 19:02 in the saved New York timezone. Deadline UTC 19:22 lies in the gap; exit UTC 19:42 is 20 minutes late and uses the actual observed close.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 6,
+          "entry_time_utc": "2026-01-05T19:02:00Z",
+          "exit_deadline_utc": "2026-01-05T19:22:00Z",
+          "exit_time_utc": "2026-01-05T19:42:00Z",
+          "contracts": 1,
+          "entry_reference_price": "100",
+          "entry_fill_price": "100",
+          "exit_reference_price": "103",
+          "exit_fill_price": "103",
+          "entry_commission": "0",
+          "exit_commission": "0",
+          "total_commissions": "0",
+          "reference_gross_pnl": "30",
+          "slippage_cost": "0",
+          "gross_pnl": "30",
+          "net_pnl": "30",
+          "actual_holding_minutes": "40",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10030",
+        "trades_taken": 1,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "breakeven_trades": 0,
+        "win_rate_pct": "100",
+        "total_gross_pnl": "30",
+        "total_slippage_cost": "0",
+        "total_commissions": "0",
+        "total_net_pnl": "30",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T19:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T19:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T19:02:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T19:07:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "10",
+          "equity": "10010",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T19:17:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "20",
+          "equity": "10020",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 6,
+          "timestamp_utc": "2026-01-05T19:42:00Z",
+          "cash_balance": "10030",
+          "unrealized_pnl": "0",
+          "equity": "10030",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "gap_streak",
+      "csv": "gap_streak.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 0,
+        "commission_per_contract_per_side": "0"
+      },
+      "bar_count": 4,
+      "review_notes": "The first three records are adjacent observed greens despite a 39-minute gap before bar 3. Final-bar exit meets its deadline, so its reason is hold_elapsed.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 4,
+          "entry_time_utc": "2026-01-05T10:40:00Z",
+          "exit_deadline_utc": "2026-01-05T11:00:00Z",
+          "exit_time_utc": "2026-01-05T11:00:00Z",
+          "contracts": 1,
+          "entry_reference_price": "100",
+          "entry_fill_price": "100",
+          "exit_reference_price": "102",
+          "exit_fill_price": "102",
+          "entry_commission": "0",
+          "exit_commission": "0",
+          "total_commissions": "0",
+          "reference_gross_pnl": "20",
+          "slippage_cost": "0",
+          "gross_pnl": "20",
+          "net_pnl": "20",
+          "actual_holding_minutes": "20",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10020",
+        "trades_taken": 1,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "breakeven_trades": 0,
+        "win_rate_pct": "100",
+        "total_gross_pnl": "20",
+        "total_slippage_cost": "0",
+        "total_commissions": "0",
+        "total_net_pnl": "20",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:40:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T11:00:00Z",
+          "cash_balance": "10020",
+          "unrealized_pnl": "0",
+          "equity": "10020",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "end_of_data",
+      "csv": "end_of_data.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 0,
+        "commission_per_contract_per_side": "0"
+      },
+      "bar_count": 5,
+      "review_notes": "Red bars while holding do not themselves request exits. on_finish closes at the final available price before the 20-minute deadline.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 5,
+          "entry_time_utc": "2026-01-05T10:02:00Z",
+          "exit_deadline_utc": "2026-01-05T10:22:00Z",
+          "exit_time_utc": "2026-01-05T10:04:00Z",
+          "contracts": 1,
+          "entry_reference_price": "100",
+          "entry_fill_price": "100",
+          "exit_reference_price": "98",
+          "exit_fill_price": "98",
+          "entry_commission": "0",
+          "exit_commission": "0",
+          "total_commissions": "0",
+          "reference_gross_pnl": "-20",
+          "slippage_cost": "0",
+          "gross_pnl": "-20",
+          "net_pnl": "-20",
+          "actual_holding_minutes": "2",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "end_of_data"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "9980",
+        "trades_taken": 1,
+        "winning_trades": 0,
+        "losing_trades": 1,
+        "breakeven_trades": 0,
+        "win_rate_pct": "0",
+        "total_gross_pnl": "-20",
+        "total_slippage_cost": "0",
+        "total_commissions": "0",
+        "total_net_pnl": "-20",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:02:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T10:03:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "-10",
+          "equity": "9990",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T10:04:00Z",
+          "cash_balance": "9980",
+          "unrealized_pnl": "0",
+          "equity": "9980",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "no_trades",
+      "csv": "no_trades.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 0,
+        "commission_per_contract_per_side": "0"
+      },
+      "bar_count": 5,
+      "review_notes": "The doji at bar 3 resets the initial two greens. No entry, no dummy trade, no costs, and undefined win rate (null/N/A).",
+      "expected_trades": [],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10000",
+        "trades_taken": 0,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "breakeven_trades": 0,
+        "win_rate_pct": null,
+        "total_gross_pnl": "0",
+        "total_slippage_cost": "0",
+        "total_commissions": "0",
+        "total_net_pnl": "0",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:02:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T10:03:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T10:04:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "breakeven_after_costs",
+      "csv": "breakeven_after_costs.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 2,
+        "contracts": 1
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 1,
+        "commission_per_contract_per_side": "1.25"
+      },
+      "bar_count": 5,
+      "review_notes": "Gross 2.50 exactly offsets commissions 2.50. Net zero is breakeven, included in the denominator, so win rate is 0/1 = 0%.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 5,
+          "entry_time_utc": "2026-01-05T10:02:00Z",
+          "exit_deadline_utc": "2026-01-05T10:04:00Z",
+          "exit_time_utc": "2026-01-05T10:04:00Z",
+          "contracts": 1,
+          "entry_reference_price": "100",
+          "entry_fill_price": "100.25",
+          "exit_reference_price": "100.75",
+          "exit_fill_price": "100.50",
+          "entry_commission": "1.25",
+          "exit_commission": "1.25",
+          "total_commissions": "2.50",
+          "reference_gross_pnl": "7.50",
+          "slippage_cost": "5",
+          "gross_pnl": "2.50",
+          "net_pnl": "0",
+          "actual_holding_minutes": "2",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "hold_elapsed"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "10000",
+        "trades_taken": 1,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "breakeven_trades": 1,
+        "win_rate_pct": "0",
+        "total_gross_pnl": "2.50",
+        "total_slippage_cost": "5",
+        "total_commissions": "2.50",
+        "total_net_pnl": "0",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:02:00Z",
+          "cash_balance": "9998.75",
+          "unrealized_pnl": "-2.50",
+          "equity": "9996.25",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 4,
+          "timestamp_utc": "2026-01-05T10:03:00Z",
+          "cash_balance": "9998.75",
+          "unrealized_pnl": "0",
+          "equity": "9998.75",
+          "position_contracts": 1
+        },
+        {
+          "bar_number": 5,
+          "timestamp_utc": "2026-01-05T10:04:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        }
+      ]
+    },
+    {
+      "id": "last_bar_entry",
+      "csv": "last_bar_entry.csv",
+      "source_timezone": "UTC",
+      "timestamp_convention": "bar_close",
+      "strategy_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 2
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 1,
+        "commission_per_contract_per_side": "1"
+      },
+      "bar_count": 3,
+      "review_notes": "Final bar triggers an entry, then on_finish triggers the exit at the same timestamp. Entry then exit; entry cash/equity 9998/9993; final cash/equity 9986/9986. Both sides incur slippage and commission.",
+      "expected_trades": [
+        {
+          "trade_number": 1,
+          "side": "long",
+          "entry_bar_number": 3,
+          "exit_bar_number": 3,
+          "entry_time_utc": "2026-01-05T10:02:00Z",
+          "exit_deadline_utc": "2026-01-05T10:22:00Z",
+          "exit_time_utc": "2026-01-05T10:02:00Z",
+          "contracts": 2,
+          "entry_reference_price": "100",
+          "entry_fill_price": "100.25",
+          "exit_reference_price": "100",
+          "exit_fill_price": "99.75",
+          "entry_commission": "2",
+          "exit_commission": "2",
+          "total_commissions": "4",
+          "reference_gross_pnl": "0",
+          "slippage_cost": "10",
+          "gross_pnl": "-10",
+          "net_pnl": "-14",
+          "actual_holding_minutes": "0",
+          "entry_reason": "consecutive_green",
+          "exit_reason": "end_of_data"
+        }
+      ],
+      "expected_summary": {
+        "initial_capital": "10000",
+        "final_equity": "9986",
+        "trades_taken": 1,
+        "winning_trades": 0,
+        "losing_trades": 1,
+        "breakeven_trades": 0,
+        "win_rate_pct": "0",
+        "total_gross_pnl": "-10",
+        "total_slippage_cost": "10",
+        "total_commissions": "4",
+        "total_net_pnl": "-14",
+        "ending_position_contracts": 0
+      },
+      "expected_equity": [
+        {
+          "bar_number": 0,
+          "timestamp_utc": null,
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 1,
+          "timestamp_utc": "2026-01-05T10:00:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 2,
+          "timestamp_utc": "2026-01-05T10:01:00Z",
+          "cash_balance": "10000",
+          "unrealized_pnl": "0",
+          "equity": "10000",
+          "position_contracts": 0
+        },
+        {
+          "bar_number": 3,
+          "timestamp_utc": "2026-01-05T10:02:00Z",
+          "cash_balance": "9986",
+          "unrealized_pnl": "0",
+          "equity": "9986",
+          "position_contracts": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Upload, validate, and save market datasets in your local AlphaQuest research workspace."
+    />
+    <title>Datasets · AlphaQuest</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="AlphaQuest home"
+        ><span class="brand-mark">a<span>q</span></span
+        ><span
+          >AlphaQuest<span class="brand-sub">RESEARCH ENGINE</span></span
+        ></a
+      >
+      <div class="workspace">
+        <span class="workspace-icon">A</span>
+        <div>Personal workspace<small>Local research</small></div>
+        <span class="local-dot"></span>
+      </div>
+      <p class="nav-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">
+        <a class="nav-item active" href="/" aria-current="page"
+          ><span class="nav-icon">▤</span>Datasets<span
+            class="nav-count"
+            id="nav-count"
+            >0</span
+          ></a
+        >
+        <span class="nav-item unavailable"
+          ><span class="nav-icon">↗</span>Backtests<span class="soon"
+            >NEXT STEP</span
+          ></span
+        >
+      </nav>
+      <div class="sidebar-footer">
+        <span class="local-dot"></span>
+        <div>
+          Stored on this computer<small
+            >Your CSVs stay in this workspace.</small
+          >
+        </div>
+      </div>
+    </aside>
+    <div class="main-shell">
+      <header class="topbar">
+        <span
+          >Workspace <span class="breadcrumb-slash">/</span>
+          <strong>Datasets</strong></span
+        ><span class="version">ALPHAQUEST <span>02</span></span>
+      </header>
+      <main>
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">YOUR RESEARCH STARTS HERE</div>
+            <h1>Dataset library<span class="heading-dot">.</span></h1>
+            <p>Bring your market data. Make sure it’s ready.</p>
+          </div>
+          <a
+            class="button secondary sample-link"
+            href="/static/example.csv"
+            download="ohlcv-example.csv"
+            ><span aria-hidden="true">↓</span> Download example</a
+          >
+        </div>
+        <section class="stats" aria-label="Library overview">
+          <div class="stat">
+            <span class="stat-label">SAVED DATASETS</span>
+            <div>
+              <strong id="dataset-count">0</strong
+              ><span class="stat-caption">in your library</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="stat-label">TOTAL BARS</span>
+            <div>
+              <strong id="bar-count">0</strong
+              ><span class="stat-caption">validated rows</span>
+            </div>
+          </div>
+          <div class="stat format-stat">
+            <span class="stat-label">DATA CONTRACT</span>
+            <div>
+              <strong>OHLCV</strong
+              ><span class="pill neutral">CSV · 9 columns</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="upload-layout">
+          <section class="panel upload-panel" aria-labelledby="upload-heading">
+            <div class="panel-heading">
+              <div>
+                <span class="step-number">01</span>
+                <h2 id="upload-heading">Add a dataset</h2>
+              </div>
+              <span class="muted small">Validate before saving</span>
+            </div>
+            <form id="upload-form">
+              <label class="dropzone" id="dropzone" for="csv-file">
+                <input type="file" id="csv-file" accept=".csv,text/csv" />
+                <span class="upload-icon" aria-hidden="true">↥</span>
+                <strong id="file-label"
+                  >Drop your CSV here, or <span>browse files</span></strong
+                >
+                <span id="file-hint">UTF-8 CSV · Up to 1 GB</span>
+              </label>
+              <div class="fields">
+                <label
+                  >Dataset name<input
+                    id="dataset-name"
+                    name="name"
+                    placeholder="e.g. ES · 1 minute · January 2026"
+                    maxlength="120"
+                    required
+                    autocomplete="off" /></label
+                ><label
+                  >Symbol <span class="optional">optional</span
+                  ><input
+                    id="symbol"
+                    name="symbol"
+                    placeholder="e.g. ES"
+                    maxlength="40"
+                    autocomplete="off"
+                /></label>
+              </div>
+              <label class="timezone-label" for="source-timezone"
+                >Source timezone</label
+              >
+              <select
+                id="source-timezone"
+                name="source_timezone"
+                required
+                aria-describedby="timezone-help"
+              >
+                <optgroup label="Common timezones">
+                  <option value="UTC" selected>UTC</option>
+                  <option value="America/New_York">America/New_York</option>
+                  <option value="America/Chicago">America/Chicago</option>
+                  <option value="Europe/London">Europe/London</option>
+                  <option value="Asia/Singapore">Asia/Singapore</option>
+                  <option value="Asia/Hong_Kong">Asia/Hong_Kong</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo</option>
+                  <option value="Australia/Sydney">Australia/Sydney</option>
+                </optgroup>
+              </select>
+              <p class="field-help" id="timezone-help">
+                Timezone of the CSV’s Date and Time columns. The preview also
+                shows the combined timestamp in UTC.
+              </p>
+              <div class="form-actions">
+                <span class="small muted" id="form-hint"
+                  >Choose a file to get started.</span
+                ><button
+                  class="button primary"
+                  id="validate-button"
+                  type="submit"
+                  disabled
+                >
+                  Validate CSV <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </form>
+            <div id="operation-progress" class="operation-progress" hidden>
+              <div class="progress-heading" role="status" aria-live="polite">
+                <strong id="progress-title"></strong>
+                <span id="progress-percent"></span>
+              </div>
+              <progress
+                id="progress-bar"
+                max="100"
+                aria-label="Current dataset operation"
+              ></progress>
+              <div class="progress-details">
+                <span id="progress-detail"></span
+                ><span id="progress-elapsed"></span>
+              </div>
+            </div>
+            <div id="validation-result" hidden aria-live="polite"></div>
+          </section>
+
+          <aside class="panel format-panel" aria-labelledby="format-heading">
+            <div class="format-kicker">
+              <span class="code-icon">&lt;/&gt;</span> THE EXPECTED FORMAT
+            </div>
+            <h2 id="format-heading">Nine columns.<br />One clear contract.</h2>
+            <p>Use these exact headers and capitalization, in this order.</p>
+            <div class="schema">
+              <div>
+                <span class="schema-index">01</span><code>Date</code
+                ><span>MM/DD/YYYY</span>
+              </div>
+              <div>
+                <span class="schema-index">02</span><code>Time</code
+                ><span>HH:MM · 24-hour</span>
+              </div>
+              <div>
+                <span class="schema-index">03</span><code>Open</code
+                ><span>number</span>
+              </div>
+              <div>
+                <span class="schema-index">04</span><code>High</code
+                ><span>number</span>
+              </div>
+              <div>
+                <span class="schema-index">05</span><code>Low</code
+                ><span>number</span>
+              </div>
+              <div>
+                <span class="schema-index">06</span><code>Close</code
+                ><span>number</span>
+              </div>
+              <div>
+                <span class="schema-index">07</span><code>Volume</code
+                ><span>number ≥ 0</span>
+              </div>
+              <div>
+                <span class="schema-index">08</span><code>UpVol</code
+                ><span>number ≥ 0</span>
+              </div>
+              <div>
+                <span class="schema-index">09</span><code>DownVol</code
+                ><span>number ≥ 0</span>
+              </div>
+            </div>
+            <div class="format-note">
+              <span aria-hidden="true">✓</span>
+              <p>
+                Every row is checked for missing values, price consistency, and
+                unique timestamps in chronological order.
+              </p>
+            </div>
+            <p class="small muted format-footnote">
+              Gaps stay as supplied. No sorting, resampling, or filling.
+            </p>
+          </aside>
+        </div>
+
+        <section class="panel library-panel" aria-labelledby="library-heading">
+          <div class="panel-heading">
+            <div>
+              <h2 id="library-heading">Saved datasets</h2>
+              <span class="pill neutral" id="library-count">0</span>
+            </div>
+            <span class="small muted">Original CSV + generated metadata</span>
+          </div>
+          <div id="library-status" role="status"></div>
+          <div id="library"></div>
+        </section>
+        <footer class="page-footer">
+          <span>AlphaQuest Research Engine 02</span
+          ><span
+            >Dataset management · Component 1 of your research workflow</span
+          >
+        </footer>
+      </main>
+    </div>
+    <dialog id="dataset-dialog" aria-labelledby="detail-title">
+      <div class="dialog-heading">
+        <div>
+          <span class="eyebrow">DATASET DETAILS</span>
+          <h2 id="detail-title"></h2>
+        </div>
+        <button
+          type="button"
+          class="icon-button"
+          id="close-dialog"
+          aria-label="Close dataset details"
+        >
+          ×
+        </button>
+      </div>
+      <div id="detail-content"></div>
+    </dialog>
+  </body>
+</html>
