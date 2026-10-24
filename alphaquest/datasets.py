@@ -50,6 +50,41 @@ def parse_timestamp(date_value: str, time_value: str, source_zone: ZoneInfo) -> 
     return candidates.pop()
 
 
+def validate_csv_header(header) -> None:
+    if header != COLUMNS:
+        raise InvalidDataset([invalid("The header must be exactly: " + ",".join(COLUMNS), 1)])
+
+
+def parse_csv_row(row: list[str], source_zone: ZoneInfo, previous_timestamp: datetime | None = None, line: int | None = None) -> tuple[datetime, tuple[Decimal, ...]]:
+    """Shared upload/reader rules; return UTC time and seven ordered Decimals."""
+    if len(row) != len(COLUMNS):
+        raise InvalidDataset([invalid("Every row must contain exactly 9 non-empty fields; blank rows are not allowed.", line)])
+    errors = []
+    values = [value.strip() for value in row]
+    timestamp = None
+    try:
+        timestamp = parse_timestamp(values[0], values[1], source_zone)
+        if previous_timestamp is not None and timestamp <= previous_timestamp:
+            raise ValueError("Timestamps must be unique and strictly increasing in UTC; the file is never auto-sorted.")
+    except (ValueError, OverflowError) as exc:
+        errors.append(invalid(str(exc), line, "Date/Time"))
+    numeric = {}
+    for column, value in zip(COLUMNS[2:], values[2:]):
+        if not NUMBER.fullmatch(value):
+            errors.append(invalid("Must be a finite number (no missing values, NaN, or infinity).", line, column))
+        else:
+            numeric[column] = Decimal(value)
+    for column in ("Volume", "UpVol", "DownVol"):
+        if column in numeric and numeric[column] < 0:
+            errors.append(invalid(f"{column} must be non-negative.", line, column))
+    if all(column in numeric for column in ("Open", "High", "Low", "Close")):
+        if not (numeric["Low"] <= min(numeric["Open"], numeric["Close"]) <= max(numeric["Open"], numeric["Close"]) <= numeric["High"]):
+            errors.append(invalid("Require Low ≤ Open/Close ≤ High.", line, "High/Low"))
+    if errors:
+        raise InvalidDataset(errors)
+    return timestamp, tuple(numeric[column] for column in COLUMNS[2:])
+
+
 def validate_csv(raw: bytes, filename: str, source_timezone: str = "UTC") -> dict:
     return validate_csv_file(io.BytesIO(raw), filename, source_timezone)
 
@@ -114,48 +149,27 @@ def _validate_rows(reader, filename, source_timezone, zone, size, sha256, progre
     irregular = False
     rows_checked = 0
     try:
-        if next(reader, None) != COLUMNS:
-            raise InvalidDataset([invalid("The header must be exactly: " + ",".join(COLUMNS), 1)])
+        validate_csv_header(next(reader, None))
         for rows_checked, row in enumerate(reader, 1):
             line = reader.line_num
-            if len(row) != len(COLUMNS):
-                errors.append(invalid("Every row must contain exactly 9 non-empty fields; blank rows are not allowed.", line))
+            try:
+                timestamp, _ = parse_csv_row(row, zone, previous, line)
+            except InvalidDataset as exc:
+                errors.extend(exc.errors)
             else:
-                row_errors = []
                 values = [v.strip() for v in row]
-                timestamp = None
-                try:
-                    timestamp = parse_timestamp(values[0], values[1], zone)
-                    if previous is not None and timestamp <= previous:
-                        raise ValueError("Timestamps must be unique and strictly increasing in UTC; the file is never auto-sorted.")
-                except (ValueError, OverflowError) as exc:
-                    row_errors.append(invalid(str(exc), line, "Date/Time"))
-                numeric = {}
-                for column, value in zip(COLUMNS[2:], values[2:]):
-                    if not NUMBER.fullmatch(value):
-                        row_errors.append(invalid("Must be a finite number (no missing values, NaN, or infinity).", line, column))
-                    else:
-                        numeric[column] = Decimal(value)
-                for column in ("Volume", "UpVol", "DownVol"):
-                    if column in numeric and numeric[column] < 0:
-                        row_errors.append(invalid(f"{column} must be non-negative.", line, column))
-                if all(column in numeric for column in ("Open", "High", "Low", "Close")):
-                    if not (numeric["Low"] <= min(numeric["Open"], numeric["Close"]) <= max(numeric["Open"], numeric["Close"]) <= numeric["High"]):
-                        row_errors.append(invalid("Require Low ≤ Open/Close ≤ High.", line, "High/Low"))
-                errors.extend(row_errors)
-                if not row_errors:
-                    if previous is not None:
-                        delta = timestamp - previous
-                        step = delta.days * 86400_000000 + delta.seconds * 1_000000 + delta.microseconds
-                        if interval is None:
-                            interval = step
-                        elif step != interval:
-                            irregular = True
-                    first = first or timestamp
-                    previous = last = timestamp
-                    count += 1
-                    if len(preview) < 8:
-                        preview.append({**dict(zip(COLUMNS, values)), "datetime": timestamp.isoformat().replace("+00:00", "Z")})
+                if previous is not None:
+                    delta = timestamp - previous
+                    step = delta.days * 86400_000000 + delta.seconds * 1_000000 + delta.microseconds
+                    if interval is None:
+                        interval = step
+                    elif step != interval:
+                        irregular = True
+                first = first or timestamp
+                previous = last = timestamp
+                count += 1
+                if len(preview) < 8:
+                    preview.append({**dict(zip(COLUMNS, values)), "datetime": timestamp.isoformat().replace("+00:00", "Z")})
             if len(errors) >= MAX_ERRORS:
                 raise InvalidDataset(errors[:MAX_ERRORS], truncated=True)
             if progress and rows_checked % 1000 == 0:
@@ -263,10 +277,14 @@ class DatasetStore:
 
     def iter_csv(self, dataset_id: str):
         with self.connect() as conn:
-            # Older datasets stored the original CSV in one blob; keep them readable.
-            row = conn.execute("SELECT csv FROM datasets WHERE id=?", (dataset_id,)).fetchone()
-            if row and row[0]:
-                yield row[0]
+            # Pin one read snapshot across the root/chunk queries, including deletion races.
+            conn.execute("BEGIN")
+            row = conn.execute("SELECT rowid, length(csv) FROM datasets WHERE id=?", (dataset_id,)).fetchone()
+            if row and row[1]:
+                # Older single-blob datasets also stream with bounded memory.
+                with conn.blobopen("datasets", "csv", row[0], readonly=True) as blob:
+                    while chunk := blob.read(CHUNK_BYTES):
+                        yield chunk
             else:
                 for chunk in conn.execute("SELECT data FROM dataset_chunks WHERE dataset_id=? ORDER BY ordinal", (dataset_id,)):
                     yield chunk[0]

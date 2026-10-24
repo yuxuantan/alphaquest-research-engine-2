@@ -45,6 +45,39 @@ During validation and saving, the portal shows upload bytes, file scan progress,
 
 Metadata includes dataset ID, name, optional symbol, original filename, byte size, SHA-256, row count, UTC start/end, timestamp timezone, observed spacing, first eight rows, warnings, and save time. Duplicate CSV bytes with the same timezone interpretation are rejected; different interpretations of naive timestamps are separate datasets. Symbol is user supplied, not inferred from prices or filenames. This component does not determine venue, trading calendar, price adjustment, or whether timestamps label bar opens or closes.
 
+## Backtest dataset reader
+
+The backtest reader and strategy interface are available for review. The reader resolves an existing saved dataset ID, snapshots its CSV to a temporary file using bounded chunks, checks the saved byte count/hash, closes the database connection, and then yields bars incrementally. Full iteration verifies the saved row count. It reuses the upload parser and fails at the first invalid row rather than skipping or sorting data.
+
+Print three bars from a small fixture saved into an isolated temporary database:
+
+```bash
+.venv/bin/python -m alphaquest.backtest_data --demo --limit 3
+```
+
+The demo uses the `gap_deadline` fixture's saved `America/New_York` timezone: source `01/05/2026 14:00` becomes `2026-01-05T19:00:00Z`. It removes its temporary database on exit and does not add anything to the portal library. Print from an existing library instead (IDs are available through the existing `/api/datasets` endpoint):
+
+```bash
+.venv/bin/python -m alphaquest.backtest_data --database data/datasets.sqlite3 --dataset-id YOUR_DATASET_ID --limit 5
+```
+
+Python callers use the iterator within its resource context:
+
+```python
+from pathlib import Path
+from alphaquest.datasets import DatasetStore
+from alphaquest.backtest_data import read_bars
+
+store = DatasetStore(Path("data/datasets.sqlite3"))
+with read_bars(store, dataset_id) as bars:
+    for bar in bars:
+        print(bar.timestamp_utc, bar.close)
+```
+
+Each immutable `Bar` carries its 1-based data-record number, UTC close timestamp, original Date/Time strings, seven numeric `Decimal` fields, and `source_fields`, an immutable tuple of all nine decoded CSV cell strings including whitespace and original numeric spelling. Original CSV bytes and saved metadata are unchanged. A partial consumer parses only requested rows; a future complete backtest must exhaust the iterator before finishing. Legacy six-column schemas are rejected with an explicit error. A legacy single-blob record with the supported nine-column schema can still be read in chunks.
+
+`alphaquest/strategy.py` defines immutable `Position`, `ExecutionConfig`, `EntryIntent`, and `CloseIntent` values and the `Strategy` protocol: `on_bar(bar, position)` returns an entry/close intent or `None`; `on_finish(last_bar, position)` returns a close intent or `None`. Flat is `position=None`. Callbacks receive no dataset handle or future-bar collection. Execution settings take explicit finite `Decimal` values, and integer quantities/ticks reject booleans and implicit coercion. There is no execution loop, sample strategy, monetary calculation, or new portal/API feature in this increment. See [the backtest contract](docs/backtest_contract.md).
+
 ## Verify
 
 ```bash
@@ -56,6 +89,8 @@ Tests cover invalid datasets, timezone/DST boundaries, UTC ordering, gap reporti
 ## Structure
 
 - `alphaquest/datasets.py`: CSV validation and SQLite storage.
+- `alphaquest/backtest_data.py`: saved-dataset snapshot reader and normalized-bar review command.
+- `alphaquest/strategy.py`: immutable strategy inputs, intents, execution settings, and callback protocol.
 - `alphaquest/app.py`: API and local web server.
 - `alphaquest/web/`: HTML, CSS, JavaScript, and example CSV; no frontend build step or CDN.
 - `tests/`: dataset and API checks using isolated temporary databases.
