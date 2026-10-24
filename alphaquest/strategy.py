@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
+from typing import Literal
 
 
 def _positive_integer(name: str, value: int) -> None:
@@ -55,18 +56,21 @@ class Bar:
 
 @dataclass(frozen=True, slots=True)
 class Position:
-    """Current filled long position supplied by the engine; flat is None."""
+    """Current filled position with unsigned quantity and explicit side; flat is None."""
 
     contracts: int
     entry_time_utc: datetime
     entry_fill_price: Decimal
     entry_bar_number: int
+    side: Literal["long", "short"] = "long"
 
     def __post_init__(self):
         _positive_integer("contracts", self.contracts)
         _positive_integer("entry_bar_number", self.entry_bar_number)
         _utc("entry_time_utc", self.entry_time_utc)
         _decimal("entry_fill_price", self.entry_fill_price)
+        if self.side not in ("long", "short"):
+            raise ValueError("side must be long or short.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,7 +91,7 @@ class ExecutionConfig:
 
 @dataclass(frozen=True, slots=True)
 class EntryIntent:
-    """Request one long entry; optional deadline is strategy-owned metadata.
+    """Request one entry; defaults preserve long, same-close execution.
 
     The engine records the deadline but never schedules or triggers an exit.
     No price/fill/cost arithmetic belongs here.
@@ -96,26 +100,45 @@ class EntryIntent:
     contracts: int
     reason: str
     exit_deadline_utc: datetime | None = None
+    side: Literal["long", "short"] = "long"
+    timing: Literal["same_close", "next_open"] = "same_close"
 
     def __post_init__(self):
         _positive_integer("contracts", self.contracts)
         _reason(self.reason)
+        if self.side not in ("long", "short") or self.timing not in ("same_close", "next_open"):
+            raise ValueError("Unsupported entry side or timing.")
         if self.exit_deadline_utc is not None:
             _utc("exit_deadline_utc", self.exit_deadline_utc)
 
 
 @dataclass(frozen=True, slots=True)
 class CloseIntent:
-    """Request a full close of the current position."""
+    """Full close at the current Close (default) or the next observed Open."""
 
     reason: str
+    timing: Literal["same_close", "next_open"] = "same_close"
 
     def __post_init__(self):
         _reason(self.reason)
+        if self.timing not in ("same_close", "next_open"):
+            raise ValueError("Unsupported close timing.")
+
+
+@dataclass(frozen=True, slots=True)
+class BracketIntent:
+    """Full-position OCO stop/limit, active for the next observed bar only."""
+
+    stop_price: Decimal
+    target_price: Decimal
+
+    def __post_init__(self):
+        _decimal("stop_price", self.stop_price)
+        _decimal("target_price", self.target_price)
 
 
 class Strategy(Protocol):
-    def on_bar(self, bar: Bar, position: Position | None) -> EntryIntent | CloseIntent | None:
+    def on_bar(self, bar: Bar, position: Position | None) -> EntryIntent | CloseIntent | BracketIntent | None:
         """Inspect only the current completed bar and position; return at most one intent."""
         ...
 

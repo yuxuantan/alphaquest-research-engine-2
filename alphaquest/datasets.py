@@ -33,6 +33,23 @@ def invalid(message: str, line: int | None = None, column: str | None = None):
     return {"line": line, "column": column, "message": message}
 
 
+def instrument_settings(tick_size: str, point_value: str) -> dict[str, str]:
+    """Validate without float conversion or rounding; store exact decimal strings."""
+    result = {}
+    for name, value in (("tick_size", tick_size), ("point_value", point_value)):
+        if not isinstance(value, str) or not NUMBER.fullmatch(value.strip()) or Decimal(value.strip()) <= 0:
+            raise ValueError(f"{name} must be a positive finite decimal string.")
+        result[name] = value.strip()
+    return result
+
+
+def saved_instrument_settings(dataset: dict) -> dict[str, str]:
+    settings = dataset.get("instrument_settings")
+    if not isinstance(settings, dict) or set(settings) != {"tick_size", "point_value"}:
+        raise ValueError("Set the dataset's tick size and monetary point value in Datasets before running a backtest.")
+    return instrument_settings(**settings)
+
+
 def parse_timestamp(date_value: str, time_value: str, source_zone: ZoneInfo) -> datetime:
     if not DATE.fullmatch(date_value) or not TIME.fullmatch(time_value):
         raise ValueError("Date must use MM/DD/YYYY and Time must use 24-hour HH:MM.")
@@ -288,6 +305,18 @@ class DatasetStore:
             else:
                 for chunk in conn.execute("SELECT data FROM dataset_chunks WHERE dataset_id=? ORDER BY ordinal", (dataset_id,)):
                     yield chunk[0]
+
+    def set_instrument_settings(self, dataset_id: str, tick_size: str, point_value: str):
+        settings = instrument_settings(tick_size, point_value)
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT metadata FROM datasets WHERE id=?", (dataset_id,)).fetchone()
+            if row is None:
+                return None
+            dataset = json.loads(row[0])
+            dataset["instrument_settings"] = settings
+            conn.execute("UPDATE datasets SET metadata=? WHERE id=?", (json.dumps(dataset), dataset_id))
+        return dataset
 
     def delete(self, dataset_id: str) -> bool:
         with self.connect() as conn:

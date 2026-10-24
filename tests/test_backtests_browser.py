@@ -45,7 +45,7 @@ def portal(tmp_path):
         saved = {}
         with httpx.Client(base_url=url) as client:
             for name, zone in (("arithmetic_5m", "UTC"), ("gap_deadline", "America/New_York")):
-                response = client.post("/api/datasets", params={"filename": name + ".csv", "name": name, "source_timezone": zone},
+                response = client.post("/api/datasets", params={"filename": name + ".csv", "name": name, "source_timezone": zone, "tick_size": "0.25", "point_value": "10"},
                                        content=(FIXTURES / (name + ".csv")).read_bytes())
                 assert response.status_code == 201, response.text
                 saved[name] = response.json()
@@ -72,8 +72,6 @@ def prepare(page, portal):
     page.goto(portal["url"] + "/#backtests")
     playwright.expect(page.locator("#strategy-parameters input")).to_have_count(3)
     page.locator("#backtest-dataset").select_option(portal["saved"]["arithmetic_5m"]["id"])
-    page.locator("#backtest-tick-size").fill("0.25")
-    page.locator("#backtest-point-value").fill("10")
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
     page.locator("#strategy-contracts").fill("2")
@@ -125,11 +123,14 @@ def test_strategy_fields_follow_backend_definitions_when_selection_changes(page,
 
 
 def test_exact_submitted_configuration_and_saved_completion_summary(page, portal):
+    with httpx.Client(base_url=portal["url"]) as client:
+        response = client.patch(f"/api/datasets/{portal['saved']['arithmetic_5m']['id']}/instrument-settings",
+                                json={"tick_size": "0.25", "point_value": "10.000000000000000000000000001"})
+        assert response.status_code == 200
     prepare(page, portal)
     page.locator("#strategy-green_bar_count").fill("2")
     page.locator("#strategy-hold_minutes").fill("7")
     page.locator("#backtest-initial-capital").fill("10000.123456789123456789123456789")
-    page.locator("#backtest-point-value").fill("10.000000000000000000000000001")
     requests = post_requests(page)
     with page.expect_response(lambda response: "/api/backtests?" in response.url and response.request.method == "POST") as completed:
         page.locator("#start-backtest").click()
@@ -140,17 +141,16 @@ def test_exact_submitted_configuration_and_saved_completion_summary(page, portal
     assert submitted == {
         "dataset_id": portal["saved"]["arithmetic_5m"]["id"], "strategy_id": "consecutive_green_hold",
         "strategy_parameters": {"green_bar_count": 2, "hold_minutes": 7, "contracts": 2},
-        "execution_settings": {"initial_capital": "10000.123456789123456789123456789", "tick_size": "0.25",
-                               "point_value": "10.000000000000000000000000001", "slippage_ticks": 1,
-                               "commission_per_contract_per_side": "1"},
+        "execution_settings": {"initial_capital": "10000.123456789123456789123456789", "slippage_ticks": 1,
+                               "commission_per_contract_per_side": "1", "tick_size": "0.25", "point_value": "10.000000000000000000000000001"},
     }
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
     playwright.expect(page.locator("#backtest-completion-content")).to_contain_text(record["id"])
-    playwright.expect(page.locator("#backtest-completion-content [data-setting='point_value'] dd")).to_have_text(submitted["execution_settings"]["point_value"])
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='point_value'] dd")).to_have_text("10.000000000000000000000000001")
     playwright.expect(page.locator("#backtest-completion-content [data-setting='contracts'] dd")).to_have_text("2")
     playwright.expect(page.locator("#backtest-completion-content [data-setting='green_bar_count'] dd")).to_have_text("2")
     playwright.expect(page.locator("#backtest-completion-content [data-setting='hold_minutes'] dd")).to_have_text("7")
-    assert record["execution_settings"] == submitted["execution_settings"]
+    assert record["execution_settings"] == {**submitted["execution_settings"], "tick_size": "0.25", "point_value": "10.000000000000000000000000001"}
     playwright.expect(page.locator("#start-backtest")).to_be_enabled()
 
 
@@ -192,6 +192,9 @@ def test_live_progress_elapsed_saving_and_duplicate_submission_protection(page, 
         playwright.expect(page.locator("#start-backtest")).to_be_disabled()
         playwright.expect(page.locator("#refresh-backtest-choices")).to_be_disabled()
         playwright.expect(page.locator("#strategy-contracts")).to_be_disabled()
+        playwright.expect(page.locator("#reset-instrument-defaults")).to_be_disabled()
+        playwright.expect(page.locator("#backtest-tick-size")).to_be_disabled()
+        playwright.expect(page.locator("#backtest-point-value")).to_be_disabled()
         box = page.locator("#start-backtest").bounding_box()
         page.mouse.click(box["x"] + 5, box["y"] + 5, click_count=2)
         page.locator("#backtest-form").evaluate("form => { for (let i=0;i<3;i++) form.dispatchEvent(new Event('submit', {bubbles:true,cancelable:true})); }")
@@ -213,21 +216,21 @@ def test_live_progress_elapsed_saving_and_duplicate_submission_protection(page, 
 def test_client_validation_and_server_validation_errors_are_visible(page, portal):
     prepare(page, portal)
     requests = post_requests(page)
-    page.locator("#backtest-tick-size").fill("0")
+    page.locator("#backtest-initial-capital").fill("0")
     page.locator("#start-backtest").click()
     playwright.expect(page.locator("#backtest-error")).to_contain_text("greater than zero")
     assert requests == []
-    page.locator("#backtest-tick-size").fill("0.25")
+    page.locator("#backtest-initial-capital").fill("10000")
     page.locator("#strategy-green_bar_count").fill("2.5")
     page.locator("#start-backtest").click()
     playwright.expect(page.locator("#backtest-error")).to_be_visible()
     assert requests == []
     page.locator("#strategy-green_bar_count").fill("3")
     page.route("**/api/backtests?*", lambda route: route.fulfill(status=422, json={"detail": [
-        {"loc": ["body", "execution_settings", "tick_size"], "msg": "Tick size rejected by server"},
+        {"loc": ["body", "execution_settings", "initial_capital"], "msg": "Initial capital rejected by server"},
     ]}))
     page.locator("#start-backtest").click()
-    playwright.expect(page.locator("#backtest-error")).to_contain_text("Tick size rejected by server")
+    playwright.expect(page.locator("#backtest-error")).to_contain_text("Initial capital rejected by server")
     playwright.expect(page.locator("#start-backtest")).to_be_enabled()
     playwright.expect(page.locator("#backtest-completion")).to_be_hidden()
     assert len(requests) == 1
@@ -300,3 +303,32 @@ def test_mobile_navigation_and_layout(page, portal):
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.get_by_role("link", name="Datasets", exact=True).click()
     playwright.expect(page.locator("#datasets-screen")).to_be_visible()
+
+
+def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(page, portal):
+    prepare(page, portal)
+    page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
+    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(32)
+    playwright.expect(page.locator("#strategy-trade_longs")).to_be_checked()
+    playwright.expect(page.locator("#strategy-trade_shorts")).not_to_be_checked()
+    playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("next observed bar Open")
+    page.locator("#strategy-trade_shorts").check()
+    page.locator("#strategy-mm_risk_pct").fill("1.25")
+    page.locator("#strategy-position_size").fill("2")
+    page.locator("#backtest-strategy").select_option("consecutive_green_hold")
+    page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
+    playwright.expect(page.locator("#strategy-trade_shorts")).to_be_checked()
+    playwright.expect(page.locator("#strategy-mm_risk_pct")).to_have_value("1.25")
+    requests = post_requests(page)
+    page.locator("#start-backtest").click()
+    playwright.expect(page.locator("#backtest-completion")).to_be_visible()
+    assert len(requests) == 1
+    submitted = requests[0].post_data_json
+    values = submitted["strategy_parameters"]
+    assert values["trade_shorts"] is True and values["use_vol_sizing"] is False
+    assert values["mm_risk_pct"] == "1.25" and values["position_size"] == 2
+    assert set(submitted["execution_settings"]) == {"initial_capital", "tick_size", "point_value", "slippage_ticks", "commission_per_contract_per_side"}
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='mm_risk_pct'] dd")).to_have_text("1.25")
+    playwright.expect(page.locator("#backtest-completion-content")).to_contain_text("next_open_market_next_bar_bracket_stop_first")
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

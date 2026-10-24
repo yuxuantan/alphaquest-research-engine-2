@@ -1,5 +1,12 @@
 # Backtest contract — v1 proposal for review
 
+The v1 same-close descriptions below continue to define the sample strategy.
+The [VWAP PowerLanguage port](strategies/vwap_pullback_risk_sizing.md) adds
+explicit next-bar market intents, optional short direction, and next-bar OCO
+brackets. Its guide defines fill prices, ambiguous-bar policy, chart history,
+fill-bar timestamp labels, and terminal handling. Reports record which
+execution assumption applies; v1 sample fixtures remain unchanged.
+
 This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, report generation, APIs, portal run controls, and completed report screen now implement their respective portions.
 
 ## 1. Dataset and clock
@@ -18,6 +25,29 @@ A strategy sees one completed bar at a time, in UTC order. It cannot inspect fut
 
 Gaps remain gaps: no sorting, resampling, interpolated prices, fabricated bars, inferred trading calendar, or implicit session boundary. Consecutive bars means adjacent **observed** records, even across a gap. Holding time is elapsed UTC time, including gaps and market closures.
 
+### Optional replay dates
+
+Runs may supply `from_date` and/or `to_date` as strict `YYYY-MM-DD` calendar
+dates in the dataset's **saved source timezone**. Both endpoints include the
+whole local day, including daylight-saving changes. An omitted bound is open;
+omitting both replays the full dataset. Bounds outside the available data use
+their intersection with the dataset. Reject reversed or invalid dates and
+selections containing no bars; do not publish a zero-bar report.
+
+Filter before supplying bars to the strategy. Start flat with a new strategy
+instance: there is no signal or indicator warm-up from excluded data. The final
+selected bar is end of data and receives the ordinary `on_finish` callback.
+Each strategy's existing end-of-data policy applies. Selected replay bar numbers
+start at one; original source fields and the saved CSV/metadata are preserved.
+
+`run_metadata.selection` records requested dates, source timezone, `warmup="none"`,
+selected `row_count`, actual UTC start/end and first/last source row numbers.
+`run_metadata.dataset.row_count` remains the original dataset count. Progress,
+reconciliation and report period bounds use the selected bars. A range is
+prepared in a temporary CSV with bounded RAM after the source database snapshot
+is released, then replayed incrementally. The source is fully checked before
+replay; filtering does not bypass source integrity or CSV validation.
+
 ## 2. Strategy parameters and execution settings
 
 The sample strategy has exactly three tunable parameters:
@@ -30,7 +60,7 @@ The sample strategy has exactly three tunable parameters:
 
 Reject booleans, fractions, zero, or negative values for these integer parameters; do not silently coerce them.
 
-Separate execution settings:
+Resolved execution settings (strategy independent):
 
 | Name | Meaning | Valid values |
 | --- | --- | --- |
@@ -40,7 +70,9 @@ Separate execution settings:
 | `slippage_ticks` | Adverse slippage on **each** entry and exit fill | Integer >= 0 |
 | `commission_per_contract_per_side` | Commission for one contract on one fill | Finite decimal >= 0 |
 
-Contracts is a quantity, not the monetary point value. Instrument settings must be supplied explicitly; a dataset symbol or filename is not a source of instrument specifications. All fixtures use a synthetic instrument, initial capital 10,000 currency units (CU), tick size 0.25, and point value 10 CU. These values are not specifications of NQ, ES, or another real product.
+Tick size and monetary point value are saved together as `dataset.instrument_settings`, using positive finite decimal strings. They may be set during upload or edited on an existing dataset. API and CLI backtests use these as defaults. The run form pre-fills editable values and offers Reset to dataset defaults. Changing datasets loads the newly selected dataset’s defaults; returning to the same dataset through navigation or refreshing choices preserves run-specific edits. Optional `tick_size` and `point_value` execution settings override either default for that run only (omitted or null values use the saved default). Each supplied value must be a positive finite decimal string. Run overrides never update the dataset. Existing datasets without settings cannot start a new backtest until configured. Other execution settings (capital, slippage, commissions) remain per-run inputs. The dataset defaults and resolved values are captured at run start and preserved in the report, even if the dataset settings later change. `execution_settings` contains the actual values used; `run_metadata.dataset.instrument_settings` records the captured defaults, and `run_metadata.instrument_overrides` records only values that differ numerically from those defaults. Equivalent spellings such as `0.2500` and `0.25` are not different settings. Completed report settings display the defaults and overrides; older reports without this provenance show it as not recorded. Editing these metadata fields preserves the original CSV and its hash, timezone and validation metadata.
+
+Contracts is a quantity, not the monetary point value. Instrument settings must be supplied explicitly on the dataset; a dataset symbol or filename is not a source of instrument specifications. All fixtures use a synthetic instrument, initial capital 10,000 currency units (CU), tick size 0.25, and point value 10 CU. These values are not specifications of NQ, ES, or another real product.
 
 Represent decimal inputs and financial outputs as exact decimal strings in machine-readable artifacts. Calculate using decimal arithmetic, with no binary floating-point P&L or intermediate display rounding. Compare expectations by decimal value: `2.50` and `2.5` are equivalent; insignificant trailing zeros are not a financial difference. The fixture values terminate exactly. Percentage displays may round to two decimal places; the winning/losing/breakeven counts remain authoritative.
 
@@ -199,7 +231,7 @@ The reporter streams arrays/rows to temporary files, validates a flat final poin
 
 ### Backtest API
 
-The existing FastAPI server also exposes the tested components through a code-owned strategy allowlist. Each strategy supplies its parameter definitions and validation. API runs require all strategy parameters and execution settings explicitly; financial settings use decimal strings and no instrument values are inferred. A worker thread runs preparation, replay, report saving, and result indexing while the existing progress endpoint exposes stage, processed/total bars, and run ID. Completion is emitted only after durable artifacts and a committed completed-run record exist. Failed runs have no completed record.
+The existing FastAPI server also exposes the tested components through a code-owned strategy allowlist. Each strategy supplies its parameter definitions and validation. API runs require all strategy parameters and per-run capital/cost settings explicitly, and resolve tick size and point value from dataset defaults plus validated optional run overrides; financial settings use decimal strings and no instrument values are inferred. A worker thread runs preparation, replay, report saving, and result indexing while the existing progress endpoint exposes stage, processed/total bars, and run ID. Completion is emitted only after durable artifacts and a committed completed-run record exist. Failed runs have no completed record.
 
 Completed summaries/provenance and indexed trade/equity rows are persisted in `backtests.sqlite3` beside the dataset store, with report files in `backtest_runs/RUN_ID/`. Records survive restart and source deletion. Retrieval is paginated (default 100, maximum 1,000 rows), and the equity endpoint follows the requested trade-close CSV format. The full bar-close series remains in the report JSON. See [API endpoints and reproducible commands](backtest_api.md). No external task queue is added.
 

@@ -11,28 +11,28 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
-from .backtest_data import DatasetReadError, read_bars
+from .backtest_data import DatasetReadError, DateRange, read_selected_bars
 from .backtest_runs import RunStore
+from .backtest_config import RunSettings, instrument_overrides
 from .datasets import COLUMNS, InvalidDataset
 from .execution import ExecutionError, execute
 from .reporting import ReportError, generate_report
 from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
-from .strategy import ExecutionConfig
 
 
 class ExecutionSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     initial_capital: StrictStr
-    tick_size: StrictStr
-    point_value: StrictStr
     slippage_ticks: StrictInt = Field(ge=0)
     commission_per_contract_per_side: StrictStr
+    tick_size: StrictStr | None = Field(default=None, max_length=128)
+    point_value: StrictStr | None = Field(default=None, max_length=128)
 
-    def execution_config(self) -> ExecutionConfig:
+    def execution_config(self, dataset):
         try:
-            return ExecutionConfig(Decimal(self.initial_capital), Decimal(self.tick_size), Decimal(self.point_value),
-                                   self.slippage_ticks, Decimal(self.commission_per_contract_per_side))
+            return RunSettings(Decimal(self.initial_capital), self.slippage_ticks,
+                               Decimal(self.commission_per_contract_per_side), self.tick_size, self.point_value).execution_config(dataset)
         except InvalidOperation:
             raise ValueError("Execution monetary values must be finite decimal strings.") from None
 
@@ -43,32 +43,38 @@ class BacktestRequest(BaseModel):
     strategy_id: StrictStr = Field(min_length=1, max_length=128)
     strategy_parameters: dict[str, Any]
     execution_settings: ExecutionSettings
+    from_date: StrictStr | None = None
+    to_date: StrictStr | None = None
 
 
-def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, progress):
+def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress):
     processed = 0
-    total = dataset["row_count"]
+    total = 0 if date_range and date_range.active else dataset["row_count"]
 
     def stage(name):
         progress(name, processed, total)
 
     stage("preparing")
-    metadata = {"dataset": {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count")},
-                "strategy": definition.provenance(parameters)}
+    metadata = {"dataset": {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")},
+                "strategy": definition.provenance(parameters),
+                "instrument_overrides": instrument_overrides(dataset, config)}
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         output = Path(temporary) / "report"
-        with read_bars(store, dataset["id"]) as bars:
+        with read_selected_bars(store, dataset["id"], date_range) as selected:
+            total = selected.row_count
+            metadata["selection"] = selected.metadata
             # The source iterator advances here only after the engine's current
             # callback/fill. Final-bar count is visible before report publication.
             def counted_bars():
                 nonlocal processed
-                for bar in bars:
+                for bar in selected.bars:
                     yield bar
                     processed = bar.bar_number
                     stage("replaying")
 
             stage("replaying")
-            manifest = generate_report(execute(counted_bars(), definition.factory(parameters), config), output, config,
+            manifest = generate_report(execute(counted_bars(), definition.create(parameters, config), config), output, config,
+                                       execution_assumption=definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"))
         stage("saving_results")
         record = runs.complete(run_id, output, manifest)
@@ -89,7 +95,7 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
     try:
         definition = get_strategy(body.strategy_id)
         parameters = definition.parameters(body.strategy_parameters)
-        config = body.execution_settings.execution_config()
+        date_range = DateRange.parse(body.from_date, body.to_date)
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
     dataset = await run_in_threadpool(request.app.state.store.get, body.dataset_id)
@@ -97,12 +103,16 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
         raise HTTPException(404, "Dataset not found.")
     if dataset.get("columns") != COLUMNS:
         raise HTTPException(422, "Unsupported dataset schema. Backtests require: " + ",".join(COLUMNS))
+    try:
+        config = body.execution_settings.execution_config(dataset)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from None
     run_id = uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
     if operation_id:
         tracker.start(operation_id, {"stage": "preparing", "bars_processed": 0,
-                                     "total_bars": dataset["row_count"], "run_id": run_id})
+                                     "total_bars": 0 if date_range.active else dataset["row_count"], "run_id": run_id})
 
     def progress(stage, processed, total):
         if operation_id:
@@ -110,7 +120,7 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
 
     try:
         return await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
-                                       dataset, definition, parameters, config, progress)
+                                       dataset, definition, parameters, config, date_range, progress)
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))

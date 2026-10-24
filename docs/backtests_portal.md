@@ -13,7 +13,7 @@ Open `http://127.0.0.1:8000/` and select **Backtests**, or go directly to
 
 1. In **Datasets**, choose `tests/fixtures/backtest_contract/arithmetic_5m.csv`.
    Keep the source timezone **UTC**, validate the CSV, then save it. If already
-   saved, use its existing library entry.
+   saved, use its existing library entry. Open the dataset, set **Tick size 0.25** and **Monetary point value 10**, then click **Save instrument settings**. These values may also be supplied during upload.
 2. Open **Backtests** and select that saved dataset. Its seven bars, filename,
    UTC range, and saved source timezone appear beneath the controls.
 3. Select **Consecutive green hold**. This is selected automatically when it is
@@ -26,21 +26,22 @@ Open `http://127.0.0.1:8000/` and select **Backtests**, or go directly to
    | Hold minutes | 20 |
    | Number of contracts | 2 |
 
-4. Enter these separate account/instrument/cost settings:
+4. Check **Tick size for this run** and **Monetary point value for this run**. They start at the dataset defaults (**0.25** and **10** for this fixture). You may edit either for this run, or click **Reset to dataset defaults**. Then enter these account/cost settings:
 
    | Field | Fixture value |
    | --- | ---: |
    | Initial capital | 10000 |
-   | Tick size | 0.25 |
-   | Monetary point value | 10 |
    | Adverse slippage, ticks per fill | 1 |
    | Commission, per contract per side | 1 |
 
    These are synthetic fixture settings, not specifications for NQ or another
    real instrument. Contracts is the number traded. Point value converts a
    1.0 price-point move into money **per contract**. Tick size and point value
-   start blank and are never inferred from a filename or symbol. Monetary
-   values stay as decimal strings when sent to the API.
+   are saved as defaults in Datasets and editable for each run in Backtests. Run
+   edits leave dataset defaults unchanged. Switching datasets loads the new
+   dataset’s defaults; navigation and Refresh choices preserve edits for the same
+   dataset. They are never inferred from a filename or symbol. A dataset without settings cannot start a backtest.
+   Monetary values stay as decimal strings when sent to the API.
 5. Review **Timestamps label bar closes**. The saved timezone converts to UTC;
    signals and simulated fills use the same completed close with configured
    slippage. Holds measure elapsed time, including gaps.
@@ -77,7 +78,31 @@ fixture shows **20 CU / 0.2% / 4m**; `last_bar_entry` shows
 **14 CU / 0.14% / 2m**. Existing saved reports gain these metrics on first access
 without rerunning trades; the enriched catalogue is retained across restarts.
 
+The trade table displays entry/exit times in each run's saved dataset source
+timezone, with that timezone in both column headers. Trade-close equity tooltips
+use the same timezone. Date and daylight-saving conversions follow the saved
+IANA zone, independent of the browser's local timezone. Hover over a trade time
+to inspect its stored UTC value. API results and CSV exports retain UTC timestamps;
+fills, P&L and elapsed holding times are unchanged. Older reports use their saved
+source timezone when reopened; no backtest rerun is required.
+
 ## Check the submitted settings
+
+To replay a subset, set **From date** and/or **To date** beneath the dataset
+selector. Both include the entire date in the displayed saved source timezone;
+they are not browser-timezone or UTC date boundaries. Leave one blank for an
+open end or both blank for the full dataset. Invalid reversed dates are blocked
+before submission; a range with no bars shows a server error and saves no run.
+
+The strategy starts with fresh signal/indicator state on the first selected bar,
+and its end-of-data policy applies to the last selected bar. Progress counts only
+selected bars once preparation finishes. Report settings show requested dates,
+**Bars used**, **Source dataset bars**, original source rows and actual replay
+timestamps in UTC. These settings survive report reopening. The source CSV and
+its metadata are unchanged, and existing reports remain viewable.
+
+CLI runs accept the same optional `--from-date YYYY-MM-DD` and
+`--to-date YYYY-MM-DD` flags.
 
 Open browser developer tools and select **Network** before starting the run.
 Filter for `api/backtests` and inspect the POST's request payload:
@@ -97,8 +122,18 @@ Filter for `api/backtests` and inspect the POST's request payload:
 The strategy parameters and slippage ticks are integers. All monetary inputs
 are strings, preserving their entered precision. The response must be HTTP 201
 with `status="complete"`. Its `run_metadata.dataset.id`,
-`run_metadata.strategy.parameters`, and `execution_settings` should match the
-request. `timestamp_convention` must be `bar_close`. The displayed run ID can
+`run_metadata.strategy.parameters` and the capital/cost settings should match the
+request. The response’s `execution_settings` contains the actual tick size and
+point value used. `run_metadata.dataset.instrument_settings` retains the captured
+dataset defaults, and `run_metadata.instrument_overrides` identifies values that
+differ numerically from those defaults. Expand the report settings to inspect
+**Instrument overrides**. The untouched fixture should show **None (dataset
+defaults)**. As a separate check, overriding tick size to **0.5** and point value
+to **20** should yield net P&L **36** (gross **40**, commissions **4**) while the
+dataset keeps defaults **0.25** and **10**. Refresh the completed report and check
+the same overrides remain recorded.
+Editing those dataset settings affects future runs only; completed reports keep
+the settings captured when they started. `timestamp_convention` must be `bar_close`. The displayed run ID can
 also be retrieved with `GET /api/backtests/RUN_ID`.
 
 During a longer run, the Network panel should show one backtest POST and
@@ -168,7 +203,7 @@ The chart requests at most 1,000 records. The server streams the saved
 trade-close equity CSV and retains endpoints plus chronological minimum/maximum
 equity per equal trade-count bucket. This preserves bucket extremes but
 connecting lines omit intermediate trades. X spacing is by completed trade
-count; hover timestamps are the UTC exit times. A zero-trade run shows only its
+count; hover timestamps use the dataset's saved source timezone. A zero-trade run shows only its
 initial balance. The two-trade no-pyramiding fixture shows exactly
 **10000 → 10020 → 10040**. Exact Decimal strings supply all table values, metrics and downloads;
 only SVG geometry and approximate axis tick labels use browser floating point.

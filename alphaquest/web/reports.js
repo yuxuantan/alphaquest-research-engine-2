@@ -3,6 +3,8 @@
 (() => {
   const get = (selector) => document.querySelector(selector);
   const number = new Intl.NumberFormat("en-US");
+  const percentage = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+  const formatPercentage = (value) => value == null ? "N/A" : `${percentage.format(value)}%`;
   const pageSize = 50;
   let active;
   let runId;
@@ -10,6 +12,8 @@
   let historyOffset = 0;
   let historyVersion = 0;
   let chartData;
+  let tradeTimeZone = "UTC";
+  let tradeTimeFormatter;
   const node = (tag, text, cls) => {
     const item = document.createElement(tag);
     if (text !== undefined) item.textContent = text;
@@ -17,6 +21,21 @@
     return item;
   };
   const stamp = (value) => value ? value.replace("T", " ").replace("Z", "") : "Initial balance";
+  function tradeStamp(value) {
+    const parts = Object.fromEntries(tradeTimeFormatter.formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+  }
+  function tradeTimezone(record) {
+    tradeTimeZone = record.run_metadata.dataset.source_timezone || "UTC";
+    tradeTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tradeTimeZone, calendar: "iso8601", numberingSystem: "latn", hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    get("#report-entry-time-header").textContent = `Entry · ${tradeTimeZone}`;
+    get("#report-exit-time-header").textContent = `Exit · ${tradeTimeZone}`;
+    get("#report-trade-timezone-note").textContent = `${tradeTimeZone} timestamps · P&L in CU`;
+    get("#report-trade-timezone-hint").textContent = `Entry and exit times use ${tradeTimeZone} (dataset timezone). CSV exports use UTC. Scroll horizontally for all trade fields.`;
+  }
   const moneyClass = (value) => Number(value) < 0 ? "negative" : Number(value) > 0 ? "positive" : "";
   async function read(url, signal) {
     const response = await fetch(url, { cache: "no-store", signal });
@@ -48,9 +67,9 @@
     for (const [title, value, key] of [
       ["Total net P&L · CU", summary.total_net_pnl, "net"],
       ["Trades taken", number.format(summary.trades_taken), "trades"],
-      ["Win rate", summary.win_rate_pct === null ? "N/A" : `${summary.win_rate_pct}%`, "win-rate"],
+      ["Win rate", formatPercentage(summary.win_rate_pct), "win-rate"],
       ["Max drawdown · CU", summary.max_drawdown_amount ?? "N/A", "drawdown-amount"],
-      ["Max drawdown · %", summary.max_drawdown_pct === undefined ? "N/A" : `${summary.max_drawdown_pct}%`, "drawdown-pct"],
+      ["Max drawdown · %", formatPercentage(summary.max_drawdown_pct), "drawdown-pct"],
       ["Max drawdown duration", duration(summary.max_drawdown_duration_seconds), "drawdown-duration"],
     ]) {
       const card = node("div", undefined, "panel report-metric");
@@ -114,7 +133,7 @@
       const point = points[selected];
       cursor.setAttribute("cx", x(point));
       cursor.setAttribute("cy", y(values[selected]));
-      get("#chart-readout").textContent = `${point.trade_number ? stamp(point.exit_time_utc) + " UTC · Trade " + point.trade_number : "Initial balance"} · Equity ${point.equity} CU${point.trade_number ? " · Trade net P&L " + point.net_pnl + " CU" : ""}`;
+      get("#chart-readout").textContent = `${point.trade_number ? tradeStamp(point.exit_time_utc) + " " + tradeTimeZone + " · Trade " + point.trade_number : "Initial balance"} · Equity ${point.equity} CU${point.trade_number ? " · Trade net P&L " + point.net_pnl + " CU" : ""}`;
     }
     svg.onpointermove = (event) => {
       const rect = svg.getBoundingClientRect();
@@ -147,8 +166,9 @@
         const row = node("tr");
         row.dataset.trade = trade.trade_number;
         for (const key of ["trade_number", "entry_time_utc", "exit_time_utc", "entry_fill_price", "exit_fill_price", "contracts", "gross_pnl", "total_commissions", "net_pnl", "actual_holding_minutes", "exit_reason"]) {
-          const cell = node("td", key.endsWith("time_utc") ? stamp(trade[key]) : String(trade[key]));
+          const cell = node("td", key.endsWith("time_utc") ? tradeStamp(trade[key]) : String(trade[key]));
           cell.dataset.field = key;
+          if (key.endsWith("time_utc")) cell.title = `Stored UTC: ${trade[key]}`;
           if (key === "net_pnl") cell.className = moneyClass(trade[key]);
           row.append(cell);
         }
@@ -178,6 +198,7 @@
     try {
       const record = await read(`/api/backtests/${id}`, controller.signal);
       if (active !== controller) return;
+      tradeTimezone(record);
       metrics(record);
       window.dispatchEvent(new CustomEvent("report-loaded", { detail: record }));
       get("#report-run-id").textContent = `Run ${record.id} · ${stamp(record.created_at_utc)} UTC`;

@@ -46,7 +46,63 @@ Chart read errors return an error rather than partial data. Values use CU
 currency code. Download names include the run ID, and only the two allowlisted
 CSV exports are exposed.
 
+## Dataset instrument settings
+
+Save positive finite decimal strings with each dataset before running a backtest:
+
+```bash
+AQ_API=http://127.0.0.1:8000
+AQ_DATASET_ID=YOUR_SAVED_DATASET_ID
+curl -fsS -X PATCH "$AQ_API/api/datasets/$AQ_DATASET_ID/instrument-settings" \
+  -H 'Content-Type: application/json' \
+  -d '{"tick_size":"0.25","point_value":"10"}'
+```
+
+The response is the updated dataset metadata. The original CSV, hash, timezone,
+validation metadata and dataset ID are preserved. Both fields are required;
+unknown fields, floats, zero, negative and non-finite values return 422. A missing
+dataset returns 404. Uploads may optionally provide both `tick_size` and
+`point_value` as query parameters on `POST /api/datasets`.
+
+Existing datasets without instrument settings remain readable and editable, but
+new backtests return 422 until these settings are saved. No values are inferred.
+The run request requires capital, slippage and commissions in
+`execution_settings`. Optional `tick_size` and `point_value` decimal strings
+override either dataset default for this run only; omitted or null fields use
+that saved default. Overrides must be positive and finite; numeric JSON values,
+booleans, invalid strings, zero and negative values return 422. Run overrides
+never update dataset metadata.
+
+The server captures the selected dataset's defaults at run start and stores them
+in `run_metadata.dataset.instrument_settings`. `execution_settings` records the
+full resolved configuration. `run_metadata.instrument_overrides` records only
+values that differ numerically from the captured defaults; equal decimal
+spellings are not overrides. Empty `{}` means the run used dataset defaults.
+The completed report displays the defaults and overrides, including after a
+refresh or server restart. Older reports without this provenance show it as not
+recorded. Editing a dataset during replay or afterward does not change that run
+or earlier reports.
+
 ## Request and validation
+
+Optional top-level `from_date` and `to_date` fields restrict the replay:
+
+```json
+{"from_date": "2026-01-05", "to_date": "2026-01-31"}
+```
+
+Add these to the existing dataset/strategy/settings request. They are inclusive
+calendar dates in the dataset's saved source timezone. Omit either for an open
+bound or both for the full dataset. Invalid/reversed bounds or an empty selection
+return 422; failed selections never become completed reports. Values outside
+the available data are clipped by selecting only matching observed bars.
+
+The strategy starts fresh with no history from outside the range, and its
+end-of-data callback runs at the last included bar. The saved record includes
+`run_metadata.selection` with the requested dates, timezone, actual UTC range,
+selected count and original source row bounds. Original dataset metadata is
+unchanged. Preparation uses `total_bars=0` until the exact count is known;
+replay/done progress and reconciliation use the selected count.
 
 Completed summaries include `max_drawdown_amount`, `max_drawdown_pct`, and
 `max_drawdown_duration_seconds`, as decimal strings. All use full trade-close
@@ -67,14 +123,14 @@ drawdown definitions for recovery, percentage and duration conventions.
   "strategy_id": "consecutive_green_hold",
   "strategy_parameters": {"green_bar_count": 3, "hold_minutes": 20, "contracts": 2},
   "execution_settings": {
-    "initial_capital": "10000", "tick_size": "0.25", "point_value": "10",
+    "initial_capital": "10000",
     "slippage_ticks": 1, "commission_per_contract_per_side": "1"
   }
 }
 ```
 
 These settings describe the synthetic arithmetic fixture, not NQ or another
-instrument. All strategy parameters and execution settings must be explicit.
+instrument. All strategy parameters and per-run capital/cost settings must be explicit. Tick size and monetary point value default to the saved dataset values, with optional validated per-run overrides.
 Decimal settings must be JSON **strings**, preserving precision. Integer
 parameters/ticks reject booleans, fractions, and string coercion. Missing/unknown
 settings, unsupported IDs, invalid values, and unsupported saved schemas are
@@ -94,9 +150,12 @@ also accepts the existing ID if the CSV/timezone was already uploaded:
 ```bash
 AQ_API=http://127.0.0.1:8000
 AQ_DATASET_ID=$(curl -sS -X POST \
-  "$AQ_API/api/datasets?filename=arithmetic_5m.csv&name=API-arithmetic-review&source_timezone=UTC" \
+  "$AQ_API/api/datasets?filename=arithmetic_5m.csv&name=API-arithmetic-review&source_timezone=UTC&tick_size=0.25&point_value=10" \
   --data-binary @tests/fixtures/backtest_contract/arithmetic_5m.csv \
   | .venv/bin/python -c 'import json,sys; r=json.load(sys.stdin); print(r.get("id") or r["dataset_id"])')
+curl -fsS -X PATCH "$AQ_API/api/datasets/$AQ_DATASET_ID/instrument-settings" \
+  -H 'Content-Type: application/json' \
+  -d '{"tick_size":"0.25","point_value":"10"}' > /dev/null
 AQ_PROGRESS_ID=$(.venv/bin/python -c 'from uuid import uuid4; print(uuid4())')
 
 cat > /tmp/aq-backtest-request.json <<JSON
@@ -105,7 +164,7 @@ cat > /tmp/aq-backtest-request.json <<JSON
   "strategy_id": "consecutive_green_hold",
   "strategy_parameters": {"green_bar_count": 3, "hold_minutes": 20, "contracts": 2},
   "execution_settings": {
-    "initial_capital": "10000", "tick_size": "0.25", "point_value": "10",
+    "initial_capital": "10000",
     "slippage_ticks": 1, "commission_per_contract_per_side": "1"
   }
 }

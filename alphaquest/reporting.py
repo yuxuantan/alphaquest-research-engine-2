@@ -61,6 +61,7 @@ def generate_report(
     events: Iterable[Trade | EquityPoint], output_directory: Path, config: ExecutionConfig,
     *, metadata: dict | None = None, expected_bar_count: int | None = None,
     on_saving: Callable[[], None] | None = None,
+    execution_assumption: str = "same_close_full_fill",
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -112,7 +113,7 @@ def generate_report(
                     _check(last is not None, "Initial equity must precede trades.")
                     _check(pending_trade is None, "Missing equity point after completed trade.")
                     _check(event.trade_number == trade_count + 1, "Trade numbers must be contiguous from 1.")
-                    _check(event.side == "long" and event.contracts > 0, "Unsupported trade side or quantity.")
+                    _check(event.side in ("long", "short") and event.contracts > 0, "Unsupported trade side or quantity.")
                     _check(1 <= event.entry_bar_number <= event.exit_bar_number == last.bar_number + 1,
                            "Trade bar numbers do not match the equity stream.")
                     _check(_utc(event.entry_time_utc) and _utc(event.exit_time_utc)
@@ -211,7 +212,7 @@ def generate_report(
             "created_at_utc": datetime.now(timezone.utc),
             "period_start_utc": drawdown.start, "period_end_utc": last.timestamp_utc,
             "timestamp_convention": TIMESTAMP_CONVENTION,
-            "execution_assumption": "same_close_full_fill",
+            "execution_assumption": execution_assumption,
             "execution_settings": asdict(config), "run_metadata": metadata or {},
             "summary": summary,
             "reconciliation": {

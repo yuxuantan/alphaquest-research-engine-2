@@ -225,8 +225,7 @@ def test_cli_runs_by_saved_id_with_provenance_and_clear_invalid_decimal_error(tm
     dataset_id = fixture_report["run_metadata"]["dataset"]["id"]
     output = tmp_path / "cli-report"
     command = [sys.executable, "-m", "alphaquest.run_backtest", "--database", str(tmp_path / case["id"] / "datasets.sqlite3"),
-               "--dataset-id", dataset_id, "--output", str(output), "--initial-capital", "10000", "--tick-size", "0.25",
-               "--point-value", "10", "--slippage-ticks", "1", "--commission-per-contract-per-side", "1", "--contracts", "2"]
+               "--dataset-id", dataset_id, "--output", str(output), "--initial-capital", "10000", "--slippage-ticks", "1", "--commission-per-contract-per-side", "1", "--contracts", "2"]
     completed = subprocess.run(command, text=True, capture_output=True, check=True)
     assert json.loads(completed.stdout)["summary"]["total_net_pnl"] == "26.00"
     report = read_report(output)
@@ -235,6 +234,6 @@ def test_cli_runs_by_saved_id_with_provenance_and_clear_invalid_decimal_error(tm
     assert report["run_metadata"]["dataset"]["id"] == dataset_id
     assert report["timestamp_convention"] == "bar_close" and report["status"] == "complete"
     invalid = command.copy()
-    invalid[invalid.index("--tick-size") + 1] = "invalid"
+    invalid[invalid.index("--initial-capital") + 1] = "invalid"
     failed = subprocess.run(invalid, text=True, capture_output=True)
     assert failed.returncode == 2 and "decimal number" in failed.stderr and "Traceback" not in failed.stderr

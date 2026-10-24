@@ -633,6 +633,13 @@ select {
 input::placeholder {
   color: #a2acb3;
 }
+#strategy-parameters input[type="checkbox"] {
+  display: block;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--ink);
+}
 input:disabled,
 select:disabled {
   background: #f6f8f9;
@@ -1043,6 +1050,13 @@ dialog::backdrop {
   gap: 12px;
   margin-top: 22px;
 }
+.instrument-settings-form {
+  border-block: 1px solid var(--line);
+  padding: 18px 0;
+  margin-bottom: 18px;
+}
+.instrument-settings-form .fields { margin: 16px 0; }
+.instrument-fields { margin-top: 20px; }
 .button.danger {
   color: #a84336;
   background: #fff;

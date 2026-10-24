@@ -5,6 +5,7 @@ from decimal import Decimal
 import json
 import re
 from threading import Event
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -20,7 +21,7 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
     saved = portal["saved"].get(case["id"])
     if saved is None:
         with httpx.Client(base_url=portal["url"]) as client:
-            response = client.post("/api/datasets", params={"filename": case["csv"], "name": case["id"], "source_timezone": case["source_timezone"]}, content=(FIXTURES / case["csv"]).read_bytes())
+            response = client.post("/api/datasets", params={"filename": case["csv"], "name": case["id"], "source_timezone": case["source_timezone"], **{k: case["execution_settings"][k] for k in ("tick_size", "point_value")}}, content=(FIXTURES / case["csv"]).read_bytes())
             assert response.status_code == 201, response.text
             saved = response.json()
     prepare(page, portal)
@@ -29,6 +30,7 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
         page.locator(f"#strategy-{key}").fill(str(value))
     ids = {"initial_capital": "initial-capital", "tick_size": "tick-size", "point_value": "point-value", "slippage_ticks": "slippage-ticks", "commission_per_contract_per_side": "commission"}
     for key, value in case["execution_settings"].items():
+        if key in ("tick_size", "point_value"): continue
         page.locator("#backtest-" + ids[key]).fill(str(value))
     page.locator("#start-backtest").click()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
@@ -39,9 +41,9 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
         trades = client.get(f"/api/backtests/{run_id}/trades").json()["items"]
     assert Decimal(page.locator("#report-net").inner_text()) == Decimal(case["expected_summary"]["total_net_pnl"])
     playwright.expect(page.locator("#report-trades")).to_have_text(str(len(case["expected_trades"])))
-    playwright.expect(page.locator("#report-win-rate")).to_have_text("N/A" if not trades else case["expected_summary"]["win_rate_pct"] + "%")
+    playwright.expect(page.locator("#report-win-rate")).to_have_text("N/A" if not trades else f"{Decimal(case['expected_summary']['win_rate_pct']):.2f}%")
     assert Decimal(page.locator("#report-drawdown-amount").inner_text()) == Decimal(case["expected_summary"]["max_drawdown_amount"])
-    assert Decimal(page.locator("#report-drawdown-pct").inner_text().removesuffix("%")) == Decimal(case["expected_summary"]["max_drawdown_pct"])
+    playwright.expect(page.locator("#report-drawdown-pct")).to_have_text(f"{Decimal(case['expected_summary']['max_drawdown_pct']):.2f}%")
     expected_duration = {"end_of_data": "4m", "last_bar_entry": "2m"}.get(case["id"], "0s")
     playwright.expect(page.locator("#report-drawdown-duration")).to_have_text(expected_duration)
     for actual, expected in zip(trades, case["expected_trades"], strict=True):
@@ -50,7 +52,10 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
         for key in ("entry_fill_price", "exit_fill_price", "contracts", "gross_pnl", "total_commissions", "net_pnl", "actual_holding_minutes", "exit_reason"):
             playwright.expect(row.locator(f"[data-field='{key}']")).to_have_text(str(actual[key]))
         for key in ("entry_time_utc", "exit_time_utc"):
-            playwright.expect(row.locator(f"[data-field='{key}']")).to_have_text(actual[key].replace("T", " ").replace("Z", ""))
+            local = datetime.fromisoformat(actual[key]).astimezone(ZoneInfo(case["source_timezone"]))
+            playwright.expect(row.locator(f"[data-field='{key}']")).to_have_text(local.strftime("%Y-%m-%d %H:%M:%S"))
+    playwright.expect(page.locator("#report-entry-time-header")).to_have_text("Entry · " + case["source_timezone"])
+    playwright.expect(page.locator("#report-exit-time-header")).to_have_text("Exit · " + case["source_timezone"])
     playwright.expect(page.locator("#equity-chart")).to_have_attribute("data-total", str(len(trades) + 1))
     playwright.expect(page.locator("#equity-chart-title")).to_have_text("Trade-close equity · CU")
     page.locator("#equity-chart").focus()
@@ -93,7 +98,7 @@ def test_large_run_progress_bounded_chart_and_trade_pagination(page, portal, mon
         timestamp = (start + timedelta(minutes=i)).strftime("%m/%d/%Y,%H:%M")
         lines.append(timestamp + ",100,101,100,101,0,0,0")
     with httpx.Client(base_url=portal["url"]) as client:
-        saved = client.post("/api/datasets", params={"filename": "large.csv", "name": "Large synthetic", "source_timezone": "UTC"}, content=("\n".join(lines) + "\n").encode()).json()
+        saved = client.post("/api/datasets", params={"filename": "large.csv", "name": "Large synthetic", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10"}, content=("\n".join(lines) + "\n").encode()).json()
     paused, release = Event(), Event()
     original = sample.ConsecutiveGreenHold.on_bar
 
@@ -175,3 +180,57 @@ def test_report_loading_errors_retry_and_history_pagination(page, portal):
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
     page.goto(portal["url"] + "/#backtests/report/" + "f" * 32)
     playwright.expect(page.locator("#report-status")).to_contain_text("Completed backtest not found")
+
+
+@pytest.mark.parametrize("zone,start", [
+    ("America/New_York", datetime(2026, 1, 5, 10)),
+    ("America/New_York", datetime(2026, 7, 6, 10)),
+    ("Asia/Kathmandu", datetime(2026, 1, 5, 0, 10)),
+])
+def test_trade_times_use_dataset_zone_across_dst_midnight_pagination_and_refresh(browser, portal, zone, start):
+    # Distinct winter/summer dates catch fixed-offset conversions. Kathmandu
+    # covers a fractional-hour offset and a date rollover from stored UTC.
+    lines = ["Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol"]
+    for minute in range(102):
+        local = start + timedelta(minutes=minute)
+        lines.append(local.strftime("%m/%d/%Y,%H:%M") + ",99,101,99,100,0,0,0")
+    with httpx.Client(base_url=portal["url"]) as client:
+        saved = client.post("/api/datasets", params={"filename": "local-clock.csv", "name": "Timezone review", "source_timezone": zone, "tick_size": "0.25", "point_value": "10"}, content=("\n".join(lines) + "\n").encode()).json()
+        response = client.post("/api/backtests", json={
+            "dataset_id": saved["id"], "strategy_id": "consecutive_green_hold",
+            "strategy_parameters": {"green_bar_count": 1, "hold_minutes": 1, "contracts": 1},
+            "execution_settings": {"initial_capital": "10000", "slippage_ticks": 0, "commission_per_contract_per_side": "0"},
+        })
+        assert response.status_code == 201, response.text
+        record = response.json()
+        first_trade = client.get(f"/api/backtests/{record['id']}/trades?limit=1").json()["items"][0]
+    context = browser.new_context(viewport={"width": 1440, "height": 1100}, timezone_id="Pacific/Honolulu")
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.goto(portal["url"] + "/#backtests/report/" + record["id"])
+        playwright.expect(page.locator("#backtest-completion")).to_be_visible()
+        playwright.expect(page.locator("#report-entry-time-header")).to_have_text("Entry · " + zone)
+        playwright.expect(page.locator("#report-exit-time-header")).to_have_text("Exit · " + zone)
+        playwright.expect(page.locator("#report-trade-timezone-hint")).to_contain_text("CSV exports use UTC")
+        row = page.locator("#report-trades-body tr").first
+        playwright.expect(row.locator("[data-field='entry_time_utc']")).to_have_text(start.strftime("%Y-%m-%d %H:%M:%S"))
+        playwright.expect(row.locator("[data-field='exit_time_utc']")).to_have_text((start + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S"))
+        playwright.expect(row.locator("[data-field='entry_time_utc']")).to_have_attribute("title", "Stored UTC: " + first_trade["entry_time_utc"])
+        playwright.expect(page.locator("#chart-readout")).to_contain_text((start + timedelta(minutes=101)).strftime("%Y-%m-%d %H:%M:%S") + " " + zone)
+        page.locator("#trades-next").click()
+        playwright.expect(page.locator("#report-trades-count")).to_have_text("51–51 of 51 trades")
+        playwright.expect(page.locator("[data-field='entry_time_utc']")).to_have_text((start + timedelta(minutes=100)).strftime("%Y-%m-%d %H:%M:%S"))
+        page.reload()
+        playwright.expect(page.locator("#backtest-completion")).to_be_visible()
+        playwright.expect(page.locator("#report-entry-time-header")).to_have_text("Entry · " + zone)
+        playwright.expect(page.locator("[data-field='entry_time_utc']").first).to_have_text(start.strftime("%Y-%m-%d %H:%M:%S"))
+        # Display conversion does not rewrite results or exports.
+        with httpx.Client(base_url=portal["url"]) as client:
+            assert client.get(f"/api/backtests/{record['id']}").json() == record
+            csv_response = client.get(f"/api/backtests/{record['id']}/exports/trades")
+            assert first_trade["entry_time_utc"] in csv_response.text
+        assert errors == []
+    finally:
+        context.close()

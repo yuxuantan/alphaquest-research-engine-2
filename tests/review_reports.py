@@ -8,8 +8,9 @@ from pathlib import Path
 
 from alphaquest.datasets import DatasetStore, validate_csv
 from alphaquest.run_backtest import run_saved_dataset
+from alphaquest.backtest_config import RunSettings
 from alphaquest.strategies.consecutive_green_hold import Parameters
-from review_execution import FIXTURES, configuration, fixtures
+from review_execution import FIXTURES, fixtures
 
 
 def _equal_record(actual, expected):
@@ -34,8 +35,10 @@ def review_fixture(case, directory):
     store = DatasetStore(fixture_dir / "datasets.sqlite3")
     raw = (FIXTURES / case["csv"]).read_bytes()
     saved = store.save(raw, validate_csv(raw, case["csv"], case["source_timezone"]), case["id"], "SYNTHETIC")
+    saved = store.set_instrument_settings(saved["id"], **{k: case["execution_settings"][k] for k in ("tick_size", "point_value")})
+    settings = case["execution_settings"]
     output = fixture_dir / "report"
-    run_saved_dataset(store, saved["id"], output, Parameters(**case["strategy_parameters"]), configuration(case))
+    run_saved_dataset(store, saved["id"], output, Parameters(**case["strategy_parameters"]), RunSettings(Decimal(settings["initial_capital"]), settings["slippage_ticks"], Decimal(settings["commission_per_contract_per_side"])))
     report = json.loads((output / "report.json").read_text())
     _equal_record(report["summary"], case["expected_summary"])
     assert len(report["trades"]) == len(case["expected_trades"])

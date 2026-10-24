@@ -13,14 +13,21 @@ from zoneinfo import available_timezones
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .datasets import MAX_BYTES, DatasetStore, DuplicateDataset, InvalidDataset, validate_csv_file
+from .datasets import MAX_BYTES, DatasetStore, DuplicateDataset, InvalidDataset, instrument_settings, validate_csv_file
 from .backtest_api import router as backtest_router
 from .backtest_runs import RunStore
 
 WEB = Path(__file__).parent / "web"
+
+
+class InstrumentSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tick_size: StrictStr = Field(max_length=128)
+    point_value: StrictStr = Field(max_length=128)
 
 
 class ProgressTracker:
@@ -152,14 +159,23 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             raise
 
     @app.post("/api/datasets", status_code=201)
-    async def save(request: Request, filename: str = Query(max_length=1024), name: str = Query(min_length=1, max_length=120), symbol: str = Query(default="", max_length=40), source_timezone: str = Query(default="UTC", max_length=100), progress_id: UUID | None = None):
+    async def save(request: Request, filename: str = Query(max_length=1024), name: str = Query(min_length=1, max_length=120), symbol: str = Query(default="", max_length=40), source_timezone: str = Query(default="UTC", max_length=100), progress_id: UUID | None = None,
+                   tick_size: str | None = Query(default=None, max_length=128), point_value: str | None = Query(default=None, max_length=128)):
         if not name.strip():
             raise HTTPException(422, "Give the dataset a name.")
+        settings = None
+        if tick_size is not None or point_value is not None:
+            try:
+                settings = instrument_settings(tick_size, point_value)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
         progress = track(request, progress_id)
         try:
             async with uploaded_csv(request, progress) as source:
                 # Saving always revalidates the complete bytes; client state is not trusted.
                 metadata = await run_in_threadpool(validate_csv_file, source, filename, source_timezone, progress)
+                if settings is not None:
+                    metadata["instrument_settings"] = settings
                 result = await run_in_threadpool(request.app.state.store.save_file, source, metadata, name.strip(), symbol.strip(), progress)
             if progress:
                 progress("done", result["bytes"], result["bytes"], result["row_count"])
@@ -172,6 +188,16 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @app.get("/api/datasets/{dataset_id}")
     def get_dataset(dataset_id: str, request: Request):
         dataset = request.app.state.store.get(dataset_id)
+        if dataset is None:
+            raise HTTPException(404, "Dataset not found.")
+        return dataset
+
+    @app.patch("/api/datasets/{dataset_id}/instrument-settings")
+    def update_instrument_settings(dataset_id: str, body: InstrumentSettings, request: Request):
+        try:
+            dataset = request.app.state.store.set_instrument_settings(dataset_id, body.tick_size, body.point_value)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
         if dataset is None:
             raise HTTPException(404, "Dataset not found.")
         return dataset

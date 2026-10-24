@@ -137,6 +137,10 @@ function upload(path) {
   if (saving) {
     params.set("name", $("#dataset-name").value.trim());
     params.set("symbol", $("#symbol").value.trim());
+    if ($("#dataset-tick-size").value.trim() || $("#dataset-point-value").value.trim()) {
+      params.set("tick_size", $("#dataset-tick-size").value.trim());
+      params.set("point_value", $("#dataset-point-value").value.trim());
+    }
   }
   let current = {
     stage: "uploading",
@@ -352,6 +356,7 @@ function showValidation(dataset) {
 }
 
 async function saveDataset() {
+  checkInstrumentInputs($("#dataset-tick-size"), $("#dataset-point-value"));
   if (busy || !validated || !$("#upload-form").reportValidity()) return;
   setBusy(true, "Saving…");
   try {
@@ -486,6 +491,9 @@ function renderLibrary() {
         [dataset.symbol, dataset.filename].filter(Boolean).join(" · "),
       ),
     );
+    title.append(node("span", "dataset-sub", dataset.instrument_settings
+      ? `Tick ${dataset.instrument_settings.tick_size} · Point value ${dataset.instrument_settings.point_value}`
+      : "Instrument settings needed for backtests"));
     const range = node("td", "", dataset.start.slice(0, 10));
     range.append(node("span", "dataset-sub", `to ${dataset.end.slice(0, 10)}`));
     const status = node("td");
@@ -549,6 +557,58 @@ function showDetails(dataset) {
     grid.append(pair);
   }
   content.append(grid);
+  const settingsForm = node("form", "instrument-settings-form");
+  settingsForm.id = "dataset-instrument-form";
+  settingsForm.append(node("h3", "", "Instrument settings"), node("p", "field-help",
+    "Used by future backtests on this dataset. Point value is money per 1.0 price point, per contract. Completed reports keep their original settings."));
+  const instrumentFields = node("div", "fields");
+  const inputs = [];
+  for (const [key, title] of [["tick_size", "Tick size"], ["point_value", "Monetary point value"]]) {
+    const label = node("label", "", title);
+    const input = node("input");
+    input.id = `detail-${key}`;
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.maxLength = 128;
+    input.required = true;
+    input.value = dataset.instrument_settings?.[key] || "";
+    input.addEventListener("input", () => inputs.forEach((field) => field.setCustomValidity("")));
+    inputs.push(input);
+    label.append(input);
+    instrumentFields.append(label);
+  }
+  const save = node("button", "button primary", "Save instrument settings");
+  save.type = "submit";
+  const status = node("p", "field-help");
+  status.id = "instrument-save-status";
+  status.setAttribute("role", "status");
+  settingsForm.append(instrumentFields, save, status);
+  settingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (save.disabled) return;
+    checkInstrumentInputs(...inputs, true);
+    if (!settingsForm.reportValidity()) return;
+    save.disabled = true;
+    inputs.forEach((input) => input.disabled = true);
+    status.textContent = "Saving instrument settings…";
+    try {
+      const response = await fetch(`/api/datasets/${dataset.id}/instrument-settings`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tick_size: inputs[0].value.trim(), point_value: inputs[1].value.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "Could not save instrument settings.");
+      dataset.instrument_settings = result.instrument_settings;
+      status.textContent = "Instrument settings saved. Future backtests will use these values.";
+      await loadLibrary();
+    } catch (error) {
+      status.textContent = error.message || "Could not save instrument settings. Check the server connection.";
+    } finally {
+      save.disabled = false;
+      inputs.forEach((input) => input.disabled = false);
+    }
+  });
+  content.append(settingsForm);
   warnings(content, dataset);
   const checksum = node("div", "checksum", "Original CSV · SHA-256");
   checksum.append(node("code", "", dataset.sha256));
@@ -568,6 +628,22 @@ function showDetails(dataset) {
   content.append(actions);
   $("#dataset-dialog").showModal();
 }
+
+function checkInstrumentInputs(tick, point, required = false) {
+  const needed = required || tick.value.trim() !== "" || point.value.trim() !== "";
+  for (const input of [tick, point]) {
+    const value = input.value.trim();
+    const valid = /^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d{1,4})?$/.test(value)
+      && /[1-9]/.test(value.split(/[eE]/)[0]);
+    input.setCustomValidity(needed && !valid ? "Enter a positive decimal number for both instrument settings." : "");
+  }
+}
+
+for (const selector of ["#dataset-tick-size", "#dataset-point-value"])
+  $(selector).addEventListener("input", () => {
+    $("#dataset-tick-size").setCustomValidity("");
+    $("#dataset-point-value").setCustomValidity("");
+  });
 
 $("#csv-file").addEventListener("change", (event) =>
   pickFile(event.target.files[0]),
@@ -596,6 +672,8 @@ dropzone.addEventListener("drop", (event) => {
 });
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  checkInstrumentInputs($("#dataset-tick-size"), $("#dataset-point-value"));
+  if (!$("#upload-form").reportValidity()) return;
   if (busy || !selectedFile) return;
   invalidate();
   if (selectedFile.size > MAX_BYTES) {

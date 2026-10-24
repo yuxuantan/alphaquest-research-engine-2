@@ -31,7 +31,7 @@ def client(tmp_path):
 def save_fixture(client, case=None):
     case = case or fixtures()[0]
     response = client.post("/api/datasets", params={"filename": case["csv"], "name": case["id"],
-                                                   "source_timezone": case["source_timezone"]},
+                                                   "source_timezone": case["source_timezone"], **{k: case["execution_settings"][k] for k in ("tick_size", "point_value")}},
                            content=(FIXTURES / case["csv"]).read_bytes())
     assert response.status_code == 201, response.text
     return response.json()
@@ -41,7 +41,7 @@ def body(dataset_id, case=None):
     case = case or fixtures()[0]
     return {"dataset_id": dataset_id, "strategy_id": "consecutive_green_hold",
             "strategy_parameters": deepcopy(case["strategy_parameters"]),
-            "execution_settings": deepcopy(case["execution_settings"])}
+            "execution_settings": {k: v for k, v in case["execution_settings"].items() if k not in ("tick_size", "point_value")}}
 
 
 def run_fixture(client, case=None, operation_id=None):
@@ -56,7 +56,7 @@ def test_strategy_registry_lists_script_owned_definitions_and_defaults(client):
     response = client.get("/api/strategies")
     assert response.status_code == 200
     strategies = response.json()
-    assert len(strategies) == 1
+    assert {item["id"] for item in strategies} == {sample.STRATEGY_ID, "vwap_pullback_risk_sizing"}
     strategy = strategies[0]
     assert strategy["id"] == sample.STRATEGY_ID
     assert strategy["description"] == sample.DESCRIPTION
@@ -79,7 +79,7 @@ def test_api_retrieves_exact_independently_reviewed_results_and_provenance(clien
     assert record["timestamp_convention"] == "bar_close"
     assert record["execution_assumption"] == "same_close_full_fill"
     provenance = record["run_metadata"]
-    assert provenance["dataset"] == {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count")}
+    assert provenance["dataset"] == {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")}
     assert provenance["strategy"]["parameters"] == case["strategy_parameters"]
     assert provenance["strategy"]["source_sha256"] == hashlib.sha256(Path(sample.__file__).read_bytes()).hexdigest()
     trades = client.get(f"/api/backtests/{run_id}/trades").json()
@@ -141,7 +141,7 @@ def test_execution_settings_require_explicit_exact_values(client, field, value):
     assert client.get("/api/backtests").json()["total"] == 0
 
 
-@pytest.mark.parametrize("field", ["initial_capital", "tick_size", "point_value", "slippage_ticks", "commission_per_contract_per_side"])
+@pytest.mark.parametrize("field", ["initial_capital", "slippage_ticks", "commission_per_contract_per_side"])
 def test_missing_execution_setting_is_not_inferred_from_dataset(client, field):
     dataset = save_fixture(client)
     request = body(dataset["id"])
@@ -155,7 +155,7 @@ def test_unknown_strategy_schema_missing_dataset_extra_top_level_and_origins(cli
     for strategy in ("unregistered", "alphaquest.strategies.consecutive_green_hold", "../../script.py"):
         assert client.post("/api/backtests", json={**request, "strategy_id": strategy}).status_code == 422
     assert client.post("/api/backtests", json={**request, "dataset_id": "missing"}).status_code == 404
-    assert client.post("/api/backtests", json={**request, "source_timezone": "UTC"}).status_code == 422
+    assert client.post("/api/backtests", json={**request, "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10"}).status_code == 422
     assert client.post("/api/backtests", json=request, headers={"origin": "https://evil.example"}).status_code == 403
     assert client.get(f"/api/backtests/{uuid4()}").status_code == 404
     assert client.get(f"/api/backtests/{uuid4()}/trades").status_code == 404
@@ -360,7 +360,7 @@ def test_large_results_use_bounded_pages_without_loading_report_arrays(client, m
     for minute in range(2002):
         stamp = start + timedelta(minutes=minute)
         lines.append(stamp.strftime("%m/%d/%Y,%H:%M") + ",100,101,100,101,0,0,0")
-    saved = client.post("/api/datasets", params={"filename": "many.csv", "name": "Many trades", "source_timezone": "UTC"},
+    saved = client.post("/api/datasets", params={"filename": "many.csv", "name": "Many trades", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10"},
                         content=("\n".join(lines) + "\n").encode()).json()
     request = body(saved["id"])
     request["strategy_parameters"] = {"green_bar_count": 1, "hold_minutes": 1, "contracts": 1}
@@ -394,7 +394,7 @@ def test_api_preserves_more_than_28_digit_money_in_saved_and_paged_results(clien
     raw = ("Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol\n"
            f"01/05/2026,10:00,{opening},{entry},{opening},{entry},0,0,0\n"
            f"01/05/2026,10:01,{entry},{exit},{entry},{exit},0,0,0\n").encode()
-    saved = client.post("/api/datasets", params={"filename": "precise.csv", "name": "Precise", "source_timezone": "UTC"}, content=raw).json()
+    saved = client.post("/api/datasets", params={"filename": "precise.csv", "name": "Precise", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10"}, content=raw).json()
     request = body(saved["id"])
     request["strategy_parameters"] = {"green_bar_count": 1, "hold_minutes": 1, "contracts": 2}
     request["execution_settings"]["initial_capital"] = entry

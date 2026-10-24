@@ -2,6 +2,15 @@
 
 A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. The Backtests screen configures runs and opens completed reports with exact metrics, a bounded trade-close equity chart, paginated trades, saved settings, and CSV downloads.
 
+The Backtests selector also includes **Vwap pullback risk sizing**, a port of
+the supplied MultiCharts PowerLanguage strategy, with ORB/VWAP latches, ADX
+gates, pivot/pullback stops, risk sizing, optional shorts, next-bar market
+orders, brackets, and EOD exits. See [the strategy guide](docs/strategies/vwap_pullback_risk_sizing.md)
+for defaults, full-session one-minute data requirements, CLI use, and explicit
+OHLC execution assumptions. The same-close descriptions below apply to the
+original consecutive-green-bars sample; the VWAP strategy uses the execution
+extension described in its guide. MultiCharts export parity remains unverified.
+
 ## Run
 
 Requires Python 3.12 or newer. From this repository:
@@ -124,18 +133,27 @@ The command checks every expected trade field and equity point using the saved-d
 
 ## Backtest reports
 
-Run the sample strategy on an existing saved dataset ID, with explicit synthetic or instrument execution settings:
+Portal runs can select inclusive **From date / To date** bounds in the dataset's
+saved source timezone. Blank bounds use the available data. The strategy starts
+fresh and ends at the last selected bar; the report saves the range and selected
+bar count. CLI runs accept the same `--from-date` and `--to-date` options.
+
+Before running, open the saved dataset in **Datasets**, set **Tick size** and **Monetary point value**, and save the instrument settings. New uploads can include both values. Existing datasets have no inferred defaults and require configuration before backtesting. These values must be positive finite decimals; point value is money per 1.0 price point per contract. Editing settings preserves the CSV, hash and other dataset metadata. Completed reports retain their original settings.
+
+The Backtests screen pre-fills these defaults into editable run fields. Use **Reset to dataset defaults** to restore them; selecting another dataset loads its defaults. Run-specific edits never update the dataset. Reports record the captured defaults, actual execution values and any overrides.
+
+Run the sample strategy on an existing saved dataset ID using its saved instrument defaults:
 
 ```bash
 .venv/bin/python -m alphaquest.run_backtest \
   --database data/datasets.sqlite3 --dataset-id YOUR_DATASET_ID \
   --output artifacts/my-backtest \
   --green-bar-count 3 --hold-minutes 20 --contracts 2 \
-  --initial-capital 10000 --tick-size 0.25 --point-value 10 \
+  --initial-capital 10000 \
   --slippage-ticks 1 --commission-per-contract-per-side 1
 ```
 
-These example execution settings describe the synthetic fixtures, not NQ or another real instrument. The command uses the dataset's saved timezone and preserves the source CSV/metadata. `--output` must name a new directory. It writes:
+For the synthetic arithmetic fixture, save tick size **0.25** and monetary point value **10** on the dataset first. These are not NQ or other real instrument specifications. Capital and costs remain per-run inputs. Tick size and point value default to the dataset; optional `--tick-size` and/or `--point-value` flags override them for this run only. The command uses the dataset's saved timezone and preserves the source CSV/metadata. `--output` must name a new directory. It writes:
 
 - `report.json`: summary, reconciliation checks, full trade records, and the complete equity curve. It records resolved execution/strategy settings, dataset ID/hash/source timezone, strategy ID/source hash, and the bar-close/same-close assumptions.
 - `trades.csv`: every field from the engine's completed trades, including reference/fill prices, both commissions, gross/net P&L, holding time, deadline, and reasons. Zero trades produces headers only.

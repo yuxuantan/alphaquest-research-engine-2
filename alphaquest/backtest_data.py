@@ -6,10 +6,11 @@ import hashlib
 import io
 import json
 import os
+import re
 from contextlib import contextmanager
 from collections.abc import Generator, Iterator
-from dataclasses import asdict
-from datetime import datetime
+from dataclasses import asdict, dataclass
+from datetime import date, datetime
 from decimal import Decimal
 from itertools import islice
 from pathlib import Path
@@ -26,6 +27,54 @@ class DatasetReadError(ValueError):
 
 class UnsupportedDatasetSchema(DatasetReadError):
     pass
+
+
+@dataclass(frozen=True)
+class DateRange:
+    """Inclusive calendar dates in the dataset's saved source timezone."""
+
+    from_date: date | None = None
+    to_date: date | None = None
+
+    def __post_init__(self):
+        if any(value is not None and type(value) is not date for value in (self.from_date, self.to_date)):
+            raise ValueError("Date bounds must be dates, without a time of day.")
+        if self.from_date and self.to_date and self.from_date > self.to_date:
+            raise ValueError("From date must be on or before To date.")
+
+    @classmethod
+    def parse(cls, from_date=None, to_date=None):
+        values = []
+        for name, value in (("From date", from_date), ("To date", to_date)):
+            if value is None:
+                values.append(None)
+                continue
+            if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                raise ValueError(f"{name} must use YYYY-MM-DD, or be omitted.")
+            try:
+                values.append(date.fromisoformat(value))
+            except ValueError:
+                raise ValueError(f"{name} must be a valid calendar date.") from None
+        return cls(*values)
+
+    @property
+    def active(self):
+        return self.from_date is not None or self.to_date is not None
+
+    def contains(self, timestamp, zone):
+        local_date = timestamp.astimezone(zone).date()
+        return ((self.from_date is None or local_date >= self.from_date)
+                and (self.to_date is None or local_date <= self.to_date))
+
+
+@dataclass(frozen=True)
+class SelectedBars:
+    bars: Iterator[Bar]
+    metadata: dict
+
+    @property
+    def row_count(self):
+        return self.metadata["row_count"]
 
 
 def _iter_bars(text, zone: ZoneInfo, expected_rows: int) -> Generator[Bar, None, None]:
@@ -87,6 +136,53 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
             bars = _iter_bars(text, zone, metadata.get("row_count"))
             try:
                 yield bars
+            finally:
+                bars.close()
+
+
+@contextmanager
+def read_selected_bars(store: DatasetStore, dataset_id: str, date_range: DateRange | None = None):
+    """Prepare an exact replay count without retaining selected bars in RAM.
+
+    The original CSV is snapshotted and fully validated with the shared reader.
+    A range spools matching source fields to a temporary CSV, then replays them
+    with contiguous bar numbers starting at one. Source bytes and metadata stay
+    untouched. No bars outside the range are supplied as strategy warm-up.
+    """
+    date_range = date_range or DateRange()
+    dataset = store.get(dataset_id)
+    if dataset is None:
+        raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
+    selection = {"from_date": date_range.from_date.isoformat() if date_range.from_date else None,
+                 "to_date": date_range.to_date.isoformat() if date_range.to_date else None,
+                 "source_timezone": dataset.get("source_timezone"), "warmup": "none"}
+    with read_bars(store, dataset_id) as source:
+        if not date_range.active:
+            selection.update(row_count=dataset["row_count"], start_utc=dataset["start"], end_utc=dataset["end"],
+                             first_source_bar_number=1, last_source_bar_number=dataset["row_count"])
+            yield SelectedBars(source, selection)
+            return
+        zone = ZoneInfo(dataset["source_timezone"])
+        with TemporaryFile(mode="w+", encoding="utf-8", newline="") as snapshot:
+            writer = csv.writer(snapshot)
+            writer.writerow(COLUMNS)
+            count = 0
+            for bar in source:
+                if date_range.contains(bar.timestamp_utc, zone):
+                    writer.writerow(bar.source_fields)
+                    if not count:
+                        selection.update(start_utc=bar.timestamp_utc.isoformat().replace("+00:00", "Z"),
+                                         first_source_bar_number=bar.bar_number)
+                    selection.update(end_utc=bar.timestamp_utc.isoformat().replace("+00:00", "Z"),
+                                     last_source_bar_number=bar.bar_number)
+                    count += 1
+            if not count:
+                raise DatasetReadError("No bars fall within the selected date range in the dataset's source timezone.")
+            selection["row_count"] = count
+            snapshot.seek(0)
+            bars = _iter_bars(snapshot, zone, count)
+            try:
+                yield SelectedBars(bars, selection)
             finally:
                 bars.close()
 

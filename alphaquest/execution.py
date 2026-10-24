@@ -1,4 +1,4 @@
-"""Streaming, long-only same-close execution. All trading decisions are external."""
+"""Streaming same-close and next-bar OHLC execution. All trading decisions are external."""
 
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -7,7 +7,7 @@ from decimal import Context, Decimal
 from typing import Literal
 
 from .decimal_math import add as _add, multiply as _mul, subtract as _sub
-from .strategy import Bar, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
+from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
 
 
 TIMESTAMP_CONVENTION = "bar_close"
@@ -21,7 +21,7 @@ class ExecutionError(ValueError):
 @dataclass(frozen=True, slots=True)
 class Trade:
     trade_number: int
-    side: Literal["long"]
+    side: Literal["long", "short"]
     entry_bar_number: int
     exit_bar_number: int
     entry_time_utc: datetime
@@ -100,9 +100,11 @@ class _Account:
         self.trade_count = 0
         self.slippage = _mul(config.tick_size, Decimal(config.slippage_ticks))
 
-    def apply(self, intent: EntryIntent | CloseIntent | None, bar: Bar, *, finishing: bool = False) -> Trade | None:
+    def apply(self, intent: EntryIntent | CloseIntent | None, bar: Bar, *, finishing: bool = False,
+              reference: Decimal | None = None, limit: bool = False) -> Trade | None:
         if intent is None:
             return None
+        reference = bar.close if reference is None else reference
         if type(intent) is EntryIntent:
             if finishing:
                 raise ExecutionError("on_finish may return only CloseIntent or None; entry is unsupported.")
@@ -110,32 +112,35 @@ class _Account:
                 raise ExecutionError("EntryIntent while holding is unsupported: no pyramiding or position replacement.")
             if intent.exit_deadline_utc is not None and intent.exit_deadline_utc < bar.timestamp_utc:
                 raise ExecutionError("Entry exit_deadline_utc cannot precede the actual entry time.")
-            fill = _add(bar.close, self.slippage)
+            fill = (_add if intent.side == "long" else _sub)(reference, self.slippage)
             commission = _mul(Decimal(intent.contracts), self.config.commission_per_contract_per_side)
-            self.position = Position(intent.contracts, bar.timestamp_utc, fill, bar.bar_number)
+            self.position = Position(intent.contracts, bar.timestamp_utc, fill, bar.bar_number, intent.side)
             self.entry_intent = intent
-            self.entry_reference = bar.close
+            self.entry_reference = reference
             self.entry_commission = commission
             self.cash = _sub(self.cash, commission)
             return None
         if type(intent) is not CloseIntent:
             raise ExecutionError(f"Unsupported intent {type(intent).__name__}; return one EntryIntent, CloseIntent, or None.")
+        if finishing and intent.timing != "same_close":
+            raise ExecutionError("on_finish cannot schedule a next-open exit without a future bar.")
         position = self.position
         entry = self.entry_intent
         if position is None or entry is None:
             raise ExecutionError("CloseIntent while flat is inconsistent: there is no position to close.")
-        fill = _sub(bar.close, self.slippage)
+        fill = reference if limit else (_sub if position.side == "long" else _add)(reference, self.slippage)
         commission = _mul(Decimal(position.contracts), self.config.commission_per_contract_per_side)
-        gross = _pnl(fill, position.entry_fill_price, position.contracts, self.config.point_value)
-        reference_gross = _pnl(bar.close, self.entry_reference, position.contracts, self.config.point_value)
+        signed_contracts = position.contracts if position.side == "long" else -position.contracts
+        gross = _pnl(fill, position.entry_fill_price, signed_contracts, self.config.point_value)
+        reference_gross = _pnl(reference, self.entry_reference, signed_contracts, self.config.point_value)
         commissions = _add(self.entry_commission, commission)
         self.trade_count += 1
         trade = Trade(
-            trade_number=self.trade_count, side="long",
+            trade_number=self.trade_count, side=position.side,
             entry_bar_number=position.entry_bar_number, exit_bar_number=bar.bar_number,
             entry_time_utc=position.entry_time_utc, exit_time_utc=bar.timestamp_utc,
             exit_deadline_utc=entry.exit_deadline_utc, contracts=position.contracts,
-            entry_reference_price=self.entry_reference, exit_reference_price=bar.close,
+            entry_reference_price=self.entry_reference, exit_reference_price=reference,
             entry_fill_price=position.entry_fill_price, exit_fill_price=fill,
             entry_commission=self.entry_commission, exit_commission=commission, total_commissions=commissions,
             reference_gross_pnl=reference_gross, slippage_cost=_sub(reference_gross, gross),
@@ -151,7 +156,8 @@ class _Account:
     def mark(self, bar: Bar | None) -> EquityPoint:
         unrealized = ZERO
         if bar is not None and self.position is not None:
-            unrealized = _pnl(bar.close, self.position.entry_fill_price, self.position.contracts, self.config.point_value)
+            contracts = self.position.contracts if self.position.side == "long" else -self.position.contracts
+            unrealized = _pnl(bar.close, self.position.entry_fill_price, contracts, self.config.point_value)
         return EquityPoint(
             bar_number=bar.bar_number if bar else 0,
             timestamp_utc=bar.timestamp_utc if bar else None,
@@ -159,6 +165,28 @@ class _Account:
             unrealized_pnl=unrealized, equity=_add(self.cash, unrealized),
             position_contracts=self.position.contracts if self.position else 0,
         )
+
+
+def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade | None:
+    """Open gaps first; otherwise stop wins an ambiguous two-level bar.
+
+    Limits fill at the limit or a better opening price, without adverse slippage.
+    Stops become market orders with adverse slippage. No intrabar path is invented.
+    """
+    position = account.position
+    if position is None:
+        raise ExecutionError("Pending bracket has no position.")
+    stop, target = bracket.stop_price, bracket.target_price
+    long = position.side == "long"
+    if (bar.open <= stop if long else bar.open >= stop):
+        return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open)
+    if (bar.open >= target if long else bar.open <= target):
+        return account.apply(CloseIntent("take_profit"), bar, reference=bar.open, limit=True)
+    if (bar.low <= stop if long else bar.high >= stop):
+        return account.apply(CloseIntent("stop_loss"), bar, reference=stop)
+    if (bar.high >= target if long else bar.low <= target):
+        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True)
+    return None
 
 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -> Iterator[Trade | EquityPoint]:
@@ -170,7 +198,9 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) ->
     owns input resources and should close a partially consumed execution iterator.
 
     Strategy callbacks receive only the current bar and filled position. No next
-    bar is pulled until the current callback/fill has completed. One equity point
+    bar is pulled until the current callback/fill has completed. Next-open orders
+    and brackets execute before the following callback; brackets expire after
+    that bar. Fill times identify the containing bar close. One equity point
     is retained until the next bar or EOF, so the final point includes on_finish
     without a duplicate. A completed trade precedes its associated equity point.
     """
@@ -181,14 +211,40 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) ->
     account = _Account(config)
     previous = None
     pending = None
+    next_order = None
     yield account.mark(None)
     for bar in bars:
         if pending is not None:
             yield pending
         _validate_bar(bar, previous)
-        trade = account.apply(strategy.on_bar(bar, account.position), bar)
-        if trade is not None:
-            yield trade
+        closed_on_bar = False
+        if next_order is not None:
+            if type(next_order) is BracketIntent:
+                trade = _fill_bracket(account, next_order, bar)
+            else:
+                trade = account.apply(next_order, bar, reference=bar.open)
+            if trade is not None:
+                closed_on_bar = True
+                yield trade
+        intent = strategy.on_bar(bar, account.position)
+        next_order = None
+        if type(intent) is BracketIntent:
+            if account.position is None:
+                raise ExecutionError("BracketIntent while flat is inconsistent.")
+            if ((account.position.side == "long" and intent.stop_price >= intent.target_price)
+                    or (account.position.side == "short" and intent.stop_price <= intent.target_price)):
+                raise ExecutionError("Bracket stop and target order is inconsistent with position side.")
+            next_order = intent
+        elif type(intent) in (EntryIntent, CloseIntent) and intent.timing == "next_open":
+            if (type(intent) is EntryIntent) != (account.position is None):
+                raise ExecutionError("Next-open entry requires flat; next-open close requires a position.")
+            next_order = intent
+        else:
+            if closed_on_bar and type(intent) is EntryIntent:
+                raise ExecutionError("Same-close re-entry on an exit bar is unsupported; use next_open.")
+            trade = account.apply(intent, bar)
+            if trade is not None:
+                yield trade
         pending = account.mark(bar)
         previous = bar
     if previous is None:

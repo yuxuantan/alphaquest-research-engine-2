@@ -5,10 +5,15 @@
   const form = get("#backtest-form");
   const datasetSelect = get("#backtest-dataset");
   const strategySelect = get("#backtest-strategy");
+  const fromDate = get("#backtest-from-date");
+  const toDate = get("#backtest-to-date");
   const start = get("#start-backtest");
   const refresh = get("#refresh-backtest-choices");
+  const resetInstrument = get("#reset-instrument-defaults");
+  const tickSize = get("#backtest-tick-size");
+  const pointValue = get("#backtest-point-value");
   const count = new Intl.NumberFormat("en-US");
-  const state = { datasets: [], strategies: [], busy: false, loading: false, ready: false, strategy: null };
+  const state = { datasets: [], strategies: [], busy: false, loading: false, ready: false, strategy: null, instrumentEdited: false };
   const drafts = new Map();
   const executionLabels = {
     initial_capital: "Initial capital", tick_size: "Tick size", point_value: "Monetary point value",
@@ -30,7 +35,8 @@
   function controls() {
     for (const fieldset of form.querySelectorAll("fieldset")) fieldset.disabled = state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
-    start.disabled = state.busy || state.loading || !state.ready || !state.strategy;
+    resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
+    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings;
     start.textContent = state.busy ? "Backtest running…" : "Start backtest →";
     form.setAttribute("aria-busy", String(state.busy));
   }
@@ -65,7 +71,7 @@
 
   function rememberParameters() {
     if (!state.strategy) return;
-    drafts.set(state.strategy.id, Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.value])));
+    drafts.set(state.strategy.id, Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.type === "checkbox" ? input.checked : input.value])));
   }
 
   function renderStrategy() {
@@ -77,7 +83,7 @@
     get("#strategy-description").textContent = strategy?.description || "Select a strategy to see its description.";
     if (strategy) {
       for (const parameter of strategy.parameters) {
-        if (!["int", "integer"].includes(parameter.type)) {
+        if (!["int", "integer", "bool", "Decimal"].includes(parameter.type)) {
           state.strategy = null;
           showError({ message: "This strategy uses a parameter type this screen does not support." });
           break;
@@ -87,13 +93,26 @@
         input.id = `strategy-${parameter.name}`;
         input.name = parameter.name;
         input.dataset.parameter = parameter.name;
-        input.dataset.integer = "";
-        input.type = "number";
-        input.step = "1";
-        input.max = String(parameter.maximum ?? Number.MAX_SAFE_INTEGER);
-        if (parameter.minimum !== undefined) input.min = String(parameter.minimum);
-        input.required = true;
-        input.value = drafts.get(strategy.id)?.[parameter.name] ?? String(parameter.default ?? "");
+        input.dataset.type = parameter.type;
+        const saved = drafts.get(strategy.id)?.[parameter.name] ?? parameter.default;
+        if (parameter.type === "bool") {
+          input.type = "checkbox";
+          input.checked = saved === true;
+        } else if (parameter.type === "Decimal") {
+          input.type = "text";
+          input.inputMode = "decimal";
+          input.dataset.decimal = "nonnegative";
+          input.required = true;
+          input.value = String(saved ?? "");
+        } else {
+          input.dataset.integer = "";
+          input.type = "number";
+          input.step = "1";
+          input.max = String(parameter.maximum ?? Number.MAX_SAFE_INTEGER);
+          if (parameter.minimum !== undefined) input.min = String(parameter.minimum);
+          input.required = true;
+          input.value = String(saved ?? "");
+        }
         const help = element("span", "field-help", parameter.description);
         help.id = `${input.id}-help`;
         input.setAttribute("aria-describedby", help.id);
@@ -102,15 +121,40 @@
         fields.append(wrapper);
       }
     }
+    get("#backtest-fill-assumption").textContent = strategy?.execution_assumption === "next_open_market_next_bar_bracket_stop_first"
+      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. Fill timestamps label the containing bar close. Use full-session one-minute data."
+      : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     controls();
   }
 
-  function renderDataset() {
+  function renderDataset(resetValues = true) {
     const dataset = selectedDataset();
     get("#backtest-dataset-info").textContent = dataset
       ? `${count.format(dataset.row_count)} bars · ${dataset.filename} · ${dataset.start.replace("T", " ").replace("Z", " UTC")} to ${dataset.end.replace("T", " ").replace("Z", " UTC")}`
       : "Choose a saved dataset. New datasets can be uploaded and saved in Datasets.";
     get("#backtest-timezone").textContent = dataset?.source_timezone || "Choose a dataset";
+    const settings = dataset?.instrument_settings;
+    const grid = get("#backtest-instrument-settings");
+    grid.replaceChildren();
+    for (const [key, title] of [["tick_size", "Tick size"], ["point_value", "Monetary point value"]]) {
+      const pair = element("div");
+      pair.dataset.instrument = key;
+      pair.append(element("dt", "", `Dataset default · ${title}`), element("dd", "", settings?.[key] || "Not set"));
+      grid.append(pair);
+    }
+    if (resetValues) {
+      tickSize.value = settings?.tick_size || "";
+      pointValue.value = settings?.point_value || "";
+      tickSize.setCustomValidity("");
+      pointValue.setCustomValidity("");
+      state.instrumentEdited = false;
+    }
+    get("#backtest-instrument-status").textContent = !dataset ? "Choose a dataset to see its instrument settings."
+      : settings ? state.instrumentEdited ? "Instrument values edited for this run. Dataset defaults stay unchanged."
+        : "Using dataset defaults. Edit the values above to override them for this run only."
+      : "Set tick size and monetary point value in Datasets before running a backtest.";
+    get("#backtest-date-range-help").textContent = `Both dates are inclusive${dataset ? " in " + dataset.source_timezone : " in the dataset's saved source timezone"}. Leave either blank for an open end, or both blank for the full dataset.`;
+    controls();
   }
 
   async function loadChoices() {
@@ -141,14 +185,14 @@
       strategySelect.replaceChildren(new Option("Choose a strategy", ""));
       for (const strategy of strategies) strategySelect.add(new Option(label(strategy.id), strategy.id));
       strategySelect.value = strategies.some((strategy) => strategy.id === previousStrategy)
-        ? previousStrategy : strategies.length === 1 ? strategies[0].id : "";
+        ? previousStrategy : strategies.length ? strategies[0].id : "";
       state.ready = supported > 0 && strategies.length > 0;
       get("#backtest-options-status").textContent = !supported
         ? "No supported saved datasets. Upload and save a nine-column CSV in Datasets first."
         : !strategies.length ? "No strategies are available on this server." : "";
-      get("#backtest-form-hint").textContent = "Instrument settings and costs are supplied explicitly for this run.";
+      get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately.";
       renderStrategy();
-      renderDataset();
+      renderDataset(previousDataset !== datasetSelect.value || !state.instrumentEdited);
     } catch (error) {
       state.ready = false;
       showError(error, "Could not load backtest choices");
@@ -176,6 +220,9 @@
         }
       }
     }
+    if (fromDate.value && toDate.value && fromDate.value > toDate.value) {
+      toDate.setCustomValidity("To date must be on or after From date.");
+    }
     if (!form.checkValidity()) {
       const invalid = form.querySelector("input:invalid, select:invalid");
       showError({ message: `${invalid?.closest("label")?.firstChild?.textContent?.trim() || "Configuration"}: ${invalid?.validationMessage || "Complete the required fields."}` });
@@ -184,12 +231,15 @@
     }
     const execution = {};
     for (const input of form.querySelectorAll("[data-decimal], #backtest-slippage-ticks")) {
+      if (input.dataset.parameter) continue;
       execution[input.name] = input.hasAttribute("data-integer") ? Number(input.value) : input.value.trim();
     }
     return {
       dataset_id: datasetSelect.value, strategy_id: strategySelect.value,
-      strategy_parameters: Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, Number(input.value)])),
+      strategy_parameters: Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.dataset.type === "bool" ? input.checked : input.dataset.type === "Decimal" ? input.value.trim() : Number(input.value)])),
       execution_settings: execution,
+      ...(fromDate.value ? { from_date: fromDate.value } : {}),
+      ...(toDate.value ? { to_date: toDate.value } : {}),
     };
   }
 
@@ -205,7 +255,9 @@
     const bar = get("#backtest-progress-bar");
     if (percent === null) bar.removeAttribute("value");
     else bar.value = percent;
-    get("#backtest-progress-detail").textContent = `${count.format(progress.bars_processed || 0)} / ${count.format(progress.total_bars || 0)} bars processed`;
+    get("#backtest-progress-detail").textContent = progress.stage === "preparing" && progress.total_bars === 0
+      ? "Preparing selected date range…"
+      : `${count.format(progress.bars_processed || 0)} / ${count.format(progress.total_bars || 0)} bars processed`;
     const seconds = Math.floor((performance.now() - started) / 1000);
     get("#backtest-elapsed").textContent = seconds < 60 ? `${seconds}s elapsed` : `${Math.floor(seconds / 60)}m ${seconds % 60}s elapsed`;
   }
@@ -214,16 +266,28 @@
     const content = get("#backtest-completion-content");
     content.replaceChildren();
     const metadata = record.run_metadata;
+    const defaults = metadata.dataset.instrument_settings;
+    const overrides = metadata.instrument_overrides;
+    const selection = metadata.selection;
     const grid = element("dl", "backtest-run-details");
     const pairs = [
       ["Run ID", record.id], ["Dataset", metadata.dataset.name], ["Dataset ID", metadata.dataset.id],
-      ["Bars", count.format(metadata.dataset.row_count)], ["Source timezone", metadata.dataset.source_timezone],
+      ["Bars used", count.format(selection?.row_count ?? metadata.dataset.row_count)], ["Source dataset bars", count.format(metadata.dataset.row_count)],
+      ["From date (inclusive)", selection?.from_date || "First available date"], ["To date (inclusive)", selection?.to_date || "Last available date"],
+      ["Source timezone", metadata.dataset.source_timezone],
+      ["Replay start · UTC", record.period_start_utc], ["Replay end · UTC", record.period_end_utc],
+      ...(selection ? [["Source rows used", `${selection.first_source_bar_number}–${selection.last_source_bar_number}`]] : []),
       ["Strategy", label(metadata.strategy.id)], ["Timestamp convention", record.timestamp_convention === "bar_close" ? "Bar close" : record.timestamp_convention],
       ["Dataset SHA-256", metadata.dataset.sha256], ["Strategy source SHA-256", metadata.strategy.source_sha256],
       ["Execution assumption", record.execution_assumption], ["Currency", "CU · account currency unspecified"],
+      ["Dataset default tick size", defaults?.tick_size || "Not recorded"],
+      ["Dataset default monetary point value", defaults?.point_value || "Not recorded"],
+      ["Instrument overrides", overrides ? Object.entries(overrides).map(([key, value]) => `${executionLabels[key]}: ${value}`).join(" · ") || "None (dataset defaults)"
+        : "Not recorded (older run)"],
     ];
     for (const [name, value] of pairs) {
       const pair = element("div");
+      if (name === "Instrument overrides") pair.dataset.instrumentOverrides = "";
       pair.append(element("dt", "", name), element("dd", name.endsWith("ID") ? "run-identifier" : "", value));
       grid.append(pair);
     }
@@ -253,7 +317,7 @@
     if (!payload) return;
     const operationId = crypto.randomUUID();
     const started = performance.now();
-    let current = { stage: "waiting", bars_processed: 0, total_bars: selectedDataset()?.row_count || 0 };
+    let current = { stage: "waiting", bars_processed: 0, total_bars: payload.from_date || payload.to_date ? 0 : selectedDataset()?.row_count || 0 };
     let finished = false;
     let pollTimer;
     const abortPoll = new AbortController();
@@ -292,7 +356,8 @@
       const record = await readResponse(response);
       if (record.status !== "complete" || !record.id) throw new Error("The server did not confirm a completed run.");
       finished = true;
-      current = { stage: "done", bars_processed: record.run_metadata.dataset.row_count, total_bars: record.run_metadata.dataset.row_count };
+      const total = record.run_metadata.selection?.row_count ?? record.run_metadata.dataset.row_count;
+      current = { stage: "done", bars_processed: total, total_bars: total };
       location.hash = `backtests/report/${record.id}`;
       get("#backtest-progress-note").textContent = `Run ${record.id} saved successfully.`;
     } catch (error) {
@@ -314,7 +379,12 @@
   });
 
   form.addEventListener("input", (event) => event.target.setCustomValidity?.(""));
-  datasetSelect.addEventListener("change", renderDataset);
+  datasetSelect.addEventListener("change", () => renderDataset());
+  resetInstrument.addEventListener("click", () => renderDataset());
+  for (const input of [tickSize, pointValue]) input.addEventListener("input", () => {
+    state.instrumentEdited = true;
+    renderDataset(false);
+  });
   strategySelect.addEventListener("change", renderStrategy);
   refresh.addEventListener("click", loadChoices);
 

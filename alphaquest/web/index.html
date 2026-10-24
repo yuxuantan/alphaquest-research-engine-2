@@ -158,6 +158,15 @@
                 Timezone of the CSV’s Date and Time columns. The preview also
                 shows the combined timestamp in UTC.
               </p>
+              <div class="fields instrument-fields">
+                <label>Tick size <span class="optional">optional until backtesting</span>
+                  <input id="dataset-tick-size" type="text" inputmode="decimal" maxlength="128" placeholder="e.g. 0.25" />
+                </label>
+                <label>Monetary point value
+                  <input id="dataset-point-value" type="text" inputmode="decimal" maxlength="128" placeholder="e.g. 10" />
+                </label>
+              </div>
+              <p class="field-help">Set both instrument values now or open the saved dataset to set them later. Point value is money per 1.0 price point, per contract.</p>
               <div class="form-actions">
                 <span class="small muted" id="form-hint"
                   >Choose a file to get started.</span
@@ -284,6 +293,29 @@
                       <option value="">Choose a saved dataset</option>
                     </select>
                     <p class="field-help" id="backtest-dataset-info">Upload and save a CSV in Datasets first.</p>
+                    <dl id="backtest-instrument-settings" class="backtest-run-details"></dl>
+                    <div class="backtest-execution-grid">
+                      <label>Tick size for this run
+                        <input id="backtest-tick-size" name="tick_size" type="text" inputmode="decimal" maxlength="128" required data-decimal="positive" />
+                      </label>
+                      <label>Monetary point value for this run
+                        <input id="backtest-point-value" name="point_value" type="text" inputmode="decimal" maxlength="128" required data-decimal="positive" aria-describedby="point-value-help" />
+                      </label>
+                    </div>
+                    <button id="reset-instrument-defaults" class="button secondary" type="button">Reset to dataset defaults</button>
+                    <p class="field-help" id="backtest-instrument-status" role="status"></p>
+                    <p class="field-help" id="point-value-help">Point value is money per 1.0 price point, per contract. Run-specific edits leave the saved dataset defaults unchanged.</p>
+                    <a href="#datasets" class="small">Edit instrument settings in Datasets →</a>
+                    <div class="backtest-execution-grid">
+                      <label>From date <span class="muted small">optional</span>
+                        <input id="backtest-from-date" name="from_date" type="date" aria-label="From date" aria-describedby="backtest-date-range-help" />
+                      </label>
+                      <label>To date <span class="muted small">optional</span>
+                        <input id="backtest-to-date" name="to_date" type="date" aria-label="To date" aria-describedby="backtest-date-range-help" />
+                      </label>
+                    </div>
+                    <p class="field-help" id="backtest-date-range-help">Both dates are inclusive in the dataset's saved source timezone. Leave blank to use all available dates.</p>
+                    <p class="field-help">The strategy starts fresh on the first selected bar. Signal counts and indicators use only selected bars; remaining positions close at the selection's end.</p>
                     <label for="backtest-strategy">Strategy</label>
                     <select id="backtest-strategy" required aria-describedby="strategy-description">
                       <option value="">Choose a strategy</option>
@@ -296,21 +328,13 @@
 
                 <section class="panel" aria-labelledby="execution-settings-heading">
                   <div class="panel-heading">
-                    <div><span class="step-number">02</span><h2 id="execution-settings-heading">Account, instrument &amp; costs</h2></div>
+                    <div><span class="step-number">02</span><h2 id="execution-settings-heading">Account &amp; costs</h2></div>
                     <span class="small muted">Separate from strategy parameters</span>
                   </div>
                   <fieldset class="backtest-fields backtest-execution-grid">
                     <label>Initial capital
                       <input id="backtest-initial-capital" name="initial_capital" type="text" inputmode="decimal" value="10000" required data-decimal="positive" aria-describedby="initial-capital-help" />
                       <span class="field-help" id="initial-capital-help">Starting equity in your account currency.</span>
-                    </label>
-                    <label>Tick size
-                      <input id="backtest-tick-size" name="tick_size" type="text" inputmode="decimal" placeholder="e.g. 0.25" required data-decimal="positive" aria-describedby="tick-size-help" />
-                      <span class="field-help" id="tick-size-help">Price movement represented by one tick.</span>
-                    </label>
-                    <label>Monetary point value
-                      <input id="backtest-point-value" name="point_value" type="text" inputmode="decimal" placeholder="e.g. 10" required data-decimal="positive" aria-describedby="point-value-help" />
-                      <span class="field-help" id="point-value-help">Money per 1.0 price point, per contract. Contract quantity is set in the strategy.</span>
                     </label>
                     <label>Adverse slippage · ticks per fill
                       <input id="backtest-slippage-ticks" name="slippage_ticks" type="number" min="0" max="9007199254740991" step="1" value="0" required data-integer />
@@ -328,13 +352,13 @@
                 <h2 id="backtest-assumptions-heading">Timestamps label <br />bar closes.</h2>
                 <span class="pill success">Bar-close convention</span>
                 <p>Every CSV timestamp represents the close of its completed bar.</p>
-                <p>Signals and simulated fills use that same close, adjusted by your slippage setting.</p>
+                <p id="backtest-fill-assumption">Signals and simulated fills use that same close, adjusted by your slippage setting.</p>
                 <div class="backtest-clock">
                   <strong>Saved source timezone</strong>
                   <span id="backtest-timezone">Choose a dataset</span>
                   <small>Converted to UTC for replay. Holds use elapsed time, including gaps.</small>
                 </div>
-                <p class="small muted">Tick size and point value are supplied by you. They are never inferred from the filename or symbol.</p>
+                <p class="small muted">Tick size and monetary point value start from the dataset defaults. You can override them for this run. Values are never inferred from the filename or symbol.</p>
               </aside>
             </div>
             <div class="backtest-submit-row">
@@ -367,14 +391,14 @@
               </div>
             </section>
             <section class="panel report-panel" aria-labelledby="report-trades-title">
-              <div class="panel-heading"><div><h2 id="report-trades-title">Every completed trade</h2></div><span class="small muted">UTC timestamps · P&amp;L in CU</span></div>
-              <p class="report-table-hint small muted">UTC timestamps · P&amp;L in CU. Scroll horizontally for all trade fields.</p>
+              <div class="panel-heading"><div><h2 id="report-trades-title">Every completed trade</h2></div><span id="report-trade-timezone-note" class="small muted">Dataset timezone · P&amp;L in CU</span></div>
+              <p id="report-trade-timezone-hint" class="report-table-hint small muted">Entry and exit times use the dataset timezone. CSV exports use UTC. Scroll horizontally for all trade fields.</p>
               <div class="report-table-scroll" tabindex="0" aria-label="Trade details, scroll horizontally"><table class="library-table report-trades"><thead><tr>
-                <th>#</th><th>Entry · UTC</th><th>Exit · UTC</th><th>Entry fill</th><th>Exit fill</th><th>Contracts</th><th>Gross P&amp;L</th><th>Commissions</th><th>Net P&amp;L</th><th>Hold · minutes</th><th>Exit reason</th>
+                <th>#</th><th id="report-entry-time-header">Entry · dataset time</th><th id="report-exit-time-header">Exit · dataset time</th><th>Entry fill</th><th>Exit fill</th><th>Contracts</th><th>Gross P&amp;L</th><th>Commissions</th><th>Net P&amp;L</th><th>Hold · minutes</th><th>Exit reason</th>
               </tr></thead><tbody id="report-trades-body"></tbody></table></div>
               <div class="report-pagination"><span id="report-trades-count" role="status"></span><div><button id="trades-previous" class="button secondary" type="button">Previous trades</button><button id="trades-next" class="button secondary" type="button">Next trades</button></div></div>
             </section>
-            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. Fills execute at the same close with adverse slippage and commissions. Gaps are preserved; elapsed-time exits use the first available close at or after the deadline. Open exposure is closed at end of data.</p></details>
+            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. The saved execution assumption identifies same-close fills or next-bar Open markets with stop-first OHLC brackets. Market and stop fills include adverse slippage; limits fill at their price or a better Open. Gaps are preserved. Open exposure is closed at end of data.</p></details>
           </section>
           <section id="completed-runs" class="panel report-panel" aria-labelledby="completed-runs-title">
             <div class="panel-heading"><div><h2 id="completed-runs-title">Completed reports</h2></div><button id="refresh-reports" class="button secondary" type="button">Refresh reports</button></div>

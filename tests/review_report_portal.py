@@ -30,6 +30,7 @@ def configure(page, saved, parameters, settings):
     ids = {"initial_capital": "initial-capital", "tick_size": "tick-size", "point_value": "point-value",
            "slippage_ticks": "slippage-ticks", "commission_per_contract_per_side": "commission"}
     for name, value in settings.items():
+        if name in ("tick_size", "point_value"): continue
         page.locator("#backtest-" + ids[name]).fill(str(value))
 
 
@@ -64,7 +65,7 @@ def review(output, url):
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         for case in fixtures():
-            saved_response = client.post("/api/datasets", params={"filename": case["csv"], "name": case["id"], "source_timezone": case["source_timezone"]}, content=(FIXTURES / case["csv"]).read_bytes())
+            saved_response = client.post("/api/datasets", params={"filename": case["csv"], "name": case["id"], "source_timezone": case["source_timezone"], **{k: case["execution_settings"][k] for k in ("tick_size", "point_value")}}, content=(FIXTURES / case["csv"]).read_bytes())
             assert saved_response.status_code == 201, saved_response.text
             saved = saved_response.json()
             page.goto(url + "/#backtests")
@@ -123,7 +124,7 @@ def review(output, url):
         for minute in range(bars):
             stamp = (start + timedelta(minutes=minute)).strftime("%m/%d/%Y,%H:%M")
             lines.append(stamp + ",100,101,100,101,0,0,0")
-        saved = client.post("/api/datasets", params={"filename": "large.csv", "name": "Large synthetic 20002", "source_timezone": "UTC"}, content=("\n".join(lines) + "\n").encode()).json()
+        saved = client.post("/api/datasets", params={"filename": "large.csv", "name": "Large synthetic 20002", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10"}, content=("\n".join(lines) + "\n").encode()).json()
         page.goto(url + "/#backtests")
         expect(page.locator("#strategy-parameters input")).to_have_count(3)
         settings = {"initial_capital": "10000", "tick_size": "0.25", "point_value": "10", "slippage_ticks": 0, "commission_per_contract_per_side": "0"}
