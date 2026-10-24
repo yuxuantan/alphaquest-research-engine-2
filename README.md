@@ -1,6 +1,6 @@
 # AlphaQuest Research Engine 02
 
-A small local research portal with CSV dataset management, a streaming backtest dataset reader, and a strategy-agnostic execution engine. The production sample strategy, performance reports, and portal backtest controls are pending separate review.
+A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, and a consecutive-green-bars sample strategy. Performance reports and portal backtest controls are pending separate review.
 
 ## Run
 
@@ -102,13 +102,33 @@ Same-close execution and bar-close timestamps are explicit simulation assumption
 
 The command creates isolated temporary saved datasets, replays them through the existing reader, checks every trade field and equity point, and prints actual-versus-expected values. The JSON contains complete comparisons. The arithmetic fixture yields fills 100.25/101.75, gross P&L 30, commissions 4, net P&L 26, entry equity 9993, and final equity 10026. The final-bar-entry fixture yields net -14 and final equity 9986. The reviewed CSVs and expected results are unchanged.
 
+## Consecutive-green-bars sample strategy
+
+`alphaquest/strategies/consecutive_green_hold.py` contains strategy identity `consecutive_green_hold`, its description, all decisions, and exactly three tunable parameters. Defaults are `green_bar_count=3`, `hold_minutes=20`, and `contracts=1`; each requires an integer >= 1 and rejects booleans and implicit coercion. Instantiate a fresh strategy for each run:
+
+```python
+from alphaquest.strategies.consecutive_green_hold import ConsecutiveGreenHold, Parameters
+
+strategy = ConsecutiveGreenHold(Parameters(green_bar_count=3, hold_minutes=20, contracts=1))
+```
+
+Pass it to the existing `execute` iterator. While flat, adjacent observed bars with `Close > Open` count toward entry; red bars and dojis reset the streak. Gaps preserve adjacency. While holding, bars do not count toward new entries and no pyramiding occurs. The strategy requests an exit at the first observed UTC close at or after actual entry time plus `hold_minutes`. The exit bar cannot start a new streak. `on_finish` closes remaining exposure with reason `end_of_data`, including an entry on the final bar. Dataset access, fills, costs, and financial arithmetic remain outside the strategy script.
+
+Run the actual strategy against all nine reviewed fixtures:
+
+```bash
+.venv/bin/python tests/review_strategy.py --output artifacts/strategy_review.json
+```
+
+The command checks every expected trade field and equity point using the saved-dataset reader and unchanged execution engine. It prints every entry and exit with its reason, writes complete comparisons to JSON, and saves the table to `artifacts/strategy_review.md`. Expected trade decisions are used only for comparison after the strategy runs. No performance metrics or portal controls are added by this increment.
+
 ## Verify
 
 ```bash
 python -m pytest
 ```
 
-Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results.
+Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter.
 
 ## Structure
 
@@ -116,8 +136,9 @@ Tests cover datasets and the portal, reader snapshots and incremental parsing, e
 - `alphaquest/backtest_data.py`: saved-dataset snapshot reader and normalized-bar review command.
 - `alphaquest/strategy.py`: immutable strategy inputs, intents, execution settings, and callback protocol.
 - `alphaquest/execution.py`: streaming long-only fills, trade records, cash, and equity.
+- `alphaquest/strategies/consecutive_green_hold.py`: sample strategy identity, parameter definitions, and all entry/exit decisions.
 - `alphaquest/app.py`: API and local web server.
 - `alphaquest/web/`: HTML, CSS, JavaScript, and example CSV; no frontend build step or CDN.
-- `tests/`: dataset, API, reader, and execution checks; runnable fixture review.
+- `tests/`: dataset, API, reader, execution, and strategy checks; runnable fixture reviews.
 
 The original [AlphaQuest repository](https://github.com/yuxuantan/alphaquest-research-engine) was consulted for context. This increment uses a small new implementation, with no imported governance, campaign, or backtest framework.

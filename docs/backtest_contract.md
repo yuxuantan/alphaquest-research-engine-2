@@ -1,6 +1,6 @@
 # Backtest contract — v1 proposal for review
 
-This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, and strategy-agnostic execution engine now implement their respective portions; a production sample strategy, reports, and portal backtest controls remain separate subtasks.
+This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, and consecutive-green-bars sample strategy now implement their respective portions; reports and portal backtest controls remain separate subtasks.
 
 ## 1. Dataset and clock
 
@@ -199,4 +199,6 @@ All fixture dates are January 5, 2026. UTC is the saved source timezone except f
 - `breakeven_after_costs`: positive reference/gross P&L is not a winning trade after costs. One breakeven trade gives 0/1 = 0% win rate.
 - `last_bar_entry`: entry cash/equity are 9998/9993 immediately after the buy; the following same-time sell leaves 9986. The final bar's stored equity point is 9986.
 
-The execution review command in `tests/review_execution.py` uses predetermined, test-only intent schedules and compares every trade field and equity point with these independent expectations. It checks execution at known decisions, not the correctness of the future sample strategy's green-bar, reset, or holding-period decisions.
+The execution review command in `tests/review_execution.py` uses predetermined, test-only intent schedules and compares every trade field and equity point with these independent expectations. It checks execution at known decisions, independently of sample strategy logic.
+
+The separate command in `tests/review_strategy.py` instantiates `ConsecutiveGreenHold` from `alphaquest/strategies/consecutive_green_hold.py` using each fixture's parameters. It reads the saved CSV through the existing reader, executes the actual strategy through the unchanged engine, and only then compares all trade fields and equity points. It prints an entry/exit table with reasons. The original source fixtures and expectations are unchanged.
