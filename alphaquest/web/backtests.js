@@ -219,6 +219,8 @@
       ["Run ID", record.id], ["Dataset", metadata.dataset.name], ["Dataset ID", metadata.dataset.id],
       ["Bars", count.format(metadata.dataset.row_count)], ["Source timezone", metadata.dataset.source_timezone],
       ["Strategy", label(metadata.strategy.id)], ["Timestamp convention", record.timestamp_convention === "bar_close" ? "Bar close" : record.timestamp_convention],
+      ["Dataset SHA-256", metadata.dataset.sha256], ["Strategy source SHA-256", metadata.strategy.source_sha256],
+      ["Execution assumption", record.execution_assumption], ["Currency", "CU · account currency unspecified"],
     ];
     for (const [name, value] of pairs) {
       const pair = element("div");
@@ -240,9 +242,8 @@
       }
       content.append(details);
     }
-    get("#backtest-completion").hidden = false;
-    if (!get("#backtests-screen").hidden) get("#backtest-completion").scrollIntoView({ block: "start" });
   }
+  window.addEventListener("report-loaded", (event) => completion(event.detail));
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -292,7 +293,7 @@
       if (record.status !== "complete" || !record.id) throw new Error("The server did not confirm a completed run.");
       finished = true;
       current = { stage: "done", bars_processed: record.run_metadata.dataset.row_count, total_bars: record.run_metadata.dataset.row_count };
-      completion(record);
+      location.hash = `backtests/report/${record.id}`;
       get("#backtest-progress-note").textContent = `Run ${record.id} saved successfully.`;
     } catch (error) {
       finished = true;
@@ -318,7 +319,7 @@
   refresh.addEventListener("click", loadChoices);
 
   function navigate() {
-    const screen = location.hash === "#backtests" ? "backtests" : "datasets";
+    const screen = location.hash.startsWith("#backtests") ? "backtests" : "datasets";
     get("#datasets-screen").hidden = screen !== "datasets";
     get("#backtests-screen").hidden = screen !== "backtests";
     get("#current-screen").textContent = screen === "backtests" ? "Backtests" : "Datasets";
@@ -330,7 +331,7 @@
       else link.removeAttribute("aria-current");
     }
     get("#footer-context").textContent = screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
-    if (screen === "backtests") loadChoices();
+    if (location.hash === "#backtests") loadChoices();
   }
   window.addEventListener("hashchange", navigate);
   navigate();

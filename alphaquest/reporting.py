@@ -11,6 +11,7 @@ import shutil
 from tempfile import TemporaryDirectory
 
 from .decimal_math import add, multiply, subtract
+from .drawdown import Drawdown
 from .execution import EquityPoint, TIMESTAMP_CONVENTION, Trade
 from .strategy import ExecutionConfig
 
@@ -87,6 +88,7 @@ def generate_report(
     trade_count = winning = losing = breakeven = 0
     previous_trade = pending_trade = initial = last = None
     saw_exposure = False
+    drawdown = None
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
         staging.mkdir()
@@ -165,6 +167,9 @@ def generate_report(
                                "Exit equity must match the trade's exit bar/time and finish flat.")
                         _check(last.position_contracts == (pending_trade.contracts if pending_trade.entry_bar_number < pending_trade.exit_bar_number else 0),
                                "Closing trade quantity does not match the preceding position.")
+                        if drawdown is None:
+                            drawdown = Drawdown(initial.equity, event.timestamp_utc)
+                        drawdown.observe(event.timestamp_utc, event.equity)
                         equity_writer.writerow(_csv_record({
                             "trade_number": pending_trade.trade_number,
                             "exit_time_utc": pending_trade.exit_time_utc,
@@ -175,6 +180,8 @@ def generate_report(
                         _check(event.position_contracts == last.position_contracts,
                                "Position changed without a completed trade.")
                     json.dump(record, equity_array, default=json_value, allow_nan=False)
+                    if drawdown is None and event.bar_number == 1:
+                        drawdown = Drawdown(initial.equity, event.timestamp_utc)
                     last = event
             trade_array.write("]")
             equity_array.write("]")
@@ -197,10 +204,12 @@ def generate_report(
             "total_gross_pnl": total_gross, "total_slippage_cost": total_slippage,
             "total_commissions": total_commissions, "total_net_pnl": total_net,
             "ending_position_contracts": last.position_contracts,
+            **drawdown.finish(last.timestamp_utc),
         }
         manifest = {
             "format_version": 1, "status": "complete",
             "created_at_utc": datetime.now(timezone.utc),
+            "period_start_utc": drawdown.start, "period_end_utc": last.timestamp_utc,
             "timestamp_convention": TIMESTAMP_CONVENTION,
             "execution_assumption": "same_close_full_fill",
             "execution_settings": asdict(config), "run_metadata": metadata or {},

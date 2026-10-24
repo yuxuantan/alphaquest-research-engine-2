@@ -48,15 +48,34 @@ Open `http://127.0.0.1:8000/` and select **Backtests**, or go directly to
    while the POST remains active. Progress displays preparation, replay, report
    saving, processed/total bars, and elapsed time. The seven-bar fixture may
    finish before an intermediate poll; larger runs show live replay progress.
-7. On completion, inspect the run ID and the **Strategy parameters used** and
-   **Execution settings used** sections. These values come from the saved
-   backend response. The fixture should have green count 3, hold 20, contracts 2,
-   and all five execution settings above. Full performance/trade/report screens
-   remain a separate subtask.
+7. The completed report opens automatically. Check net P&L **26**, gross P&L
+   **30**, commissions **4**, **1** trade, **100%** win rate, final equity
+   **10026**, entry fill **100.25**, and exit fill **101.75**. Expand **Dataset,
+   strategy & settings used** to inspect the saved parameters, costs, dataset
+   and source hashes, timezone, and timestamp convention.
+8. Hover over the equity chart or focus it and use arrow keys. It shows only
+   **10000 → 10026**: the initial balance and equity after the one completed
+   trade, including all costs. No entry-bar or open-position fluctuations are
+   plotted. Values use synthetic currency units **CU**; no currency code is
+   stored or inferred.
+9. Download both CSVs. Equity CSV retains the previously reviewed format:
+   initial equity plus equity after each completed trade. The chart uses the
+   same values and excludes unrealized P&L while a position is open.
+10. Refresh: the report URL `/#backtests/report/RUN_ID` reopens the saved run.
+    Return to **Backtests**, find it in **Completed reports**, and reopen it.
+    History is paginated, 25 reports at a time. Reports remain available after
+    the original dataset is deleted.
 
-The saved result for this fixture has net P&L 26 and final equity 10026. These
-values can be checked in the API response; this screen deliberately focuses on
-run configuration and saved-run confirmation.
+Reports also show **Max drawdown (CU)**, **Max drawdown (%)**, and **Max drawdown
+duration**. These use every post-cost trade-close equity value, including initial
+capital, and exclude open-position fluctuations. Amount and percentage are
+maximized independently; percentage uses the corresponding prior peak. Duration
+is the longest elapsed UTC time from a peak to recovery, or dataset end when
+unrecovered (initial capital uses the first bar's timestamp). The arithmetic,
+no-pyramiding and zero-trade fixtures show **0 / 0% / 0s**. The `end_of_data`
+fixture shows **20 CU / 0.2% / 4m**; `last_bar_entry` shows
+**14 CU / 0.14% / 2m**. Existing saved reports gain these metrics on first access
+without rerunning trades; the enriched catalogue is retained across restarts.
 
 ## Check the submitted settings
 
@@ -101,7 +120,7 @@ API supplies them. Choice-loading errors can be retried with **Refresh choices**
 Temporary progress-poll failures do not turn the run into a failure; the active
 POST still determines the result. A lost run connection is shown as unconfirmed
 and is never retried automatically. Reloading the page does not resume a pending
-request; completed records remain available through the backend APIs.
+request; completed records remain available in **Completed reports**.
 
 ## Browser checks
 
@@ -111,7 +130,7 @@ framework or build step is added:
 ```bash
 .venv/bin/python -m pip install -e '.[dev,browser]' -c requirements.lock
 .venv/bin/python -m playwright install chromium
-.venv/bin/python -m pytest tests/test_backtests_browser.py -q
+.venv/bin/python -m pytest tests/test_backtests_browser.py tests/test_reports_browser.py tests/test_report_screen_api.py -q
 ```
 
 Real Chromium checks cover dataset and strategy selection, backend-defined
@@ -122,3 +141,36 @@ upload/preview/download/delete flow. Tests use isolated temporary databases and
 owned local servers. The extra backend definition used to exercise strategy
 switching exists only in the browser test response; production keeps its tested
 allowlist.
+
+## Repeatable report review and screenshots
+
+```bash
+.venv/bin/python tests/review_report_portal.py --output artifacts/report-screen-review-new
+```
+
+Use a new output directory. The command owns and stops its preview server,
+saves isolated datasets and completed reports, drives all nine reviewed fixtures
+through Chromium, compares every trade and trade-close equity point, tests CSV downloads
+and refreshing/reopening, and retains screenshots and `verification.json`.
+It also runs a 20,002-bar synthetic dataset: 10,001 breakeven trades, net P&L 0,
+final equity 10000, no more than 1,000 browser chart points, and 50 trades per
+table page. The automated browser suite separately pauses replay to check live
+progress and server responsiveness deterministically, and checks dataset
+upload/validation/download/deletion and history/error states.
+
+Open the retained data for manual review (replace the path if needed):
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/report-screen-review-new" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000
+```
+
+The chart requests at most 1,000 records. The server streams the saved
+trade-close equity CSV and retains endpoints plus chronological minimum/maximum
+equity per equal trade-count bucket. This preserves bucket extremes but
+connecting lines omit intermediate trades. X spacing is by completed trade
+count; hover timestamps are the UTC exit times. A zero-trade run shows only its
+initial balance. The two-trade no-pyramiding fixture shows exactly
+**10000 → 10020 → 10040**. Exact Decimal strings supply all table values, metrics and downloads;
+only SVG geometry and approximate axis tick labels use browser floating point.
+No metric is computed from sampled data. The full-resolution results and CSVs
+are unchanged, and earlier saved portal runs can be opened without rerunning.

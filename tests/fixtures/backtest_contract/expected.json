@@ -61,7 +61,10 @@
         "total_slippage_cost": "10",
         "total_commissions": "4",
         "total_net_pnl": "26",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -187,7 +190,10 @@
         "total_slippage_cost": "0",
         "total_commissions": "0",
         "total_net_pnl": "20",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -306,7 +312,7 @@
         "commission_per_contract_per_side": "0"
       },
       "bar_count": 10,
-      "review_notes": "All ten bars are green. No entry while holding or on an exit bar. Bars 6–8 supply the new streak for trade 2.",
+      "review_notes": "All ten bars are green. No entry while holding or on an exit bar. Bars 6\u20138 supply the new streak for trade 2.",
       "expected_trades": [
         {
           "trade_number": 1,
@@ -369,7 +375,10 @@
         "total_slippage_cost": "0",
         "total_commissions": "0",
         "total_net_pnl": "40",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -519,7 +528,10 @@
         "total_slippage_cost": "0",
         "total_commissions": "0",
         "total_net_pnl": "30",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -637,7 +649,10 @@
         "total_slippage_cost": "0",
         "total_commissions": "0",
         "total_net_pnl": "20",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -739,7 +754,10 @@
         "total_slippage_cost": "0",
         "total_commissions": "0",
         "total_net_pnl": "-20",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "20",
+        "max_drawdown_pct": "0.2",
+        "max_drawdown_duration_seconds": "240"
       },
       "expected_equity": [
         {
@@ -824,7 +842,10 @@
         "total_slippage_cost": "0",
         "total_commissions": "0",
         "total_net_pnl": "0",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -934,7 +955,10 @@
         "total_slippage_cost": "5",
         "total_commissions": "2.50",
         "total_net_pnl": "0",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "0",
+        "max_drawdown_pct": "0",
+        "max_drawdown_duration_seconds": "0"
       },
       "expected_equity": [
         {
@@ -1044,7 +1068,10 @@
         "total_slippage_cost": "10",
         "total_commissions": "4",
         "total_net_pnl": "-14",
-        "ending_position_contracts": 0
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "14",
+        "max_drawdown_pct": "0.14",
+        "max_drawdown_duration_seconds": "120"
       },
       "expected_equity": [
         {

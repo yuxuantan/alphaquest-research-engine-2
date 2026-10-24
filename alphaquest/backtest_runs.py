@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 
 from .execution import Trade
+from .drawdown import saved_drawdown
 from .reporting import json_value
 
 
@@ -89,13 +90,22 @@ class RunStore:
     def get(self, run_id: str) -> dict | None:
         with self.connect() as conn:
             row = conn.execute("SELECT manifest FROM runs WHERE id=?", (run_id,)).fetchone()
-        return json.loads(row[0]) if row else None
+        return self._with_drawdown(json.loads(row[0])) if row else None
+
+    def _with_drawdown(self, record):
+        """One-time catalogue enrichment; stream outside the DB connection."""
+        if not {"max_drawdown_amount", "max_drawdown_pct", "max_drawdown_duration_seconds"} <= record["summary"].keys():
+            record.update(saved_drawdown(self.root / record["id"], record))
+            record = json.loads(json.dumps(record, default=json_value, allow_nan=False))
+            with self.connect() as conn:
+                conn.execute("UPDATE runs SET manifest=? WHERE id=?", (json.dumps(record), record["id"]))
+        return record
 
     def list(self, offset: int, limit: int) -> dict:
         with self.connect() as conn:
             total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
             rows = conn.execute("SELECT manifest FROM runs ORDER BY created_at DESC, id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
-        return {"items": [json.loads(row[0]) for row in rows], "offset": offset, "limit": limit, "total": total}
+        return {"items": [self._with_drawdown(json.loads(row[0])) for row in rows], "offset": offset, "limit": limit, "total": total}
 
     def page(self, run_id: str, kind: str, offset: int, limit: int) -> dict | None:
         record = self.get(run_id)

@@ -1,6 +1,6 @@
 # Backtest contract — v1 proposal for review
 
-This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, report generation, APIs, and portal run controls now implement their respective portions; a full report screen remains a separate subtask.
+This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, report generation, APIs, portal run controls, and completed report screen now implement their respective portions.
 
 ## 1. Dataset and clock
 
@@ -155,6 +155,38 @@ Summary definitions:
 - With a completed flat run, `final_equity = initial_capital + total_net_pnl` and `total_net_pnl = sum(trade.net_pnl)`.
 - With zero trades: all monetary totals and trade counts are zero, equity stays at initial capital, the trade array is empty, and no dummy trade is created.
 
+### Trade-close drawdown metrics
+
+Drawdown uses initial capital and **every completed trade's post-cost equity**,
+matching `equity.csv`. It excludes open-position equity fluctuations and is
+calculated from the complete series, never the bounded chart sample.
+
+- `max_drawdown_amount`: largest positive `prior_peak_equity - equity`, in account
+  currency units (CU). The running peak includes initial capital.
+- `max_drawdown_pct`: largest `100 * (prior_peak_equity - equity) / prior_peak_equity`.
+  This uses the corresponding peak, not initial capital, and is maximized
+  independently of the monetary amount. It can exceed 100% if equity is negative.
+  Percentages use 28 significant Decimal digits, round-half-even.
+- `max_drawdown_duration_seconds`: longest elapsed UTC time from a peak to its
+  recovery (`equity >= peak`), or to the final dataset bar if still unrecovered.
+  Include gaps and time after the last trade. An equal-peak observation recovers
+  the drawdown and becomes the latest peak timestamp for subsequent declines.
+  Initial capital has no fill timestamp, so its duration clock starts at the
+  first observed bar close. The longest duration need not belong to the deepest
+  drawdown. Duration is stored as exact decimal seconds and displayed in days,
+  hours, minutes and seconds. No drawdown and zero-trade cases return zero.
+
+New reports record `period_start_utc` and `period_end_utc` from the first/last
+observed bar closes. A one-bar loss can have positive drawdown and zero elapsed
+duration; no earlier timestamp is invented for the initial balance.
+
+Hand checks: initial 100, peak 120 at minute 10, trough 90 at minute 20,
+recovery 120 at minute 60 gives amount **30**, percentage **25%**, duration
+**50 minutes**. The reviewed `end_of_data` fixture gives **20 CU, 0.2%, 4 minutes**;
+`last_bar_entry` gives **14 CU, 0.14%, 2 minutes**. All other reviewed fixtures
+have zero trade-close drawdown, including the arithmetic fixture whose only
+completed trade wins despite its open-position loss.
+
 ### Report artifacts and precision
 
 `alphaquest.reporting.generate_report` consumes a complete engine event stream independently of the strategy. It writes `report.json` (summary, provenance/configuration, reconciliation results, full trades, and full equity), `trades.csv`, and `equity.csv`. It copies the engine's trade and equity values and only aggregates authoritative trade fields; it does not recalculate fills, costs, or unrealized P&L. Shared exact Decimal arithmetic supports both execution and aggregation without relying on the caller's Decimal precision.
@@ -171,7 +203,7 @@ The existing FastAPI server also exposes the tested components through a code-ow
 
 Completed summaries/provenance and indexed trade/equity rows are persisted in `backtests.sqlite3` beside the dataset store, with report files in `backtest_runs/RUN_ID/`. Records survive restart and source deletion. Retrieval is paginated (default 100, maximum 1,000 rows), and the equity endpoint follows the requested trade-close CSV format. The full bar-close series remains in the report JSON. See [API endpoints and reproducible commands](backtest_api.md). No external task queue is added.
 
-The portal's Backtests screen renders parameter definitions from the allowlisted strategy endpoint, keeps execution settings separate, reviews the fixed bar-close convention, and sends explicit settings through the same APIs. It locks the form while the POST is active and polls actual progress. A completed run shows the saved backend record's identity and settings; full report controls remain separate. Monetary inputs are submitted and displayed as decimal strings. See [portal fixture review instructions](backtests_portal.md).
+The portal's Backtests screen renders parameter definitions from the allowlisted strategy endpoint, keeps execution settings separate, reviews the fixed bar-close convention, and sends explicit settings through the same APIs. It locks the form while the POST is active and polls actual progress. Completed reports show authoritative summaries, at most 1,000 trade-close equity chart points, 50 trades per table page, all saved settings, and the existing trade/trade-close-equity CSV downloads. Completed history is paginated, and a report hash URL reopens after refresh. The chart uses initial equity and equity after completed trades, matching equity.csv and excluding open-position fluctuations. Large-run samples retain endpoints and trade-count bucket extrema; metrics still use complete engine outputs. Currency is labelled CU (account currency unspecified), since no currency code exists in this contract. Monetary inputs, outputs, and tooltips remain decimal strings; only chart geometry and approximate axis labels use floating point. See [portal fixture review instructions](backtests_portal.md).
 
 ## 7. Hand-checkable fixtures
 

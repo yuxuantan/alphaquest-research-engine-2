@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
     <script src="/static/app.js" defer></script>
     <script src="/static/backtests.js" defer></script>
+    <script src="/static/reports.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -259,6 +260,7 @@
         </section>
 
         <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
+          <div id="backtest-setup">
           <div class="page-heading">
             <div>
               <div class="eyebrow">PUT YOUR STRATEGY TO THE TEST</div>
@@ -348,9 +350,36 @@
             <div class="progress-details"><span id="backtest-progress-detail"></span><span id="backtest-elapsed"></span></div>
             <p id="backtest-progress-note" class="small muted" role="status"></p>
           </section>
-          <section id="backtest-completion" class="panel" aria-labelledby="backtest-completion-title" hidden>
-            <div class="panel-heading"><div><span class="pill success">✓ Saved</span><h2 id="backtest-completion-title">Backtest completed</h2></div></div>
-            <div id="backtest-completion-content" class="backtest-fields"></div>
+          </div>
+          <div id="report-status" class="validation-box" role="status" hidden></div>
+          <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
+            <div class="page-heading report-heading">
+              <div><a href="#backtests" class="eyebrow">← Back to backtests</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
+              <div class="report-downloads"><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a></div>
+            </div>
+            <div id="report-summary" class="report-summary"></div>
+            <section class="panel report-panel" aria-labelledby="equity-chart-title">
+              <div class="panel-heading"><div><h2 id="equity-chart-title">Trade-close equity · CU</h2></div></div>
+              <div class="chart-content"><p class="small muted">CU = account currency (unspecified). Initial equity and equity after each completed trade, including commissions and slippage. Open-position gains and losses are excluded.</p>
+                <svg id="equity-chart" viewBox="0 0 1000 300" role="img" aria-label="Trade-close equity in account currency" tabindex="0"></svg>
+                <p id="chart-readout" class="small chart-readout" aria-live="polite"></p><p id="chart-note" class="small muted"></p>
+                <p class="small muted">The chart and equity CSV use the same trade-close equity values.</p>
+              </div>
+            </section>
+            <section class="panel report-panel" aria-labelledby="report-trades-title">
+              <div class="panel-heading"><div><h2 id="report-trades-title">Every completed trade</h2></div><span class="small muted">UTC timestamps · P&amp;L in CU</span></div>
+              <p class="report-table-hint small muted">UTC timestamps · P&amp;L in CU. Scroll horizontally for all trade fields.</p>
+              <div class="report-table-scroll" tabindex="0" aria-label="Trade details, scroll horizontally"><table class="library-table report-trades"><thead><tr>
+                <th>#</th><th>Entry · UTC</th><th>Exit · UTC</th><th>Entry fill</th><th>Exit fill</th><th>Contracts</th><th>Gross P&amp;L</th><th>Commissions</th><th>Net P&amp;L</th><th>Hold · minutes</th><th>Exit reason</th>
+              </tr></thead><tbody id="report-trades-body"></tbody></table></div>
+              <div class="report-pagination"><span id="report-trades-count" role="status"></span><div><button id="trades-previous" class="button secondary" type="button">Previous trades</button><button id="trades-next" class="button secondary" type="button">Next trades</button></div></div>
+            </section>
+            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. Fills execute at the same close with adverse slippage and commissions. Gaps are preserved; elapsed-time exits use the first available close at or after the deadline. Open exposure is closed at end of data.</p></details>
+          </section>
+          <section id="completed-runs" class="panel report-panel" aria-labelledby="completed-runs-title">
+            <div class="panel-heading"><div><h2 id="completed-runs-title">Completed reports</h2></div><button id="refresh-reports" class="button secondary" type="button">Refresh reports</button></div>
+            <div id="completed-runs-status" class="backtest-fields small" role="status"></div><div id="completed-runs-list"></div>
+            <div class="report-pagination"><span id="completed-runs-count"></span><div><button id="runs-previous" class="button secondary" type="button">Previous reports</button><button id="runs-next" class="button secondary" type="button">Next reports</button></div></div>
           </section>
         </section>
         <footer class="page-footer">

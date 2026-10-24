@@ -1,6 +1,6 @@
 # AlphaQuest Research Engine 02
 
-A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. The Backtests screen configures and runs backtests; a full report screen remains a separate subtask.
+A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. The Backtests screen configures runs and opens completed reports with exact metrics, a bounded trade-close equity chart, paginated trades, saved settings, and CSV downloads.
 
 ## Run
 
@@ -159,7 +159,7 @@ The existing server exposes allowlisted strategy discovery, explicit-config back
 
 ## Backtests screen
 
-Select **Backtests** in the portal, or open `http://127.0.0.1:8000/#backtests`. Choose a saved dataset and a backend-listed strategy. The sample shows exactly its three strategy parameters; account, instrument, slippage, and commissions are separate. Review the bar-close timestamp assumption and source timezone, then run with live processed/total bars and elapsed time. The form prevents duplicate submissions while active and shows the saved run ID and the exact settings used after completion. Dataset management remains available. See [the fixture walkthrough and submitted-setting checks](docs/backtests_portal.md).
+Select **Backtests** in the portal, or open `http://127.0.0.1:8000/#backtests`. Choose a saved dataset and a backend-listed strategy. The sample shows exactly its three strategy parameters; account, instrument, slippage, and commissions are separate. Review the bar-close timestamp assumption and source timezone, then run with live processed/total bars and elapsed time. The form prevents duplicate submissions while active and shows the saved run ID and the exact settings used after completion. Reports include max drawdown amount, percentage, and duration from full trade-close equity, plus paginated trades, the equity chart and CSV downloads. Dataset management remains available. See [the fixture walkthrough and submitted-setting checks](docs/backtests_portal.md).
 
 ## Verify
 

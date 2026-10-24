@@ -1,8 +1,8 @@
 # Backtest API review
 
 The existing FastAPI server exposes the tested reader, allowlisted strategy,
-engine, and reporter. The Backtests screen uses these APIs; a full report screen
-remains a separate subtask. Start the server with:
+engine, and reporter. The Backtests configuration and completed report screens
+use these APIs. Start the server with:
 
 ```bash
 .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000
@@ -19,6 +19,9 @@ remains a separate subtask. Start the server with:
 | `GET /api/backtests/RUN_ID` | One completed record, including summary/provenance; no unbounded result arrays. |
 | `GET /api/backtests/RUN_ID/trades?offset=0&limit=100` | Page of full, exact trade records. |
 | `GET /api/backtests/RUN_ID/equity?offset=0&limit=100` | Starting equity and equity after each completed trade, matching `equity.csv`. |
+| `GET /api/backtests/RUN_ID/chart?max_points=1000` | Bounded preview of initial equity and equity after completed trades. |
+| `GET /api/backtests/RUN_ID/exports/trades` | Saved trade CSV, streamed as a download. |
+| `GET /api/backtests/RUN_ID/exports/equity` | Saved trade-close equity CSV, streamed as a download. |
 
 Every page has `items`, `offset`, `limit`, and `total`. Limits range from 1 to
 1,000; default 100. Indexed ordinal lookups avoid loading the complete report
@@ -26,7 +29,37 @@ JSON. Equity includes trade number, exit timestamp, net trade P&L, and equity
 after costs. The starting point has trade number 0, null exit timestamp, and
 zero P&L. The report file retains full bar-close equity for reconciliation.
 
+The chart response has `items`, `total`, `limit`, `sampled`, `method`, `currency`,
+and `meaning`. `max_points` is 16–2,000 (default 1,000); small runs retain every
+point. Large runs retain initial/final equity and chronological minimum/maximum
+points per trade-count bucket, using Decimal comparisons. Points have
+`trade_number`, `exit_time_utc`, `net_pnl`, and `equity`, matching the equity
+endpoint and `equity.csv`. The initial point has trade number 0 and a null exit
+time. No open-position equity points are shown, and no metrics are calculated
+from the preview. The worker streams the existing `equity.csv`, using memory
+bounded by the preview cap and one record. No source dataset connection is held,
+no migration or replay is needed for older saved runs, and the full report is
+not sent to the browser. Each chart request scans the equity CSV once; this can
+take time for very large files.
+Chart read errors return an error rather than partial data. Values use CU
+(account currency unspecified); the current execution contract stores no
+currency code. Download names include the run ID, and only the two allowlisted
+CSV exports are exposed.
+
 ## Request and validation
+
+Completed summaries include `max_drawdown_amount`, `max_drawdown_pct`, and
+`max_drawdown_duration_seconds`, as decimal strings. All use full trade-close
+equity after costs. Duration is elapsed UTC time from a peak to recovery or
+dataset end if unrecovered; an initial-capital peak starts at the first bar.
+New report artifacts also record `period_start_utc` and `period_end_utc`.
+For older runs, the server streams the saved report to recover its period and
+the complete equity CSV to calculate metrics once, then caches them durably in
+the completed-run catalogue. Replay, datasets, and original JSON/CSV artifacts
+are unchanged. The first retrieval of an older large run can take longer;
+subsequent requests and restarts use the enriched catalogue. Newly generated
+`report.json` artifacts include the metrics directly. See the contract's
+drawdown definitions for recovery, percentage and duration conventions.
 
 ```json
 {

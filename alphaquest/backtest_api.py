@@ -9,12 +9,14 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import FileResponse
 
 from .backtest_data import DatasetReadError, read_bars
 from .backtest_runs import RunStore
 from .datasets import COLUMNS, InvalidDataset
 from .execution import ExecutionError, execute
 from .reporting import ReportError, generate_report
+from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
 from .strategy import ExecutionConfig
 
@@ -145,3 +147,27 @@ def trade_page(run_id: UUID, request: Request, offset: int = Query(0, ge=0), lim
 @router.get("/api/backtests/{run_id}/equity")
 def equity_page(run_id: UUID, request: Request, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)):
     return result_page(request, run_id, "equity", offset, limit)
+
+
+@router.get("/api/backtests/{run_id}/chart")
+def chart(run_id: UUID, request: Request, max_points: int = Query(1000, ge=16, le=2000)):
+    runs = request.app.state.runs
+    record = runs.get(run_id.hex)
+    if record is None:
+        raise HTTPException(404, "Completed backtest not found.")
+    try:
+        return equity_preview(runs.root / run_id.hex / "equity.csv",
+                              record["summary"]["trades_taken"] + 1, max_points)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(500, "Saved equity chart could not be read.") from exc
+
+
+@router.get("/api/backtests/{run_id}/exports/{kind}")
+def download(run_id: UUID, kind: str, request: Request):
+    runs = request.app.state.runs
+    if kind not in ("trades", "equity") or runs.get(run_id.hex) is None:
+        raise HTTPException(404, "Completed backtest export not found.")
+    path = runs.root / run_id.hex / f"{kind}.csv"
+    if not path.is_file():
+        raise HTTPException(404, "Saved CSV not found.")
+    return FileResponse(path, media_type="text/csv", filename=f"{run_id.hex}-{kind}.csv")
