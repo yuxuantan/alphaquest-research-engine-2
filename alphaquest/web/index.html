@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Upload, validate, and save market datasets in your local AlphaQuest research workspace."
+      content="Manage market datasets and run backtests in your local AlphaQuest research workspace."
     />
     <title>Datasets · AlphaQuest</title>
     <link rel="stylesheet" href="/static/styles.css" />
     <script src="/static/app.js" defer></script>
+    <script src="/static/backtests.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -26,18 +27,15 @@
       </div>
       <p class="nav-label">WORKSPACE</p>
       <nav aria-label="Main navigation">
-        <a class="nav-item active" href="/" aria-current="page"
+        <a class="nav-item active" href="#datasets" data-screen="datasets" aria-label="Datasets" aria-current="page"
           ><span class="nav-icon">▤</span>Datasets<span
             class="nav-count"
             id="nav-count"
             >0</span
           ></a
         >
-        <span class="nav-item unavailable"
-          ><span class="nav-icon">↗</span>Backtests<span class="soon"
-            >NEXT STEP</span
-          ></span
-        >
+        <a class="nav-item" href="#backtests" data-screen="backtests" aria-label="Backtests"
+          ><span class="nav-icon">↗</span>Backtests</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -52,10 +50,15 @@
       <header class="topbar">
         <span
           >Workspace <span class="breadcrumb-slash">/</span>
-          <strong>Datasets</strong></span
+          <strong id="current-screen">Datasets</strong></span
         ><span class="version">ALPHAQUEST <span>02</span></span>
+        <nav class="mobile-nav" aria-label="Mobile navigation">
+          <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
+          <a href="#backtests" data-screen="backtests">Backtests</a>
+        </nav>
       </header>
       <main>
+        <section id="datasets-screen" aria-label="Dataset library">
         <div class="page-heading">
           <div>
             <div class="eyebrow">YOUR RESEARCH STARTS HERE</div>
@@ -253,9 +256,106 @@
           <div id="library-status" role="status"></div>
           <div id="library"></div>
         </section>
+        </section>
+
+        <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">PUT YOUR STRATEGY TO THE TEST</div>
+              <h1 id="backtests-title">Run a backtest<span class="heading-dot">.</span></h1>
+              <p>Choose your data, define your assumptions, and run.</p>
+            </div>
+            <button class="button secondary" id="refresh-backtest-choices" type="button">Refresh choices</button>
+          </div>
+          <div id="backtest-options-status" class="field-help" role="status" aria-live="polite"></div>
+          <form id="backtest-form" novalidate>
+            <div id="backtest-error" class="validation-box error" role="alert" tabindex="-1" hidden></div>
+            <div class="backtest-layout">
+              <div class="backtest-form-panels">
+                <section class="panel" aria-labelledby="backtest-selection-heading">
+                  <div class="panel-heading">
+                    <div><span class="step-number">01</span><h2 id="backtest-selection-heading">Dataset &amp; strategy</h2></div>
+                  </div>
+                  <fieldset class="backtest-fields">
+                    <label for="backtest-dataset">Saved dataset</label>
+                    <select id="backtest-dataset" required aria-describedby="backtest-dataset-info">
+                      <option value="">Choose a saved dataset</option>
+                    </select>
+                    <p class="field-help" id="backtest-dataset-info">Upload and save a CSV in Datasets first.</p>
+                    <label for="backtest-strategy">Strategy</label>
+                    <select id="backtest-strategy" required aria-describedby="strategy-description">
+                      <option value="">Choose a strategy</option>
+                    </select>
+                    <p id="strategy-description" class="strategy-description">Select a strategy to see its description.</p>
+                    <h3 class="parameter-heading">Strategy parameters</h3>
+                    <div id="strategy-parameters" class="backtest-parameter-grid"></div>
+                  </fieldset>
+                </section>
+
+                <section class="panel" aria-labelledby="execution-settings-heading">
+                  <div class="panel-heading">
+                    <div><span class="step-number">02</span><h2 id="execution-settings-heading">Account, instrument &amp; costs</h2></div>
+                    <span class="small muted">Separate from strategy parameters</span>
+                  </div>
+                  <fieldset class="backtest-fields backtest-execution-grid">
+                    <label>Initial capital
+                      <input id="backtest-initial-capital" name="initial_capital" type="text" inputmode="decimal" value="10000" required data-decimal="positive" aria-describedby="initial-capital-help" />
+                      <span class="field-help" id="initial-capital-help">Starting equity in your account currency.</span>
+                    </label>
+                    <label>Tick size
+                      <input id="backtest-tick-size" name="tick_size" type="text" inputmode="decimal" placeholder="e.g. 0.25" required data-decimal="positive" aria-describedby="tick-size-help" />
+                      <span class="field-help" id="tick-size-help">Price movement represented by one tick.</span>
+                    </label>
+                    <label>Monetary point value
+                      <input id="backtest-point-value" name="point_value" type="text" inputmode="decimal" placeholder="e.g. 10" required data-decimal="positive" aria-describedby="point-value-help" />
+                      <span class="field-help" id="point-value-help">Money per 1.0 price point, per contract. Contract quantity is set in the strategy.</span>
+                    </label>
+                    <label>Adverse slippage · ticks per fill
+                      <input id="backtest-slippage-ticks" name="slippage_ticks" type="number" min="0" max="9007199254740991" step="1" value="0" required data-integer />
+                      <span class="field-help">Applied to both entry and exit fill prices.</span>
+                    </label>
+                    <label>Commission · per contract per side
+                      <input id="backtest-commission" name="commission_per_contract_per_side" type="text" inputmode="decimal" value="0" required data-decimal="nonnegative" />
+                      <span class="field-help">Charged on entry and exit, in account currency.</span>
+                    </label>
+                  </fieldset>
+                </section>
+              </div>
+              <aside class="panel backtest-assumptions" aria-labelledby="backtest-assumptions-heading">
+                <div class="format-kicker"><span class="code-icon">◷</span> REVIEW BEFORE RUNNING</div>
+                <h2 id="backtest-assumptions-heading">Timestamps label <br />bar closes.</h2>
+                <span class="pill success">Bar-close convention</span>
+                <p>Every CSV timestamp represents the close of its completed bar.</p>
+                <p>Signals and simulated fills use that same close, adjusted by your slippage setting.</p>
+                <div class="backtest-clock">
+                  <strong>Saved source timezone</strong>
+                  <span id="backtest-timezone">Choose a dataset</span>
+                  <small>Converted to UTC for replay. Holds use elapsed time, including gaps.</small>
+                </div>
+                <p class="small muted">Tick size and point value are supplied by you. They are never inferred from the filename or symbol.</p>
+              </aside>
+            </div>
+            <div class="backtest-submit-row">
+              <span class="small muted" id="backtest-form-hint">Loading available datasets and strategies.</span>
+              <button id="start-backtest" class="button primary" type="submit" disabled>Start backtest <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+          <section id="backtest-progress" class="operation-progress" aria-label="Backtest progress" hidden>
+            <div class="progress-heading" role="status" aria-live="polite">
+              <strong id="backtest-progress-title"></strong><span id="backtest-progress-percent"></span>
+            </div>
+            <progress id="backtest-progress-bar" max="100" aria-label="Bars processed"></progress>
+            <div class="progress-details"><span id="backtest-progress-detail"></span><span id="backtest-elapsed"></span></div>
+            <p id="backtest-progress-note" class="small muted" role="status"></p>
+          </section>
+          <section id="backtest-completion" class="panel" aria-labelledby="backtest-completion-title" hidden>
+            <div class="panel-heading"><div><span class="pill success">✓ Saved</span><h2 id="backtest-completion-title">Backtest completed</h2></div></div>
+            <div id="backtest-completion-content" class="backtest-fields"></div>
+          </section>
+        </section>
         <footer class="page-footer">
           <span>AlphaQuest Research Engine 02</span
-          ><span
+          ><span id="footer-context"
             >Dataset management · Component 1 of your research workflow</span
           >
         </footer>

@@ -1,6 +1,6 @@
 # Backtest contract — v1 proposal for review
 
-This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, and report generation now implement their respective portions; portal backtest controls remain a separate subtask.
+This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, report generation, APIs, and portal run controls now implement their respective portions; a full report screen remains a separate subtask.
 
 ## 1. Dataset and clock
 
@@ -169,7 +169,9 @@ The reporter streams arrays/rows to temporary files, validates a flat final poin
 
 The existing FastAPI server also exposes the tested components through a code-owned strategy allowlist. Each strategy supplies its parameter definitions and validation. API runs require all strategy parameters and execution settings explicitly; financial settings use decimal strings and no instrument values are inferred. A worker thread runs preparation, replay, report saving, and result indexing while the existing progress endpoint exposes stage, processed/total bars, and run ID. Completion is emitted only after durable artifacts and a committed completed-run record exist. Failed runs have no completed record.
 
-Completed summaries/provenance and indexed trade/equity rows are persisted in `backtests.sqlite3` beside the dataset store, with report files in `backtest_runs/RUN_ID/`. Records survive restart and source deletion. Retrieval is paginated (default 100, maximum 1,000 rows), and the equity endpoint follows the requested trade-close CSV format. The full bar-close series remains in the report JSON. See [API endpoints and reproducible commands](backtest_api.md). No portal controls or external task queue are added.
+Completed summaries/provenance and indexed trade/equity rows are persisted in `backtests.sqlite3` beside the dataset store, with report files in `backtest_runs/RUN_ID/`. Records survive restart and source deletion. Retrieval is paginated (default 100, maximum 1,000 rows), and the equity endpoint follows the requested trade-close CSV format. The full bar-close series remains in the report JSON. See [API endpoints and reproducible commands](backtest_api.md). No external task queue is added.
+
+The portal's Backtests screen renders parameter definitions from the allowlisted strategy endpoint, keeps execution settings separate, reviews the fixed bar-close convention, and sends explicit settings through the same APIs. It locks the form while the POST is active and polls actual progress. A completed run shows the saved backend record's identity and settings; full report controls remain separate. Monetary inputs are submitted and displayed as decimal strings. See [portal fixture review instructions](backtests_portal.md).
 
 ## 7. Hand-checkable fixtures
 

@@ -1,7 +1,8 @@
 # Backtest API review
 
 The existing FastAPI server exposes the tested reader, allowlisted strategy,
-engine, and reporter. Portal controls remain a separate subtask. Start it with:
+engine, and reporter. The Backtests screen uses these APIs; a full report screen
+remains a separate subtask. Start the server with:
 
 ```bash
 .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000

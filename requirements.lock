@@ -22,3 +22,8 @@ starlette==1.9.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 uvicorn==0.54.0
+
+# Optional browser test extra: install -e '.[dev,browser]' with these constraints.
+playwright==1.64.1
+pyee==14.0.0
+greenlet==3.5.6

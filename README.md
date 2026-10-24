@@ -1,6 +1,6 @@
 # AlphaQuest Research Engine 02
 
-A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. Portal backtest controls are pending separate review.
+A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. The Backtests screen configures and runs backtests; a full report screen remains a separate subtask.
 
 ## Run
 
@@ -120,7 +120,7 @@ Run the actual strategy against all nine reviewed fixtures:
 .venv/bin/python tests/review_strategy.py --output artifacts/strategy_review.json
 ```
 
-The command checks every expected trade field and equity point using the saved-dataset reader and unchanged execution engine. It prints every entry and exit with its reason, writes complete comparisons to JSON, and saves the table to `artifacts/strategy_review.md`. Expected trade decisions are used only for comparison after the strategy runs. No performance metrics or portal controls are added by this increment.
+The command checks every expected trade field and equity point using the saved-dataset reader and unchanged execution engine. It prints every entry and exit with its reason, writes complete comparisons to JSON, and saves the table to `artifacts/strategy_review.md`. Expected trade decisions are used only for comparison after the strategy runs.
 
 ## Backtest reports
 
@@ -155,13 +155,19 @@ Generate and independently check all nine reviewed fixtures, retaining isolated 
 
 ## Backtest API
 
-The existing server exposes allowlisted strategy discovery, explicit-config backtest execution, live progress, and durable paginated results. See [backtest API commands and behavior](docs/backtest_api.md) for a reproducible saved-fixture run. `POST /api/backtests` stays open while worker-thread processing runs; poll the existing `/api/progress/UUID` endpoint from a separate request. Completed results live in `backtests.sqlite3` and `backtest_runs/` beside the dataset database. The equity endpoint returns starting equity plus one point per completed trade. Portal controls remain a separate subtask.
+The existing server exposes allowlisted strategy discovery, explicit-config backtest execution, live progress, and durable paginated results. See [backtest API commands and behavior](docs/backtest_api.md) for a reproducible saved-fixture run. `POST /api/backtests` stays open while worker-thread processing runs; poll the existing `/api/progress/UUID` endpoint from a separate request. Completed results live in `backtests.sqlite3` and `backtest_runs/` beside the dataset database. The equity endpoint returns starting equity plus one point per completed trade.
+
+## Backtests screen
+
+Select **Backtests** in the portal, or open `http://127.0.0.1:8000/#backtests`. Choose a saved dataset and a backend-listed strategy. The sample shows exactly its three strategy parameters; account, instrument, slippage, and commissions are separate. Review the bar-close timestamp assumption and source timezone, then run with live processed/total bars and elapsed time. The form prevents duplicate submissions while active and shows the saved run ID and the exact settings used after completion. Dataset management remains available. See [the fixture walkthrough and submitted-setting checks](docs/backtests_portal.md).
 
 ## Verify
 
 ```bash
 python -m pytest
 ```
+
+Chromium browser checks are optional: install `.[dev,browser]` with `requirements.lock` constraints, run `python -m playwright install chromium`, then `python -m pytest tests/test_backtests_browser.py -q`.
 
 Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter. Report checks compare every summary/trade/equity field and CSV row with independent expectations, verify reconciliations and precision, and exercise failure cleanup and bounded-memory export.
 
