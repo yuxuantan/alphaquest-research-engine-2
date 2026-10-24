@@ -504,7 +504,16 @@ function renderLibrary() {
     download.setAttribute("aria-label", `Download ${dataset.name}`);
     downloadCell.append(download);
     const actions = node("td");
-    actions.append(deleteButton(dataset));
+    const edit = node("button", "button secondary", "Edit defaults");
+    edit.type = "button";
+    edit.setAttribute("aria-label", `Edit defaults for ${dataset.name}`);
+    edit.addEventListener("click", () => {
+      showDetails(dataset);
+      $("#detail-tick_size").focus();
+    });
+    const actionButtons = node("div", "dataset-row-actions");
+    actionButtons.append(edit, deleteButton(dataset));
+    actions.append(actionButtons);
     tr.append(
       title,
       node("td", "", fmt.format(dataset.row_count)),
@@ -559,8 +568,8 @@ function showDetails(dataset) {
   content.append(grid);
   const settingsForm = node("form", "instrument-settings-form");
   settingsForm.id = "dataset-instrument-form";
-  settingsForm.append(node("h3", "", "Instrument settings"), node("p", "field-help",
-    "Used by future backtests on this dataset. Point value is money per 1.0 price point, per contract. Completed reports keep their original settings."));
+  settingsForm.append(node("h3", "", "Default instrument settings"), node("p", "field-help",
+    "Edit the dataset's default tick size and monetary point value here. Future backtests start with these defaults and allow per-run overrides. Point value is money per 1.0 price point, per contract. Completed reports keep their original settings."));
   const instrumentFields = node("div", "fields");
   const inputs = [];
   for (const [key, title] of [["tick_size", "Tick size"], ["point_value", "Monetary point value"]]) {

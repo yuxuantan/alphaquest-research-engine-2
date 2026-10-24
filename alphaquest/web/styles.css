@@ -1050,6 +1050,15 @@ dialog::backdrop {
   gap: 12px;
   margin-top: 22px;
 }
+.dataset-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dataset-row-actions .button.secondary {
+  font-size: 10px;
+  padding: 7px 10px;
+}
 .instrument-settings-form {
   border-block: 1px solid var(--line);
   padding: 18px 0;
