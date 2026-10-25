@@ -1,4 +1,4 @@
-"""Bounded previews of saved trade-close equity; no metrics are recalculated."""
+"""Bounded previews of saved trade-close equity with an exact peak annotation."""
 
 import csv
 from decimal import Decimal
@@ -26,6 +26,7 @@ def equity_preview(path, total, limit):
     low = high = None
     current = None
     seen = 0
+    peak = None
 
     def flush():
         if low is not None:
@@ -36,6 +37,8 @@ def equity_preview(path, total, limit):
         if point["trade_number"] != seen:
             raise ValueError("Saved equity trade numbers are not contiguous.")
         seen += 1
+        if peak is None or Decimal(point["equity"]) > Decimal(peak["equity"]):
+            peak = point
         if total <= limit or point["trade_number"] in (0, total - 1):
             if point["trade_number"] == total - 1:
                 flush()
@@ -53,6 +56,6 @@ def equity_preview(path, total, limit):
             high = point
     if seen != total:
         raise ValueError("Saved equity count does not match the completed report.")
-    return {"items": points, "total": total, "limit": limit, "sampled": total > limit,
+    return {"items": points, "peak": peak, "total": total, "limit": limit, "sampled": total > limit,
             "method": "trade_bucket_min_max", "currency": "CU (account currency unspecified)",
             "meaning": "Initial equity and equity after each completed trade, including all trading costs; no unrealized P&L."}

@@ -31,6 +31,7 @@ def test_chart_and_exports_match_every_reviewed_fixture(client, case):
     assert preview["items"] == client.get(base + "/equity").json()["items"]
     assert preview["total"] == len(case["expected_trades"]) + 1
     assert preview["sampled"] is False
+    _equal_record(preview["peak"], max(expected, key=lambda point: Decimal(point["equity"])))
     assert preview["currency"] == "CU (account currency unspecified)"
     for kind in ("trades", "equity"):
         response = client.get(base + f"/exports/{kind}")
@@ -85,6 +86,8 @@ def test_chart_sampling_is_bounded_preserves_extremes_and_reads_incrementally(tm
         assert 9876 in ordinals and 87654 in ordinals
         assert min(Decimal(p["equity"]) for p in items) == Decimal("-123456789.000000000001")
         assert result["sampled"] is True
+        assert result["peak"]["trade_number"] == 9876
+        assert result["peak"]["equity"] == "100000000000000000000000000001.123456789"
 
 
 @pytest.mark.parametrize("suffix", ["chart", "exports/trades", "exports/equity", "exports/report", "exports/../report.json"])
@@ -102,3 +105,14 @@ def test_truncated_or_inconsistent_chart_is_not_shown_as_complete(client):
     path = client.app.state.runs.root / record["id"] / "equity.csv"
     path.write_text("trade_number,exit_time_utc,net_pnl,equity\n0,,0,10000\n")
     assert client.get(f"/api/backtests/{record['id']}/chart").status_code == 500
+
+
+def test_peak_preserves_decimal_precision_beyond_chart_geometry(tmp_path):
+    path = tmp_path / "equity.csv"
+    path.write_text("trade_number,exit_time_utc,net_pnl,equity\n"
+                    "0,,0,100000000000000000000000000000.1\n"
+                    "1,2026-01-05T10:00:00Z,0.1,100000000000000000000000000000.2\n"
+                    "2,2026-01-05T10:01:00Z,0.1,100000000000000000000000000000.3\n")
+    preview = equity_preview(path, 3, 16)
+    assert preview["peak"] == preview["items"][2]
+    assert preview["peak"]["equity"] == "100000000000000000000000000000.3"

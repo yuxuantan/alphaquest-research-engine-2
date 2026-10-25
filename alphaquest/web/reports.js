@@ -89,11 +89,41 @@
     balances.id = "report-balances";
     holder.append(balances);
   }
+  function equityScale(min, max) {
+    // Aim for about five labels, extending the domain to clean step multiples.
+    // Do not force zero: a large starting balance can have a small trading range.
+    if (min === max) {
+      const padding = Math.abs(min) * .01 || 1;
+      min -= padding;
+      max += padding;
+    }
+    const roughStep = (max - min) / 4;
+    const exponent = Math.floor(Math.log10(roughStep));
+    const magnitude = 10 ** exponent;
+    const multiple = [1, 2, 2.5, 5, 10].find((value) => value * magnitude >= roughStep) || 10;
+    const step = multiple * magnitude || Number.MIN_VALUE;
+    // Parse decimal multiples once, avoiding artifacts such as 0.30000000000000004.
+    const tickAt = (index) => magnitude ? Number(`${index * multiple}e${exponent}`) : index * step;
+    let first = Math.floor(min / step), last = Math.ceil(max / step);
+    if (tickAt(first) > min) first--;
+    if (tickAt(last) < max) last++;
+    const lower = tickAt(first), upper = tickAt(last);
+    if (![lower, upper, step, upper - lower].every(Number.isFinite) || upper <= lower || last - first > 10) return null;
+    const ticks = Array.from({ length: last - first + 1 }, (_, i) => tickAt(first + i));
+    if (ticks.some((value, i) => i && value <= ticks[i - 1])) return null;
+    const decimals = Math.min(100, Math.max(0, -exponent + (multiple === 2.5 ? 1 : 0)));
+    const significant = Math.min(17, Math.max(3, Math.ceil(Math.log10(Math.max(1, Math.max(Math.abs(lower), Math.abs(upper)) / step))) + 2));
+    const labels = ticks.map((value) => new Intl.NumberFormat("en-US", Math.abs(value) >= 1e9 || (value !== 0 && Math.abs(value) < .0001)
+      ? { notation: "scientific", maximumSignificantDigits: significant }
+      : { maximumFractionDigits: decimals }).format(Object.is(value, -0) ? 0 : value));
+    return { lower, upper, step, ticks, labels };
+  }
+
   function chart(data) {
     chartData = data;
     const svg = get("#equity-chart");
     const width = Math.max(320, svg.clientWidth);
-    const left = 85, right = width - 20;
+    const right = width - 20;
     svg.setAttribute("viewBox", `0 0 ${width} 300`);
     const ns = "http://www.w3.org/2000/svg";
     const draw = (tag, attrs, text) => {
@@ -105,6 +135,9 @@
     };
     svg.replaceChildren();
     const points = data.items;
+    const peak = data.peak;
+    const final = points[points.length - 1];
+    get("#chart-equity-summary").textContent = `${peak ? `Peak equity ${peak.equity} CU · ${peak.trade_number ? "after trade " + peak.trade_number : "initial balance"} · ` : ""}Final equity ${final.equity} CU. Values belong to this saved run.`;
     const values = points.map((point) => Number(point.equity));
     const min = Math.min(...values), max = Math.max(...values);
     // Geometry alone uses Number. Labels, tooltips, exports and metrics retain
@@ -113,15 +146,22 @@
       get("#chart-readout").textContent = "Equity exceeds the chart's numeric range. Exact values are available in the CSV and saved report.";
       return;
     }
-    const spread = max - min || Math.max(Math.abs(max) * .01, 1);
+    const scale = equityScale(min, max);
+    if (!scale) {
+      get("#chart-readout").textContent = "Equity exceeds the chart's numeric range. Exact values are available in the CSV and saved report.";
+      return;
+    }
+    const left = Math.max(65, ...scale.labels.map((text) => text.length * 7 + 20));
+    const spread = scale.upper - scale.lower;
+    svg.dataset.yMin = scale.lower;
+    svg.dataset.yMax = scale.upper;
+    svg.dataset.yStep = scale.step;
     const x = (point) => left + point.trade_number / Math.max(1, data.total - 1) * (right - left);
-    const y = (value) => 235 - (value - min) / spread * 205;
-    for (let tick = 0; tick <= 4; tick++) {
-      const value = min + spread * tick / 4;
+    const y = (value) => 235 - (value - scale.lower) / spread * 205;
+    for (const [tick, value] of scale.ticks.entries()) {
       const position = y(value);
       draw("line", { x1: left, x2: right, y1: position, y2: position, class: "chart-grid" });
-      const axis = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 6, notation: Math.abs(value) >= 1e9 ? "scientific" : "standard" });
-      draw("text", { x: left - 10, y: position + 4, "text-anchor": "end", class: "chart-label" }, axis.format(value));
+      draw("text", { x: left - 10, y: position + 4, "text-anchor": "end", class: "chart-label chart-y-label" }, scale.labels[tick]);
     }
     draw("polyline", { points: points.map((point, i) => `${x(point)},${y(values[i])}`).join(" "), class: "chart-line" });
     draw("text", { x: left, y: 270, class: "chart-label" }, "Initial");

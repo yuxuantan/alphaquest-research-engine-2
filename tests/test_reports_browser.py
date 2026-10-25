@@ -234,3 +234,34 @@ def test_trade_times_use_dataset_zone_across_dst_midnight_pagination_and_refresh
         assert errors == []
     finally:
         context.close()
+
+
+def test_chart_shows_unrounded_peak_and_changes_between_saved_runs(page, portal):
+    prepare(page, portal)
+    page.locator("#backtest-initial-capital").fill("139143.58")
+    page.locator("#backtest-commission").fill("0.99")
+    page.locator("#start-backtest").click()
+    playwright.expect(page.locator("#backtest-completion")).to_be_visible()
+    first_url = page.url
+    playwright.expect(page.locator("#chart-equity-summary")).to_contain_text("Peak equity 139169.62 CU · after trade 1 · Final equity 139169.62 CU")
+    # Exact peaks belong in the summary/readout; axes use rounded step multiples.
+    playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,169\.62$"))).to_have_count(0)
+    playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,170$"))).to_have_count(1)
+    page.get_by_role("link", name="Back to backtests", exact=False).click()
+    page.locator("#backtest-initial-capital").fill("50000")
+    page.locator("#start-backtest").click()
+    playwright.expect(page.locator("#backtest-completion")).to_be_visible()
+    second_url = page.url
+    assert first_url != second_url
+    playwright.expect(page.locator("#chart-equity-summary")).to_contain_text("Final equity 50026.04 CU")
+    playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,169\.62$"))).to_have_count(0)
+    # Reopening each saved report restores its own curve; resize cannot restore another run's data.
+    page.goto(first_url)
+    playwright.expect(page.locator("#chart-equity-summary")).to_contain_text("Final equity 139169.62 CU")
+    page.goto(second_url)
+    playwright.expect(page.locator("#chart-equity-summary")).to_contain_text("Final equity 50026.04 CU")
+    page.set_viewport_size({"width": 390, "height": 844})
+    playwright.expect(page.locator("#chart-equity-summary")).to_contain_text("Final equity 50026.04 CU")
+    page.reload()
+    playwright.expect(page.locator("#chart-equity-summary")).to_contain_text("Final equity 50026.04 CU")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

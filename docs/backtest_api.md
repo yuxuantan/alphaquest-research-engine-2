@@ -30,7 +30,8 @@ after costs. The starting point has trade number 0, null exit timestamp, and
 zero P&L. The report file retains full bar-close equity for reconciliation.
 
 The chart response has `items`, `total`, `limit`, `sampled`, `method`, `currency`,
-and `meaning`. `max_points` is 16–2,000 (default 1,000); small runs retain every
+and `meaning`, plus `peak` containing the exact peak equity point from the full
+CSV (the first occurrence when tied). `max_points` is 16–2,000 (default 1,000); small runs retain every
 point. Large runs retain initial/final equity and chronological minimum/maximum
 points per trade-count bucket, using Decimal comparisons. Points have
 `trade_number`, `exit_time_utc`, `net_pnl`, and `equity`, matching the equity

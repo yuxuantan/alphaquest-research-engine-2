@@ -67,6 +67,8 @@ Open `http://127.0.0.1:8000/` and select **Backtests**, or go directly to
     History is paginated, 25 reports at a time. Reports remain available after
     the original dataset is deleted.
 
+The chart also states exact **Peak equity** (with its trade number) and **Final equity** for the saved run. The server selects the peak from the full equity CSV using Decimal comparisons. The y-axis dynamically selects rounded steps from 1, 2, 2.5, or 5 times a power of ten, aiming for roughly five labels. Bounds extend to step multiples without forcing zero into the range. For example, equity ranging from 45,960.04 to 139,169.62 uses 25,000 steps from 25,000 through 150,000. Flat curves receive a centered range; negative, fractional and large balances scale dynamically. Labels use whole numbers when possible, decimals for fractional steps, and scientific notation for very large or tiny values. Hover values and the peak/final annotations retain the stored precision. Editing configuration does not change a completed report.
+
 Reports also show **Max drawdown (CU)**, **Max drawdown (%)**, and **Max drawdown
 duration**. These use every post-cost trade-close equity value, including initial
 capital, and exclude open-position fluctuations. Amount and percentage are
