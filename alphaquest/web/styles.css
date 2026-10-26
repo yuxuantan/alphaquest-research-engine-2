@@ -1396,3 +1396,20 @@ dialog::backdrop {
   .completed-run { grid-template-columns: 1fr; padding: 20px; }
   .completed-run > .positive, .completed-run > .negative { grid-column: 1; grid-row: auto; }
 }
+
+.prop-panel { padding:24px; margin:24px 0; min-width:0; }
+.prop-panel p { line-height:1.6; margin:16px 0; overflow-wrap:anywhere; }
+.prop-panel h2, .prop-panel h3 { margin:20px 0; }
+.prop-actions { display:flex; gap:16px; margin:24px 0; }
+.prop-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+#prop-screen label { display:grid; gap:8px; margin:16px 0; }
+#prop-screen input, #prop-screen select, #prop-screen textarea { width:100%; min-width:0; }
+#prop-screen textarea { padding:12px; border:1px solid #ccd3d6; border-radius:6px; font:inherit; }
+.prop-scroll { overflow:auto; max-height:600px; }
+.prop-table { width:100%; border-collapse:collapse; font-size:13px; }
+.prop-table th,.prop-table td { text-align:left; padding:12px; border-bottom:1px solid #ddd; white-space:nowrap; }
+.prop-panel pre { max-height:450px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:#f5f7f8; padding:16px; font-size:12px; }
+.prop-panel details { margin:20px 0; }
+.prop-panel summary { cursor:pointer; }
+.prop-chart { width:100%; height:280px; background:#fafcfc; }
+@media(max-width:600px) { .prop-fields { grid-template-columns:1fr; } }

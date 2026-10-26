@@ -44,3 +44,35 @@ liquidation clips to the exact threshold. Executable funded drawdown is $2,000.
 First-payout selection relaxes its ceiling when necessary; lifetime falls back
 to safest size. Acquisition and repeated attempts use shortcut formulas.
 Fractional mini/micro equivalents are analytical scaling, not actual micro fills.
+
+## Runtime and persistence
+
+Numerical functions live in `alphaquest/prop/model.py` with explicit per-instance
+state. `analysis.py` runs extracted cell calculations; `adapter.py` owns source
+mapping and Decimal cost reconciliation. HTTP handlers orchestrate only.
+NumPy 2.5.4 / pandas 3.1.0 are pinned. Reference execution in
+`scripts/prop_notebook_reference.py` compiles original pinned notebook cells into
+a fresh namespace, replaces upload with a temporary canonical CSV, injects explicit
+settings, and omits presentation. It does not import production numerical code.
+Bootstrap CI retains the notebook's fixed seed 42 and 10,000 draws; bounded
+batches preserve flattened random draw order. Main/sweep counts are never reduced.
+
+Native source presets retain saved per-side costs as round-trip overrides.
+When limit fills differ from nominal slippage, the source preset explicitly
+uses observed mean normalized slippage to reconcile aggregate baseline net;
+per-trade differences remain visible in CSV. This is still the notebook's
+constant per-trade formula, not a reconstructed execution model.
+
+`data/prop_analyses` is the single new-format catalogue and result store. Jobs are
+queued, running, complete or error. One worker bounds concurrent memory; each job
+has its own model state. Duplicate active requests return the same job. Restarted
+incomplete jobs become errors. Files publish by directory rename before catalogue
+completion; downloads are available only for completed jobs. Source hash is
+rechecked before publication. Reopening reads saved files without computation.
+JSON/CSV/ZIP downloads contain source identities, exclusions, UTC/native dates,
+input hash, resolved settings and origins, literal defaults, notebook/model/source
+hashes, application commit, runtime and seed streams. No legacy results migrate.
+
+Resource bounds reject oversized requests explicitly: 100,000 trades, 20,000
+weekdays, 100,000 simulations per call, 64 sizes and 300 retained sample paths;
+horizon guards are bounded separately. The server never silently truncates counts.

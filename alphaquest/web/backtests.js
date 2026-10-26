@@ -391,7 +391,8 @@
   function navigate() {
     const screen = location.hash.startsWith("#backtests") ? "backtests" : "datasets";
     get("#datasets-screen").hidden = screen !== "datasets";
-    get("#backtests-screen").hidden = screen !== "backtests";
+    get("#backtests-screen").hidden = screen !== "backtests" || location.hash.startsWith("#backtests/prop/");
+    get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
     get("#current-screen").textContent = screen === "backtests" ? "Backtests" : "Datasets";
     document.title = `${screen === "backtests" ? "Backtests" : "Datasets"} · AlphaQuest`;
     for (const link of document.querySelectorAll("[data-screen]")) {

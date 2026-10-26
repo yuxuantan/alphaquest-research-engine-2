@@ -241,6 +241,7 @@
       tradeTimezone(record);
       metrics(record);
       window.dispatchEvent(new CustomEvent("report-loaded", { detail: record }));
+      get("#report-prop-setup").href = `#backtests/prop/new/${record.id}`;
       get("#report-run-id").textContent = `Run ${record.id} · ${stamp(record.created_at_utc)} UTC`;
       for (const kind of ["trades", "equity"]) get(`#report-${kind}-download`).href = `/api/backtests/${id}/exports/${kind}`;
       const [preview] = await Promise.all([
