@@ -389,21 +389,18 @@
   refresh.addEventListener("click", loadChoices);
 
   function navigate() {
-    const prop = location.hash.startsWith("#backtests/prop/");
     const screen = location.hash.startsWith("#backtests") ? "backtests" : "datasets";
     get("#datasets-screen").hidden = screen !== "datasets";
-    get("#backtests-screen").hidden = screen !== "backtests" || prop;
-    get("#prop-screen").hidden = !prop;
-    const label = prop ? "Prop simulation" : {backtests: "Backtests", datasets: "Datasets"}[screen];
-    get("#current-screen").textContent = label;
-    document.title = `${label} · AlphaQuest`;
+    get("#backtests-screen").hidden = screen !== "backtests";
+    get("#current-screen").textContent = screen === "backtests" ? "Backtests" : "Datasets";
+    document.title = `${screen === "backtests" ? "Backtests" : "Datasets"} · AlphaQuest`;
     for (const link of document.querySelectorAll("[data-screen]")) {
       const active = link.dataset.screen === screen;
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = prop ? "Prop simulation · Configure and check source inputs" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
+    get("#footer-context").textContent = screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
     if (location.hash === "#backtests") loadChoices();
   }
   window.addEventListener("hashchange", navigate);

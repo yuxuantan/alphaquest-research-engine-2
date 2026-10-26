@@ -26,19 +26,10 @@ Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the 
 
 This is a single-user application bound to your own computer, without a login or public hosting setup.
 
-Open a completed **Backtest report → Set up prop simulation** to select account
-rules, phase, observation mode and quantity. Profile fees apply automatically;
-select NQ/MNQ for reusable instrument units. Choose the intended export-session
-profile once per dataset, then review the automatic coverage check. Gaps and
-partial boundaries block saving; advanced calendar overrides remain available.
-**Save setup**, then **Check source
-data** to inspect real sessions, both observation streams, costs, and source
-compatibility. Saved setups and checks survive reload; JSON/CSV downloads retain
-their captured settings. A compatible **evaluation** setup can **Run simulation**
-and open a saved account result with an equity/floor chart, events, fees and
-downloads. Funded execution and Monte Carlo remain future work. See the
-[workflow and validation guide](docs/prop_simulation_review.md) for exact steps
-and a reproducible 50,026 / 50,013 account-balance example.
+Prop analysis integrates the pinned trade-based notebook through completed
+backtest reports. See [the model specification](docs/prop_simulation.md) and
+[workflow evidence](docs/prop_simulation_review.md). Earlier strict account-engine
+URLs are retired; their saved files remain unchanged.
 
 To change a saved dataset's tick size or monetary point value, click **Edit defaults** in its library row, edit the values, then click **Save instrument settings**. The updated defaults persist and pre-fill future backtest configurations. Run-specific overrides and completed reports remain separate from these saved defaults.
 

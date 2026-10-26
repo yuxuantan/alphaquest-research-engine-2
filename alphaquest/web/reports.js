@@ -242,7 +242,6 @@
       metrics(record);
       window.dispatchEvent(new CustomEvent("report-loaded", { detail: record }));
       get("#report-run-id").textContent = `Run ${record.id} · ${stamp(record.created_at_utc)} UTC`;
-      get("#report-prop-setup").href = `#backtests/prop/new/${record.id}`;
       for (const kind of ["trades", "equity"]) get(`#report-${kind}-download`).href = `/api/backtests/${id}/exports/${kind}`;
       const [preview] = await Promise.all([
         read(`/api/backtests/${id}/chart?max_points=1000`, controller.signal), trades(0, controller),

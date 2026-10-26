@@ -19,8 +19,6 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .datasets import MAX_BYTES, DatasetStore, DuplicateDataset, InvalidDataset, instrument_settings, validate_csv_file
 from .backtest_api import router as backtest_router
-from .prop_api import router as prop_router
-from .prop.runs import PropRunStore
 from .backtest_runs import RunStore
 
 WEB = Path(__file__).parent / "web"
@@ -81,13 +79,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     async def lifespan(app):
         app.state.store = DatasetStore(db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3")
         app.state.runs = RunStore(app.state.store.path.parent)
-        app.state.prop_runs = PropRunStore(app.state.store.path.parent)
         app.state.progress = ProgressTracker()
         yield
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
     app.include_router(backtest_router)
-    app.include_router(prop_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")
@@ -97,8 +93,6 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             return JSONResponse({"detail": "Cross-origin changes are not allowed."}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if request.url.path == "/" or request.url.path.endswith((".js", ".css")):
-            response.headers["Cache-Control"] = "no-cache"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         return response
 

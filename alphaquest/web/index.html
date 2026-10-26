@@ -8,12 +8,10 @@
       content="Manage market datasets and run backtests in your local AlphaQuest research workspace."
     />
     <title>Datasets · AlphaQuest</title>
-    <link rel="stylesheet" href="/static/styles.css?v=evaluation1" />
-    <script src="/static/app.js?v=evaluation1" defer></script>
-    <script src="/static/backtests.js?v=evaluation1" defer></script>
-    <script src="/static/reports.js?v=evaluation1" defer></script>
-    <script src="/static/prop.js?v=evaluation1" defer></script>
-    <script src="/static/prop_results.js?v=evaluation1" defer></script>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+    <script src="/static/backtests.js" defer></script>
+    <script src="/static/reports.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -381,7 +379,7 @@
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
               <div><a href="#backtests" class="eyebrow">← Back to backtests</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
-              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Set up prop simulation →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a></div>
+              <div class="report-downloads"><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a></div>
             </div>
             <div id="report-summary" class="report-summary"></div>
             <section class="panel report-panel" aria-labelledby="equity-chart-title">
@@ -407,139 +405,6 @@
             <div class="panel-heading"><div><h2 id="completed-runs-title">Completed reports</h2></div><button id="refresh-reports" class="button secondary" type="button">Refresh reports</button></div>
             <div id="completed-runs-status" class="backtest-fields small" role="status"></div><div id="completed-runs-list"></div>
             <div class="report-pagination"><span id="completed-runs-count"></span><div><button id="runs-previous" class="button secondary" type="button">Previous reports</button><button id="runs-next" class="button secondary" type="button">Next reports</button></div></div>
-          </section>
-        </section>
-        <section id="prop-screen" aria-label="Prop simulation setup" hidden>
-          <div class="page-heading">
-            <div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a>
-              <h1><span id="prop-title-text">Prop simulation</span><span class="heading-dot">.</span></h1>
-              <p id="prop-intro">Configure account rules and check your saved backtest’s source data.</p>
-            </div>
-          </div>
-          <p id="prop-status" role="status" aria-live="polite">Loading setup…</p>
-          <div id="prop-workflow" hidden>
-          <div class="panel prop-panel">
-            <h2>Source backtest</h2><div id="prop-source"></div>
-            <p>Source costs already include commissions and fill slippage. Checking inputs preserves the saved fills and strategy signals.</p>
-          </div>
-          <form id="prop-form">
-            <section class="panel prop-panel" aria-labelledby="prop-rules-heading">
-              <h2 id="prop-rules-heading">1. Configure account rules</h2>
-              <div class="prop-fields">
-                <label>Account profile<select id="prop-profile" required></select></label>
-                <label>Starting phase<select id="prop-phase" required><option value="evaluation">Evaluation</option><option value="funded">Funded</option></select></label>
-                <label>Observation mode<select id="prop-mode" required><option value="bar_close">Bar close</option><option value="trade_close">Trade close</option></select></label>
-                <label>Comparison quantity<input id="prop-quantity" type="number" min="1" max="10000" step="1" required /></label>
-                <label>Account start · UTC<input id="prop-start" type="text" maxlength="40" required /></label>
-                <label>Analysis end · UTC<input id="prop-end" type="text" maxlength="40" required /></label>
-              </div>
-              <p id="prop-fee-summary" role="status"></p>
-              <details id="prop-profile-fees">
-                <summary>Edit reusable account profile fees</summary>
-                <p>Default prices supplied by you: Standard is USD 49 evaluation plus USD 129 funded activation; No activation fee is USD 109 evaluation and USD 0 activation. Defaults apply to each supported platform. You can edit prices for the selected option; saving affects future setups. Existing setups and results retain their captured fees.</p>
-                <div class="prop-fields">
-                  <label>Profile evaluation attempt fee · USD<input id="prop-profile-attempt-fee" type="text" inputmode="decimal" maxlength="128" /></label>
-                  <label>Profile funded activation fee · USD<input id="prop-profile-activation-fee" type="text" inputmode="decimal" maxlength="128" /></label>
-                </div>
-                <p>Leave a phase blank if its price is unknown. At least one fee is required. The No activation fee option always has zero activation. Defaults are saved separately for each platform and pricing option.</p>
-                <button id="prop-save-profile-fees" class="button secondary" type="button">Save profile fees</button>
-              </details>
-              <label class="prop-fee-override"><input id="prop-fee-override" type="checkbox" /> Override the profile fee for this simulation</label>
-              <label id="prop-fee-field" hidden><span id="prop-fee-label">Evaluation attempt fee override · USD</span><input id="prop-fee" type="text" inputmode="decimal" maxlength="128" /></label>
-              <p>Evaluation and funded phases are independent starting modes. Fees are external cash expenses and do not reduce the trading balance.</p>
-              <p>Dates use <code>YYYY-MM-DDTHH:MM:SSZ</code>. Initial defaults span the selected source sessions, from first open to last reset.</p>
-              <p>Bar-close and trade-close observations are sampled views; neither establishes tick-level compliance. Historical evaluation is available; funded execution remains unavailable.</p>
-              <div id="prop-rules"></div>
-            </section>
-            <section class="panel prop-panel" aria-labelledby="prop-instrument-heading">
-              <h2 id="prop-instrument-heading">2. Select instrument</h2>
-              <p id="prop-execution-units"></p>
-              <label>Instrument profile<select id="prop-instrument-profile" required></select></label>
-              <p>Select the contract traded by this backtest. The profile supplies currency, contract specifications, Apex weight and sources. It preserves the backtest’s original fills and costs.</p>
-              <div id="prop-instrument-summary" aria-live="polite"></div>
-              <div id="prop-instrument-custom" hidden>
-              <p>Custom or legacy declaration: use this for instruments without a matching reusable profile. Confirm the units explicitly; known conflicts with saved metadata cannot be overridden.</p>
-              <div class="prop-fields">
-                <label>Instrument symbol<input id="prop-symbol" type="text" maxlength="80" required /></label>
-                <label>Source account currency<select id="prop-currency" required><option value="">Confirm currency</option><option value="USD">USD</option></select></label>
-                <label>Rule units per source contract<input id="prop-weight" type="text" inputmode="decimal" maxlength="128" required /></label>
-                <label>Contract weight source URL<input id="prop-unit-url" type="url" maxlength="2000" placeholder="https://…" required /></label>
-              </div>
-              <label>Currency and contract interpretation<textarea id="prop-basis" minlength="8" maxlength="2000" rows="2" required></textarea></label>
-              </div>
-            </section>
-            <section class="panel prop-panel" aria-labelledby="prop-calendar-heading">
-              <h2 id="prop-calendar-heading">3. Coverage check</h2>
-              <p id="prop-calendar-range"></p>
-              <label>Coverage workflow<select id="prop-coverage-mode"><option value="automatic">Automatic · reuse dataset session profile</option><option value="advanced">Advanced · explicit calendar override</option></select></label>
-              <div id="prop-auto-coverage">
-                <p id="prop-coverage-status" role="status">Inspecting saved source timestamps…</p>
-                <label>Dataset export-session profile<select id="prop-export-profile"></select></label>
-                <p>Choose the schedule your exporter was intended to include once. Observed spacing is a suggestion; it cannot prove which bars should exist. Choices are remembered for this dataset identity.</p>
-                <div id="prop-export-editor" hidden>
-                  <div class="prop-fields">
-                    <label>Profile name<input id="prop-export-name" maxlength="160" /></label>
-                    <label>Calendar model<select id="prop-export-calendar"><option value="cme_equity_model">CME equity model · holidays and early closes</option><option value="weekday_approximation">Weekday approximation · no holidays</option></select></label>
-                    <label>First expected bar-close label · New York<input id="prop-export-first" type="time" step="1" /></label>
-                    <label>Last expected bar-close label · New York<input id="prop-export-last" type="time" step="1" /></label>
-                    <label>Expected bar interval · seconds<input id="prop-export-interval" type="number" min="1" max="86400" step="1" /></label>
-                  </div>
-                </div>
-                <div class="prop-actions"><button id="prop-remember-session" class="button secondary" type="button">Use and remember session profile</button><button id="prop-refresh-coverage" class="button secondary" type="button">Refresh coverage</button></div>
-                <div id="prop-coverage-summary"></div>
-                <div class="report-pagination"><span id="prop-coverage-count"></span><div><button id="prop-coverage-prev" class="button secondary" type="button">Previous sessions</button><button id="prop-coverage-next" class="button secondary" type="button">Next sessions</button></div></div>
-              </div>
-              <div id="prop-advanced-coverage" hidden>
-              <p>Prop sessions use America/New_York: open 18:00 on the preceding date, close 16:59:59, reset 18:00. Sunday evening belongs to Monday. Coverage is a declaration about expected source bars, including days with no trades.</p>
-              <label>Calendar policy<select id="prop-calendar-mode" required><option value="">Choose a coverage policy</option>
-                <option value="weekday_approximation">Weekday approximation · same declared window Monday–Friday</option>
-                <option value="explicit">Explicit dates and windows · holidays, partial sessions, or gaps</option></select></label>
-              <div id="prop-recurring-window" class="prop-fields" hidden>
-                <label>First bar-close label · New York<input id="prop-window-start" type="time" step="1" /></label>
-                <label>Last bar-close label · New York<input id="prop-window-end" type="time" step="1" /></label>
-                <label>Expected bar interval · seconds<input id="prop-cadence" type="number" min="1" max="86400" step="1" /></label>
-              </div>
-              <div id="prop-explicit-calendar" hidden>
-                <label>Calendar dates and windows · JSON array<textarea id="prop-days" rows="9" maxlength="262144" spellcheck="false"></textarea></label>
-                <p>Declare every date in order, with status covered, closed, or missing. Covered days require UTC windows with inclusive first/last labels and a cadence. Missing coverage is rejected during the source check.</p>
-                <details><summary>Explicit calendar format</summary><pre>[{"trading_date":"2026-01-05","status":"covered","windows":[{"first_utc":"2026-01-05T10:00:00Z","last_utc":"2026-01-05T10:30:00Z","bar_interval_seconds":300}]}]</pre></details>
-              </div>
-              <label>Coverage basis<textarea id="prop-coverage" rows="2" minlength="8" maxlength="2000" required></textarea></label>
-              <p>Weekday approximation declares weekends closed and does not model holidays. Use explicit dates for exceptions. The full selected backtest period is checked; dates are not dropped to make coverage pass.</p>
-              </div>
-            </section>
-            <div class="prop-actions"><button id="prop-save" class="button primary" type="submit">Save setup</button><span id="prop-save-note" role="status"></span></div>
-          </form>
-          <section class="panel prop-panel" id="prop-saved" hidden>
-            <h2>Saved setup</h2><p id="prop-saved-id"></p>
-            <p>Saved rules and configuration are captured for this setup. Changing settings and saving creates a new setup; earlier snapshots stay available.</p>
-            <div id="prop-setup-downloads" class="report-downloads"></div>
-            <div class="prop-actions"><button id="prop-check" class="button primary" type="button">Check source data</button></div>
-          </section>
-          <section class="panel prop-panel" id="prop-input-check" hidden><h2>Source compatibility</h2><div id="prop-check-result"></div></section>
-          <section class="panel prop-panel">
-            <h2>Run simulation</h2><p id="prop-run-note">Save an evaluation setup and check source compatibility before running.</p>
-            <p>Historical evaluation starts at the first declared session open and ends at a declared session reset. Partial sessions and uncovered future bounds are rejected. A run revalidates all source artifacts.</p>
-            <button id="prop-run" class="button primary" type="button" disabled>Run simulation</button>
-            <h3>Saved results for this setup</h3><div id="prop-results-list"></div>
-            <div class="prop-actions"><button id="prop-results-prev" class="button secondary" type="button">Previous results</button><button id="prop-results-next" class="button secondary" type="button">Next results</button><span id="prop-results-count"></span></div>
-          </section>
-          <section class="panel prop-panel"><h2>Saved setups for this backtest</h2><div id="prop-setup-list"></div>
-            <div class="prop-actions"><button id="prop-setups-prev" class="button secondary" type="button">Previous setups</button><button id="prop-setups-next" class="button secondary" type="button">Next setups</button><span id="prop-setups-count"></span></div>
-          </section>
-          </div>
-          <section id="prop-result-view" hidden>
-            <section class="panel prop-panel"><h2>Account outcome</h2><div id="prop-result-summary"></div><div id="prop-result-downloads" class="report-downloads"></div></section>
-            <section class="panel prop-panel"><h2>Account equity and trailing floor</h2>
-              <p>Solid: sampled/modelled account equity. Dashed: trailing floor. Values come from this saved engine trace.</p>
-              <svg id="prop-account-chart" viewBox="0 0 1000 300" role="img" aria-label="Saved account equity and trailing floor"></svg>
-              <label>Inspect retained trace point<input id="prop-trace-point" type="range" min="0" max="0" value="0" /></label>
-              <p id="prop-chart-readout" aria-live="polite"></p><p id="prop-chart-note"></p>
-            </section>
-            <section class="panel prop-panel"><h2>Account events</h2><div id="prop-result-events"></div>
-              <div class="prop-actions"><button id="prop-events-prev" class="button secondary" type="button">Previous events</button><button id="prop-events-next" class="button secondary" type="button">Next events</button><span id="prop-events-count"></span></div>
-            </section>
-            <section class="panel prop-panel"><h2>Captured settings and assumptions</h2><div id="prop-result-settings"></div></section>
           </section>
         </section>
         <footer class="page-footer">
