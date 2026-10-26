@@ -14,10 +14,20 @@ There is one active API/catalogue, `/api/prop-analyses`, under data/prop_analyse
 `native_analysis.py` orchestrates the local model; `native_engine.py` owns account
 transitions and sampling; `source.py` reconciles immutable native fills and an
 optional original MultiCharts excursion export. The external runner has been
-removed. The browser renders only saved AlphaQuest calculations and SVGs for new
-reports (format 3). Format-2 external reports show a historical notice and retain
+removed. The browser presents only saved AlphaQuest calculations for new
+reports (format 3); saved SVGs remain downloadable. Format-2 external reports show a historical notice and retain
 their downloads; they do not populate the new results page. Format-1 notebook
 snapshots retain their historical reader.
+
+The funded report opens with an Overview of one funded account: mean and median
+lifetime payout, payout probability, drawdown failure and conditional payout
+timing. Evaluation, Sizing, Historical replay and Source & model have separate
+keyboard-accessible views. Payouts exclude acquisition fees; historical net is
+labelled with its slot count and full data window. Training selection assumptions
+are explicit beside the sortable size comparison. Details and downloads preserve
+all metrics, settings and precision. Formatting, tab changes and sorting never
+recompute financial results or submit a new analysis. Missing funded outcomes
+remain unavailable, and incomplete measured excursions are disclosed up front.
 
 Native source IDs, strategy/dataset metadata, UTC times, quantities and Decimal
 cost conservation remain preserved. An optional XLSX/XLSM supplies measured MAE

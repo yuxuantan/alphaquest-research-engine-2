@@ -70,10 +70,10 @@ def main():
                 assert time.monotonic()<deadline,status
                 page.wait_for_timeout(700)
             page.screenshot(path=str(out/'report.png'),full_page=True)
-            expect(page.locator('#prop-report-content')).to_contain_text('34.09%');expect(page.locator('#prop-report-content')).to_contain_text('$2,005.425');expect(page.locator('#prop-report-content')).to_contain_text('83.73%')
-            with page.expect_download() as d:page.get_by_role('link',name='report.json ↓',exact=True).click()
+            expect(page.locator('#prop-report-content')).to_contain_text('34.1%');expect(page.locator('#prop-report-content')).to_contain_text('$2,005.43');expect(page.locator('#prop-report-content')).to_contain_text('83.7%')
+            with page.expect_download() as d:page.get_by_role('link',name='Report data (JSON)',exact=True).click()
             d.value.save_as(out/'report.json');report=json.loads((out/'report.json').read_text())
-            with page.expect_download() as d:page.get_by_role('link',name='analysis.zip ↓',exact=True).click()
+            with page.expect_download() as d:page.get_by_role('link',name='Download all results (ZIP)',exact=True).click()
             d.value.save_as(out/'analysis.zip')
             posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
             page.reload();expect(page.locator('#prop-report')).to_be_visible(timeout=20000)

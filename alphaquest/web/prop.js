@@ -46,6 +46,7 @@
   $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
   async function configure(id,t) {
+    $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
     sourceId=id;checked=false;$('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-status').textContent='Loading source and matching exports…';
     const [data,defaults]=await Promise.all([read(`/api/prop-analyses/sources/${id}`),read('/api/prop-analyses/defaults')]);if(t!==token)return;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
@@ -58,6 +59,7 @@
     $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent='AlphaQuest local calculations · full history, 30% holdout, block 5, standard simulation counts. Check the matched export before running.';$('#prop-config').hidden=false;setBusy(false);
   }
   function render(r) {
+    $('#prop-heading-title').textContent='Prop analysis';$('#prop-heading-note').textContent='Saved analysis report';$('#prop-report-content').className='';
     if(r.format_version===3){renderNative(r);return;}
     if(r.format_version===2){renderExternalHistory(r);return;}
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();$('#prop-back').href=`#backtests/report/${r.source.backtest.id}`;
@@ -76,7 +78,7 @@
     details(p,'All resolved settings, literal notebook defaults and override origins',{settings:r.settings,literal_defaults:r.literal_notebook_defaults,origins:r.setting_origins,rules:r.rules});details(p,'Hashes, runtime and seed streams',{model:r.model_version,notebook:r.notebook_sha256,input:r.input_sha256,runtime:r.runtime,seeds:r.seed_streams,commit:r.application_commit,implementation:r.implementation_sha256,samples:r.samples});
   }
   function nativeFrame(r) {
-    $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();
+    $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();$('#prop-report-content').className='';
     $('#prop-back').href=`#backtests/report/${r.source.backtest.id}`;
     const links=$('#prop-downloads');links.replaceChildren();
     for(const kind of ['report.json','trades.csv','analysis.zip']){const a=el('a',kind+' ↓','button secondary');a.href=`/api/prop-analyses/${r.id}/downloads/${kind}`;links.append(a);}
@@ -87,29 +89,193 @@
     p.append(el('p','This report was created by the retired external-engine integration. Its saved downloads are preserved. Run a new local analysis to see AlphaQuest calculations.'));
     const a=el('a','Configure a local analysis','button primary');a.href=`#backtests/prop/new/${r.source.backtest.id}`;p.append(a);
   }
-  function renderNative(r) {
-    nativeFrame(r);$('#prop-status').textContent=`Saved AlphaQuest analysis ${r.id} · ${r.created_at_utc}. Reload reads saved local calculations.`;
-    const c=r.calculations,e=c.evaluation,f=c.funded;
-    const percent=x=>x===null||x===undefined?'Unavailable':(x*100).toFixed(2)+'%';
-    const dollars=x=>x===null||x===undefined?'Unavailable':x.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:3});
-    let p=section('Evaluation and funded account summary');
-    p.append(el('p',`Evaluation pass rate: ${percent(e.pass_rate)} · size: ${e.selected_micros} MNQ · 95% interval: ${e.pass_rate_ci.map(percent).join(' – ')}`));
-    if(f)p.append(el('p',`Funded size: ${f.selected.micros} MNQ · expected first-year payouts: ${dollars(f.selected['E[P] 12m'])} · expected lifetime payouts: ${dollars(f.selected['E[payout]'])}`));
-    p.append(el('p',r.calculation_contract));
-    if(c.unavailable)p.append(el('p',c.unavailable));
-    p=section('Source and session-day checks');metrics(p,{trades:r.source.reconciliation.source_count,net_pnl:r.source.reconciliation.source_totals.net_pnl,measured_MAE:r.source.excursion_input.measured_mae_count,train_weekdays:c.samples.weekdays[0],validation_weekdays:c.samples.weekdays[1],training:c.samples.train.join(' to '),holdout:c.samples.validation.join(' to ')});p.append(el('p',r.source.excursion_provenance));details(p,'Original source identity, costs and companion export',r.source);
-    p=section('Evaluation Monte Carlo');metrics(p,e);table(p,c.evaluation_sweep);p.append(el('p','Sizes are selected on training sessions. Reported outcomes use separate validation sessions; each failure ends on its actual failure day. Funding time chains attempts with continuous sampled blocks and adds one activation day.'));
-    if(f){
-      p=section('Funded payouts and account survival');metrics(p,f.selected);metrics(p,f.outcomes);p.append(el('p',`Lifetime median: ${dollars(f.selected['median life'])}. Blown probability: ${percent(f.selected.blown)}. First payout median day: ${f.selected['T1 median']}.`));
-      p=section('Funded sizing on training sessions');table(p,f.sweep);details(p,'Training selection assumptions',f.selection_economics);p.append(el('p','Selection maximizes expected net per slot-year under the fixed training acquisition assumptions. First-year and lifetime simulations use separate draws, so their payout probabilities can differ.'));
-      p=section('What your slots earn, year by year');table(p,c.history.years);metrics(p,c.history.totals);p.append(el('p','All slots take the same historical trades. This replays the observed history; training years also supplied the size choice. Each quarter is rounded to dollars before the annual totals are added.'));
-      p=section('Historical account trace');table(p,c.history.accounts,['account','start','end','outcome','payouts','payout_days']);p.append(el('p','Every account start, close, outcome and payout date is downloadable.'));
+  // Presentation only: every statistic below comes from the saved local report.
+  const available = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+  const number = (v,digits=0) => available(v) ? Number(v).toLocaleString('en-US',{maximumFractionDigits:digits}) : 'Unavailable';
+  const money = (v,digits=2) => available(v) ? Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:digits,maximumFractionDigits:digits}) : 'Unavailable';
+  const percent = v => available(v) ? Number(v).toLocaleString('en-US',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1}) : 'Unavailable';
+  const days = v => available(v) ? `${number(v,1)} trading days` : 'Not reached';
+  const dateRange = range => (range||[]).join(' → ');
+  function reportBlock(parent,title,caption,cls='') {
+    const block=el('section',undefined,`prop-insight-block ${cls}`);block.append(el('h2',title));
+    if(caption)block.append(el('p',caption,'prop-explainer'));
+    parent.append(block);return block;
+  }
+  function facts(parent,items,cls='') {
+    const list=el('dl',undefined,`prop-facts ${cls}`);
+    for(const [label,value,note] of items){const item=el('div');item.append(el('dt',label),el('dd',value));if(note)item.append(el('p',note));list.append(item);}
+    parent.append(list);return list;
+  }
+  function metricCard(parent,label,value,note,exact,tone='') {
+    const card=el('div',undefined,`prop-metric ${tone}`),metric=el('strong',value);
+    if(exact!==undefined&&exact!==null)metric.title=`Saved value: ${exact}`;
+    card.append(el('span',label,'prop-metric-label'),metric,el('p',note));parent.append(card);
+  }
+  function probabilityRows(parent,rows) {
+    const list=el('div',undefined,'prop-probabilities');
+    for(const [label,value,tone] of rows){
+      const row=el('div',undefined,`prop-probability ${tone||''}`),heading=el('div');
+      heading.append(el('span',label),el('strong',percent(value)));row.append(heading);
+      if(available(value)){const meter=el('meter');meter.min=0;meter.max=1;meter.value=value;meter.setAttribute('aria-label',label);meter.setAttribute('aria-valuetext',percent(value));row.append(meter);}
+      list.append(row);
     }
-    p=section('Saved local charts');
-    const base=`/api/prop-analyses/${r.id}/files/`;
-    for(const path of Object.keys(r.files).filter(x=>x.startsWith('charts/')&&x.endsWith('.svg'))){const img=el('img');img.src=base+path.split('/').map(encodeURIComponent).join('/');img.alt=path;img.className='prop-saved-chart';p.append(img);}
-    p=section('Model, settings and reproducibility');details(p,'Account arithmetic',c.rules);details(p,'Resolved settings',r.settings);details(p,'Session samples and random streams',{samples:c.samples,seeds:c.seeds});details(p,'Application identity and dependencies',{model:r.model_version,application_commit:r.application_commit,implementation:r.implementation_sha256,runtime:r.runtime});p.append(el('p','Versioned analytical model. Measured adverse excursions do not identify the exact intratrade price path. Zero-trade weekdays remain in the sample. Acquisition costs and delays are expectations; historical slots share their trade path. This model supports one strategy with nonoverlapping positions.'));
-    p=section('All saved downloads');for(const path of Object.keys(r.files).sort()){const a=el('a',path);a.href=base+path.split('/').map(encodeURIComponent).join('/');p.append(a,el('br'));}
+    parent.append(list);
+  }
+  function readableTable(parent,rows,columns,{caption,selected}={}) {
+    const wrap=el('div',undefined,'prop-readable-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label',caption||'Results table');
+    const t=el('table',undefined,'prop-readable-table');
+    const cap=el('caption',caption,'prop-visually-hidden');t.append(cap);
+    const thead=el('thead'),head=el('tr'),body=el('tbody');
+    for(const column of columns){const th=el('th',column.label);th.scope='col';if(column.numeric)th.className='prop-numeric';head.append(th);}
+    thead.append(head);t.append(thead,body);
+    for(const row of rows){
+      const tr=el('tr');if(selected?.(row)){tr.className='prop-selected-row';tr.setAttribute('aria-label',`Selected size: ${row.micros} MNQ`);}
+      columns.forEach((column,index)=>{
+        const cell=el(index===0?'th':'td');if(index===0)cell.scope='row';if(column.numeric)cell.className='prop-numeric';
+        const v=row[column.key];cell.append(column.render?column.render(v,row):el('span',column.format?column.format(v):display(v)));
+        if(typeof v==='number')cell.title=`Saved value: ${v}`;
+        if(column.tone&&available(v)&&v<0)cell.classList.add('prop-negative');tr.append(cell);
+      });body.append(tr);
+    }
+    wrap.append(t);parent.append(el('p','Scroll the table sideways to see all columns.','prop-table-hint'),wrap);return t;
+  }
+  function explanation(parent,title,text) {
+    const d=el('details',undefined,'prop-help');d.append(el('summary',title),el('p',text));parent.append(d);return d;
+  }
+  function renderNative(r) {
+    nativeFrame(r);
+    $('#prop-heading-title').textContent='Funded simulation';document.title='Funded simulation · AlphaQuest';
+    $('#prop-heading-note').textContent='Apex 50K EOD · AlphaQuest local model';
+    const created=new Date(r.created_at_utc);
+    $('#prop-status').textContent=`Saved ${Number.isNaN(created.getTime())?r.created_at_utc:created.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}`;
+    const downloadNames=['Report data (JSON)','Source trades (CSV)','Download all results (ZIP)'];
+    [...$('#prop-downloads').children].forEach((link,i)=>{link.textContent=downloadNames[i];if(i===2)link.className='button primary';});
+    const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}`;$('#prop-downloads').append(rerun);
+    const root=$('#prop-report-content'),c=r.calculations,e=c.evaluation,f=c.funded,s=f?.selected,source=r.source;
+    root.className='prop-insight-report';
+    const context=el('div',undefined,'prop-report-context');
+    const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
+    context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
+    if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
+    const nav=el('div',undefined,'prop-report-tabs');nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Simulation report views');
+    root.append(nav);
+    const views={},buttons={},definitions=[['overview','Overview'],['evaluation','Evaluation'],...(f?[['sizing','Sizing'],['history','Historical replay']]:[]),['model','Source & model']];
+    function selectView(key,moveFocus=false){
+      for(const [name] of definitions){const active=name===key;views[name].hidden=!active;buttons[name].setAttribute('aria-selected',String(active));buttons[name].tabIndex=active?0:-1;}
+      if(moveFocus){buttons[key].focus({preventScroll:true});root.scrollIntoView({block:'start'});buttons[key].scrollIntoView({block:'nearest',inline:'nearest'});}
+    }
+    for(const [key,label] of definitions){
+      const button=el('button',label);button.type='button';button.id=`prop-tab-${key}`;button.setAttribute('role','tab');button.setAttribute('aria-controls',`prop-view-${key}`);
+      const panel=el('div',undefined,'prop-report-view');panel.id=`prop-view-${key}`;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);panel.tabIndex=0;
+      buttons[key]=button;views[key]=panel;nav.append(button);root.append(panel);
+      button.addEventListener('click',()=>selectView(key,true));
+      button.addEventListener('keydown',event=>{
+        const keys=definitions.map(d=>d[0]),index=keys.indexOf(key);let next;
+        if(event.key==='ArrowRight')next=(index+1)%keys.length;if(event.key==='ArrowLeft')next=(index+keys.length-1)%keys.length;
+        if(event.key==='Home')next=0;if(event.key==='End')next=keys.length-1;
+        if(next!==undefined){event.preventDefault();selectView(keys[next],true);}
+      });
+    }
+    function viewButton(parent,label,key){const b=el('button',label,'button secondary');b.type='button';b.addEventListener('click',()=>selectView(key,true));parent.append(b);}
+    const fileBase=`/api/prop-analyses/${r.id}/files/`;
+    function fileLink(parent,path,label){if(!r.files[path])return;const a=el('a',label,'prop-file-link');a.href=fileBase+path.split('/').map(encodeURIComponent).join('/');a.title=path;parent.append(a);}
+
+    // The overview deliberately keeps one funded account separate from slot history.
+    if(f){
+      let p=reportBlock(views.overview,'What happens to one funded account?',`${s.micros} MNQ · ${number(s.sims)} simulated accounts on holdout days. Payouts are before evaluation and activation costs.`);
+      const kpis=el('div',undefined,'prop-metric-grid');p.append(kpis);
+      metricCard(kpis,'Average lifetime payout',money(s['E[payout]']),'Average across every funded account, including those paid $0.',s['E[payout]']);
+      metricCard(kpis,'Median lifetime payout',money(s['median life']),'The middle account in the simulated outcomes.',s['median life']);
+      metricCard(kpis,'Receives a payout',percent(s['P(>=1 payout)']),'At least one payout over the account’s lifetime.',s['P(>=1 payout)']);
+      metricCard(kpis,'Fails the drawdown limit',percent(s.blown),'May have received payouts before the account failed.',s.blown,'prop-risk-metric');
+      const takeaway=el('div',undefined,'prop-takeaway');
+      if(f.outcomes.never_paid>=.5){takeaway.append(el('strong','Most accounts receive no payout.'),el('p',`${percent(f.outcomes.never_paid)} finish without a payout. Read the ${money(s['E[payout]'])} average alongside the ${money(s['median life'])} median.`));}
+      else{takeaway.append(el('strong','The average and the typical account can differ.'),el('p',`${percent(f.outcomes.never_paid)} receive no payout. The lifetime average is ${money(s['E[payout]'])}; the median is ${money(s['median life'])}.`));}
+      p.insertBefore(takeaway,kpis);
+      const split=el('div',undefined,'prop-two-column');views.overview.append(split);
+      p=reportBlock(split,'How far do accounts get?','These three payout outcomes are mutually exclusive.');
+      probabilityRows(p,[['No payouts',f.outcomes.never_paid,'prop-neutral'],['1–5 payouts',f.outcomes.paid_partial,''],['All 6 payouts',f.outcomes.paid_all,'prop-complete']]);
+      p.append(el('p','Drawdown failure is a separate measure: an account can be paid and later fail. Do not add the failure rate to these payout outcomes.','prop-explainer'));
+      p=reportBlock(split,'When is the first payout?','Among accounts that receive at least one payout.');
+      facts(p,[['Median',days(s['T1 median'])],['75th percentile',days(s['T1 p75'])],['90th percentile',days(s['T1 p90'])]]);
+      p.append(el('p','Trading days include zero-trade weekdays; they are not calendar days.','prop-explainer'));
+      p=reportBlock(views.overview,'First year and account lifetime','Gross payouts per funded account, not the net profit of a slot portfolio.');
+      readableTable(p,[{horizon:'First year · 261 trading days',average:s['E[P] 12m'],median:s['median 12m'],chance:s['P(>=1) 12m']},{horizon:'Lifetime · up to 2,000 trading days',average:s['E[payout]'],median:s['median life'],chance:s['P(>=1 payout)']}],[{key:'horizon',label:'Horizon'},{key:'average',label:'Average payout',format:money,numeric:true},{key:'median',label:'Median payout',format:money,numeric:true},{key:'chance',label:'Receives a payout',format:percent,numeric:true}],{caption:'First-year and lifetime payout comparison'});
+      explanation(p,'Why can the payout chances differ slightly?','First-year and lifetime outcomes come from independent simulation runs. Each is an estimate from its own random draws; the first-year chance can be slightly higher or lower.');
+      p=reportBlock(views.overview,'Getting to this funded account','Evaluation costs and timing are shown separately from funded payouts.');
+      facts(p,[['Evaluation size',`${e.selected_micros} MNQ`],['Funded size',`${s.micros} MNQ`],['Average acquisition cost',money(e.cost_per_funded),'Repeated evaluation fees plus one activation fee.']],'prop-facts-inline');
+      const actions=el('div',undefined,'prop-inline-actions');p.append(actions);viewButton(actions,'Inspect evaluation & costs','evaluation');viewButton(actions,`Why ${s.micros} MNQ? Compare sizes`,'sizing');
+    }else{
+      const p=reportBlock(views.overview,'Funded outcomes are unavailable',c.unavailable||'The saved analysis does not contain funded-account results.');
+      p.classList.add('prop-unavailable');p.append(el('p','A failed evaluation path is a simulation outcome, not an application error. No acquisition cost or funded payout is substituted.'));
+      facts(p,[['Evaluation pass rate',percent(e.pass_rate)],['Evaluation size',`${e.selected_micros} MNQ`],['Source net P&L',money(source.reconciliation.source_totals.net_pnl)]]);
+      viewButton(p,'Inspect evaluation outcomes','evaluation');
+    }
+
+    let p=reportBlock(views.evaluation,'Can the strategy reach funded status?',`${e.selected_micros} MNQ · ${number(e.simulations)} evaluation paths · holdout ${dateRange(c.samples.validation)}.`);
+    const evalCards=el('div',undefined,'prop-metric-grid prop-three-metrics');p.append(evalCards);
+    metricCard(evalCards,'Passes evaluation',percent(e.pass_rate),`${number(e.passed)} of ${number(e.simulations)} paths.`,e.pass_rate);
+    metricCard(evalCards,'Average cost to get funded',money(e.cost_per_funded),'Across repeated evaluations, including activation.',e.cost_per_funded);
+    metricCard(evalCards,'Average time to get funded',days(e.days_to_funded),'Failed attempts plus the activation day.',e.days_to_funded);
+    probabilityRows(p,[['Pass',e.pass_rate,''],['Fails drawdown',e.fail_drawdown,'prop-risk'],['Deadline reached',e.timeout,'prop-neutral']]);
+    p.append(el('p',`95% simulation interval for the pass rate: ${e.pass_rate_ci.map(percent).join(' – ')}. This describes sampling uncertainty within the model.`, 'prop-explainer'));
+    p=reportBlock(views.evaluation,'Acquisition cost and timing','The pass-rate estimate determines the expected number of paid evaluations.');
+    facts(p,[['One evaluation',money(r.settings.EVAL_PRICE)],['Activation fee',money(r.settings.ACTIVATION_FEE)],['Evaluations per funded account',number(e.evaluations_per_funded,2)],['Median time to funded',days(e.days_to_funded_median)],['Median time to pass',days(e.median_days_to_pass),'Among successful evaluation attempts.']]);
+    explanation(p,'How is acquisition cost calculated?',available(e.cost_per_funded)?`${money(r.settings.EVAL_PRICE)} evaluation fee ÷ ${percent(e.pass_rate)} pass rate + ${money(r.settings.ACTIVATION_FEE)} activation fee = approximately ${money(e.cost_per_funded)}. Calculations use the unrounded saved pass rate.`:'No evaluation passed, so a finite acquisition cost and replacement time are unavailable.');
+    const evalDetails=el('details',undefined,'prop-help');evalDetails.append(el('summary','Evaluation sizes tried on training days'));p.append(evalDetails);
+    readableTable(evalDetails,c.evaluation_sweep,[{key:'micros',label:'Size',format:v=>`${v} MNQ`},{key:'passed',label:'Passed paths',format:number,numeric:true},{key:'simulations',label:'Paths simulated',format:number,numeric:true}],{caption:'Training evaluation size sweep',selected:row=>row.micros===e.selected_micros});
+    details(p,'Full-precision evaluation metrics',e);
+
+    if(f){
+      p=reportBlock(views.sizing,`Why was ${s.micros} MNQ selected?`,'The highest estimated annual net per slot on training days selects the funded size. It is then tested on separate holdout days.');
+      facts(p,[['Chosen funded size',`${s.micros} MNQ`],['Training window',dateRange(c.samples.train)],['Simulations per size',number(f.sweep[0]?.sims)]],'prop-facts-inline');
+      const assumptions=f.selection_economics;
+      if(assumptions)p.append(el('p',`Training selection assumes a ${percent(assumptions.pass_rate)} evaluation pass rate and ${number(assumptions.replacement_days)} replacement trading days. Acquisition figures in Evaluation use the holdout evaluation simulation.`, 'prop-assumption-note'));
+      const control=el('div',undefined,'prop-table-control'),label=el('label','Sort sizes by'),sort=el('select');sort.id='prop-sweep-sort';label.htmlFor=sort.id;
+      for(const [value,text] of [['slot_year','Annual net per slot · highest first'],['micros','Size · smallest first'],['E[payout]','Average lifetime payout · highest first'],['blown','Drawdown failure · lowest first']]){const option=el('option',text);option.value=value;sort.append(option);}
+      control.append(label,sort);p.append(control);const target=el('div');p.append(target);
+      function drawSweep(){
+        const rows=[...f.sweep].sort((a,b)=>['micros','blown'].includes(sort.value)?a[sort.value]-b[sort.value]:b[sort.value]-a[sort.value]);target.replaceChildren();
+        readableTable(target,rows,[{key:'micros',label:'Size',render:(v)=>{const cell=el('span',`${v} MNQ`);if(v===s.micros)cell.append(el('span','Selected','prop-selected-badge'));return cell;}},{key:'slot_year',label:'Annual net / slot',format:money,numeric:true,tone:true},{key:'E[payout]',label:'Avg. lifetime payout',format:money,numeric:true},{key:'P(>=1 payout)',label:'Any payout',format:percent,numeric:true},{key:'blown',label:'Drawdown failure',format:percent,numeric:true},{key:'days alive',label:'Avg. lifetime · days',format:v=>number(v,1),numeric:true}],{caption:'Training funded size comparison',selected:row=>row.micros===s.micros});
+      }
+      sort.addEventListener('change',drawSweep);drawSweep();
+      p.append(el('p','All rows are training estimates. “Annual net / slot” includes the fixed acquisition assumptions and replacement delay; it is not the lifetime payout of one account.','prop-explainer'));
+      fileLink(p,'funded_sizing.csv','Download all sizing metrics (CSV)');
+      details(p,'All training metrics at full precision',f.sweep);
+      details(p,`Full-precision holdout metrics at ${s.micros} MNQ`,s);
+
+      p=reportBlock(views.history,'What did the slots earn in the observed history?',`${r.settings.SLOTS} slots taking the same trades · full history ${dateRange(c.samples.data)} · not an annual forecast.`);
+      const totals=c.history.totals,historyCards=el('div',undefined,'prop-metric-grid prop-three-metrics');p.append(historyCards);
+      metricCard(historyCards,'Historical net',money(totals.net,0),'Total payouts minus acquisition costs, over the full history.',totals.net);
+      metricCard(historyCards,'Total payouts',money(totals.payouts,0),'Across all historical slots.',totals.payouts);
+      metricCard(historyCards,'Acquisition costs',money(totals.costs,0),`${number(totals.new_funded_accounts)} funded account starts across all slots.`,totals.costs);
+      p.append(el('p','All slots share one strategy’s trade path; multiplying the slot count does not diversify it. Training years also supplied the sizing choice.','prop-assumption-note'));
+      readableTable(p,c.history.years,[{key:'year',label:'Year'},{key:'out_of_sample_share',label:'Holdout share',format:percent,numeric:true},{key:'payouts',label:'Payouts',format:v=>money(v,0),numeric:true},{key:'costs',label:'Acquisition costs',format:v=>money(v,0),numeric:true},{key:'net',label:'Net',format:v=>money(v,0),numeric:true,tone:true},{key:'new_funded_accounts',label:'Funded starts',format:number,numeric:true}],{caption:'Historical cash by year for all slots'});
+      p.append(el('p','A 0% holdout share means the year is entirely in the training sample. Partial first/last years are shown in the data window above. Quarterly rounding is applied before annual cash totals are added.','prop-explainer'));
+      fileLink(p,'slots_year_by_year.csv','Download yearly cash (CSV)');fileLink(p,'slots_by_quarter.csv','Inspect quarter-by-quarter cash (CSV)');
+      p=reportBlock(views.history,'Follow each historical account','A single slot’s chronological account trace. The cash totals above scale that shared trace to all slots.');
+      const trace=el('details',undefined,'prop-help');trace.append(el('summary',`Inspect ${number(c.history.accounts.length)} ${c.history.accounts.length===1?'account lifecycle':'account lifecycles'} and payout dates`));p.append(trace);
+      const outcome={blown:'Drawdown failure',inactive:'Closed for inactivity',paid_all:'All 6 payouts paid',open:'Open at end of data'};
+      readableTable(trace,c.history.accounts,[{key:'account',label:'Account'},{key:'start',label:'Funded on'},{key:'end',label:'Ended on'},{key:'outcome',label:'Outcome',format:v=>outcome[v]||v},{key:'payouts',label:'Payouts',format:number,numeric:true},{key:'payout_days',label:'Payout dates',format:v=>v.length?v.join(', '):'No payouts'}],{caption:'Historical account lifecycles'});
+      fileLink(p,'slot_accounts.csv','Download the account trace (CSV)');
+    }
+
+    p=reportBlock(views.model,'Source and sample checks','The backtest supplies trade identity, quantities, UTC fills and net costs.');
+    facts(p,[['Source trades',number(source.reconciliation.source_count)],['Source net P&L',money(source.reconciliation.source_totals.net_pnl)],['Measured MAE',`${number(source.excursion_input.measured_mae_count)} trades`],['Training',`${dateRange(c.samples.train)} · ${number(c.samples.weekdays[0])} weekdays`],['Holdout',`${dateRange(c.samples.validation)} · ${number(c.samples.weekdays[1])} weekdays`]]);
+    p.append(el('p',source.excursion_provenance,'prop-assumption-note'));
+    explanation(p,'How are training, holdout and session days used?','Sizes are selected on the training sample; reported account simulations use the holdout sample. Entries are grouped by Chicago session date, with zero-trade weekdays retained. The historical replay includes both samples and is labelled separately.');
+    details(p,'Source identity and exact cost reconciliation',source);
+    p=reportBlock(views.model,'Read the model correctly','Saved statistics describe this versioned analytical model.');
+    explanation(p,'Average payout, median payout and acquisition cost','The average includes all simulated funded accounts. The median describes the middle account; a $0 median means at least half receive $0. Payouts do not subtract evaluation and activation fees. Acquisition cost is shown separately, while historical net subtracts it.');
+    explanation(p,'Drawdown failures can also receive payouts','Payout outcomes partition accounts by how many payouts they received. Drawdown failure describes how an account closed. An account can belong to a paid group and later fail its drawdown limit.');
+    explanation(p,'Simulation and historical replay answer different questions','Simulation resamples historical days to estimate account outcomes. Historical replay follows the one observed sequence of trades. Slots share that sequence, and training years influenced the size choice.');
+    explanation(p,'Model limits and missing excursions','Measured adverse excursions do not reveal the exact intratrade price path. Missing excursions use a disclosed close-only fallback that may understate risk. The model supports one strategy with nonoverlapping positions; payouts, costs and delays are model estimates.');
+    details(p,'Account rules',c.rules);details(p,'Resolved settings',r.settings);details(p,'Random streams and samples',{samples:c.samples,seeds:c.seeds});
+    details(p,'Report identity and reproducibility',{id:r.id,created_at_utc:r.created_at_utc,model:r.model_version,application_commit:r.application_commit,implementation:r.implementation_sha256,runtime:r.runtime});
+    p=reportBlock(views.model,'Downloads and full precision','Display values are rounded. The original saved values remain in the report data and exports.');
+    const names={'calculations.json':'All calculated metrics (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)'};
+    for(const path of Object.keys(r.files).sort())fileLink(p,path,names[path]||(path.startsWith('charts/')?`Original ${path.split('/').pop().replace('.svg','')} chart (SVG)`:path.endsWith('.xlsx')?'Original measured-excursion export (XLSX)':path));
+    selectView('overview');window.scrollTo(0,0);
   }
   async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(j.status==='error'){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token)render(r);return;}await new Promise(resolve=>setTimeout(resolve,700));}}
   async function navigate(){const t=++token;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}

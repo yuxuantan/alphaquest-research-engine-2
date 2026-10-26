@@ -1,3 +1,104 @@
+# Funded simulation UI/UX review — 27 October 2026
+
+The previous report gave source internals, long tables and funded outcomes the
+same weight. Its desktop report content was 7,253 px tall, with the main funded
+insight below evaluation detail. Raw field names, decimals and mixed account/slot
+units made the positive mean easy to misread. The assessment and before/after
+screenshots are saved in `artifacts/funded-ui-review-20261026T175950Z/`.
+
+The normal saved-result page now opens with an Overview. It leads with the
+no-payout takeaway and puts mean, median, payout chance and drawdown failure
+together. Labelled probability bars distinguish mutually exclusive payout groups
+from overlapping failure outcomes. First-payout timing states its paid-account
+denominator. Separate Evaluation, Sizing, Historical replay and Source & model
+views expose their own units, costs, samples and assumptions. The sizing table
+highlights the selected size and sorts by annual slot net, size, payout or failure.
+Technical details and the full account trace expand on demand. Mobile tables
+scroll within the page with a pinned size/year column and a visible scroll hint.
+Tabs support arrow keys, Home and End; exact saved values remain downloadable.
+
+## Inspect through the existing portal
+
+1. Open the completed source backtest:
+   `http://127.0.0.1:8000/#backtests/report/d63265dc923444c799c2dfc59e090e76`.
+   Click **Configure prop analysis**, then open saved local result
+   `77721af3a12941a6a534030541213f1c`. Direct link:
+   `http://127.0.0.1:8000/#backtests/prop/job/77721af3a12941a6a534030541213f1c`.
+2. **Overview**: expect **$2,005.43 average**, **$0.00 median**, **32.0% receiving
+   a payout**, **83.7% drawdown failures**, and **68.0% receiving no payout**.
+   Payouts are before acquisition costs. The failure rate overlaps paid accounts;
+   it must not be added to the three payout groups. First-payout timing is
+   **20 / 28 / 37 trading days**, conditional on receiving a payout.
+3. **Evaluation**: expect **25 MNQ**, **34.1% pass rate**, **$272.74** average
+   acquisition cost and **19.5 trading days** average funding time. Expand the
+   cost formula or full-precision values to inspect the saved inputs.
+4. **Sizing**: expect **9 MNQ Selected** first under annual-net sorting. Its
+   training annual net is **$6,414.85 per slot**. The visible selection assumptions
+   are **52.5% pass / 5 replacement days**. Sorting by size puts **1 MNQ** first;
+   it changes row order only. These are training results, distinct from the
+   holdout overview. All sizing columns remain in CSV and full-precision details.
+5. **Historical replay**: expect **20 slots**, full-window **$770,000 payouts**,
+   **$114,549 acquisition costs**, **$655,451 net**. This is one shared observed
+   trade path, not an annual forecast. Expand the trace to inspect **21 accounts**.
+6. **Source & model**: inspect training/holdout ranges, **702 measured MAE trades**,
+   source reconciliation, account rules, seeds, model identity and downloads.
+   **Report data (JSON)** retains the exact mean **2005.425** and pass rate
+   **0.3409**; the UI rounds display values only. Reload or reopen the saved job:
+   the Overview returns without submitting another simulation.
+7. At 390 px or 320 px width, the page fits the viewport; scroll the tab strip
+   and tables horizontally. Arrow keys/Home/End keep the focused tab visible.
+
+## Actual workflow evidence and checks
+
+Run from the repository root:
+
+```sh
+.venv/bin/python scripts/demo_native_prop.py
+.venv/bin/python -m pytest -q
+```
+
+The first command follows the real backtest → configure → check → run → saved
+report journey on an isolated temporary server. It uses the original real source,
+normal API and local calculation worker, downloads JSON/ZIP, reloads and reopens,
+then compares the independently generated calculations with the supplied reference.
+The server stops automatically. It leaves the user's port-8000 server alone.
+
+Actual new run: `artifacts/native-prop-parity-20261026T181809Z/`, job
+`a325d3f154bb4bcd8345b06d0efa5f82` in that isolated snapshot. `source-check.png`,
+`report.png`, `report.json`, `analysis.zip`, `production-io.json` and
+`validation.json` show **637 exact comparisons passed**, no browser errors and
+reload/reopen without a POST. The production worker's only subprocess was
+read-only Git provenance; it did not access external generated results.
+
+`artifacts/funded-ui-review-20261026T175950Z/` contains:
+
+- `assessment.md`, `before-desktop.png`, `before-mobile.png`, plus final
+  `after-overview-{desktop,mobile,narrow-mobile}.png`, `after-top-*.png`, and
+  `after-{evaluation,sizing,history,model}-{desktop,mobile}.png`.
+- `ui-validation.json`: all five views fit 1440/390/320 px, visible independently
+  expected values, sorting and keyboard navigation, exact JSON download, no
+  browser errors or POSTs during tab/reload inspection, and temporary server stop.
+- `original-report.json` / `after-report.json`: byte-identical existing portal
+  report. All **13** saved manifest-file hashes still match. The financial
+  source tree is unchanged, and fresh calculations equal the existing saved run.
+- `capture_review.py`: reproduce the screenshot/immutability inspection with
+  `PYTHONPATH=. .venv/bin/python artifacts/funded-ui-review-20261026T175950Z/capture_review.py`.
+  It uses the saved isolated run above and stops its temporary server afterward.
+- `full-tests.txt`: **571 passed**, 24 existing dependency warnings, 91.51 seconds.
+  Browser checks include the real synthetic-source zero-pass workflow (funded
+  outputs unavailable), missing cost/time values, disclosed close-only fallback,
+  negative historical cash, sorting, keyboard navigation and exact downloads.
+  Synthetic response fixtures are confined to presentation tests; the product
+  demonstration and saved screenshots above use the actual source calculation.
+  `final-browser-tests.txt` records the focused browser rerun after the final
+  table scroll hint and wording adjustment.
+
+Starting HEAD: `abc65f4`; recovery ref: `recovery/funded-ui-20261027`;
+working branch: `work/funded-ui-20261027`. Earlier evidence and saved results are
+preserved. No persistent server was started for this increment.
+
+---
+
 # Current workflow: AlphaQuest calculates the prop simulation locally
 
 The external-engine integration was the wrong implementation and is retired.
@@ -27,8 +128,9 @@ from the local implementation. Earlier result IDs remain historical snapshots.
 4. **Run analysis**. Progress reports local calculation stages. Standard counts
    remain 3,000 per sweep point, 20,000 final evaluations and 20,000 accounts per
    funded horizon. The real source takes approximately 20–40 seconds locally.
-5. Inspect evaluation, funded/lifetime sizing, historical account trace, yearly
-   slot cash and three local SVG charts. Download report.json, calculations.json,
+5. Use the Overview, Evaluation, Sizing, Historical replay and Source & model
+   views. Inspect account traces and yearly slot cash; three local SVG charts
+   remain in downloads. Download report.json, calculations.json,
    source trades, size sweeps, quarterly/yearly cash, chart-data JSON and ZIP.
 6. Reload, return to the backtest/configuration and reopen the saved result.
    No simulation is submitted again. Source/backtest/report inputs are immutable.
