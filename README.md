@@ -26,12 +26,13 @@ Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the 
 
 This is a single-user application bound to your own computer, without a login or public hosting setup.
 
-Open **Prop review** at **http://127.0.0.1:8000/#prop-review** to generate saved
-demonstrations for the prop specification, rule/configuration types, and
-saved-backtest adapter. The screen compares actual synthetic outputs with
-independent expectations and offers JSON/CSV/ZIP downloads. See the
-[step-by-step validation guide](docs/prop_simulation_review.md) for each
-subtask's deliverables and expected results. Account simulation remains future work.
+Open a completed **Backtest report → Set up prop simulation** to select account
+rules, phase, observation mode, quantity and fees, and explicitly declare source
+instrument units and calendar coverage. **Save setup**, then **Check source
+data** to inspect real sessions, both observation streams, costs, and source
+compatibility. Saved setups and checks survive reload; JSON/CSV downloads retain
+their captured settings. See the [workflow and validation guide](docs/prop_simulation_review.md)
+for exact steps and a reproducible example. Account simulation remains future work.
 
 To change a saved dataset's tick size or monetary point value, click **Edit defaults** in its library row, edit the values, then click **Save instrument settings**. The updated defaults persist and pre-fill future backtest configurations. Run-specific overrides and completed reports remain separate from these saved defaults.
 

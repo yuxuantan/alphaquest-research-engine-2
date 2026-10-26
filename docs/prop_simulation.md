@@ -2,10 +2,11 @@
 
 Status: implementation specification. `alphaquest/prop/` implements strict
 rules/request types, immutable profile snapshots, and the saved-source session
-adapter. The **Prop review** screen demonstrates these three subtasks using
-isolated synthetic saved backtests; see [the review guide](prop_simulation_review.md).
-The account simulator, simulation endpoint/CLI, simulation run-store migration,
-and simulation portal controls remain unimplemented.
+adapter. Completed backtest reports now open the actual **Prop simulation**
+configuration/source-checking workflow, with saved setups and bounded previews;
+see [the workflow guide](prop_simulation_review.md). The account simulator,
+simulation execution endpoint/CLI, Monte Carlo, and account-result views remain
+unimplemented. The earlier standalone Prop review screen has been retired.
 
 Reviewed on 2026-10-25 against repository commit
 `32aa6ffc86a837e3f4bd20b77d46f0196165c52d`.
@@ -726,7 +727,8 @@ rule/profile/evidence snapshot and `profile_sha256`; reload through
 the current template. `resolve_simulation(config, profile)` returns the envelope
 for a future saved run, including that profile snapshot, all request settings and
 user fees, and `settings_sha256`. `ResolvedSimulation.from_json(text)` validates
-both hashes. No run store or database is introduced in this increment.
+both hashes. The product setup integration now persists this envelope in the
+shared prop store described below.
 
 Hashes use UTF-8 canonical JSON with sorted object keys and compact separators.
 Decimal coefficients/exponents are canonicalized without ambient precision or
@@ -745,7 +747,8 @@ calendar/source validity. Fees must be explicitly supplied
 for the chosen phase (zero is allowed), in matching currency. Evaluation has an
 attempt fee and no activation fee; funded has an activation fee and no attempt
 fee. Explicit dated costs must fall within the requested period. Analysis settings
-exclude measured excursions and staged sizing. No simulator or UI is provided.
+exclude measured excursions and staged sizing. Product configuration and input
+previews are available; the simulator remains unimplemented.
 
 ### Saved-source adapter API now available
 
@@ -851,18 +854,68 @@ order or exact liquidation prices. Do not enable an excursion label by filling
 missing winners with zero MAE or renaming sampled bar-close marks.
 
 The implemented configuration and adapter stop before account simulation. The
-Prop review screen exposes their demonstration outputs, not account outcomes.
+product source check exposes compatibility and source observations, not account
+outcomes.
 This specification, notebook identity check, and green engineering checks do not
 establish provider approval, exact
 MultiCharts parity, future payout receipt, or trading readiness.
 
 ## Demonstrable deliverables for each subtask
 
-Every future implementation must deliver a concrete artifact, an executable
-demonstration (preferably through the existing web app), inspectable actual
-outputs, independent expected values/outcomes, visible validation including
-relevant rejection/boundary cases, and saved evidence with exact reproduction
-instructions. Automated tests supplement the demonstration; a passing test count
-alone is insufficient. Keep synthetic fixtures explicit, preserve prior review
-snapshots, and do not demonstrate a future engine using fabricated account
-outcomes. Extend [the review guide](prop_simulation_review.md) as subtasks land.
+Every future implementation must deliver a usable increment in the actual final
+product workflow, inspectable actual outputs, and exact user steps with
+independent expected values/outcomes and relevant rejection/boundary checks.
+Pair backend work with the minimum real API/UI integration needed to use it.
+Do not build a separate subtask demonstration page/API/store. Fixture oracles
+belong in tests; any example data must use the normal product workflow and be
+clearly labeled. Automated tests supplement the user demonstration. Preserve
+earlier saved snapshots and do not fabricate future account outcomes. Extend
+[the workflow guide](prop_simulation_review.md) as increments land.
+
+### Product configuration and source checking now available
+
+The completed backtest report's **Set up prop simulation** action opens
+`#backtests/prop/new/<source-id>`. Saving navigates to
+`#backtests/prop/<setup-id>`; saved setups are listed for that source backtest.
+The form exposes named platform rules, independent evaluation/funded settings,
+observation mode, fixed quantity, user-supplied phase fee, explicit UTC analysis
+bounds, source-unit declaration, and calendar/coverage declaration. It displays
+the captured rules/evidence/sources, assumptions and conflicts. Current templates
+are used only for new saves; reopening and checking an older setup consumes its
+saved `ResolvedSimulation`, not a mutable template. Form edits invalidate the
+visible compatibility result and require a new save before checking.
+
+`alphaquest/prop/runs.py` introduces `PropRunStore` using the planned
+`prop_runs/` directory and `prop_simulations.sqlite3` database. `prop_setups`
+contains immutable draft settings and source IDs. Saving edits creates a new ID,
+never rewrites an earlier snapshot. `prop_checks` records immutable compatible
+or rejected source checks and points to the saved setup. A compatible check does
+not turn a draft into a completed simulation. Publication uses staged directories
+and database transactions; interrupted processing does not publish a check.
+
+`alphaquest/prop_api.py` exposes `/api/prop-simulations/profiles`,
+`/sources/<id>`, `/setups` (POST/list), `/setups/<id>` (GET),
+`/setups/<id>/check` (POST), bounded `/checks/<id>/sessions` and
+`/checks/<id>/observations`, and allowlisted setup/check exports. Sessions and
+observations are staged incrementally in per-check SQLite and CSV outputs;
+previews page at most 100 rows. No full source report array is loaded into RAM.
+Source reads preserve the original artifacts/catalog and captured strategy,
+dataset, selected period, execution settings, quantities and costs. Checks retain
+the full source snapshot/hash and both observation modes. A rejected check saves
+its reason and offers no successful preview.
+
+The simple calendar form is an explicitly chosen weekday approximation with
+user-entered first/last New York bar-close labels and cadence. It spans every
+source session date, includes zero-trade dates, declares weekends closed, and
+does not infer holidays or data completeness from observed gaps. For holidays,
+multiple windows, missing coverage or early closes, the explicit form accepts a
+date/window JSON array. Both modes record a coverage basis, actual timezone-file
+identity, the profile's timezone/session policy and resolved UTC boundaries.
+Source calendars are limited to 10,000 dates, 24 windows per explicit day;
+cadence is 1–86,400 seconds. Product decimal inputs are exact strings, limited
+to magnitude 1e12 and 18 fractional places, and quantities to 1–10,000.
+
+Subtasks 1–3 therefore provide real setup and input-checking stages. **Run
+simulation** remains disabled with its reason until the shared account engine
+is implemented. The old demo-only routes/code have been removed; previously
+saved `prop_reviews/` files remain on disk as historical evidence.

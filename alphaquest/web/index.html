@@ -12,7 +12,7 @@
     <script src="/static/app.js" defer></script>
     <script src="/static/backtests.js" defer></script>
     <script src="/static/reports.js" defer></script>
-    <script src="/static/prop_review.js" defer></script>
+    <script src="/static/prop.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -38,8 +38,6 @@
         >
         <a class="nav-item" href="#backtests" data-screen="backtests" aria-label="Backtests"
           ><span class="nav-icon">↗</span>Backtests</a>
-        <a class="nav-item" href="#prop-review" data-screen="prop-review" aria-label="Prop review"
-          ><span class="nav-icon">✓</span>Prop review</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -59,7 +57,6 @@
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
           <a href="#backtests" data-screen="backtests">Backtests</a>
-          <a href="#prop-review" data-screen="prop-review">Prop review</a>
         </nav>
       </header>
       <main>
@@ -383,7 +380,7 @@
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
               <div><a href="#backtests" class="eyebrow">← Back to backtests</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
-              <div class="report-downloads"><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a></div>
+              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Set up prop simulation →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a></div>
             </div>
             <div id="report-summary" class="report-summary"></div>
             <section class="panel report-panel" aria-labelledby="equity-chart-title">
@@ -411,28 +408,85 @@
             <div class="report-pagination"><span id="completed-runs-count"></span><div><button id="runs-previous" class="button secondary" type="button">Previous reports</button><button id="runs-next" class="button secondary" type="button">Next reports</button></div></div>
           </section>
         </section>
-        <section id="prop-review-screen" aria-label="Prop implementation review" hidden>
+        <section id="prop-screen" aria-label="Prop simulation setup" hidden>
           <div class="page-heading">
-            <div><div class="eyebrow">IMPLEMENTATION EVIDENCE · SUBTASKS 1–3</div>
-              <h1>Prop review<span class="heading-dot">.</span></h1>
-              <p>Inspect the design, resolved rules, and saved-backtest adapter.</p>
+            <div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a>
+              <h1>Prop simulation<span class="heading-dot">.</span></h1>
+              <p>Configure account rules and check your saved backtest’s source data.</p>
             </div>
           </div>
+          <p id="prop-status" role="status" aria-live="polite">Loading setup…</p>
+          <div id="prop-workflow" hidden>
           <div class="panel prop-panel">
-            <h2>Generate demonstration outputs</h2>
-            <p>Synthetic saved backtests with hand-calculated expectations. This review prepares source data;
-              account outcomes, Monte Carlo, and payouts come in later subtasks.</p>
-            <form id="prop-review-form" class="prop-controls">
-              <label>Platform<select id="prop-platform"><option value="rithmic">Rithmic</option>
-                <option value="tradovate">Tradovate</option><option value="wealthcharts">WealthCharts</option></select></label>
-              <label>Comparison quantity<select id="prop-quantity"><option value="2">2 contracts (original size)</option>
-                <option value="1">1 contract (half size)</option></select></label>
-              <button class="button primary" id="prop-generate" type="submit">Generate review</button>
-            </form>
-            <p id="prop-review-status" role="status" aria-live="polite">Loading saved review…</p>
-            <p>Fixtures and evidence are saved separately under <code>prop_reviews/</code> in the app’s data directory.</p>
+            <h2>Source backtest</h2><div id="prop-source"></div>
+            <p>Source costs already include commissions and fill slippage. Checking inputs preserves the saved fills and strategy signals.</p>
           </div>
-          <div id="prop-review-result" hidden></div>
+          <form id="prop-form">
+            <section class="panel prop-panel" aria-labelledby="prop-rules-heading">
+              <h2 id="prop-rules-heading">1. Configure account rules</h2>
+              <div class="prop-fields">
+                <label>Account profile<select id="prop-profile" required></select></label>
+                <label>Starting phase<select id="prop-phase" required><option value="evaluation">Evaluation</option><option value="funded">Funded</option></select></label>
+                <label>Observation mode<select id="prop-mode" required><option value="bar_close">Bar close</option><option value="trade_close">Trade close</option></select></label>
+                <label>Comparison quantity<input id="prop-quantity" type="number" min="1" max="10000" step="1" required /></label>
+                <label><span id="prop-fee-label">Evaluation attempt fee · USD</span><input id="prop-fee" type="text" inputmode="decimal" maxlength="128" required /></label>
+                <label>Account start · UTC<input id="prop-start" type="text" maxlength="40" required /></label>
+                <label>Analysis end · UTC<input id="prop-end" type="text" maxlength="40" required /></label>
+              </div>
+              <p>Enter your fee explicitly, including zero. Fees are user supplied. Evaluation and funded phases are independent starting modes.</p>
+              <p>Dates use <code>YYYY-MM-DDTHH:MM:SSZ</code>. Initial defaults span the selected source sessions, from first open to last reset.</p>
+              <p>Bar-close and trade-close observations are sampled views; neither establishes tick-level compliance. Analysis currently prepares historical inputs.</p>
+              <div id="prop-rules"></div>
+            </section>
+            <section class="panel prop-panel" aria-labelledby="prop-instrument-heading">
+              <h2 id="prop-instrument-heading">2. Declare instrument units</h2>
+              <p id="prop-execution-units"></p>
+              <p>Confirm the saved monetary units and the instrument’s contract weight under the selected account rules. These cannot be inferred from its symbol.</p>
+              <div class="prop-fields">
+                <label>Instrument symbol<input id="prop-symbol" type="text" maxlength="80" required /></label>
+                <label>Source account currency<select id="prop-currency" required><option value="">Confirm currency</option><option value="USD">USD</option></select></label>
+                <label>Rule units per source contract<input id="prop-weight" type="text" inputmode="decimal" maxlength="128" required /></label>
+                <label>Contract weight source URL<input id="prop-unit-url" type="url" maxlength="2000" placeholder="https://…" required /></label>
+              </div>
+              <label>Currency and contract interpretation<textarea id="prop-basis" minlength="8" maxlength="2000" rows="2" required></textarea></label>
+            </section>
+            <section class="panel prop-panel" aria-labelledby="prop-calendar-heading">
+              <h2 id="prop-calendar-heading">3. Declare source coverage</h2>
+              <p id="prop-calendar-range"></p>
+              <p>Prop sessions use America/New_York: open 18:00 on the preceding date, close 16:59:59, reset 18:00. Sunday evening belongs to Monday. Coverage is a declaration about expected source bars, including days with no trades.</p>
+              <label>Calendar policy<select id="prop-calendar-mode" required><option value="">Choose a coverage policy</option>
+                <option value="weekday_approximation">Weekday approximation · same declared window Monday–Friday</option>
+                <option value="explicit">Explicit dates and windows · holidays, partial sessions, or gaps</option></select></label>
+              <div id="prop-recurring-window" class="prop-fields" hidden>
+                <label>First bar-close label · New York<input id="prop-window-start" type="time" step="1" /></label>
+                <label>Last bar-close label · New York<input id="prop-window-end" type="time" step="1" /></label>
+                <label>Expected bar interval · seconds<input id="prop-cadence" type="number" min="1" max="86400" step="1" /></label>
+              </div>
+              <div id="prop-explicit-calendar" hidden>
+                <label>Calendar dates and windows · JSON array<textarea id="prop-days" rows="9" maxlength="262144" spellcheck="false"></textarea></label>
+                <p>Declare every date in order, with status covered, closed, or missing. Covered days require UTC windows with inclusive first/last labels and a cadence. Missing coverage is rejected during the source check.</p>
+                <details><summary>Explicit calendar format</summary><pre>[{"trading_date":"2026-01-05","status":"covered","windows":[{"first_utc":"2026-01-05T10:00:00Z","last_utc":"2026-01-05T10:30:00Z","bar_interval_seconds":300}]}]</pre></details>
+              </div>
+              <label>Coverage basis<textarea id="prop-coverage" rows="2" minlength="8" maxlength="2000" required></textarea></label>
+              <p>Weekday approximation declares weekends closed and does not model holidays. Use explicit dates for exceptions. The full selected backtest period is checked; dates are not dropped to make coverage pass.</p>
+            </section>
+            <div class="prop-actions"><button id="prop-save" class="button primary" type="submit">Save setup</button><span id="prop-save-note" role="status"></span></div>
+          </form>
+          <section class="panel prop-panel" id="prop-saved" hidden>
+            <h2>Saved setup</h2><p id="prop-saved-id"></p>
+            <p>Saved rules and configuration are captured for this setup. Changing settings and saving creates a new setup; earlier snapshots stay available.</p>
+            <div id="prop-setup-downloads" class="report-downloads"></div>
+            <div class="prop-actions"><button id="prop-check" class="button primary" type="button">Check source data</button></div>
+          </section>
+          <section class="panel prop-panel" id="prop-input-check" hidden><h2>Source compatibility</h2><div id="prop-check-result"></div></section>
+          <section class="panel prop-panel">
+            <h2>Run simulation</h2><p>Account simulation is not available yet. You can save settings and validate source inputs now; account outcomes and analysis will be added here.</p>
+            <button class="button secondary" type="button" disabled>Run simulation</button>
+          </section>
+          <section class="panel prop-panel"><h2>Saved setups for this backtest</h2><div id="prop-setup-list"></div>
+            <div class="prop-actions"><button id="prop-setups-prev" class="button secondary" type="button">Previous setups</button><button id="prop-setups-next" class="button secondary" type="button">Next setups</button><span id="prop-setups-count"></span></div>
+          </section>
+          </div>
         </section>
         <footer class="page-footer">
           <span>AlphaQuest Research Engine 02</span

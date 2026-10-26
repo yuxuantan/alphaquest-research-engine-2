@@ -1396,13 +1396,16 @@ dialog::backdrop {
   .completed-run { grid-template-columns: 1fr; padding: 20px; }
   .completed-run > .positive, .completed-run > .negative { grid-column: 1; grid-row: auto; }
 }
-/* Prop review keeps exact values and evidence readable at mobile widths. */
+/* Prop setup and source previews retain exact values at mobile widths. */
 .prop-panel { padding: 24px; margin-bottom: 24px; min-width: 0; }
 .prop-panel p { line-height: 1.6; margin: 12px 0; overflow-wrap: anywhere; }
 .prop-panel h3 { margin: 24px 0 12px; }
-.prop-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
-.prop-controls label { display: grid; gap: 8px; }
-.prop-controls select { width: 100%; min-width: 180px; }
+.prop-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+.prop-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 20px 0; }
+#prop-screen label { display: grid; gap: 8px; font-size: 13px; }
+#prop-screen input, #prop-screen select, #prop-screen textarea { width: 100%; min-width: 0; }
+#prop-screen textarea { padding: 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+#prop-status { margin: 16px 0; overflow-wrap: anywhere; }
 .prop-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .prop-table th, .prop-table td { padding: 12px; border-bottom: 1px solid var(--border, #e5e7eb); text-align: left; vertical-align: top; }
 .prop-table th { white-space: nowrap; }
@@ -1417,5 +1420,6 @@ dialog::backdrop {
 .prop-notice { border-left: 3px solid #c38a19; padding: 12px; background: #fff9e9; }
 @media (max-width: 600px) {
   .prop-panel { padding: 16px; }
-  .prop-controls label, .prop-controls button { width: 100%; }
+  .prop-fields { grid-template-columns: minmax(0,1fr); }
+  .prop-actions button { width: 100%; }
 }
