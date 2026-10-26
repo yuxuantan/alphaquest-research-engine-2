@@ -1,7 +1,7 @@
 """Product configuration and source-compatibility workflow for completed runs."""
 
-from dataclasses import asdict
-from datetime import date, datetime, time, timedelta
+from dataclasses import asdict, replace
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 import re
@@ -15,10 +15,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
 
 from .prop.calendar import CalendarDay, DataWindow, SessionCalendar, local_utc
-from .prop.rules import get_profile, resolve_profile, resolve_simulation
+from .prop.rules import PROFILE_IDS, get_profile, resolve_profile, resolve_simulation
 from .prop.runs import catalog_record
 from .prop.sessions import InstrumentDeclaration
-from .prop.types import SimulationConfig, UserFees
+from .prop.sessions import InputError
+from .prop.engine import SimulationError
+from .prop.types import ProfileFees, SimulationConfig, UserFees
 
 
 router = APIRouter(prefix="/api/prop-simulations", tags=["Prop simulation setup"])
@@ -65,7 +67,7 @@ class SetupRequest(StrictModel):
     phase: Literal["evaluation", "funded"]
     observation_mode: Literal["trade_close", "bar_close"]
     quantity: StrictInt = Field(ge=1, le=10000)
-    fee: StrictStr = Field(max_length=128)
+    fee: StrictStr | None = Field(default=None, max_length=128)
     account_start_utc: StrictStr = Field(max_length=40)
     end_utc: StrictStr = Field(max_length=40)
     instrument_symbol: StrictStr = Field(min_length=1, max_length=80)
@@ -74,6 +76,11 @@ class SetupRequest(StrictModel):
     contract_limit_source_url: StrictStr = Field(max_length=2000)
     instrument_basis: StrictStr = Field(min_length=8, max_length=2000)
     calendar: CalendarDeclaration
+
+
+class ProfileFeesRequest(StrictModel):
+    attempt_fee: StrictStr | None = Field(default=None, max_length=128)
+    activation_fee: StrictStr | None = Field(default=None, max_length=128)
 
 
 def utc(value):
@@ -170,10 +177,30 @@ def require_source(request, run_id):
     return record
 
 
+def configured_profile(profile_id, store):
+    profile = get_profile(profile_id)
+    fees = store.get_profile_fees(profile_id)
+    return replace(profile, fee_defaults=fees) if fees is not None else profile
+
+
 @router.get("/profiles")
-def profiles():
-    return [profile_view(resolve_profile(get_profile("apex_50k_eod_" + platform)))
-            for platform in ("rithmic", "tradovate", "wealthcharts")]
+def profiles(request: Request):
+    return [profile_view(resolve_profile(configured_profile(profile_id, request.app.state.prop_runs)))
+            for profile_id in PROFILE_IDS]
+
+
+@router.put("/profiles/{profile_id}/fees")
+def update_profile_fees(profile_id: str, body: ProfileFeesRequest, request: Request):
+    try:
+        profile = get_profile(profile_id)
+        fees = ProfileFees(profile.currency, datetime.now(timezone.utc).date(),
+                           None if body.attempt_fee is None else decimal(body.attempt_fee),
+                           None if body.activation_fee is None else decimal(body.activation_fee))
+        resolved = resolve_profile(replace(profile, fee_defaults=fees))
+        request.app.state.prop_runs.save_profile_fees(profile_id, fees)
+        return profile_view(resolved)
+    except (ValueError, ArithmeticError) as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 @router.get("/sources/{run_id}")
@@ -199,13 +226,18 @@ def context_for(record, policy, store):
 def save_setup(body: SetupRequest, request: Request):
     record = require_source(request, body.source_backtest_id)
     try:
-        profile = get_profile(body.profile_id)
+        profile = configured_profile(body.profile_id, request.app.state.prop_runs)
         calendar = build_calendar(body.calendar, record, profile.session)
         settings = record["execution_settings"]
         instrument = InstrumentDeclaration(body.instrument_symbol, body.currency, Decimal(settings["tick_size"]),
                                            Decimal(settings["point_value"]), decimal(body.contract_limit_weight),
                                            body.contract_limit_source_url, body.instrument_basis)
-        fees = UserFees(body.currency, **{"attempt_fee" if body.phase == "evaluation" else "activation_fee": decimal(body.fee)})
+        fee_name = "attempt_fee" if body.phase == "evaluation" else "activation_fee"
+        amount = decimal(body.fee) if body.fee is not None else (
+            getattr(profile.fee_defaults, fee_name) if profile.fee_defaults is not None else None)
+        if amount is None:
+            raise ValueError("Set the selected phase fee in the account profile once, or supply an explicit simulation override (including zero).")
+        fees = UserFees(body.currency, **{fee_name: amount}, origin="profile_default" if body.fee is None else "user_supplied")
         config = SimulationConfig(source_backtest_id=body.source_backtest_id, phase=body.phase, analysis="historical",
                                   observation_mode=body.observation_mode, account_start_utc=utc(body.account_start_utc), end_utc=utc(body.end_utc),
                                   instrument=body.instrument_symbol, currency=body.currency,
@@ -277,3 +309,53 @@ def check_export(check_id: UUID, filename: str, request: Request):
     if not path.is_file():
         raise HTTPException(404, "This check has no such output.")
     return FileResponse(path, media_type="text/csv" if filename.endswith(".csv") else "application/json", filename=filename)
+
+
+@router.post("/setups/{setup_id}/run", status_code=201)
+def run_evaluation(setup_id: UUID, request: Request):
+    try:
+        return request.app.state.prop_runs.execute(setup_id.hex, request.app.state.runs)
+    except KeyError:
+        raise HTTPException(404, "Saved setup not found.") from None
+    except (SimulationError, InputError) as exc:
+        raise HTTPException(422, str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
+@router.get("/results")
+def results(request: Request, setup_id: UUID, offset: int = Query(0, ge=0, le=1000000000), limit: int = Query(25, ge=1, le=100)):
+    return request.app.state.prop_runs.list_results(setup_id.hex, offset, limit)
+
+
+@router.get("/results/{result_id}")
+def result_detail(result_id: UUID, request: Request):
+    result = request.app.state.prop_runs.get_result(result_id.hex)
+    if result is None:
+        raise HTTPException(404, "Saved simulation result not found.")
+    return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/results/{result_id}/events")
+def account_events(result_id: UUID, request: Request, offset: int = Query(0, ge=0, le=1000000000), limit: int = Query(50, ge=1, le=100)):
+    try:
+        return request.app.state.prop_runs.events(result_id.hex, offset, limit)
+    except KeyError:
+        raise HTTPException(404, "Saved simulation result not found.") from None
+
+
+@router.get("/results/{result_id}/chart")
+def account_chart(result_id: UUID, request: Request, max_points: int = Query(500, ge=20, le=2000)):
+    try:
+        return request.app.state.prop_runs.chart(result_id.hex, max_points)
+    except KeyError:
+        raise HTTPException(404, "Saved simulation result not found.") from None
+
+
+@router.get("/results/{result_id}/exports/{filename}")
+def result_export(result_id: UUID, filename: str, request: Request):
+    result_detail(result_id, request)
+    if filename not in {"report.json", "events.csv", "source.json", "simulation.json", "profile.json", "calendar.json"}:
+        raise HTTPException(404, "Result export not found.")
+    return FileResponse(request.app.state.prop_runs.root / result_id.hex / filename,
+                        media_type="text/csv" if filename.endswith(".csv") else "application/json", filename=filename)

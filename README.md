@@ -31,8 +31,11 @@ rules, phase, observation mode, quantity and fees, and explicitly declare source
 instrument units and calendar coverage. **Save setup**, then **Check source
 data** to inspect real sessions, both observation streams, costs, and source
 compatibility. Saved setups and checks survive reload; JSON/CSV downloads retain
-their captured settings. See the [workflow and validation guide](docs/prop_simulation_review.md)
-for exact steps and a reproducible example. Account simulation remains future work.
+their captured settings. A compatible **evaluation** setup can **Run simulation**
+and open a saved account result with an equity/floor chart, events, fees and
+downloads. Funded execution and Monte Carlo remain future work. See the
+[workflow and validation guide](docs/prop_simulation_review.md) for exact steps
+and a reproducible 50,026 / 50,013 account-balance example.
 
 To change a saved dataset's tick size or monetary point value, click **Edit defaults** in its library row, edit the values, then click **Save instrument settings**. The updated defaults persist and pre-fill future backtest configurations. Run-specific overrides and completed reports remain separate from these saved defaults.
 

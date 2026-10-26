@@ -37,7 +37,7 @@ def request(**overrides):
 
 def test_named_product_has_separate_evaluation_and_funded_rules():
     p = get_profile()
-    assert p.id == "apex_50k_eod_rithmic" and p.version == "1.0.0"
+    assert p.id == "apex_50k_eod_rithmic" and p.version == "1.1.0"
     assert p.currency == "USD" and p.provider == "Apex Trader Funding"
     e, f = p.evaluation, p.funded
     assert e.initial_balance == f.initial_balance == D("50000")
@@ -296,7 +296,7 @@ def test_immutability_and_detached_wire_dicts():
 def test_hashes_are_canonical_context_independent_and_sensitive_to_settings():
     p = get_profile()
     first = resolve_profile(p)
-    assert first.profile_sha256 == "581942fc25da4756e2e033ea11ce2673b15d21f844d51a02c5a1ac4b5e7f0599"
+    assert first.profile_sha256 == "a3996254ebb5c9e58d664db175fc34da719d079eede4a3653cbf67b8d4638256"
     equivalent = replace(p, evaluation=replace(p.evaluation, initial_balance=D("50000.00000")),
                          funded=replace(p.funded, initial_balance=D("5E4")))
     with localcontext() as ctx:

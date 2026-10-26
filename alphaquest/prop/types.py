@@ -5,7 +5,7 @@ Python constructors require Decimal/date/time values; wire readers require exact
 decimal/date/time strings and reject unknown fields instead of coercing them.
 """
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from types import UnionType
@@ -73,7 +73,8 @@ def _canonical_decimal(value):
 
 def _encode(value):
     if isinstance(value, Value):
-        return {field.name: _encode(getattr(value, field.name)) for field in fields(value)}
+        return {f.name: _encode(getattr(value, f.name)) for f in fields(value)
+                if not (f.metadata.get("omit_none") and getattr(value, f.name) is None)}
     if type(value) is Decimal:
         return _canonical_decimal(value)
     if type(value) is datetime:
@@ -383,6 +384,25 @@ class ModelingAssumptions(Value):
 
 
 @dataclass(frozen=True, slots=True)
+class ProfileFees(Value):
+    """Reusable user-supplied prices, separate from verified trading rules."""
+
+    currency: str
+    configured_on: date
+    attempt_fee: Decimal | None = None
+    activation_fee: Decimal | None = None
+    origin: Literal["user_supplied"] = "user_supplied"
+
+    def __post_init__(self):
+        super(ProfileFees, self).__post_init__()
+        _require(re.fullmatch(r"[A-Z]{3}", self.currency) is not None, "Invalid profile fee currency.")
+        _require(self.attempt_fee is not None or self.activation_fee is not None, "Set at least one profile fee.")
+        for name in ("attempt_fee", "activation_fee"):
+            if getattr(self, name) is not None:
+                _decimal(name, getattr(self, name), minimum=0)
+
+
+@dataclass(frozen=True, slots=True)
 class RuleProfile(Value):
     id: str
     version: str
@@ -395,12 +415,26 @@ class RuleProfile(Value):
     assumptions: ModelingAssumptions
     sources: tuple[RuleSource, ...]
     evidence: tuple[RuleEvidence, ...]
+    fee_defaults: ProfileFees | None = field(default=None, metadata={"omit_none": True})
+
+    @classmethod
+    def from_dict(cls, payload):
+        # Preserve the exact content/hash of pre-fee snapshots. Never inject
+        # current defaults into an earlier saved profile.
+        if type(payload) is dict and "fee_defaults" not in payload:
+            payload = {**payload, "fee_defaults": None}
+        return super(RuleProfile, cls).from_dict(payload)
 
     def __post_init__(self):
         super(RuleProfile, self).__post_init__()
         _require(re.fullmatch(r"[a-z][a-z0-9_]*", self.id) is not None, "Invalid profile id.")
         _require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", self.version) is not None, "version must use major.minor.patch.")
         _require(re.fullmatch(r"[A-Z]{3}", self.currency) is not None, "currency must be a three-letter uppercase code.")
+        _require(self.fee_defaults is None or self.fee_defaults.currency == self.currency,
+                 "Profile fee currency must match account currency.")
+        if self.id.endswith("_no_activation"):
+            _require(self.fee_defaults is not None and self.fee_defaults.activation_fee == 0,
+                     "No-activation profiles require an explicit zero activation fee.")
         _require(self.evaluation.initial_balance == self.funded.initial_balance, "Phase initial balances must match for this product.")
         _require(self.session.close_time == self.evaluation.review_time, "review_time must match session close.")
         _require(self.session.reset_time == self.evaluation.expiry_time, "expiry_time must match session reset.")
@@ -437,7 +471,7 @@ class UserFees(Value):
     attempt_fee: Decimal | None = None
     activation_fee: Decimal | None = None
     scheduled: tuple[DatedFee, ...] = ()
-    origin: Literal["user_supplied"] = "user_supplied"
+    origin: Literal["user_supplied", "profile_default"] = "user_supplied"
 
     def __post_init__(self):
         super(UserFees, self).__post_init__()

@@ -9,13 +9,17 @@ import json
 from .types import (
     DrawdownRules, EvaluationRules, FundedRules, InactivityRules, LimitTier,
     ModelingAssumptions, PayoutRules, RuleEvidence, RuleProfile, RuleSource,
-    SessionPolicy, SimulationConfig, TradingLimits, Value, _hash, _require,
+    ProfileFees, SessionPolicy, SimulationConfig, TradingLimits, Value, _hash, _require,
 )
 
 
 RETRIEVED_ON = date(2026, 10, 25)
-PROFILE_VERSION = "1.0.0"
+PROFILE_VERSION = "1.1.0"
 DEFAULT_PROFILE_ID = "apex_50k_eod_rithmic"
+USER_PRICES_CONFIGURED_ON = date(2026, 10, 26)
+PROFILE_IDS = tuple(f"apex_50k_eod_{platform}{suffix}"
+                    for platform in ("rithmic", "tradovate", "wealthcharts")
+                    for suffix in ("", "_no_activation"))
 SOURCE_URLS = (
     ("evaluation", "https://apextraderfunding.com/help-center/eod-trailing-drawdown-accounts/eod-evaluations/"),
     ("drawdown", "https://apextraderfunding.com/help-center/eod-trailing-drawdown-accounts/eod-drawdown-explained/"),
@@ -34,9 +38,11 @@ def get_profile(profile_id: str = DEFAULT_PROFILE_ID) -> RuleProfile:
     Returns fresh immutable values, with no mutable catalog or network access.
     The source conflict at the top tier is carried in every resolved snapshot.
     """
-    supported = {f"apex_50k_eod_{platform}": platform for platform in ("rithmic", "tradovate", "wealthcharts")}
+    supported = {profile_id: profile_id.removeprefix("apex_50k_eod_").removesuffix("_no_activation")
+                 for profile_id in PROFILE_IDS}
     _require(type(profile_id) is str and profile_id in supported, "Unknown Apex 50K EOD profile ID.")
     platform = supported[profile_id]
+    no_activation = profile_id.endswith("_no_activation")
     d = Decimal
     sources = tuple(RuleSource(key, url, RETRIEVED_ON) for key, url in SOURCE_URLS)
     evidence = (
@@ -88,7 +94,10 @@ def get_profile(profile_id: str = DEFAULT_PROFILE_ID) -> RuleProfile:
     )
     return RuleProfile(profile_id, PROFILE_VERSION, "Apex Trader Funding", platform, "USD",
                        SessionPolicy("America/New_York", time(18), time(16, 59, 59), time(18)),
-                       evaluation, funded, ModelingAssumptions(), sources, evidence)
+                       evaluation, funded, ModelingAssumptions(), sources, evidence,
+                       ProfileFees("USD", USER_PRICES_CONFIGURED_ON,
+                                   d("109") if no_activation else d("49"),
+                                   d("0") if no_activation else d("129")))
 
 
 def _canonical_json(value):
@@ -158,6 +167,14 @@ class ResolvedSimulation(Value):
         super(ResolvedSimulation, self).__post_init__()
         _require(self.format_version == 1, "Unsupported simulation snapshot format_version.")
         _require(self.config.currency == self.rules.profile.currency, "Profile and simulation currency must match.")
+        if self.rules.profile.id.endswith("_no_activation") and self.config.phase == "funded":
+            _require(self.config.fees.activation_fee == 0, "No-activation profiles require a zero activation fee.")
+        if self.config.fees.origin == "profile_default":
+            defaults = self.rules.profile.fee_defaults
+            name = "attempt_fee" if self.config.phase == "evaluation" else "activation_fee"
+            _require(defaults is not None and getattr(defaults, name) is not None and
+                     getattr(defaults, name) == getattr(self.config.fees, name),
+                     "Resolved fee must match the captured phase-specific profile default.")
         _hash("settings_sha256", self.settings_sha256)
         _require(self.settings_sha256 == _digest({"rules": self.rules.to_dict(), "config": self.config.to_dict()}),
                  "Simulation settings hash mismatch.")

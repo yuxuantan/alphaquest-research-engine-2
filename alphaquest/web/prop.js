@@ -10,7 +10,7 @@
     return item;
   };
   let controller, source, templates, saved, dirty, templatesAvailable = true, busy = false;
-  let setupOffset = 0;
+  let setupOffset = 0, resultOffset = 0;
   const status = message => { get("#prop-status").textContent = message; };
 
   async function read(url, options = {}, signal = controller?.signal) {
@@ -52,11 +52,21 @@
     });
   }
 
+  const noActivation = id => id?.endsWith("_no_activation");
+  const pricingName = id => noActivation(id) ? "No activation fee" : "Standard";
+  function profileLabel(view) {
+    const p = view.display, fees = p.fee_defaults;
+    const price = noActivation(p.id) ? `${fees?.attempt_fee ?? "unknown"} evaluation · no activation fee` :
+      `${fees?.attempt_fee ?? "unknown"} evaluation + ${fees?.activation_fee ?? "unknown"} activation`;
+    return `Apex 50K EOD · ${p.platform} · ${price} ${p.currency}`;
+  }
+
   function showRules(view) {
     const target = get("#prop-rules"); target.replaceChildren();
     const p = view.display, phase = get("#prop-phase").value;
     const rules = p[phase];
-    target.append(node("h3", `${p.platform} · ${phase} · profile ${p.version}`));
+    showFee(view);
+    target.append(node("h3", `${p.platform} · ${pricingName(p.id)} · ${phase} · profile ${p.version}`));
     const rows = [["Initial balance", rules.initial_balance], ["Trailing drawdown", rules.drawdown.amount],
       ["Lock profit", rules.drawdown.lock_profit ?? "No lock"], ["Session timezone", p.session.timezone]];
     if (phase === "evaluation") rows.push(["Profit target", rules.profit_target], ["Daily loss limit", rules.limits.daily_loss_limit],
@@ -81,6 +91,32 @@
     target.append(evidence);
   }
 
+  function selectedProfile() {
+    return templates.find(t => t.snapshot.profile.id === get("#prop-profile").value);
+  }
+
+  function fillProfileFees() {
+    const fees = selectedProfile()?.display.fee_defaults;
+    get("#prop-profile-attempt-fee").value = fees?.attempt_fee ?? "";
+    get("#prop-profile-activation-fee").value = fees?.activation_fee ?? "";
+    get("#prop-profile-activation-fee").readOnly = noActivation(get("#prop-profile").value);
+  }
+
+  function showFee(view) {
+    const phase = get("#prop-phase").value, fees = view.display.fee_defaults;
+    const label = phase === "evaluation" ? "Evaluation attempt" : "Funded activation";
+    const amount = fees?.[phase === "evaluation" ? "attempt_fee" : "activation_fee"];
+    const override = get("#prop-fee-override").checked;
+    get("#prop-fee-field").hidden = !override;
+    get("#prop-fee").required = override;
+    get("#prop-fee-label").textContent = `${label} fee override · USD`;
+    const defaultText = amount == null ?
+      `${label} fee: no profile default yet. Set it once under “Edit reusable account profile fees”, or use a simulation override.` :
+      `${label} fee: ${amount} ${view.display.currency} from ${saved && !dirty ? "the saved" : "the selected"} profile · user supplied ${fees.configured_on}.${override ? " Simulation override enabled below." : " Applied automatically; no fee entry needed."}`;
+    get("#prop-fee-summary").textContent = override ?
+      `${label} fee: ${get("#prop-fee").value || "enter an amount"} ${view.display.currency} · user-supplied simulation override. ${defaultText}` : defaultText;
+  }
+
   function calendarFields() {
     const mode = get("#prop-calendar-mode").value;
     get("#prop-recurring-window").hidden = mode !== "weekday_approximation";
@@ -91,8 +127,14 @@
 
   function setBusy(value) {
     busy = value;
+    get("#prop-save-profile-fees").disabled = value || !templatesAvailable;
     get("#prop-save").disabled = value || !templatesAvailable || (Boolean(saved) && !dirty);
     get("#prop-check").disabled = value || dirty || !saved;
+    const evaluation = saved?.resolved.config.phase === "evaluation";
+    get("#prop-run").disabled = value || dirty || !evaluation || saved?.latest_check?.status !== "compatible";
+    get("#prop-run-note").textContent = saved && !evaluation ? "Funded execution is not implemented yet; funded setups and input checks remain available." :
+      dirty ? "Save changed settings and check source data before running." : !saved || saved.latest_check?.status !== "compatible" ?
+        "Save an evaluation setup and check source compatibility before running." : "Run historical evaluation using these captured settings. Source identity is revalidated; a compatibility check does not authorize changed inputs.";
     for (const input of get("#prop-form").querySelectorAll("input,select,textarea")) input.disabled = value;
   }
 
@@ -118,7 +160,9 @@
       "#prop-window-start": data?.calendar.start_time ?? "", "#prop-window-end": data?.calendar.end_time ?? "",
       "#prop-cadence": data?.calendar.bar_interval_seconds ?? "", "#prop-days": data?.calendar.days ? JSON.stringify(data.calendar.days, null, 2) : ""};
     Object.entries(values).forEach(([selector, value]) => get(selector).value = value);
-    get("#prop-fee-label").textContent = `${get("#prop-phase").value === "evaluation" ? "Evaluation attempt" : "Funded activation"} fee · USD`;
+    get("#prop-fee-override").checked = data?.fee != null;
+    fillProfileFees();
+    get("#prop-profile-fees").open = !selectedProfile()?.display.fee_defaults;
     calendarFields();
   }
 
@@ -129,13 +173,31 @@
     setupOffset = offset;
     const target = get("#prop-setup-list"); target.replaceChildren();
     data.items.forEach(item => {
-      const link = node("a", `${item.platform} · ${item.phase} · quantity ${item.quantity} · ${item.created_at_utc}`, "completed-run");
+      const link = node("a", `${item.platform} · ${pricingName(item.profile_id)} · ${item.phase} · quantity ${item.quantity} · ${item.created_at_utc}`, "completed-run");
       link.href = `#backtests/prop/${item.id}`; target.append(link);
     });
     if (!data.total) target.append(node("p", "No saved setups for this backtest yet."));
     get("#prop-setups-prev").disabled = offset === 0;
     get("#prop-setups-next").disabled = offset + data.items.length >= data.total;
     get("#prop-setups-count").textContent = `${data.total} saved setups`;
+  }
+
+  async function resultList(offset = 0) {
+    const local = controller;
+    const target = get("#prop-results-list"); target.replaceChildren();
+    get("#prop-results-prev").disabled = get("#prop-results-next").disabled = true;
+    if (!saved) { target.textContent = "Save a setup first."; get("#prop-results-count").textContent = ""; return; }
+    const data = await read(`${api}/results?setup_id=${saved.id}&offset=${offset}&limit=25`);
+    if (local !== controller) return;
+    resultOffset = offset;
+    data.items.forEach(item => {
+      const link = node("a", `${item.summary.outcome} · balance ${item.summary.balance} · ${item.created_at_utc}`, "completed-run");
+      link.href = `#backtests/prop/result/${item.id}`; target.append(link);
+    });
+    if (!data.total) target.textContent = "No completed simulations for this setup yet.";
+    get("#prop-results-count").textContent = `${data.total} saved results`;
+    get("#prop-results-prev").disabled = offset === 0;
+    get("#prop-results-next").disabled = offset + data.items.length >= data.total;
   }
 
   async function renderCheck(check, local = controller) {
@@ -210,6 +272,8 @@
     const local = controller;
     const match = location.hash.match(/^#backtests\/prop\/(?:(new)\/)?([0-9a-f]{32})$/);
     if (!match) return;
+    get("#prop-title-text").textContent = "Prop simulation";
+    get("#prop-intro").textContent = "Configure account rules and check your saved backtest’s source data.";
     get("#prop-workflow").hidden = true;
     get("#prop-saved").hidden = get("#prop-input-check").hidden = true;
     status("Loading prop setup…");
@@ -228,8 +292,9 @@
       if (local !== controller) return;
       source = context; templates = profiles; saved = setup; templatesAvailable = catalogAvailable;
       get("#prop-profile").replaceChildren();
-      profiles.forEach(view => { const option = node("option", `Apex 50K EOD · ${view.display.platform}`); option.value = view.snapshot.profile.id; get("#prop-profile").append(option); });
+      profiles.forEach(view => { const option = node("option", profileLabel(view)); option.value = view.snapshot.profile.id; get("#prop-profile").append(option); });
       get("#prop-back").href = `#backtests/report/${context.source.id}`;
+      get("#prop-back").textContent = "← Back to backtest report";
       const record = context.source;
       get("#prop-source").replaceChildren(node("p", `${record.run_metadata.dataset.name} · ${record.run_metadata.strategy.id} · ${record.summary.trades_taken} trades · net P&L ${record.summary.total_net_pnl} source currency units`),
         node("p", `Backtest ${record.id}`, "prop-hash"), details("Preserved strategy, dataset, execution, and selected dates", {metadata: record.run_metadata, execution_settings: record.execution_settings, execution_assumption: record.execution_assumption}));
@@ -247,16 +312,36 @@
       }
       get("#prop-workflow").hidden = false;
       setBusy(false); status(setup ? "Saved setup loaded." : "Configure this backtest’s prop setup.");
-      await Promise.all([setupList(0), setup?.latest_check ? renderCheck(setup.latest_check, local) : Promise.resolve()]);
+      await Promise.all([setupList(0), resultList(0), setup?.latest_check ? renderCheck(setup.latest_check, local) : Promise.resolve()]);
     } catch (error) { if (error.name !== "AbortError" && local === controller) status(error.message); }
   }
 
   get("#prop-form").addEventListener("input", changed);
   get("#prop-form").addEventListener("change", () => { calendarFields(); changed(); });
-  get("#prop-phase").addEventListener("change", () => {
+  function resetFeeOverride() {
+    get("#prop-fee-override").checked = false;
     get("#prop-fee").value = "";
-    get("#prop-fee-label").textContent = `${get("#prop-phase").value === "evaluation" ? "Evaluation attempt" : "Funded activation"} fee · USD`;
-  });
+    fillProfileFees();
+  }
+  get("#prop-phase").addEventListener("change", resetFeeOverride);
+  get("#prop-profile").addEventListener("change", resetFeeOverride);
+  get("#prop-save-profile-fees").onclick = async () => {
+    if (busy || !templatesAvailable) return;
+    const local = controller;
+    try {
+      setBusy(true);
+      const body = {attempt_fee: get("#prop-profile-attempt-fee").value || null,
+        activation_fee: get("#prop-profile-activation-fee").value || null};
+      const view = await read(`${api}/profiles/${get("#prop-profile").value}/fees`, {
+        method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      if (local !== controller) return;
+      templates = templates.map(t => t.snapshot.profile.id === view.snapshot.profile.id ? view : t);
+      Array.from(get("#prop-profile").options).find(option => option.value === view.snapshot.profile.id).textContent = profileLabel(view);
+      changed();
+      status("Profile fees saved. Save a new setup to capture these defaults; earlier setups and results are unchanged.");
+    } catch (error) { if (error.name !== "AbortError" && local === controller) status(`Profile fees not saved: ${error.message}`); }
+    finally { if (local === controller) setBusy(false); }
+  };
   get("#prop-form").addEventListener("submit", async event => {
     event.preventDefault(); if (busy) return;
     const local = controller;
@@ -266,7 +351,7 @@
       if (calendar.mode === "explicit") calendar.days = JSON.parse(value("#prop-days"));
       else Object.assign(calendar, {start_time: value("#prop-window-start"), end_time: value("#prop-window-end"), bar_interval_seconds: Number(value("#prop-cadence"))});
       const body = {source_backtest_id: source.source.id, profile_id: value("#prop-profile"), phase: value("#prop-phase"),
-        observation_mode: value("#prop-mode"), quantity: Number(value("#prop-quantity")), fee: value("#prop-fee"),
+        observation_mode: value("#prop-mode"), quantity: Number(value("#prop-quantity")), fee: get("#prop-fee-override").checked ? value("#prop-fee") : null,
         account_start_utc: value("#prop-start"), end_utc: value("#prop-end"), instrument_symbol: value("#prop-symbol"),
         currency: value("#prop-currency"), contract_limit_weight: value("#prop-weight"), contract_limit_source_url: value("#prop-unit-url"),
         instrument_basis: value("#prop-basis"), calendar};
@@ -289,6 +374,19 @@
     } catch (error) { if (error.name !== "AbortError" && local === controller) status(`Source check unavailable: ${error.message}`); }
     finally { if (local === controller) setBusy(false); }
   };
+  get("#prop-run").onclick = async () => {
+    if (!saved || dirty || busy || get("#prop-run").disabled) return;
+    const local = controller;
+    setBusy(true); status("Revalidating source and running historical evaluation…");
+    try {
+      const result = await read(`${api}/setups/${saved.id}/run`, {method: "POST"});
+      if (local === controller) location.hash = `#backtests/prop/result/${result.id}`;
+    } catch (error) {
+      if (error.name !== "AbortError" && local === controller) status(`Simulation operation failed: ${error.message} No financial outcome is reported for a failed operation. Reload to check saved results before retrying an interrupted request.`);
+    } finally { if (local === controller) setBusy(false); }
+  };
+  get("#prop-results-prev").onclick = () => resultList(Math.max(0, resultOffset - 25)).catch(e => status(e.message));
+  get("#prop-results-next").onclick = () => resultList(resultOffset + 25).catch(e => status(e.message));
   get("#prop-setups-prev").onclick = () => setupList(Math.max(0, setupOffset - 25)).catch(e => status(e.message));
   get("#prop-setups-next").onclick = () => setupList(setupOffset + 25).catch(e => status(e.message));
   window.addEventListener("hashchange", navigate); navigate();

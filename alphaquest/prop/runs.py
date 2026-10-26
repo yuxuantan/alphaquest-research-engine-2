@@ -10,6 +10,8 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
+import platform
+from hashlib import sha256
 from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
@@ -20,6 +22,8 @@ from ..reporting import json_value
 from .calendar import SessionCalendar
 from .rules import ResolvedSimulation
 from .sessions import InputError, InstrumentDeclaration, prepare_backtest
+from .engine import ENGINE_VERSION, ReplaySession, SimulationError, replay_evaluation
+from ..strategy import ExecutionConfig
 
 
 def dump(value):
@@ -55,6 +59,14 @@ class PropRunStore:
                 );
                 CREATE INDEX IF NOT EXISTS prop_setup_source ON prop_setups(source_id, created_at);
                 CREATE INDEX IF NOT EXISTS prop_check_setup ON prop_checks(setup_id, created_at);
+                CREATE TABLE IF NOT EXISTS prop_results (
+                    id TEXT PRIMARY KEY, setup_id TEXT NOT NULL REFERENCES prop_setups(id),
+                    created_at TEXT NOT NULL, payload TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS prop_result_setup ON prop_results(setup_id, created_at);
+                CREATE TABLE IF NOT EXISTS prop_profile_fees (
+                    profile_id TEXT PRIMARY KEY, payload TEXT NOT NULL
+                );
             """)
 
     @contextmanager
@@ -66,6 +78,20 @@ class PropRunStore:
                 yield conn
         finally:
             conn.close()
+
+    def get_profile_fees(self, profile_id):
+        from .types import ProfileFees
+        with self.connect() as conn:
+            row = conn.execute("SELECT payload FROM prop_profile_fees WHERE profile_id=?", (profile_id,)).fetchone()
+        return ProfileFees.from_dict(json.loads(row[0])) if row else None
+
+    def save_profile_fees(self, profile_id, fees):
+        from .types import ProfileFees
+        if type(fees) is not ProfileFees:
+            raise ValueError("Profile fees must be a ProfileFees value.")
+        with self.connect() as conn:
+            conn.execute("INSERT INTO prop_profile_fees VALUES (?,?) ON CONFLICT(profile_id) DO UPDATE SET payload=excluded.payload",
+                         (profile_id, dump(fees.to_dict())))
 
     def _publish(self, path, table, record, parent_id):
         import shutil
@@ -127,7 +153,8 @@ class PropRunStore:
             record = json.loads(payload)
             config = record["resolved"]["config"]
             items.append(dict(id=setup_id, created_at_utc=created_at, phase=config["phase"], quantity=config["quantity"],
-                              platform=record["resolved"]["rules"]["profile"]["platform"]))
+                              platform=record["resolved"]["rules"]["profile"]["platform"],
+                              profile_id=record["resolved"]["rules"]["profile"]["id"]))
         return dict(items=items, total=count, offset=offset, limit=limit)
 
     def check_source(self, setup_id, runs):
@@ -200,6 +227,150 @@ class PropRunStore:
         with self.connect() as conn:
             row = conn.execute("SELECT payload FROM prop_checks WHERE id=?", (UUID(check_id).hex,)).fetchone()
         return json.loads(row[0]) if row else None
+
+    def execute(self, setup_id, runs):
+        setup = self.get_setup(setup_id)
+        if setup is None:
+            raise KeyError("Saved setup not found.")
+        resolved = ResolvedSimulation.from_dict(setup["resolved"])
+        if resolved.config.phase != "evaluation" or resolved.config.analysis != "historical":
+            raise SimulationError("Only historical evaluation execution is implemented; funded execution remains unavailable.")
+        checked = setup["latest_check"]
+        if not checked or checked["status"] != "compatible":
+            raise SimulationError("Check source data successfully before running this setup.")
+        calendar = SessionCalendar.from_json(dump(setup["calendar"]))
+        instrument = InstrumentDeclaration.from_dict(setup["instrument"])
+        record = dict(id=uuid4().hex, kind="simulation", status="complete", format_version=1,
+                      setup_id=setup["id"], source_backtest_id=setup["source_backtest_id"],
+                      created_at_utc=json_value(datetime.now(timezone.utc)), phase="evaluation", analysis="historical",
+                      engine_version=ENGINE_VERSION, python_version=platform.python_version(),
+                      resolved=setup["resolved"], calendar=setup["calendar"], instrument=setup["instrument"],
+                      observation_mode=resolved.config.observation_mode, currency=resolved.config.currency,
+                      assumptions=resolved.rules.profile.assumptions.to_dict(),
+                      limitations=["Sampled observations do not establish tick-level compliance.",
+                                   "Frozen source signals; no strategy rerun after account suspension or liquidation.",
+                                   "Historical start is the first session open; end is a declared session reset.",
+                                   "No funded execution, receipts, or Monte Carlo in this result."],
+                      source_check_id=checked["id"])
+        with TemporaryDirectory(prefix=".simulation-", dir=self.root) as temporary:
+            path = Path(temporary) / "output"
+            path.mkdir()
+            with prepare_backtest(runs, resolved, calendar, instrument) as source:
+                if source.snapshot.sha256 != checked["source_sha256"]:
+                    raise SimulationError("Source identity changed since its compatibility check. Check source data again before running.")
+                record["source_snapshot"] = source.snapshot.to_dict()
+                record["source_sha256"] = source.snapshot.sha256
+                write_json(path / "source.json", source.snapshot.to_dict())
+                write_json(path / "simulation.json", resolved.to_dict())
+                write_json(path / "profile.json", resolved.rules.to_dict())
+                (path / "calendar.json").write_text(calendar.to_json() + "\n", encoding="utf-8")
+                raw_settings = json.loads(source.snapshot.manifest_json)["execution_settings"]
+                execution = ExecutionConfig(**{key: value if key == "slippage_ticks" else Decimal(value) for key, value in raw_settings.items()})
+                index = sqlite3.connect(path / "events.sqlite3")
+                try:
+                    index.execute("PRAGMA cache_size=-2048")
+                    index.execute("CREATE TABLE events (ordinal INTEGER PRIMARY KEY, observed INTEGER NOT NULL, payload TEXT NOT NULL)")
+                    realized, external = Decimal(0), Decimal(0)
+                    event_counts = {}
+                    with (path / "events.csv").open("w", encoding="utf-8", newline="") as stream:
+                        writer = None
+
+                        def emit(event):
+                            nonlocal writer, realized, external
+                            realized = add(realized, event["realized_delta"])
+                            external = add(external, event["external_cost"])
+                            event_counts[event["kind"]] = event_counts.get(event["kind"], 0) + 1
+                            if writer is None:
+                                writer = csv.DictWriter(stream, fieldnames=event.keys())
+                                writer.writeheader()
+                            writer.writerow({key: json_value(value) if isinstance(value, datetime) else value for key, value in event.items()})
+                            index.execute("INSERT INTO events VALUES (?,?,?)", (event["sequence"], int(event["is_equity_observation"]), dump(event)))
+
+                        sessions = (ReplaySession(session, source.trades(session.trading_date), source.observations(session.trading_date))
+                                    for session in source.sessions())
+                        summary = replay_evaluation(resolved, calendar, execution, sessions, emit)
+                    unprocessed = source.snapshot.trade_count - summary["processed_trades"] - summary["skipped_trades"]
+                    if (add(summary["initial_balance"], realized) != summary["balance"] or external != summary["external_costs"]
+                            or summary["balance"] != summary["equity"] or unprocessed < 0
+                            or summary["completed_source_trades"] + summary["forced_exits"] != summary["processed_trades"]
+                            or event_counts.get("entry_accepted", 0) != summary["processed_trades"]
+                            or event_counts.get("trade_skipped", 0) != summary["skipped_trades"]
+                            or event_counts.get("liquidated", 0) != summary["forced_exits"]
+                            or sum(event_counts.values()) != summary["event_count"]):
+                        raise SimulationError("Account event ledger failed reconciliation; no completed result published.")
+                    summary.update(source_trade_count=source.snapshot.trade_count, unprocessed_trades=unprocessed)
+                    record.update(summary=summary, reconciliation=dict(passed=True, realized_ledger_total=realized,
+                                                                       external_cost_ledger_total=external,
+                                                                       source_trade_count=source.snapshot.trade_count))
+                    index.execute("CREATE INDEX observed_events ON events(observed,ordinal)")
+                    index.commit()
+                finally:
+                    index.close()
+            # The manifest identifies all downloadable financial artifacts. The
+            # event index is an implementation detail; CSV/manifest are portable.
+            record["artifacts"] = {}
+            for filename in ("events.csv", "source.json", "simulation.json", "profile.json", "calendar.json"):
+                digest, size = sha256(), 0
+                with (path / filename).open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(65536), b""):
+                        digest.update(chunk)
+                        size += len(chunk)
+                record["artifacts"][filename] = dict(sha256=digest.hexdigest(), byte_count=size)
+            record = json.loads(dump(record))
+            write_json(path / "report.json", record)
+            self._publish(path, "prop_results", record, setup["id"])
+        return record
+
+    def get_result(self, result_id):
+        with self.connect() as conn:
+            row = conn.execute("SELECT payload FROM prop_results WHERE id=?", (UUID(result_id).hex,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def list_results(self, setup_id, offset=0, limit=25):
+        with self.connect() as conn:
+            count = conn.execute("SELECT count(*) FROM prop_results WHERE setup_id=?", (setup_id,)).fetchone()[0]
+            rows = conn.execute("SELECT payload FROM prop_results WHERE setup_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
+                                (setup_id, limit, offset)).fetchall()
+        items = [dict(id=value["id"], created_at_utc=value["created_at_utc"], summary=value["summary"])
+                 for value in (json.loads(row[0]) for row in rows)]
+        return dict(items=items, total=count, offset=offset, limit=limit)
+
+    def events(self, result_id, offset, limit):
+        result = self.get_result(result_id)
+        if result is None:
+            raise KeyError("Simulation result not found.")
+        with sqlite3.connect(self.root / result["id"] / "events.sqlite3") as conn:
+            rows = conn.execute("SELECT payload FROM events ORDER BY ordinal LIMIT ? OFFSET ?", (limit, offset)).fetchall()
+        return dict(items=[json.loads(row[0]) for row in rows], total=result["summary"]["event_count"], offset=offset, limit=limit)
+
+    def chart(self, result_id, max_points):
+        """Bounded actual saved points: equity extrema and bucket endpoints."""
+        result = self.get_result(result_id)
+        if result is None:
+            raise KeyError("Simulation result not found.")
+        with sqlite3.connect(self.root / result["id"] / "events.sqlite3") as conn:
+            total = conn.execute("SELECT count(*) FROM events WHERE observed=1").fetchone()[0]
+            if total <= max_points:
+                rows = conn.execute("SELECT payload FROM events WHERE observed=1 ORDER BY ordinal").fetchall()
+                items = [json.loads(row[0]) for row in rows]
+            else:
+                buckets = max(1, (max_points - 2) // 3)
+                size = (total + buckets - 1) // buckets
+                selected, low, high, first, last = [], None, None, None, None
+                for i, (payload,) in enumerate(conn.execute("SELECT payload FROM events WHERE observed=1 ORDER BY ordinal")):
+                    point = json.loads(payload)
+                    if first is None:
+                        first = point
+                    last = point
+                    if low is None or Decimal(point["equity"]) < Decimal(low["equity"]):
+                        low = point
+                    if high is None or Decimal(point["equity"]) > Decimal(high["equity"]):
+                        high = point
+                    if (i + 1) % size == 0 or i == total - 1:
+                        selected.extend((low, high, point))
+                        low = high = None
+                items = sorted({point["sequence"]: point for point in [first, *selected, last]}.values(), key=lambda x: x["sequence"])
+        return dict(items=items, total=total, sampled=total > max_points)
 
     def page(self, check_id, kind, offset, limit, mode="bar_close", trading_date=None):
         if kind not in {"sessions", "observations"}:

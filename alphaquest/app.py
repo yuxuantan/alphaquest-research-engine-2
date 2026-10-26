@@ -97,6 +97,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             return JSONResponse({"detail": "Cross-origin changes are not allowed."}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
+        if request.url.path == "/" or request.url.path.endswith((".js", ".css")):
+            response.headers["Cache-Control"] = "no-cache"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         return response
 

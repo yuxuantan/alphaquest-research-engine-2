@@ -9,9 +9,9 @@ from test_backtest_api import body
 from test_backtests_browser import browser, page, portal, playwright
 
 
-def open_setup(page, portal):
+def open_setup(page, portal, dataset_id=None):
     with httpx.Client(base_url=portal["url"]) as client:
-        response = client.post("/api/backtests", json=body(portal["saved"]["arithmetic_5m"]["id"]))
+        response = client.post("/api/backtests", json=body(dataset_id or portal["saved"]["arithmetic_5m"]["id"]))
         assert response.status_code == 201, response.text
         record = response.json()
     page.goto(portal["url"] + "/#backtests/report/" + record["id"])
@@ -21,8 +21,10 @@ def open_setup(page, portal):
     return record
 
 
-def fill_setup(page):
-    page.locator("#prop-fee").fill("0")
+def fill_setup(page, fee="0"):
+    if fee is not None:
+        page.locator("#prop-fee-override").check()
+        page.locator("#prop-fee").fill(fee)
     page.locator("#prop-symbol").fill("TEST")
     page.locator("#prop-currency").select_option("USD")
     page.locator("#prop-weight").fill("1")
@@ -90,9 +92,12 @@ def test_phase_platform_and_invalid_source_are_real_workflow_states(page, portal
     page.locator("#prop-profile").select_option("apex_50k_eod_tradovate")
     playwright.expect(page.locator("#prop-rules")).to_contain_text("No lock")
     page.locator("#prop-phase").select_option("funded")
-    playwright.expect(page.locator("#prop-fee-label")).to_have_text("Funded activation fee · USD")
+    playwright.expect(page.locator("#prop-fee-override")).not_to_be_checked()
+    playwright.expect(page.locator("#prop-fee-field")).to_be_hidden()
+    playwright.expect(page.locator("#prop-fee-label")).to_have_text("Funded activation fee override · USD")
     playwright.expect(page.locator("#prop-fee")).to_have_value("")
     playwright.expect(page.locator("#prop-rules")).to_contain_text("Limits by prior-session profit")
+    page.locator("#prop-fee-override").check()
     page.locator("#prop-fee").fill("0")
     page.locator("#prop-window-end").fill("05:35")
     save_setup(page)

@@ -2,11 +2,11 @@
 
 Status: implementation specification. `alphaquest/prop/` implements strict
 rules/request types, immutable profile snapshots, and the saved-source session
-adapter. Completed backtest reports now open the actual **Prop simulation**
-configuration/source-checking workflow, with saved setups and bounded previews;
-see [the workflow guide](prop_simulation_review.md). The account simulator,
-simulation execution endpoint/CLI, Monte Carlo, and account-result views remain
-unimplemented. The earlier standalone Prop review screen has been retired.
+adapter and deterministic historical evaluation engine. Completed backtest
+reports open the actual **Prop simulation** workflow, including saved setups,
+source checks, evaluation execution and durable results; see [the workflow
+guide](prop_simulation_review.md). Funded execution, Monte Carlo and the CLI
+remain unimplemented. The standalone Prop review screen has been retired.
 
 Reviewed on 2026-10-25 against repository commit
 `32aa6ffc86a837e3f4bd20b77d46f0196165c52d`.
@@ -328,7 +328,7 @@ Two distinctions are recorded in profile evidence instead of silently reconciled
   as an operation/input error instead of skipping source trades or classifying
   it as a failed account. This corrects the original proposed failure outcome.
 
-Profiles have version `1.0.0` and explicit Rithmic, Tradovate, and WealthCharts
+Profiles have version `1.1.0` and explicit Rithmic, Tradovate, and WealthCharts
 IDs for this one product; evaluation lock differences are captured per platform.
 No legal effective date was supplied for the whole resolved product, so source
 `effective_on` remains null. In particular, confirm tier timing relative to withdrawals
@@ -734,8 +734,8 @@ Hashes use UTF-8 canonical JSON with sorted object keys and compact separators.
 Decimal coefficients/exponents are canonicalized without ambient precision or
 rounding; numerically equivalent spellings and signed zero have the same
 identity. Ordered arrays remain ordered. The profile digest includes source
-metadata and assumptions but excludes user fees, which are bound by the separate
-simulation-settings digest. Wire dictionaries are detached copies; nested
+metadata, assumptions and any reusable user-supplied `fee_defaults`. Per-run fee
+overrides are bound by the separate simulation-settings digest. Wire dictionaries are detached copies; nested
 domain values are frozen and contain tuples. Hashes detect changed saved content,
 not externally signed approval or trust. Retrieval dates and versions do not
 automatically update when loading an old snapshot.
@@ -743,12 +743,13 @@ automatically update when loading an old snapshot.
 Simulation requests identify a source run, calendar ID/hash, timezone-data
 version, and coverage declaration; the adapter verifies these against an explicit
 calendar before adapting source data. Configuration types alone do not establish
-calendar/source validity. Fees must be explicitly supplied
-for the chosen phase (zero is allowed), in matching currency. Evaluation has an
+calendar/source validity. Fees must be resolved from a configured account-profile
+default or an explicit simulation override (zero is allowed), in matching currency. Evaluation has an
 attempt fee and no activation fee; funded has an activation fee and no attempt
 fee. Explicit dated costs must fall within the requested period. Analysis settings
 exclude measured excursions and staged sizing. Product configuration and input
-previews are available; the simulator remains unimplemented.
+previews and historical evaluation execution are available. Funded execution
+and Monte Carlo remain unimplemented.
 
 ### Saved-source adapter API now available
 
@@ -853,9 +854,9 @@ and ordering uncertainty. MAE/MFE extrema alone do not establish their temporal
 order or exact liquidation prices. Do not enable an excursion label by filling
 missing winners with zero MAE or renaming sampled bar-close marks.
 
-The implemented configuration and adapter stop before account simulation. The
-product source check exposes compatibility and source observations, not account
-outcomes.
+The product source check exposes compatibility. Separate evaluation execution
+applies account rules and saves account outcomes. Funded execution and Monte
+Carlo remain future increments.
 This specification, notebook identity check, and green engineering checks do not
 establish provider approval, exact
 MultiCharts parity, future payout receipt, or trading readiness.
@@ -878,7 +879,7 @@ The completed backtest report's **Set up prop simulation** action opens
 `#backtests/prop/new/<source-id>`. Saving navigates to
 `#backtests/prop/<setup-id>`; saved setups are listed for that source backtest.
 The form exposes named platform rules, independent evaluation/funded settings,
-observation mode, fixed quantity, user-supplied phase fee, explicit UTC analysis
+observation mode, fixed quantity, inherited user-supplied profile fee with optional override, explicit UTC analysis
 bounds, source-unit declaration, and calendar/coverage declaration. It displays
 the captured rules/evidence/sources, assumptions and conflicts. Current templates
 are used only for new saves; reopening and checking an older setup consumes its
@@ -915,7 +916,103 @@ Source calendars are limited to 10,000 dates, 24 windows per explicit day;
 cadence is 1–86,400 seconds. Product decimal inputs are exact strings, limited
 to magnitude 1e12 and 18 fractional places, and quantities to 1–10,000.
 
-Subtasks 1–3 therefore provide real setup and input-checking stages. **Run
-simulation** remains disabled with its reason until the shared account engine
-is implemented. The old demo-only routes/code have been removed; previously
+Subtasks 1–3 provide setup and input-checking stages. **Run simulation** now
+executes historical evaluation; funded execution remains disabled with its
+reason. The old demo-only routes/code have been removed; previously
 saved `prop_reviews/` files remain on disk as historical evidence.
+
+### Historical evaluation execution now available
+
+`alphaquest/prop/engine.py` implements deterministic evaluation transitions using
+caller-owned session/trade/observation iterators and an event sink. It has no
+storage, HTTP, strategy or RNG access. Exact money helpers handle sampled marks,
+forced exits, suspension, target freeze/review/recognition, expiry, EOD floor
+ratchets and external costs. The Rithmic/WealthCharts absolute floor cap is
+initial balance plus configured lock profit; Tradovate evaluation has no cap.
+Source initial capital never enters the prop balance. Trade-close mode updates
+trading balances at completed-trade observations; bar-close mode preserves
+entry expenses and open marks.
+
+This release rejects a historical start other than the first declared session
+open, and an end other than a declared reset within the source calendar. These
+are explicit partial-session limitations. End can select a complete calendar
+prefix; later source trades are not reached. Early market closes use the
+declared close for the EOD ratchet and retain the profile's fixed review/
+recognition wall times. Purchase date is evaluation day 1. A valid final-date
+pass precedes equal-time expiry. External fees due at the terminal instant
+are included; later fees are not incurred.
+
+`PropRunStore.execute` prepares/reconciles source artifacts again, then compares
+their snapshot identity with the latest compatible check. Changed bytes require
+a fresh source check, even if semantically equivalent. A saved result includes
+resolved settings/profile, source/calendar snapshots and hashes, assumptions,
+engine/Python versions, summary and reconciliation. `prop_results` extends the
+existing catalog without rewriting setups/checks. Staged output and a database
+transaction publish results only after ledger deltas reconcile to final balance,
+external costs to net cash, accepted entries to natural/forced closes, and source
+counts to processed/skipped/not-reached counts.
+
+Under `/api/prop-simulations`, the API adds POST `/setups/<id>/run`, GET
+`/results?setup_id=...`, `/results/<id>`, `/results/<id>/events`,
+`/results/<id>/chart`, and allowlisted `/results/<id>/exports/<filename>`.
+Outputs include `report.json`, streamed `events.csv`, source/config/profile/
+calendar JSON, and artifact byte hashes. Per-result SQLite supports paged
+events and bounded actual trace samples. Charts use only saved observed/modeled
+equity events and disclose omitted intermediate events; financial aggregates
+never derive from chart samples.
+
+The result URL `#backtests/prop/result/<result-id>` is reached from its setup.
+It shows outcome/reason, equity/balance, floor/high-water, suspension/trade
+counts, dates, external fees and modeled net cash separately. Completed
+operations can contain `passed`, `failed_drawdown`, `expired` or
+`unresolved_data_end` account outcomes. Invalid inputs and storage/reconciliation
+errors publish no completed result. Existing results reopen without source
+re-execution or current-template resolution. Funded execution, stress and
+Monte Carlo are rejected explicitly, never substituted with evaluation.
+
+### Reusable profile fees
+
+Account profiles can contain immutable `fee_defaults: ProfileFees` with matching
+currency, a UTC `configured_on` date, separate nullable evaluation `attempt_fee`
+and funded `activation_fee`, and `origin="user_supplied"`. At least one price
+must be set; values are finite nonnegative exact decimals. A missing price means
+unknown, never zero. These prices are distinct from sourced trading rules and
+their source retrieval/effective dates. The sourced-rule version stays unchanged
+when user pricing changes; the complete profile hash changes with its defaults.
+Version `1.1.0` templates include prices supplied by the user on 2026-10-26:
+standard evaluation **USD 49**, funded activation **USD 129**; alternatively
+evaluation **USD 109**, funded activation **USD 0**. For each platform, the
+existing `apex_50k_eod_<platform>` ID selects standard pricing and the distinct
+`apex_50k_eod_<platform>_no_activation` ID selects the second option. Trading
+rules are the same within a platform. Prices are marked user supplied, not
+officially verified or assigned an inferred effective date. These defaults
+apply to future setups only; existing custom prices take precedence. The
+no-activation option requires a zero activation fee, including any funded
+simulation override, and rejects contradictory nonzero/null defaults before
+writing configuration. Evaluation charges only its chosen attempt price;
+funded activation belongs only to funded mode, which remains unimplemented.
+
+The existing `PropRunStore` catalog stores current defaults per platform in
+`prop_profile_fees`; this is configuration, not another simulation store.
+`PUT /api/prop-simulations/profiles/<profile-id>/fees` sets `attempt_fee` and/or
+`activation_fee` as decimal strings (null for unknown). GET `/profiles` returns
+resolved templates containing those defaults. The setup's reusable profile editor
+saves prices once; future setups inherit them. `POST /setups` accepts an omitted
+or null `fee` to inherit the selected phase default, or an explicit string for a
+simulation override, including zero. Missing default plus missing override is an
+operation error. Custom prices are not copied between platforms, pricing options
+or phases.
+
+Resolved config `fees.origin="profile_default"` requires the amount to equal the
+corresponding value in the captured profile, never today's template. Overrides
+retain `origin="user_supplied"`. Both amounts and provenance are hashed and
+saved. External fees are charged once under the existing cash ledger semantics;
+account capital, P&L, drawdown and target mechanics are unchanged. Editing defaults
+changes only future snapshots; an existing setup must be saved as a new setup to
+capture new prices. Earlier results and downloads retain their original bytes.
+
+Pre-feature profile snapshots omit `fee_defaults` and retain their exact golden
+hash. The reader accepts that legacy shape without consulting current defaults;
+the writer likewise omits an absent optional default. Existing explicit setup
+fees reopen as simulation overrides. Reusable fee settings are user supplied;
+configuration does not claim a newly verified provider price or effective date.
