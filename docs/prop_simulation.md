@@ -1,9 +1,11 @@
 # Single-strategy prop simulation specification
 
-Status: implementation specification. The configuration increment implements
-strict rules/request types and immutable profile snapshots in `alphaquest/prop/`.
-The simulator, session adapter, endpoint, CLI, database migration, and portal
-controls remain unimplemented.
+Status: implementation specification. `alphaquest/prop/` implements strict
+rules/request types, immutable profile snapshots, and the saved-source session
+adapter. The **Prop review** screen demonstrates these three subtasks using
+isolated synthetic saved backtests; see [the review guide](prop_simulation_review.md).
+The account simulator, simulation endpoint/CLI, simulation run-store migration,
+and simulation portal controls remain unimplemented.
 
 Reviewed on 2026-10-25 against repository commit
 `32aa6ffc86a837e3f4bd20b77d46f0196165c52d`.
@@ -644,6 +646,8 @@ Keep evaluation and funded transitions together rather than duplicating them.
 | `alphaquest/prop/types.py` | Immutable requests, source/session/observation records, state, events, results |
 | `alphaquest/prop/rules.py` | Strict profiles, phase values, tier resolution, canonical snapshots/hashes |
 | `alphaquest/prop/sessions.py` | Source artifact adapter, calendar/coverage, normalization and session staging |
+| `alphaquest/prop/calendar.py` | Immutable declared source calendar/windows and unambiguous session boundaries |
+| `alphaquest/prop/_report_reader.py` | Bounded reader for saved report metadata and trade/equity records |
 | `alphaquest/prop/engine.py` | Pure deterministic transitions for both phases and one path runner |
 | `alphaquest/prop/analysis.py` | Bootstrap, explicit partitions, paired fixed-size selection, stress and aggregates |
 | `alphaquest/prop/runs.py` | Service orchestration, reconciliation, artifacts and durable run catalog |
@@ -735,12 +739,102 @@ not externally signed approval or trust. Retrieval dates and versions do not
 automatically update when loading an old snapshot.
 
 Simulation requests identify a source run, calendar ID/hash, timezone-data
-version, and coverage declaration for future adapter verification; the present
-types do not establish calendar/source validity. Fees must be explicitly supplied
+version, and coverage declaration; the adapter verifies these against an explicit
+calendar before adapting source data. Configuration types alone do not establish
+calendar/source validity. Fees must be explicitly supplied
 for the chosen phase (zero is allowed), in matching currency. Evaluation has an
 attempt fee and no activation fee; funded has an activation fee and no attempt
 fee. Explicit dated costs must fall within the requested period. Analysis settings
 exclude measured excursions and staged sizing. No simulator or UI is provided.
+
+### Saved-source adapter API now available
+
+`prepare_backtest(runs, resolved, calendar, instrument)` is a context manager.
+It accepts the existing `RunStore`, a `ResolvedSimulation`, a `SessionCalendar`,
+and an explicit `InstrumentDeclaration`. The declaration records symbol, account
+currency interpretation, actual source tick size/point value, rule-unit contract
+weight/source URL, and its basis. It must match the request, captured execution
+settings, and any saved symbol/currency. It does not infer these from a ticker or
+consult a later mutable dataset/instrument catalog.
+
+Construct the calendar from `CalendarDay` values declaring **every calendar
+date**, including closed dates. A covered day must supply one or more ordered
+`DataWindow(first_utc, last_utc, bar_interval_seconds)` values with inclusive
+expected bar-close labels. Windows may describe only the strategy's declared
+data hours, but each expected label must exist. Missing, unknown, partial, or
+irregular coverage is rejected, without fabricated bars or zero-filled days.
+The explicit policy permits declared holidays and earlier closes. Selecting
+`weekday_approximation` records that limitation and requires weekends closed;
+the adapter does not choose that mode automatically.
+
+Session opens/closes/resets use the profile's IANA timezone; Sunday evening can
+belong to Monday. Calendar snapshots include resolved UTC boundaries and the
+declared timezone-data version. `SessionCalendar.from_json()` checks that saved
+boundaries agree with the available timezone interpretation. Ambiguous and
+nonexistent boundaries fail. Observations in maintenance breaks, or next-open
+fill-containing bars crossing a prop open, are unsupported. In particular, a
+minute bar labeled after the precise prop close is not silently backdated or
+assigned an invented pre-close fill, even if the source position is flat.
+
+Bind the calendar's `id`, `sha256`, `mode`, `timezone_data_version`, and
+`coverage_assumption` into the request before `resolve_simulation()`. The source
+calendar describes the historical input pool; it does not certify a future
+Monte Carlo destination schedule. The latter remains analysis-layer work.
+
+```python
+from alphaquest.prop import prepare_backtest
+
+# runs, resolved, calendar and instrument are explicit caller-owned values.
+with prepare_backtest(runs, resolved, calendar, instrument) as source:
+    saved_source_snapshot = source.snapshot.to_dict()
+    for session in source.sessions():
+        for observation in source.observations(session.trading_date):
+            consume(session, observation)  # caller-supplied sink; no engine yet
+```
+
+Preparation copies/hashes `report.json`, `trades.csv`, and `equity.csv` using
+bounded reads, then stages report records in temporary disk-backed SQLite.
+The reader consumes one bounded record at a time, never a full report array;
+unsupported oversized records/metadata fail explicitly. It checks the completed
+catalog manifest without invoking legacy enrichment or modifying source rows.
+CSV records must agree with the report; the existing reporting reconciler checks
+the ordered authoritative events. Additional checks bind recorded price P&L and
+commissions to source execution settings, match exposure/cash to trade identity,
+and match original selection bounds/counts to the observed period. Required
+provenance/selection fields absent from older reports cause an explicit
+unsupported-input error, without changing those older reports or their screens.
+
+Only after complete validation does the context expose reusable iterators:
+
+- `sessions(quantity=...)` includes covered zero-trade and declared closed days,
+  source bar/trade counts, resolved boundaries, and scaled session net P&L.
+- `trades(trading_date=None, quantity=...)` returns `ScaledTrade`, whose frozen
+  `source` retains every original `Trade` field, including quantity, prices,
+  reasons, timestamps, and costs. Scaled monetary fields are separate.
+- `observations(trading_date, mode=..., quantity=...)` streams either all source
+  bar-close marks or just completed-trade closes. Flat marks between trades have
+  zero relative change; no-trade streams have no invented source quantity.
+  Every trade's observations are relative to its own pre-entry source baseline,
+  with realized/unrealized components and original absolute equity retained.
+  `equity_change` is the cumulative change **within that trade**, not a per-bar
+  delta to sum repeatedly. Commission fields identify costs already embedded in
+  those observations, not additional charges to apply.
+
+Quantities must be the request's fixed quantity or a member of its sizing grid.
+Every requested trade/path scale is checked before the view is exposed. Exact
+rational scaling avoids rounding a per-contract quotient; a repeating Decimal
+result is unsupported. Original fills and source quantity remain unchanged, and
+informational slippage is not deducted a second time. Variable source quantities
+and exposure across prop closes/maintenance are rejected in both modes. No MAE,
+MFE, OHLC intrabar path, or synthetic excursion is produced.
+
+`SourceSnapshot` is frozen and includes detached canonical manifest/calendar
+JSON, the instrument declaration, source counts/quantity, artifact byte hashes,
+and sampling limitations. Its `sha256` identifies that complete snapshot.
+All iterators must be consumed within the context. Full validation precedes any
+useful output; normal exit, early consumer exit, and preparation failure remove
+all temporary copies/indexes. The adapter does not publish a prop run or execute
+any account rules.
 
 1. Review this specification and its modeling restrictions.
 2. Implement validated rules/configuration, then source/session adaptation.
@@ -756,7 +850,19 @@ and ordering uncertainty. MAE/MFE extrema alone do not establish their temporal
 order or exact liquidation prices. Do not enable an excursion label by filling
 missing winners with zero MAE or renaming sampled bar-close marks.
 
-The configuration increment stops before account simulation or UI implementation.
+The implemented configuration and adapter stop before account simulation. The
+Prop review screen exposes their demonstration outputs, not account outcomes.
 This specification, notebook identity check, and green engineering checks do not
 establish provider approval, exact
 MultiCharts parity, future payout receipt, or trading readiness.
+
+## Demonstrable deliverables for each subtask
+
+Every future implementation must deliver a concrete artifact, an executable
+demonstration (preferably through the existing web app), inspectable actual
+outputs, independent expected values/outcomes, visible validation including
+relevant rejection/boundary cases, and saved evidence with exact reproduction
+instructions. Automated tests supplement the demonstration; a passing test count
+alone is insufficient. Keep synthetic fixtures explicit, preserve prior review
+snapshots, and do not demonstrate a future engine using fabricated account
+outcomes. Extend [the review guide](prop_simulation_review.md) as subtasks land.

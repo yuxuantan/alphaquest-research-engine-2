@@ -12,6 +12,7 @@
     <script src="/static/app.js" defer></script>
     <script src="/static/backtests.js" defer></script>
     <script src="/static/reports.js" defer></script>
+    <script src="/static/prop_review.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -37,6 +38,8 @@
         >
         <a class="nav-item" href="#backtests" data-screen="backtests" aria-label="Backtests"
           ><span class="nav-icon">↗</span>Backtests</a>
+        <a class="nav-item" href="#prop-review" data-screen="prop-review" aria-label="Prop review"
+          ><span class="nav-icon">✓</span>Prop review</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -56,6 +59,7 @@
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
           <a href="#backtests" data-screen="backtests">Backtests</a>
+          <a href="#prop-review" data-screen="prop-review">Prop review</a>
         </nav>
       </header>
       <main>
@@ -406,6 +410,29 @@
             <div id="completed-runs-status" class="backtest-fields small" role="status"></div><div id="completed-runs-list"></div>
             <div class="report-pagination"><span id="completed-runs-count"></span><div><button id="runs-previous" class="button secondary" type="button">Previous reports</button><button id="runs-next" class="button secondary" type="button">Next reports</button></div></div>
           </section>
+        </section>
+        <section id="prop-review-screen" aria-label="Prop implementation review" hidden>
+          <div class="page-heading">
+            <div><div class="eyebrow">IMPLEMENTATION EVIDENCE · SUBTASKS 1–3</div>
+              <h1>Prop review<span class="heading-dot">.</span></h1>
+              <p>Inspect the design, resolved rules, and saved-backtest adapter.</p>
+            </div>
+          </div>
+          <div class="panel prop-panel">
+            <h2>Generate demonstration outputs</h2>
+            <p>Synthetic saved backtests with hand-calculated expectations. This review prepares source data;
+              account outcomes, Monte Carlo, and payouts come in later subtasks.</p>
+            <form id="prop-review-form" class="prop-controls">
+              <label>Platform<select id="prop-platform"><option value="rithmic">Rithmic</option>
+                <option value="tradovate">Tradovate</option><option value="wealthcharts">WealthCharts</option></select></label>
+              <label>Comparison quantity<select id="prop-quantity"><option value="2">2 contracts (original size)</option>
+                <option value="1">1 contract (half size)</option></select></label>
+              <button class="button primary" id="prop-generate" type="submit">Generate review</button>
+            </form>
+            <p id="prop-review-status" role="status" aria-live="polite">Loading saved review…</p>
+            <p>Fixtures and evidence are saved separately under <code>prop_reviews/</code> in the app’s data directory.</p>
+          </div>
+          <div id="prop-review-result" hidden></div>
         </section>
         <footer class="page-footer">
           <span>AlphaQuest Research Engine 02</span

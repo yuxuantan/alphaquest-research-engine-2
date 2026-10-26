@@ -19,6 +19,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .datasets import MAX_BYTES, DatasetStore, DuplicateDataset, InvalidDataset, instrument_settings, validate_csv_file
 from .backtest_api import router as backtest_router
+from .prop_review_api import router as prop_review_router
 from .backtest_runs import RunStore
 
 WEB = Path(__file__).parent / "web"
@@ -84,6 +85,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
     app.include_router(backtest_router)
+    app.include_router(prop_review_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")
