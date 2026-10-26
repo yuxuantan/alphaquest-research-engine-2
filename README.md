@@ -2,6 +2,15 @@
 
 A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. The Backtests screen configures runs and opens completed reports with exact metrics, a bounded trade-close equity chart, paginated trades, saved settings, and CSV downloads.
 
+**Optimizations** runs exhaustive parameter combinations through the same engine.
+Set start, end and an editable step for every strategy parameter; the read-only
+step counts and total backtests update automatically. Inspect saved
+performance rows, sort any column in either direction, open full trial reports,
+or download the sorted CSV. Values advance by step through the end limit; jobs allow up to
+10,000 combinations. Independent trials use a configurable process pool (up to
+4 workers by default); select 1 for serial execution. See [the optimization guide](docs/optimization.md) for
+examples, API details and reproducible browser evidence.
+
 The Backtests selector also includes **Vwap pullback risk sizing**, a port of
 the supplied MultiCharts PowerLanguage strategy, with ORB/VWAP latches, ADX
 gates, pivot/pullback stops, risk sizing, optional shorts, next-bar market

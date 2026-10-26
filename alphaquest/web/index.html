@@ -8,11 +8,12 @@
       content="Manage market datasets and run backtests in your local AlphaQuest research workspace."
     />
     <title>Datasets · AlphaQuest</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-    <script src="/static/app.js" defer></script>
-    <script src="/static/backtests.js" defer></script>
-    <script src="/static/reports.js" defer></script>
-      <script src="/static/prop.js" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=ASSET_VERSION" />
+    <script src="/static/app.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -38,6 +39,7 @@
         >
         <a class="nav-item" href="#backtests" data-screen="backtests" aria-label="Backtests"
           ><span class="nav-icon">↗</span>Backtests</a>
+        <a class="nav-item" href="#optimizations" data-screen="optimizations" aria-label="Optimizations"><span class="nav-icon">⊞</span>Optimizations</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -57,6 +59,7 @@
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
           <a href="#backtests" data-screen="backtests">Backtests</a>
+          <a href="#optimizations" data-screen="optimizations">Optimizations</a>
         </nav>
       </header>
       <main>
@@ -322,8 +325,21 @@
                       <option value="">Choose a strategy</option>
                     </select>
                     <p id="strategy-description" class="strategy-description">Select a strategy to see its description.</p>
-                    <h3 class="parameter-heading">Strategy parameters</h3>
+                    <h3 id="strategy-parameters-heading" class="parameter-heading">Strategy parameters</h3>
                     <div id="strategy-parameters" class="backtest-parameter-grid"></div>
+                    <div id="optimization-settings" hidden>
+                      <h3 class="parameter-heading">Exhaustive parameter grid</h3>
+                      <p class="field-help">Set start, end and step for every strategy parameter. Step defaults to 0 for equal endpoints and 1 otherwise; edit it to choose the increment. Step count is calculated automatically. Values stop at or before end; end is included only if a step lands on it. Boolean endpoints can use either order, with step 1 for both values.</p>
+                      <div class="optimization-scroll" tabindex="0" aria-label="Parameter ranges, scroll horizontally">
+                        <table class="library-table optimization-grid"><thead><tr><th>Parameter</th><th>Start value</th><th>End value</th><th>Step</th><th>Step count</th></tr></thead><tbody id="optimization-ranges"></tbody></table>
+                      </div>
+                      <p id="optimization-count" role="status" class="optimization-count"></p>
+                      <label for="optimization-workers">Parallel backtests</label>
+                      <select id="optimization-workers" required aria-describedby="optimization-workers-help"><option value="">Loading worker options…</option></select>
+                      <p id="optimization-workers-help" class="field-help">Use 1 for serial execution. More workers use more CPU, memory and disk bandwidth; small grids may finish faster with 1.</p>
+                      <button id="optimization-workers-retry" class="button secondary" type="button" hidden>Retry worker options</button>
+                      <p class="field-help">Method: Exhaustive · Every combination runs a full backtest with identical data, dates and costs. Limit: 10,000 combinations per job. One job runs at a time, with trials distributed across the selected number of processes. Jobs continue when you navigate away.</p>
+                    </div>
                   </fieldset>
                 </section>
 
@@ -376,6 +392,16 @@
             <p id="backtest-progress-note" class="small muted" role="status"></p>
           </section>
           </div>
+          <section id="optimization-panel" hidden>
+            <div class="page-heading"><div><a href="#optimizations" class="eyebrow">← Configure optimization</a><h1 id="optimization-title">Optimizations</h1><p id="optimization-context"></p></div><a id="optimization-download" class="button secondary" hidden>Results CSV ↓</a></div>
+            <div id="optimization-status" class="validation-box" role="status" aria-live="polite"></div>
+            <details id="optimization-provenance" class="panel" hidden><summary>Saved grid, source &amp; execution settings</summary><pre id="optimization-settings-used"></pre></details>
+            <p class="small muted">Scroll horizontally within the table to view all columns.</p>
+            <div class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally">
+              <table id="optimization-results" class="library-table"><thead></thead><tbody></tbody></table>
+            </div>
+            <div class="report-pagination"><button id="optimization-previous" class="button secondary" type="button">Previous</button><span id="optimization-page"></span><button id="optimization-next" class="button secondary" type="button">Next</button></div>
+          </section>
           <div id="report-status" class="validation-box" role="status" hidden></div>
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">

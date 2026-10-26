@@ -1524,3 +1524,24 @@ dialog::backdrop {
   .prop-table-control { align-items:stretch; flex-direction:column; gap:8px; }
   #prop-screen .prop-table-control select { max-width:none; }
 }
+
+/* Exhaustive optimization shares the backtest configuration and report workflow. */
+.optimization-scroll { max-width:100%; overflow:auto; border:1px solid var(--line, #e1e7e8); border-radius:8px; margin:16px 0; max-height:620px; }
+.optimization-grid { min-width:640px; }
+.optimization-grid th { font-size:12px; text-transform:none; letter-spacing:normal; min-width:110px; }
+.optimization-grid th:first-child { min-width:210px; }
+.optimization-grid th small { display:block; font-size:11px; white-space:normal; font-weight:400; max-width:300px; }
+.optimization-grid input, .optimization-grid select { min-width:100px; width:100%; }
+.optimization-count { font-weight:650; color:var(--accent-dark); }
+#optimization-results { width:100%; font-variant-numeric:tabular-nums; }
+#optimization-results th { font-size:12px; text-transform:none; letter-spacing:normal; }
+#optimization-results td { font-size:13px; }
+#optimization-results th, #optimization-results td { white-space:nowrap; }
+#optimization-results th { position:sticky; top:0; background:#f6f9f9; z-index:1; }
+#optimization-results th button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:8px 0; text-align:left; }
+#optimization-results th button:focus-visible { outline:2px solid var(--accent-dark); }
+#optimization-settings-used { max-height:400px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:16px; font-size:12px; }
+#optimization-provenance summary { cursor:pointer; padding:16px; }
+#optimization-panel { margin-top:30px; }
+#optimization-panel .page-heading { flex-wrap:wrap; }
+#optimization-context { overflow-wrap:anywhere; }

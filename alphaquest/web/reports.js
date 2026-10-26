@@ -288,8 +288,8 @@
     chartData = null;
     const match = location.hash.match(/^#backtests\/report\/([0-9a-f]{32})$/);
     const report = Boolean(match);
-    get("#backtest-setup").hidden = report;
-    get("#completed-runs").hidden = report;
+    get("#backtest-setup").hidden = report || location.hash.startsWith("#optimizations/");
+    get("#completed-runs").hidden = report || location.hash.startsWith("#optimizations");
     get("#backtest-completion").hidden = true;
     get("#report-status").hidden = true;
     if (report) openReport(match[1]);

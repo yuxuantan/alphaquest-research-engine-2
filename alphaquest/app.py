@@ -1,5 +1,6 @@
 """One local server: static portal and dataset API."""
 
+import hashlib
 import os
 import time
 from collections import OrderedDict
@@ -11,7 +12,7 @@ from uuid import UUID
 from zoneinfo import available_timezones
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from starlette.concurrency import run_in_threadpool
@@ -20,6 +21,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .datasets import MAX_BYTES, DatasetStore, DuplicateDataset, InvalidDataset, instrument_settings, validate_csv_file
 from .backtest_api import router as backtest_router
 from .backtest_runs import RunStore
+from .optimization import OptimizationStore
+from .optimization_api import router as optimization_router
 from .prop_api import router as prop_router
 from .prop.store import AnalysisStore
 
@@ -81,13 +84,16 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     async def lifespan(app):
         app.state.store = DatasetStore(db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3")
         app.state.runs = RunStore(app.state.store.path.parent)
+        app.state.optimizations = OptimizationStore(app.state.runs)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
         app.state.progress = ProgressTracker()
         yield
+        await run_in_threadpool(app.state.optimizations.close)
         app.state.prop_analyses.close()
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
     app.include_router(backtest_router)
+    app.include_router(optimization_router)
     app.include_router(prop_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
@@ -99,6 +105,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+        if request.url.path.startswith("/static/") and request.url.path.endswith((".js", ".css")):
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
     @app.exception_handler(InvalidDataset)
@@ -132,7 +140,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def index():
-        return FileResponse(WEB / "index.html")
+        digest = hashlib.sha256()
+        for asset in sorted([*WEB.glob("*.js"), *WEB.glob("*.css")]):
+            digest.update(asset.name.encode() + asset.read_bytes())
+        markup = (WEB / "index.html").read_text().replace("ASSET_VERSION", digest.hexdigest()[:16])
+        return HTMLResponse(markup, headers={"Cache-Control": "no-cache"})
 
     @app.get("/api/datasets")
     def list_datasets(request: Request):

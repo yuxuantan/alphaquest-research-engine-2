@@ -47,7 +47,7 @@ class BacktestRequest(BaseModel):
     to_date: StrictStr | None = None
 
 
-def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress):
+def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress):
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
 
@@ -58,27 +58,33 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
     metadata = {"dataset": {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
+    with read_selected_bars(store, dataset["id"], date_range) as selected:
+        total = selected.row_count
+        metadata["selection"] = selected.metadata
+        # The source iterator advances here only after the engine's current
+        # callback/fill. Final-bar count is visible before report publication.
+        def counted_bars():
+            nonlocal processed
+            for bar in selected.bars:
+                yield bar
+                processed = bar.bar_number
+                stage("replaying")
+
+        stage("replaying")
+        manifest = generate_report(execute(counted_bars(), definition.create(parameters, config), config), output, config,
+                                   execution_assumption=definition.execution_assumption,
+                                   metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"))
+    return manifest, processed, total
+
+
+def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress):
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         output = Path(temporary) / "report"
-        with read_selected_bars(store, dataset["id"], date_range) as selected:
-            total = selected.row_count
-            metadata["selection"] = selected.metadata
-            # The source iterator advances here only after the engine's current
-            # callback/fill. Final-bar count is visible before report publication.
-            def counted_bars():
-                nonlocal processed
-                for bar in selected.bars:
-                    yield bar
-                    processed = bar.bar_number
-                    stage("replaying")
-
-            stage("replaying")
-            manifest = generate_report(execute(counted_bars(), definition.create(parameters, config), config), output, config,
-                                       execution_assumption=definition.execution_assumption,
-                                       metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"))
-        stage("saving_results")
+        manifest, processed, total = prepare_backtest_report(
+            store, output, dataset, definition, parameters, config, date_range, progress)
+        progress("saving_results", processed, total)
         record = runs.complete(run_id, output, manifest)
-    stage("done")
+    progress("done", processed, total)
     return record
 
 

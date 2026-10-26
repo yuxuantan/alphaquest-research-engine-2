@@ -191,3 +191,21 @@ def test_progress_identifiers_are_unique_and_storage_is_bounded(client):
         client.app.state.progress.start(str(uuid4()))
     assert len(client.app.state.progress.states) == 128
     assert client.get(f"/api/progress/{operation_id}").status_code == 404
+
+
+def test_portal_revalidates_assets_and_uses_one_content_version(client, tmp_path, monkeypatch):
+    import re
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text((app_module.WEB / "index.html").read_text())
+    (web / "app.js").write_text("first bundle")
+    monkeypatch.setattr(app_module, "WEB", web)
+    first = client.get("/")
+    assert first.headers["cache-control"] == "no-cache"
+    versions = re.findall(r"/static/[^\" ]+\?v=([a-f0-9]{16})", first.text)
+    assert len(versions) == 6 and len(set(versions)) == 1
+    assert "ASSET_VERSION" not in first.text
+    (web / "app.js").write_text("updated bundle")
+    second = client.get("/")
+    assert versions[0] not in second.text
+    assert client.get("/static/backtests.js").headers["cache-control"] == "no-cache"
