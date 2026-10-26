@@ -198,7 +198,8 @@ Flat marks between trades have zero additional trading P&L.
   may report only currency units, so a snapshotted run-level currency declaration
   is a modeling input; no currency or FX conversion is inferred from the symbol.
 - Snapshot the traded contract's weight in the profile's contract-limit units.
-  This must be supplied explicitly, with its rule source; reject an unknown
+  This can come from an explicitly selected, sourced instrument profile or a
+  complete custom declaration, with its rule source; reject an unknown
   mapping. Quantity limits cannot compare a micro count directly to a mini cap.
 - Each executed source trade has the same positive integer quantity, no overlap,
   no partial exits, and sufficient provenance/cost fields for the selected mode.
@@ -235,7 +236,10 @@ schedule is allowed solely as a prominently labeled user-selected approximation.
 
 Saved backtests do not certify market-calendar completeness. The run must choose
 an explicit expected-data-window/coverage assumption for every scheduled session
-in the selected range. This is a model configuration, not a new dataset evidence
+in the selected range. The product remembers this exporter expectation once per
+dataset identity and resolves an immutable calendar for each new setup. Observed
+timestamp spacing can suggest a cadence but cannot prove the intended schedule.
+This is a model configuration, not a new dataset evidence
 approval workflow. Bar gaps remain gaps. Do not fabricate bars or prices.
 
 | Session status | Treatment |
@@ -648,6 +652,7 @@ Keep evaluation and funded transitions together rather than duplicating them.
 | `alphaquest/prop/rules.py` | Strict profiles, phase values, tier resolution, canonical snapshots/hashes |
 | `alphaquest/prop/sessions.py` | Source artifact adapter, calendar/coverage, normalization and session staging |
 | `alphaquest/prop/calendar.py` | Immutable declared source calendar/windows and unambiguous session boundaries |
+| `alphaquest/prop/coverage.py` | Reusable exporter expectations, pinned schedule resolution, bounded timestamp inspection and coverage assessment |
 | `alphaquest/prop/_report_reader.py` | Bounded reader for saved report metadata and trade/equity records |
 | `alphaquest/prop/engine.py` | Pure deterministic transitions for both phases and one path runner |
 | `alphaquest/prop/analysis.py` | Bootstrap, explicit partitions, paired fixed-size selection, stress and aggregates |
@@ -905,13 +910,55 @@ dataset, selected period, execution settings, quantities and costs. Checks retai
 the full source snapshot/hash and both observation modes. A rejected check saves
 its reason and offers no successful preview.
 
-The simple calendar form is an explicitly chosen weekday approximation with
-user-entered first/last New York bar-close labels and cadence. It spans every
-source session date, includes zero-trade dates, declares weekends closed, and
-does not infer holidays or data completeness from observed gaps. For holidays,
-multiple windows, missing coverage or early closes, the explicit form accepts a
-date/window JSON array. Both modes record a coverage basis, actual timezone-file
-identity, the profile's timezone/session policy and resolved UTC boundaries.
+The default **Coverage check** resolves a reusable source-session profile chosen
+once for the dataset ID and content SHA-256. Presets offer CME equity cash hours
+and overnight sessions with one- or five-minute bar-close labels. Cash hours
+mean 09:30–16:00 New York: inclusive close labels start at 09:31 or 09:35.
+Overnight close labels start one interval after 18:00, ending at the last aligned
+label before the 16:59:59 prop close. A 17:00 label is incompatible with this prop
+boundary and is rejected, not discarded. Sunday evening belongs to Monday.
+Custom profiles record an explicit cadence and inclusive first/last close labels
+in New York. They can use the market model or a labeled weekday approximation.
+The original explicit JSON calendar remains an advanced override for schedules
+with other exceptions. Existing saved manual calendars keep their behavior.
+
+Automatic schedules use exactly `pandas_market_calendars==5.5.0`, `CME_Equity`,
+over the reviewed model range 2013–2026. This is a pinned calendar model, not a
+certification that every exchange/exporter exception is correct. Its model
+holiday closures, early closes and historical breaks are intersected with the
+chosen exporter window; source bars never define that window. The model was
+reviewed on 2026-10-26 against the
+[CME trading-hours entry point](https://www.cmegroup.com/trading-hours.html) and
+[pinned calendar implementation](https://github.com/rsheftel/pandas_market_calendars/blob/v5.5.0/pandas_market_calendars/calendars/cme.py).
+Those links are provenance, not evidence of a live product-specific exception
+feed. In particular, modeled 13:00 New York holiday closes are assumptions;
+use an advanced explicit calendar where a verified export schedule differs.
+Dates outside the reviewed range require an advanced calendar. No live exchange
+lookup or holiday inference from missing bars occurs during simulation.
+
+Inspection streams the full `report.json` through `ReportReader`, hashes its
+bytes, and writes compressed exact timestamp runs and trade counts to the
+existing prop SQLite store. Memory does not grow with the bar array. A cache is
+keyed to the report's file identity/size/modification/change times, catalog hash,
+session policy and scan version. Saving an automatic setup forces a fresh scan;
+checking and execution independently revalidate the source artifact hashes.
+Daily inspection results distinguish complete zero-trade sessions, modeled
+closures, early closes, missing whole sessions, off-grid/extra bars, and partial
+boundaries. The full selected period is retained, including explicit selected
+prefix/suffix dates without observations. Gaps reject saving; none are filled,
+trimmed, or relabeled as zero trading.
+
+`PUT /sources/<id>/session-profile` stores dataset preferences;
+`GET /sources/<id>/coverage` returns a bounded daily preview. Automatic setup
+requests carry the profile hash instead of a manual calendar. The API resolves
+the calendar again and rejects stale profile hashes or incompatible coverage.
+Each setup captures its profile, report hash, calendar hash, calendar model and
+source URLs/review date in downloadable `coverage.json`. Setup JSON embeds only
+the first 50 session rows; `GET /setups/<id>/coverage` pages the captured report.
+Completed results copy and hash that artifact. Editing the dataset preference
+never changes earlier setups or results; reopening uses their captured data.
+The advanced calendar records its explicit coverage basis. All modes record
+actual timezone-file identity, profile session policy and resolved UTC boundaries.
 Source calendars are limited to 10,000 dates, 24 windows per explicit day;
 cadence is 1–86,400 seconds. Product decimal inputs are exact strings, limited
 to magnitude 1e12 and 18 fractional places, and quantities to 1–10,000.
@@ -1016,3 +1063,57 @@ hash. The reader accepts that legacy shape without consulting current defaults;
 the writer likewise omits an absent optional default. Existing explicit setup
 fees reopen as simulation overrides. Reusable fee settings are user supplied;
 configuration does not claim a newly verified provider price or effective date.
+
+### Reusable instrument profiles
+
+`alphaquest/prop/instruments.py` defines strict, immutable `InstrumentProfile`
+and `ResolvedInstrumentProfile` values. The initial `nq` / `mnq` catalog has
+version **1.0.0**, reviewed **2026-10-26**, currency **USD**, tick **0.25**,
+point values **20 / 2**, and Apex standard-contract weights **1 / 0.1**.
+Profiles contain provider/platform applicability, CME specification URL, Apex
+weight URL and dated evidence for evaluation/funded equivalence and instrument
+availability on Rithmic, Tradovate and WealthCharts. Effective dates remain
+unknown. Published commission schedules are availability evidence, not a
+replacement for commissions already embedded in the completed backtest.
+
+The setup's **Select instrument** control applies the selected contract units
+and generates the interpretation; there are no required manual unit fields in
+profile mode. Its read-only table, mismatch explanation and source links are
+part of the normal setup workflow. Source tick size and point value must match
+exactly as Decimal values; any known source symbol/currency must also match.
+Missing identity/currency is a modeling declaration made by explicitly choosing
+the profile, not a fact inferred from a file name or matching numeric settings.
+Automatic selection is allowed only when structured source symbol, currency and
+specifications all match. No NQ-to-MNQ, currency, fill or cost conversion occurs.
+Contract weight controls limits only and never scales monetary P&L a second time.
+Nonstandard aliases and unsupported instruments use the existing explicit custom
+declaration; ambiguous symbols are not guessed into a contract family.
+
+GET `/api/prop-simulations/instrument-profiles` returns sourced profile
+snapshots/display values, optionally with metadata compatibility for a completed
+`source_backtest_id`. POST `/setups` accepts an `instrument_profile_id` instead
+of the five manual instrument fields; mixed/incomplete declarations are rejected.
+The server resolves the profile and validates source/account compatibility,
+independently of browser preflight, before publishing any setup. Unknown IDs,
+incompatible currencies, changed tick/point values and unsupported provider/
+platform mappings are operation errors, not financial account outcomes.
+
+`InstrumentDeclaration.profile` embeds the full instrument snapshot/hash.
+`SimulationConfig.instrument_profile_sha256` binds that identity into resolved
+settings; source snapshots also hash the full declaration. These optional fields
+are omitted when absent, with legacy readers retaining the exact old wire shape
+and hashes. Saved selection IDs, declaration values and settings hashes must
+agree. The adapter still revalidates actual source artifacts at check/execution
+time; a previous metadata match is not execution authorization. Existing saved
+setups/results resolve their captured profile, never the current catalog.
+Template edits create different future settings/source identities without
+changing earlier snapshots. Catalog outages allow saved checks/execution and
+downloads, while saving edits to a profile waits for current templates.
+
+New setup/result exports include `instrument.json`; result artifact manifests
+hash its bytes alongside the other captured inputs. Results display the source
+instrument/profile identity. Earlier custom declarations remain available through
+**Custom / legacy declaration**, and earlier result downloads are preserved.
+This increment does not add measured excursions, rolling contracts, broker/live
+authorization, overnight exposure, variable source sizing, funded execution or
+Monte Carlo.

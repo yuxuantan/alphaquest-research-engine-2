@@ -21,6 +21,14 @@ from .prop.sessions import InstrumentDeclaration
 from .prop.sessions import InputError
 from .prop.engine import SimulationError
 from .prop.types import ProfileFees, SimulationConfig, UserFees
+from .prop.instruments import (
+    INSTRUMENT_PROFILE_IDS, get_instrument_profile, resolve_instrument_profile,
+    require_compatible_source, require_supported_account, source_compatibility,
+)
+from .prop.coverage import (
+    SourceSessionProfile, profiles as session_profiles, scan_source, build_calendar as profile_calendar,
+    assess as assess_coverage, CALENDAR_VERSION, CALENDAR_SOURCES,
+)
 
 
 router = APIRouter(prefix="/api/prop-simulations", tags=["Prop simulation setup"])
@@ -70,17 +78,43 @@ class SetupRequest(StrictModel):
     fee: StrictStr | None = Field(default=None, max_length=128)
     account_start_utc: StrictStr = Field(max_length=40)
     end_utc: StrictStr = Field(max_length=40)
-    instrument_symbol: StrictStr = Field(min_length=1, max_length=80)
-    currency: StrictStr = Field(pattern=r"^[A-Z]{3}$")
-    contract_limit_weight: StrictStr = Field(max_length=128)
-    contract_limit_source_url: StrictStr = Field(max_length=2000)
-    instrument_basis: StrictStr = Field(min_length=8, max_length=2000)
-    calendar: CalendarDeclaration
+    instrument_profile_id: StrictStr | None = Field(default=None, max_length=80)
+    instrument_symbol: StrictStr | None = Field(default=None, min_length=1, max_length=80)
+    currency: StrictStr | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    contract_limit_weight: StrictStr | None = Field(default=None, max_length=128)
+    contract_limit_source_url: StrictStr | None = Field(default=None, max_length=2000)
+    instrument_basis: StrictStr | None = Field(default=None, min_length=8, max_length=2000)
+    calendar: CalendarDeclaration | None = None
+    source_session_profile_sha256: StrictStr | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def separate_instrument_modes(self):
+        if (self.calendar is None) == (self.source_session_profile_sha256 is None):
+            raise ValueError("Use a saved source-session profile or an advanced calendar, not both.")
+        manual = (self.instrument_symbol, self.currency, self.contract_limit_weight,
+                  self.contract_limit_source_url, self.instrument_basis)
+        if self.instrument_profile_id is not None:
+            if any(value is not None for value in manual):
+                raise ValueError("Select an instrument profile or supply a custom declaration, not both.")
+        elif any(value is None for value in manual):
+            raise ValueError("Select an instrument profile, or complete all custom instrument fields.")
+        return self
 
 
 class ProfileFeesRequest(StrictModel):
     attempt_fee: StrictStr | None = Field(default=None, max_length=128)
     activation_fee: StrictStr | None = Field(default=None, max_length=128)
+
+
+class SessionProfileRequest(StrictModel):
+    preset_id: StrictStr | None = Field(default=None, max_length=80)
+    custom: dict | None = None
+
+    @model_validator(mode="after")
+    def one_mode(self):
+        if (self.preset_id is None) == (self.custom is None):
+            raise ValueError("Choose a preset or a complete custom export profile.")
+        return self
 
 
 def utc(value):
@@ -165,6 +199,11 @@ def profile_view(resolved):
     return dict(snapshot=resolved.to_dict(), display=display(asdict(resolved.profile)))
 
 
+def instrument_profile_view(resolved, record=None):
+    return dict(snapshot=resolved.to_dict(), display=display(asdict(resolved.profile)),
+                compatibility=source_compatibility(resolved.profile, record) if record else None)
+
+
 def require_source(request, run_id):
     try:
         record = catalog_record(request.app.state.runs, run_id)
@@ -189,6 +228,16 @@ def profiles(request: Request):
             for profile_id in PROFILE_IDS]
 
 
+@router.get("/instrument-profiles")
+def instrument_profiles(request: Request, source_backtest_id: UUID | None = None):
+    record = require_source(request, source_backtest_id.hex) if source_backtest_id else None
+    views = []
+    for profile_id in INSTRUMENT_PROFILE_IDS:
+        profile = get_instrument_profile(profile_id)
+        views.append(instrument_profile_view(resolve_instrument_profile(profile), record))
+    return views
+
+
 @router.put("/profiles/{profile_id}/fees")
 def update_profile_fees(profile_id: str, body: ProfileFeesRequest, request: Request):
     try:
@@ -209,6 +258,62 @@ def source_context(run_id: UUID, request: Request):
     return context_for(record, get_profile().session, request.app.state.prop_runs)
 
 
+@router.put("/sources/{run_id}/session-profile")
+def save_session_profile(run_id: UUID, body: SessionProfileRequest, request: Request):
+    record = require_source(request, run_id.hex)
+    try:
+        if body.preset_id is not None:
+            selected = next((p for p in session_profiles() if p.id == body.preset_id), None)
+            if selected is None: raise ValueError("Unknown export-session profile.")
+        else:
+            selected = SourceSessionProfile.from_dict(body.custom)
+        # Validate the schedule before committing preferences, even if bars have gaps.
+        profile_calendar(selected, record, get_profile().session, timezone_version())
+        request.app.state.prop_runs.source_session_profile(record["run_metadata"]["dataset"], selected)
+        return dict(profile=selected.to_dict(), profile_sha256=selected.sha256)
+    except (ValueError, KeyError, ArithmeticError) as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+def coverage_for(record, request, *, force=False):
+    with request.app.state.prop_runs.coverage_lock:
+        return _coverage_for(record, request, force=force)
+
+
+def _coverage_for(record, request, *, force=False):
+    store = request.app.state.prop_runs
+    policy = get_profile().session
+    scan = scan_source(store, request.app.state.runs, record, policy, force=force)
+    selected = store.source_session_profile(record["run_metadata"]["dataset"])
+    base = dict(source=scan, profile=selected.to_dict() if selected else None,
+                profile_sha256=selected.sha256 if selected else None,
+                presets=[p.to_dict() for p in session_profiles()],
+                calendar_model=dict(version=CALENDAR_VERSION, sources=CALENDAR_SOURCES, retrieved_on="2026-10-26",
+                                    assumption="Pinned calendar model; not live exchange certification. Review schedule exceptions if your exporter differs."))
+    if selected is None:
+        return {**base, "status": "profile_required", "coverage": None}, None
+    calendar = profile_calendar(selected, record, policy, timezone_version())
+    report = assess_coverage(store, record, calendar, scan)
+    return {**base, "status": report["status"], "coverage": report,
+            "account_start_utc": calendar.bounds(calendar.days[0])[0].isoformat().replace("+00:00", "Z"),
+            "end_utc": calendar.bounds(calendar.days[-1])[2].isoformat().replace("+00:00", "Z")}, calendar
+
+
+@router.get("/sources/{run_id}/coverage")
+def source_coverage(run_id: UUID, request: Request, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)):
+    record = require_source(request, run_id.hex)
+    try:
+        data, _ = coverage_for(record, request)
+        if data["coverage"]:
+            report = data["coverage"]
+            report["total"] = len(report["sessions"])
+            report["sessions"] = report["sessions"][offset:offset + limit]
+            report.update(offset=offset, limit=limit)
+        return JSONResponse(data, headers={"Cache-Control": "no-store"})
+    except (ValueError, KeyError, OSError, ArithmeticError) as exc:
+        raise HTTPException(422, f"Coverage could not be established: {exc}") from None
+
+
 def context_for(record, policy, store):
     try:
         first, last = source_dates(record, policy)
@@ -227,25 +332,44 @@ def save_setup(body: SetupRequest, request: Request):
     record = require_source(request, body.source_backtest_id)
     try:
         profile = configured_profile(body.profile_id, request.app.state.prop_runs)
-        calendar = build_calendar(body.calendar, record, profile.session)
+        coverage = None
+        if body.source_session_profile_sha256 is not None:
+            coverage, calendar = coverage_for(record, request, force=True)
+            if coverage["profile_sha256"] != body.source_session_profile_sha256:
+                raise ValueError("Source-session profile changed. Refresh coverage before saving.")
+            if coverage["status"] != "compatible":
+                raise ValueError("Source coverage is incomplete or incompatible. Review gaps/partial boundaries; no setup published.")
+        else:
+            calendar = build_calendar(body.calendar, record, profile.session)
         settings = record["execution_settings"]
-        instrument = InstrumentDeclaration(body.instrument_symbol, body.currency, Decimal(settings["tick_size"]),
-                                           Decimal(settings["point_value"]), decimal(body.contract_limit_weight),
-                                           body.contract_limit_source_url, body.instrument_basis)
+        if body.instrument_profile_id is not None:
+            instrument_profile = get_instrument_profile(body.instrument_profile_id)
+            require_supported_account(instrument_profile, profile)
+            require_compatible_source(instrument_profile, record)
+            instrument = InstrumentDeclaration(
+                instrument_profile.symbol, instrument_profile.currency, instrument_profile.tick_size,
+                instrument_profile.point_value, instrument_profile.contract_limit_weight,
+                instrument_profile.contract_limit_source_url, instrument_profile.basis,
+                resolve_instrument_profile(instrument_profile))
+        else:
+            instrument = InstrumentDeclaration(body.instrument_symbol, body.currency, Decimal(settings["tick_size"]),
+                                               Decimal(settings["point_value"]), decimal(body.contract_limit_weight),
+                                               body.contract_limit_source_url, body.instrument_basis)
         fee_name = "attempt_fee" if body.phase == "evaluation" else "activation_fee"
         amount = decimal(body.fee) if body.fee is not None else (
             getattr(profile.fee_defaults, fee_name) if profile.fee_defaults is not None else None)
         if amount is None:
             raise ValueError("Set the selected phase fee in the account profile once, or supply an explicit simulation override (including zero).")
-        fees = UserFees(body.currency, **{fee_name: amount}, origin="profile_default" if body.fee is None else "user_supplied")
+        fees = UserFees(instrument.currency, **{fee_name: amount}, origin="profile_default" if body.fee is None else "user_supplied")
         config = SimulationConfig(source_backtest_id=body.source_backtest_id, phase=body.phase, analysis="historical",
                                   observation_mode=body.observation_mode, account_start_utc=utc(body.account_start_utc), end_utc=utc(body.end_utc),
-                                  instrument=body.instrument_symbol, currency=body.currency,
+                                  instrument=instrument.symbol, currency=instrument.currency,
                                   contract_limit_weight=instrument.contract_limit_weight,
                                   contract_limit_source_url=instrument.contract_limit_source_url, quantity=body.quantity,
                                   calendar_id=calendar.id, calendar_sha256=calendar.sha256, calendar_mode=calendar.mode,
-                                  timezone_data_version=calendar.timezone_data_version, coverage_assumption=calendar.coverage_assumption, fees=fees)
-        return request.app.state.prop_runs.save_setup(resolve_simulation(config, profile), calendar, instrument, body.model_dump(mode="json"))
+                                  timezone_data_version=calendar.timezone_data_version, coverage_assumption=calendar.coverage_assumption, fees=fees,
+                                  instrument_profile_sha256=instrument.profile.profile_sha256 if instrument.profile else None)
+        return request.app.state.prop_runs.save_setup(resolve_simulation(config, profile), calendar, instrument, body.model_dump(mode="json"), coverage=coverage)
     except (ValueError, KeyError, TypeError, ArithmeticError) as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -265,9 +389,12 @@ def saved_setup(setup_id: UUID, request: Request):
         raise HTTPException(404, "Saved prop setup not found.")
     from .prop.rules import ResolvedSimulation
     resolved = ResolvedSimulation.from_dict(record["resolved"])
+    instrument = InstrumentDeclaration.from_dict(record["instrument"])
     context = context_for(require_source(request, record["source_backtest_id"]), resolved.rules.profile.session,
                           request.app.state.prop_runs)
-    return JSONResponse({**record, "profile_view": profile_view(resolved.rules), "source_context": context}, headers={"Cache-Control": "no-store"})
+    return JSONResponse({**record, "profile_view": profile_view(resolved.rules), "source_context": context,
+                         "instrument_profile_view": instrument_profile_view(instrument.profile) if instrument.profile else None},
+                        headers={"Cache-Control": "no-store"})
 
 
 @router.post("/setups/{setup_id}/check", status_code=201)
@@ -294,10 +421,23 @@ def preview(check_id: UUID, kind: Literal["sessions", "observations"], request: 
 
 @router.get("/setups/{setup_id}/exports/{filename}")
 def setup_export(setup_id: UUID, filename: str, request: Request):
-    if filename not in {"setup.json", "profile.json", "simulation.json", "calendar.json"}:
+    if filename not in {"setup.json", "profile.json", "simulation.json", "calendar.json", "instrument.json", "coverage.json"}:
         raise HTTPException(404, "Export not found.")
     saved_setup(setup_id, request)
-    return FileResponse(request.app.state.prop_runs.root / setup_id.hex / filename, media_type="application/json", filename=filename)
+    path = request.app.state.prop_runs.root / setup_id.hex / filename
+    if not path.is_file():
+        raise HTTPException(404, "This saved setup has no such export.")
+    return FileResponse(path, media_type="application/json", filename=filename)
+
+
+@router.get("/setups/{setup_id}/coverage")
+def saved_coverage(setup_id: UUID, request: Request, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)):
+    try:
+        return request.app.state.prop_runs.coverage_page(setup_id.hex, offset, limit)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
 
 
 @router.get("/checks/{check_id}/exports/{filename}")
@@ -355,7 +495,10 @@ def account_chart(result_id: UUID, request: Request, max_points: int = Query(500
 @router.get("/results/{result_id}/exports/{filename}")
 def result_export(result_id: UUID, filename: str, request: Request):
     result_detail(result_id, request)
-    if filename not in {"report.json", "events.csv", "source.json", "simulation.json", "profile.json", "calendar.json"}:
+    if filename not in {"report.json", "events.csv", "source.json", "simulation.json", "profile.json", "calendar.json", "instrument.json", "coverage.json"}:
         raise HTTPException(404, "Result export not found.")
-    return FileResponse(request.app.state.prop_runs.root / result_id.hex / filename,
+    path = request.app.state.prop_runs.root / result_id.hex / filename
+    if not path.is_file():
+        raise HTTPException(404, "This saved result has no such export.")
+    return FileResponse(path,
                         media_type="text/csv" if filename.endswith(".csv") else "application/json", filename=filename)

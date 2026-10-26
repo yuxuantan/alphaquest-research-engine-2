@@ -6,7 +6,7 @@ are valid inside prepare_backtest()'s resource context, after full validation.
 
 from contextlib import contextmanager
 import csv
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from fractions import Fraction
@@ -28,6 +28,7 @@ from ._report_reader import InputError, ReportReader, require
 from .calendar import SessionCalendar, microseconds
 from .rules import ResolvedSimulation, _canonical_json, _digest, _read_json
 from .types import Value, _decimal, _hash, _integer, _url
+from .instruments import ResolvedInstrumentProfile, require_supported_account
 
 
 ZERO = Decimal(0)
@@ -44,6 +45,13 @@ class InstrumentDeclaration(Value):
     contract_limit_weight: Decimal
     contract_limit_source_url: str
     basis: str
+    profile: ResolvedInstrumentProfile | None = field(default=None, metadata={"omit_none": True})
+
+    @classmethod
+    def from_dict(cls, payload):
+        if type(payload) is dict and "profile" not in payload:
+            payload = {**payload, "profile": None}
+        return super(InstrumentDeclaration, cls).from_dict(payload)
 
     def __post_init__(self):
         super(InstrumentDeclaration, self).__post_init__()
@@ -51,6 +59,12 @@ class InstrumentDeclaration(Value):
         for name in ("tick_size", "point_value", "contract_limit_weight"):
             _decimal(name, getattr(self, name), positive=True)
         _url("contract_limit_source_url", self.contract_limit_source_url)
+        if self.profile is not None:
+            p = self.profile.profile
+            require(all(getattr(self, name) == getattr(p, name) for name in (
+                "symbol", "currency", "tick_size", "point_value", "contract_limit_weight", "contract_limit_source_url")),
+                "Instrument declaration differs from its captured profile.")
+            require(self.basis == p.basis, "Instrument interpretation differs from its captured profile.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +357,8 @@ def _bind_source(header, config, instrument):
             and instrument.contract_limit_weight == config.contract_limit_weight
             and instrument.contract_limit_source_url == config.contract_limit_source_url,
             "Instrument declaration does not match simulation settings.")
+    require((instrument.profile.profile_sha256 if instrument.profile else None) == config.instrument_profile_sha256,
+            "Instrument profile identity does not match simulation settings.")
     saved_symbol = dataset.get("symbol")
     require(not saved_symbol or saved_symbol == instrument.symbol, "Declared instrument conflicts with saved symbol.")
     saved_currency = dataset.get("currency")
@@ -546,6 +562,11 @@ def prepare_backtest(runs: RunStore, resolved: ResolvedSimulation, calendar: Ses
     require(type(resolved) is ResolvedSimulation and type(calendar) is SessionCalendar
             and type(instrument) is InstrumentDeclaration, "Explicit resolved settings, calendar and instrument declaration required.")
     config = resolved.config
+    if instrument.profile is not None:
+        try:
+            require_supported_account(instrument.profile.profile, resolved.rules.profile)
+        except ValueError as exc:
+            raise InputError(str(exc)) from None
     require(calendar.policy == resolved.rules.profile.session and calendar.id == config.calendar_id
             and calendar.sha256 == config.calendar_sha256 and calendar.mode == config.calendar_mode
             and calendar.timezone_data_version == config.timezone_data_version

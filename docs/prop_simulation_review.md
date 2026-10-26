@@ -10,6 +10,7 @@ execution and Monte Carlo remain unavailable and will extend this same workflow.
 From the repository, using the existing environment:
 
 ```bash
+.venv/bin/python -m pip install -e '.[dev,browser]' -c requirements.lock
 .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -40,20 +41,40 @@ the terminal that launched it. Installation instructions are in
    evaluation has no lock. Funded lock profit is 100. Source retrieval dates are
    recorded review dates, not new checks of provider websites. The 5,999/6,000
    tier conflict stays disclosed. Effective dates remain unknown where null.
-4. Explicitly declare the source symbol, source account currency, contract
-   weight in rule units, a supporting HTTPS URL and the interpretation basis.
-   The captured tick size and monetary point value are displayed and preserved.
-   Currency and rule units are not inferred from the symbol. A report labeled
-   CU requires an explicit interpretation; do not select USD without a basis.
-5. Declare coverage for the full source session-date range shown on the form.
-   Select **Weekday approximation** only if a recurring Monday–Friday window
-   accurately describes your expected data and no holiday exceptions apply.
-   Enter the first/last expected bar-close labels in **America/New_York** and
-   cadence in seconds. Sunday evening labels belong to Monday. Weekends are
-   explicitly closed under this policy. Coverage completeness is checked against
-   your declared windows; it is not inferred from whichever bars happen to exist.
-6. Choose **Explicit dates and windows** for holidays, early closes, multiple
-   data windows or missing dates. Supply an ordered JSON array declaring every
+4. Under **2. Select instrument**, choose **NQ · E-mini Nasdaq-100** or
+   **MNQ · Micro E-mini Nasdaq-100** to fill the currency, tick/point values,
+   Apex contract weight, source links and interpretation automatically. No
+   manual unit fields are required. The profile is checked against saved
+   execution settings and any explicit source symbol/currency. A mismatch blocks
+   saving; it never converts an NQ run into MNQ or changes its original P&L.
+   Selecting a profile explicitly declares identity/currency when missing from
+   the source; numeric specifications or a dataset name alone do not prove them.
+   Complete matching structured symbol/currency/specs can preselect a profile.
+   For unsupported instruments and earlier declarations, choose **Custom / legacy
+   declaration** and fill the original explicit fields. A generic CU report
+   still needs a justified currency interpretation, not an FX conversion.
+5. Under **3. Coverage check**, leave **Automatic · reuse dataset session profile**
+   selected. On a dataset's first use, choose its intended export schedule:
+   **CME equity US cash hours** or **CME equity overnight session**, with one- or
+   five-minute bars. Click **Use and remember session profile**. Later backtests
+   from this dataset identity inherit the choice; no repeated calendar, cadence
+   or JSON entry is required. The interval detected from the saved report is
+   only a suggestion. Choose what the exporter was configured to produce, not
+   whichever schedule makes the current bars pass. Cash-hours close labels are
+   09:31–16:00 or 09:35–16:00 New York. For a different window or cadence, choose
+   **Custom export-session profile** and declare its intended labels once.
+   Sunday evening belongs to Monday; timestamps are never silently discarded.
+   Review covered sessions, zero-trade sessions, closures, holiday dates, early
+   closes, missing/unexpected bars and partial boundaries. Missing coverage
+   blocks saving. Defaults for account start/end follow the generated calendar.
+6. The automatic model is pinned to **pandas_market_calendars 5.5.0 CME_Equity**
+   for **2013–2026**. It is a schedule model, not live exchange certification.
+   Its modeled holiday hours can differ from verified exporter/product notices;
+   use **Advanced · explicit calendar override** for exceptions or unsupported years.
+   A custom profile may explicitly choose a weekday-only approximation, without
+   holidays, when that describes the source. Under the advanced override, choose
+   **Explicit dates and windows** for your own holidays, early closes, multiple
+   windows or missing dates. Supply an ordered JSON array declaring every
    displayed source session date. For example:
 
    ```json
@@ -78,9 +99,13 @@ the terminal that launched it. Installation instructions are in
    inclusive endpoints; closed/missing dates have no windows. An optional
    `close_time`, such as `"13:00"`, can declare an early New York close. A missing
    date is retained as missing and causes the source check to reject the input.
-7. Enter your coverage basis, then click **Save setup**. A saved setup gets its
-   own URL and retains a complete profile/settings/calendar snapshot. Download
-   `profile.json`, `simulation.json`, `calendar.json` or `setup.json` as needed.
+7. Click **Save setup** (the advanced override additionally requires its coverage
+   basis). A saved setup gets its own URL and retains a complete account,
+   instrument, export-profile/settings/calendar snapshot. Download `profile.json`,
+   `simulation.json`, `calendar.json`, `instrument.json`, `coverage.json` or
+   `setup.json` as applicable. Changing a dataset's default does not alter earlier
+   setups/results. Reopening them uses the captured coverage. **Refresh coverage**
+   explicitly reads the current source and dataset default for a new setup.
 8. Click **Check source data**. The complete saved report is validated before
    any successful preview appears. A compatible check shows original and
    comparison quantities, source/scaled P&L, costs, covered zero-trade sessions,
@@ -114,6 +139,55 @@ changes are cumulative within each trade, not deltas to add across all bars.
 Original absolute source equity is retained. Source net P&L already includes
 commissions and adverse fill slippage; those costs are not charged again.
 
+## Check the automatic coverage workflow yourself
+
+This is a synthetic numerical example using the ordinary dataset, backtest and
+prop pages. It does not claim historical NQ performance.
+
+1. Upload [coverage_rth_5m.csv](../tests/fixtures/backtest_contract/coverage_rth_5m.csv)
+   in **Datasets**. Name it **Synthetic NQ cash-hours coverage**, choose source
+   timezone **UTC**, tick size **0.25** and point value **20**. Validate and save.
+2. In **Backtests**, select that dataset and **Consecutive green hold**. Use
+   green count **3**, hold **20 minutes**, **2 contracts**, capital **10,000**,
+   **1 tick slippage**, commission **1 per contract per side**, blank date bounds.
+   Run it. The one source trade has gross **60**, commissions **4**, net **56**;
+   informational fill slippage **20** is already reflected in gross/net.
+3. Open **Set up prop simulation**. Keep standard Rithmic evaluation, bar close,
+   quantity **2**, profile fee **49**, and select **NQ**. Under **3. Coverage check**,
+   choose **CME equity US cash hours · 5-minute bars**, then **Use and remember
+   session profile**. Expect **1 covered session**, **0 zero-trade sessions**,
+   **78 expected / 78 observed bars** on **2026-01-05**, and **0** missing,
+   unexpected or partial sessions. Advanced fields stay hidden.
+4. **Save setup → Check source data → Run simulation**. Expect
+   **unresolved_data_end**, balance/equity **50,056**, one completed trade, no
+   suspension, fees **49**, receipts **0**, net cash **−49**. Trading P&L is not a
+   cash payout. Download `coverage.json` and `report.json`; compare their source,
+   export-profile and calendar hashes. Reload and reopen through saved setups.
+5. Create a second backtest from the same dataset. Its prop setup should already
+   have the five-minute cash-hours profile and complete coverage. No schedule
+   entry is needed. To test zero trading, set green count **100**: the 78 bars
+   still cover the session, **zero-trade sessions = 1**, P&L **0**, balance
+   **50,000** (currently displayed as `5E+4`), net cash **−49**, and outcome
+   **unresolved_data_end**.
+6. For a rejection, copy the CSV and delete one middle data row; upload it as a
+   separate synthetic dataset and backtest with green count **100**. Choose the
+   same expected profile. Expect **78 expected / 77 observed**, **1 missing bar**,
+   **0 covered / zero-trade sessions**, and **Save setup disabled**. Deleting the
+   first row instead also shows **1 partial session**. Neither becomes a zero
+   session or gets silently trimmed. Choosing the one-minute profile for the
+   complete five-minute dataset likewise fails coverage.
+7. Change the remembered default to one minute, then reopen the original saved
+   setup/result: its five-minute profile, 78-bar report and financial result must
+   remain unchanged. Saved snapshots do not consult the new dataset preference.
+
+Browser checks write actual downloaded outputs and screenshots under
+[`artifacts/prop-coverage/`](../artifacts/prop-coverage/): `coverage.json`,
+`report.json`, `zero-coverage.json`, `zero-report.json`, `coverage.png`,
+`result.png`, `zero-trade-coverage.png`, `zero-trade-result.png`,
+`missing-bar.png` and `partial-boundary.png`. IDs and creation timestamps vary.
+These ignored artifacts supplement this reproducible product workflow; they are
+not a separate feature or evidence store. Earlier demonstration files remain.
+
 ## Reproducible numerical check through the same workflow
 
 Use the ordinary dataset and backtest screens to run this repository fixture.
@@ -131,12 +205,13 @@ It is synthetic data for checking arithmetic, not market-performance evidence.
 3. Click **Set up prop simulation**. Select Rithmic, evaluation, bar close,
    comparison quantity **2**, enable the simulation fee override and enter **0**,
    and keep the displayed UTC
-   bounds. Declare symbol **TEST**, currency **USD**, rule weight **1**, source
+   bounds. Choose **Custom / legacy declaration**, then symbol **TEST**,
+   currency **USD**, rule weight **1**, source
    URL `https://example.com/explicit-test-units`, and basis **Synthetic test:
    prices are USD 10 per point, tick .25, one rule unit per fixture contract**.
    The example.com URL documents the test declaration only; it establishes no
    real-instrument contract equivalence.
-4. Choose weekday approximation. Enter **05:00** through **05:30 New York**,
+4. Choose **Advanced · explicit calendar override**, then weekday approximation. Enter **05:00** through **05:30 New York**,
    cadence **300 seconds**, and coverage basis **Complete seven-bar synthetic
    fixture window on January 5, 2026**. These labels correspond to the file's
    UTC **10:00** through **10:30** timestamps. They are not a full exchange session.
@@ -268,6 +343,70 @@ observations. On multi-session sources, every covered zero-trade session remains
 Running this short flat evaluation ends at **50,000** with
 `unresolved_data_end`; no day-30 expiration is invented.
 
+## Validate reusable instrument selection
+
+For your existing NQ report, open **Set up prop simulation → 2. Select
+instrument → NQ · E-mini Nasdaq-100**. The table fills **USD**, tick **0.25**,
+point value **20**, and Apex weight **1**. There are no required manual symbol,
+currency, weight, URL or interpretation fields. The expanded profile details
+contain CME/Apex sources, retrieval dates, version and SHA-256. Complete the
+calendar as usual, then save/check/run. Missing formal symbol/currency metadata
+is explicitly declared by your choice; a file name alone does not select NQ.
+
+For a reproducible arithmetic check, use the existing synthetic
+[`arithmetic_5m.csv`](../tests/fixtures/backtest_contract/arithmetic_5m.csv):
+
+1. In **Datasets**, set tick **0.25** and point value **20**, then create a new
+   backtest using the strategy/settings in the earlier arithmetic example
+   (quantity **2**, commission **1 per contract per side**, one slippage tick).
+   If the CSV is already in the library, edit its instrument settings; do not
+   upload a duplicate. Existing completed backtests keep their original settings.
+   Label this as a synthetic NQ-unit example, not real market performance.
+2. Expect source gross P&L **60**, commissions **4**, net **56**. From its report,
+   select **NQ** and the standard Rithmic evaluation, with the fee override off.
+   Keep the same declared New York **05:00–05:30**, **300-second** window as the
+   earlier example. Save/check/run. Expect `unresolved_data_end`, balance/equity
+   **50,056**, external fee **49** and net cash **−49** (unless you changed your
+   profile fee defaults). Source commissions remain **4**, not the commission
+   quoted on today's provider instrument page; they are not charged again.
+3. Download **instrument.json** and **report.json**. The instrument export has
+   root `symbol="NQ"`, `currency="USD"`, point value numerically **20**, weight
+   **1**, generated interpretation, and `profile` containing the full immutable
+   sourced instrument snapshot/hash. The report's
+   `resolved.config.instrument_profile_sha256` matches
+   `instrument.profile.profile_sha256`. Decimal strings can use canonical
+   scientific notation in downloads. Reload/reopen: the captured profile stays.
+4. In a fresh setup for that NQ backtest select **MNQ**. Expect a **point_value
+   20 does not match MNQ profile 2** message and disabled **Save setup**. Selecting
+   NQ restores compatibility. The API independently rejects the conflicting
+   selection with 422 and publishes no setup; it does not resize/reprice source
+   P&L or convert mini fills to micro fills.
+5. For an independent synthetic MNQ-unit example, set dataset point value **2**,
+   then create another completed backtest (same prices/strategy/cost settings).
+   Expect gross **6**, commissions **4**, net **2**. Select **MNQ** in prop setup:
+   it fills **USD**, tick **0.25**, point value **2**, weight **0.1**. Save/check/run
+   ends at **50,002**, `unresolved_data_end`, external fee **49**, net cash **−49**.
+   This fixture reuse is an arithmetic check, not a claim of NQ/MNQ execution parity.
+6. Reopen the earlier NQ result after creating the MNQ example. It must still
+   show **50,056** and its original instrument/source snapshots. Catalog edits
+   affect future setups only. Saved setups can still check/run from their
+   captured profile if the current instrument catalog cannot be loaded; saving
+   edits waits for the catalog. Custom/legacy saved declarations still reopen
+   under **Custom / legacy declaration** with their original fields.
+
+Saved evidence from the actual workflow is in
+[`artifacts/prop-instrument-profiles/`](../artifacts/prop-instrument-profiles/):
+`nq-setup.png`, `nq-result.png`, `nq-instrument.json`, `nq-report.json`, and the
+corresponding `mnq-*` outputs. Temporary browser-test servers/stores are stopped
+and removed after validation; these downloaded outputs remain inspectable.
+
+Instrument profiles are **1.0.0**, reviewed **2026-10-26**, with unspecified
+effective dates. CME supplies the contract specs; Apex supplies the standard/
+micro equivalence and platform instrument lists. This increment covers NQ/MNQ
+root contracts, not symbol alias guessing, FX conversion, contract rolling,
+broker routing or funded execution. For another instrument use the existing
+explicit custom declaration or add a separately reviewed sourced profile.
+
 ## Deliverables by subtask
 
 | Subtask | Final-product increment | User validation |
@@ -301,7 +440,7 @@ the dedicated review page, API and fixture generator have been retired.
 Run the configuration, adapter, real API and Chromium workflow checks:
 
 ```bash
-.venv/bin/python -m pytest -q tests/test_prop_configuration.py tests/test_prop_sessions.py tests/test_prop_engine.py tests/test_prop_api.py tests/test_prop_results_api.py tests/test_prop_browser.py tests/test_prop_results_browser.py tests/test_prop_profile_fees.py tests/test_prop_profile_fees_browser.py
+.venv/bin/python -m pytest -q tests/test_prop_configuration.py tests/test_prop_sessions.py tests/test_prop_engine.py tests/test_prop_api.py tests/test_prop_results_api.py tests/test_prop_browser.py tests/test_prop_results_browser.py tests/test_prop_profile_fees.py tests/test_prop_profile_fees_browser.py tests/test_prop_instruments.py tests/test_prop_instruments_browser.py tests/test_prop_coverage.py tests/test_prop_coverage_browser.py
 ```
 
 Browser prerequisites, when not already installed:

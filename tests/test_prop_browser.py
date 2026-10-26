@@ -21,15 +21,18 @@ def open_setup(page, portal, dataset_id=None):
     return record
 
 
-def fill_setup(page, fee="0"):
+def fill_setup(page, fee="0", instrument_profile=None):
     if fee is not None:
         page.locator("#prop-fee-override").check()
         page.locator("#prop-fee").fill(fee)
-    page.locator("#prop-symbol").fill("TEST")
-    page.locator("#prop-currency").select_option("USD")
-    page.locator("#prop-weight").fill("1")
-    page.locator("#prop-unit-url").fill("https://example.com/explicit-test-units")
-    page.locator("#prop-basis").fill("Explicit synthetic test: USD 10 per point, .25 tick, one rule unit per contract.")
+    page.locator("#prop-instrument-profile").select_option(instrument_profile or "custom")
+    if instrument_profile is None:
+        page.locator("#prop-symbol").fill("TEST")
+        page.locator("#prop-currency").select_option("USD")
+        page.locator("#prop-weight").fill("1")
+        page.locator("#prop-unit-url").fill("https://example.com/explicit-test-units")
+        page.locator("#prop-basis").fill("Explicit synthetic test: USD 10 per point, .25 tick, one rule unit per contract.")
+    page.locator("#prop-coverage-mode").select_option("advanced")
     page.locator("#prop-calendar-mode").select_option("weekday_approximation")
     page.locator("#prop-window-start").fill("05:00")
     page.locator("#prop-window-end").fill("05:30")

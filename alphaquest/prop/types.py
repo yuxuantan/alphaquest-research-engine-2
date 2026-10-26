@@ -559,6 +559,13 @@ class SimulationConfig(Value):
     monte_carlo: MonteCarloConfig | None = None
     sizing: SizingConfig | None = None
     stress: StressConfig = StressConfig()
+    instrument_profile_sha256: str | None = field(default=None, metadata={"omit_none": True})
+
+    @classmethod
+    def from_dict(cls, payload):
+        if type(payload) is dict and "instrument_profile_sha256" not in payload:
+            payload = {**payload, "instrument_profile_sha256": None}
+        return super(SimulationConfig, cls).from_dict(payload)
 
     def __post_init__(self):
         super(SimulationConfig, self).__post_init__()
@@ -568,6 +575,8 @@ class SimulationConfig(Value):
         _url("contract_limit_source_url", self.contract_limit_source_url)
         _integer("quantity", self.quantity)
         _hash("calendar_sha256", self.calendar_sha256)
+        if self.instrument_profile_sha256 is not None:
+            _hash("instrument_profile_sha256", self.instrument_profile_sha256)
         _require(self.fees.currency == self.currency, "Fee currency must match simulation currency.")
         if self.phase == "evaluation":
             _require(self.fees.attempt_fee is not None and self.fees.activation_fee is None,

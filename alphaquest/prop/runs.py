@@ -15,6 +15,7 @@ from hashlib import sha256
 from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
+from threading import RLock
 from uuid import UUID, uuid4
 
 from ..decimal_math import add
@@ -44,6 +45,7 @@ def catalog_record(runs, run_id):
 
 class PropRunStore:
     def __init__(self, directory):
+        self.coverage_lock = RLock()
         self.root = Path(directory) / "prop_runs"
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = Path(directory) / "prop_simulations.sqlite3"
@@ -67,6 +69,23 @@ class PropRunStore:
                 CREATE TABLE IF NOT EXISTS prop_profile_fees (
                     profile_id TEXT PRIMARY KEY, payload TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS prop_source_session_profiles (
+                    dataset_id TEXT NOT NULL, dataset_sha256 TEXT NOT NULL, payload TEXT NOT NULL,
+                    PRIMARY KEY(dataset_id,dataset_sha256)
+                );
+                CREATE TABLE IF NOT EXISTS prop_coverage_cache (
+                    run_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, payload TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS prop_coverage_segments (
+                    run_id TEXT NOT NULL, ordinal INTEGER NOT NULL, trading_date TEXT NOT NULL,
+                    first_us INTEGER NOT NULL, last_us INTEGER NOT NULL, step_us INTEGER NOT NULL, count INTEGER NOT NULL,
+                    PRIMARY KEY(run_id,ordinal)
+                );
+                CREATE INDEX IF NOT EXISTS prop_coverage_dates ON prop_coverage_segments(run_id,trading_date);
+                CREATE TABLE IF NOT EXISTS prop_coverage_trades (
+                    run_id TEXT NOT NULL, trading_date TEXT NOT NULL, count INTEGER NOT NULL,
+                    PRIMARY KEY(run_id,trading_date)
+                );
             """)
 
     @contextmanager
@@ -84,6 +103,17 @@ class PropRunStore:
         with self.connect() as conn:
             row = conn.execute("SELECT payload FROM prop_profile_fees WHERE profile_id=?", (profile_id,)).fetchone()
         return ProfileFees.from_dict(json.loads(row[0])) if row else None
+
+    def source_session_profile(self, dataset, profile=None):
+        from .coverage import SourceSessionProfile
+        with self.connect() as conn:
+            if profile is not None:
+                if type(profile) is not SourceSessionProfile:
+                    raise ValueError("Expected a source-session profile.")
+                conn.execute("INSERT INTO prop_source_session_profiles VALUES (?,?,?) ON CONFLICT(dataset_id,dataset_sha256) DO UPDATE SET payload=excluded.payload",
+                             (dataset["id"], dataset["sha256"], dump(profile.to_dict())))
+            row = conn.execute("SELECT payload FROM prop_source_session_profiles WHERE dataset_id=? AND dataset_sha256=?", (dataset["id"], dataset["sha256"])).fetchone()
+        return SourceSessionProfile.from_dict(json.loads(row[0])) if row else None
 
     def save_profile_fees(self, profile_id, fees):
         from .types import ProfileFees
@@ -108,18 +138,23 @@ class PropRunStore:
                 shutil.rmtree(destination)
             raise
 
-    def save_setup(self, resolved, calendar, instrument, declaration):
+    def save_setup(self, resolved, calendar, instrument, declaration, *, coverage=None):
         record = dict(id=uuid4().hex, kind="setup", status="draft", format_version=1,
                       source_backtest_id=resolved.config.source_backtest_id,
                       created_at_utc=json_value(datetime.now(timezone.utc)),
                       resolved=resolved.to_dict(), calendar=calendar.snapshot_dict(),
                       instrument=instrument.to_dict(), declaration=declaration)
+        if coverage is not None:
+            record["coverage"] = {**coverage, "coverage": {**coverage["coverage"],
+                "sessions": coverage["coverage"]["sessions"][:50], "total": len(coverage["coverage"]["sessions"]), "offset": 0, "limit": 50}}
         with TemporaryDirectory(prefix=".setup-", dir=self.root) as temp:
             path = Path(temp) / "output"
             path.mkdir()
             write_json(path / "setup.json", record)
             write_json(path / "profile.json", resolved.rules.to_dict())
             write_json(path / "simulation.json", resolved.to_dict())
+            write_json(path / "instrument.json", instrument.to_dict())
+            if coverage is not None: write_json(path / "coverage.json", coverage)
             (path / "calendar.json").write_text(calendar.to_json() + "\n", encoding="utf-8")
             self._publish(path, "prop_setups", record, resolved.config.source_backtest_id)
         return record
@@ -136,12 +171,38 @@ class PropRunStore:
         resolved = ResolvedSimulation.from_dict(record["resolved"])
         calendar = SessionCalendar.from_json(dump(record["calendar"]))
         instrument = InstrumentDeclaration.from_dict(record["instrument"])
+        if record["declaration"].get("instrument_profile_id") != (instrument.profile.profile.id if instrument.profile else None):
+            raise ValueError("Saved instrument selection does not match its captured profile.")
+        if instrument.profile is not None:
+            from .instruments import require_supported_account
+            require_supported_account(instrument.profile.profile, resolved.rules.profile)
+        if (instrument.profile.profile_sha256 if instrument.profile else None) != resolved.config.instrument_profile_sha256:
+            raise ValueError("Saved instrument profile identity does not match simulation settings.")
         if calendar.sha256 != resolved.config.calendar_sha256 or calendar.policy != resolved.rules.profile.session:
             raise ValueError("Saved calendar does not match the resolved setup.")
+        if record.get("coverage") is not None:
+            from .coverage import SourceSessionProfile
+            captured = record["coverage"]
+            p = SourceSessionProfile.from_dict(captured["profile"])
+            if (p.sha256 != captured["profile_sha256"] or p.sha256 != record["declaration"].get("source_session_profile_sha256")
+                    or p.sha256 not in calendar.coverage_assumption or captured["coverage"]["calendar_sha256"] != calendar.sha256):
+                raise ValueError("Saved coverage profile/calendar identities do not match.")
         if (instrument.symbol, instrument.currency, instrument.contract_limit_weight, instrument.contract_limit_source_url) != (
                 resolved.config.instrument, resolved.config.currency, resolved.config.contract_limit_weight, resolved.config.contract_limit_source_url):
             raise ValueError("Saved instrument declaration does not match the resolved setup.")
         return {**record, "latest_check": json.loads(check[0]) if check else None}
+
+    def coverage_page(self, setup_id, offset=0, limit=50):
+        setup = self.get_setup(setup_id)
+        if setup is None or not setup.get("coverage"):
+            raise KeyError("No saved automatic coverage report.")
+        with (self.root / setup_id / "coverage.json").open(encoding="utf-8") as stream:
+            data = json.load(stream)  # bounded by 10,000 session rows, never bar observations
+        report = data["coverage"]
+        report["total"] = len(report["sessions"])
+        report["sessions"] = report["sessions"][offset:offset + limit]
+        report.update(offset=offset, limit=limit)
+        return data
 
     def list_setups(self, source_id, offset=0, limit=25):
         with self.connect() as conn:
@@ -172,6 +233,8 @@ class PropRunStore:
             path.mkdir()
             try:
                 with prepare_backtest(runs, resolved, calendar, instrument) as source:
+                    if setup.get("coverage") and next(a.sha256 for a in source.snapshot.artifacts if a.name == "report.json") != setup["coverage"]["source"]["report_sha256"]:
+                        raise InputError("Source report changed since saved coverage. Refresh coverage and save a new setup.")
                     write_json(path / "source.json", source.snapshot.to_dict())
                     index = sqlite3.connect(path / "preview.sqlite3")
                     try:
@@ -252,6 +315,7 @@ class PropRunStore:
                                    "Historical start is the first session open; end is a declared session reset.",
                                    "No funded execution, receipts, or Monte Carlo in this result."],
                       source_check_id=checked["id"])
+        if setup.get("coverage") is not None: record["coverage"] = setup["coverage"]
         with TemporaryDirectory(prefix=".simulation-", dir=self.root) as temporary:
             path = Path(temporary) / "output"
             path.mkdir()
@@ -263,6 +327,10 @@ class PropRunStore:
                 write_json(path / "source.json", source.snapshot.to_dict())
                 write_json(path / "simulation.json", resolved.to_dict())
                 write_json(path / "profile.json", resolved.rules.to_dict())
+                write_json(path / "instrument.json", instrument.to_dict())
+                if setup.get("coverage") is not None:
+                    import shutil
+                    shutil.copyfile(self.root / setup["id"] / "coverage.json", path / "coverage.json")
                 (path / "calendar.json").write_text(calendar.to_json() + "\n", encoding="utf-8")
                 raw_settings = json.loads(source.snapshot.manifest_json)["execution_settings"]
                 execution = ExecutionConfig(**{key: value if key == "slippage_ticks" else Decimal(value) for key, value in raw_settings.items()})
@@ -309,7 +377,7 @@ class PropRunStore:
             # The manifest identifies all downloadable financial artifacts. The
             # event index is an implementation detail; CSV/manifest are portable.
             record["artifacts"] = {}
-            for filename in ("events.csv", "source.json", "simulation.json", "profile.json", "calendar.json"):
+            for filename in ("events.csv", "source.json", "simulation.json", "profile.json", "calendar.json", "instrument.json", *(["coverage.json"] if setup.get("coverage") else [])):
                 digest, size = sha256(), 0
                 with (path / filename).open("rb") as stream:
                     for chunk in iter(lambda: stream.read(65536), b""):

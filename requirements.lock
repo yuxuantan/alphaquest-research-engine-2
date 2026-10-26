@@ -23,6 +23,18 @@ typing-inspection==0.4.4
 typing_extensions==4.16.0
 uvicorn==0.54.0
 
+# Pinned CME equity schedule model and its runtime dependencies.
+pandas_market_calendars==5.5.0
+exchange_calendars==4.13.2
+pandas==3.1.0
+numpy==2.5.4
+korean_lunar_calendar==0.4.0
+pyluach==2.3.0
+python-dateutil==3.0.0
+six==1.17.0
+toolz==1.2.0
+tzdata==2026.5
+
 # Optional browser test extra: install -e '.[dev,browser]' with these constraints.
 playwright==1.64.1
 pyee==14.0.0

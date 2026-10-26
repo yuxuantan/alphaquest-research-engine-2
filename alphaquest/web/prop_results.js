@@ -80,6 +80,8 @@
       summary.append(node("p", `Result ${result.id} · ${result.created_at_utc} · ${result.currency} · ${result.observation_mode}`));
       const profile = result.resolved.rules.profile;
       summary.append(node("p", `Account profile: ${profile.id} · ${profile.id.endsWith("_no_activation") ? "No activation fee" : "Standard"}.`));
+      const instrument = result.instrument;
+      summary.append(node("p", `Instrument: ${instrument.symbol} · ${instrument.currency}${instrument.profile ? ` · profile ${instrument.profile.profile.id} version ${instrument.profile.profile.version}` : " · custom declaration"}.`));
       const sourceLink = node("a", `Source backtest ${result.source_backtest_id}`);
       sourceLink.href = `#backtests/report/${result.source_backtest_id}`;
       summary.append(sourceLink);
@@ -93,11 +95,12 @@
       summary.append(table(["External fees", "Modeled receipts", "Modeled net cash", "Calendar expiry UTC", "Target UTC", "Review UTC", "Recognition UTC"],
         [[s.external_costs, s.modeled_receipts, s.modeled_net_cash, s.expiry_at_utc, s.target_reached_at_utc, s.reviewed_at_utc, s.recognized_at_utc]]));
       const links = get("#prop-result-downloads"); links.replaceChildren();
-      ["report.json", "events.csv", "source.json", "simulation.json", "profile.json", "calendar.json"].forEach(filename => {
+      ["report.json", "events.csv", "source.json", "simulation.json", "profile.json", "calendar.json", ...(result.artifacts["instrument.json"] ? ["instrument.json"] : []), ...(result.artifacts["coverage.json"] ? ["coverage.json"] : [])].forEach(filename => {
         const link = node("a", filename); link.className = "button secondary";
         link.href = `/api/prop-simulations/results/${result.id}/exports/${filename}`; link.download = ""; links.append(link);
       });
       const settings = get("#prop-result-settings"); settings.replaceChildren();
+      if (result.coverage) settings.append(node("p", `Source-session profile: ${result.coverage.profile.name} · ${result.coverage.profile_sha256}`));
       result.limitations.forEach(text => settings.append(node("p", text)));
       settings.append(node("p", `Engine ${result.engine_version} · source snapshot ${result.source_sha256}`));
       const detail = node("details"); detail.append(node("summary", "Resolved settings, evidence and reconciliation"),

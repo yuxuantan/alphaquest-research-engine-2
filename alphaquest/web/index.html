@@ -452,9 +452,13 @@
               <div id="prop-rules"></div>
             </section>
             <section class="panel prop-panel" aria-labelledby="prop-instrument-heading">
-              <h2 id="prop-instrument-heading">2. Declare instrument units</h2>
+              <h2 id="prop-instrument-heading">2. Select instrument</h2>
               <p id="prop-execution-units"></p>
-              <p>Confirm the saved monetary units and the instrument’s contract weight under the selected account rules. These cannot be inferred from its symbol.</p>
+              <label>Instrument profile<select id="prop-instrument-profile" required></select></label>
+              <p>Select the contract traded by this backtest. The profile supplies currency, contract specifications, Apex weight and sources. It preserves the backtest’s original fills and costs.</p>
+              <div id="prop-instrument-summary" aria-live="polite"></div>
+              <div id="prop-instrument-custom" hidden>
+              <p>Custom or legacy declaration: use this for instruments without a matching reusable profile. Confirm the units explicitly; known conflicts with saved metadata cannot be overridden.</p>
               <div class="prop-fields">
                 <label>Instrument symbol<input id="prop-symbol" type="text" maxlength="80" required /></label>
                 <label>Source account currency<select id="prop-currency" required><option value="">Confirm currency</option><option value="USD">USD</option></select></label>
@@ -462,10 +466,30 @@
                 <label>Contract weight source URL<input id="prop-unit-url" type="url" maxlength="2000" placeholder="https://…" required /></label>
               </div>
               <label>Currency and contract interpretation<textarea id="prop-basis" minlength="8" maxlength="2000" rows="2" required></textarea></label>
+              </div>
             </section>
             <section class="panel prop-panel" aria-labelledby="prop-calendar-heading">
-              <h2 id="prop-calendar-heading">3. Declare source coverage</h2>
+              <h2 id="prop-calendar-heading">3. Coverage check</h2>
               <p id="prop-calendar-range"></p>
+              <label>Coverage workflow<select id="prop-coverage-mode"><option value="automatic">Automatic · reuse dataset session profile</option><option value="advanced">Advanced · explicit calendar override</option></select></label>
+              <div id="prop-auto-coverage">
+                <p id="prop-coverage-status" role="status">Inspecting saved source timestamps…</p>
+                <label>Dataset export-session profile<select id="prop-export-profile"></select></label>
+                <p>Choose the schedule your exporter was intended to include once. Observed spacing is a suggestion; it cannot prove which bars should exist. Choices are remembered for this dataset identity.</p>
+                <div id="prop-export-editor" hidden>
+                  <div class="prop-fields">
+                    <label>Profile name<input id="prop-export-name" maxlength="160" /></label>
+                    <label>Calendar model<select id="prop-export-calendar"><option value="cme_equity_model">CME equity model · holidays and early closes</option><option value="weekday_approximation">Weekday approximation · no holidays</option></select></label>
+                    <label>First expected bar-close label · New York<input id="prop-export-first" type="time" step="1" /></label>
+                    <label>Last expected bar-close label · New York<input id="prop-export-last" type="time" step="1" /></label>
+                    <label>Expected bar interval · seconds<input id="prop-export-interval" type="number" min="1" max="86400" step="1" /></label>
+                  </div>
+                </div>
+                <div class="prop-actions"><button id="prop-remember-session" class="button secondary" type="button">Use and remember session profile</button><button id="prop-refresh-coverage" class="button secondary" type="button">Refresh coverage</button></div>
+                <div id="prop-coverage-summary"></div>
+                <div class="report-pagination"><span id="prop-coverage-count"></span><div><button id="prop-coverage-prev" class="button secondary" type="button">Previous sessions</button><button id="prop-coverage-next" class="button secondary" type="button">Next sessions</button></div></div>
+              </div>
+              <div id="prop-advanced-coverage" hidden>
               <p>Prop sessions use America/New_York: open 18:00 on the preceding date, close 16:59:59, reset 18:00. Sunday evening belongs to Monday. Coverage is a declaration about expected source bars, including days with no trades.</p>
               <label>Calendar policy<select id="prop-calendar-mode" required><option value="">Choose a coverage policy</option>
                 <option value="weekday_approximation">Weekday approximation · same declared window Monday–Friday</option>
@@ -482,6 +506,7 @@
               </div>
               <label>Coverage basis<textarea id="prop-coverage" rows="2" minlength="8" maxlength="2000" required></textarea></label>
               <p>Weekday approximation declares weekends closed and does not model holidays. Use explicit dates for exceptions. The full selected backtest period is checked; dates are not dropped to make coverage pass.</p>
+              </div>
             </section>
             <div class="prop-actions"><button id="prop-save" class="button primary" type="submit">Save setup</button><span id="prop-save-note" role="status"></span></div>
           </form>
