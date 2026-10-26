@@ -64,3 +64,29 @@ Empty/OOS-filtered inputs reject without fabricated trades. Empty holdout reject
 with instructions to set VALIDATION_SPLIT=0. Invalid settings reject. Duplicate
 active submissions share a job ID; operational failure cannot download a completed
 report. Reload/reopen issue no POST and do not rerun Monte Carlo.
+
+## Increment 2 — sizing, staged sizing and repeated attempts
+
+Use the increment 1 UI steps and identical overrides, choosing **Evaluation +
+sizing and attempts**. Or run
+`.venv/bin/python scripts/demo_prop_analysis.py --increment 2`.
+All nine original fractional size-grid rows are retained. The evaluation sweep
+uses main count 256 (the notebook does not use SWEEP_SIMS there). Stage-1 sizes
+are round(fraction × selected size, 2). Train and holdout weekday counts, selected
+row, holdout metrics, CI-overlap rows, staged baseline/variants and sample labels
+are saved. Paths now draw from validation, as in top-to-bottom cell execution.
+Independent attempts use the main result; correlated attempts use the selected
+size's validation result. The fee preset overrides ATTEMPT_FEE and EVAL_FEE
+separately and preserves the notebook's different probability inputs.
+
+Saved report: `5b6c4105cfd744a484c8463d2bbf7070`.
+Durable directory: `data/prop_analyses/5b6c4105cfd744a484c8463d2bbf7070/`.
+Evidence/downloads/screenshots: `artifacts/prop-notebook/increment2/` (same filenames
+as increment 1). The fresh reference prefix through cells 8/8b/9/10/10b matches
+all sweep rows, selected size/holdout metrics, staged probabilities and retained
+paths **exactly**. Automated fixture checks also compare every correlated-attempt
+row. Independent arithmetic: p=.5 gives P(pass within 2)=.75 under independence,
+and .625 at rho=.5. Twenty-two focused checks passed including real Chromium
+run/reload/reopen/download. The temporary demo/test servers stopped normally.
+
+Expected saved observations: selected size 2.0 minis; train pass 0.8046875; validation pass 0.83203125; staged flat 0.56640625; staged rows [[0.5, 0.37109375, 0.3142282955244983, 0.4317708054662592], [1.0, 0.48046875, 0.42000768037908615, 0.5415073349225438], [1.5, 0.53515625, 0.4739891850542932, 0.595283787402773]]. Sample: validation (held out).

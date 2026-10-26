@@ -12,7 +12,7 @@ from .adapter import adapt, canonical
 from .model import NotebookModel
 from .settings import DEFAULTS, PRESETS, NOTEBOOK_SHA256, MODEL_VERSION, validate
 
-AVAILABLE_INCREMENT = 1
+AVAILABLE_INCREMENT = 2
 NOTEBOOK = Path(__file__).resolve().parents[2]/'docs/notebooks/PropFirm_MonteCarlo_Apex50K_2508.ipynb'
 
 
@@ -66,15 +66,37 @@ def execute(frame,settings,increment=1,progress=lambda _:None):
     m.cell_6();m.cell_8();m.cell_9()
     progress('Main evaluation Monte Carlo')
     m.cell_10()
+    main_statistics=statistics(m)
+    if increment>=2:
+        progress('Train/validation size sweep and staged sizing')
+        m.cell_11();m.cell_12()
     # At increment 1, path samples use the full sample. Cell 9 uses validation
     # after cell 8 in a complete top-to-bottom execution; later increments do so.
     m.cell_13()
-    result=dict(statistics=statistics(m),daily=m.daily_full.to_dict('records'),trades=m.df_sim.to_dict('records'),evaluation=m.res,
+    result=dict(statistics=main_statistics,daily=m.daily_full.to_dict('records'),trades=m.df_sim.to_dict('records'),evaluation=m.res,
         paths=dict(equity=m.paths,outcomes=m.outcomes,seed=m.SEED+5000,sample=m.SAMPLE_NAME),
         engine=dict(requested=settings['ENGINE'],effective=m.ENGINE,measured_excursion_coverage=0.,provenance='No measured excursions; trade fallback; synthetic bag MAE is realized loss, zero for winners.'),
         rules=asdict(m.CHALLENGE),deadline_pool=m.DEADLINE_POOL,
         samples=dict(main='full filtered sample',downstream=m.SAMPLE_NAME,split_weekday_index=m._SPLIT_I),
         seed_streams=dict(bootstrap_fixed=42,main=m.SEED,paths=m.SEED+5000,degradation_fixed=20240101))
+    if increment>=2:
+        m.cell_15()
+        staged=[dict(stage1_nc=row[0],stage2_nc=m._opt_nc,pass_rate=row[1],ci_low=row[2],ci_high=row[3],delta_vs_flat=row[1]-m._p_flat) for row in m._rows]
+        if m._best_staged[2]>m._hi_f:staging_verdict='HELPS'
+        elif m._best_staged[3]<m._lo_f:staging_verdict='HURTS'
+        else:staging_verdict='No significant difference'
+        result['sizing']=dict(sweep=m.sweep_data,selected=m._best,validation=m._val,
+            train_weekdays=m._SPLIT_I if m.VALIDATION_SPLIT>0 else len(m.TRADE_BAG_FULL),validation_weekdays=len(m.TRADE_BAG),
+            sample=m.SAMPLE_NAME,staged=staged,staged_raw=m._rows,flat_pass_rate=m._p_flat,
+            flat_ci=[m._lo_f,m._hi_f],staged_verdict=staging_verdict,ci_overlap_sizes=m._tied,
+            selection_limitation='CI overlap is notebook tie language, not proof of equivalence; staged selection reuses validation; staged engine omits DLL.')
+        result['attempts']=dict(
+            independent=[dict(attempts=n,probability=1-(1-m.res['pass_rate'])**n) for n in (1,2,3,4)],
+            independent_sample='Main full-filtered sample, cell 10',
+            correlated=[dict(attempts=n,fees=n*m.ATTEMPT_FEE,**{f'rho_{rho:g}':m._p_within_n(m._p_att,n,rho) for rho in m.RHO_GRID}) for n in range(1,m.N_MAX_ATT+1)],
+            correlated_sample=m.SAMPLE_NAME,pass_probability=m._p_att,attempt_fee=m.ATTEMPT_FEE,
+            attempts_to_80={str(rho):next((n for n in range(1,m.N_MAX_ATT+1) if m._p_within_n(m._p_att,n,rho)>=.8),None) for rho in m.RHO_GRID})
+        result['seed_streams'].update(sweep=m.SEED+2000,validation=m.SEED+2600,staged=m.SEED+15000)
     result["charts"]=dict(days_to_pass=histogram(m.res["days_to_pass"]),drawdown=histogram(m.res.get("max_dds",m.res.get("max_dds_all"))))
     return clean(result)
 

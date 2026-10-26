@@ -76,3 +76,14 @@ hashes, application commit, runtime and seed streams. No legacy results migrate.
 Resource bounds reject oversized requests explicitly: 100,000 trades, 20,000
 weekdays, 100,000 simulations per call, 64 sizes and 300 retained sample paths;
 horizon guards are bounded separately. The server never silently truncates counts.
+
+## Sizing and attempt sample semantics
+
+Main simulation uses the full filtered sample. Cell 8 selects on the early
+training weekday slice and evaluates the winner on validation with seed +2600;
+its sweep uses PROP_MC_SIMS and common seed +2000. Cell 8b reuses validation and
+seed +15000, omits DLL, rounds stage sizes to two decimals, and uses notebook
+CI comparisons. Paths use seed +5000 and the current sample. Correlated attempts
+use selected validation pass rate; independent attempts use the main pass rate.
+The literal ATTEMPT_FEE=100, EVAL_FEE=100 and PA_ACTIVATION=140 remain available;
+pricing presets explicitly override all three while leaving BLOWN_COST=150.

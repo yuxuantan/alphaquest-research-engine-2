@@ -40,3 +40,27 @@ def test_bounded_bootstrap_preserves_draw_order():
 def test_instances_do_not_share_simulation_state():
     first=execute(frame(),settings());execute(frame(),settings(SEED=99,BOOTSTRAP_BLOCK=10))
     assert execute(frame(),settings())==first
+
+@pytest.mark.parametrize('mode',['daily','trade','excursion'])
+@pytest.mark.parametrize('split',[0,.3])
+def test_sizing_and_attempts_exact(mode,split):
+    s=settings(ENGINE=mode,VALIDATION_SPLIT=split,STAGED_SIMS=64)
+    actual=execute(frame(),s,2);expected=reference(frame(),s,2)
+    assert actual['sizing']['sweep']==clean(expected['sweep_data'])
+    assert actual['sizing']['selected']==clean(expected['_best'])
+    assert actual['sizing']['validation']==clean(expected['_val'])
+    assert actual['sizing']['staged_raw']==clean(expected['_rows'])
+    assert actual['sizing']['flat_pass_rate']==expected['_p_flat']
+    assert actual['paths']['equity']==clean(expected['paths'])
+    assert actual['paths']['outcomes']==clean(expected['outcomes'])
+    for row in actual['attempts']['correlated']:
+        for rho in s['RHO_GRID']:assert row[f'rho_{rho:g}']==expected['_p_within_n'](expected['_p_att'],row['attempts'],rho)
+    assert actual['statistics']['bootstrap_usd_ci']==execute(frame(),s,1)['statistics']['bootstrap_usd_ci']
+
+
+def test_attempt_probabilities_independent_arithmetic():
+    model=NotebookModel()
+    assert model._p_within_n(.5,2,0)==.75
+    assert model._p_within_n(.5,2,.5)==.625
+    assert model._p_within_n(0,6,.3)==0
+    assert model._p_within_n(1,6,.3)==1
