@@ -133,3 +133,103 @@ All four portal demonstrations and fresh notebook comparisons passed; each serve
 was stopped on exit. Adapter tests independently cover Sunday-local exclusion,
 zero-trade Tuesday, variable-quantity default rejection and opt-in, cost corruption
 rejection and nominal-versus-observed slippage reconciliation.
+
+## Increment 4 — lifetime, economics and complete report
+
+From the source report, choose **Complete lifetime and economics**. The report
+combines all earlier sections, source-equity curve, outcome charts, full lifetime
+size sweep, total-extraction/payout-count/account-lifetime distributions, sizing
+funnel, economics and block robustness. Reopen from saved analyses, or navigate
+directly to `/#backtests/prop/job/<id>`. Downloads read the published report;
+reload and reopening never submit a new operation.
+
+Reduced-count report `d06a3c6b9fdc448fbfa6a8c8c7f2a18f` uses the increment 1
+settings and the full original lifetime horizon 2000, with 128 paths per lifetime
+size. Its evidence is in
+`artifacts/prop-notebook/increment4/reproduction-20261026T091207078850Z/`.
+Earlier increment 4 snapshots remain in the base directory and durable store.
+Later demo reruns create a new timestamped subdirectory, preserving prior evidence.
+Expected selected lifetime size **2.0**, mean extraction **11200.1896875**, mean
+payout count **5.1953125**, mean life **110.953125** weekdays, horizon rate **0**.
+With explicit $49+$129 overrides, acquisition cost is
+49 / .609375 + 129 = **209.4102564102564**, expected net **10990.779431089744**.
+All raw lifetime totals/counts/lifetimes, selected sizes, formulas and block 1/5/10
+results match the fresh original notebook exactly. The economic verdict is the
+notebook's label, with its documented holdout reuse and acquisition shortcuts.
+
+Independent positive fixture arithmetic: +600 per weekday, one trade, no costs,
+no holdout. First request at day 5 withdraws 3000−2100=900. Later five-day cycles
+withdraw 1500,2000,2500,2500,3000, totaling **12400** over **30** days, with six
+payouts and ladder_done. Notebook-default acquisition cost is 100/1+140=240;
+expected net **12160**. Tests verify those independent values. All-loss fixtures
+verify both selection fallbacks and infinite acquisition-cost disclosure.
+
+### Original-count native demonstration
+
+Command actually run:
+`.venv/bin/python scripts/demo_prop_analysis.py --increment 4 --full-counts`.
+This uses source costs and the $49+$129 pricing preset, **no count overrides**.
+The UI receives 20000 main/evaluation-sweep/staged paths, 20000 funded detail,
+5000 funded sweep per size, 4000 lifetime sweep per size, 300 sample equity paths,
+full original 9/16 size grids, 250/2000-day funded/lifetime guards and seed 42.
+SWEEP_SIMS=5000 and LIFETIME_SIMS=10000 remain recorded but unused where the
+original executable cells do not use them. Bootstrap statistics use fixed seed
+42 and 10000 resamples. No requested count is reduced.
+
+Actual complete report: `1b9480015b5a4670a2b98e05f37bf28b`.
+Open `http://127.0.0.1:8000/#backtests/prop/job/1b9480015b5a4670a2b98e05f37bf28b`.
+Durable files: `data/prop_analyses/1b9480015b5a4670a2b98e05f37bf28b/`.
+Evidence: `artifacts/prop-notebook/increment4/full-counts/`, containing report JSON,
+ordered trades/daily CSV, ZIP, independent validation.json, full report/source-check
+screenshots and readable funded/lifetime/economics/robustness screenshots.
+
+To reproduce manually, follow increment 1's source report link. Choose Complete,
+Source execution costs, $49+$129, size 1, excursion, main count **20000**, and
+additional overrides **{}**. Check source and run. Observe the exact saved values
+below, reload, reopen and download. Keep original notebook pricing instead if you
+want its literal 100/140 fee assumptions; those would change economics explicitly.
+
+Fresh independent reference execution of the entire corresponding notebook prefix
+matched every checked count, aggregate, normalized canonical trade/daily value,
+bootstrap statistic, path, size selection, attempt probability, funded result,
+lifetime total/payout-count/lifetime array, economic formula and robustness row
+**exactly**. Python 3.12.5 / NumPy 2.5.4 / pandas 3.1.0; no float tolerance was needed.
+The reference reads executable cells from the pinned source, never stored outputs.
+
+Full-count expected observations: **11239 pass, 4367 DD, 4394 deadline** (pass 0.56195); evaluation-selected size **2.0**; funded **16906 qualified, 2922 blown, 172 inactive, 0 horizon**, expected first payout **1266.56399**. Lifetime-selected size **2.0**, mean extraction **10406.71656**, mean payout count **4.84075**, mean life **104.24825**, horizon rate **0.0**. Acquisition **216.1963697837886**, expected net **10190.520190216212**.
+
+| Block | Evaluation pass | Funded qualify | Blown |
+| --- | --- | --- | --- |
+| 1 | 0.65035 | 0.835 | 0.1578 |
+| 5 | 0.61925 | 0.7824 | 0.2048 |
+| 10 | 0.5955 | 0.7444 | 0.2432 |
+
+## Completion checks and retained boundaries
+
+Cleanup commit: `947d519`. Implementation increments 1–3: `9330f68`, `a0ade09`,
+`3c60e68`; increment 4 is the commit containing this completion record.
+`.venv/bin/python -m pytest -q` completed **559 passed**, 24 warnings in 97.06s:
+one existing Starlette/httpx deprecation, plus the original notebook loader's
+pandas dayofweek deprecation warnings. `git diff --check` passed. Fresh notebook
+comparisons, browser run/reload/reopen/download, synthetic funded boundaries and
+original-count complete-report comparison all passed. Downloaded JSON/CSV/ZIP
+are the same published files used by the report; source identity/cost arithmetic
+and chart bins/arrays are inspectable. All temporary servers stopped normally;
+no persistent server was started and no existing user server was stopped.
+
+The workspace backup patch was independently tested with `git apply --check`
+against an archive of the recovery ref and applies cleanly. Working branch is
+local only; no push or merge. Original strategy, execution, backtest, dataset and
+reporting source modules retain their baseline content; only portal integration
+and app lifecycle orchestration change there. Original datasets/backtests,
+legacy prop catalogues/results and prior evidence were retained, without conversion.
+The strict URLs/readers listed in the specification are intentionally retired.
+
+No unmatched numerical output remains in the comparisons run. Qualification is
+for the pinned executable notebook, supported native saved trades, settings,
+seeds and pinned runtime actually exercised. Chart styling is portal-native SVG;
+its saved data matches the notebook calculations. Native saved trades have no
+measured MAE/MFE, so native analysis uses the documented fallback. Known notebook
+financial/model shortcuts remain limitations, including holdout reuse and
+selection fallbacks; provider correctness and actual micro-contract execution
+are not claims of this product. Operations over resource bounds reject explicitly.

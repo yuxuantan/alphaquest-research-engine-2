@@ -26,8 +26,16 @@ Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the 
 
 This is a single-user application bound to your own computer, without a login or public hosting setup.
 
-Prop analysis integrates the pinned trade-based notebook through completed
-backtest reports. See [the model specification](docs/prop_simulation.md) and
+Open a completed **Backtest report → Configure prop analysis**, choose source-cost
+or literal notebook assumptions, inspect **Check source**, then **Run analysis**.
+The durable report contains trade/bootstrap statistics, evaluation paths and
+probabilities, flat/staged sizing, repeated attempts, funded first payouts,
+lifetime extraction, economics, recommendations and block-length robustness.
+JSON/CSV/ZIP downloads and saved reports survive reload without simulation reruns.
+Notebook defaults remain available, including distinct fee formulas; $49+$129
+and $109+$0 are explicit pricing presets. Missing MAE falls back to trade mode;
+full-session bar coverage is not required. This reproduces a pinned analytical
+model, including its known shortcuts, rather than certifying current provider rules. See [the model specification](docs/prop_simulation.md) and
 [workflow evidence](docs/prop_simulation_review.md). Earlier strict account-engine
 URLs are retired; their saved files remain unchanged.
 

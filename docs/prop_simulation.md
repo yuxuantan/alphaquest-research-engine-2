@@ -98,3 +98,46 @@ outcomes preserve original calculation order. Sweeps use seed +8000; detail at
 the selected size uses +9000. Net EV subtracts (blown + inactive) × BLOWN_COST.
 If no size meets MAX_BLOWN_RATE, the notebook's all-sizes fallback is retained and
 marked. No official-provider profile or evidence approval is involved.
+
+## Lifetime and final economics
+
+Cell 15 runs the six-step payout ladder and selects the maximum expected total
+subject to MAX_BLOWN_RATE, falling back to the minimum blown rate if necessary.
+Original payout cycles, permanent drawdown lock, withdrawal reductions,
+consistency, inactivity and horizon truncation are retained. Observability adds
+raw account lifetimes and first-payout days without random draws or state changes.
+LIFETIME_SIMS is declared but unused in the executable notebook: the selected
+result is a sweep row using LIFETIME_SWEEP_SIMS. That fact appears in downloads.
+
+Cell 16 uses **main full-sample pass probability at NUM_CONTRACTS** to calculate
+`EVAL_FEE / pass_rate + PA_ACTIVATION`; it does not substitute selected evaluation
+size or holdout probability. Expected net subtracts that cost from selected
+lifetime extraction. The original NEGATIVE EV / THIN / WORKABLE / STRONG labels
+are model output. Zero-pass acquisition cost is infinite; JSON null plus an
+explicit explanation represents non-finite values. These shortcuts are not a
+simulation of real purchases, campaigns or payment receipt.
+
+Robustness reruns blocks 1, 5 and 10 at seed +7700, preserves downstream validation
+sample use, compares evaluation at NUM_CONTRACTS and funded at lifetime-selected
+size, then restores the configured block. All raw row results and chart data are
+saved. Lifetime sweep uses seed +12000. Source equity uses cell 5b's $100,000
+plotting base; account simulation equity paths remain profit relative to zero.
+
+## Parity qualification
+
+Fresh original notebook comparisons run under Python 3.12.5, NumPy 2.5.4 and
+pandas 3.1.0. Stored notebook outputs are ignored. All compared discrete counts,
+arrays, numerical aggregates and selections matched **exactly** (zero numerical
+tolerance needed in this runtime), including a full-count native portal run.
+Tests also cover all three evaluation engine settings, blocks 1/5/10, holdout
+on/off, missing MAE, measured-excursion numerical processing, quantity/cost/date
+boundaries, selection fallbacks, zero-pass economics and deterministic payout
+outcomes. Cross-runtime equality is not claimed; pins and input/source hashes
+are part of the report. The reference harness adds only observation of raw
+lifetime-day arrays and captures pre-sizing statistics before notebook variable
+reuse; numerical notebook calls and draw ordering remain original.
+
+All four increments are delivered. Exact saved IDs, settings, outputs and
+reproduction steps are in `prop_simulation_review.md`. Original-count sweeps,
+main/detail simulations and 300 retained paths were tested through the portal;
+reduced fixture demonstrations are separately labeled.

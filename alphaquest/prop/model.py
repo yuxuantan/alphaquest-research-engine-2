@@ -615,6 +615,8 @@ class NotebookModel:
             totals.append(total_paid)
             n_payouts_all.append(payout_i)
             days_alive_all.append(day)
+        self.last_lifetime_days = np.asarray(days_alive_all)
+        self.last_first_payout_days = np.asarray(first_payout_days)
         totals = np.array(totals)
         n_payouts_all = np.array(n_payouts_all)
         return {'n_contracts': n_contracts, 'micros': int(round(n_contracts * self.MICRO_PER_MINI)), 'n_sims': n_sims, 'expected_total': float(totals.mean()), 'median_total': float(np.median(totals)), 'p10_total': float(np.percentile(totals, 10)), 'p90_total': float(np.percentile(totals, 90)), 'p_zero': float((totals == 0).mean()), 'p_ladder_done': outcome_ct['ladder_done'] / n_sims, 'blown_rate': outcome_ct['blown'] / n_sims, 'closed_inactive_rate': outcome_ct['closed_inactive'] / n_sims, 'horizon_rate': outcome_ct['horizon'] / n_sims, 'avg_n_payouts': float(n_payouts_all.mean()), 'p_at_least_1': float((n_payouts_all >= 1).mean()), 'median_days_first_payout': float(np.median(first_payout_days)) if first_payout_days else np.nan, 'avg_days_alive': float(np.mean(days_alive_all)), 'totals': totals, 'n_payouts': n_payouts_all, 'outcome_ct': outcome_ct}
@@ -768,6 +770,7 @@ class NotebookModel:
         self.set_sample('train')
         self.sweep_data = []
         for self.nc in self.SWEEP_CONTRACTS:
+            getattr(self, 'progress', lambda _: None)(f'Evaluation size {self.nc:g}')
             self.rs = self.simulate_apex(daily_pool=self.daily_pool, challenge=self.CHALLENGE, n_sims=self.PROP_MC_SIMS, n_contracts=self.nc, rng=np.random.default_rng(self.SEED + 2000))
             self.ci = self.rs['pass_rate_ci']
             self.ad = self.rs['avg_days_to_pass'] if self.rs['avg_days_to_pass'] is not None else np.nan
@@ -902,6 +905,7 @@ class NotebookModel:
         self.MAX_BLOWN_RATE = self.overrides.get('MAX_BLOWN_RATE', self.MAX_BLOWN_RATE)
         self.payout_sweep = []
         for self.nc in self.PAYOUT_CONTRACTS:
+            getattr(self, 'progress', lambda _: None)(f'Funded/lifetime size {self.nc:g}')
             self.r = self.simulate_funded(daily_pool=self.daily_pool, n_sims=self.PAYOUT_SWEEP_SIMS, n_contracts=self.nc, rng=np.random.default_rng(self.SEED + 8000))
             self._closure_rate = self.r['blown_rate'] + self.r['closed_inactive_rate']
             self.r['net_ev'] = self.r['expected_payout'] - self._closure_rate * self.BLOWN_COST
@@ -926,9 +930,12 @@ class NotebookModel:
         self.LIFETIME_SWEEP_SIMS = 4000
         self.LIFETIME_SWEEP_SIMS = self.overrides.get('LIFETIME_SWEEP_SIMS', self.LIFETIME_SWEEP_SIMS)
         self.lifetime_sweep = []
+        self.lifetime_observations = []
         for self.nc in self.PAYOUT_CONTRACTS:
+            getattr(self, 'progress', lambda _: None)(f'Funded/lifetime size {self.nc:g}')
             self.r = self.simulate_funded_lifetime(daily_pool=self.daily_pool, n_sims=self.LIFETIME_SWEEP_SIMS, n_contracts=self.nc, rng=np.random.default_rng(self.SEED + 12000))
             self.lifetime_sweep.append(self.r)
+            self.lifetime_observations.append(dict(n_contracts=self.nc,days_alive=self.last_lifetime_days,first_payout_days=self.last_first_payout_days))
         self.LIFETIME_MAX_BLOWN = self.MAX_BLOWN_RATE
         self.LIFETIME_MAX_BLOWN = self.overrides.get('LIFETIME_MAX_BLOWN', self.LIFETIME_MAX_BLOWN)
         self._life_ok = [d for d in self.lifetime_sweep if d['blown_rate'] <= self.LIFETIME_MAX_BLOWN]
@@ -961,6 +968,7 @@ class NotebookModel:
         self._blk0 = self.BOOTSTRAP_BLOCK
         try:
             for self._b in (1, 5, 10):
+                getattr(self, 'progress', lambda _: None)(f'Robustness block {self._b}')
                 self.BOOTSTRAP_BLOCK = self._b
                 self._e = self.simulate_apex(daily_pool=self.daily_pool, challenge=self.CHALLENGE, n_sims=self.PROP_MC_SIMS, n_contracts=self.NUM_CONTRACTS, rng=np.random.default_rng(self.SEED + 7700))
                 self._f = self.simulate_funded(daily_pool=self.daily_pool, n_sims=self.PAYOUT_SWEEP_SIMS, n_contracts=self._life_best['n_contracts'], rng=np.random.default_rng(self.SEED + 7700))

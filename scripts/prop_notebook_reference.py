@@ -24,8 +24,15 @@ def reference(frame, settings, increment=1):
     cells=json.loads(raw)['cells']
     key='notebook_reference_'+uuid4().hex;module=ModuleType(key);ns=module.__dict__;sys.modules[key]=module
     ns['_overrides']=settings
+    ns['_reference_lifetime_observations']=[]
     class Settings(ast.NodeTransformer):
         def __init__(self):self.seen=set()
+        def visit_FunctionDef(self,n):
+            if n.name=='simulate_funded_lifetime':
+                for i,stmt in enumerate(n.body):
+                    if isinstance(stmt,ast.Return):
+                        n.body.insert(i,ast.parse('_reference_lifetime_observations.append(dict(n_contracts=n_contracts, days_alive=list(days_alive_all), first_payout_days=list(first_payout_days)))').body[0]);break
+            return self.generic_visit(n)
         def visit_Import(self,n):
             return None if any(x.name.startswith('matplotlib') for x in n.names) else n
         def visit_ImportFrom(self,n):
@@ -45,11 +52,14 @@ def reference(frame, settings, increment=1):
             return n
     def cell(i):
         tree=ast.parse(''.join(cells[i]['source']))
-        if i in (13,15):
+        if i in (7,13,15):
             stop=next(j for j,n in enumerate(tree.body) if isinstance(n,ast.Assign) and 'plt.subplots' in ast.unparse(n))
             tree.body=tree.body[:stop]
         tree=Settings().visit(tree);ast.fix_missing_locations(tree)
         with redirect_stdout(io.StringIO()):exec(compile(tree,f'notebook:cell-{i}','exec'),ns)
+        if i==4:
+            p=ns['df_sim']['profit_net_usd'];w=ns['winners'];l=ns['losers']
+            ns['_reference_statistics']=dict(trades=len(p),win_rate=float((p>0).mean()),average_net=float(p.mean()),total_net=float(p.sum()),ev_r=float(ns['df_sim']['r_mult'].mean()),average_winner=float(w.mean()) if len(w) else None,average_loser=float(l.mean()) if len(l) else None,bootstrap_usd_ci=[ns['lo'],ns['hi']],bootstrap_r_ci=[ns['rlo'],ns['rhi']],p_ev_usd_nonpositive=float((ns['b_usd']<=0).mean()),p_ev_r_nonpositive=float((ns['b_r']<=0).mean()),bootstrap_sims=10000,bootstrap_seed=42)
     try:
         with TemporaryDirectory() as temp:
             f=frame.copy()
@@ -57,7 +67,7 @@ def reference(frame, settings, increment=1):
             if 'source_quantity' in f:
                 f['contracts']=f.source_quantity.astype(float);f['profit_usd']=f.source_reference_gross_pnl.astype(float)
             path=Path(temp)/'canonical.csv';f.to_csv(path,index=False);ns['FILENAME']=str(path)
-            for i in (2,3,4,5,6,8,9,10):cell(i)
+            for i in (2,3,4,5,6,7,8,9,10):cell(i)
             if increment>=2:
                 cell(11);cell(12)
             cell(13)

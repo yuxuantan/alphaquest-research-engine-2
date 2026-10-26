@@ -5,7 +5,8 @@ from hashlib import sha256
 import json
 from pathlib import Path
 from uuid import UUID
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, TZPATH
+from importlib.metadata import version
 from datetime import datetime
 import pandas as pd
 
@@ -34,8 +35,11 @@ def adapt(runs, run_id, settings):
     record=source_record(runs,run_id)
     path=runs.root/record['id']/'trades.csv'
     before=digest(path)
-    with path.open(newline='') as f: rows=list(csv.DictReader(f))
-    if len(rows)>100000:raise ValueError('Source exceeds 100,000-trade resource bound; no trades were truncated.')
+    rows=[]
+    with path.open(newline='') as f:
+        for row in csv.DictReader(f):
+            if len(rows)>=100000:raise ValueError('Source exceeds 100,000-trade resource bound; no trades were truncated.')
+            rows.append(row)
     if len(rows)!=record['summary']['trades_taken']:raise ValueError('Source trade count differs from saved summary.')
     zone=ZoneInfo(record['run_metadata']['dataset']['source_timezone'])
     totals={k:Decimal(0) for k in ('reference_gross_pnl','slippage_cost','total_commissions','gross_pnl','net_pnl')}
@@ -81,6 +85,8 @@ def adapt(runs, run_id, settings):
     if before!=digest(path):raise ValueError('Source changed during adaptation.')
     frame=pd.DataFrame(mapped)
     frame['datetime']=pd.to_datetime(frame['datetime']);frame['date']=frame['datetime'].dt.normalize()
-    snapshot=dict(backtest=record,trades_sha256=before,manifest_sha256=sha256(canonical(record).encode()).hexdigest(),source_timezone=str(zone),timestamp_mapping='entry UTC → saved source timezone → timezone-naive; no prop-session remapping',excursion_provenance='No measured MAE/MFE in saved trade storage; fallback MAE=realized loss is not measured.',excluded=excluded,reconciliation=reconciliation)
+    zone_file=next((Path(p)/str(zone) for p in TZPATH if (Path(p)/str(zone)).is_file()),None)
+    zone_version=dict(iana_zone=str(zone),database_sha256=digest(zone_file)) if zone_file else dict(iana_zone=str(zone),tzdata_version=version('tzdata'))
+    snapshot=dict(timezone_database=zone_version,backtest=record,trades_sha256=before,manifest_sha256=sha256(canonical(record).encode()).hexdigest(),source_timezone=str(zone),timestamp_mapping='entry UTC → saved source timezone → timezone-naive; no prop-session remapping',excursion_provenance='No measured MAE/MFE in saved trade storage; fallback MAE=realized loss is not measured.',excluded=excluded,reconciliation=reconciliation)
     overrides=dict(COMMISSION_PER_CONTRACT=float(commission),SLIPPAGE_PER_CONTRACT=float(effective_slip))
     return frame,snapshot,overrides

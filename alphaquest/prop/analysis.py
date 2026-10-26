@@ -12,7 +12,7 @@ from .adapter import adapt, canonical
 from .model import NotebookModel
 from .settings import DEFAULTS, PRESETS, NOTEBOOK_SHA256, MODEL_VERSION, validate
 
-AVAILABLE_INCREMENT = 3
+AVAILABLE_INCREMENT = 4
 NOTEBOOK = Path(__file__).resolve().parents[2]/'docs/notebooks/PropFirm_MonteCarlo_Apex50K_2508.ipynb'
 
 
@@ -60,7 +60,7 @@ def histogram(values, bins=40):
 
 
 def execute(frame,settings,increment=1,progress=lambda _:None):
-    m=NotebookModel();m.overrides=settings;m.cell_2();m.df=frame.copy(deep=True)
+    m=NotebookModel();m.overrides=settings;m.progress=progress;m.cell_2();m.df=frame.copy(deep=True)
     progress('Trade statistics and 10,000-draw bootstrap confidence intervals')
     m.cell_4();m.HAS_EXCURSIONS=False;m.EXCURSION_COVERAGE=0.
     m.cell_6();m.cell_8();m.cell_9()
@@ -76,8 +76,10 @@ def execute(frame,settings,increment=1,progress=lambda _:None):
     result=dict(statistics=main_statistics,daily=m.daily_full.to_dict('records'),trades=m.df_sim.to_dict('records'),evaluation=m.res,
         paths=dict(equity=m.paths,outcomes=m.outcomes,seed=m.SEED+5000,sample=m.SAMPLE_NAME),
         engine=dict(requested=settings['ENGINE'],effective=m.ENGINE,measured_excursion_coverage=0.,provenance='No measured excursions; trade fallback; synthetic bag MAE is realized loss, zero for winners.'),
+        evaluation_probabilities=[dict(outcome=k,count=m.res[k],probability=m.res[k]/m.PROP_MC_SIMS,ci=m.wilson_ci(m.res[k],m.PROP_MC_SIMS)) for k in ('passed','fail_dd','fail_daily','fail_time')],
+        daily_summary=dict(weekdays=len(m.daily_full),zero_trade_weekdays=int((~m.daily_full.is_trade_day).sum())),
         rules=asdict(m.CHALLENGE),deadline_pool=m.DEADLINE_POOL,
-        samples=dict(main='full filtered sample',downstream=m.SAMPLE_NAME,split_weekday_index=m._SPLIT_I),
+        samples=dict(main='full filtered sample',downstream=m.SAMPLE_NAME,split_weekday_index=m._SPLIT_I,train_dates=[m._bag_days[0],m._bag_days[m._SPLIT_I-1]] if m.VALIDATION_SPLIT>0 else [m._bag_days[0],m._bag_days[-1]],validation_dates=[m._bag_days[m._SPLIT_I],m._bag_days[-1]] if m.VALIDATION_SPLIT>0 else [m._bag_days[0],m._bag_days[-1]]),
         seed_streams=dict(bootstrap_fixed=42,main=m.SEED,paths=m.SEED+5000,degradation_fixed=20240101))
     if increment>=2:
         m.cell_15()
@@ -106,6 +108,30 @@ def execute(frame,settings,increment=1,progress=lambda _:None):
             rules={k:getattr(m,k) for k in ('RULE_SET','PAYOUT_QUAL_DAYS','PAYOUT_DAY_THR','PAYOUT_MIN_TRADED','CONSISTENCY_LIMIT','PAYOUT_CAP','PAYOUT_MIN_BALANCE','PAYOUT_MIN_WITHDRAWAL','PAYOUT_SAFETY_NET','PAYOUT_MAX_DD','PAYOUT_DD_LOCK','PAYOUT_SPLIT','INACTIVITY_WINDOW_TD','INACTIVITY_MIN_QUAL','INACTIVITY_PROFIT_THR','INACTIVITY_ON','PAYOUT_MAX_HORIZON')})
         result['charts'].update(first_payout=histogram(m.detail['payouts']),qualifying_days=histogram(m.detail['days_to_qualify']))
         result['seed_streams'].update(funded_sweep=m.SEED+8000,funded_detail=m.SEED+9000)
+    if increment>=4:
+        progress('Lifetime payout ladder and size sweep')
+        m.cell_21()
+        progress('Acquisition economics and block-length robustness')
+        m.cell_22()
+        result['lifetime']=dict(sweep=m.lifetime_sweep,selected=m.best_life,sample=m.SAMPLE_NAME,
+            selection_fallback=not bool(m._life_ok),horizon=m.LIFETIME_HORIZON,ladder=m.PAYOUT_LADDER,
+            observations=m.lifetime_observations,
+            unused_notebook_count='LIFETIME_SIMS is declared but not used by the executable notebook; the selected result is its sweep row at LIFETIME_SWEEP_SIMS.')
+        result['economics']=dict(funnel=[dict(stage='Evaluation',mini_size=m._eval_best['nc'],metric=m._eval_best['pr'],meaning='train pass probability'),dict(stage='First payout',mini_size=m._first_best['n_contracts'],metric=m._first_best['net_ev'],meaning='first-payout net EV'),dict(stage='Lifetime',mini_size=m._life_best['n_contracts'],metric=m._life_best['expected_total'],meaning='lifetime extraction')],
+            recommended_mini_size=m._life_best['n_contracts'],recommended_micro_equivalents=m._life_best['micros'],
+            acquisition_pass_probability=m._eval_pass,acquisition_probability_source='Main full-filtered sample at NUM_CONTRACTS, not the selected size validation result',
+            acquisition_cost=m._acq_cost,acquisition_formula='(1 / main pass_rate) * EVAL_FEE + PA_ACTIVATION; infinity if zero pass rate',
+            evaluation_fee=m.EVAL_FEE,activation_fee=m.PA_ACTIVATION,
+            expected_extraction=m._life_best['expected_total'],expected_net=m._net,return_multiple=m._mult,
+            zero_payout_probability=m._life_best['p_zero'],verdict=m.verdict,
+            nonfinite_values='JSON null represents unavailable/undefined or non-finite values; zero-pass acquisition cost is +infinity, expected net is -infinity.')
+        result['robustness_raw']=m.robustness
+        result['robustness']=[dict(block=r['block'],eval_pass=r['evaluation']['pass_rate'],funded_qualify=r['funded']['qualify_rate'],blown=r['funded']['blown_rate']) for r in m.robustness]
+        result['charts'].update(lifetime_total=histogram(m.best_life['totals']),payout_count=histogram(m.best_life['n_payouts'],bins=np.arange(len(m.PAYOUT_LADDER)+2)-.5),account_lifetimes=histogram(next(v['days_alive'] for v in m.lifetime_observations if v['n_contracts']==m.best_life['n_contracts'])))
+        result['seed_streams'].update(lifetime_sweep=m.SEED+12000,robustness=m.SEED+7700)
+    equity=m.daily_full['net_pnl_usd'].cumsum()+100000.
+    result['source_equity']=dict(base=100000.,equity=equity.to_numpy(),dates=m.daily_full['date'].to_list(),total_net=float(equity.iloc[-1]-100000.),max_drawdown=float((equity.cummax()-equity).max()))
+    result['charts']['evaluation_outcomes']=dict(labels=['pass','DD','daily failure','deadline'],counts=[m.res[k] for k in ('passed','fail_dd','fail_daily','fail_time')])
     return clean(result)
 
 

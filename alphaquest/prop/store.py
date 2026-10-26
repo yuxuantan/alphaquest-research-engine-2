@@ -1,5 +1,6 @@
 """One durable job/report catalogue. Completed reports publish by atomic rename."""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from hashlib import sha256
 import csv
@@ -24,7 +25,12 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute("UPDATE analyses SET status='error',error='Application stopped before publication; run again.',progress='Interrupted' WHERE status IN ('queued','running')")
 
-    def connect(self):return sqlite3.connect(self.path,timeout=30)
+    @contextmanager
+    def connect(self):
+        db=sqlite3.connect(self.path,timeout=30)
+        try:
+            with db:yield db
+        finally:db.close()
 
     def close(self):self.worker.shutdown(wait=True)
 
