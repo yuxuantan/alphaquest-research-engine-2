@@ -1,3 +1,123 @@
+# AlphaQuest local prop simulation
+
+All production account arithmetic, resampling, evaluation attempts, funded
+payouts, sizing, economics, charts and downloads are calculated by AlphaQuest.
+Model version: `alphaquest-apex50k-eod-v1`. No external executable/DLL, generated
+reference HTML/JSON/CSV/chart, Windows VM or vendor license participates in a new
+calculation. Saved external results are independent qualification oracles only.
+This supersedes the integration and older notebook specifications retained below.
+
+## Product and source contract
+
+Use completed backtest report → configure → check source → run → durable report.
+There is one active API/catalogue, `/api/prop-analyses`, under data/prop_analyses.
+`native_analysis.py` orchestrates the local model; `native_engine.py` owns account
+transitions and sampling; `source.py` reconciles immutable native fills and an
+optional original MultiCharts excursion export. The external runner has been
+removed. The browser renders only saved AlphaQuest calculations and SVGs for new
+reports (format 3). Format-2 external reports show a historical notice and retain
+their downloads; they do not populate the new results page. Format-1 notebook
+snapshots retain their historical reader.
+
+Native source IDs, strategy/dataset metadata, UTC times, quantities and Decimal
+cost conservation remain preserved. An optional XLSX/XLSM supplies measured MAE
+and MFE only after every entry ID, direction, UTC entry time, quantity and net P&L
+matches. Net amounts use absolute tolerance 1e-8 for spreadsheet floating noise.
+For matched exports, simulation retains the original export's float representation
+of reconciled net amounts: insignificant binary differences can change a rare
+threshold path. Original native Decimal net values and export values both remain
+in trades.csv; the source's exact cost ledger is unchanged. No commission or
+slippage is deducted a second time. Excursions normalize by original quantity.
+
+Native-only inputs use realized losing P&L as adverse excursion, zero for winners;
+this is explicitly labelled close-only fallback, with understated path risk.
+No measured excursions or trades are fabricated. Variable quantities, overlapping
+positions, empty sources and invalid source cost arithmetic reject explicitly.
+
+Session days are entry UTC converted to Chicago, plus seven hours (17:00 Chicago
+session boundary). Weekend session dates reject; all zero-trade weekdays between
+first/last sessions remain. The split is floor(0.7 * weekday count), or an explicit
+holdout date leaving nonempty samples. At least two session weekdays are required.
+The original dataset timezone remains source metadata, separate from export time.
+
+## Local calculation contract
+
+The qualified scope is one strategy, Apex 50K EOD, DLL on, full-cap payouts,
+standard counts and the slot-year sizing objective. Prices, slots, whole-micro
+NQ limit, bootstrap blocks 1/5/10, approval-day counting and explicit holdout date
+are editable. Unsupported choices reject, without silently substituting a model.
+
+- Evaluation: $3,000 target, $2,000 trail based on best close, $1,000 DLL,
+  21 weekday deadline, no minimum days. Intratrade adverse checks use the tighter
+  DLL/account floor; a DLL hit clips the day at its floor and ends trading for
+  that day, while touching the account floor fails the account. Passes stop at
+  the trade reaching the target. Size grid is 1–20 MNQ plus the capped 25 MNQ
+  endpoint, limited further by the user's total NQ limit. Highest training pass
+  count wins, with grid order resolving exact ties.
+- Funded: $2,000 EOD trail, floor locks at +$100 after a close reaches +$2,100.
+  Prior-close levels: 20 MNQ/$1,000 DLL below +$1,500; 30/$1,000 from +$1,500;
+  40/$2,000 from +$3,000; 40/$3,000 from +$6,000. The tighter user cap applies.
+  Five new days of $250+ and an inclusive 50% consistency check are required.
+  Full-cap withdrawals are $1,500/$1,500/$2,000/$2,500/$2,500/$3,000 from equity
+  above +$2,100; six payouts close the account. Cycle profit/qualifying counters
+  reset after withdrawal. Approval-day qualification follows the explicit setting.
+  The trail observes the pre-withdrawal close.
+- Inactivity: at least two days of $50+ in the last 21 weekdays; the check runs
+  on nonqualifying activity days. A day reaching $50 itself does not close for
+  inactivity, even when its previous qualifying activity day is too old.
+- Random draws: local NumPy RandomState/MT19937, streamed circular contiguous
+  blocks. Training seed 42, holdout seed 43. Draw only when the previous block
+  is consumed. A new account resets the block; failed evaluations within a
+  funding chain retain the unfinished block. Funding-chain seed 44; one
+  activation day is added after passing. No global RNG state is shared.
+- Counts: 3,000 per sizing point, 20,000 final evaluations, 20,000 final funded
+  lifetime accounts and 20,000 independent first-year accounts. Lifetime guard
+  is 2,000 weekdays; first year is 261. Independent horizons consume draws
+  differently, so first-year and lifetime probabilities need not be monotone.
+- Economics: reported acquisition cost is evaluation_price / holdout_pass_rate
+  + activation_fee. Historical replacement delay is ceil(mean funding-chain
+  days). Training funded size selection preserves the reference model's fixed
+  52.5% acquisition pass assumption and five-day replacement delay: maximize
+  261 * (mean lifetime payout - assumed acquisition cost) / (mean lifetime days
+  + 5), over 1–20 MNQ. These fixed selection assumptions are disclosed separately
+  from the reported holdout handover. They are not current provider evidence.
+- Historical slots: one actual chronological account replay, scaled by number
+  of slots; slots share their trades. Replacements incur expected acquisition
+  cost. Payouts/costs round by calendar quarter before annual totals are added.
+  Training history supplied the sizing choice; this is observed-history replay,
+  not an independent forecast. With zero evaluation passes, acquisition-dependent
+  results remain unavailable instead of receiving a made-up probability or delay.
+
+## Publication and evidence
+
+Queued/running/complete/error states share the existing durable catalogue.
+Duplicate active submissions share an ID. Source hashes are checked before and
+after calculation; original export bytes and settings are captured. Completed
+reports publish by atomic rename and include calculations.json, per-trade source
+reconciliation, evaluation/funded size CSVs, account traces, quarter/year cash,
+chart-data JSON, locally generated SVGs and analysis.zip. No saved report is
+rerun on reload/reopen. Numerical errors remain operation errors.
+
+Limits: 100,000 trades, 20,000 weekday grid, 32 MiB compressed/64 MiB expanded
+workbook, 128 MiB published files. Funding-chain guard is 10,000 attempts; exhausting
+it is an operation error, not a fabricated funding time. Requested simulation
+counts are fixed and are never silently reduced. The engine supports nonoverlapping
+trades; measured MAE still cannot establish the exact price path inside a trade.
+
+Qualification is external to production: scripts/verify_native_prop.py reads
+reference results only after AlphaQuest has calculated a new report. The browser
+reproduction script guards its production worker against vendor executable/DLL
+reads, generated reference result reads and calculation subprocesses. See
+prop_simulation_review.md for actual outputs, numerical comparisons and commands.
+
+---
+
+# Retired external-engine integration record
+
+The following integration was rejected because AlphaQuest did not own its
+calculations. Its saved results/evidence remain immutable. Its completion claim
+established replay equivalence only and does not satisfy independent calculation.
+
 # The Bridge Funded Lab portal integration
 
 Current authority: the licensed **The Bridge 2.9.5.0** `funded-lab` CLI, executable

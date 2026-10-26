@@ -1,4 +1,4 @@
-"""Historical notebook defaults; not used by new Bridge portal operations."""
+"""Historical notebook defaults; active local model settings live in native_analysis."""
 from datetime import date
 import math
 

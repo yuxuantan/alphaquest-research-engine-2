@@ -9,8 +9,13 @@ from alphaquest.backtest_runs import RunStore
 
 FIXTURES=Path(__file__).parent/'fixtures/backtest_contract'
 
+def two_session_fixture(name):
+    original=(FIXTURES/(name+'.csv')).read_text().splitlines()
+    rows=original[1:]+['01/05/2026,10:35,102,102,102,102,100,60,40']
+    return ('\n'.join([original[0],*rows,*[r.replace('01/05/2026','01/06/2026') for r in rows]])+'\n').encode()
+
 def backtest(client,name='arithmetic_5m',quantity=2):
-    d=client.post('/api/datasets',params=dict(filename=name+'.csv',name='SYNTHETIC '+name,source_timezone='UTC',tick_size='.25',point_value='10'),content=(FIXTURES/(name+'.csv')).read_bytes()).json()
+    d=client.post('/api/datasets',params=dict(filename=name+'.csv',name='SYNTHETIC '+name,source_timezone='UTC',tick_size='.25',point_value='10'),content=two_session_fixture(name)).json()
     r=client.post('/api/backtests',json=dict(dataset_id=d.get('id',d.get('dataset_id')),strategy_id='consecutive_green_hold',strategy_parameters=dict(green_bar_count=3,hold_minutes=20,contracts=quantity),execution_settings=dict(initial_capital='10000',tick_size='.25',point_value='10',slippage_ticks=1,commission_per_contract_per_side='1')))
     assert r.status_code==201,r.text
     return r.json()
@@ -51,50 +56,36 @@ def export_for(client, record, tmp_path):
         z.writestr('xl/worksheets/sheet1.xml',E.tostring(sheet))
     return path
 
-@pytest.fixture
-def runner(monkeypatch):
-    from alphaquest.prop import bridge
-    def identity():return dict(executable='Synthetic test executable',version='fixture',sha256='a'*64)
-    def run(input_file,settings_file,output,identity,progress):
-        from alphaquest.prop.bridge_source import export_trades
-        rows=export_trades(input_file);settings=json.loads(settings_file.read_text())
-        output.mkdir();progress('Synthetic runner result transport')
-        # This test double checks transport only, never claims Monte Carlo parity.
-        result=dict(status='ok',exit_code=0,demo=False,load_errors=0,files=[dict(trades=len(rows))],settings_form=settings,
-                    part1={'hero':[]},part2={'alone':{'rows':[]}},account={},dates={},settings={},chart_files={},
-                    sections=[{'title':'Synthetic transport check','blocks':[{'type':'table','columns':['Net source P&L'],'rows':[[str(sum(r['net'] for r in rows))]]}]}])
-        (output/'results.json').write_text(json.dumps(result));(output/'report.html').write_text('<html>Synthetic transport fixture</html>')
-        return result
-    monkeypatch.setattr(bridge,'engine_identity',identity);monkeypatch.setattr(bridge,'run_bridge',run)
-    return run
 
 
-def test_checked_native_costs_bridge_downloads_and_reload(portal,tmp_path,runner):
+def test_checked_native_costs_local_downloads_and_reload(portal,tmp_path):
     r=backtest(portal);path=export_for(portal,r,tmp_path)
     body=dict(source_backtest_id=r['id'],trade_file=str(path),export_timezone='UTC')
     checked=portal.post('/api/prop-analyses/check',json=body);assert checked.status_code==200,checked.text
-    c=checked.json();assert c['matched_trades']==1
-    # Reference 40 - source commissions 4 - source slippage 10 = net 26.
-    # Bridge receives the already-net 26, with measured excursions from export.
-    assert c['source']['reconciliation']['source_totals']['net_pnl']=='26.00'
-    assert c['source']['bridge_input']['measured_mae_count']==1
+    c=checked.json();assert c['matched_trades']==2
+    # Two sessions: reference 80 - commissions 8 - slippage 20 = net 52.
+    # Local calculations receive measured excursions and already-net trade results.
+    assert c['source']['reconciliation']['source_totals']['net_pnl']=='52.00'
+    assert c['source']['excursion_input']['measured_mae_count']==2
     job=portal.post('/api/prop-analyses',json=body).json();assert wait(portal,job['id'])['status']=='complete'
     response=portal.get(f"/api/prop-analyses/{job['id']}/downloads/report.json");report=response.json()
-    assert report['format_version']==2 and report['source']['backtest']==r
-    assert report['bridge_results']['sections'][0]['blocks'][0]['rows']==[['26.00']]
+    assert report['format_version']==3 and report['source']['backtest']==r
+    assert report['calculations']['evaluation']['pass_rate']==0.
+    assert report['calculations']['funded'] is None
+    assert 'No validation evaluation passed' in report['calculations']['unavailable']
     assert report['settings']['BLOCK_DAYS']=='5'
     assert portal.get(f"/api/prop-analyses/{job['id']}/downloads/report.json").content==response.content
     assert 'measured_mae' in portal.get(f"/api/prop-analyses/{job['id']}/downloads/trades.csv").text
-    assert portal.get(f"/api/prop-analyses/{job['id']}/files/bridge/results.json").json()==report['bridge_results']
+    assert portal.get(f"/api/prop-analyses/{job['id']}/files/calculations.json").json()==report['calculations']
     assert portal.get(f"/api/prop-analyses/{job['id']}/files/unknown.txt").status_code==404
     assert portal.get(f"/api/prop-analyses/{job['id']}/downloads/daily.csv").status_code==404
     import zipfile,io
     archive=zipfile.ZipFile(io.BytesIO(portal.get(f"/api/prop-analyses/{job['id']}/downloads/analysis.zip").content))
-    assert json.loads(archive.read('bridge/results.json'))==report['bridge_results']
+    assert json.loads(archive.read('calculations.json'))==report['calculations']
     assert archive.read('inputs/'+path.name)==path.read_bytes()
 
 
-def test_rejection_before_bridge_and_legacy_requests_retired(portal,tmp_path):
+def test_rejection_before_calculation_and_legacy_requests_retired(portal,tmp_path):
     r=backtest(portal);path=export_for(portal,r,tmp_path)
     for settings in [dict(unknown=1),dict(BLOCK_DAYS='3'),dict(SLOTS='21'),dict(EVAL_PRICE='NaN'),dict(OUT_OF_SAMPLE_FROM='2024x')]:
         response=portal.post('/api/prop-analyses/check',json=dict(source_backtest_id=r['id'],trade_file=str(path),export_timezone='UTC',settings=settings))
@@ -109,7 +100,7 @@ def test_rejection_before_bridge_and_legacy_requests_retired(portal,tmp_path):
 def test_duplicate_and_failed_operations_remain_errors(portal,tmp_path,monkeypatch):
     import alphaquest.prop.store as store
     r=backtest(portal);path=export_for(portal,r,tmp_path);entered=Event();release=Event()
-    def failing(*a,**kw):entered.set();assert release.wait(10);raise RuntimeError('Bridge not licensed fixture')
+    def failing(*a,**kw):entered.set();assert release.wait(10);raise RuntimeError('Local calculation fixture failure')
     monkeypatch.setattr(store,'run_analysis',failing)
     body=dict(source_backtest_id=r['id'],trade_file=str(path),export_timezone='UTC')
     a=portal.post('/api/prop-analyses',json=body).json();assert entered.wait(5)
@@ -117,15 +108,15 @@ def test_duplicate_and_failed_operations_remain_errors(portal,tmp_path,monkeypat
         b=portal.post('/api/prop-analyses',json=body).json();assert a['id']==b['id']
         assert portal.get(f"/api/prop-analyses/{a['id']}/downloads/report.json").status_code==409
     finally:release.set()
-    result=wait(portal,a['id']);assert result['status']=='error' and 'not licensed' in result['error']
+    result=wait(portal,a['id']);assert result['status']=='error' and 'fixture failure' in result['error']
     assert portal.get(f"/api/prop-analyses/{a['id']}/downloads/report.json").status_code==409
 
 
 def test_source_cost_arithmetic_is_independent_of_decimal_context(portal,tmp_path):
     from decimal import localcontext
-    from alphaquest.prop.bridge_source import prepare_source
+    from alphaquest.prop.source import prepare_source
     r=backtest(portal);path=export_for(portal,r,tmp_path)
     with localcontext() as ctx:
         ctx.prec=1
         snapshot,_=prepare_source(portal.app.state.runs,r['id'],str(path),'UTC')
-    assert snapshot['reconciliation']['source_totals']['net_pnl']=='26.00'
+    assert snapshot['reconciliation']['source_totals']['net_pnl']=='52.00'

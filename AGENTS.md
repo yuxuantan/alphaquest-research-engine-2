@@ -26,17 +26,15 @@ expected observations. Preserve earlier saved evidence and immutable snapshots.
 Use temporary test servers for browser checks and shut them down after testing;
 report any persistent server started and how to stop it.
 
-Current scope: new prop analyses use the licensed The Bridge Funded Lab CLI as
-the calculation authority. The Bridge is a black box; do not infer or fit its
-engine from saved outputs. Preserve the qualified executable/input/settings
-hashes and compare fresh actual outputs against the supplied Bridge report.
-The old pinned notebook and numerical modules are historical qualification
-material only. Keep old saved reports immutable and label their previous model.
-New runs must use the existing backtest → configure → check → run → report
-workflow. Reconcile every companion export trade ID, direction, UTC entry time,
-quantity and net P&L to its native backtest before using measured excursions.
-Do not fabricate missing MAE/MFE or deduct costs twice. Never bypass or copy
-Bridge license credentials. Invoke funded-lab only; leave collector/live/broker
-operations and the user's Windows VM and servers alone. Preserve all prior
-datasets, backtests, results and evidence. No official-rule research gates or
-mandatory full-session bar calendars are part of this integration.
+Current scope: AlphaQuest owns every production prop calculation and report.
+Do not invoke The Bridge executable/DLL, consume its generated results/tables/
+charts, or require its installation to create a new AlphaQuest report. External
+results are comparison oracles in development/qualification only. Preserve earlier
+reports and evidence unchanged, and label reports made by earlier engines.
+Implement source adaptation, account state transitions, sampling, size selection,
+economics, charts and downloads locally. Reconcile measured companion exports
+with source identity/times/quantities/net costs; never fabricate measured MAE/MFE
+or deduct costs twice. Keep numerical parity status explicit and do not claim
+completion before independently generated results match the supplied reference.
+Use the existing backtest -> configure -> check -> run -> durable report workflow.
+Preserve the user's Windows VM, other processes and all datasets/backtests/results.

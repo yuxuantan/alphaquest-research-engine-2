@@ -1,13 +1,13 @@
-"""Existing portal workflow, executed by licensed The Bridge Funded Lab."""
+"""Existing portal workflow, calculated locally in AlphaQuest."""
 import json
 from typing import Literal
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from starlette.concurrency import run_in_threadpool
-from .prop.bridge import DEFAULTS, MODEL_VERSION, prepare
+from .prop.native_analysis import DEFAULTS, MODEL_VERSION, prepare
 from .prop.adapter import source_record
-from .prop.bridge_source import matching_exports
+from .prop.source import matching_exports
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
 
@@ -20,7 +20,7 @@ class AnalysisRequest(BaseModel):
 
 @router.get('/defaults')
 def defaults():
-    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='The Bridge Funded Lab; running Windows VM and active license required')
+    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations')
 
 @router.get('/sources/{source_id}')
 async def source(source_id: str, request: Request):
@@ -71,4 +71,4 @@ def file(id: str,name: str,request: Request):
     if name not in report.get('files',{}):raise HTTPException(404,'File is not a captured result artifact.')
     path=(root/name).resolve()
     if not path.is_relative_to(root.resolve()) or not path.is_file():raise HTTPException(404,'Invalid artifact path.')
-    return FileResponse(path,filename=None if path.suffix=='.png' else path.name)
+    return FileResponse(path,filename=None if path.suffix in ('.png','.svg') else path.name)

@@ -1,1 +1,1 @@
-"""Prop analysis via licensed The Bridge; historical notebook reports retained."""
+"""Local AlphaQuest prop calculations and durable reports."""

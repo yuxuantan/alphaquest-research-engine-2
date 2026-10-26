@@ -409,14 +409,14 @@
           </section>
         </section>
         <section id="prop-screen" aria-label="Prop analysis" hidden>
-          <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1>Prop analysis<span class="heading-dot">.</span></h1><p>The Bridge Funded Lab · Apex 50K EOD analysis</p></div></div>
+          <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1>Prop analysis<span class="heading-dot">.</span></h1><p>AlphaQuest · Apex 50K EOD analysis</p></div></div>
           <p id="prop-status" role="status" aria-live="polite"></p>
           <div id="prop-config" hidden>
-            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. A matching original export supplies measured MAE/MFE used by The Bridge. Checking compares every trade; source commissions and slippage are already included and are not deducted again.</p></section>
+            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. A matching original export supplies measured MAE/MFE used by the local calculation engine. Checking compares every trade; source commissions and slippage are already included and are not deducted again.</p></section>
             <form id="prop-form" class="panel prop-panel">
-              <h2>Configure The Bridge analysis</h2>
-              <p>Runs the licensed Funded Lab engine in your running Windows VM. Defaults match the supplied report: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, 20 slots, and standard simulation counts. Completed reports reopen without the VM.</p>
-              <label>Matching MultiCharts trade export · local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Automatically selected when exactly one matching export is found" /></label>
+              <h2>Configure prop analysis</h2>
+              <p>Calculates locally from the saved backtest and measured excursions. Defaults: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, 20 slots, and standard simulation counts. Results, charts and downloads are saved for reopening.</p>
+              <label>Measured-excursion MultiCharts export · optional local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Automatically selected when exactly one matching export is found" /></label>
               <div class="prop-fields">
                 <label>Export timestamps<select id="prop-export-timezone"><option value="America/Chicago">Chicago (exchange)</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
                 <label>Bootstrap block · days<select id="prop-block"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option></select></label>
@@ -426,8 +426,8 @@
                 <label>Total NQ limit<input id="prop-max-nq" value="4" type="number" min="0.1" max="100000" step="any" required /></label>
                 <label>Explicit holdout start · optional<input id="prop-holdout" type="date" /></label>
               </div>
-              <p>Leave holdout start blank to use the final 30% of the full history. Set prices to 109 and 0 for the alternative pricing choice. The Bridge selects evaluation and funded sizes; these can differ.</p>
-              <label>Additional Bridge form overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
+              <p>Leave holdout start blank to use the final 30% of the full history. Set prices to 109 and 0 for the alternative pricing choice. AlphaQuest selects evaluation and funded sizes; these can differ.</p>
+              <label>Additional model overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
               <details><summary>Resolved-form defaults</summary><pre id="prop-defaults"></pre></details>
               <div class="prop-actions"><button id="prop-check" type="button" class="button secondary">Check source</button><button id="prop-run" type="submit" class="button primary" disabled>Run analysis</button></div>
               <div id="prop-check-output"></div>

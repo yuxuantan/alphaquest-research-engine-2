@@ -1,4 +1,4 @@
-"""Historical notebook qualification only; new portal runs use prop.bridge."""
+"""Historical notebook qualification only; active portal calculations use native_analysis."""
 from dataclasses import asdict
 from hashlib import sha256
 from importlib.metadata import version

@@ -27,23 +27,24 @@ Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the 
 This is a single-user application bound to your own computer, without a login or public hosting setup.
 
 Open a completed **Backtest report → Configure prop analysis**, inspect the
-matching trade export and **Check source**, then **Run analysis**. New runs use
-**The Bridge Funded Lab** in your running, licensed Windows VM through its
-`funded-lab` CLI. The portal displays its evaluation, funded/lifetime and yearly
-slot results, native tables and charts, with durable JSON/CSV/ZIP downloads.
+source and optional measured-excursion export, **Check source**, then **Run
+analysis**. AlphaQuest calculates evaluation outcomes, funded payouts, sizing,
+lifetime economics, historical slot cash and charts locally in Python/NumPy.
+New calculations use no external engine or generated reference-report outputs.
+Results and input/provenance records persist as JSON/CSV/SVG/ZIP downloads.
 
-For the supplied VWAP backtest, the matching MultiCharts XLSX in Downloads is
-selected automatically after every trade reconciles to the native run. Its
-measured MAE/MFE supplies data absent from native trade storage. Other sources
-currently need a matching XLSX export; unmatched sources reject explicitly.
-Default settings match the supplied report: $49 evaluation + $129 activation,
-full history, 30% holdout, block 5, 20 slots and standard simulation counts.
-Set prices to $109 and $0 for the alternative pricing choice. Saved reports
-reopen without rerunning or needing the Windows VM. Earlier notebook reports
-remain immutable and display a historical-model notice.
+For the supplied VWAP backtest, the matching MultiCharts XLSX is selected after
+all trade IDs, directions, UTC entry times, quantities and net costs reconcile.
+Its measured excursions supplement native trade storage. Without a matching
+export, the local model uses an explicitly disclosed close-only fallback.
+The supported model uses one strategy with nonoverlapping trades, Apex 50K EOD,
+$49 evaluation + $129 activation, 30% holdout, block 5, 20 slots and standard
+simulation counts. Set prices to $109 and $0 for the alternative choice.
+Saved reports reopen without rerunning. Prior notebook and external-engine
+reports remain immutable and display historical notices.
 
 See [the model specification](docs/prop_simulation.md) and
-[exact reproduction and parity evidence](docs/prop_simulation_review.md).
+[reproduction and independent parity evidence](docs/prop_simulation_review.md).
 
 To change a saved dataset's tick size or monetary point value, click **Edit defaults** in its library row, edit the values, then click **Save instrument settings**. The updated defaults persist and pre-fill future backtest configurations. Run-specific overrides and completed reports remain separate from these saved defaults.
 

@@ -1414,5 +1414,5 @@ dialog::backdrop {
 .prop-chart { width:100%; height:280px; background:#fafcfc; }
 @media(max-width:600px) { .prop-fields { grid-template-columns:1fr; } }
 
-.prop-bridge-chart { width:100%; height:auto; display:block; margin:20px 0 8px; }
+.prop-saved-chart { width:100%; height:auto; display:block; margin:20px 0 8px; }
 #prop-report figcaption { color:var(--muted); margin-bottom:24px; }

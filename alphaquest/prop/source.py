@@ -1,4 +1,4 @@
-"""Reconcile a Bridge trade export with an existing immutable native backtest.
+"""Reconcile a prop analysis trade export with an existing immutable native backtest.
 
 The extra export supplies measured excursions absent from native trade storage.
 It never replaces native P&L or changes the source backtest.
@@ -21,7 +21,7 @@ NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
 def export_trades(path):
     path = Path(path).expanduser().resolve()
     if not path.is_file() or path.suffix.lower() not in ('.xlsx', '.xlsm'):
-        raise ValueError('Select an existing MultiCharts XLSX trade export for The Bridge.')
+        raise ValueError('Select an existing MultiCharts XLSX trade export for The prop analysis.')
     if path.stat().st_size > 32 * 1024 * 1024:
         raise ValueError('Trade export exceeds the 32 MiB input limit.')
     with zipfile.ZipFile(path) as archive:
@@ -102,7 +102,7 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
         if subtract(subtract(values['reference_gross_pnl'],values['slippage_cost']),values['total_commissions'])!=values['net_pnl'] or subtract(values['gross_pnl'],values['total_commissions'])!=values['net_pnl']:
             raise ValueError('Native source per-trade costs do not reconcile.')
         for k in totals:totals[k]=add(totals[k],values[k])
-    if len(quantities)!=1:raise ValueError('Variable source quantities are not supported by this Bridge adapter.')
+    if len(quantities)!=1:raise ValueError('Variable source quantities are not supported by this prop analysis adapter.')
     if len({r['trade_number'] for r in native})!=len(native):raise ValueError('Duplicate native trade IDs.')
     for k,target in [('net_pnl','total_net_pnl'),('gross_pnl','total_gross_pnl'),('total_commissions','total_commissions'),('slippage_cost','total_slippage_cost')]:
         if totals[k]!=Decimal(record['summary'][target]):raise ValueError('Native source totals differ from the saved backtest.')
@@ -110,9 +110,11 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
                   source_timezone=record['run_metadata']['dataset']['source_timezone'],
                   excursion_provenance='Native trades contain no measured excursions. The matched export supplies measured MAE/MFE; the portal inserts no synthetic excursions.',
                   reconciliation=dict(source_totals={k:str(v) for k,v in totals.items()},source_count=len(native),exact_source_arithmetic=True),
-                  filtering='The portal passes all matched entry rows unchanged; The Bridge applies and reports its own filtering and session conventions.')
+                  filtering='The portal passes all matched entry rows unchanged; AlphaQuest groups Chicago entry timestamps into CME session days, retaining zero-trade weekdays.')
     if not trade_file:
-        raise ValueError('Select the matching original trade export. The Bridge uses its measured excursions; native backtest trades do not contain them.')
+        snapshot['excursion_provenance']='No measured excursions. The local close-only fallback uses realized loss on losing trades and zero on winners; risk may be understated.'
+        snapshot['excursion_input']=dict(path=None,filename=None,sha256=None,export_timezone=export_timezone,matched_trades=len(native),measured_mae_count=0,measured_mfe_count=0,cost_contract='Saved net P&L includes source costs; no duplicate trading-cost deduction.')
+        return snapshot,[dict(trade_id=int(n['trade_number']),entry_utc=n['entry_time_utc'],exit_utc=n['exit_time_utc'],source_net_pnl=n['net_pnl'],export_net_pnl=None,quantity=n['contracts'],measured_mae=None,measured_mfe=None) for n in native]
     path = Path(trade_file).expanduser().resolve()
     before = digest(path)
     try:
@@ -139,15 +141,15 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
             raise ValueError(f'Trade {id}: export quantity or net P&L differs from source.')
         if any(v is not None and not v.is_finite() for v in (e['mae'], e['mfe'])):
             raise ValueError(f'Trade {id}: non-finite excursion.')
-        comparisons.append(dict(trade_id=id, entry_utc=n['entry_time_utc'], source_net_pnl=n['net_pnl'], export_net_pnl=str(e['net']),
+        comparisons.append(dict(trade_id=id, entry_utc=n['entry_time_utc'], exit_utc=n['exit_time_utc'], source_net_pnl=n['net_pnl'], export_net_pnl=str(e['net']),
                                 quantity=n['contracts'], measured_mae=str(e['mae']) if e['mae'] is not None else None,
                                 measured_mfe=str(e['mfe']) if e['mfe'] is not None else None))
     if before != digest(path) or snapshot['trades_sha256'] != digest(native_path):
         raise ValueError('Source changed during checking.')
-    snapshot['bridge_input'] = dict(path=str(path), filename=path.name, sha256=before, export_timezone=export_timezone,
+    snapshot['excursion_input'] = dict(path=str(path), filename=path.name, sha256=before, export_timezone=export_timezone,
                                    matched_trades=len(comparisons), measured_mae_count=sum(e['mae'] is not None for e in exported),
                                    measured_mfe_count=sum(e['mfe'] is not None for e in exported),
-                                   cost_contract='Export net P&L matches saved backtest net P&L, including source commission and slippage. The Bridge adds no trading costs.')
+                                   cost_contract='Export net P&L matches saved backtest net P&L, including source commission and slippage. AlphaQuest adds no trading costs.')
     return snapshot, comparisons
 
 
@@ -157,7 +159,7 @@ def matching_exports(runs, source_id):
     for path in sorted((Path.home() / 'Downloads').glob('*Strategy Performance Report*.xlsx'))[:32]:
         try:
             snapshot, _ = prepare_source(runs, source_id, str(path))
-            matches.append(snapshot['bridge_input'])
+            matches.append(snapshot['excursion_input'])
         except (ValueError, KeyError, OSError, zipfile.BadZipFile, ET.ParseError):
             continue
     return matches

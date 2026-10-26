@@ -1,3 +1,138 @@
+# Current workflow: AlphaQuest calculates the prop simulation locally
+
+The external-engine integration was the wrong implementation and is retired.
+AlphaQuest now owns source adaptation, account state transitions, Monte Carlo,
+sizing, payouts, economics, historical account replay and chart generation.
+New reports are format 3 / `alphaquest-apex50k-eod-v1`. No vendor executable,
+DLL, Windows/Parallels dependency or generated external report is used to produce
+a result. Reference files are read only by the independent comparison harness.
+Prior saved reports, datasets, backtests and evidence remain unchanged.
+
+Open the independently generated report:
+`http://127.0.0.1:8000/#backtests/prop/job/77721af3a12941a6a534030541213f1c`.
+Its evaluation, funded accounts, sweeps, cash totals and charts come entirely
+from the local implementation. Earlier result IDs remain historical snapshots.
+
+## Reproduce through the actual portal
+
+1. Open completed backtest
+   `http://127.0.0.1:8000/#backtests/report/d63265dc923444c799c2dfc59e090e76`.
+2. Click **Configure prop analysis**. The fully matching original MultiCharts
+   XLSX in Downloads is selected automatically. Keep Chicago export timestamps,
+   $49 evaluation, $129 activation, block 5, 20 slots, max NQ 4 and blank holdout.
+3. **Check source**: expect 702 matched trades, 702 measured MAE/MFE, source net
+   77561.04, 1004 training and 431 holdout weekdays. Source reference gross
+   80355 - commission 2793.96 - slippage 0 = 77561.04. Original UTC identities
+   match every export row; the dataset's saved New York timezone is preserved.
+4. **Run analysis**. Progress reports local calculation stages. Standard counts
+   remain 3,000 per sweep point, 20,000 final evaluations and 20,000 accounts per
+   funded horizon. The real source takes approximately 20–40 seconds locally.
+5. Inspect evaluation, funded/lifetime sizing, historical account trace, yearly
+   slot cash and three local SVG charts. Download report.json, calculations.json,
+   source trades, size sweeps, quarterly/yearly cash, chart-data JSON and ZIP.
+6. Reload, return to the backtest/configuration and reopen the saved result.
+   No simulation is submitted again. Source/backtest/report inputs are immutable.
+
+Independent expected values from the supplied reference:
+
+| Output | Expected |
+| --- | --- |
+| Evaluation size / simulations | 25 MNQ / 20000 |
+| Passed / DD failures / timeout | 6818 / 13037 / 145 |
+| Pass probability | 0.3409 |
+| Wilson interval | [0.3343616454112101, 0.34749946270714255] |
+| Acquisition cost | 49 / 0.3409 + 129 = 272.7371663244353 |
+| Days to funding, mean / median | 19.519 / 14 |
+| Funded chosen size | 9 MNQ |
+| First-year mean / median | 1889.6 / 0 |
+| Lifetime mean / median | 2005.425 / 0 |
+| Blown / all-six probabilities | 0.8373 / 0.0974 |
+| First-payout median day | 20 |
+| Account trace | 21 accounts, identical start/end/outcome/payout dates |
+| Slot payouts / acquisition costs / net | 770000 / 114549 / 655451 |
+
+Important reproducibility details: retain the matched original Excel float
+representation of reconciled net amounts, keep sampled blocks continuous across
+failed attempts within a chain, use independent first-year/lifetime runs, and
+sum rounded quarters to obtain yearly cash. Fixed training selection economics
+(52.5% pass / five replacement days) remain distinct from holdout acquisition
+metrics, and are exposed on the report. These are preserved analytical model
+assumptions, not provider-rule certification.
+
+## Validation commands and actual evidence
+
+```sh
+.venv/bin/python scripts/demo_native_prop.py --publish-url http://127.0.0.1:8000
+.venv/bin/python scripts/verify_native_prop.py <native-report.json> /Users/yx/Downloads/20261026_171955
+.venv/bin/python -m pytest -q
+```
+
+The reproduction script uses an isolated APFS copy of the source backtest and
+SQLite backups on a temporary server, follows the actual browser journey, checks
+reload/reopen/downloads, then optionally submits a separate real local run to the
+existing portal. Its production-thread audit rejects external executable/DLL
+reads, generated report.html/results.json reads, and all subprocesses except
+read-only Git provenance. It saves screenshots, downloaded JSON/ZIP, production
+I/O, and field-by-field reference comparisons. The existing user server and VM
+are left alone; temporary servers stop in finally.
+
+Actual complete workflow evidence:
+`artifacts/native-prop-parity-20261026T142456Z/`:
+
+- `source-check.png`, `report.png`, downloaded `report.json` and `analysis.zip`.
+- `validation.json`: **637 exact comparisons passed** for both the isolated
+  browser job `a5f546499e31463b8f77d5858da35700` and separately published portal job
+  `77721af3a12941a6a534030541213f1c`. No floating tolerance or overlapping-CI
+  substitution is used: all compared values are equal. This includes every
+  reference sizing-row metric, evaluation counts/probabilities/CI/acquisition
+  values, funded means/medians/probabilities, 21 historical account traces,
+  annual cash rows/totals and chart values.
+- `production-io.json`: worker file/process audit. No executable/DLL or generated
+  external results were accessed. The sole subprocess was `git rev-parse HEAD`
+  for provenance. Runtime calculations used native fills and the original
+  measured-excursion export; external reference files are opened only afterward
+  by the independent comparator.
+- `published-report.json`: separately saved real local result from port 8000.
+  `actual-portal-report.png`, `actual-portal-summary.png` and
+  `actual-portal-validation.json` verify the final published report in Chromium,
+  including three locally generated SVGs, no POSTs/errors/external result assets,
+  and unchanged qualified calculation-source hashes. `reference-identity.json`
+  pins the original HTML/JSON/CSV/chart files and confirms its displayed values.
+- Browser errors: none. Reload/reopen caused no new POST. Historical report JSON
+  matches the preserved snapshot. The temporary server stopped successfully.
+- Full suite: **569 passed**, 24 existing dependency warnings, 80.81 seconds.
+  Full output: `artifacts/native-prop-parity-20261026/full-tests.txt`.
+
+Earlier prototype comparisons remain under `artifacts/native-prop-parity-20261026/`
+and are not qualification evidence: one intentionally retained failed comparison
+identified the export/native floating-representation discrepancy subsequently
+resolved by preserving the reconciled original export representation.
+
+Deterministic unit checks independently establish full-cap payout amounts and
+approval-day boundaries, DLL vs account-floor ordering, inactivity boundaries,
+consistency equality, prior-close tiers, MT19937 circular blocks, activation-day
+counting, quarter rounding, and calculation without file/process access. API and
+browser checks use the real local engine on a labelled two-session synthetic
+backtest (80 gross - 8 commissions - 20 slippage = 52 net). It has zero evaluation
+passes, so funded/acquisition-dependent outputs are explicitly unavailable.
+Corrupted/mismatched export, unknown settings, wrong timezone, unsupported model
+choices, duplicate active submissions and failed operation downloads are tested.
+Native-only sources disclose the close-only excursion fallback; no measured
+excursions or history are manufactured. Unsupported overlapping trades reject.
+
+Starting HEAD: `4388e48`. Recovery ref:
+`recovery/native-prop-parity-20261026T135740Z`.
+Backup: `/Users/yx/.codex/workspace-backups/native-prop-parity-20261026T135740Z/`.
+Working branch: `work/native-prop-parity-20261026T135740Z`. No push or merge.
+
+---
+
+# Historical external-engine replay record (retired)
+
+The record below describes the rejected external runner, not the current local
+calculation workflow. Earlier successful replays are not independent-engine
+qualification. All associated saved artifacts remain preserved.
+
 # Current workflow: The Bridge report parity
 
 New prop analyses now invoke the **licensed The Bridge Funded Lab CLI**. This

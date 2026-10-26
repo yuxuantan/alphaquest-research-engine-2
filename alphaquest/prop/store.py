@@ -13,7 +13,7 @@ from threading import Lock
 from uuid import uuid4
 import zipfile
 from .adapter import canonical
-from .bridge import run_analysis
+from .native_analysis import run_analysis
 
 
 class AnalysisStore:
@@ -46,16 +46,16 @@ class AnalysisStore:
 
     def submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
-        from .bridge import prepare
+        from .native_analysis import prepare
         snapshot,_,settings=prepare(runs,request['source_backtest_id'],request.get('trade_file'),request['settings'],request['export_timezone'])
-        request={**request,'trade_file':snapshot['bridge_input']['path']}
+        request={**request,'trade_file':snapshot['excursion_input']['path']}
         key=sha256(canonical(dict(request=request,source=snapshot,settings=settings)).encode()).hexdigest()
         with self.lock,self.connect() as db:
             row=db.execute("SELECT id FROM analyses WHERE request_hash=? AND status IN ('queued','running')",(key,)).fetchone()
             if row:return self.get(row[0])
             id=uuid4().hex
             db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(id,key,request['source_backtest_id'],datetime.now(timezone.utc).isoformat(),'queued','Queued',None))
-        self.worker.submit(self._run,runs,id,request,(snapshot['trades_sha256'],snapshot['bridge_input']['sha256']))
+        self.worker.submit(self._run,runs,id,request,(snapshot['trades_sha256'],snapshot['excursion_input']['sha256']))
         return self.get(id)
 
     def _update(self,id,status,progress,error=None):
@@ -67,18 +67,18 @@ class AnalysisStore:
             with TemporaryDirectory(prefix='.pending-',dir=self.root) as temp:
                 staged=Path(temp)/'report';staged.mkdir()
                 result=run_analysis(runs,request,staged,lambda msg:self._update(id,'running',msg))
-                if (result['source']['trades_sha256'],result['source']['bridge_input']['sha256'])!=expected_source:
+                if (result['source']['trades_sha256'],result['source']['excursion_input']['sha256'])!=expected_source:
                     raise ValueError('Source changed after submission.')
                 result.update(id=id,created_at_utc=self.get(id)['created'],status='complete')
-                self._update(id,'running','Publishing captured Bridge report and downloads')
+                self._update(id,'running','Publishing local calculation report and downloads')
                 files={}
                 for p in staged.rglob('*'):
-                    if p.is_symlink():raise ValueError('Bridge output contains a symbolic link.')
+                    if p.is_symlink():raise ValueError('Analysis output contains a symbolic link.')
                     if p.is_file():
                         from .adapter import digest
                         files[str(p.relative_to(staged))]=dict(bytes=p.stat().st_size,sha256=digest(p))
                 if sum(v['bytes'] for v in files.values())>128*1024*1024:
-                    raise ValueError('Bridge output exceeds 128 MiB; no completed result was published.')
+                    raise ValueError('Analysis output exceeds 128 MiB; no completed result was published.')
                 result['files']=files
                 (staged/'report.json').write_text(canonical(result),encoding='utf-8')
                 with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
