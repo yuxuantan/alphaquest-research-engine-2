@@ -1,3 +1,113 @@
+# The Bridge Funded Lab portal integration
+
+Current authority: the licensed **The Bridge 2.9.5.0** `funded-lab` CLI, executable
+SHA-256 `4b0032d156072fc3aa290c2ac21a644b449e7ccf64335f918a02729250495a61`.
+This supersedes the older notebook model for **new** portal operations. The
+black-box executable generates all financial calculations, RNG draws, selections,
+CSV tables and charts. The portal does not fit numbers to a saved report or
+reinterpret the model. The original notebook remains historical evidence below.
+
+## Normal workflow
+
+Completed backtest report → Configure prop analysis → Check source → Run analysis
+→ durable report. There is one active product workflow. New requests use
+`/api/prop-analyses` with source_backtest_id, trade_file, export_timezone and the
+Bridge settings form. Notebook-style overrides are rejected for new operations.
+Old saved JSON/CSV/ZIP files and report readers remain unchanged.
+
+The source backtest remains authoritative for identity, strategy/dataset metadata,
+UTC fills, quantities and net costs. The original MultiCharts XLSX supplies
+measured excursions absent from native storage. Each entry row must match native
+trade ID, direction, UTC entry timestamp, quantity and net P&L (absolute tolerance
+1e-8 for Excel floating noise; monetary source conservation uses Decimal). Export
+exit rows are not additional trades. The file timezone is explicit, Chicago by
+default. Source datasets/backtests are never rewritten or augmented in place.
+Exactly one fully matching export in Downloads is suggested automatically;
+otherwise the user selects an existing path. No upload is needed for the supplied
+source. Other sources currently require a fully matching XLSX/XLSM export. Missing
+source files, mismatched costs/times/IDs/quantities and empty sources reject; no
+trades or measured excursions are fabricated.
+
+## Execution and model identity
+
+`bridge_source.py` reconciles source/export data. `bridge.py` validates the Bridge
+form and captures immutable inputs. `bridge_engine.py` invokes only:
+
+```text
+TheBridge-Hosted.exe funded-lab --files <captured.xlsx> --settings <form.json> --out <staged-dir>
+```
+
+The existing licensed Windows login is used through Parallels `--current-user`.
+No credential/license file is read, copied or bypassed. Collector, live, broker,
+download and installation commands are not invoked. The user's already-running VM
+and servers are neither started nor stopped. The default executable is
+`C:\Program Files\The Bridge\TheBridge-Hosted.exe` in VM `Windows 11`; configure
+ALPHAQUEST_BRIDGE_VM / ALPHAQUEST_BRIDGE_EXE if installed elsewhere. Inputs/output
+must be under the macOS home shared as `\\Mac\Home`. Engine hash is pinned;
+changing ALPHAQUEST_BRIDGE_EXPECTED_SHA256 requires separately qualifying a new
+build rather than silently claiming parity after a vendor update.
+
+Native fills already include trading costs. Matched export net P&L must agree;
+The Bridge adds zero commission/slippage in the qualified model. Evaluation and
+activation prices are external expenses, with explicit $49+$129 and $109+$0
+choices. Default form: Apex 50K EOD, DLL on, full history, last 30% holdout,
+block 5, most net per year per slot, full-cap payout requests, approval day counts,
+20 slots, max total NQ 4, standard simulation size. Standard means original
+20,000 final evaluations/accounts and 3,000 sizing simulations as resolved by
+The Bridge; all resolved settings/rules/seeds remain in its captured settings.txt.
+The local notebook's defaults, holdout leakage and selection formulas do not
+participate in new calculations.
+
+The supported first integration fixes account/product, standard counts, slot-year
+objective and full-cap payout policy to the matched report. Prices, slots, total
+NQ limit, block, explicit holdout date, DLL, opposite-netting and approval-day
+counting remain explicit supported form values. Unknown or incompatible form keys
+reject rather than being silently ignored. This is software-model parity, without
+a claim about current official-provider correctness or actual micro execution.
+
+## Publication, downloads and retained evidence
+
+One existing catalogue under data/prop_analyses tracks queued/running/complete/error.
+Each run copies the matched XLSX without renaming its strategy basename, captures
+settings and executable identity, invokes the black box into staging, requires
+successful real-data results, verifies resolved settings and source stability,
+and atomically publishes all files. Duplicate active requests share a job ID.
+Progress follows the run.log sections. A failed operation is never a completed
+simulation outcome. The CLI's own process is bounded to 30 minutes; no existing
+user process is terminated. Restarted incomplete jobs become errors.
+
+Format 2 report.json wraps the **unaltered** Bridge results.json plus native source,
+export/native/settings/executable/application hashes and a file manifest. All
+original CSV, report.html, chart PNG, logs, original Bridge ZIP and captured input
+are downloadable, together in analysis.zip. The portal renders Bridge's own
+formatted table strings and captured chart images, without financial calculations
+in JavaScript. Original HTML is an attachment; it is not executed in the portal.
+URLs for captured files allow only saved manifest entries and constrain paths to
+the job directory. Reload/reopen read saved files; neither requires Bridge/Windows.
+Historical format-1 reports continue to show their original numbers with an
+explicit historical-model notice and a link to configure a new Bridge analysis.
+
+Limits: 32 MiB compressed / 64 MiB expanded XLSX, 100,000 trades, 128 MiB published
+Bridge artifacts. No simulation count or input is silently reduced.
+
+## Demonstrated parity
+
+A fresh licensed CLI run, an actual temporary-server portal workflow, and a real
+new run published through the user's existing portal all match the supplied
+`/Users/yx/Downloads/20261026_171955/report.html` report's complete account/settings,
+file/date metadata, part1 evaluation, part2 funded/slot results and warnings.
+All eight CSV tables match exactly and all three chart PNGs are byte-identical.
+The new published report is `2f58d252071e45aeb78859c4eb66cf30`. Creation timestamps,
+output paths and timestamped export filenames naturally identify each new run.
+See prop_simulation_review.md for exact UI steps, expected values and artifacts.
+
+---
+
+## Historical notebook specification (superseded for new operations)
+
+The text below records the previously delivered model and its saved evidence.
+Its reproduction claims apply to the old notebook, not The Bridge model.
+
 # Notebook-compatible prop analysis
 
 Authority: `notebooks/PropFirm_MonteCarlo_Apex50K_2508.ipynb`, SHA-256

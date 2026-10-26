@@ -13,7 +13,7 @@ from threading import Lock
 from uuid import uuid4
 import zipfile
 from .adapter import canonical
-from .analysis import run_analysis
+from .bridge import run_analysis
 
 
 class AnalysisStore:
@@ -46,15 +46,16 @@ class AnalysisStore:
 
     def submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
-        from .analysis import prepare
-        _,snapshot,settings,_=prepare(runs,request['source_backtest_id'],request['overrides'],request['preset'],request['pricing'])
+        from .bridge import prepare
+        snapshot,_,settings=prepare(runs,request['source_backtest_id'],request.get('trade_file'),request['settings'],request['export_timezone'])
+        request={**request,'trade_file':snapshot['bridge_input']['path']}
         key=sha256(canonical(dict(request=request,source=snapshot,settings=settings)).encode()).hexdigest()
         with self.lock,self.connect() as db:
             row=db.execute("SELECT id FROM analyses WHERE request_hash=? AND status IN ('queued','running')",(key,)).fetchone()
             if row:return self.get(row[0])
             id=uuid4().hex
             db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(id,key,request['source_backtest_id'],datetime.now(timezone.utc).isoformat(),'queued','Queued',None))
-        self.worker.submit(self._run,runs,id,request,snapshot['trades_sha256'])
+        self.worker.submit(self._run,runs,id,request,(snapshot['trades_sha256'],snapshot['bridge_input']['sha256']))
         return self.get(id)
 
     def _update(self,id,status,progress,error=None):
@@ -63,20 +64,26 @@ class AnalysisStore:
     def _run(self,runs,id,request,expected_source):
         try:
             self._update(id,'running','Preparing source')
-            result=run_analysis(runs,request['source_backtest_id'],request['overrides'],request['preset'],request['pricing'],request['increment'],lambda msg:self._update(id,'running',msg))
-            if result['source']['trades_sha256']!=expected_source:raise ValueError('Source changed after submission.')
-            result['id']=id;result['created_at_utc']=self.get(id)['created'];result['status']='complete'
-            self._update(id,'running','Publishing saved report and downloads')
             with TemporaryDirectory(prefix='.pending-',dir=self.root) as temp:
                 staged=Path(temp)/'report';staged.mkdir()
-                (staged/'report.json').write_text(canonical(result))
-                for name in ('trades','daily'):
-                    rows=result[name]
-                    with (staged/(name+'.csv')).open('w',newline='') as f:
-                        writer=csv.DictWriter(f,fieldnames=list(rows[0]) if rows else []);writer.writeheader();writer.writerows(rows)
+                result=run_analysis(runs,request,staged,lambda msg:self._update(id,'running',msg))
+                if (result['source']['trades_sha256'],result['source']['bridge_input']['sha256'])!=expected_source:
+                    raise ValueError('Source changed after submission.')
+                result.update(id=id,created_at_utc=self.get(id)['created'],status='complete')
+                self._update(id,'running','Publishing captured Bridge report and downloads')
+                files={}
+                for p in staged.rglob('*'):
+                    if p.is_symlink():raise ValueError('Bridge output contains a symbolic link.')
+                    if p.is_file():
+                        from .adapter import digest
+                        files[str(p.relative_to(staged))]=dict(bytes=p.stat().st_size,sha256=digest(p))
+                if sum(v['bytes'] for v in files.values())>128*1024*1024:
+                    raise ValueError('Bridge output exceeds 128 MiB; no completed result was published.')
+                result['files']=files
+                (staged/'report.json').write_text(canonical(result),encoding='utf-8')
                 with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
-                    for p in staged.iterdir():
-                        if p.name!='analysis.zip':archive.write(p,p.name)
+                    for p in staged.rglob('*'):
+                        if p.is_file() and p.name!='analysis.zip':archive.write(p,str(p.relative_to(staged)))
                 staged.rename(self.root/id)
             self._update(id,'complete','Saved report ready')
         except Exception as exc:

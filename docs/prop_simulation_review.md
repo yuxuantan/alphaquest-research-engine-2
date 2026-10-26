@@ -1,3 +1,164 @@
+# Current workflow: The Bridge report parity
+
+New prop analyses now invoke the **licensed The Bridge Funded Lab CLI**. This
+supersedes the old notebook for new runs and reproduces the user's reference
+`/Users/yx/Downloads/20261026_171955/report.html`. Financial calculations are not
+reverse-engineered or fitted to expected values. The previous reports and saved
+evidence below remain historical snapshots and have not been rewritten.
+
+## Use the matching report
+
+Open `http://127.0.0.1:8000/#backtests/prop/job/2a2f17774703424cb28aef3a24a97728`.
+This is a new Bridge run. The earlier job
+`863ef30f413b4b32a38cb1a59a543fa3` retains its original notebook numbers and now
+shows a **Historical notebook report** notice. Use the new report link when
+comparing with the supplied Funded Lab HTML.
+
+## Reproduce from the native backtest
+
+1. Keep the existing Windows 11 VM running with The Bridge licensed. No license
+   credentials are copied or bypassed. The installer is not executed.
+2. Open the completed backtest:
+   `http://127.0.0.1:8000/#backtests/report/d63265dc923444c799c2dfc59e090e76`.
+3. Click **Configure prop analysis**. The matching original MultiCharts XLSX in
+   `/Users/yx/Downloads/` is automatically selected after full reconciliation.
+   Export timestamps: **Chicago (exchange)**. The native dataset's saved timezone
+   remains New York; comparisons use original UTC instants.
+4. Keep **$49** evaluation, **$129** activation, **block 5**, **20 slots**,
+   **max NQ 4**, holdout start blank and additional overrides **{}**. Blank means
+   the final 30% of the full historical day grid, not a 2023 date filter.
+5. Click **Check source**. Observe **702** matching trades, **702 measured MAE**,
+   **702 measured MFE**, source net **77561.04**. Net P&L already includes source
+   commissions/slippage. Source reference gross 80355 − commissions 2793.96 −
+   slippage 0 = 77561.04; no duplicate trading-cost deduction.
+6. Click **Run analysis**. Progress follows the actual Bridge run.log sections.
+   Standard counts are preserved: 20000 final simulations, 3000 sweep simulations
+   as resolved by The Bridge. Wait for the durable report.
+7. Reload, return to the backtest/configuration and reopen the saved report.
+   No operation is resubmitted. Saved reports, charts and downloads work without
+   running The Bridge or the VM. Download report.json, trades.csv, analysis.zip,
+   and the individual captured Bridge files listed below the report.
+
+Independent expected observations from the supplied HTML and adjacent JSON/CSV:
+
+| Output | Expected |
+| --- | --- |
+| Evaluation size | 25 MNQ |
+| Evaluation pass | 0.3409; displayed 34.1% |
+| Evaluation 95% interval | [0.3343616454112101, 0.34749946270714255] |
+| Evaluation DD / timeout | 0.65185 / 0.00725 |
+| Acquisition cost | 49 / 0.3409 + 129 = 272.7371663244353; displayed $273 |
+| Trading days to funded | 19.519; displayed 19.5 |
+| Funded selected size | 9 MNQ |
+| First-year expected payouts | 1889.6; displayed $1,890 |
+| Lifetime expected payouts | 2005.425; displayed $2,005 |
+| Lifetime median | 0; displayed $0 |
+| Lifetime blown probability | 0.8373; displayed 83.7% |
+| First payout median day | 20 |
+| Train / holdout | 2021-01-05–2024-11-08 / 2024-11-11–2026-07-06 |
+| Day grid | 1004 train + 431 validation = 1435 weekdays |
+| Yearly slot net total | displayed $655,451 (Bridge's own rounded table) |
+
+The portal renders Bridge's formatted table strings and original chart PNGs.
+It does not recompute or substitute the older notebook's statistics, payout policy,
+DLL clipping or acquisition pass probability.
+
+## Actual evidence and exact comparisons
+
+Initial direct CLI replay: `artifacts/bridge-blackbox-parity-20261026/`, including
+original settings form, explicit invocation, logs and all newly generated outputs.
+Command: installed `TheBridge-Hosted.exe funded-lab --files ... --settings ... --out ...`
+through Parallels current-user execution. This returned a successful real-data run.
+
+Actual portal demonstration and publication:
+`artifacts/bridge-portal-parity-20261026T114403Z/`:
+
+- source-check.png and report.png from real Chromium on a temporary server.
+- report.json and analysis.zip downloaded by clicking normal product links.
+- validation.json with **20 exact comparison groups**: complete account/settings,
+  file/date metadata, part1, part2, warnings/session note, all eight CSV tables,
+  and all three chart PNG byte hashes.
+- published-report.json for the new job in the user's existing portal, separately
+  compared to the supplied reference. The output itself is freshly calculated.
+- An isolated APFS copy-on-write backtest/data snapshot for the temporary server.
+  The source catalogue and original files were preserved; the temporary server
+  was stopped in finally. The existing user server/VM were not stopped.
+
+A repeat on the final implementation is saved at
+`artifacts/bridge-portal-parity-20261026T120145Z/`. Its temporary and published
+runs again pass all 20 groups. Additional `display-validation.json` verifies
+**23 groups** including every displayed report section, chart data and chart
+metadata against the reference. Only the Saved files section is excluded from
+section equality because each real run has new timestamped output filenames.
+The published repeat is job `2a2f17774703424cb28aef3a24a97728`.
+The full suite passed **567 tests** (24 existing dependency warnings); the final
+focused Bridge/API/browser checks passed **12 tests**. The repeat also includes
+`actual-portal-report.png` and `actual-portal-validation.json`: Chromium opened the
+published job on port 8000, checked the visible financial values, observed no
+browser errors or POST submissions, and verified that the historical report JSON
+still matches the preserved snapshot.
+
+Earlier repeat attempts at `...T114955Z` and `...T115530Z` failed on Parallels
+guest RPC before publication; their catalogue errors remain inspectable. The
+runner retries only its read-only identity probe and reports analysis transport
+errors without automatically submitting another run. The final repeat passed
+on both the isolated server and the existing portal. Temporary servers stopped.
+
+Reproduce the complete browser journey and comparisons from the repo root:
+
+```sh
+.venv/bin/python scripts/demo_bridge_parity.py
+```
+
+To additionally create a fresh durable report through the user's already-running
+portal API after the isolated-server checks pass:
+
+```sh
+.venv/bin/python scripts/demo_bridge_parity.py --publish-url http://127.0.0.1:8000
+```
+
+Every rerun uses a new timestamped evidence directory and new result ID. Creation
+timestamps, staging/output paths and timestamped filenames differ naturally;
+financial values, tables and chart bytes match the reference. Original report
+HTML is saved unaltered as a downloadable attachment, alongside results.json and
+all native CSV exports. The ZIP also captures input XLSX, form settings, executable
+identity and input/settings/native-source hashes.
+
+## Rejections, limits and dependency
+
+API/unit/browser checks cover source/UTC/cost reconciliation, corrupted XLSX,
+wrong timezone, unknown settings, unsupported product/count choices, invalid
+prices, explicit alternate 109+0 pricing, duplicate active submissions, missing/
+failed/demo Bridge results, unqualified executable hash, immutable reopening,
+manifest-only file downloads and completed ZIP consistency. Source cost math is
+independent of caller Decimal precision. Fake runners are test transport stubs;
+the actual product demonstration and parity comparisons use the licensed engine.
+
+The supported first Bridge integration fixes Apex 50K EOD, standard simulation
+size, slot-year sizing objective and full-cap payout requests to this reference.
+Other native sources currently need a fully matching MultiCharts export; missing
+excursions are not manufactured to make a backtest eligible. Windows/Parallels,
+macOS Home sharing and an active Bridge license are execution dependencies.
+The executable is pinned to version 2.9.5.0 / SHA-256
+`4b0032d156072fc3aa290c2ac21a644b449e7ccf64335f918a02729250495a61`.
+A vendor update needs fresh qualification before changing the expected build.
+The closed-source engine's internal correctness has not been independently
+proved; this delivery establishes parity with its actual qualified behavior.
+
+Starting HEAD was `0940747f892614bf122c479cec0dbb39b76f717d` with a clean workspace.
+Recovery ref: `recovery/bridge-parity-20261026T113459Z`.
+Backup: `/Users/yx/.codex/workspace-backups/bridge-parity-20261026T113459Z/`.
+Working branch: `work/bridge-parity-20261026T113459Z`. No push or merge.
+
+---
+
+## Historical notebook delivery record
+
+The following earlier commands and UI instructions refer to checkout `0940747`
+and the former notebook model. New operations use the Bridge workflow above.
+The original notebook qualification modules/tests remain historical references;
+they are not a second active portal simulator.
+
 # Notebook integration workflow and evidence
 
 The old strict workflow guide is recoverable from `recovery/prop-notebook-20261026T084948Z`

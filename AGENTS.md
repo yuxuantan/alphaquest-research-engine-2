@@ -26,10 +26,17 @@ expected observations. Preserve earlier saved evidence and immutable snapshots.
 Use temporary test servers for browser checks and shut them down after testing;
 report any persistent server started and how to stop it.
 
-Scope: reproduce the executable pinned notebook in `docs/notebooks/`, including
-its known modeling shortcuts. Do not restore the retired strict account engine,
-bar coverage gates, official-rule profiles or mandatory session calendars.
-Source costs use reference gross P&L with explicit analysis cost assumptions.
-Keep calculations in Python, preserve RNG draw order and isolated run state,
-and validate each increment against fresh notebook execution. Preserve all
-legacy datasets, backtests, prop results and earlier evidence on disk.
+Current scope: new prop analyses use the licensed The Bridge Funded Lab CLI as
+the calculation authority. The Bridge is a black box; do not infer or fit its
+engine from saved outputs. Preserve the qualified executable/input/settings
+hashes and compare fresh actual outputs against the supplied Bridge report.
+The old pinned notebook and numerical modules are historical qualification
+material only. Keep old saved reports immutable and label their previous model.
+New runs must use the existing backtest → configure → check → run → report
+workflow. Reconcile every companion export trade ID, direction, UTC entry time,
+quantity and net P&L to its native backtest before using measured excursions.
+Do not fabricate missing MAE/MFE or deduct costs twice. Never bypass or copy
+Bridge license credentials. Invoke funded-lab only; leave collector/live/broker
+operations and the user's Windows VM and servers alone. Preserve all prior
+datasets, backtests, results and evidence. No official-rule research gates or
+mandatory full-session bar calendars are part of this integration.

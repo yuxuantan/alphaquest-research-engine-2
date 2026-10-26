@@ -1,4 +1,4 @@
-"""Literal notebook defaults and validated, traceable analytical overrides."""
+"""Historical notebook defaults; not used by new Bridge portal operations."""
 from datetime import date
 import math
 

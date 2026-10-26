@@ -1,4 +1,4 @@
-/* Existing portal report → configuration → durable notebook report. */
+/* Existing portal report → configuration → durable Bridge report; historical notebook reports remain readable. */
 (() => {
   const $ = s => document.querySelector(s);
   let sourceId, checked = false, busy = false, token = 0;
@@ -12,7 +12,7 @@
     const wrap=el('div',undefined,'prop-scroll'),t=el('table',undefined,'prop-table'),head=el('tr'),body=el('tbody');
     columns=columns||Object.keys(rows[0]).filter(k=>!Array.isArray(rows[0][k])&&typeof rows[0][k]!=='object');
     columns.forEach(k=>head.append(el('th',k)));t.append(head,body);
-    rows.forEach(r=>{const tr=el('tr');columns.forEach(k=>tr.append(el('td',display(r[k]))));body.append(tr);});wrap.append(t);parent.append(wrap);
+    rows.forEach(r=>{const tr=el('tr');columns.forEach(k=>tr.append(el('td',display(r[k]))));body.append(tr);});wrap.append(t);parent.append(wrap);return t;
   }
   function metrics(parent,data) {table(parent,Object.entries(data).filter(([,v])=>!Array.isArray(v)&& (v===null||typeof v!=='object')).map(([metric,value])=>({metric,value})));}
   function section(title) {const n=el('section',undefined,'panel prop-panel');n.append(el('h2',title));$('#prop-report-content').append(n);return n;}
@@ -33,28 +33,36 @@
   }
   function histogram(parent,title,h) {if(!h)return;chart(parent,title,[{name:'frequency',values:h.counts}],h.edges.map(String));details(parent,`${title}: inspect bins`,h);}
   function payload() {
-    const overrides=JSON.parse($('#prop-overrides').value||'{}');
-    overrides.PROP_MC_SIMS=Number($('#prop-sims').value);overrides.NUM_CONTRACTS=Number($('#prop-size').value);overrides.ENGINE=$('#prop-engine').value;
-    return {source_backtest_id:sourceId,overrides,preset:$('#prop-preset').value,pricing:$('#prop-pricing').value,increment:Number($('#prop-increment').value)};
+    const settings=JSON.parse($('#prop-overrides').value||'{}');
+    Object.assign(settings,{EVAL_PRICE:$('#prop-eval-fee').value,ACTIVATION_FEE:$('#prop-activation').value,
+      BLOCK_DAYS:$('#prop-block').value,SLOTS:$('#prop-slots').value,MAX_TOTAL_NQ:$('#prop-max-nq').value,
+      OUT_OF_SAMPLE_FROM:$('#prop-holdout').value});
+    return {source_backtest_id:sourceId,trade_file:$('#prop-trade-file').value||null,
+      export_timezone:$('#prop-export-timezone').value,settings};
   }
   function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);}
   function invalidate(){checked=false;$('#prop-check-output').replaceChildren();$('#prop-run').disabled=true;$('#prop-status').textContent='Settings changed. Check source costs and filtering before running.';}
   $('#prop-form').addEventListener('input',invalidate);
-  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{requested_engine:data.requested_engine,effective_engine:data.effective_engine,...data.source.reconciliation});details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Source arithmetic reconciled. Ready to run.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
+  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.bridge_input.measured_mae_count,measured_MFE:data.source.bridge_input.measured_mfe_count,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'The Bridge Funded Lab'});details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run The Bridge.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
   async function configure(id,t) {
-    sourceId=id;checked=false;$('#prop-config').hidden=false;$('#prop-report').hidden=true;
+    sourceId=id;checked=false;$('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-status').textContent='Loading source and matching exports…';
     const [data,defaults]=await Promise.all([read(`/api/prop-analyses/sources/${id}`),read('/api/prop-analyses/defaults')]);if(t!==token)return;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
-    $('#prop-form').reset();$('#prop-overrides').value='{}';$('#prop-sims').value=defaults.defaults.PROP_MC_SIMS;$('#prop-size').value=defaults.defaults.NUM_CONTRACTS;
-    $('#prop-increment').replaceChildren();const names=['Main evaluation','Evaluation + sizing and attempts','Through funded first payout','Complete lifetime and economics'];for(let i=1;i<=defaults.available_increment;i++){const o=el('option',names[i-1]);o.value=i;$('#prop-increment').append(o);}$('#prop-increment').value=defaults.available_increment;
+    $('#prop-form').reset();$('#prop-overrides').value='{}';
+    $('#prop-trade-file').value=data.matched_exports?.length===1?data.matched_exports[0].path:'';
+    $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
+    $('#prop-block').value=defaults.defaults.BLOCK_DAYS;$('#prop-slots').value=defaults.defaults.SLOTS;
+    $('#prop-max-nq').value=defaults.defaults.MAX_TOTAL_NQ;$('#prop-holdout').value='';
     $('#prop-saved').replaceChildren();for(const a of data.analyses){const link=el('a',`${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;$('#prop-saved').append(link,el('br'));}
-    $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent='Configure analytical settings, then check source. Full bar coverage and MAE are not required.';setBusy(false);
+    $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent='The Bridge Funded Lab · full history, 30% holdout, block 5, standard simulation counts. Check the matched export before running.';$('#prop-config').hidden=false;setBusy(false);
   }
   function render(r) {
+    if(r.format_version===2){renderBridge(r);return;}
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();$('#prop-back').href=`#backtests/report/${r.source.backtest.id}`;
     $('#prop-status').textContent=`Saved analysis ${r.id} · ${r.created_at_utc} · increment ${r.increment}. Reload reads saved results.`;
     const links=$('#prop-downloads');links.replaceChildren();for(const kind of ['report.json','trades.csv','daily.csv','analysis.zip']){const a=el('a',kind+' ↓','button secondary');a.href=`/api/prop-analyses/${r.id}/downloads/${kind}`;links.append(a);}
+    let notice=section('Historical notebook report');notice.append(el('p','This saved report uses the previous notebook model. New prop analyses use The Bridge Funded Lab and can reproduce its reports.'));const rerun=el('a','Configure a Bridge analysis','button primary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}`;notice.append(rerun);
     let p=section('Source, costs and trade statistics');metrics(p,r.statistics);metrics(p,r.engine);details(p,'Source cost arithmetic and filtering',r.source);details(p,'Bootstrap confidence intervals',r.statistics);
     p=section('Source net equity on notebook $100,000 base');if(r.source_equity){chart(p,'Source cumulative net equity',[{name:'net equity',values:r.source_equity.equity}],r.source_equity.dates);metrics(p,r.source_equity);}
     p=section('Evaluation Monte Carlo');metrics(p,r.evaluation);details(p,'Pass probability interval and full metrics',r.evaluation);table(p,r.evaluation_probabilities||['passed','fail_dd','fail_daily','fail_time'].map(outcome=>({outcome,count:r.evaluation[outcome]})),r.evaluation_probabilities?['outcome','count','probability','ci']:undefined);if(r.charts.evaluation_outcomes)bars(p,'Evaluation outcomes',r.charts.evaluation_outcomes.counts,r.charts.evaluation_outcomes.labels);histogram(p,'Days to pass',r.charts.days_to_pass);histogram(p,'Maximum drawdown',r.charts.drawdown);
@@ -66,7 +74,39 @@
     p=section('Versioned model assumptions and reproducibility');p.append(el('p','Analytical notebook model; no current provider-rule certification. Fractional minis and micro equivalents are scaling labels. Known behavior: holdout reused for downstream selections; staged DLL omitted; daily evaluation differs; exact-DLL clipping; weekday/inactivity approximations; selection fallbacks; acquisition and repeated-attempt shortcuts. Missing excursions are never measured MAE.'));
     details(p,'All resolved settings, literal notebook defaults and override origins',{settings:r.settings,literal_defaults:r.literal_notebook_defaults,origins:r.setting_origins,rules:r.rules});details(p,'Hashes, runtime and seed streams',{model:r.model_version,notebook:r.notebook_sha256,input:r.input_sha256,runtime:r.runtime,seeds:r.seed_streams,commit:r.application_commit,implementation:r.implementation_sha256,samples:r.samples});
   }
+  function renderBridge(r) {
+    $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();
+    $('#prop-back').href=`#backtests/report/${r.source.backtest.id}`;
+    $('#prop-status').textContent=`Saved Bridge analysis ${r.id} · ${r.created_at_utc}. Reload reads the published results.`;
+    const links=$('#prop-downloads');links.replaceChildren();
+    for(const kind of ['report.json','trades.csv','analysis.zip']){const a=el('a',kind+' ↓','button secondary');a.href=`/api/prop-analyses/${r.id}/downloads/${kind}`;links.append(a);}
+    const base=`/api/prop-analyses/${r.id}/files/`;
+    const doc=r.bridge_results;
+    let p=section('Evaluation and funded account summary');
+    for(const hero of doc.part1?.hero||[]){p.append(el('h3',hero.setup),el('p',`Evaluation pass rate: ${hero.pass_rate_text} · 95% range: ${hero.range_text}`),el('p',`Evaluation size: ${hero.MNQ} MNQ · Cost per funded account: ${hero.cost_per_funded_text} · Days to funded: ${hero.days_to_funded_text}`));}
+    p.append(el('p',r.calculation_contract));
+    for(const s of doc.sections||[]){
+      if(s.title==='Saved files'||s.title==='Your settings')continue;
+      p=section(s.title);
+      for(const block of s.blocks||[]){
+        if(block.type==='text'&&block.text)p.append(el('p',block.text.trim()));
+        if(block.type==='table'){
+          const columns=block.columns.map((_,i)=>String(i));
+          const rows=block.rows.map(row=>Object.fromEntries(row.map((v,i)=>[String(i),v])));
+          const t=table(p,rows,columns);t?.querySelectorAll('th').forEach((h,i)=>h.textContent=block.columns[i]);
+        }
+      }
+    }
+    p=section('Saved Bridge charts');
+    for(const [name,file] of Object.entries(doc.chart_files||{})){
+      const path='bridge/'+file.path;if(!r.files[path])continue;
+      const figure=el('figure');const img=el('img');img.src=base+path.split('/').map(encodeURIComponent).join('/');img.alt=file.caption||name;img.className='prop-bridge-chart';figure.append(img,el('figcaption',file.caption||name));p.append(figure);
+    }
+    p=section('Captured settings and source checks');metrics(p,r.source.bridge_input);details(p,'Source backtest, costs and provenance',r.source);details(p,'Submitted Bridge settings',r.settings);details(p,'Bridge resolved rules and settings',{account:doc.account,dates:doc.dates,settings:doc.settings});details(p,'Executable and input identities',{engine:r.engine,model:r.model_version,input_sha256:r.input_sha256,settings_sha256:r.settings_sha256,application_commit:r.application_commit});
+    p=section('All saved downloads');
+    for(const path of Object.keys(r.files).sort()){const a=el('a',path);a.href=base+path.split('/').map(encodeURIComponent).join('/');p.append(a,el('br'));}
+  }
   async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(j.status==='error'){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token)render(r);return;}await new Promise(resolve=>setTimeout(resolve,700));}}
-  async function navigate(){const t=++token;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a notebook analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
+  async function navigate(){const t=++token;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a Bridge analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
   window.addEventListener('hashchange',navigate);navigate();
 })();

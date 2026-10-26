@@ -1,4 +1,4 @@
-"""Analysis orchestration over the isolated numerical model; no HTTP or plots."""
+"""Historical notebook qualification only; new portal runs use prop.bridge."""
 from dataclasses import asdict
 from hashlib import sha256
 from importlib.metadata import version

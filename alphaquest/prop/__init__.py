@@ -1,1 +1,1 @@
-"""Pinned trade-based notebook analysis; no broker or official-rule engine."""
+"""Prop analysis via licensed The Bridge; historical notebook reports retained."""

@@ -26,18 +26,24 @@ Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the 
 
 This is a single-user application bound to your own computer, without a login or public hosting setup.
 
-Open a completed **Backtest report → Configure prop analysis**, choose source-cost
-or literal notebook assumptions, inspect **Check source**, then **Run analysis**.
-The durable report contains trade/bootstrap statistics, evaluation paths and
-probabilities, flat/staged sizing, repeated attempts, funded first payouts,
-lifetime extraction, economics, recommendations and block-length robustness.
-JSON/CSV/ZIP downloads and saved reports survive reload without simulation reruns.
-Notebook defaults remain available, including distinct fee formulas; $49+$129
-and $109+$0 are explicit pricing presets. Missing MAE falls back to trade mode;
-full-session bar coverage is not required. This reproduces a pinned analytical
-model, including its known shortcuts, rather than certifying current provider rules. See [the model specification](docs/prop_simulation.md) and
-[workflow evidence](docs/prop_simulation_review.md). Earlier strict account-engine
-URLs are retired; their saved files remain unchanged.
+Open a completed **Backtest report → Configure prop analysis**, inspect the
+matching trade export and **Check source**, then **Run analysis**. New runs use
+**The Bridge Funded Lab** in your running, licensed Windows VM through its
+`funded-lab` CLI. The portal displays its evaluation, funded/lifetime and yearly
+slot results, native tables and charts, with durable JSON/CSV/ZIP downloads.
+
+For the supplied VWAP backtest, the matching MultiCharts XLSX in Downloads is
+selected automatically after every trade reconciles to the native run. Its
+measured MAE/MFE supplies data absent from native trade storage. Other sources
+currently need a matching XLSX export; unmatched sources reject explicitly.
+Default settings match the supplied report: $49 evaluation + $129 activation,
+full history, 30% holdout, block 5, 20 slots and standard simulation counts.
+Set prices to $109 and $0 for the alternative pricing choice. Saved reports
+reopen without rerunning or needing the Windows VM. Earlier notebook reports
+remain immutable and display a historical-model notice.
+
+See [the model specification](docs/prop_simulation.md) and
+[exact reproduction and parity evidence](docs/prop_simulation_review.md).
 
 To change a saved dataset's tick size or monetary point value, click **Edit defaults** in its library row, edit the values, then click **Save instrument settings**. The updated defaults persist and pre-fill future backtest configurations. Run-specific overrides and completed reports remain separate from these saved defaults.
 

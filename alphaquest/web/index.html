@@ -409,23 +409,26 @@
           </section>
         </section>
         <section id="prop-screen" aria-label="Prop analysis" hidden>
-          <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1>Prop analysis<span class="heading-dot">.</span></h1><p>Versioned trade-based notebook analysis · Apex 50K analytical model</p></div></div>
+          <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1>Prop analysis<span class="heading-dot">.</span></h1><p>The Bridge Funded Lab · Apex 50K EOD analysis</p></div></div>
           <p id="prop-status" role="status" aria-live="polite"></p>
           <div id="prop-config" hidden>
-            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>Entry timestamps use the saved source timezone. Saved net P&amp;L includes costs; the adapter starts from reference gross P&amp;L and deducts the resolved analysis costs once. No bar-coverage or calendar declaration is required.</p></section>
+            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. A matching original export supplies measured MAE/MFE used by The Bridge. Checking compares every trade; source commissions and slippage are already included and are not deducted again.</p></section>
             <form id="prop-form" class="panel prop-panel">
-              <h2>Configure analysis</h2><div class="prop-fields">
-                <label>Settings baseline<select id="prop-preset"><option value="source">Source execution costs (explicit overrides)</option><option value="notebook">Literal notebook defaults</option></select></label>
-                <label>Pricing overrides<select id="prop-pricing"><option value="notebook">Notebook: $100 evaluation + $140 activation</option><option value="49+129">$49 evaluation + $129 activation</option><option value="109+0">$109 evaluation + $0 activation</option></select></label>
-                <label>Analysis sections<select id="prop-increment"></select></label>
-                <label>Main evaluation simulations<input id="prop-sims" type="number" min="1" max="100000" step="1" required /></label>
-                <label>Mini-equivalent size<input id="prop-size" type="number" min="0.001" max="100000" step="any" required /></label>
-                <label>Requested engine<select id="prop-engine"><option value="excursion">Excursion (trade fallback without MAE)</option><option value="trade">Trade close</option><option value="daily">Daily aggregate</option></select></label>
+              <h2>Configure The Bridge analysis</h2>
+              <p>Runs the licensed Funded Lab engine in your running Windows VM. Defaults match the supplied report: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, 20 slots, and standard simulation counts. Completed reports reopen without the VM.</p>
+              <label>Matching MultiCharts trade export · local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Automatically selected when exactly one matching export is found" /></label>
+              <div class="prop-fields">
+                <label>Export timestamps<select id="prop-export-timezone"><option value="America/Chicago">Chicago (exchange)</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
+                <label>Bootstrap block · days<select id="prop-block"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option></select></label>
+                <label>Evaluation price · USD<input id="prop-eval-fee" value="49" type="number" min="0" max="100000" step="any" required /></label>
+                <label>Funded activation · USD<input id="prop-activation" value="129" type="number" min="0" max="100000" step="any" required /></label>
+                <label>Funded slots<input id="prop-slots" value="20" type="number" min="1" max="20" step="1" required /></label>
+                <label>Total NQ limit<input id="prop-max-nq" value="4" type="number" min="0.1" max="100000" step="any" required /></label>
+                <label>Explicit holdout start · optional<input id="prop-holdout" type="date" /></label>
               </div>
-              <p>Default OOS date: 2023-01-01. The notebook retains weekdays and fills zero-trade weekdays between its first/last filtered trades. Excursion mode falls back to trade when measured data is unavailable. Fractional mini sizing is analytical scaling.</p>
-              <label>Additional notebook setting overrides · JSON object<textarea id="prop-overrides" rows="7" spellcheck="false">{}</textarea></label>
-              <p>Every setting below can be overridden by name. Main count, size and engine use the dedicated fields above. Reduced fixture counts must be entered explicitly. SWEEP_SIMS is present in the notebook but its evaluation sweep actually uses PROP_MC_SIMS.</p>
-              <details><summary>Literal notebook defaults</summary><pre id="prop-defaults"></pre></details>
+              <p>Leave holdout start blank to use the final 30% of the full history. Set prices to 109 and 0 for the alternative pricing choice. The Bridge selects evaluation and funded sizes; these can differ.</p>
+              <label>Additional Bridge form overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
+              <details><summary>Resolved-form defaults</summary><pre id="prop-defaults"></pre></details>
               <div class="prop-actions"><button id="prop-check" type="button" class="button secondary">Check source</button><button id="prop-run" type="submit" class="button primary" disabled>Run analysis</button></div>
               <div id="prop-check-output"></div>
             </form>
