@@ -64,3 +64,22 @@ def test_attempt_probabilities_independent_arithmetic():
     assert model._p_within_n(.5,2,.5)==.625
     assert model._p_within_n(0,6,.3)==0
     assert model._p_within_n(1,6,.3)==1
+
+@pytest.mark.parametrize('mode',['daily','trade','excursion'])
+def test_funded_sweep_and_detail_exact(mode):
+    s=settings(ENGINE=mode,STAGED_SIMS=64,PAYOUT_SIMS=64,PAYOUT_SWEEP_SIMS=32,PAYOUT_MAX_HORIZON=35,PAYOUT_CONTRACTS=[.3,.7,1.5])
+    actual=execute(frame(),s,3);expected=reference(frame(),s,3)
+    assert actual['funded']['sweep']==clean(expected['payout_sweep'])
+    assert actual['funded']['selected']==clean(expected['best'])
+    assert actual['funded']['detail']==clean(expected['detail'])
+
+@pytest.mark.parametrize('pnl,outcome,days,payout',[(600,'qualified',5,900),(-1100,'blown',None,0),(0,'closed_inactive',None,0),(100,'timeout',None,0)])
+def test_funded_deterministic_boundaries(pnl,outcome,days,payout):
+    f=frame();f.profit_usd=pnl
+    s=settings(VALIDATION_SPLIT=0,COMMISSION_PER_CONTRACT=0,SLIPPAGE_PER_CONTRACT=0,STAGED_SIMS=8,PAYOUT_SIMS=8,PAYOUT_SWEEP_SIMS=8,PAYOUT_CONTRACTS=[1],PAYOUT_MAX_HORIZON=30)
+    # Every weekday has one identical trade, removing bootstrap variability.
+    f=f.iloc[:1].copy()
+    actual=execute(f,s,3)['funded']['detail']
+    assert actual[outcome]==8
+    assert actual['expected_payout']==payout
+    if days:assert actual['days_to_qualify']==[days]*8

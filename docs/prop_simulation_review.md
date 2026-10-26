@@ -90,3 +90,46 @@ and .625 at rho=.5. Twenty-two focused checks passed including real Chromium
 run/reload/reopen/download. The temporary demo/test servers stopped normally.
 
 Expected saved observations: selected size 2.0 minis; train pass 0.8046875; validation pass 0.83203125; staged flat 0.56640625; staged rows [[0.5, 0.37109375, 0.3142282955244983, 0.4317708054662592], [1.0, 0.48046875, 0.42000768037908615, 0.5415073349225438], [1.5, 0.53515625, 0.4739891850542932, 0.595283787402773]]. Sample: validation (held out).
+
+## Increment 3 — funded first payout
+
+Repeat increment 1's source/settings/counts, selecting **Through funded first
+payout**. Inspect the funded detail, size sweep, payout distribution and time-to-
+qualify charts. Reopen from the source's saved analysis list and download JSON/ZIP.
+Automatic reproduction: `.venv/bin/python scripts/demo_prop_analysis.py --increment 3`.
+
+Actual saved report `d5b6354bfd4e4941a608b2a8692b0f25`, durable directory
+`data/prop_analyses/d5b6354bfd4e4941a608b2a8692b0f25/`, downloaded evidence and screenshots
+`artifacts/prop-notebook/increment3/`. Expected observations: selected **2.0** minis;
+256 detail paths → **226 qualified, 29 blown, 1 inactive, 0 horizon**; qualify
+probability **0.8828125**, expected first payout **1321.42296875**, median qualifying
+day **18**. Funded and staged selections reuse validation, deliberately.
+Fresh notebook prefix through cells 11–13 matches every sweep row, selected size,
+all detail metrics and raw payout/drawdown/qualifying-day arrays exactly.
+
+Deterministic product examples use normal dataset upload and backtest APIs, then
+the real report/configure/check/run/download UI. Their saved dataset names and CSV
+filenames say **SYNTHETIC**; none represents market performance. Each has seven
+5-minute bars, one quantity-two trade, zero commission/slippage and point value 1.
+Entry price 10000; exit price = 10000 + declared per-contract profit. Source net
+therefore equals twice that profit. The analysis normalizes to one mini. Use
+OOS_START_DATE=null, VALIDATION_SPLIT=0, SWEEP_CONTRACTS=[1], PAYOUT_CONTRACTS=[1],
+PAYOUT_MAX_HORIZON=30, and the same reduced counts as above.
+
+| Command suffix after `scripts/demo_prop_analysis.py --increment 3` | Saved analysis | Independent expected funded detail |
+| --- | --- | --- |
+| `--fixture payout` | `f2c5ad9c56424d9eb62f0f0553cc7feb` | +600/day; all 256 qualify day 5; equity 3000, safety net 2100 → payout 900 |
+| `--fixture blown` | `e63fae9c00534795acbd7be5510dc915` | −1100/day; DLL clips day 1 to −1000, day 2 reaches account floor; all 256 blown |
+| `--fixture inactive` | `dbc83686466047a79ddcbc1134447875` | zero-profit trades; all 256 inactive, none qualified |
+| `--fixture horizon` | `5b1fa88bfe494aaaa295d4221215320e` | +100/day; meets activity but never +250 qualifying threshold; all 256 open at day-30 horizon |
+
+Each fixture directory `artifacts/prop-notebook/increment3/<fixture>/` contains
+`synthetic-source.csv`, `source-backtest.json`, all downloads, validation.json and
+two screenshots. To reproduce manually, upload that CSV with UTC, tick/point 1,
+run Consecutive green hold with 3 green bars, 20-minute hold, 2 contracts, initial
+50000, zero slippage and commission. Open its report and use the settings above.
+The small source intentionally has no full-session coverage and no measured MAE.
+All four portal demonstrations and fresh notebook comparisons passed; each server
+was stopped on exit. Adapter tests independently cover Sunday-local exclusion,
+zero-trade Tuesday, variable-quantity default rejection and opt-in, cost corruption
+rejection and nominal-versus-observed slippage reconciliation.

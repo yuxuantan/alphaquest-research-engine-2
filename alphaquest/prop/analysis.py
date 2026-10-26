@@ -12,7 +12,7 @@ from .adapter import adapt, canonical
 from .model import NotebookModel
 from .settings import DEFAULTS, PRESETS, NOTEBOOK_SHA256, MODEL_VERSION, validate
 
-AVAILABLE_INCREMENT = 2
+AVAILABLE_INCREMENT = 3
 NOTEBOOK = Path(__file__).resolve().parents[2]/'docs/notebooks/PropFirm_MonteCarlo_Apex50K_2508.ipynb'
 
 
@@ -98,6 +98,14 @@ def execute(frame,settings,increment=1,progress=lambda _:None):
             attempts_to_80={str(rho):next((n for n in range(1,m.N_MAX_ATT+1) if m._p_within_n(m._p_att,n,rho)>=.8),None) for rho in m.RHO_GRID})
         result['seed_streams'].update(sweep=m.SEED+2000,validation=m.SEED+2600,staged=m.SEED+15000)
     result["charts"]=dict(days_to_pass=histogram(m.res["days_to_pass"]),drawdown=histogram(m.res.get("max_dds",m.res.get("max_dds_all"))))
+    if increment>=3:
+        progress('Funded first-payout sweep and selected-size detail')
+        m.cell_17();m.cell_18();m.cell_19()
+        result['funded']=dict(sweep=m.payout_sweep,selected=m.best,detail=m.detail,sample=m.SAMPLE_NAME,
+            selection_fallback=not any(row['blown_rate']<=m.MAX_BLOWN_RATE for row in m.payout_sweep),
+            rules={k:getattr(m,k) for k in ('RULE_SET','PAYOUT_QUAL_DAYS','PAYOUT_DAY_THR','PAYOUT_MIN_TRADED','CONSISTENCY_LIMIT','PAYOUT_CAP','PAYOUT_MIN_BALANCE','PAYOUT_MIN_WITHDRAWAL','PAYOUT_SAFETY_NET','PAYOUT_MAX_DD','PAYOUT_DD_LOCK','PAYOUT_SPLIT','INACTIVITY_WINDOW_TD','INACTIVITY_MIN_QUAL','INACTIVITY_PROFIT_THR','INACTIVITY_ON','PAYOUT_MAX_HORIZON')})
+        result['charts'].update(first_payout=histogram(m.detail['payouts']),qualifying_days=histogram(m.detail['days_to_qualify']))
+        result['seed_streams'].update(funded_sweep=m.SEED+8000,funded_detail=m.SEED+9000)
     return clean(result)
 
 

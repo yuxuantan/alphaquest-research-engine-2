@@ -87,3 +87,14 @@ CI comparisons. Paths use seed +5000 and the current sample. Correlated attempts
 use selected validation pass rate; independent attempts use the main pass rate.
 The literal ATTEMPT_FEE=100, EVAL_FEE=100 and PA_ACTIVATION=140 remain available;
 pricing presets explicitly override all three while leaving BLOWN_COST=150.
+
+## Funded first payout
+
+Cell 11's executable rules, including the $2,000 drawdown inherited from the
+challenge, are saved with the report. Funded processing stays at trade resolution
+with USE_MAE tied to the effective evaluation engine, even for daily evaluation.
+Qualifying, strict consistency comparison, 22-trading-day inactivity and horizon
+outcomes preserve original calculation order. Sweeps use seed +8000; detail at
+the selected size uses +9000. Net EV subtracts (blown + inactive) × BLOWN_COST.
+If no size meets MAX_BLOWN_RATE, the notebook's all-sizes fallback is retained and
+marked. No official-provider profile or evidence approval is involved.
