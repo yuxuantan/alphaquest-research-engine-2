@@ -1033,3 +1033,40 @@ For function-level profiling of a normal CLI run, use
 `python -m cProfile -o <new-file.pstats> -m alphaquest.run_backtest <normal arguments>`.
 Compare unprofiled end-to-end runs for speed claims. Timings and profiling do not
 enter financial calculations. Test servers stop through their normal fixtures.
+
+### Increment 2 — compact standalone reports
+
+Portal/API and CLI backtests now default to compact reports, retaining every
+trade, trade-close equity row, metric, prop result and source check. The existing
+**Generate full detail** action replays the exact source, verifies trade/equity
+CSV hashes and saves a separate compressed full report; it retains the original
+prop analysis. API `report_detail: "full"` and CLI `--report-detail full` explicitly
+request per-bar JSON at first execution. Existing reports remain unchanged.
+
+Actual cash/source-check/browser evidence:
+`artifacts/backtest-runtime-20261027/02-compact-verified/test_automatic_apex_backtest_o0/`.
+Upload the prior synthetic cash source, run normally, inspect the compact-report
+notice, expand Runtime breakdown, then inspect/configure/check/reopen its prop
+analysis. Historical net remains **352,880**, payouts **360,000**, fees **7,120**.
+The dedicated runtime check requests full detail and independently verifies equal
+summaries, original prop ID and byte-identical trade/equity downloads.
+
+`artifacts/backtest-runtime-20261027/02-report-benchmark/verification.json` retains
+two fresh full/compact pairs over 20,000 explicitly synthetic flat bars through
+the normal APIs. Independent expectations: zero entries/P&L, final equity 10,000,
+and incompatible prop input with no fabricated statistic. All CSV hashes match.
+Median wall times: **3.2732 s full / 1.3970 s compact (2.34x)**; report bytes:
+**3,612,626 / 3,728**. This isolated I/O workload is not trading evidence or a
+general speed guarantee. Source loading and calculation still run normally.
+
+Reproduce the retained benchmark with a new directory:
+
+```bash
+PYTHONPATH=tests:. .venv/bin/python tests/review_backtest_runtime.py \
+  --output artifacts/backtest-runtime-reports-NEW --bars 20000 --repeats 2
+```
+
+Validation: **155 checks passed**, covering runtime/CLI, exact independent
+financial fixtures, API, dates, VWAP, compact/full replay and the normal browser
+workflow. Full-array fixture oracles explicitly request full reports. Servers
+stop in their normal fixtures; prior reports and evidence remain preserved.

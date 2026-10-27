@@ -7,7 +7,7 @@ import json
 import sqlite3
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -52,6 +52,7 @@ class BacktestRequest(BaseModel):
     execution_settings: ExecutionSettings
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None
+    report_detail: Literal['compact','full'] = 'compact'
 
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
@@ -100,7 +101,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact'):
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         timings = Performance()
         output = Path(temporary) / run_id
@@ -108,7 +109,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record else report_detail)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -154,11 +155,11 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
         config = body.execution_settings.execution_config(dataset)
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id)
+    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail)
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None):
+                           *, compress_report=False, source_record=None, report_detail='compact'):
     run_id = uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -174,7 +175,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         return await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail)
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))

@@ -38,7 +38,7 @@ def review_fixture(case, directory):
     saved = store.set_instrument_settings(saved["id"], **{k: case["execution_settings"][k] for k in ("tick_size", "point_value")})
     settings = case["execution_settings"]
     output = fixture_dir / "report"
-    run_saved_dataset(store, saved["id"], output, Parameters(**case["strategy_parameters"]), RunSettings(Decimal(settings["initial_capital"]), settings["slippage_ticks"], Decimal(settings["commission_per_contract_per_side"])))
+    run_saved_dataset(store, saved["id"], output, Parameters(**case["strategy_parameters"]), RunSettings(Decimal(settings["initial_capital"]), settings["slippage_ticks"], Decimal(settings["commission_per_contract_per_side"])),report_detail='full')
     report = json.loads((output / "report.json").read_text())
     _equal_record(report["summary"], case["expected_summary"])
     assert len(report["trades"]) == len(case["expected_trades"])

@@ -217,6 +217,12 @@ The existing server exposes allowlisted strategy discovery, explicit-config back
 
 ## Backtests screen
 
+New standalone runs default to compact reports: all trades, metrics, trade-close
+equity and prop analysis are retained. **Generate full detail** saves a separately
+verified compressed per-bar report when needed. The API accepts
+`report_detail: "full"`; the CLI accepts `--report-detail full`. Expand **Runtime
+breakdown** on a saved report for phase times and their original JSON download.
+
 Use **Delete** beside a completed report, or **Delete backtest** inside the report,
 to permanently remove that selected backtest and its report/CSV files after
 confirmation. The source dataset, saved prop analyses and optimization metrics

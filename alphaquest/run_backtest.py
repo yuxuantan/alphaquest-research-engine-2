@@ -27,7 +27,7 @@ def _decimal_argument(value: str) -> Decimal:
 
 def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Path,
                       parameters, settings: RunSettings, *, strategy_id=sample.STRATEGY_ID,
-                      from_date=None, to_date=None) -> dict:
+                      from_date=None, to_date=None, report_detail='compact') -> dict:
     """Use the normal backtest/prop catalogue; expose one output shortcut."""
     dataset = store.get(dataset_id)
     if dataset is None:
@@ -47,7 +47,7 @@ def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Pa
         # second result store. A failed run removes only its own shortcut.
         output.symlink_to(destination,target_is_directory=True)
         return run_backtest(store,runs,run_id,dataset,definition,parameters,config,date_range,lambda *args:None,
-                            prop_analyses=analyses)
+                            prop_analyses=analyses, report_detail=report_detail)
     except BaseException:
         if output.is_symlink() and output.readlink()==destination:output.unlink()
         raise
@@ -62,6 +62,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="New directory for report.json, trades.csv, equity.csv")
     parser.add_argument("--from-date", help="Inclusive YYYY-MM-DD in the saved source timezone")
     parser.add_argument("--to-date", help="Inclusive YYYY-MM-DD in the saved source timezone")
+    parser.add_argument('--report-detail',choices=('compact','full'),default='compact',help='Compact retains all trades and trade-close equity; full also writes per-bar JSON.')
     parser.add_argument("--green-bar-count", type=int, default=3)
     parser.add_argument("--hold-minutes", type=int, default=20)
     parser.add_argument("--contracts", type=int, default=1)
@@ -88,7 +89,7 @@ def main():
         if not args.database.is_file():
             raise DatasetReadError(f"Dataset database does not exist: {args.database}")
         manifest = run_saved_dataset(DatasetStore(args.database), args.dataset_id, args.output, parameters, settings,
-                                     strategy_id=args.strategy_id, from_date=args.from_date, to_date=args.to_date)
+                                     strategy_id=args.strategy_id, from_date=args.from_date, to_date=args.to_date, report_detail=args.report_detail)
     except (ValueError, OSError, InvalidOperation, InvalidDataset) as exc:
         parser.error(str(exc))
     print(json.dumps({"output_directory": str(args.output), "summary": manifest["summary"],

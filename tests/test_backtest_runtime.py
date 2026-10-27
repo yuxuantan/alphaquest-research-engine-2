@@ -29,3 +29,23 @@ def test_phase_diagnostics_are_durable_and_do_not_change_saved_financial_record(
     (client.app.state.runs.root/record['id']/'performance.json').unlink()
     assert 'unavailable' in client.get(base+'/performance').json()
     assert client.get('/api/backtests/'+'a'*32+'/performance').status_code==404
+
+
+def test_standalone_compact_default_and_full_detail_have_exact_same_csv_and_summary(client):
+    import gzip
+    dataset=save_fixture(client)
+    request=body(dataset['id'])
+    compact=client.post('/api/backtests',json=request).json()
+    assert compact['report_storage']['detail']=='compact'
+    raw=client.get(f'/api/backtests/{compact["id"]}/exports/report').json()
+    assert 'trades' not in raw and 'equity' not in raw
+    full=client.post('/api/backtests/'+compact['id']+'/detailed')
+    assert full.status_code==201,full.text
+    detailed=full.json()
+    assert detailed['report_storage']['detail']=='full'
+    assert detailed['summary']==compact['summary']
+    assert detailed['run_metadata']['automatic_prop_analysis']==compact['run_metadata']['automatic_prop_analysis']
+    for kind in ('trades','equity'):
+        assert client.get(f'/api/backtests/{compact["id"]}/exports/{kind}').content==client.get(f'/api/backtests/{detailed["id"]}/exports/{kind}').content
+    archive=client.get(f'/api/backtests/{detailed["id"]}/exports/report').content
+    assert 'equity' in json.loads(gzip.decompress(archive))

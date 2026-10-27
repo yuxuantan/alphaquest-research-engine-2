@@ -52,6 +52,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     folder = root / compact["id"]
     before = {p.name: sha256(p.read_bytes()).hexdigest() for p in folder.iterdir()}
     baseline_response = page.request.post(portal["url"] + "/api/backtests", data={
+        "report_detail":"full",
         "dataset_id": dataset["id"], "strategy_id": compact["run_metadata"]["strategy"]["id"],
         "strategy_parameters": compact["run_metadata"]["strategy"]["parameters"],
         "execution_settings": compact["execution_settings"],

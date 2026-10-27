@@ -47,7 +47,7 @@ def body(dataset_id, case=None):
 def run_fixture(client, case=None, operation_id=None):
     dataset = save_fixture(client, case)
     response = client.post("/api/backtests", params={"progress_id": operation_id or str(uuid4())},
-                           json=body(dataset["id"], case))
+                           json={**body(dataset["id"], case),'report_detail':'full'})
     assert response.status_code == 201, response.text
     return dataset, response.json()
 
@@ -101,7 +101,7 @@ def test_api_retrieves_exact_independently_reviewed_results_and_provenance(clien
     assert client.get(f"/api/datasets/{dataset['id']}").json() == dataset
     assert client.get(f"/api/datasets/{dataset['id']}/csv").content == (FIXTURES / case["csv"]).read_bytes()
     persisted = client.app.state.runs.root / run_id
-    assert {p.name for p in persisted.iterdir()} == {"report.json", "trades.csv", "equity.csv"}
+    assert {p.name for p in persisted.iterdir()} == {"report.json", "trades.csv", "equity.csv", 'performance.json'}
     stored_report = json.loads((persisted / "report.json").read_text())
     assert stored_report["summary"] == record["summary"]
     assert stored_report["trades"] == trades["items"]
