@@ -214,3 +214,11 @@ after every row and report file is saved. Normal failures roll back rows and
 clean staging files. A hard interruption can leave an unlisted staging/artifact
 directory; retrieval/listing require a committed record and cannot treat it as
 success. No external task queue or background-job framework is introduced.
+
+Runtime options: `report_detail` defaults to `compact` (`full` retains per-bar
+JSON). `reuse_results`, `reuse_prepared` and `reuse_calculations` default to true.
+An identical verified completed result returns **200** with
+`X-AlphaQuest-Reused: true` and the original run ID; a fresh result returns **201**.
+Set all three reuse flags false for a fresh reference run. Source integrity is
+checked even on hits. `GET /api/backtests/{id}/performance` and the `performance`
+export return saved phase diagnostics; historical runs may explicitly lack them.

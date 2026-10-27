@@ -343,7 +343,7 @@ class OptimizationStore:
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
                 context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range, prepared, features,
-                                       default_prop=bool(job.get("default_prop_profile")))
+                                       default_prop=bool(job.get("default_prop_profile")),calculation_cache=self.prop_analyses.calculation_snapshot())
                 trials = iter(pending)
                 workers = job["worker_count"]
                 if workers == 1:

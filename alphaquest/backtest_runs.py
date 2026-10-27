@@ -32,6 +32,10 @@ class RunStore:
                 CREATE TABLE IF NOT EXISTS runs (
                     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, manifest TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS backtest_reuse (
+                    key TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+                    payload TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS run_trades (
                     run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
                     ordinal INTEGER NOT NULL, payload TEXT NOT NULL,

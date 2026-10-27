@@ -39,7 +39,7 @@ def save_fixture(client, case=None):
 
 def body(dataset_id, case=None):
     case = case or fixtures()[0]
-    return {"dataset_id": dataset_id, "strategy_id": "consecutive_green_hold",
+    return {"reuse_results":False,"dataset_id": dataset_id, "strategy_id": "consecutive_green_hold",
             "strategy_parameters": deepcopy(case["strategy_parameters"]),
             "execution_settings": {k: v for k, v in case["execution_settings"].items() if k not in ("tick_size", "point_value")}}
 

@@ -1182,3 +1182,63 @@ Reproduce with a new `--basetemp` directory:
   tests/test_backtest_api.py tests/test_backtest_date_range.py \
   tests/test_automatic_prop_browser.py --basetemp artifacts/replay-cache-NEW
 ```
+
+### Increment 6 — verified completed-result and pure calculation reuse
+
+The normal Backtests form now offers **Reopen identical saved results** (checked
+by default). Original source integrity, dates, strategy, costs, detail, engine/
+dependencies, report/CSV hashes and automatic prop report fingerprints must all
+match. A hit reopens the original durable report, without modifying it or
+creating a second result store. Uncheck for a new backtest. Deleted/damaged
+reports are excluded. Reused API responses are 200 with
+`X-AlphaQuest-Reused:true`; fresh responses remain 201. Progress resolves to the
+actual reopened ID. CLI shortcuts point to the actual result; `--fresh` bypasses
+completed results, prepared streams and prop calculation reuse.
+
+Fresh backtests may reuse pure calculations from another verified local prop
+report. Their complete adapted rows, native CSV checksum, excursion identity,
+timezone, session grid, settings and engine fingerprint must match. Every new
+source is independently adapted, cost-reconciled and checked before reuse.
+Workers receive bounded references/checksums, never database connections. New
+reports retain their own source backtest ID, captured inputs and downloads;
+`runtime.calculation_reused_from` identifies the original calculation. A corrupt
+calculation file or changed fee/settings forces fresh arithmetic. No external
+report or engine is used. API qualification controls are `reuse_results:false`,
+`reuse_prepared:false` and `reuse_calculations:false`.
+
+Actual evidence: `artifacts/backtest-runtime-20261027/06-reuse/` and
+`06-reuse-product/`. The normal 60-weekday cash-source comparison in
+`test_pure_prop_calculation_reu0/reuse-verification.json` independently checks
+Historical net **352,880**, source net **180,000**, payouts **360,000**, fees
+**7,120**, all standard counts and every calculation/distribution. Two fresh
+backtest IDs preserve their distinct source identities. Measured request wall
+times were **11.8478 s cold / 0.4279 s with verified calculation reuse**; the
+second still replays the strategy. A third checked request reopens the exact
+second report and creates no run. This is an identical-input reuse observation,
+not a speed guarantee for new inputs.
+
+User reproduction: upload the labelled synthetic source from the retained
+browser directory; set green count/hold/contracts to 1, point value 1000, zero
+costs; run, inspect inline cash and Runtime breakdown. Use Configure prop
+analysis, verify the invalid-setting rejection, restore valid settings, check
+source net and reopen the saved report. Return to Backtests with the same inputs
+and the reuse checkbox checked: expect the exact original report ID and cash.
+Uncheck and rerun: expect a new ID, **Verified prop calculations reused** and
+unchanged cash. Download JSON to inspect the new source ID and reuse reference.
+The browser also creates an optimization whose matching trial reuses the first
+prop calculation while preserving its own source ID.
+
+```bash
+.venv/bin/python -m pytest -q tests/test_backtest_reuse.py \
+  tests/test_backtest_api.py tests/test_replay_cache.py \
+  tests/test_optimization_acceleration.py tests/test_automatic_prop.py \
+  tests/test_backtest_runtime.py --basetemp artifacts/reuse-core-NEW
+.venv/bin/python -m pytest -q tests/test_automatic_prop_browser.py \
+  tests/test_backtest_reuse.py tests/test_vwap_pullback.py \
+  --basetemp artifacts/reuse-product-NEW
+```
+
+Validation: **91 core checks and 31 product/VWAP checks passed**. Actual browser
+screenshots/downloads include `verified-backtest-reopened.png`, source checking,
+rejection, configure/run/reopen, historical cash and optimization results. Earlier
+reports remain byte-identical. Temporary servers and pools stopped normally.

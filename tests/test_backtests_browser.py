@@ -139,6 +139,7 @@ def test_exact_submitted_configuration_and_saved_completion_summary(page, portal
     assert len(requests) == 1
     submitted = requests[0].post_data_json
     assert submitted == {
+        "reuse_results": True,
         "dataset_id": portal["saved"]["arithmetic_5m"]["id"], "strategy_id": "consecutive_green_hold",
         "strategy_parameters": {"green_bar_count": 2, "hold_minutes": 7, "contracts": 2},
         "execution_settings": {"initial_capital": "10000.123456789123456789123456789", "slippage_ticks": 1,

@@ -381,6 +381,10 @@
                 <p class="small muted">Tick size and monetary point value start from the dataset defaults. You can override them for this run. Values are never inferred from the filename or symbol.</p>
               </aside>
             </div>
+            <div id="backtest-reuse-settings" class="panel">
+              <label><input id="backtest-reuse" type="checkbox" checked> Reopen identical saved results</label>
+              <p class="field-help">Verifies source, settings, engine and saved files. Uncheck to run a new backtest. Identical verified prop calculations can still be reused.</p>
+            </div>
             <div class="backtest-submit-row">
               <span class="small muted" id="backtest-form-hint">Loading available datasets and strategies.</span>
               <button id="start-backtest" class="button primary" type="submit" disabled>Start backtest <span aria-hidden="true">→</span></button>

@@ -216,6 +216,7 @@
       if(active!==controller)return;
       get('#report-performance-status').textContent=data.unavailable || `Total elapsed: ${data.elapsed_seconds.toFixed(3)} seconds. Phase times exclude time attributed to nested phases.`;
       if(data.details?.prop_backend)get('#report-performance-status').textContent+=` Prop engine: ${data.details.prop_backend}.`;
+      if(data.details?.prop_calculation_reused_from)get('#report-performance-status').textContent+=' Verified prop calculations reused.';
       if(data.details?.source_cache_hit)get('#report-performance-status').textContent+=' Parsed source reused.';
       if(data.details?.prepared_feature_series)get('#report-performance-status').textContent+=` Prepared indicator series: ${data.details.prepared_feature_series}.`;
       if(data.details?.prop_execution?.workers_used)get('#report-performance-status').textContent+=` Prop workers: ${data.details.prop_execution.workers_used}.`;

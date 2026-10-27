@@ -287,7 +287,8 @@ def run_analysis(runs,request,staged,progress):
         copied=inputs/export['filename'];shutil.copyfile(export['path'],copied)
         if digest(copied)!=export['sha256']:raise ValueError('Excursion export changed before capture.')
     (inputs/'settings.json').write_text(json.dumps(settings,indent=2))
-    result=calculate(rows,settings,progress)
+    from .calculation_cache import calculate as cached_calculate
+    result,reused_from,calculation_key=cached_calculate(rows,settings,snapshot,progress,calculate)
     if digest(runs.root/request['source_backtest_id']/'trades.csv')!=snapshot['trades_sha256']:
         raise ValueError('Native source changed during calculation.')
     if export['path'] and digest(export['path'])!=export['sha256']:
@@ -305,6 +306,6 @@ def run_analysis(runs,request,staged,progress):
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parents[2],text=True,stderr=subprocess.DEVNULL).strip()
     except (OSError,subprocess.CalledProcessError):commit='unavailable'
     return dict(format_version=3,model_version=MODEL_VERSION,source=snapshot,settings=settings,calculations=result,
-                calculation_contract='AlphaQuest local account transitions, random sampling, sizing, economics and charts; no external engine or generated report inputs.',
-                runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__,native_kernel=backend_identity(),prop_execution=execution_diagnostics()),
+                calculation_contract='AlphaQuest local account transitions, random sampling, sizing, economics and charts; no external calculation engine or externally generated result inputs; verified local calculation reuse is recorded.',
+                runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__,native_kernel=backend_identity(),prop_execution=execution_diagnostics(),calculation_key=calculation_key,calculation_reused_from=reused_from),
                 application_commit=commit,implementation_sha256={p.name:digest(p) for p in Path(__file__).parent.glob('*.py')})

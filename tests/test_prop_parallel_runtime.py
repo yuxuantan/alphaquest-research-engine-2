@@ -58,7 +58,7 @@ def test_normal_backtest_runs_standard_prop_sweeps_in_parallel(client,tmp_path):
     runs=[];reports=[]
     for workers in (1,2):
         client.app.state.prop_analyses.runtime.workers=workers
-        response=client.post('/api/backtests',json=request);assert response.status_code==201,response.text
+        response=client.post('/api/backtests',json={**request,'reuse_results':False,'reuse_calculations':False});assert response.status_code==201,response.text
         record=response.json();id=record['run_metadata']['automatic_prop_analysis']['id']
         report=client.get('/api/prop-analyses/'+id+'/downloads/report.json').json()
         expected_cash(report);reports.append(report)

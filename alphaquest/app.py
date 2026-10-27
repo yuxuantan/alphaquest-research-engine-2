@@ -65,12 +65,12 @@ class ProgressTracker:
             state = self.states.get(operation_id)
             return {key: value for key, value in state.items() if key != "updated_at"} if state else None
 
-    def update_backtest(self, operation_id, run_id, stage, processed, total):
+    def update_backtest(self, operation_id, run_id, stage, processed, total, *, resolved_run_id=None):
         with self.lock:
             previous = self.states.get(operation_id)
             if previous is not None and previous.get("run_id") == run_id:
                 self.states[operation_id] = {"stage": stage, "bars_processed": processed,
-                                             "total_bars": total, "run_id": previous["run_id"]}
+                                             "total_bars": total, "run_id": resolved_run_id or previous["run_id"]}
 
     def fail_backtest(self, operation_id, run_id, error):
         with self.lock:

@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse,JSONResponse
 
 from .backtest_data import DatasetReadError, DateRange, read_selected_bars
 from .backtest_runs import RunStore
@@ -54,6 +54,8 @@ class BacktestRequest(BaseModel):
     to_date: StrictStr | None = None
     report_detail: Literal['compact','full'] = 'compact'
     reuse_prepared: bool = True
+    reuse_results: bool = True
+    reuse_calculations: bool = True
 
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
@@ -102,7 +104,19 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True):
+    from . import backtest_cache
+    reuse_key=None
+    if not source_record:
+        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses))
+        if reuse_results:
+            reused=backtest_cache.lookup(runs,prop_analyses,reuse_key)
+            if reused:
+                from .backtest_data import read_bars
+                with read_bars(store,dataset['id']):pass
+                count=reused['run_metadata']['selection']['row_count']
+                progress('done',count,count)
+                return reused
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         timings = Performance()
         output = Path(temporary) / run_id
@@ -132,13 +146,15 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         if not source_record and prop_analyses:
             with timings.span('prop_analysis'):
                 prop_result = compute_default(Path(temporary), run_id, manifest, Path(temporary)/"prop", automatic,
-                                              lambda message: progress("prop_simulation: " + message, processed, total), runtime=prop_analyses.runtime)
+                                              lambda message: progress("prop_simulation: " + message, processed, total), runtime=prop_analyses.runtime,calculation_cache=prop_analyses.calculation_snapshot() if reuse_calculations else None)
             timings.details['prop_backend']=prop_result.get('native_kernel',{}).get('name','source incompatible')
             timings.details['prop_execution']=prop_result.get('prop_execution',{})
+            timings.details['prop_calculation_reused_from']=prop_result.get('calculation_reused_from')
         progress("saving_results", processed, total)
         with timings.span('publication'):
             record = publish_backtest(runs, prop_analyses, run_id, output, manifest, prop_result, Path(temporary)/"prop")
         save_performance(runs.root/run_id, timings.snapshot())
+    if reuse_key:backtest_cache.save(runs,prop_analyses,reuse_key,record)
     progress("done", processed, total)
     return record
 
@@ -168,11 +184,11 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
         config = body.execution_settings.execution_config(dataset)
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared)
+    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations)
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True):
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True):
     run_id = uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -185,10 +201,16 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
             tracker.update_backtest(operation_id, run_id, stage, processed, total)
 
     try:
-        return await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
+        record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations)
+        if record['id']!=run_id:
+            if operation_id:
+                count=record['run_metadata']['selection']['row_count']
+                tracker.update_backtest(operation_id,run_id,'done',count,count,resolved_run_id=record['id'])
+            return JSONResponse(record,status_code=200,headers={'X-AlphaQuest-Reused':'true'})
+        return record
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))

@@ -86,6 +86,21 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     playwright.expect(page.locator('#prop-report')).to_be_visible()
     assert len(page.request.get(f"{portal['url']}/api/prop-analyses/sources/{backtest_id}").json()['analyses'])==1
 
+    # The ordinary checked reuse control reopens the original verified report.
+    page.goto(portal['url']+'/#backtests')
+    page.locator('#backtest-dataset').select_option(dataset['id'])
+    for name in ('green_bar_count','hold_minutes','contracts'):
+        page.locator('#strategy-'+name).fill('1')
+    page.locator('#backtest-slippage-ticks').fill('0')
+    page.locator('#backtest-commission').fill('0')
+    playwright.expect(page.locator('#backtest-reuse')).to_be_checked()
+    with page.expect_response(lambda r:r.request.method=='POST' and '/api/backtests?' in r.url) as reused:
+        page.locator('#start-backtest').click()
+    assert reused.value.status==200
+    playwright.expect(page).to_have_url(re.compile('/#backtests/report/'+backtest_id+'$'))
+    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880')
+    page.screenshot(path=str(tmp_path/'verified-backtest-reopened.png'),full_page=True)
+
     def configure_optimization():
         page.goto(portal['url']+'/#optimizations')
         page.locator('#backtest-dataset').select_option(dataset['id'])
@@ -107,6 +122,9 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     job=page.request.get(f"{portal['url']}/api/optimizations/{job_id}").json()
     rows=page.request.get(f"{portal['url']}/api/optimizations/{job_id}/results").json()['items']
     assert [r['metrics']['historical_net'] for r in rows]==[352880,None]
+    reused_prop=page.request.get(portal['url']+'/api/prop-analyses/'+rows[0]['prop_analysis']['id']+'/downloads/report.json').json()
+    assert reused_prop['runtime']['calculation_reused_from']==prop_id
+    assert reused_prop['source']['backtest']['id']==rows[0]['run_id']
     for direction in ('ascending','descending'):
         page.get_by_role('button',name='Historical net',exact=False).click()
         playwright.expect(page.locator('#optimization-results th[data-column="historical_net"]')).to_have_attribute('aria-sort',direction)

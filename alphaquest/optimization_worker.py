@@ -26,6 +26,7 @@ class TrialContext:
     prepared: object = None
     feature_paths: dict | None = None
     default_prop: bool = True
+    calculation_cache: dict | None = None
 
 
 class FrozenSource:
@@ -62,9 +63,10 @@ def compute_trial(context, trial, values, run_id, progress):
         feature_paths=context.feature_paths, automatic_prop=automatic, timings=timings)
     with timings.span('prop_analysis'):
         prop_result = compute_default(context.output_root, run_id, manifest, context.output_root / ("prop-" + automatic["id"]), automatic,
-                                      lambda message: progress("prop_simulation: " + message, processed, total)) if automatic else None
+                                      lambda message: progress("prop_simulation: " + message, processed, total),calculation_cache=context.calculation_cache) if automatic else None
     if prop_result:timings.details['prop_backend']=prop_result.get('native_kernel',{}).get('name','source incompatible')
     if prop_result:timings.details['prop_execution']=prop_result.get('prop_execution',{})
+    if prop_result:timings.details['prop_calculation_reused_from']=prop_result.get('calculation_reused_from')
     return {"manifest": manifest, "processed": processed, "total": total, "prop_analysis": prop_result, 'performance': timings.snapshot(),
             "execution": {"worker_pid": os.getpid(), "started_at_utc": started_at,
                           "finished_at_utc": datetime.now(timezone.utc).isoformat(),

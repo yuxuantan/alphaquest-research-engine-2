@@ -229,6 +229,15 @@ when no matching binary exists. Rebuild an editable checkout with
 `.venv/bin/python setup.py build_ext --inplace` after editing the model source.
 Runtime breakdown and saved prop report metadata identify the chosen backend.
 
+The form defaults to **Reopen identical saved results**. Source, settings, engine
+and saved artifacts are verified before reopening the original report. Uncheck
+to create a new backtest. Identical trade histories may reuse verified local prop
+calculations while preserving the new report's source identity. Runtime breakdown
+identifies source/calculation reuse. CLI `--fresh` bypasses all three caches.
+Independent prop sweeps share a bounded process pool; `ALPHAQUEST_PROP_WORKERS=1`
+selects serial execution. Parsed bars and declared pure indicators use a bounded
+disposable cache (`ALPHAQUEST_REPLAY_CACHE_MB`, default 2048 MiB).
+
 Use **Delete** beside a completed report, or **Delete backtest** inside the report,
 to permanently remove that selected backtest and its report/CSV files after
 confirmation. The source dataset, saved prop analyses and optimization metrics

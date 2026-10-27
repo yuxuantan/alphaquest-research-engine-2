@@ -38,6 +38,7 @@
     for (const fieldset of form.querySelectorAll("fieldset")) fieldset.disabled = state.busy || state.loading;
     for (const input of get("#strategy-parameters").querySelectorAll("input")) input.disabled = optimizing() || state.busy || state.loading;
     for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = !optimizing() || state.busy || state.loading;
+    get("#backtest-reuse").disabled=optimizing() || state.busy || state.loading;
     get("#optimization-workers").disabled = !optimizing() || state.busy || state.loading || !window.optimizations.workersReady();
     get("#optimization-workers-retry").disabled = state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
@@ -423,6 +424,7 @@
     };
     poll();
     try {
+      payload.reuse_results=get("#backtest-reuse").checked;
       const response = await fetch(`/api/backtests?progress_id=${operationId}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
@@ -432,7 +434,7 @@
       const total = record.run_metadata.selection?.row_count ?? record.run_metadata.dataset.row_count;
       current = { stage: "done", bars_processed: total, total_bars: total };
       location.hash = `backtests/report/${record.id}`;
-      get("#backtest-progress-note").textContent = `Run ${record.id} saved successfully.`;
+      get("#backtest-progress-note").textContent = response.headers.get("X-AlphaQuest-Reused") === "true" ? `Reopened verified run ${record.id}.` : `Run ${record.id} saved successfully.`;
     } catch (error) {
       finished = true;
       const network = error instanceof TypeError;
@@ -476,6 +478,7 @@
     get("#strategy-parameters").hidden = optimizing();
     get("#strategy-parameters-heading").hidden = optimizing();
     get("#optimization-settings").hidden = !optimizing();
+    get("#backtest-reuse-settings").hidden=optimizing();
     get("#backtest-progress").hidden = optimizing() || get("#backtest-progress").hidden;
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {

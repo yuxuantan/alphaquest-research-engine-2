@@ -53,6 +53,7 @@ class AnalysisStore:
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS calculation_reuse (key TEXT PRIMARY KEY,engine TEXT NOT NULL,id TEXT NOT NULL,sha256 TEXT NOT NULL)')
             if recover_interrupted:
                 db.execute("UPDATE analyses SET status='error',error='Application stopped before publication; run again.',progress='Interrupted' WHERE status IN ('queued','running')")
 
@@ -124,7 +125,37 @@ class AnalysisStore:
                 import shutil
                 shutil.rmtree(destination)
             raise
+        if prepared['status']=='complete':self.index_calculations(id)
         return self.get(id)
+
+    def index_calculations(self,id):
+        try:self._index_calculations(id)
+        except (OSError,ValueError,KeyError,sqlite3.Error):
+            import logging
+            logging.getLogger(__name__).warning('Could not index optional prop calculation reuse',exc_info=True)
+
+    def _index_calculations(self,id):
+        from ..optimization_cache import engine_identity
+        directory=self.root/id
+        report=json.loads((directory/'report.json').read_bytes())
+        key=report.get('runtime',{}).get('calculation_key')
+        if not key:return
+        sha=report['files']['calculations.json']['sha256']
+        with self.connect() as db:
+            db.execute('INSERT OR REPLACE INTO calculation_reuse VALUES (?,?,?,?)',(key,engine_identity(),id,sha))
+
+    def calculation_snapshot(self):
+        try:return self._calculation_snapshot()
+        except (OSError,ValueError,sqlite3.Error):
+            import logging
+            logging.getLogger(__name__).warning('Prop calculation reuse unavailable',exc_info=True)
+            return {}
+
+    def _calculation_snapshot(self):
+        from ..optimization_cache import engine_identity
+        with self.connect() as db:
+            rows=db.execute("SELECT c.key,c.id,c.sha256 FROM calculation_reuse c JOIN analyses a ON a.id=c.id WHERE c.engine=? AND a.status='complete' ORDER BY a.created DESC LIMIT 512",(engine_identity(),)).fetchall()
+        return {key:dict(id=id,path=str(self.root/id/'calculations.json'),sha256=sha) for key,id,sha in rows}
 
     def summary(self, id, record=None):
         record=record if record is not None else self.get(id)
@@ -179,7 +210,8 @@ class AnalysisStore:
             self._update(id,'running','Preparing source')
             with TemporaryDirectory(prefix='.pending-',dir=self.root) as temp:
                 staged=Path(temp)/'report';staged.mkdir()
-                with self.runtime.activate():
+                from .calculation_cache import use
+                with self.runtime.activate(),use(self.calculation_snapshot()):
                     result=run_analysis(runs,request,staged,lambda msg:self._update(id,'running',msg))
                 if (result['source']['trades_sha256'],result['source']['excursion_input']['sha256'])!=expected_source:
                     raise ValueError('Source changed after submission.')
@@ -189,5 +221,6 @@ class AnalysisStore:
             with self.connect() as db:
                 db.execute('INSERT INTO analysis_report_checks VALUES (?,?)',(id,canonical(sealed_checks(self.root/id))))
                 db.execute("UPDATE analyses SET status='complete',progress='Saved report ready' WHERE id=?",(id,))
+            self.index_calculations(id)
         except Exception as exc:
             self._update(id,'error','Operation failed',f'{type(exc).__name__}: {exc}')
