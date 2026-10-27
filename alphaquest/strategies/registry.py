@@ -6,13 +6,15 @@ from pathlib import Path
 from types import ModuleType
 from decimal import Decimal, InvalidOperation
 
-from . import consecutive_green_hold, vwap_pullback_risk_sizing
+from . import consecutive_green_hold, vwap_pullback_risk_sizing, vwap_features
 
 
 @dataclass(frozen=True, slots=True)
 class StrategyDefinition:
     module: ModuleType
     factory: type
+    acceleration: object = None
+    accepts_execution_config: bool = False
 
     def parameters(self, values: dict):
         names = {field.name for field in fields(self.module.Parameters)}
@@ -34,7 +36,7 @@ class StrategyDefinition:
         return getattr(self.module, "EXECUTION_ASSUMPTION", "same_close_full_fill")
 
     def create(self, parameters, config):
-        if self.module is vwap_pullback_risk_sizing:
+        if self.accepts_execution_config:
             return self.factory(parameters, execution_config=config)
         return self.factory(parameters)
 
@@ -55,7 +57,8 @@ class StrategyDefinition:
 
 STRATEGIES = {
     consecutive_green_hold.STRATEGY_ID: StrategyDefinition(consecutive_green_hold, consecutive_green_hold.ConsecutiveGreenHold),
-    vwap_pullback_risk_sizing.STRATEGY_ID: StrategyDefinition(vwap_pullback_risk_sizing, vwap_pullback_risk_sizing.VwapPullbackRiskSizing),
+    vwap_pullback_risk_sizing.STRATEGY_ID: StrategyDefinition(vwap_pullback_risk_sizing, vwap_pullback_risk_sizing.VwapPullbackRiskSizing,
+                                                          acceleration=vwap_features, accepts_execution_config=True),
 }
 
 

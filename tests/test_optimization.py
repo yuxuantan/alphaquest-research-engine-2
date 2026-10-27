@@ -26,7 +26,7 @@ def client(tmp_path):
 def optimization_body(dataset_id):
     request = body(dataset_id)
     del request["strategy_parameters"]
-    request.update(method="exhaustive", workers=1, parameter_ranges={
+    request.update(method="exhaustive", workers=1, reuse_results=False, parameter_ranges={
         "green_bar_count": {"start": 3, "end": 3, "step": 0},
         "hold_minutes": {"start": 20, "end": 20, "step": 0},
         "contracts": {"start": 1, "end": 3, "step": 1},

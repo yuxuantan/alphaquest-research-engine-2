@@ -21,6 +21,8 @@ class TrialContext:
     strategy_id: str
     config: ExecutionConfig
     date_range: DateRange
+    prepared: object = None
+    feature_paths: dict | None = None
 
 
 class FrozenSource:
@@ -51,11 +53,14 @@ def compute_trial(context, trial, values, run_id, progress):
     manifest, processed, total = prepare_backtest_report(
         FrozenSource(context.dataset, context.snapshot), context.output_root / run_id,
         context.dataset, definition, definition.parameters(values), context.config,
-        context.date_range, progress, report_detail="compact")
+        context.date_range, progress, report_detail="compact", prepared=context.prepared,
+        feature_paths=context.feature_paths)
     return {"manifest": manifest, "processed": processed, "total": total,
             "execution": {"worker_pid": os.getpid(), "started_at_utc": started_at,
                           "finished_at_utc": datetime.now(timezone.utc).isoformat(),
-                          "elapsed_seconds": time.monotonic() - started}}
+                          "elapsed_seconds": time.monotonic() - started,
+                          "prepared_data": context.prepared is not None,
+                          "cached_features": len(context.feature_paths or {}), "reused": False}}
 
 
 _context = None

@@ -18,6 +18,9 @@ import time
 from uuid import uuid4
 
 from .optimization_worker import TrialContext, compute_trial, initialize_worker, run_trial
+from .prepared_data import prepare_data
+from .strategy_features import prepare_features
+from .optimization_cache import engine_identity, trial_key, artifacts, digest
 
 MAX_COMBINATIONS = 10_000
 MAX_WORKERS = max(1, min(8, (os.cpu_count() or 1) - 1))
@@ -107,6 +110,9 @@ class OptimizationStore:
                     optimization_id TEXT NOT NULL REFERENCES optimizations(id),
                     trial INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(optimization_id, trial)
                 );
+                CREATE TABLE IF NOT EXISTS optimization_trial_cache (
+                    key TEXT PRIMARY KEY, payload TEXT NOT NULL
+                );
             """)
             for job_id, payload in conn.execute("SELECT id, payload FROM optimizations").fetchall():
                 job = json.loads(payload)
@@ -124,6 +130,7 @@ class OptimizationStore:
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
                "worker_count": min(request.workers, total), "worker_pids": [], "failed_trials": [], "request": request.model_dump(), "axes": axes,
                "dataset": dataset, "strategy": definition.description(), "report_detail": "compact",
+               "engine_identity": engine_identity(), "reused_trials": 0,
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()}, "metric_columns": list(METRICS)}
         with self.runs.connect() as conn:
@@ -195,13 +202,47 @@ class OptimizationStore:
                "parameters": record["run_metadata"]["strategy"]["parameters"],
                "metrics": {name: record["summary"][name] for name in METRICS},
                "execution": result["execution"]}
+        self._record_trial(job_id, row)
+        job = self.get(job_id)
+        if job.get("engine_identity") and job["request"].get("reuse_results", True):
+            key = trial_key(job, row["parameters"])
+            cached = {"row": row, "record_hash": digest(record), "artifacts": artifacts(self.runs.root, record),
+                      "optimization_id": job_id}
+            with self.runs.connect() as conn:
+                conn.execute("INSERT OR REPLACE INTO optimization_trial_cache VALUES (?, ?)", (key, json.dumps(cached)))
+        return job["completed_trials"]
+
+    def _record_trial(self, job_id, row):
         with self.runs.connect() as conn:
-            inserted = conn.execute("INSERT INTO optimization_trials VALUES (?, ?, ?)", (job_id, trial, json.dumps(row)))
+            inserted = conn.execute("INSERT INTO optimization_trials VALUES (?, ?, ?)", (job_id, row["trial"], json.dumps(row)))
             current = json.loads(conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()[0])
             current.update(completed_trials=current["completed_trials"] + 1, results_snapshot_rowid=inserted.lastrowid)
-            current["worker_pids"] = sorted(set(current["worker_pids"]) | {result["execution"]["worker_pid"]})
+            if row["execution"].get("reused"):
+                current["reused_trials"] = current.get("reused_trials", 0) + 1
+            elif row["execution"].get("worker_pid"):
+                current["worker_pids"] = sorted(set(current["worker_pids"]) | {row["execution"]["worker_pid"]})
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(current), job_id))
         return current["completed_trials"]
+
+    def _reuse_trial(self, job, trial, values):
+        if not job.get("engine_identity") or not job["request"].get("reuse_results", True):
+            return False
+        with self.runs.connect() as conn:
+            row = conn.execute("SELECT payload FROM optimization_trial_cache WHERE key=?", (trial_key(job, values),)).fetchone()
+        if not row:
+            return False
+        cached = json.loads(row[0])
+        record = self.runs.get(cached["row"]["run_id"])
+        try:
+            if not record or digest(record) != cached["record_hash"] or artifacts(self.runs.root, record) != cached["artifacts"]:
+                return False
+        except OSError:
+            return False
+        reused = {**cached["row"], "trial": trial, "execution": {
+            "reused": True, "source_optimization_id": cached["optimization_id"], "elapsed_seconds": 0,
+            "worker_pid": None}}
+        self._record_trial(job["id"], reused)
+        return True
 
     def run(self, job, source, definition, config, date_range):
         job_id = job["id"]
@@ -234,17 +275,37 @@ class OptimizationStore:
                 logger.exception("Could not save progress for optimization %s; continuing active trials", job_id)
 
         try:
+            if job.get("engine_identity") and engine_identity() != job["engine_identity"]:
+                raise ValueError("Engine code changed while this job was queued. Start a new optimization.")
             self.update(job_id, status="running", stage="preparing", started_at_utc=datetime.now(timezone.utc).isoformat())
+            with self.runs.connect() as conn:
+                saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
+            pending = [(trial, values) for trial, values in enumerate(combinations(job["axes"]), 1)
+                       if trial not in saved and not self._reuse_trial(job, trial, values)]
             with TemporaryDirectory(prefix=".optimization-", dir=self.runs.root) as temporary:
                 root = Path(temporary)
                 snapshot = root / "source.csv"
-                with snapshot.open("wb") as stream:
-                    for chunk in source.iter_csv(job["dataset"]["id"]):
-                        stream.write(chunk)
-                context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range)
-                with self.runs.connect() as conn:
-                    saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
-                trials = ((trial, values) for trial, values in enumerate(combinations(job["axes"]), 1) if trial not in saved)
+                prepared, features = None, {}
+                preparation_started = time.monotonic()
+                if pending:
+                    with snapshot.open("wb") as stream:
+                        for chunk in source.iter_csv(job["dataset"]["id"]):
+                            stream.write(chunk)
+                    if job["request"].get("prepare_data", True) and len(pending) > job["worker_count"]:
+                        from .optimization_worker import FrozenSource
+                        def preparation_progress(stage, processed, total):
+                            self.update(job_id, stage=stage, bars_processed=processed, total_bars=total,
+                                        elapsed_seconds=time.monotonic() - started)
+                        preparation_progress("preparing_data", 0, job["dataset"]["row_count"])
+                        prepared = prepare_data(FrozenSource(job["dataset"], snapshot), job["dataset"]["id"], date_range, root / "bars.bin", preparation_progress)
+                        snapshot.unlink()
+                        features = prepare_features(definition, prepared, [values for _, values in pending], root,
+                                                    preparation_progress, workers=job["worker_count"])
+                self.update(job_id, preparation_seconds=time.monotonic() - preparation_started,
+                            prepared_data=prepared is not None, cached_feature_series=len(features),
+                            temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
+                context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range, prepared, features)
+                trials = iter(pending)
                 workers = job["worker_count"]
                 if workers == 1:
                     for trial, values in trials:
@@ -258,7 +319,7 @@ class OptimizationStore:
                             logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
                             break
-                else:
+                elif pending:
                     self._run_parallel(job_id, context, trials, workers, active, progress, save_progress, failures)
             self.update(job_id, status="failed" if failures else "complete", stage="failed" if failures else "done",
                         active_trials=[], failed_trials=failures,

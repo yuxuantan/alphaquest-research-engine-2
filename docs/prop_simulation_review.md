@@ -687,3 +687,52 @@ compressed detailed JSON is 19,702 bytes. Automated checks also cover corrupt
 events/truncated streams, zero-trade reports, missing/changed replay inputs,
 replay mismatch rejection, duplicate detail generation, serial/process parity,
 and direct read-only snapshot hashing without a per-worker input copy.
+
+## Reusable optimization acceleration — 27 October 2026
+
+Optimization now prepares selected bars once for multi-wave jobs, supports
+optional pure-feature streams and reuses verified identical completed trials.
+The production prop calculations and source adaptation stay local. The normal
+optimization result still opens a durable Backtest report, which supplies the
+existing Configure → Check source → Run → saved analysis journey.
+
+That complete journey was rechecked under
+`artifacts/optimization-acceleration-portal-20261027/test_compact_storage_and_norma0/`.
+Its actual source, saved catalogues, report/analysis downloads and screenshots
+remain inspectable. Use the compact-review reproduction steps above and expect
+net **26 / 52 CU**, one-contract source net **26 CU**, zero measured MAE trades
+with the existing fallback disclosure, unsupported-setting rejection, evaluation
+pass rate **0** and funded outcomes unavailable. The report reopens without
+rerunning. This result verifies integration; it makes no new profitability or
+notebook-parity claim. That review's temporary server has stopped.
+
+Reuse is separately demonstrated at
+`artifacts/optimization-acceleration-portal-20261027/test_reuse_toggle_badges_reope0/`.
+Run the three-contract arithmetic grid twice with reuse enabled: expect net
+**13 / 26 / 39 CU**, the same report IDs, **3 reused · 0 computed**, and three
+Backtest reports total. The reused report still opens normally. Uncheck reuse
+and run again: expect **0 reused · 3 computed** and six reports total. The saved
+`reuse-verification.json` and screenshot record these observations. Earlier
+reports/evidence and the user's datasets/results were preserved.
+
+Repeat both checks with a new evidence directory:
+
+```bash
+.venv/bin/python -m pytest tests/test_optimization_compact_browser.py \
+  tests/test_optimization_browser.py -k 'compact_storage or reuse_toggle' \
+  -q --basetemp artifacts/optimization-acceleration-prop-NEW
+```
+
+These tests own and stop their temporary servers. General worker/feature timing
+and exact replay checks are documented in `docs/optimization.md` and
+`docs/strategy_features.md`; they are research-engine capabilities rather than
+strategy-specific prop calculations.
+
+The final source also passed the complete **691-test** suite, with the same
+normal report → configure → reject unsupported setting → check source → run →
+durable-result journey retained under
+`artifacts/optimization-acceleration-final-suite-20261027/test_compact_storage_and_norma0/`.
+The companion `test_reuse_toggle_badges_reope0/` contains the final reuse UI
+verification. These final runs confirm the observations above after the shared
+feature pass and bounded bar serialization improvements. All owned test servers
+stopped; the user's existing server/processes and stored results were preserved.

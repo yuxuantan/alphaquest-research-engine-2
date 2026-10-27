@@ -34,6 +34,8 @@ class OptimizationRequest(BaseModel):
     method: Literal["exhaustive"]
     parameter_ranges: dict[str, ParameterRange]
     workers: StrictInt = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
+    reuse_results: StrictBool = True
+    prepare_data: StrictBool = True
     execution_settings: ExecutionSettings
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None
@@ -98,6 +100,9 @@ def resume(job_id: UUID, request: Request):
     try:
         body = OptimizationRequest.model_validate(job["request"])
         definition = get_strategy(body.strategy_id)
+        from .optimization_cache import engine_identity
+        if job.get("engine_identity") and engine_identity() != job["engine_identity"]:
+            raise ValueError("Engine code has changed since this optimization. Start a new job to keep results consistent.")
         if definition.description()["source_sha256"] != job["strategy"]["source_sha256"]:
             raise ValueError("Strategy source has changed since this optimization. Start a new job to keep results consistent.")
         axes, total = grid(definition, body.parameter_ranges)

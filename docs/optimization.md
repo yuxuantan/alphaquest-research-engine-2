@@ -94,11 +94,13 @@ combination uses a fresh strategy instance and the normal backtest engine and
 report writer. Workers write temporary reports to separate directories; the
 coordinator publishes compact backtest reports and optimization rows through the existing
 run store. Child processes never open or write the dataset/results databases.
-Only small manifests and progress messages cross process boundaries. One disk snapshot supplies the same original CSV
-bytes to all trials, with the saved byte count/hash checked by the normal reader.
-Workers open that file read-only with independent file positions, rather than
-copying it into another full input snapshot for each trial. Date-range selection
-still uses its normal bounded-memory temporary selection file.
+Only small manifests and progress messages cross process boundaries. When pending
+trials exceed workers, one coordinator pass checks the original CSV byte count,
+hash, schema, all rows and timestamps, applies the date selection, and writes a
+shared prepared-bar stream. Workers read independent, bounded chunks containing
+the original exact Decimals, UTC timestamps and CSV fields. Date selection does
+not require another parse or temporary CSV. Jobs with at most one pending trial
+per worker use the ordinary frozen-CSV reader to avoid added preparation cost.
 Deleting the original after snapshot preparation does not change the job. The
 captured dataset metadata, strategy source hash, resolved axes, execution settings
 and requested dates remain inspectable. Each selected date range starts with fresh
@@ -507,3 +509,154 @@ reopen as serial without rewriting their reports.
 Optional `from_date` and `to_date` use the normal inclusive source-timezone date
 semantics. Invalid requests create no job or backtest; runtime failures retain
 an explicitly failed job and any earlier saved trials.
+
+## Reusable acceleration
+
+New jobs enable shared data preparation and **Reuse identical completed trials**
+by default. This engine path applies to every registered strategy, including
+strategies without cached features. Every computed trial still gets fresh
+strategy/account state, the ordinary execution engine and all event/report
+validation. Exact arithmetic now reuses bounded, thread-local Decimal contexts;
+precision remains operand-derived and monetary calculations never use floats.
+
+The optional feature interface additionally shares pure calculations between
+trials. The VWAP adapter currently caches ADX and confirmed stop/target pivots.
+The signal's executable source, defaults, VWAP calculation, latches, positions,
+orders, sizing and fills retain their existing behavior. There are no strategy-ID
+branches in the optimizer. A new strategy can use the generic benefits immediately
+and register its own feature adapter later; see `docs/strategy_features.md`.
+
+Only dependency sets used more often than the worker count are precomputed.
+All selected feature streams build in one input pass with bounded buffering;
+at most four streams and 512 MiB plus their current chunks are prepared. Over-budget
+features fall back to ordinary strategy computation. The parsed bars themselves
+also use temporary disk space, proportional to the selected dataset; this may
+exceed the CSV size. They replace per-trial parsing rather than retaining a
+second permanent dataset. The raw snapshot is removed after preparation, and
+prepared bars/features disappear when the job finishes or fails normally.
+Workers retain chunks, not the whole dataset. Abrupt process termination can
+leave an abandoned `.optimization-*` workspace; these are never saved reports.
+
+Completed-trial reuse requires the same saved dataset metadata/hash/timezone,
+date bounds, strategy source/default metadata, exact parameter values, resolved
+execution settings, Python/package versions, and all engine Python source files.
+Scheduling choices such as worker count do not change trial identity. Legacy
+reports without a recorded identity are never guessed to match. Changing a
+strategy dependency or engine file invalidates reuse conservatively. New jobs
+also capture this identity; resume rejects changed engine code. Legacy interrupted
+jobs retain their prior source/grid/settings checks.
+
+Before reuse, the coordinator verifies the catalogue manifest and SHA-256 hashes
+of the report and both CSVs. Missing/modified artifacts cause fresh computation.
+Only successfully published trials enter the cache, including successful trials
+from an otherwise failed job. A reused row points to the original durable
+Backtest report: it creates no duplicate report files or trade/equity indexes.
+The portal displays **N reused · M computed**, and reused report links show
+**Reused saved trial**. Partial grid overlap computes only the new combinations.
+Uncheck **Reuse identical completed trials** to force fresh computation; this
+also bypasses cache publication for that job. Sorting, highlighted/frozen varying
+parameters, report downloads and full-detail replay remain available.
+
+The API adds strict boolean `reuse_results` and `prepare_data`, both defaulting
+to `true`. `prepare_data: false` uses the ordinary per-trial CSV reader and skips
+feature preparation, useful as a reference path. Explicitly set
+`reuse_results: false` for timing comparisons. Saved settings expose the engine
+identity, prepared-data usage, feature-stream count, preparation seconds and
+temporary bytes. The worker cap/default remain unchanged; more workers do not
+always help.
+
+### Benchmark your strategy and worker count
+
+Save the normal optimization POST body as `request.json`, with an existing
+saved dataset ID and a representative grid/date range. Start while the portal
+is idle and choose counts within `/api/optimizations/settings`:
+
+```bash
+.venv/bin/python -m alphaquest.benchmark_optimization \
+  --url http://127.0.0.1:8000 --request request.json \
+  --workers 1,4,6,7 --repeats 2 --output artifacts/my-worker-benchmark-NEW
+```
+
+This command creates normal durable optimization jobs and Backtest reports in
+that portal. It forces fresh computation, compares the ordinary CSV reader and
+prepared path at **each** worker count, and verifies every metric, parameter set
+and trade/equity CSV hash against the first CSV-reader run. Any mismatch stops
+with inspectable evidence. The new output directory retains request/measurements,
+per-job result CSVs and verification JSON. Timings include preparation, process
+startup, computation and publication; queue wait is excluded. Median timings and
+the fastest measured count are reported without changing the server default.
+These are measurements for that workload and host, not a universal speed claim.
+
+A reproducible synthetic workload and portal reuse review can be run without
+touching the normal library:
+
+```bash
+.venv/bin/python tests/review_optimization_acceleration.py \
+  --output artifacts/optimization-speed-NEW --bars 20000 --repeats 2
+```
+
+It starts/stops its own server. The source has changing highs/lows but closes
+inside every opening range: independently expect **zero trades**, net P&L **0**
+and final equity **10000** for all eight VWAP parameter sets. Other automated
+checks compare all equity/trade events with nonzero long/short trades and
+stop-first exits, exercise exact date/Decimal/source handling, prove a separately
+registered synthetic strategy can declare features without optimizer edits,
+and verify partial reuse, corrupt/missing artifacts and forced fresh runs.
+
+For nonzero portal results, use the arithmetic reproduction above. Run the same
+three-contract grid twice with reuse checked: expect the original report IDs,
+**3 reused · 0 computed**, net **13 / 26 / 39 CU**, and three reports total.
+Uncheck reuse and rerun: expect **0 reused · 3 computed** and six reports total.
+Reload/reopen both jobs and download the same results. The browser check retains
+screenshots and actual outputs with:
+
+```bash
+.venv/bin/python -m pytest tests/test_optimization_browser.py \
+  -k reuse_toggle -q --basetemp artifacts/optimization-reuse-NEW
+```
+
+### Measured review on 27 October 2026
+
+Final evidence is saved at
+`artifacts/optimization-speed-20261027-final/benchmark/verification.json`,
+with normal source/catalogue/reports in its parent directory. Two fresh runs
+per configuration, eight trials over 20,000 labeled synthetic bars:
+
+| Workers | Ordinary CSV median | Prepared/features median |
+| --- | --- | --- |
+| 1 | 8.846 s | 6.247 s |
+| 4 | 8.912 s | 8.523 s |
+| 6 | 10.060 s | 6.823 s |
+| 7 | 7.564 s | 7.027 s |
+
+The serial improvement was **1.42×**; the same four-worker comparison improved
+about **4%**. This small workload ran fastest with one worker, demonstrating why
+worker count is benchmarked rather than increased automatically. All sixteen
+measured jobs matched every parameter set, metric and both CSV hashes exactly.
+The all-hit rerun in `reuse.json` took **0.048 s**, reused all eight original
+report IDs, launched no workers and created no duplicate Backtest reports.
+`reused-results.png` shows the actual portal table and it was reloaded successfully.
+Its temporary server stopped after verification. Earlier preliminary timing
+artifacts remain preserved; use this `-final` directory for the review.
+
+Reopen the retained normal library with an unused port:
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/optimization-speed-20261027-final" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8011
+```
+
+Open `http://127.0.0.1:8011/#optimizations`, or the final reuse job
+`/#optimizations/24ba24a8eead43cfb0ed3954369fd27a`. Expect eight rows, eight reuse
+badges, **8 reused · 0 computed**, no trades and final equity 10000. Report links
+open the original computed reports. Stop this manually started server with Ctrl-C.
+The command is a reproduction instruction; no persistent server was started by
+the review.
+
+Final regression check: **691 tests passed** (249.10 s). Validation metadata and
+preservation checks are at
+`artifacts/optimization-speed-20261027-final/validation.json` and
+`preservation.json`. Final browser/reuse/prop outputs are retained under
+`artifacts/optimization-acceleration-final-suite-20261027/`. All 70 protected files,
+21 original compressed optimization reports and the original job/trial payloads
+remain unchanged. No reports were pushed or published externally.

@@ -56,6 +56,7 @@ def review(output, url, bars, trials, workers):
             page.get_by_label("Mm risk pct end", exact=True).fill(str(trials))
             page.get_by_label("Mm risk pct step", exact=True).fill("1")
             page.locator("#optimization-workers").select_option(str(worker_count))
+            page.locator("#optimization-reuse").uncheck()
             expect(page.locator("#optimization-count")).to_have_text(f"Total combinations: {trials} = {trials} backtests")
             page.screenshot(path=str(output / f"workers-{worker_count}-configured.png"), full_page=True)
             before = time.monotonic()

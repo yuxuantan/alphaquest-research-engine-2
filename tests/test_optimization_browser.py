@@ -27,6 +27,39 @@ def run(page):
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(3)
 
 
+def test_reuse_toggle_badges_reopen_and_forced_fresh_results(page, portal, tmp_path):
+    import json
+    prepare(page, portal)
+    playwright.expect(page.locator("#optimization-reuse")).to_be_checked()
+    run(page)
+    first_url = page.url
+    before = page.request.get(portal["url"] + "/api/optimizations").json()["items"][0]
+    first = page.request.get(f"{portal['url']}/api/optimizations/{before['id']}/results").json()["items"]
+    assert before["prepared_data"] and before["reused_trials"] == 0
+    prepare(page, portal)
+    run(page)
+    reused_url = page.url
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("3 reused · 0 computed")
+    playwright.expect(page.get_by_text("Reused saved trial", exact=True)).to_have_count(3)
+    reused = page.request.get(portal["url"] + "/api/optimizations").json()["items"][0]
+    actual = page.request.get(f"{portal['url']}/api/optimizations/{reused['id']}/results").json()["items"]
+    assert [row["run_id"] for row in actual] == [row["run_id"] for row in first]
+    assert page.request.get(portal["url"] + "/api/backtests").json()["total"] == 3
+    page.screenshot(path=str(tmp_path / "reused-results.png"), full_page=True)
+    page.reload()
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("3 reused · 0 computed")
+    page.locator("#optimization-results tbody a").first.click()
+    playwright.expect(page.locator("#report-summary")).to_contain_text("13.00")
+    prepare(page, portal)
+    page.locator("#optimization-reuse").uncheck()
+    run(page)
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("0 reused · 3 computed")
+    assert page.request.get(portal["url"] + "/api/backtests").json()["total"] == 6
+    (tmp_path / "reuse-verification.json").write_text(json.dumps({
+        "baseline": before, "reused": reused, "first_rows": first, "reused_rows": actual,
+        "expected_net_pnl": [13, 26, 39], "source_url": first_url, "reused_url": reused_url}, indent=2))
+
+
 def test_grid_run_sort_export_reopen_and_normal_report(page, portal, tmp_path):
     prepare(page, portal)
     run(page)

@@ -239,7 +239,7 @@
     let job;
     try {
       job = await read("/api/optimizations", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...settings, method: "exhaustive", parameter_ranges, workers: Number(get("#optimization-workers").value) }) });
+        body: JSON.stringify({ ...settings, method: "exhaustive", parameter_ranges, workers: Number(get("#optimization-workers").value), reuse_results: get("#optimization-reuse").checked }) });
     } catch (error) {
       if (error instanceof TypeError || error instanceof SyntaxError) throw new Error("Completion is unconfirmed. Check optimization history before starting another job; the request was not retried.");
       throw error;
@@ -298,6 +298,7 @@
           const link = node("a", row.run_id);
           link.href = `#backtests/report/${row.run_id}`;
           td.append(link);
+          if (row.execution?.reused) td.append(node("small", "Reused saved trial", "field-help"));
         } else {
           const value = key === "trial" ? row.trial : key.startsWith("param.") ? row.parameters[key.slice(6)] : row.metrics[key];
           td.textContent = value == null ? "N/A" : String(value);
@@ -349,7 +350,7 @@
       if (current !== version) return;
       get("#optimization-title").textContent = "Optimization results";
       get("#optimization-context").textContent = `${job.dataset.name} · ${label(job.strategy.id)} · ${job.id}`;
-      const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}`;
+      const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}${job.engine_identity ? ` · ${job.reused_trials || 0} reused · ${job.completed_trials - (job.reused_trials || 0)} computed` : ""}`;
       const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.bars_processed}/${trial.total_bars} bars)`).join(", ")}` : "";
       get("#optimization-status").textContent = `${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. Monetary metrics use CU; drawdown duration uses seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
       const resume = get("#optimization-resume");
@@ -358,7 +359,7 @@
       resume.textContent = job.completed_trials < job.total_trials
         ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
       get("#optimization-provenance").hidden = false;
-      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
+      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
       results(job, page);
       if (["queued", "running"].includes(job.status)) timer = setTimeout(refresh, 1000);
     } catch (error) {

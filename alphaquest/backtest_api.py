@@ -21,6 +21,7 @@ from .execution import ExecutionError, execute
 from .reporting import ReportError, generate_report, json_value
 from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
+from .strategy_features import create_strategy
 
 
 class ExecutionSettings(BaseModel):
@@ -50,7 +51,8 @@ class BacktestRequest(BaseModel):
 
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
-                            *, report_detail="full", compress_report=False, source_run_id=None):
+                            *, report_detail="full", compress_report=False, source_run_id=None,
+                            prepared=None, feature_paths=None):
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
 
@@ -63,7 +65,8 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "instrument_overrides": instrument_overrides(dataset, config)}
     if source_run_id:
         metadata["detailed_from_run_id"] = source_run_id
-    with read_selected_bars(store, dataset["id"], date_range) as selected:
+    with (prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range)) as selected, \
+            create_strategy(definition, parameters, config, feature_paths or {}) as strategy:
         total = selected.row_count
         metadata["selection"] = selected.metadata
         # The source iterator advances here only after the engine's current
@@ -76,7 +79,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 stage("replaying")
 
         stage("replaying")
-        manifest = generate_report(execute(counted_bars(), definition.create(parameters, config), config), output, config,
+        manifest = generate_report(execute(counted_bars(), strategy, config), output, config,
                                    execution_assumption=definition.execution_assumption,
                                    metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
                                    detail=report_detail, compress=compress_report)
