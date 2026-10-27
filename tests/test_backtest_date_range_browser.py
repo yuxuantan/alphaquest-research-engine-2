@@ -27,7 +27,8 @@ def test_select_run_and_reopen_one_day_in_source_timezone(page, portal):
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
     page.locator("#backtest-strategy").select_option("consecutive_green_hold")
     page.get_by_role("link", name="Datasets", exact=True).click()
-    page.get_by_role("link", name="Backtests", exact=True).click()
+    page.get_by_role("link", name="Strategies", exact=True).click()
+    page.get_by_role("link", name="New backtest →", exact=True).click()
     expect(page.locator("#backtest-from-date")).to_have_value("2026-01-05")
     requests = post_requests(page)
     with page.expect_response(lambda r: "/api/backtests?" in r.url and r.request.method == "POST") as completed:
@@ -79,7 +80,8 @@ def test_invalid_empty_open_ended_and_cleared_range(page, portal):
     expect(page.locator("#backtest-completion")).to_be_visible()
     expect(page.locator("#report-trades")).to_have_text("2")
     assert "to_date" not in requests[-1].post_data_json
-    page.get_by_role("link", name="Backtests", exact=True).click()
+    page.get_by_role("link", name="Strategies", exact=True).click()
+    page.get_by_role("link", name="New backtest →", exact=True).click()
     page.locator("#backtest-from-date").fill("")
     page.locator("#start-backtest").click()
     expect(page.locator("#backtest-completion")).to_be_visible()

@@ -1583,3 +1583,8 @@ dialog::backdrop {
 .strategies-backtests th:last-child,.strategies-backtests td:last-child { position:sticky; right:0; background:var(--panel,#fff); z-index:1; box-shadow:-1px 0 0 #e0e9e7; }
 .strategies-backtests .field-help { display:block; margin:4px 0 0; line-height:1.4; }
 .strategies-backtests th { white-space:normal; }
+.run-mode-panel { margin-bottom:24px; padding:20px; }
+.run-mode-panel label { display:block; font-weight:600; margin-bottom:8px; }
+.run-mode-panel select { width:100%; max-width:440px; }
+#strategy-groups tr { cursor:pointer; }
+#strategy-groups tr:hover { background:#f1f8f6; }

@@ -36,3 +36,50 @@ exact financial summaries and unchanged report hashes. Reproduce:
 PYTHONPATH=. python -m pytest -q tests/test_strategy_library.py \
   tests/test_strategies_browser.py --basetemp artifacts/strategies-library-NEW
 ```
+
+## Shared execution form
+
+Use **Strategies → New backtest**, then choose **Single parameter set** or
+**Parameter sweep · exhaustive** in Backtest mode. The selected dataset, strategy,
+dates, capital, costs and both sets of parameter drafts stay in the same form.
+A single set opens its normal report. A sweep opens the ordinary batch results
+with sortable metrics, highlighted/frozen varying parameters, CSV export and a
+report icon for each trial. Both creation modes POST to `/api/backtests`.
+**Backtest activity** reopens queued, running, interrupted and completed batches.
+Batch progress/results use `/api/backtests/batches/{id}`; old optimization URLs
+and API aliases reopen the same records. Deleting a report returns to Strategies.
+
+`03-shared-form/` retains actual shared-form and result screenshots plus request
+payloads in `test_one_form_and_endpoint_run0/shared-form-verification.json`.
+Independently expected one-contract net is 13 CU; contracts 1/2/3 give 13/26/39 CU.
+The browser verifies both POST payloads use identical execution settings, mode
+changes preserve drafts/capital, and the old saved job link reads the same job.
+37 form/sweep/browser checks passed, including worker loading/retry, exact decimal
+ranges, boolean ranges, sorting, frozen columns, resumption and mobile layout.
+
+## Qualification and branch scope
+
+The branch starts at remote main `976fdc1`; it contains only this request's API,
+library and shared-form commits. Earlier unpublished runtime improvements stay
+on their original branch and checkout. The isolated checkout is
+`/Users/yx/alphaquest-research-engine-2-navigation`. No persistent preview server
+is started. The original application and its datasets/results are preserved.
+
+The broader product check passed 30 checks and exposed two stale assertions for
+old return links; the correction run passed all nine selected checks, including
+both cases, shared submission and selection-error recovery. Exact historical cash
+and saved downloads are checked in the existing normal workflow. Full final
+qualification is saved as `artifacts/strategies-navigation/full-suite.log` and
+`08-full-suite-final/junit.xml`. Reproduce from the branch using a new artifact path:
+
+```bash
+PYTHONPATH=. python -m pytest -q --basetemp artifacts/strategies-full-NEW \
+  --junitxml artifacts/strategies-full-NEW/junit.xml
+```
+
+The initial full run stopped after 73 passes on an obsolete six-bundle count.
+The asset test now checks all script/style references share the same content
+version, including the new Strategies module; all 18 asset/API checks passed.
+The stopped-run evidence is retained in `06-full-suite/` and
+`full-suite-initial.log`; the final full-suite log above records the complete
+qualification against the committed branch.

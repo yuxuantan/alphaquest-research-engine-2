@@ -79,7 +79,7 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
     page.reload()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
     playwright.expect(page.locator("#report-run-id")).to_contain_text(run_id)
-    page.get_by_role("link", name="Backtests", exact=True).click()
+    page.goto(portal["url"] + "/#backtests")  # Legacy history URL remains compatible.
     page.locator(f"#completed-runs-list a[href$='{run_id}']").click()
     playwright.expect(page.locator("#report-run-id")).to_contain_text(run_id)
     page.locator("details.report-panel summary").click()
@@ -165,7 +165,7 @@ def test_report_loading_errors_retry_and_history_pagination(page, portal):
         for i in range(26):
             row = {**record, "id": f"{i:032x}"}
             connection.execute("INSERT INTO runs VALUES (?, ?, ?)", (row["id"], "2020-01-01T00:00:00Z", json.dumps(row)))
-    page.get_by_role("link", name="Backtests", exact=True).click()
+    page.goto(portal["url"] + "/#backtests")  # Legacy history URL remains compatible.
     playwright.expect(page.locator("#completed-runs-list a")).to_have_count(25)
     page.locator("#runs-next").click()
     playwright.expect(page.locator("#completed-runs-list a")).to_have_count(2)
@@ -247,7 +247,8 @@ def test_chart_shows_unrounded_peak_and_changes_between_saved_runs(page, portal)
     # Exact peaks belong in the summary/readout; axes use rounded step multiples.
     playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,169\.62$"))).to_have_count(0)
     playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,170$"))).to_have_count(1)
-    page.get_by_role("link", name="Back to backtests", exact=False).click()
+    page.get_by_role("link", name="Back to Strategies", exact=False).click()
+    page.get_by_role("link", name="New backtest →", exact=True).click()
     page.locator("#backtest-initial-capital").fill("50000")
     page.locator("#start-backtest").click()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()

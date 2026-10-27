@@ -11,6 +11,7 @@
     return result;
   };
   const money=value=>value==null?'N/A':number.format(Number(value));
+  const localDate=(value,zone)=>!value?'':value.length===10?value:new Intl.DateTimeFormat('en-CA',{timeZone:zone||'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
   const groupRoute=()=>location.hash.match(/^#strategies\/([0-9a-f]{64})$/)?.[1]||null;
   async function groups() {
     const current=generation;
@@ -25,6 +26,7 @@
         const row=make('tr'),instrument=make('td'),link=make('a',group.instrument,'instrument-link');
         link.href=`#strategies/${group.id}`;link.setAttribute('aria-current',group.id===groupId?'true':'false');
         row.dataset.groupId=group.id;if(group.id===groupId)row.className='selected-instrument';
+        row.onclick=event=>{if(!event.target.closest('a'))location.hash=link.hash;};
         instrument.append(link);row.append(instrument,make('td',String(group.backtests)));list.append(row);
       }
       get('#strategies-status').textContent=page.total?'Select an instrument to see its backtests.':'No saved backtests yet. Run your first backtest to create an instrument group.';
@@ -35,7 +37,7 @@
   }
   async function reports(){
     if(!groupId)return;
-    const current=generation;get('#strategy-results-status').textContent='Loading backtests…';
+    const current=generation;get('#strategy-results-heading').textContent='Backtests';get('#strategy-results-status').textContent='Loading backtests…';
     get('#strategy-results').replaceChildren();get('#strategy-results-wrap').hidden=true;
     get('#strategy-reports-previous').disabled=get('#strategy-reports-next').disabled=true;
     try {
@@ -48,15 +50,15 @@
         const strategy=make('td',record.strategy_id.replaceAll('_',' '));
         strategy.append(make('small',record.dataset_name,'field-help'));
         strategy.title=`Created ${record.created_at_utc} · ${record.id}`;
-        const period=record.selection;const dates=make('td',`${(period.from_date||period.start_utc||'').slice(0,10)} → ${(period.to_date||period.end_utc||'').slice(0,10)}`);
+        const period=record.selection;const dates=make('td',`${localDate(period.from_date||period.start_utc,period.source_timezone)} → ${localDate(period.to_date||period.end_utc,period.source_timezone)}`);
         strategy.append(make('small',dates.textContent,'field-help'));
         strategy.append(make('small',period.source_timezone||'','field-help'));
         const net=make('td',money(record.metrics.total_net_pnl));net.title=record.metrics.total_net_pnl;
         net.className=Number(record.metrics.total_net_pnl)<0?'negative':'positive';
-        net.append(make('small',`${record.metrics.trades_taken} trades`,'field-help'),make('small',`DD ${money(record.metrics.max_drawdown_amount)}`,'field-help'));
+        net.append(make('small',`${record.metrics.trades_taken} ${record.metrics.trades_taken===1?"trade":"trades"}`,'field-help'),make('small',`DD ${money(record.metrics.max_drawdown_amount)}`,'field-help'));
         const action=make('td'),open=make('a','↗','button secondary report-open-icon');
         open.href=`#backtests/report/${record.id}`;open.setAttribute('aria-label',`Open backtest report ${record.id}`);open.title='Open full backtest report';action.append(open);
-        if(record.batch_id){const batch=make('a','Sweep','small');batch.href=`#optimizations/${record.batch_id}`;batch.title='Open this parameter sweep';action.append(batch);}
+        if(record.batch_id){const batch=make('a','Sweep','small');batch.href=`#backtests/batches/${record.batch_id}`;batch.title='Open this parameter sweep';action.append(batch);}
         row.append(strategy,net,make('td',money(record.historical_net)),action);
         get('#strategy-results').append(row);
       }

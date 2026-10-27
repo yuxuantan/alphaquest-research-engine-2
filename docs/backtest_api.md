@@ -232,4 +232,5 @@ Validation: `tests/test_backtest_batches.py` proves both creation modes, normal
 saved reports, shared worker choices, exact sorted net results 39/26/13, matching
 legacy/new CSV downloads, unknown-job and ambiguous-request rejection. Together
 with the existing API/grid suite, 95 checks passed under
-`artifacts/strategies-navigation/01-*`.
+`artifacts/strategies-navigation/01-api-verified/` and
+`01-unified-endpoint/`.

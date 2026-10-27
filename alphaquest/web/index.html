@@ -270,8 +270,9 @@
         </section>
         </section>
 
+          <p id="backtest-delete-status" class="small" role="status" hidden></p>
         <section id="strategies-screen" aria-labelledby="strategies-title" hidden>
-          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose an instrument to browse its backtest results.</p></div><div class="report-downloads"><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new" class="button primary">New backtest →</a></div></div>
+          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose an instrument to browse its backtest results.</p></div><div class="report-downloads"><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new" class="button primary">New backtest →</a></div></div>
           <div class="strategies-layout">
             <section class="panel strategies-instruments" aria-labelledby="strategy-instruments-heading">
               <div class="panel-heading"><h2 id="strategy-instruments-heading">Instruments</h2></div>
@@ -301,6 +302,7 @@
           </div>
           <div id="backtest-options-status" class="field-help" role="status" aria-live="polite"></div>
           <form id="backtest-form" novalidate>
+            <div class="panel run-mode-panel"><label for="backtest-mode">Backtest mode</label><select id="backtest-mode"><option value="single">Single parameter set</option><option value="exhaustive">Parameter sweep · exhaustive</option></select><p class="field-help">Use the same data, strategy, dates and costs for one backtest or every parameter combination.</p></div>
             <div id="backtest-error" class="validation-box error" role="alert" tabindex="-1" hidden></div>
             <div class="backtest-layout">
               <div class="backtest-form-panels">
@@ -413,7 +415,7 @@
           </section>
           </div>
           <section id="optimization-panel" hidden>
-            <div class="page-heading"><div><a href="#optimizations" class="eyebrow">← Configure optimization</a><h1 id="optimization-title">Optimizations</h1><p id="optimization-context"></p></div><a id="optimization-download" class="button secondary" hidden>Results CSV ↓</a></div>
+            <div class="page-heading"><div><a href="#backtests/new" class="eyebrow">← Configure backtests</a><h1 id="optimization-title">Optimizations</h1><p id="optimization-context"></p></div><a id="optimization-download" class="button secondary" hidden>Results CSV ↓</a></div>
             <div id="optimization-status" class="validation-box" role="status" aria-live="polite"></div>
             <button id="optimization-resume" class="button primary" type="button" hidden>Resume remaining trials</button>
             <p id="optimization-resume-error" class="small" role="alert" hidden></p>
@@ -425,7 +427,6 @@
             </div>
             <div class="report-pagination"><button id="optimization-previous" class="button secondary" type="button">Previous</button><span id="optimization-page"></span><button id="optimization-next" class="button secondary" type="button">Next</button></div>
           </section>
-          <p id="backtest-delete-status" class="small" role="status" hidden></p>
           <div id="report-status" class="validation-box" role="status" hidden></div>
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
