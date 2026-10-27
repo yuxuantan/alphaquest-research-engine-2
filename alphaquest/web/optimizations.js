@@ -262,8 +262,9 @@
       : "All strategy parameters are fixed for this run.";
     const parameters = Object.keys(job.axes).map((name) => [`param.${name}`, label(name)]);
     const columns = [...parameters.filter(([key]) => varying.has(key)), ["trial", "Trial"],
+      ...(job.metric_columns.includes("historical_net") ? [["historical_net", "Historical net · USD"]] : []),
       ...parameters.filter(([key]) => !varying.has(key)),
-      ...job.metric_columns.map((name) => [name, label(name)]), ["run_id", "Backtest report"]];
+      ...job.metric_columns.filter((name) => name !== "historical_net").map((name) => [name, label(name)]), ["run_id", "Backtest report"]];
     const freeze = (cell, key) => {
       const index = columns.findIndex(([name]) => name === key);
       cell.classList.add("optimization-varying-parameter", "optimization-frozen-parameter");
@@ -294,10 +295,20 @@
         const td = node("td");
         td.dataset.column = key;
         if (varying.has(key)) freeze(td, key);
-        if (key === "run_id") {
-          const link = node("a", row.run_id);
-          link.href = `#backtests/report/${row.run_id}`;
-          td.append(link);
+        if (key === "historical_net" && row.prop_analysis) {
+          td.classList.add("optimization-prop-result");
+          const link = node("a", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0}).format(row.metrics.historical_net));
+          link.href = `#backtests/prop/job/${row.prop_analysis.id}`;
+          link.setAttribute("aria-label", `Historical net ${link.textContent}; open default prop analysis`);
+          td.append(link, node("small", row.prop_analysis.reason || "Default Apex 50K EOD", "field-help"));
+        } else if (key === "run_id") {
+          if (row.backtest_deleted) {
+            td.append(node("span", "Backtest deleted", "muted"), node("small", row.run_id, "field-help"));
+          } else {
+            const link = node("a", row.run_id);
+            link.href = `#backtests/report/${row.run_id}`;
+            td.append(link);
+          }
           if (row.execution?.reused) td.append(node("small", "Reused saved trial", "field-help"));
         } else {
           const value = key === "trial" ? row.trial : key.startsWith("param.") ? row.parameters[key.slice(6)] : row.metrics[key];
@@ -349,17 +360,18 @@
       ]);
       if (current !== version) return;
       get("#optimization-title").textContent = "Optimization results";
-      get("#optimization-context").textContent = `${job.dataset.name} · ${label(job.strategy.id)} · ${job.id}`;
+      const profile = job.default_prop_profile?.settings;
+      get("#optimization-context").textContent = `${job.dataset.name} · ${label(job.strategy.id)} · ${job.id}${profile ? ` · Historical net: Apex 50K EOD, ${profile.SLOTS} slots, $${profile.EVAL_PRICE} evaluation + $${profile.ACTIVATION_FEE} activation, full history. Native close-only excursion fallback.` : ""}`;
       const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}${job.engine_identity ? ` · ${job.reused_trials || 0} reused · ${job.completed_trials - (job.reused_trials || 0)} computed` : ""}`;
-      const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.bars_processed}/${trial.total_bars} bars)`).join(", ")}` : "";
-      get("#optimization-status").textContent = `${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. Monetary metrics use CU; drawdown duration uses seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
+      const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.stage?.startsWith("prop_simulation:") ? trial.stage.slice("prop_simulation: ".length) : `${trial.bars_processed}/${trial.total_bars} bars`})`).join(", ")}` : "";
+      get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
       const resume = get("#optimization-resume");
       resume.hidden = !["failed", "interrupted"].includes(job.status);
       resume.disabled = resumeBusy;
       resume.textContent = job.completed_trials < job.total_trials
         ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
       get("#optimization-provenance").hidden = false;
-      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
+      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, default_prop_profile: job.default_prop_profile, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
       results(job, page);
       if (["queued", "running"].includes(job.status)) timer = setTimeout(refresh, 1000);
     } catch (error) {

@@ -36,8 +36,11 @@ def bar(number, hour, minute, o="100", h="105", l="95", c="100", volume="1", *, 
 
 
 def parameters(**overrides):
-    return replace(Parameters(), stop_swing_len=1, target_swing_len=1, use_adx_elev=False,
-                   use_adx_decay=False, plot_trade_levels=False, **overrides)
+    # Source-mechanics fixtures intentionally end at09:03. Keep their EOF and
+    # pivot assertions separate from the new last-bar inference tests.
+    base = replace(Parameters(), stop_swing_len=1, target_swing_len=1, use_adx_elev=False,
+                   use_adx_decay=False, plot_trade_levels=False, use_eod_flat=False)
+    return replace(base, **overrides)
 
 
 def scenario(*, short=False, month=1, ending="target"):
@@ -100,7 +103,7 @@ def test_orb_vwap_pivots_next_open_bracket_and_dst(short, month, utc_hour, tmp_p
     manifest = generate_report(events, tmp_path / "report", CONFIG,
                                execution_assumption=get_strategy("vwap_pullback_risk_sizing").execution_assumption)
     assert manifest["summary"]["final_equity"] == 10293
-    assert manifest["execution_assumption"] == "next_open_market_next_bar_bracket_stop_first"
+    assert manifest["execution_assumption"] == get_strategy("vwap_pullback_risk_sizing").execution_assumption
 
 
 def test_ambiguous_bar_stop_first_and_actual_costs():
@@ -211,14 +214,15 @@ def test_exact_session_edges_weighted_vwap_zero_volume_and_no_midnight_reset():
     assert strategy.trades_today == 1  # Preserve source crossing rule, not date rollover.
 
 
-def test_eod_flat_replaces_bracket_and_fills_next_open():
+def test_eod_flat_fills_cutoff_close_without_waiting_for_next_bar():
     rows = scenario()[:123]
     rows.append(bar(124, 15, 55, "116", "120", "100", "118"))
     rows.append(bar(125, 15, 56, "117", "150", "50", "120"))
-    _, trades, _ = replay(rows)
+    rows.append(bar(126, 16, 0, "120", "120", "120", "120"))
+    _, trades, _ = replay(rows, parameters(use_eod_flat=True))
     assert trades[0].exit_reason == "eod_flat"
-    assert trades[0].exit_reference_price == 117
-    assert trades[0].exit_fill_price == D("116.75")
+    assert trades[0].exit_reference_price == 118
+    assert trades[0].exit_fill_price == D("117.75")
 
 
 @pytest.mark.parametrize("name,value", [("position_size", True), ("use_adx_elev", 1),

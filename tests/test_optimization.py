@@ -35,7 +35,7 @@ def optimization_body(dataset_id):
 
 
 def wait_job(client, job_id):
-    deadline = time.monotonic() + 15
+    deadline = time.monotonic() + 180
     while time.monotonic() < deadline:
         job = client.get(f"/api/optimizations/{job_id}").json()
         if job["status"] not in ("queued", "running"):

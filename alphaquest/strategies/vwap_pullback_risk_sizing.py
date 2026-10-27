@@ -1,4 +1,4 @@
-"""Causal port of the retained PowerLanguage VWAP pullback risk-sizing signal.
+"""PowerLanguage signal port with an explicit backtest-only EOD lookahead rule.
 
 See docs/strategies/vwap_pullback_risk_sizing.md for execution and parity limits.
 """
@@ -8,8 +8,12 @@ from dataclasses import dataclass, field, fields
 from decimal import Decimal, localcontext
 import logging
 from zoneinfo import ZoneInfo
+from contextlib import contextmanager
+import hashlib
+import json
 
 from ..strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position
+from .inferred_session_close import MINUTES_BEFORE_CLOSE, session_bars
 
 
 STRATEGY_ID = "vwap_pullback_risk_sizing"
@@ -17,9 +21,11 @@ DESCRIPTION = (
     "PowerLanguage VWAP pullback: close-latched opening-range break, VWAP retest/reclaim, "
     "confirmed pivot target, pivot or pullback stop, ADX elevation/decay gates, fixed or risk sizing. "
     "Chicago time; full-session 1-minute close-labelled bars. Next-bar Open market fills; "
-    "brackets start after the entry bar, stop first if both levels hit. EOD next-bar flatten."
+    "brackets start after the entry bar, stop first if both levels hit. With EOD flatten on, "
+    "BACKTEST LOOKAHEAD infers the session close from its last daytime bar and exits five "
+    "minutes earlier (at/before 15:55 CT), with no entries at/after the cutoff."
 )
-EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first"
+EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_inferred_session_close"
 CT = ZoneInfo("America/Chicago")
 LOG = logging.getLogger(__name__)
 D = Decimal
@@ -70,8 +76,8 @@ class Parameters:
     entry_start_time: int = integer(900, "Entry start, exclusive, Chicago HHMM.", 0, 2359)
     entry_end_time: int = integer(1700, "Entry end, inclusive, Chicago HHMM.", 0, 2359)
     day_reset_time: int = integer(2300, "Reset only when Time > reset and previous Time <= reset.", 0, 2359)
-    use_eod_flat: bool = boolean(True, "Request a next-bar market exit at EOD.")
-    eod_flat_time: int = integer(1555, "EOD trigger Chicago HHMM, before reset time.", 0, 2359)
+    use_eod_flat: bool = boolean(True, "Backtest lookahead: flatten five minutes before the last daytime bar; block later entries.")
+    eod_flat_time: int = integer(1555, "Latest flatten cutoff, Chicago HHMM; early-close inference can move it earlier.", 0, 2359)
     plot_trade_levels: bool = boolean(True, "Log signal-bar entry details through Python logging.")
     max_bars_back: int = integer(42, "Leading history bars before PowerLanguage CurrentBar=1.")
 
@@ -163,6 +169,45 @@ class VwapPullbackRiskSizing:
         self.last_target_high = self.last_target_low = None
         self.active_stop = self.active_target = D(0)
         self.adx_value = D(0)
+        self._session_cutoff = None
+        self._session_plan_ready = False
+        self._session_digest = hashlib.sha256()
+        self.session_flattening = {
+            **backtest_assumptions(self.parameters), "sessions": 0,
+            "sessions_without_cutoff_bar": 0, "sessions_using_earlier_bar": 0,
+            "examples": [], "plans_sha256": self._session_digest.hexdigest(),
+        }
+
+    @contextmanager
+    def prepare_replay(self, bars):
+        """The execution engine invokes this lookahead pass for historical replay."""
+        if not self.parameters.use_eod_flat:
+            yield bars
+            return
+        prepared = session_bars(bars, self)
+        try:
+            yield prepared
+        finally:
+            prepared.close()
+
+    def _record_session_close(self, day, last, target, cutoff):
+        def stamp(value):
+            return value.astimezone(CT).isoformat() if value is not None else None
+        record = {"session_date": day.isoformat(), "inferred_close": stamp(last),
+                  "target_cutoff": stamp(target), "executed_cutoff": stamp(cutoff)}
+        self._session_digest.update((json.dumps(record, sort_keys=True) + "\n").encode())
+        metadata = self.session_flattening
+        metadata["sessions"] += 1
+        metadata["sessions_without_cutoff_bar"] += cutoff is None
+        metadata["sessions_using_earlier_bar"] += cutoff is not None and cutoff < target
+        if len(metadata["examples"]) < 5:
+            metadata["examples"].append(record)
+        metadata["plans_sha256"] = self._session_digest.hexdigest()
+
+    def allow_entry_fill(self, bar):
+        """Cancel pending entries when a gap carries their fill past the cutoff."""
+        return (not self.parameters.use_eod_flat
+                or (self._session_cutoff is not None and bar.timestamp_utc < self._session_cutoff))
 
     def _clear_latches(self):
         self.long_orb_broken = self.short_orb_broken = False
@@ -199,6 +244,8 @@ class VwapPullbackRiskSizing:
 
     def _on_bar(self, bar, position):
         p = self.parameters
+        if p.use_eod_flat and not self._session_plan_ready:
+            raise ValueError("EOD inference requires execute() to prepare the session's future bars before on_bar().")
         self._history.append(bar)
         self._seen += 1
         if self._seen <= p.max_bars_back:
@@ -273,9 +320,9 @@ class VwapPullbackRiskSizing:
         self._previous_long_latched, self._previous_short_latched = long_latched, short_latched
         self._previous_time, self._previous_orb, self._previous_vwap = time, in_orb, in_vwap
 
+        if p.use_eod_flat and not self.allow_entry_fill(bar):
+            return CloseIntent("eod_flat", timing="same_close") if position is not None else None
         if position is not None:
-            if p.use_eod_flat and p.eod_flat_time <= time < p.day_reset_time:
-                return CloseIntent("eod_flat", timing="next_open")
             return BracketIntent(self.active_stop, self.active_target)
         if self.trades_today >= p.max_trades_per_day or not adx_ok:
             return None
@@ -305,9 +352,25 @@ class VwapPullbackRiskSizing:
             if p.plot_trade_levels:
                 LOG.info("%s %s qty=%s close=%s stop=%s target=%s stopDist=%s adx=%s",
                          local.isoformat(), side.upper(), quantity, bar.close, stop, target, distance, self.adx_value)
-            return EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open")
+            return EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open",
+                               exit_deadline_utc=self._session_cutoff if p.use_eod_flat else None)
         return None
 
     def on_finish(self, last_bar: Bar, position: Position | None):
         # Explicit repository completion policy, additional to the PL source.
         return CloseIntent("end_of_data") if position is not None else None
+
+
+def backtest_assumptions(parameters):
+    return {
+        "enabled": parameters.use_eod_flat,
+        "lookahead": parameters.use_eod_flat,
+        "mode": "inferred_session_close",
+        "timezone": "America/Chicago",
+        "session_boundary": "17:00 to 16:00, labelled by local ending date",
+        "minutes_before_close": MINUTES_BEFORE_CLOSE,
+        "cutoff_rule": "min(eod_flat_time, last observed daytime bar minus five elapsed minutes)",
+        "missing_cutoff_bar": "preceding observed bar; no entries if none exists",
+        "truncated_session": "treated as an early close, including the final selected day",
+        "fill": "cutoff bar Close with adverse slippage and commissions; existing earlier brackets retain priority",
+    }

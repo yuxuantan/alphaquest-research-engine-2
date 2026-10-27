@@ -84,8 +84,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     async def lifespan(app):
         app.state.store = DatasetStore(db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3")
         app.state.runs = RunStore(app.state.store.path.parent)
-        app.state.optimizations = OptimizationStore(app.state.runs)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
+        app.state.optimizations = OptimizationStore(app.state.runs, app.state.prop_analyses)
         app.state.progress = ProgressTracker()
         yield
         await run_in_threadpool(app.state.optimizations.close)

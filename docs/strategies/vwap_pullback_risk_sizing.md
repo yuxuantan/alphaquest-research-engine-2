@@ -11,6 +11,9 @@ All source Inputs are available in snake_case with their actual defaults:
 The extra `max_bars_back=42` models the chart history setting. The source header
 says four contracts, but its Inputs specify **one contract**, the port's default.
 Risk sizing and shorts default off; both ADX gates and EOD flatten default on.
+EOD flattening now intentionally differs from the PowerLanguage source: it
+uses the backtest-only last-bar lookahead rule below. The retained `.pl` is
+the original source and is not silently rewritten.
 `plot_trade_levels` emits signal details through the module's INFO logger;
 enable INFO logging in your Python host to display them.
 
@@ -52,10 +55,56 @@ trade-volume provenance.
 - Reset follows the exact crossing: current HHMM **> 23:00** and previous
   HHMM **<= 23:00**, plus the first evaluated bar. Date rollover alone does
   not reset. Missing the crossing can miss a reset; RTH-only data is unsuitable.
-- EOD triggers while holding at `15:55 <= Time < 23:00`, replacing the next
-  bar's bracket with a market exit. Entry windows remain independent: the
-  source can enter after EOD and request flatten after filling. No additional
-  post-EOD entry veto is added.
+- With `use_eod_flat=true` (default), infer each session's close from its last
+  observed daytime bar. Exit at the actual bar Close at/before five minutes
+  earlier, capped by `eod_flat_time=1555`, and block entries at/after that cutoff.
+  Pending entries that gap past the cutoff are cancelled. `use_eod_flat=false`
+  disables this inference and entry restriction; remaining exposure closes at EOF.
+
+## Backtest-only last-bar lookahead
+
+This is an explicitly permitted historical simulation assumption, not a live
+early-close detector. No exchange calendar or special-date list is fetched.
+The engine buffers one session before replaying it through the same signal,
+fill, cost, equity, and reporting code. It does not edit an old trade timestamp
+while leaving its price or P&L unchanged. Existing saved reports remain intact;
+run a new backtest to get the new behavior.
+
+Sessions begin at 17:00 CT on the preceding date and end on the following local
+date. The last observed bar on that ending date at/before 16:00 is the inferred
+close. Evening bars at/after 17:00 belong to the following session; bars in the
+16:00-17:00 maintenance interval cannot extend the inferred daytime close.
+This session-ending date is not an official CME clearing trade date.
+
+```text
+target_cutoff = min(eod_flat_time, last_observed_daytime_bar - 5 elapsed minutes)
+executable_cutoff = last real bar at or before target_cutoff
+```
+
+| Last daytime bar, CT | Target cutoff, CT |
+| --- | --- |
+| 16:00 | 15:55 |
+| 12:00 | 11:55 |
+| 12:15 | 12:10 |
+| 15:59 | 15:54 |
+
+Five minutes means elapsed time, not five CSV rows. If the exact cutoff minute
+is absent, use the preceding actual bar and its Close, including adverse
+slippage and both-side commissions. If no such bar exists, do not enter that
+session. Earlier stop/target exits stay intact, including a bracket that fills
+inside the cutoff bar before its Close. No new entry may fill at/after cutoff.
+
+The rule uses only the selected replay slice. A truncated or sparse day,
+including the final selected day, is deliberately treated as an early close.
+For example, a selection ending at 09:03 moves that day's cutoff to 08:58 and
+can eliminate its morning entries. Choose complete data when that assumption
+is unwanted. This is the limitation accepted in place of maintaining dates.
+
+Reports label the execution model `inferred_session_close`. Their strategy
+metadata records the enabled lookahead rule, session count, missing/earlier
+cutoff counts, the first five resolved examples, and a SHA-256 of all resolved
+plans. Trades carry their executable cutoff in `exit_deadline_utc`; forced
+exits use reason `eod_flat`. These values persist in normal report downloads.
 
 ## History and ADX
 
@@ -86,7 +135,7 @@ selected execution assumption.
 | Target gap | Open beyond the target, without adverse limit slippage |
 | Ordinary target | Target price; a touch suffices; no adverse limit slippage |
 | Both levels hit | Stop first, unless the Open has already executed one side |
-| EOD | Trigger at the first eligible observed close; fill next Open |
+| EOD | Last-bar lookahead chooses the executable cutoff; fill its Close with costs |
 | EOF pending entry | Cancel; no fabricated future bar or fill |
 | EOF exposure | Final Close liquidation with costs and `end_of_data`, an explicit repository policy additional to the source |
 
@@ -126,8 +175,38 @@ with every parameter: decimals as strings, booleans as JSON booleans, integers
 as JSON integers. The API requires every parameter explicitly; the portal
 provides all controls. Python callers construct
 `VwapPullbackRiskSizing(Parameters(), execution_config=config)` and consume
-`execute(bars, strategy, config)` inside `read_bars(...)`.
+`execute(bars, strategy, config)` inside `read_bars(...)`. With EOD inference
+enabled, use `execute()` rather than calling `on_bar()` directly: execution
+prepares the future session context required for this declared lookahead.
 
 ```bash
 .venv/bin/python -m pytest tests/test_vwap_pullback.py tests/test_next_bar_execution.py -q
 ```
+
+## Reproduce the normal and early-close review
+
+```bash
+.venv/bin/python tests/review_vwap_session_flatten.py \
+  --output artifacts/vwap-session-flatten-review-NEW
+```
+
+The command uses the normal saved-dataset and Backtests UI workflow with
+clearly labelled synthetic one-minute-price fixtures. It retains an isolated
+library, durable report files, screenshots, CSV downloads, and comparisons in
+that new directory. Its temporary server stops automatically.
+
+Expected observations: a 16:00 close exits at15:55; a 12:00 close exits at11:55;
+a 12:15 close exits at12:10. Each synthetic trade enters at115.25, exits at117.75,
+earns50 gross, pays2 total commissions and nets48 CU. The saved report explicitly
+shows backtest lookahead; source CSV bytes and earlier runs remain unchanged.
+To reopen the isolated review library after the command ends:
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/vwap-session-flatten-review-NEW" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8001
+```
+
+Open `http://127.0.0.1:8001/#reports`, open a **SYNTHETIC** review report,
+inspect its trade exit and settings, and download its trade/equity CSVs.
+Stop this optional server with Ctrl-C. The user journey and run IDs are also
+in the generated `verification.json`; this command never starts a persistent server.

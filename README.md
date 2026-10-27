@@ -184,11 +184,20 @@ Run the sample strategy on an existing saved dataset ID using its saved instrume
   --slippage-ticks 1 --commission-per-contract-per-side 1
 ```
 
-For the synthetic arithmetic fixture, save tick size **0.25** and monetary point value **10** on the dataset first. These are not NQ or other real instrument specifications. Capital and costs remain per-run inputs. Tick size and point value default to the dataset; optional `--tick-size` and/or `--point-value` flags override them for this run only. The command uses the dataset's saved timezone and preserves the source CSV/metadata. `--output` must name a new directory. It writes:
+For the synthetic arithmetic fixture, save tick size **0.25** and monetary point value **10** on the dataset first. These are not NQ or other real instrument specifications. Capital and costs remain per-run inputs. Tick size and point value default to the dataset; optional `--tick-size` and/or `--point-value` flags override them for this run only. The command uses the dataset's saved timezone and preserves the source CSV/metadata. `--output` must name a new path. It becomes a shortcut to the normal saved Backtest directory, containing:
 
 - `report.json`: summary, reconciliation checks, full trade records, and the complete equity curve. It records resolved execution/strategy settings, dataset ID/hash/source timezone, strategy ID/source hash, and the bar-close/same-close assumptions.
 - `trades.csv`: every field from the engine's completed trades, including reference/fill prices, both commissions, gross/net P&L, holding time, deadline, and reasons. Zero trades produces headers only.
 - `equity.csv`: starting equity followed by one row per completed trade, with columns `trade_number,exit_time_utc,net_pnl,equity`. The starting row uses trade number 0, a blank exit timestamp, and zero trade P&L. Each subsequent row records that trade's net P&L and the engine's equity immediately after closing, with all costs included. Breakeven and end-of-data exits each get a row; zero trades produces only the starting row. The full bar-close equity curve remains in `report.json`.
+
+The CLI also registers this run in the existing Backtests catalogue and saves its
+default Apex 50K EOD prop analysis ($49 evaluation, $129 activation, 20 slots).
+Its JSON output includes `backtest_id` and `default_prop_analysis_id`; open the
+same library in the portal to inspect Historical net and downloads. The output
+shortcut shares the saved files, and removing the shortcut preserves the saved
+report. Unsupported prop sources show an explicit N/A reason while retaining
+the backtest. The same default analysis runs for every portal/API backtest and
+new optimization trial; standard simulation counts add runtime.
 
 JSON monetary values and financial CSV cells use exact Decimal strings with no display rounding. JSON timestamps use UTC ISO 8601; null timestamps/deadlines become blank CSV cells. Win rate uses **net** winning trades divided by all completed trades, including breakevens. Zero trades produces JSON `null` and the command displays **N/A**. Recurring percentages use 28 significant Decimal digits; integer win/loss/breakeven counts remain authoritative.
 
@@ -207,6 +216,13 @@ Generate and independently check all nine reviewed fixtures, retaining isolated 
 The existing server exposes allowlisted strategy discovery, explicit-config backtest execution, live progress, and durable paginated results. See [backtest API commands and behavior](docs/backtest_api.md) for a reproducible saved-fixture run. `POST /api/backtests` stays open while worker-thread processing runs; poll the existing `/api/progress/UUID` endpoint from a separate request. Completed results live in `backtests.sqlite3` and `backtest_runs/` beside the dataset database. The equity endpoint returns starting equity plus one point per completed trade.
 
 ## Backtests screen
+
+Use **Delete** beside a completed report, or **Delete backtest** inside the report,
+to permanently remove that selected backtest and its report/CSV files after
+confirmation. The source dataset, saved prop analyses and optimization metrics
+are kept. Optimization rows identify deleted backtests and retain their results;
+the deleted report is excluded from future trial reuse. Wait for any prop analysis
+or full-detail replay using that source to finish before deleting it.
 
 Select **Backtests** in the portal, or open `http://127.0.0.1:8000/#backtests`. Choose a saved dataset and a backend-listed strategy. The sample shows exactly its three strategy parameters; account, instrument, slippage, and commissions are separate. Review the bar-close timestamp assumption and source timezone, then run with live processed/total bars and elapsed time. The form prevents duplicate submissions while active and shows the saved run ID and the exact settings used after completion. Reports include max drawdown amount, percentage, and duration from full trade-close equity, plus paginated trades, the equity chart and CSV downloads. Dataset management remains available. See [the fixture walkthrough and submitted-setting checks](docs/backtests_portal.md).
 

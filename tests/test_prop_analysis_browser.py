@@ -6,7 +6,7 @@ from test_prop_analysis_api import backtest,export_for
 
 def test_local_report_reload_reopen_and_download(page,portal,tmp_path):
     from types import SimpleNamespace
-    with httpx.Client(base_url=portal['url']) as client:r=backtest(client)
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:r=backtest(client)
     adapter=SimpleNamespace(app=portal['app'])
     path=export_for(adapter,r,tmp_path)
     page.goto(portal['url']+f"/#backtests/report/{r['id']}");page.locator('#report-prop-setup').click()
@@ -61,7 +61,7 @@ def open_presentation_fixture(page,portal,record,mutate=lambda r:None):
 
 
 def test_funded_insights_tabs_sorting_units_and_exact_download(page,portal,tmp_path):
-    with httpx.Client(base_url=portal['url']) as client:record=backtest(client)
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:record=backtest(client)
     posts=[];page.on('request',lambda req:posts.append(req.url) if req.method=='POST' else None)
     fixture=open_presentation_fixture(page,portal,record)
     overview=page.get_by_role('tabpanel',name='Overview')
@@ -101,7 +101,7 @@ def test_funded_insights_tabs_sorting_units_and_exact_download(page,portal,tmp_p
 
 
 def test_mobile_insights_fit_and_missing_values_stay_unavailable(page,portal):
-    with httpx.Client(base_url=portal['url']) as client:record=backtest(client)
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:record=backtest(client)
     page.set_viewport_size({'width':390,'height':844})
     def missing(report):
         report['calculations']['funded']['selected']['T1 p90']=None

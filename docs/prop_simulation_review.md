@@ -736,3 +736,265 @@ The companion `test_reuse_toggle_badges_reope0/` contains the final reuse UI
 verification. These final runs confirm the observations above after the shared
 feature pass and bounded bar serialization improvements. All owned test servers
 stopped; the user's existing server/processes and stored results were preserved.
+
+## Automatic default Apex analysis — 27 October 2026
+
+New portal/API backtests, CLI backtests and trials in new optimization jobs now
+perform the default source check and full local analysis automatically. Profile:
+Apex 50K EOD, $49 evaluation, $129 activation, 20 slots, block 5, ordinary 70/30
+weekday split and standard counts. Every saved backtest links to the existing
+prop report, and optimization rows show sortable **Historical net · USD** near
+the left of the table. Native fills retain their net costs; the absence of
+measured excursions remains explicit. No external engine/VM is invoked.
+
+The actual product demonstration is retained at
+`artifacts/automatic-apex-prop-verified-suite-20261027/test_automatic_apex_backtest_o0/`:
+
+- `SYNTHETIC-automatic-apex-cash.csv`, normal dataset/backtest/prop catalogues and
+  report files; `verification.json` records actual IDs, expected cash and checks.
+- `automatic-backtest.png`, `historical-cash-and-fees.png`, `source-check.png`,
+  `configured-optimization.png`, `optimization-historical-net.png`,
+  `optimization-reused.png`, `mobile-results.png`.
+- `default-prop-report.json`, `optimization-results.csv`, complete source/trade,
+  account, quarter/year, sizing and chart downloads in the normal report folders.
+
+The earlier demonstration under `artifacts/automatic-apex-prop-portal-20261027/`
+is preserved. The final screenshots above show the completed automatic report,
+separate evaluation/activation fees, linked Historical net column and its N/A
+explanation, highlighted frozen parameter columns and mobile scrolling.
+
+All numbers below come from an actual default-count calculation with independent
+arithmetic expectations. The source is explicitly synthetic, contains 60
+weekdays beginning 5 January 2026 and has three bars at 18:00–18:02 UTC each day.
+The first bar goes 99→100; the second 100→103; the third is a 103 doji. Tick size
+is 0.25 and the artificial monetary point value is 1,000, labelled synthetic.
+With green count 1, hold 1 minute, one contract, zero commission/slippage, exactly
+one trade earns `(103−100)×1,000 = 3,000` each day: source net **180,000**.
+
+Independent default-model expectations:
+
+1. Every evaluation path passes at every sizing point. Grid ties choose **1 MNQ**,
+   earning 300 per day, reaching 3,000 on day 10. Funding delay adds one activation
+   day: **11 weekdays**. Acquisition cost is `49 / 1 + 129 = 178`.
+2. The fastest full-ladder training tie begins at **3 MNQ**. It earns 900 per day;
+   six payouts occur after 30 weekdays and total **13,000**. All larger tied
+   sizes retain the earlier size. Final funded simulations retain **20,000**
+   accounts, and each sizing row retains **3,000** paths.
+3. Historical account 1 uses 30 sessions. After an 11-session replacement wait,
+   account 2 has 19 sessions remaining and pays 1,500 + 1,500 + 2,000 = **5,000**.
+   Across 20 slots, payouts are `(13,000+5,000)×20 = 360,000`, acquisition costs
+   are `2 starts×20 slots×(49+129) = 7,120`, and **Historical net = 352,880**.
+   There are 40 funded starts across all slots. These are deterministic outcomes
+   of this synthetic input/model, not fabricated future returns.
+4. Green count 2 instead enters at 103 and closes at the same price. It retains
+   a completed default analysis with zero validation passes, unavailable funded
+   outcomes and Historical net **N/A**. N/A sorts after 352,880 in either sort
+   direction. A one-session source rejects before calculation and also shows
+   N/A with its source-check reason. Neither case becomes a fake zero cash result.
+
+Reproduce through the real portal:
+
+1. Upload the saved synthetic CSV in Datasets as a synthetic source, UTC, tick
+   0.25 and point value 1,000. Validate and save it.
+2. In Backtests choose Consecutive green hold, green count 1, hold 1, contracts 1,
+   capital 10,000, slippage 0 and commission 0. Run and wait through the Apex
+   calculation stages. Expect source net 180,000 and the new **$352,880 Historical
+   net** card. Open its default prop analysis; Historical replay shows payouts
+   360,000, costs 7,120 and 20 slots. Download its report data.
+3. Return to the Backtest and Configure prop analysis. The activation field is
+   129. Enter `{"unsupported_automatic_test":1}` in additional overrides and
+   Check source: expect rejection and disabled Run. Restore `{}`, check again:
+   expect source net 180,000, 60 trades and no measured MAE. Run with default
+   settings to reopen the already completed automatic analysis, without another
+   simulation or duplicate report.
+4. Open Optimizations with the same source/costs. Green count start 1/end 2/step
+   1; hold 1 fixed; contracts 1 fixed; choose two workers if available. Expect
+   two rows with Historical net **352,880 / N/A**, each linking to its own
+   ordinary prop report. Inspect the unavailable row's actual explanation.
+5. Sort Historical net ascending and descending; 352,880 remains before N/A.
+   Results CSV contains the same values, prop IDs, statuses and reasons. Open a
+   linked report, reload and reopen the job. Rerun with identical inputs and reuse
+   checked: expect **2 reused · 0 computed**, the original report IDs and three
+   total Backtest reports (one standalone plus the original two trials).
+6. Inspect fees, samples, source identity, CSVs and JSON at full precision. The
+   original standalone report remains byte-identical after every operation.
+   On mobile, the table scrolls inside the page and stepped parameters remain
+   frozen. The owned browser test server is stopped on exit.
+
+Generate a fresh retained demonstration:
+
+```bash
+.venv/bin/python -m pytest tests/test_automatic_prop_browser.py -q \
+  --basetemp artifacts/automatic-apex-prop-review-NEW
+```
+
+Backend qualification, including exact cash, full counts, parallel trials,
+reuse, rejected/failed sources, report corruption, CLI/catalogue integration,
+legacy readers and safe publication rollback:
+
+```bash
+.venv/bin/python -m pytest tests/test_automatic_prop.py tests/test_native_prop_engine.py -q
+```
+
+Read-only independent inspection of the actual saved product outputs and prior
+user files, without importing production calculation code:
+
+```bash
+.venv/bin/python artifacts/automatic-apex-prop-delivery-20261027/verify_delivery.py
+```
+
+Expect source net 180,000; payouts 360,000; acquisition fees 7,120; Historical
+net 352,880; standard simulation counts retained; 70 protected files and 21
+compressed backtest archives unchanged; original optimization job/trial
+payloads unchanged; 72 existing prop artifact hashes matching their saved
+manifests. The script saves `independent-verification.json` alongside itself.
+
+Final validation on `work/automatic-apex-prop-20261027` (starting HEAD `604cd9f`):
+**705 passed**, 24 dependency/notebook deprecation warnings, **516.57 seconds**.
+Command: `.venv/bin/python -m pytest -q --basetemp artifacts/automatic-apex-prop-verified-suite-20261027`.
+The full run includes the actual browser workflow above, the single-snapshot
+polling regression, engine/settings reuse invalidation, and neutral-trade
+equivalence checks. `artifacts/automatic-apex-prop-delivery-20261027/validation.json`
+pins the production engine identity and independent evidence. No persistent
+test server was started; fixture-owned servers stopped. Existing user processes
+were left running. The increment is local and has not been pushed.
+
+The neutral-trade optimization keeps the first exact-floor check in each
+consecutive zero-net/zero-adverse run, leaving all original source rows in their
+exports. Independent comparisons against the ordinary uncompressed evaluation
+and funded calls match every outcome, account state and seeded draw sequence,
+including an account beginning at its exact floor. No simulation count is
+silently reduced. This increment changes orchestration/reporting and removes
+redundant checks; it does not claim a new provider-rule or external-model parity
+qualification beyond the locally qualified numerical model.
+
+## Prop summary inside the backtest report — 27 October 2026
+
+Open an ordinary completed backtest report. **Prop analysis summary** now follows
+**Trade-close equity**, before **Every completed trade**, without navigation to
+configuration or a particular analysis. It selects the recorded default analysis
+for new backtests and the most recent completed saved analysis for older ones.
+The selected analysis ID and its settings are visible. Viewing a report reads its
+existing results and does not run analysis, change saved reports or discover
+exports. The equity chart and trades remain usable if the prop request fails.
+
+Actual product evidence is retained at
+`artifacts/inline-prop-summary-final-20261027/test_automatic_apex_backtest_o0/`.
+The labelled synthetic source goes through the normal upload/backtest workflow,
+then configure/check/run/reopen, a parallel optimization and durable reports.
+Independent expectations are the cash arithmetic in the previous section:
+**360,000 payouts − 7,120 evaluation/activation costs = 352,880 Historical net**,
+evaluation pass rate **100%**, and acquisition cost **178.00** per funded start.
+
+1. Upload `SYNTHETIC-automatic-apex-cash.csv` from that folder with UTC, tick 0.25
+   and point value 1,000. Run Consecutive green hold with green count 1, hold 1,
+   contracts 1 and zero commission/slippage.
+2. Scroll directly below Trade-close equity. Expect Historical net **$352,880**,
+   historical payouts **$360,000**, acquisition costs **$7,120**, 20 slots, $49
+   evaluation and $129 activation. Evaluation passes **100%** and average
+   acquisition cost is **$178.00**. Funded-account payouts are labelled separately
+   from historical slot cash; the close-only excursion fallback is disclosed.
+3. Download **Report data (JSON)** from this summary. Its bytes equal the existing
+   saved report. **Open full analysis** goes directly to that analysis. Returning
+   or reloading shows the same saved values, with no new calculation POST.
+4. The two-trial optimization from the prior instructions produces a second
+   zero-P&L trial. Open its Backtest report: expect Historical net/payouts/costs
+   **N/A**, evaluation pass **0%**, no funded payout cards, and the actual
+   no-validation-pass explanation. Unsupported one-session sources show their
+   rejection reason. An older report without a saved analysis shows instructions
+   to configure one, without an invented zero result.
+
+`inline-prop-summary.png`, `inline-mobile.png` and `inline-no-pass.png` capture
+these actual result states. `default-prop-report.json`, `optimization-results.csv`
+and normal dataset/backtest/analysis folders retain inspectable outputs.
+`verification.json` records exact values, placement, byte-identical downloads,
+reload without calculation, source-check rejection and mobile checks. The older
+metadata lookup is exercised using a browser-only adaptation of the synthetic
+record's metadata; the original record and saved report stay unchanged. Separate
+presentation checks cover no saved analysis and a controlled HTTP 503, keeping
+the equity chart usable in both cases.
+
+Reproduce with a new evidence directory (existing evidence remains unchanged):
+
+```bash
+.venv/bin/python -m pytest -q tests/test_automatic_prop_browser.py \
+  tests/test_automatic_prop.py::test_saved_analysis_lookup_skips_export_discovery \
+  --basetemp artifacts/inline-prop-summary-review-NEW
+```
+
+The browser fixtures start temporary servers and assert their shutdown. No
+persistent server is started. Calculations, simulation counts, fees and stored
+financial results are unchanged by this presentation increment.
+
+Validation: **3 workflow/lookup checks passed** in 72.06 seconds; **43 existing
+report/browser/API regression checks passed** in 99.34 seconds. Final results,
+commands and implementation hashes are saved in
+`artifacts/inline-prop-summary-final-20261027/validation.json`. Its
+`preservation.json` verifies the same 70 protected files, 21 compressed archives,
+72 saved prop artifact hashes and original optimization records remain intact.
+Earlier workflow screenshots and qualification evidence are preserved.
+
+## Delete a backtest through the portal — 27 October 2026
+
+Completed reports now have **Delete** controls in their list, and each report has
+**Delete backtest**. The confirmation identifies the dataset and exact run ID.
+Cancel sends no deletion request. Confirm removes only that selected backtest's
+catalogue/trade/equity rows and report directory. Its source dataset, other
+backtests, completed prop reports and optimization trial metrics are retained.
+Saved prop reports remain readable from their own snapshots; calculating a new
+analysis requires a source backtest that still exists.
+
+A queued/running prop calculation or active full-detail replay returns a visible
+409 explanation and leaves the backtest untouched. Catalogue errors roll back
+indexed changes and restore staged report files. If final file cleanup fails
+after catalogue removal, the portal reports it explicitly; retrying the same
+Delete completes cleanup. No source dataset is deleted. Removing the last report
+on a results page returns to the preceding page. An optimization's deleted
+Backtest cell shows **Backtest deleted**, with original metrics and prop links
+retained. Future optimization reuse recomputes that trial rather than returning
+a deleted report.
+
+Reproduce with labelled synthetic inputs through the normal portal:
+
+1. Create two backtests using the same synthetic fixture dataset. Open Backtests
+   and press Delete beside one report. Cancel: both reports remain, no DELETE
+   is sent and every original file remains.
+2. Open that report, press Delete backtest and confirm. Expect navigation to the
+   completed reports, one remaining report and an explicit success message.
+   The source dataset and the other report remain byte-identical. Reload to
+   verify durable removal; the deleted report and exports return 404.
+3. Delete the remaining report from the list. Expect **No completed reports yet**,
+   with the dataset still available for another backtest.
+4. Delete a backtest belonging to an optimization. Reopen the optimization:
+   expect its original metrics and prop link, plus **Backtest deleted** in place
+   of the report link. Running the same grid reuses unaffected trials and
+   recomputes the deleted trial.
+
+Actual retained portal outputs:
+`artifacts/delete-backtests-final-20261027/workflow/` contains
+`test_delete_from_list_and_repo0/verification.json`, confirmation messages and
+`delete-controls-list.png`, `delete-control-report.png`,
+`selected-backtest-deleted.png`; `test_busy_analysis_error_and_l0/` contains the
+mobile/pagination screenshot; `test_deleted_trial_keeps_optim0/` contains
+`optimization-keeps-metrics.png`. These tests delete only fixture-owned reports
+in isolated catalogues. Existing user data and earlier evidence are untouched.
+
+```bash
+.venv/bin/python -m pytest -q tests/test_delete_backtests.py
+.venv/bin/python -m pytest -q tests/test_delete_backtests_browser.py \
+  --basetemp artifacts/delete-backtests-review-NEW
+```
+
+Backend checks also inject catalogue, rename and cleanup failures, verify
+completed prop report bytes after source deletion, and verify per-trial cache
+invalidation. Temporary browser servers stop in fixture cleanup; no persistent
+server is started by these checks.
+
+Final verification: **11 deletion/API/browser checks passed in 33.33 seconds**,
+with production engine identity unchanged throughout. The broader regression run
+passed **126** checks; one optimizer-input test was interrupted by concurrent
+production-code edits and correctly stopped at its engine-code guard before any
+trial. That affected case then passed independently in **3.47 seconds**. No
+deletion behavior failed. Commands, file hashes and outcomes are retained in
+`artifacts/delete-backtests-final-20261027/validation.json`, with read-only
+existing-data checks in `preservation.json`. Earlier test outputs remain intact.

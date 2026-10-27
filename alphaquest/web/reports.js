@@ -12,6 +12,7 @@
   let historyOffset = 0;
   let historyVersion = 0;
   let chartData;
+  const deleting = new Set();
   let tradeTimeZone = "UTC";
   let tradeTimeFormatter;
   const node = (tag, text, cls) => {
@@ -21,6 +22,37 @@
     return item;
   };
   const stamp = (value) => value ? value.replace("T", " ").replace("Z", "") : "Initial balance";
+  function deleteButton(record) {
+    const button = node("button", "Delete", "button danger");
+    button.type = "button";
+    button.dataset.deleteRun = record.id;
+    button.setAttribute("aria-label", `Delete backtest ${record.id}`);
+    button.disabled = deleting.has(record.id);
+    button.onclick = () => deleteBacktest(record);
+    return button;
+  }
+  async function deleteBacktest(record) {
+    if (deleting.has(record.id)) return;
+    if (!window.confirm(`Delete backtest “${record.run_metadata.dataset.name}”?\n\nRun ${record.id}\n\nThis permanently removes this backtest and its report files. The source dataset, saved prop analyses and optimization metrics are kept. This cannot be undone.`)) return;
+    deleting.add(record.id);
+    document.querySelectorAll('[data-delete-run]').forEach(button => { if (button.dataset.deleteRun === record.id) button.disabled = true; });
+    const status = get("#backtest-delete-status"); status.hidden = false; status.textContent = "Deleting backtest…";
+    try {
+      const response = await fetch(`/api/backtests/${record.id}`, {method: "DELETE"});
+      if (!response.ok && response.status !== 404) {
+        const result = await response.json();
+        throw new Error(typeof result.detail === "string" ? result.detail : `HTTP ${response.status}`);
+      }
+      status.textContent = "Backtest deleted. Source dataset, saved prop analyses and optimization metrics kept.";
+      if (location.hash === `#backtests/report/${record.id}`) location.hash = "#backtests";
+      else if (location.hash === "#backtests") await history(historyOffset);
+    } catch (exc) {
+      status.textContent = `Could not delete backtest: ${exc.message}`;
+    } finally {
+      deleting.delete(record.id);
+      document.querySelectorAll('[data-delete-run]').forEach(button => { if (button.dataset.deleteRun === record.id) button.disabled = false; });
+    }
+  }
   function tradeStamp(value) {
     const parts = Object.fromEntries(tradeTimeFormatter.formatToParts(new Date(value)).map((part) => [part.type, part.value]));
     return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
@@ -64,6 +96,16 @@
     const summary = record.summary;
     const holder = get("#report-summary");
     holder.replaceChildren();
+    if (record.run_metadata.automatic_prop_analysis) {
+      const automatic = record.run_metadata.automatic_prop_analysis;
+      const card = node("div", undefined, "panel report-metric");
+      card.append(node("span", "Historical net · USD", "stat-label"));
+      const amount = node("strong", "Loading…"); amount.id = "report-historical-net";
+      const note = node("p", "", "small muted"); note.id = "report-prop-result-note";
+      const link = node("a", "Open default prop analysis →"); link.href = `#backtests/prop/job/${automatic.id}`;
+      card.append(amount, note, node("p", `Apex 50K EOD · ${automatic.settings.SLOTS} slots · $${automatic.settings.EVAL_PRICE} evaluation + $${automatic.settings.ACTIVATION_FEE} activation · full history`, "small muted"), link);
+      holder.append(card);
+    }
     for (const [title, value, key] of [
       ["Total net P&L · CU", summary.total_net_pnl, "net"],
       ["Trades taken", number.format(summary.trades_taken), "trades"],
@@ -88,6 +130,82 @@
     const balances = node("p", `Initial equity ${summary.initial_capital} CU → Final equity ${summary.final_equity} CU. Account currency unspecified.`, "report-balances small");
     balances.id = "report-balances";
     holder.append(balances);
+  }
+  const usd = (value, digits = 0) => value == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);
+  const probability = (value) => value == null ? "N/A" : `${number.format(Number((value * 100).toFixed(1)))}%`;
+  function propMetric(parent, key, label, value, note, exact) {
+    const card = node("div", undefined, "prop-metric");
+    const amount = node("strong", value, key === "historical-net" ? moneyClass(exact) : "");
+    amount.id = `report-prop-${key}`;
+    if (exact != null) amount.title = `Saved value: ${exact}`;
+    card.append(node("span", label, "prop-metric-label"), amount, node("p", note));
+    parent.append(card);
+  }
+  async function propSummary(record, controller) {
+    const automatic = record.run_metadata.automatic_prop_analysis;
+    try {
+      let id = automatic?.id;
+      if (!id) {
+        const source = record.run_metadata.detailed_from_run_id || record.id;
+        const saved = await read(`/api/prop-analyses/sources/${source}?discover_exports=false`, controller.signal);
+        if (active !== controller) return;
+        id = (saved.analyses.find((item) => item.status === "complete") || saved.analyses[0])?.id;
+      }
+      if (active !== controller) return;
+      if (!id) {
+        get("#report-prop-status").textContent = "No saved prop analysis yet. Use Configure prop analysis to check the source and run one.";
+        return;
+      }
+      const result = await read(`/api/prop-analyses/${id}`, controller.signal);
+      if (active !== controller) return;
+      const context = get("#report-prop-context");
+      context.textContent = `${automatic ? "Default automatic analysis" : result.status === "complete" ? "Latest completed saved analysis" : "Latest saved analysis"} · ${id}`;
+      const actions = get("#report-prop-actions"); actions.replaceChildren();
+      const link = node("a", "Open full analysis →", "button secondary"); link.href = `#backtests/prop/job/${id}`; actions.append(link);
+      const amount = get("#report-historical-net");
+      if (amount) {
+        amount.textContent = usd(result.historical_net);
+        amount.className = result.historical_net == null ? "" : moneyClass(result.historical_net);
+        get("#report-prop-result-note").textContent = result.reason || "Payouts minus acquisition costs, including activation fees. Native close-only excursion fallback.";
+      }
+      const status = get("#report-prop-status");
+      if (result.status !== "complete") {
+        status.textContent = `${result.status} · ${result.reason || result.progress}`;
+        if (["queued", "running"].includes(result.status)) setTimeout(() => { if (active === controller) propSummary(record, controller); }, 1500);
+        return;
+      }
+      const report = await read(`/api/prop-analyses/${id}/downloads/report.json`, controller.signal);
+      if (active !== controller) return;
+      if (report.format_version !== 3 || !report.calculations) {
+        status.textContent = "Historical engine report. Open the full analysis to inspect its original results and model.";
+        return;
+      }
+      const c = report.calculations, e = c.evaluation, funded = c.funded?.selected, totals = c.history?.totals;
+      const settings = report.settings;
+      context.textContent += ` · Apex 50K EOD · ${settings.SLOTS} slots · full history ${c.samples.data.join(" – ")} · $${settings.EVAL_PRICE} evaluation + $${settings.ACTIVATION_FEE} activation`;
+      const holder = get("#report-prop-metrics"); holder.replaceChildren();
+      const cash = node("div", undefined, "prop-metric-grid prop-three-metrics"); holder.append(cash);
+      propMetric(cash, "historical-net", "Historical net · USD", usd(totals?.net), "Payouts minus acquisition costs across all slots over the observed history.", totals?.net);
+      propMetric(cash, "payouts", "Historical payouts · USD", usd(totals?.payouts), "Total payouts across the historical slots.", totals?.payouts);
+      propMetric(cash, "costs", "Acquisition costs · USD", usd(totals?.costs), "Evaluation and activation fees for historical funded starts.", totals?.costs);
+      const evaluation = node("p", `Evaluation pass rate: ${probability(e.pass_rate)} · Evaluation size: ${e.selected_micros} MNQ · Average acquisition cost: ${usd(e.cost_per_funded, 2)}${funded ? ` · Funded size: ${funded.micros} MNQ` : ""}`, "small");
+      evaluation.id = "report-prop-evaluation"; holder.append(evaluation);
+      if (funded) {
+        holder.append(node("h3", "One funded account · holdout simulation"));
+        const accounts = node("div", undefined, "prop-metric-grid"); holder.append(accounts);
+        propMetric(accounts, "average-payout", "Average lifetime payout", usd(funded["E[payout]"], 2), "Includes accounts paid $0; before evaluation and activation fees.", funded["E[payout]"]);
+        propMetric(accounts, "median-payout", "Median lifetime payout", usd(funded["median life"], 2), "The middle simulated funded account.", funded["median life"]);
+        propMetric(accounts, "payout-chance", "Receives a payout", probability(funded["P(>=1 payout)"]), "At least one payout during the account lifetime.", funded["P(>=1 payout)"]);
+        propMetric(accounts, "drawdown-failure", "Fails the drawdown limit", probability(funded.blown), "An account can receive payouts before failing.", funded.blown);
+      }
+      status.textContent = c.unavailable || "Historical cash follows the observed sequence, including training days. Slots share one trade path. Simulated account payouts are separate from historical net.";
+      holder.append(node("p", report.source.excursion_provenance, "small muted"));
+      const download = node("a", "Report data (JSON) ↓", "button secondary"); download.href = `/api/prop-analyses/${id}/downloads/report.json`; actions.append(download);
+    } catch (exc) {
+      if (active !== controller || controller.signal.aborted) return;
+      if (get("#report-historical-net")) get("#report-historical-net").textContent = "N/A";
+      get("#report-prop-status").textContent = `Could not load saved prop analysis: ${exc.message}`;
+    }
   }
   function equityScale(min, max) {
     // Aim for about five labels, extending the domain to clean step multiples.
@@ -234,12 +352,21 @@
     active = controller;
     runId = id;
     get("#backtest-completion").hidden = true;
+    get("#report-prop-context").textContent = "";
+    get("#report-prop-actions").replaceChildren();
+    get("#report-prop-metrics").replaceChildren();
+    get("#report-prop-status").textContent = "Loading saved prop analysis…";
     error("Loading saved report…");
     try {
       const record = await read(`/api/backtests/${id}`, controller.signal);
       if (active !== controller) return;
       tradeTimezone(record);
       metrics(record);
+      const remove = get("#report-delete");
+      remove.dataset.deleteRun = record.id;
+      remove.disabled = deleting.has(record.id);
+      remove.onclick = () => deleteBacktest(record);
+      propSummary(record, controller);
       window.dispatchEvent(new CustomEvent("report-loaded", { detail: record }));
       get("#report-prop-setup").href = `#backtests/prop/new/${record.id}`;
       get("#report-run-id").textContent = `Run ${record.id} · ${stamp(record.created_at_utc)} UTC`;
@@ -264,6 +391,7 @@
     try {
       const page = await read(`/api/backtests?offset=${offset}&limit=25`);
       if (version !== historyVersion) return;
+      if (offset && offset >= page.total) return history(page.total ? Math.floor((page.total - 1) / 25) * 25 : 0);
       historyOffset = offset;
       const list = get("#completed-runs-list");
       list.replaceChildren();
@@ -271,7 +399,8 @@
         const link = node("a", undefined, "completed-run");
         link.href = `#backtests/report/${record.id}`;
         link.append(node("strong", record.run_metadata.dataset.name), node("span", `${record.run_metadata.strategy.id} · ${stamp(record.created_at_utc)} UTC`, "small muted"), node("span", `${record.summary.total_net_pnl} CU · ${record.summary.trades_taken} trades`, moneyClass(record.summary.total_net_pnl)), node("code", record.id, "run-identifier small"));
-        list.append(link);
+        const row = node("div", undefined, "completed-run-row"); row.dataset.runId = record.id;
+        row.append(link, deleteButton(record)); list.append(row);
       }
       get("#completed-runs-status").textContent = page.total ? "Saved reports remain available after refresh and dataset deletion." : "No completed reports yet.";
       get("#completed-runs-count").textContent = page.total ? `${offset + 1}–${offset + page.items.length} of ${number.format(page.total)} reports` : "0 reports";

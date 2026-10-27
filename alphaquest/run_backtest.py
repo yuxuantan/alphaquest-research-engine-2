@@ -5,12 +5,15 @@ from decimal import Decimal, InvalidOperation
 import json
 import os
 from pathlib import Path
+from uuid import uuid4
 
-from .backtest_data import DatasetReadError, DateRange, read_selected_bars
-from .backtest_config import RunSettings, instrument_overrides
+from .backtest_data import DatasetReadError, DateRange
+from .backtest_config import RunSettings
+from .backtest_api import run_backtest
+from .backtest_runs import RunStore
+from .prop.store import AnalysisStore
 from .datasets import DatasetStore, InvalidDataset
-from .execution import execute
-from .reporting import generate_report, json_value
+from .reporting import json_value
 from .strategies import consecutive_green_hold as sample
 from .strategies.registry import get_strategy, STRATEGIES
 
@@ -25,23 +28,31 @@ def _decimal_argument(value: str) -> Decimal:
 def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Path,
                       parameters, settings: RunSettings, *, strategy_id=sample.STRATEGY_ID,
                       from_date=None, to_date=None) -> dict:
-    """The runner wires components together; the reporter remains strategy agnostic."""
+    """Use the normal backtest/prop catalogue; expose one output shortcut."""
     dataset = store.get(dataset_id)
     if dataset is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
     config = settings.execution_config(dataset)
     definition = get_strategy(strategy_id)
-    metadata = {
-        "dataset": {name: dataset[name] for name in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")},
-        "strategy": definition.provenance(parameters),
-        "instrument_overrides": instrument_overrides(dataset, config),
-    }
     date_range = DateRange.parse(from_date, to_date)
-    with read_selected_bars(store, dataset_id, date_range) as selected:
-        metadata["selection"] = selected.metadata
-        return generate_report(execute(selected.bars, definition.create(parameters, config), config),
-                               output_directory, config, metadata=metadata, expected_bar_count=selected.row_count,
-                               execution_assumption=definition.execution_assumption)
+    output=Path(output_directory).expanduser().absolute()
+    if output.exists() or output.is_symlink():raise FileExistsError(f'Output already exists: {output}')
+    runs=RunStore(store.path.parent)
+    analyses=AnalysisStore(store.path.parent,recover_interrupted=False)
+    run_id=uuid4().hex
+    output.parent.mkdir(parents=True,exist_ok=True)
+    destination=runs.root/run_id
+    try:
+        # Reserve the requested path without copying report files or creating a
+        # second result store. A failed run removes only its own shortcut.
+        output.symlink_to(destination,target_is_directory=True)
+        return run_backtest(store,runs,run_id,dataset,definition,parameters,config,date_range,lambda *args:None,
+                            prop_analyses=analyses)
+    except BaseException:
+        if output.is_symlink() and output.readlink()==destination:output.unlink()
+        raise
+    finally:
+        analyses.close()
 
 
 def main():
@@ -81,6 +92,8 @@ def main():
     except (ValueError, OSError, InvalidOperation, InvalidDataset) as exc:
         parser.error(str(exc))
     print(json.dumps({"output_directory": str(args.output), "summary": manifest["summary"],
+                      "backtest_id": manifest['id'],
+                      "default_prop_analysis_id": manifest['run_metadata']['automatic_prop_analysis']['id'],
                       "reconciliation": manifest["reconciliation"]}, default=json_value, indent=2))
     if manifest["summary"]["win_rate_pct"] is None:
         print("Win rate: N/A (no completed trades)")

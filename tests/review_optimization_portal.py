@@ -101,7 +101,7 @@ def review(output, url):
             assert [Decimal(row["total_net_pnl"]) for row in csv.DictReader(stream)] == [39, 39, 26, 26, 13, 13]
         page.screenshot(path=str(output / "results-desktop.png"), full_page=True)
         detail_url = page.url
-        page.locator("#optimization-results tbody tr").first.get_by_role("link").click()
+        page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
         expect(page.locator("#backtest-completion")).to_be_visible()
         page.screenshot(path=str(output / "trial-backtest-report.png"), full_page=True)
         page.goto(detail_url)

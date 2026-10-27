@@ -23,10 +23,16 @@ def canonical(value):
 
 
 def source_record(runs, run_id):
-    with runs.connect() as conn:
-        row=conn.execute('SELECT manifest FROM runs WHERE id=?',(UUID(run_id).hex,)).fetchone()
-    if not row:raise ValueError('Completed source backtest not found.')
-    record=json.loads(row[0])
+    run_id=UUID(run_id).hex
+    if hasattr(runs,'read_source_record'):
+        # Optimization workers read their completed private report directly;
+        # catalogue access and publication remain coordinator-only.
+        record=runs.read_source_record(run_id)
+    else:
+        with runs.connect() as conn:
+            row=conn.execute('SELECT manifest FROM runs WHERE id=?',(run_id,)).fetchone()
+        record=json.loads(row[0]) if row else None
+    if not record:raise ValueError('Completed source backtest not found.')
     if record.get('status')!='complete':raise ValueError('Source must be completed.')
     return record
 

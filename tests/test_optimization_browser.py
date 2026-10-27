@@ -48,7 +48,7 @@ def test_reuse_toggle_badges_reopen_and_forced_fresh_results(page, portal, tmp_p
     page.screenshot(path=str(tmp_path / "reused-results.png"), full_page=True)
     page.reload()
     playwright.expect(page.locator("#optimization-status")).to_contain_text("3 reused · 0 computed")
-    page.locator("#optimization-results tbody a").first.click()
+    page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
     playwright.expect(page.locator("#report-summary")).to_contain_text("13.00")
     prepare(page, portal)
     page.locator("#optimization-reuse").uncheck()
@@ -76,7 +76,7 @@ def test_grid_run_sort_export_reopen_and_normal_report(page, portal, tmp_path):
         page.locator("#optimization-download").click()
     text = __import__("pathlib").Path(downloaded.value.path()).read_text()
     assert "39.00" in text and "13.00" in text
-    report_link = rows.nth(0).get_by_role("link")
+    report_link = rows.nth(0).locator('td[data-column="run_id"] a')
     run_id = report_link.inner_text()
     report_link.click()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
@@ -420,8 +420,8 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     job_id = page.url.rsplit("/", 1)[1]
     headers = page.locator("#optimization-results thead th.optimization-varying-parameter")
     assert headers.evaluate_all("items => items.map(item => item.dataset.column)") == ["param.hold_minutes", "param.contracts"]
-    assert page.locator("#optimization-results thead th").evaluate_all("items => items.slice(0, 4).map(item => item.dataset.column)") == [
-        "param.hold_minutes", "param.contracts", "trial", "param.green_bar_count"]
+    assert page.locator("#optimization-results thead th").evaluate_all("items => items.slice(0, 5).map(item => item.dataset.column)") == [
+        "param.hold_minutes", "param.contracts", "trial", "historical_net", "param.green_bar_count"]
     playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-parameter")).to_have_count(100)
     playwright.expect(page.locator("#optimization-results tbody td.optimization-varying-parameter")).to_have_count(100)
     playwright.expect(page.locator("#optimization-parameter-legend")).to_contain_text("Hold minutes, Contracts")
@@ -570,7 +570,7 @@ def test_resume_remaining_trials_preserves_twelve_saved_reports(page, portal, tm
     page.screenshot(path=str(tmp_path / "resumed-sixteen-of-sixteen.png"), full_page=True)
     page.reload()
     playwright.expect(page.locator("#optimization-status")).to_contain_text("16 / 16 trials saved")
-    page.locator("#optimization-results tbody tr").last.get_by_role("link").click()
+    page.locator('#optimization-results tbody td[data-column="run_id"] a').last.click()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
     playwright.expect(page.locator("#report-summary")).to_contain_text("52.00")
     (tmp_path / "verification.json").write_text(json.dumps({

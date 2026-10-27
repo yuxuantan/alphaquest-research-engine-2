@@ -332,3 +332,35 @@ def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(pag
     playwright.expect(page.locator("#backtest-completion-content")).to_contain_text("next_open_market_next_bar_bracket_stop_first")
     page.set_viewport_size({"width": 390, "height": 844})
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal):
+    from test_inferred_session_close import session_rows, csv_bytes
+    prepare(page, portal)
+    with httpx.Client(base_url=portal["url"]) as client:
+        saved = client.post("/api/datasets", params={"filename": "synthetic-early-close.csv", "name": "SYNTHETIC early close",
+            "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=csv_bytes(session_rows()))
+        assert saved.status_code == 201, saved.text
+        dataset_id = saved.json()["id"]
+    page.reload()
+    page.locator("#backtest-dataset").select_option(dataset_id)
+    page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
+    page.locator("#strategy-stop_swing_len").fill("1")
+    page.locator("#strategy-target_swing_len").fill("1")
+    page.locator("#strategy-use_adx_elev").uncheck()
+    page.locator("#strategy-use_adx_decay").uncheck()
+    page.locator("#strategy-use_eod_flat").check()
+    page.locator("#backtest-slippage-ticks").fill("1")
+    page.locator("#backtest-commission").fill("1")
+    playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("BACKTEST LOOKAHEAD")
+    with page.expect_response(lambda response: "/api/backtests?" in response.url and response.request.method == "POST") as completed:
+        page.locator("#start-backtest").click()
+    record = completed.value.json()
+    assert completed.value.status == 201, record
+    assert record["summary"]["total_net_pnl"] == "48.00"
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("1 inferred sessions")
+    with httpx.Client(base_url=portal["url"]) as client:
+        trade = client.get(f"/api/backtests/{record['id']}/trades").json()["items"][0]
+        assert trade["exit_time_utc"] == "2026-01-05T17:55:00Z" and trade["exit_reason"] == "eod_flat"
+    page.reload()
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("Backtest lookahead")

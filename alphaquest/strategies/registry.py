@@ -52,6 +52,9 @@ class StrategyDefinition:
     def provenance(self, parameters) -> dict:
         description = self.description()
         description["parameters"] = asdict(parameters)
+        assumptions = getattr(self.module, "backtest_assumptions", None)
+        if assumptions is not None:
+            description["session_flattening"] = assumptions(parameters)
         return description
 
 

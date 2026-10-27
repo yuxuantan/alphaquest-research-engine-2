@@ -9,6 +9,64 @@ This supersedes the integration and older notebook specifications retained below
 
 ## Product and source contract
 
+Every new portal/API backtest, CLI backtest and trial in a new optimization now
+checks and runs this default model automatically: **Apex 50K EOD, $49 evaluation,
+$129 activation, 20 slots**, block 5, last 30% holdout and standard simulation
+counts. Automatic inputs are native fills with the disclosed close-only MAE
+fallback; automatic runs do not discover or substitute an export from Downloads.
+The default is strategy-independent. Ordinary report generation and model
+qualification helpers remain usable independently of the orchestration layer.
+
+Backtest reports lead with **Historical net · USD** and link to the saved default
+analysis. Optimization tables place the same metric after varying parameters
+and Trial; it sorts ascending/descending with N/A last. It is exactly
+`calculations.history.totals.net`: full observed-history payouts minus acquisition
+costs across the default 20 slots, including repeated evaluation fees and the
+activation fee for each funded start. It is separate from backtest trading P&L,
+funded lifetime payout, and the training annual-per-slot sizing objective. Slots
+share the same trade sequence. The model's normalization and sample conventions
+below remain unchanged; the metric is not an annual forecast.
+
+The backtest report also displays a **Prop analysis summary** immediately below
+Trade-close equity. It reads the saved analysis: historical net/payouts/acquisition
+costs first, then evaluation pass rate, selected sizes, acquisition cost per funded
+account and lifetime funded-account payout/risk metrics. The slot count, data
+window, fees and excursion provenance remain visible. New reports select their
+recorded automatic analysis; older reports select the latest completed saved
+analysis (or show the latest operation's status). Full-detail reports can discover
+their source report's analysis. Viewing/reloading never submits a calculation or
+searches for a new excursion export. No analysis, incompatible input, no validation
+passes, historical engines and loading errors have explicit states. The full
+analysis and original JSON download remain available directly in the summary.
+
+Each immutable backtest records its analysis ID, model/profile version, settings
+and native-source policy in `run_metadata.automatic_prop_analysis`. Workers compute
+the normal report files locally without database access; the coordinator
+publishes through the one existing prop catalogue. Full-detail replays reuse
+their original analysis after exact trade/equity CSV checks. CLI `--output` is a
+shortcut to the normal saved Backtest directory, so it creates no duplicate result
+store; CLI initialization does not interrupt active portal analyses.
+
+Empty, one-session, weekend or variable-quantity sources retain the model's
+explicit source rejection (`incompatible`), and Historical net is N/A with the
+reason. A completed simulation with no validation evaluation passes also has N/A
+historical net, as acquisition-dependent results are unavailable. An operation
+error has status `error`; its result is never a fabricated zero or a successful
+simulation. Backtests remain inspectable, and optimization status identifies
+prop calculation errors. Standard counts are never reduced to improve runtime.
+Consecutive zero-net/zero-adverse trades in one session share their redundant
+floor check; the first check, every nonneutral trade, session boundary, random
+draw and standard path count remain. Exact comparison tests include floor hits.
+
+Identical optimization reuse verifies both backtest and prop artifacts, including
+the saved prop report, ZIP and captured file hashes. Changing model code, settings,
+source or fees invalidates the trial identity. The normal configure/check/run
+path can reopen a verified completed default report for the same source/settings;
+modified/missing artifacts trigger a new analysis. Failed calculation attempts
+are not reused as successful trials. Historical reports and old optimization
+grids are not rewritten or automatically recalculated; their readers/downloads
+remain available. Existing reports can still enter the manual workflow below.
+
 Use completed backtest report → configure → check source → run → durable report.
 There is one active API/catalogue, `/api/prop-analyses`, under data/prop_analyses.
 `native_analysis.py` orchestrates the local model; `native_engine.py` owns account

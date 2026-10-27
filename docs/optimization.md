@@ -660,3 +660,47 @@ preservation checks are at
 `artifacts/optimization-acceleration-final-suite-20261027/`. All 70 protected files,
 21 original compressed optimization reports and the original job/trial payloads
 remain unchanged. No reports were pushed or published externally.
+
+## Automatic Apex Historical net
+
+Every trial in a new optimization now runs the default local Apex 50K EOD prop
+analysis after replay, inside the same worker. Defaults are **$49 evaluation +
+$129 activation, 20 slots**, block 5, a 70/30 weekday split and the existing
+standard counts (3,000 sizing paths and 20,000 final evaluations/accounts). The
+captured profile is strategy-independent and appears in saved settings. Automatic
+runs use native fills and disclose the existing close-only excursion fallback;
+no trade export, vendor software or VM is required.
+
+**Historical net · USD** appears immediately after Trial, before fixed parameters.
+Click its heading for ascending/descending sorting; N/A remains last in either
+direction. Click its value for the ordinary durable prop report. This is the
+report's `calculations.history.totals.net`, including acquisition costs and
+activation fees across all slots over that trial's full observed trade history.
+It is distinct from backtest Net P&L in CU. The model normalizes native quantities
+and chooses evaluation/funded sizes using the existing calculation contract.
+All slots share one sequence, and training history influenced size selection.
+
+Results CSVs append `historical_net`, `prop_analysis_id`, `prop_status` and
+`prop_reason`. The `historical_net` numeric value lives in each result's `metrics`;
+`prop_analysis` carries the report ID, status and unavailable/error reason. New
+jobs capture `default_prop_profile`, `prop_unavailable_trials` and
+`prop_error_trials`; the portal identifies calculation errors. Source-check
+rejections, too-short/empty histories and zero validation passes show N/A with
+an explanation, rather than zero profit. Operation errors remain errors and
+are excluded from completed-trial reuse. Every successful backtest stays usable.
+
+Only the coordinator opens the result databases. Worker prop artifacts publish
+through the existing `data/prop_analyses` catalogue; there is no optimizer-only
+prop store or duplicate Backtest. Both backtest and prop artifacts must verify
+before trial reuse. Completed analyses are also reusable through the ordinary
+configure/check/run path for identical source/settings. Standard counts are not
+reduced, so new complete trials include the prop calculation's runtime. Existing
+jobs retain their saved metric columns and CSV schema; start a new job to obtain
+this objective for every trial. Earlier reports/evidence are preserved.
+
+The new automatic workflow and independently calculated cash example are
+reproduced in `docs/prop_simulation_review.md` under **Automatic default Apex
+analysis**. Its actual source, native reports, CSVs, screenshots and saved
+catalogues are under `artifacts/automatic-apex-prop-portal-20261027/` and the final
+full-suite evidence directory. This is a synthetic software check, not a return
+forecast.

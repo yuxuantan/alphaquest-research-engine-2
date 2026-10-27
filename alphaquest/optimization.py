@@ -21,16 +21,18 @@ from .optimization_worker import TrialContext, compute_trial, initialize_worker,
 from .prepared_data import prepare_data
 from .strategy_features import prepare_features
 from .optimization_cache import engine_identity, trial_key, artifacts, digest
+from .prop.automatic import profile, publish_backtest
 
 MAX_COMBINATIONS = 10_000
 MAX_WORKERS = max(1, min(8, (os.cpu_count() or 1) - 1))
 DEFAULT_WORKERS = min(4, MAX_WORKERS)
 logger = logging.getLogger(__name__)
-METRICS = (
+BACKTEST_METRICS = (
     "total_net_pnl", "total_gross_pnl", "total_commissions", "total_slippage_cost",
     "final_equity", "trades_taken", "winning_trades", "losing_trades", "breakeven_trades",
     "win_rate_pct", "max_drawdown_amount", "max_drawdown_pct", "max_drawdown_duration_seconds",
 )
+METRICS = (*BACKTEST_METRICS, "historical_net")
 
 
 def grid(definition, ranges):
@@ -101,8 +103,9 @@ def combinations(axes):
 
 
 class OptimizationStore:
-    def __init__(self, runs):
+    def __init__(self, runs, prop_analyses):
         self.runs = runs
+        self.prop_analyses = prop_analyses
         with runs.connect() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS optimizations (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL);
@@ -130,7 +133,8 @@ class OptimizationStore:
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
                "worker_count": min(request.workers, total), "worker_pids": [], "failed_trials": [], "request": request.model_dump(), "axes": axes,
                "dataset": dataset, "strategy": definition.description(), "report_detail": "compact",
-               "engine_identity": engine_identity(), "reused_trials": 0,
+               "engine_identity": engine_identity(), "reused_trials": 0, "default_prop_profile": profile(),
+               "prop_unavailable_trials": 0, "prop_error_trials": 0,
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()}, "metric_columns": list(METRICS)}
         with self.runs.connect() as conn:
@@ -178,11 +182,11 @@ class OptimizationStore:
     def page(self, job, sort, direction, offset, limit):
         columns = {"trial": "$.trial", "run_id": "$.run_id",
                    **{f"param.{name}": f"$.parameters.{name}" for name in job["axes"]},
-                   **{name: f"$.metrics.{name}" for name in METRICS}}
+                   **{name: f"$.metrics.{name}" for name in job["metric_columns"]}}
         if sort not in columns or direction not in ("asc", "desc"):
             raise ValueError("Unknown sort column or direction.")
         # Paths are selected from server-owned names; values never become SQL.
-        expression = "json_extract(payload, ?)"
+        expression = "json_extract(t.payload, ?)"
         order = f"({expression} IS NULL) ASC, CAST({expression} AS TEXT) COLLATE {'BINARY' if sort == 'run_id' else 'EXACT_DECIMAL'} {direction.upper()}, trial ASC"
         with self.runs.connect() as conn:
             conn.create_collation("EXACT_DECIMAL", lambda a, b: (Decimal(a) > Decimal(b)) - (Decimal(a) < Decimal(b)))
@@ -191,23 +195,37 @@ class OptimizationStore:
             # retain the previous count-based boundary without a migration.
             boundary = "rowid" if "results_snapshot_rowid" in job else "trial"
             snapshot = job.get("results_snapshot_rowid", job["completed_trials"])
-            rows = conn.execute(f"SELECT payload FROM optimization_trials WHERE optimization_id=? AND {boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?",
+            rows = conn.execute(f"SELECT t.payload, EXISTS(SELECT 1 FROM runs r WHERE r.id=json_extract(t.payload,'$.run_id')) FROM optimization_trials t WHERE optimization_id=? AND t.{boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?",
                                 (job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
-        return {"items": [json.loads(row[0]) for row in rows], "total": job["completed_trials"], "offset": offset, "limit": limit}
+        items=[]
+        for payload,available in rows:
+            row=json.loads(payload)
+            if not available:row['backtest_deleted']=True
+            items.append(row)
+        return {"items": items, "total": job["completed_trials"], "offset": offset, "limit": limit}
 
     def publish(self, job_id, trial, run_id, context, result):
         """Only the coordinator publishes reports and writes the SQLite catalogue."""
-        record = self.runs.complete(run_id, context.output_root / run_id, result["manifest"])
+        prop = result.get("prop_analysis")
+        record = publish_backtest(self.runs, self.prop_analyses, run_id, context.output_root / run_id, result["manifest"],
+                                  prop, context.output_root / ("prop-" + prop["id"]) if prop else None)
         row = {"trial": trial, "run_id": record["id"],
                "parameters": record["run_metadata"]["strategy"]["parameters"],
-               "metrics": {name: record["summary"][name] for name in METRICS},
+               "metrics": {name: record["summary"][name] for name in BACKTEST_METRICS},
                "execution": result["execution"]}
+        if prop:
+            row.update(prop_analysis={key: prop[key] for key in ("id", "status", "historical_net", "reason")})
+            row["metrics"]["historical_net"] = prop["historical_net"]
         self._record_trial(job_id, row)
         job = self.get(job_id)
-        if job.get("engine_identity") and job["request"].get("reuse_results", True):
+        if job.get("engine_identity") and job["request"].get("reuse_results", True) and (not prop or prop["status"] != "error"):
             key = trial_key(job, row["parameters"])
             cached = {"row": row, "record_hash": digest(record), "artifacts": artifacts(self.runs.root, record),
                       "optimization_id": job_id}
+            if prop:
+                cached["prop_fingerprint"] = self.prop_analyses.fingerprint(prop["id"])
+                if cached["prop_fingerprint"] is None:
+                    return job["completed_trials"]
             with self.runs.connect() as conn:
                 conn.execute("INSERT OR REPLACE INTO optimization_trial_cache VALUES (?, ?)", (key, json.dumps(cached)))
         return job["completed_trials"]
@@ -217,6 +235,11 @@ class OptimizationStore:
             inserted = conn.execute("INSERT INTO optimization_trials VALUES (?, ?, ?)", (job_id, row["trial"], json.dumps(row)))
             current = json.loads(conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()[0])
             current.update(completed_trials=current["completed_trials"] + 1, results_snapshot_rowid=inserted.lastrowid)
+            if row.get("prop_analysis"):
+                if row["prop_analysis"]["status"] == "error":
+                    current["prop_error_trials"] = current.get("prop_error_trials", 0) + 1
+                elif row["metrics"].get("historical_net") is None:
+                    current["prop_unavailable_trials"] = current.get("prop_unavailable_trials", 0) + 1
             if row["execution"].get("reused"):
                 current["reused_trials"] = current.get("reused_trials", 0) + 1
             elif row["execution"].get("worker_pid"):
@@ -236,7 +259,11 @@ class OptimizationStore:
         try:
             if not record or digest(record) != cached["record_hash"] or artifacts(self.runs.root, record) != cached["artifacts"]:
                 return False
-        except OSError:
+            if job.get("default_prop_profile"):
+                prop=cached["row"].get("prop_analysis")
+                if not prop or not cached.get("prop_fingerprint") or self.prop_analyses.fingerprint(prop["id"]) != cached.get("prop_fingerprint"):
+                    return False
+        except (OSError,ValueError,KeyError):
             return False
         reused = {**cached["row"], "trial": trial, "execution": {
             "reused": True, "source_optimization_id": cached["optimization_id"], "elapsed_seconds": 0,
@@ -304,7 +331,8 @@ class OptimizationStore:
                 self.update(job_id, preparation_seconds=time.monotonic() - preparation_started,
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
-                context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range, prepared, features)
+                context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range, prepared, features,
+                                       default_prop=bool(job.get("default_prop_profile")))
                 trials = iter(pending)
                 workers = job["worker_count"]
                 if workers == 1:

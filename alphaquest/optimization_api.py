@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from .backtest_api import ExecutionSettings
 from .backtest_data import DateRange
 from .datasets import COLUMNS
-from .optimization import grid, METRICS, DEFAULT_WORKERS, MAX_WORKERS
+from .optimization import grid, DEFAULT_WORKERS, MAX_WORKERS
 from .strategies.registry import get_strategy
 
 
@@ -157,13 +157,15 @@ def export(job_id: UUID, request: Request, sort: str = "trial", direction: str =
     def stream():
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer)
-        writer.writerow(["trial", "run_id", *job["axes"], *METRICS])
+        prop_columns = ["prop_analysis_id", "prop_status", "prop_reason"] if job.get("default_prop_profile") else []
+        writer.writerow(["trial", "run_id", *job["axes"], *job["metric_columns"], *prop_columns])
         yield buffer.getvalue()
         for offset in range(0, job["completed_trials"], 1000):
             for row in store.page(job, sort, direction, offset, min(1000, job["completed_trials"] - offset))["items"]:
                 buffer.seek(0)
                 buffer.truncate(0)
                 writer.writerow([row["trial"], row["run_id"], *(row["parameters"][name] for name in job["axes"]),
-                                 *(row["metrics"][name] for name in METRICS)])
+                                 *(row["metrics"].get(name) for name in job["metric_columns"]),
+                                 *(row.get("prop_analysis", {}).get(name) for name in (("id", "status", "reason") if prop_columns else ()))])
                 yield buffer.getvalue()
     return StreamingResponse(stream(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="optimization-{job["id"]}.csv"'})

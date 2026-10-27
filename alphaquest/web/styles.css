@@ -1553,3 +1553,17 @@ dialog::backdrop {
 #optimization-panel { margin-top:30px; }
 #optimization-panel .page-heading { flex-wrap:wrap; }
 #optimization-context { overflow-wrap:anywhere; }
+#optimization-results td.optimization-prop-result { min-width:180px; max-width:320px; white-space:normal; }
+#optimization-results .optimization-prop-result .field-help { display:block; margin-top:6px; }
+#optimization-results .optimization-prop-result a { font-weight:600; text-decoration:underline; text-underline-offset:3px; }
+.report-prop-content { padding:0 24px 24px; }
+#report-prop-summary .panel-heading { flex-wrap:wrap; gap:16px; }
+#report-prop-summary .panel-heading > div:first-child { display:block; min-width:0; flex:1 1 480px; }
+#report-prop-context { overflow-wrap:anywhere; line-height:1.7; margin-bottom:0; }
+#report-prop-summary .prop-metric-grid { margin:18px 0; }
+.completed-run-row { display:flex; align-items:center; border-top:1px solid var(--line); gap:12px; padding-right:24px; }
+.completed-run-row .completed-run { flex:1; min-width:0; border-top:0; }
+#backtest-delete-status { margin:16px 0; overflow-wrap:anywhere; }
+@media(max-width:600px) {
+  #report-prop-summary .prop-metric-grid { grid-template-columns:1fr; }
+}

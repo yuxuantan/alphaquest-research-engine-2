@@ -82,3 +82,21 @@ def test_engine_does_not_call_external_process_or_read_result_files(monkeypatch)
     monkeypatch.setattr(builtins,'open',reject);monkeypatch.setattr(subprocess,'Popen',reject)
     a=funded([[(800.,0.)]],10,3,42,horizon=40)
     assert all(x.outcome=='paid_all' and sum(v for _,v in x.payouts)==13000. for x in a)
+
+
+def test_neutral_run_compaction_preserves_draws_accounts_and_exact_floor_checks():
+    from dataclasses import asdict
+    from alphaquest.prop.native_engine import compact_neutral_runs
+    days=[[(0.,0.)]*50+[(800.,0.)]+[(0.,0.)]*30,
+          [(0.,0.)]*40+[(-1200.,1200.)]+[(0.,0.)]*20,[]]
+    compact=compact_neutral_runs(days)
+    for seed in (42,43):
+        left=evaluation(days,9,40,seed);right=evaluation(compact,9,40,seed)
+        assert all(np.array_equal(left[key],right[key]) for key in left)
+        left=funded(days,9,40,seed,horizon=100);right=funded(compact,9,40,seed,horizon=100)
+        assert [asdict(a) for a in left]==[asdict(a) for a in right]
+    # A neutral trade still performs the first boundary check at an exact floor.
+    for trades in ([(0.,0.)]*50,compact_neutral_runs([[(0.,0.)]*50])[0]):
+        a=FundedAccount(equity=100.,high=2100.,locked=True)
+        a.advance(trades,1)
+        assert a.outcome=='blown'

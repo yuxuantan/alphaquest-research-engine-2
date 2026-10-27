@@ -111,6 +111,24 @@ def sampled_days(rng, length, block):
             yield (start + i) % length
 
 
+def compact_neutral_runs(days):
+    """Keep one floor check per consecutive run of (zero net, zero adverse).
+
+    Repeated neutral trades cannot change account state between those checks.
+    Retaining the first also preserves an exact-floor hit. Session boundaries,
+    all nonneutral trades and random day/block selection remain identical.
+    """
+    result=[]
+    for day in days:
+        compact=[];previous_neutral=False
+        for trade in day:
+            neutral=trade[0]==0 and trade[1]==0
+            if not neutral or not previous_neutral:compact.append(trade)
+            previous_neutral=neutral
+        result.append(compact)
+    return result
+
+
 def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
                max_micros=40):
     rng = np.random.RandomState(seed)

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 from threading import Lock
+from uuid import UUID
 
 from .execution import Trade
 from .drawdown import saved_drawdown
@@ -46,6 +47,8 @@ class RunStore:
 
     def claim_detail(self, source_id):
         with self.detail_lock, self.connect() as conn:
+            if not conn.execute('SELECT 1 FROM runs WHERE id=?',(source_id,)).fetchone():
+                raise ValueError('The source backtest has been deleted.')
             if source_id in self.detail_active:
                 raise ValueError("Full detail is already being generated for this report.")
             row = conn.execute("SELECT manifest FROM runs WHERE json_extract(manifest, '$.run_metadata.detailed_from_run_id')=? ORDER BY created_at DESC LIMIT 1",
@@ -58,6 +61,45 @@ class RunStore:
     def release_detail(self, source_id):
         with self.detail_lock:
             self.detail_active.discard(source_id)
+
+    def delete(self, run_id):
+        """Remove one run; restore its files if the catalogue transaction fails.
+
+        Optimization metrics and independent prop reports stay intact. A private
+        staged folder allows a failed post-commit cleanup to be retried by ID.
+        """
+        run_id=UUID(run_id).hex
+        destination=self.root/run_id
+        staged=self.root/('.deleted-'+run_id)
+        moved=False
+        with self.detail_lock:
+            if run_id in self.detail_active:
+                raise ValueError('Full detail is being generated for this backtest. Wait for it to finish before deleting.')
+            try:
+                with self.connect() as conn:
+                    conn.execute('BEGIN IMMEDIATE')
+                    exists=conn.execute('SELECT 1 FROM runs WHERE id=?',(run_id,)).fetchone()
+                    if destination.is_symlink() or staged.is_symlink():
+                        raise OSError('Refusing to delete a backtest directory that is a symbolic link.')
+                    if not exists and not staged.exists():return False
+                    if exists:
+                        # Recover a rename interrupted before its SQL commit.
+                        if staged.exists():
+                            if destination.exists():raise OSError('Conflicting staged deletion; no report files were removed.')
+                            staged.rename(destination)
+                        if destination.exists():
+                            destination.rename(staged);moved=True
+                        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='optimization_trial_cache'").fetchone():
+                            conn.execute("DELETE FROM optimization_trial_cache WHERE json_extract(payload,'$.row.run_id')=?",(run_id,))
+                        conn.execute('DELETE FROM runs WHERE id=?',(run_id,))
+            except BaseException:
+                if moved:staged.rename(destination)
+                raise
+            if staged.exists():
+                try:shutil.rmtree(staged)
+                except OSError as exc:
+                    raise OSError(f'Backtest removed from the library, but file cleanup failed. Retry Delete for {run_id}.') from exc
+        return True
 
     def _rows(self, source: Path, kind: str):
         with source.open(encoding="utf-8", newline="") as stream:

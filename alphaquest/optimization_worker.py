@@ -11,6 +11,7 @@ from .backtest_api import prepare_backtest_report
 from .backtest_data import DateRange, DatasetReadError
 from .strategies.registry import get_strategy
 from .strategy import ExecutionConfig
+from .prop.automatic import descriptor, compute_default
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class TrialContext:
     date_range: DateRange
     prepared: object = None
     feature_paths: dict | None = None
+    default_prop: bool = True
 
 
 class FrozenSource:
@@ -50,12 +52,15 @@ def compute_trial(context, trial, values, run_id, progress):
     started = time.monotonic()
     started_at = datetime.now(timezone.utc).isoformat()
     definition = get_strategy(context.strategy_id)
+    automatic = descriptor() if context.default_prop else None
     manifest, processed, total = prepare_backtest_report(
         FrozenSource(context.dataset, context.snapshot), context.output_root / run_id,
         context.dataset, definition, definition.parameters(values), context.config,
         context.date_range, progress, report_detail="compact", prepared=context.prepared,
-        feature_paths=context.feature_paths)
-    return {"manifest": manifest, "processed": processed, "total": total,
+        feature_paths=context.feature_paths, automatic_prop=automatic)
+    prop_result = compute_default(context.output_root, run_id, manifest, context.output_root / ("prop-" + automatic["id"]), automatic,
+                                  lambda message: progress("prop_simulation: " + message, processed, total)) if automatic else None
+    return {"manifest": manifest, "processed": processed, "total": total, "prop_analysis": prop_result,
             "execution": {"worker_pid": os.getpid(), "started_at_utc": started_at,
                           "finished_at_utc": datetime.now(timezone.utc).isoformat(),
                           "elapsed_seconds": time.monotonic() - started,

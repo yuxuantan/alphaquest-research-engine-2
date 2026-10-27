@@ -23,10 +23,10 @@ def defaults():
     return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations')
 
 @router.get('/sources/{source_id}')
-async def source(source_id: str, request: Request):
+async def source(source_id: str, request: Request, discover_exports: bool = True):
     try:
         record=source_record(request.app.state.runs,source_id)
-        matches=await run_in_threadpool(matching_exports,request.app.state.runs,source_id)
+        matches=await run_in_threadpool(matching_exports,request.app.state.runs,source_id) if discover_exports else []
         return dict(source=record,matched_exports=matches,analyses=request.app.state.prop_analyses.list(source_id))
     except ValueError as exc:
         raise HTTPException(404,str(exc)) from exc
@@ -51,7 +51,7 @@ def job(id: str,request: Request):
     record=request.app.state.prop_analyses.get(id)
     if not record:
         raise HTTPException(404,'Analysis not found.')
-    return record
+    return {**record,**(request.app.state.prop_analyses.summary(id,record=record) or {})}
 
 @router.get('/{id}/downloads/{kind}')
 def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip'],request: Request):

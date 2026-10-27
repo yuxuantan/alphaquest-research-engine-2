@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Context, Decimal
 from typing import Literal
+from contextlib import nullcontext
 
 from .decimal_math import add as _add, multiply as _mul, subtract as _sub
 from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
@@ -190,6 +191,18 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
 
 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -> Iterator[Trade | EquityPoint]:
+    """Replay, applying an optional strategy-owned historical preparation pass.
+
+    VWAP's EOD option deliberately looks ahead within each session to infer its
+    last bar. Strategies without prepare_replay retain the causal streaming
+    interface. Preparation never edits existing reports or source datasets.
+    """
+    prepare = getattr(strategy, "prepare_replay", None)
+    with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
+        yield from _execute(replay, strategy, config)
+
+
+def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -> Iterator[Trade | EquityPoint]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -222,7 +235,11 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) ->
             if type(next_order) is BracketIntent:
                 trade = _fill_bracket(account, next_order, bar)
             else:
-                trade = account.apply(next_order, bar, reference=bar.open)
+                allow_entry = getattr(strategy, "allow_entry_fill", None)
+                if type(next_order) is EntryIntent and allow_entry is not None and not allow_entry(bar):
+                    trade = None
+                else:
+                    trade = account.apply(next_order, bar, reference=bar.open)
             if trade is not None:
                 closed_on_bar = True
                 yield trade

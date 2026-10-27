@@ -29,7 +29,7 @@ def trial_key(job, values):
                    "strategy": job["strategy"], "parameters": values,
                    "execution": job["execution_settings"],
                    "from_date": job["request"].get("from_date"), "to_date": job["request"].get("to_date"),
-                   "detail": job["report_detail"]})
+                   "detail": job["report_detail"], "default_prop_profile": job.get("default_prop_profile")})
 
 
 def artifacts(root, record):

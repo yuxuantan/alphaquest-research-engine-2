@@ -3,6 +3,7 @@
 from decimal import Decimal, InvalidOperation
 import hashlib
 import json
+import sqlite3
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from .reporting import ReportError, generate_report, json_value
 from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
 from .strategy_features import create_strategy
+from .prop.automatic import descriptor, compute_default, publish_backtest
 
 
 class ExecutionSettings(BaseModel):
@@ -52,7 +54,7 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None):
+                            prepared=None, feature_paths=None, automatic_prop=None):
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
 
@@ -65,10 +67,14 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "instrument_overrides": instrument_overrides(dataset, config)}
     if source_run_id:
         metadata["detailed_from_run_id"] = source_run_id
+    if automatic_prop:
+        metadata["automatic_prop_analysis"] = automatic_prop
     with (prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range)) as selected, \
             create_strategy(definition, parameters, config, feature_paths or {}) as strategy:
         total = selected.row_count
         metadata["selection"] = selected.metadata
+        if hasattr(strategy, "session_flattening"):
+            metadata["strategy"]["session_flattening"] = strategy.session_flattening
         # The source iterator advances here only after the engine's current
         # callback/fill. Final-bar count is visible before report publication.
         def counted_bars():
@@ -87,12 +93,14 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None):
+                 *, compress_report=False, source_record=None, prop_analyses=None):
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
-        output = Path(temporary) / "report"
+        output = Path(temporary) / run_id
+        automatic = source_record["run_metadata"].get("automatic_prop_analysis") if source_record else descriptor() if prop_analyses else None
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
-            compress_report=compress_report, source_run_id=source_record["id"] if source_record else None)
+            compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
+            automatic_prop=automatic)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -100,8 +108,12 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
                 with (runs.root / source_record["id"] / name).open("rb") as original, (output / name).open("rb") as replay:
                     if hashlib.file_digest(original, "sha256").digest() != hashlib.file_digest(replay, "sha256").digest():
                         raise ReportError("Detailed replay trades/equity differ from the saved report. No detailed report was published.")
+        prop_result = None
+        if not source_record and prop_analyses:
+            prop_result = compute_default(Path(temporary), run_id, manifest, Path(temporary)/"prop", automatic,
+                                          lambda message: progress("prop_simulation: " + message, processed, total))
         progress("saving_results", processed, total)
-        record = runs.complete(run_id, output, manifest)
+        record = publish_backtest(runs, prop_analyses, run_id, output, manifest, prop_result, Path(temporary)/"prop")
     progress("done", processed, total)
     return record
 
@@ -150,7 +162,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
     try:
         return await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
-                                       compress_report=compress_report, source_record=source_record)
+                                       compress_report=compress_report, source_record=source_record,
+                                       prop_analyses=request.app.state.prop_analyses)
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))
@@ -211,6 +224,25 @@ def completed_run(run_id: UUID, request: Request):
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
     return record
+
+
+@router.delete('/api/backtests/{run_id}',status_code=204)
+def delete_run(run_id: UUID,request: Request):
+    analyses=request.app.state.prop_analyses
+    try:
+        with analyses.lock:
+            with analyses.connect() as db:
+                busy=db.execute("SELECT 1 FROM analyses WHERE source_id=? AND status IN ('queued','running') LIMIT 1",(run_id.hex,)).fetchone()
+            if busy:
+                raise ValueError('A prop analysis is using this backtest. Wait for it to finish before deleting.')
+            deleted=request.app.state.runs.delete(run_id.hex)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None
+    except OSError as exc:
+        raise HTTPException(500,str(exc)) from exc
+    except sqlite3.Error as exc:
+        raise HTTPException(500,'Could not update the backtest catalogue. No deletion was committed; try again.') from exc
+    if not deleted:raise HTTPException(404,'Completed backtest not found.')
 
 
 def result_page(request, run_id, kind, offset, limit):

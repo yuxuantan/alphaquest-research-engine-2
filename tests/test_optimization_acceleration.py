@@ -57,7 +57,8 @@ def test_parse_once_and_date_range_has_identical_metadata_metrics_and_csv(client
         for kind in ("trades", "equity"):
             assert client.get(f"/api/backtests/{left['run_id']}/exports/{kind}").content == client.get(f"/api/backtests/{right['run_id']}/exports/{kind}").content
         records = [client.get(f"/api/backtests/{row['run_id']}").json() for row in (left, right)]
-        assert records[0]["run_metadata"] == records[1]["run_metadata"]
+        assert {k:v for k,v in records[0]["run_metadata"].items() if k!='automatic_prop_analysis'} == {k:v for k,v in records[1]["run_metadata"].items() if k!='automatic_prop_analysis'}
+        assert records[0]['run_metadata']['automatic_prop_analysis']['settings']==records[1]['run_metadata']['automatic_prop_analysis']['settings']
     assert not list(client.app.state.runs.root.glob(".optimization-*"))
 
 

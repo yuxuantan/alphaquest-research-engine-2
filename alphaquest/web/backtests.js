@@ -127,8 +127,8 @@
         fields.append(wrapper);
       }
     }
-    get("#backtest-fill-assumption").textContent = strategy?.execution_assumption === "next_open_market_next_bar_bracket_stop_first"
-      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. Fill timestamps label the containing bar close. Use full-session one-minute data."
+    get("#backtest-fill-assumption").textContent = strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
+      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, BACKTEST LOOKAHEAD uses the last daytime bar to infer each session close, then closes five minutes earlier (at/before 15:55 CT) and blocks later entries. A missing cutoff minute uses the preceding available bar. Truncated data is treated as an early close. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     window.optimizations.configure(strategy);
     controls();
@@ -198,7 +198,7 @@
       get("#backtest-options-status").textContent = !supported
         ? "No supported saved datasets. Upload and save a nine-column CSV in Datasets first."
         : !strategies.length ? "No strategies are available on this server." : "";
-      get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately.";
+      get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately. Each backtest also runs the standard Apex 50K EOD analysis with activation fees.";
       renderStrategy();
       renderDataset(previousDataset !== datasetSelect.value || !state.instrumentEdited);
     } catch (error) {
@@ -257,7 +257,8 @@
       saving_report: "Saving report", saving_results: "Saving run results", done: "Backtest saved", failed: "Backtest failed", unconfirmed: "Result unconfirmed" };
     get("#backtest-progress").hidden = false;
     get("#backtest-progress").classList.toggle("failed", ["failed", "unconfirmed"].includes(progress.stage));
-    get("#backtest-progress-title").textContent = titles[progress.stage] || "Processing backtest";
+    get("#backtest-progress-title").textContent = progress.stage.startsWith("prop_simulation:")
+      ? `Apex 50K EOD · ${progress.stage.slice("prop_simulation: ".length)}` : titles[progress.stage] || "Processing backtest";
     const determinate = !["waiting", "preparing", "failed", "unconfirmed"].includes(progress.stage) && progress.total_bars > 0;
     const percent = determinate ? Math.min(100, progress.bars_processed / progress.total_bars * 100) : null;
     get("#backtest-progress-percent").textContent = percent === null ? "" : `${Math.floor(percent)}% of bars`;
@@ -309,6 +310,14 @@
       const pair = element("div");
       if (name === "Instrument overrides") pair.dataset.instrumentOverrides = "";
       pair.append(element("dt", "", name), element("dd", name.endsWith("ID") ? "run-identifier" : "", value));
+      grid.append(pair);
+    }
+    const flatten = metadata.strategy.session_flattening;
+    if (flatten?.enabled) {
+      const pair = element("div");
+      pair.dataset.setting = "session_flattening";
+      pair.append(element("dt", "", "Backtest lookahead · session exits"), element("dd", "",
+        `Last daytime bar minus ${flatten.minutes_before_close} minutes; cutoff Close fill, at/before 15:55 CT. ${flatten.sessions ?? 0} inferred sessions; ${flatten.sessions_using_earlier_bar ?? 0} used an earlier available bar; ${flatten.sessions_without_cutoff_bar ?? 0} had no executable cutoff. Truncated sessions count as early closes.`));
       grid.append(pair);
     }
     content.append(grid);

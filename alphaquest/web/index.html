@@ -408,12 +408,14 @@
             </div>
             <div class="report-pagination"><button id="optimization-previous" class="button secondary" type="button">Previous</button><span id="optimization-page"></span><button id="optimization-next" class="button secondary" type="button">Next</button></div>
           </section>
+          <p id="backtest-delete-status" class="small" role="status" hidden></p>
           <div id="report-status" class="validation-box" role="status" hidden></div>
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
               <div><a href="#backtests" class="eyebrow">← Back to backtests</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
               <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
             </div>
+            <button id="report-delete" class="button danger" type="button">Delete backtest</button>
             <p id="report-storage-note" class="small muted"></p>
             <p id="report-detail-status" class="small" role="status" aria-live="polite" hidden></p>
             <div id="report-summary" class="report-summary"></div>
@@ -425,6 +427,10 @@
                 <p id="chart-readout" class="small chart-readout" aria-live="polite"></p><p id="chart-note" class="small muted"></p>
                 <p class="small muted">The chart and equity CSV use the same trade-close equity values.</p>
               </div>
+            </section>
+            <section id="report-prop-summary" class="panel report-panel" aria-labelledby="report-prop-title">
+              <div class="panel-heading"><div><h2 id="report-prop-title">Prop analysis summary</h2><p id="report-prop-context" class="small muted"></p></div><div id="report-prop-actions" class="report-downloads"></div></div>
+              <div class="report-prop-content"><p id="report-prop-status" class="small" role="status"></p><div id="report-prop-metrics"></div></div>
             </section>
             <section class="panel report-panel" aria-labelledby="report-trades-title">
               <div class="panel-heading"><div><h2 id="report-trades-title">Every completed trade</h2></div><span id="report-trade-timezone-note" class="small muted">Dataset timezone · P&amp;L in CU</span></div>

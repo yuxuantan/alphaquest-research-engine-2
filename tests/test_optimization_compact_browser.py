@@ -64,7 +64,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     sizes = lambda path: {p.name: p.stat().st_size for p in path.iterdir()}
     compact_sizes, baseline_sizes = sizes(folder), sizes(root / baseline["id"])
     assert sum(compact_sizes.values()) < sum(baseline_sizes.values()) / 50
-    page.locator("#optimization-results tbody tr").first.get_by_role("link").click()
+    page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
     playwright.expect(page.locator("#report-storage-note")).to_contain_text("Compact report")
     playwright.expect(page.locator("#equity-chart")).to_be_visible()
     playwright.expect(page.locator("#report-summary")).to_contain_text("26.00")

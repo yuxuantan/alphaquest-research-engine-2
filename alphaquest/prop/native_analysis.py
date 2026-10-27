@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .adapter import digest
-from .native_engine import Rules, FundedAccount, evaluation, funded
+from .native_engine import Rules, FundedAccount, evaluation, funded, compact_neutral_runs
 
 MODEL_VERSION = 'alphaquest-apex50k-eod-v1'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
@@ -175,6 +175,7 @@ def calculate(rows, settings, progress=lambda _:None):
     grid, days, split = day_book(rows,settings)
     if split==0:
         raise ValueError('At least two session weekdays are needed for separate training and validation; no history is fabricated.')
+    days=compact_neutral_runs(days)
     train, validation = days[:split],days[split:]
     block = int(settings['BLOCK_DAYS']); max_micros = int(round(float(settings['MAX_TOTAL_NQ'])*10))
     rules = replace(Rules(),approval_day_counts=settings['APPROVAL_DAY_COUNTS'])
