@@ -13,37 +13,18 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
 
-from .backtest_api import ExecutionSettings
+from .backtest_requests import ExecutionSettings,ParameterRange,OptimizationRequest
 from .backtest_data import DateRange
 from .datasets import COLUMNS
 from .optimization import grid, DEFAULT_WORKERS, MAX_WORKERS
 from .strategies.registry import get_strategy
 
 
-class ParameterRange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    start: StrictInt | StrictStr | StrictBool
-    end: StrictInt | StrictStr | StrictBool
-    step: StrictInt | StrictStr
-
-
-class OptimizationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    dataset_id: StrictStr = Field(min_length=1, max_length=128)
-    strategy_id: StrictStr = Field(min_length=1, max_length=128)
-    method: Literal["exhaustive"]
-    parameter_ranges: dict[str, ParameterRange]
-    workers: StrictInt = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
-    reuse_results: StrictBool = True
-    prepare_data: StrictBool = True
-    execution_settings: ExecutionSettings
-    from_date: StrictStr | None = None
-    to_date: StrictStr | None = None
-
 
 router = APIRouter()
 
 
+@router.get("/api/backtests/settings")
 @router.get("/api/optimizations/settings")
 def settings():
     return {"default_workers": DEFAULT_WORKERS, "max_workers": MAX_WORKERS}
@@ -72,6 +53,7 @@ async def start(body: OptimizationRequest, request: Request):
     return job
 
 
+@router.get("/api/backtests/batches")
 @router.get("/api/optimizations")
 def history(request: Request, offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     return request.app.state.optimizations.list(offset, limit)
@@ -84,11 +66,13 @@ def get_job(request, job_id):
     return job
 
 
+@router.get("/api/backtests/batches/{job_id}")
 @router.get("/api/optimizations/{job_id}")
 def detail(job_id: UUID, request: Request):
     return get_job(request, job_id)
 
 
+@router.post("/api/backtests/batches/{job_id}/resume", status_code=202)
 @router.post("/api/optimizations/{job_id}/resume", status_code=202)
 def resume(job_id: UUID, request: Request):
     try:
@@ -135,6 +119,7 @@ def resume(job_id: UUID, request: Request):
     return job
 
 
+@router.get("/api/backtests/batches/{job_id}/results")
 @router.get("/api/optimizations/{job_id}/results")
 def results(job_id: UUID, request: Request, sort: str = "trial", direction: str = "asc",
             offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=1000)):
@@ -145,6 +130,7 @@ def results(job_id: UUID, request: Request, sort: str = "trial", direction: str 
         raise HTTPException(422, str(exc)) from None
 
 
+@router.get("/api/backtests/batches/{job_id}/exports/results")
 @router.get("/api/optimizations/{job_id}/exports/results")
 def export(job_id: UUID, request: Request, sort: str = "trial", direction: str = "asc"):
     job = get_job(request, job_id)

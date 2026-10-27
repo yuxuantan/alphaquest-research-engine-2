@@ -214,3 +214,22 @@ after every row and report file is saved. Normal failures roll back rows and
 clean staging files. A hard interruption can leave an unlisted staging/artifact
 directory; retrieval/listing require a committed record and cannot treat it as
 success. No external task queue or background-job framework is introduced.
+
+## Single and exhaustive backtests
+
+`POST /api/backtests` accepts either the existing `strategy_parameters` request
+(one normal saved report, HTTP 201) or the exhaustive `method:"exhaustive"`,
+`parameter_ranges` request (a background batch, HTTP 202). These are mutually
+exclusive request shapes. Both produce the same `/api/backtests/{run_id}`
+resources, CSVs and default Apex analysis. Worker choices are available at
+`GET /api/backtests/settings`. Poll or reopen batches at
+`/api/backtests/batches/{id}`; append `/results`, `/exports/results`, or `/resume`
+for their ordinary table, download and interrupted-job continuation. Existing
+`/api/optimizations` routes remain compatibility aliases to the same handlers
+and catalogue, including existing saved jobs.
+
+Validation: `tests/test_backtest_batches.py` proves both creation modes, normal
+saved reports, shared worker choices, exact sorted net results 39/26/13, matching
+legacy/new CSV downloads, unknown-job and ambiguous-request rejection. Together
+with the existing API/grid suite, 95 checks passed under
+`artifacts/strategies-navigation/01-*`.

@@ -92,8 +92,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.prop_analyses.close()
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
-    app.include_router(backtest_router)
     app.include_router(optimization_router)
+    app.include_router(backtest_router)
     app.include_router(prop_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
