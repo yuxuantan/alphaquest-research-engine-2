@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/static/styles.css?v=ASSET_VERSION" />
     <script src="/static/app.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
     <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
@@ -37,9 +38,7 @@
             >0</span
           ></a
         >
-        <a class="nav-item" href="#backtests" data-screen="backtests" aria-label="Backtests"
-          ><span class="nav-icon">↗</span>Backtests</a>
-        <a class="nav-item" href="#optimizations" data-screen="optimizations" aria-label="Optimizations"><span class="nav-icon">⊞</span>Optimizations</a>
+        <a class="nav-item" href="#strategies" data-screen="strategies" aria-label="Strategies"><span class="nav-icon">↗</span>Strategies</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -58,8 +57,7 @@
         ><span class="version">ALPHAQUEST <span>02</span></span>
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
-          <a href="#backtests" data-screen="backtests">Backtests</a>
-          <a href="#optimizations" data-screen="optimizations">Optimizations</a>
+          <a href="#strategies" data-screen="strategies">Strategies</a>
         </nav>
       </header>
       <main>
@@ -272,8 +270,27 @@
         </section>
         </section>
 
+        <section id="strategies-screen" aria-labelledby="strategies-title" hidden>
+          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose an instrument to browse its backtest results.</p></div><div class="report-downloads"><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new" class="button primary">New backtest →</a></div></div>
+          <div class="strategies-layout">
+            <section class="panel strategies-instruments" aria-labelledby="strategy-instruments-heading">
+              <div class="panel-heading"><h2 id="strategy-instruments-heading">Instruments</h2></div>
+              <p id="strategies-status" role="status" class="small"></p>
+              <table class="library-table"><thead><tr><th>Instrument</th><th>Backtests</th></tr></thead><tbody id="strategy-groups"></tbody></table>
+              <div class="report-pagination"><button id="strategy-groups-previous" class="button secondary" type="button">Previous instruments</button><span id="strategy-groups-page"></span><button id="strategy-groups-next" class="button secondary" type="button">Next instruments</button></div>
+            </section>
+            <section class="panel strategies-backtests" aria-labelledby="strategy-results-heading">
+              <div class="panel-heading"><h2 id="strategy-results-heading">Backtests</h2></div>
+              <p id="strategy-results-status" role="status" class="small">Select an instrument on the left to view saved backtests.</p>
+              <div id="strategy-results-wrap" class="optimization-scroll" tabindex="0" aria-label="Backtest summaries, scroll horizontally" hidden><table class="library-table"><thead><tr><th>Backtest</th><th>Net P&amp;L · CU</th><th>Historical net · USD</th><th>Report</th></tr></thead><tbody id="strategy-results"></tbody></table></div>
+              <div class="report-pagination"><button id="strategy-reports-previous" class="button secondary" type="button" disabled>Previous backtests</button><span id="strategy-reports-page"></span><button id="strategy-reports-next" class="button secondary" type="button" disabled>Next backtests</button></div>
+            </section>
+          </div>
+        </section>
+
         <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
           <div id="backtest-setup">
+          <a href="#strategies" class="eyebrow">← Back to Strategies</a>
           <div class="page-heading">
             <div>
               <div class="eyebrow">PUT YOUR STRATEGY TO THE TEST</div>
@@ -412,7 +429,7 @@
           <div id="report-status" class="validation-box" role="status" hidden></div>
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
-              <div><a href="#backtests" class="eyebrow">← Back to backtests</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
+              <div><a href="#strategies" class="eyebrow">← Back to Strategies</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
               <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
             </div>
             <button id="report-delete" class="button danger" type="button">Delete backtest</button>

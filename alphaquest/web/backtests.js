@@ -465,11 +465,12 @@
   window.addEventListener("optimization-workers-changed", controls);
 
   function navigate() {
-    const screen = optimizing() ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
+    const screen = location.hash.startsWith("#strategies") ? "strategies" : optimizing() ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
+    get("#strategies-screen").hidden=screen!=="strategies";
     get("#datasets-screen").hidden = screen !== "datasets";
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || location.hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
-    const title = screen === "optimizations" ? "Optimizations" : screen === "backtests" ? "Backtests" : "Datasets";
+    const title = screen === "datasets" ? "Datasets" : "Strategies";
     get("#current-screen").textContent = title;
     document.title = `${title} · AlphaQuest`;
     get("#backtests-title").textContent = optimizing() ? "Optimize a strategy." : "Run a backtest.";
@@ -479,13 +480,13 @@
     get("#backtest-progress").hidden = optimizing() || get("#backtest-progress").hidden;
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
-      const active = link.dataset.screen === screen;
+      const active = link.dataset.screen === (screen === "datasets" ? "datasets" : "strategies");
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
-    if (["#backtests", "#optimizations"].includes(location.hash)) loadChoices();
+    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Backtests by instrument" : optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
+    if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash)) loadChoices();
   }
   window.addEventListener("hashchange", navigate);
   navigate();

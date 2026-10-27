@@ -203,7 +203,8 @@ def test_portal_revalidates_assets_and_uses_one_content_version(client, tmp_path
     first = client.get("/")
     assert first.headers["cache-control"] == "no-cache"
     versions = re.findall(r"/static/[^\" ]+\?v=([a-f0-9]{16})", first.text)
-    assert len(versions) == 6 and len(set(versions)) == 1
+    asset_urls = re.findall(r'(?:src|href)="(/static/[^"]+\.(?:js|css)(?:\?[^"]*)?)"', first.text)
+    assert len(versions) == len(asset_urls) >= 6 and len(set(versions)) == 1
     assert "ASSET_VERSION" not in first.text
     (web / "app.js").write_text("updated bundle")
     second = client.get("/")

@@ -1567,3 +1567,19 @@ dialog::backdrop {
 @media(max-width:600px) {
   #report-prop-summary .prop-metric-grid { grid-template-columns:1fr; }
 }
+
+.strategies-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; align-items:start; }
+.strategies-layout .panel { min-width:0; padding:20px; }
+.strategies-layout .panel-heading { padding:0 0 16px; }
+.strategies-layout .report-pagination { flex-wrap:wrap; gap:8px; }
+.instrument-link { display:block; padding:8px 0; font-weight:600; }
+.selected-instrument { background:var(--accent-soft,#e9f4f1); }
+.strategies-backtests .library-table { min-width:440px; font-size:12px; }
+.strategies-backtests .library-table td,.strategies-backtests .library-table th { padding:10px 8px; }
+.strategies-backtests .field-help { white-space:normal; font-size:11px; }
+.strategies-backtests td:last-child a { display:inline-flex; margin:4px; }
+.strategies-layout .report-pagination button { padding:8px; font-size:12px; }
+@media(max-width:900px) { .strategies-layout { grid-template-columns:minmax(0,1fr); } }
+.strategies-backtests th:last-child,.strategies-backtests td:last-child { position:sticky; right:0; background:var(--panel,#fff); z-index:1; box-shadow:-1px 0 0 #e0e9e7; }
+.strategies-backtests .field-help { display:block; margin:4px 0 0; line-height:1.4; }
+.strategies-backtests th { white-space:normal; }

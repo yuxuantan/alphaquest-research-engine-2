@@ -25,6 +25,7 @@ from .optimization import OptimizationStore
 from .optimization_api import router as optimization_router
 from .prop_api import router as prop_router
 from .prop.store import AnalysisStore
+from .strategy_library import StrategyLibrary,router as strategy_library_router
 
 WEB = Path(__file__).parent / "web"
 
@@ -86,6 +87,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.runs = RunStore(app.state.store.path.parent)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
         app.state.optimizations = OptimizationStore(app.state.runs, app.state.prop_analyses)
+        app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
         app.state.progress = ProgressTracker()
         yield
         await run_in_threadpool(app.state.optimizations.close)
@@ -95,6 +97,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(optimization_router)
     app.include_router(backtest_router)
     app.include_router(prop_router)
+    app.include_router(strategy_library_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

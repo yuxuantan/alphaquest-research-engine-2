@@ -50,6 +50,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
     stage("preparing")
     metadata = {"dataset": {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")},
+                "instrument": {key:dataset.get(key) for key in ("symbol","interval_seconds","interval_kind")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
     if source_run_id:
