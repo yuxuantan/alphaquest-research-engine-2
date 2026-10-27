@@ -144,3 +144,13 @@ append a labelled synthetic reserved date through `tests/research_fixtures.py`.
 There is no production bypass or reduced simulation count. New research checks
 use ordinary clients and genuine multi-date sources. Browser fixture servers stop
 through their normal cleanup; no additional persistent demo server is needed.
+
+Final qualification against code commit `bafa7b0`: **801 checks passed**, with no
+failures/errors/skips (24 existing dependency/notebook warnings). The complete
+log and JUnit record are `artifacts/is-oos-20261028/final-suite.log` and
+`final-suite.xml`. The final product journey, original reports, source checks,
+downloads and budget proof are in `final-suite/test_percentage_is_sweep_selec0/`;
+the exhaustion/cancellation proof is in `final-suite/test_explicit_dates_required_b0/`.
+`qualification.json` records the independent per-period values and immutable code
+commit. The running checkout retains its own read-only live verification and
+before/after preservation evidence under `artifacts/is-oos-20261028/`.

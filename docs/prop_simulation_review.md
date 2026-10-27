@@ -1411,3 +1411,11 @@ locked holdout cannot launch fresh prop calculations either. Original reports
 remain readable. The product browser case checks HTTP 409 for both check/submit
 with altered OOS activation fees, then successfully source-checks/reopens/downloads
 the original default report with its source and fees unchanged.
+
+Final combined validation: **801 passed**, including the original engine/prop
+parity oracles, API and CLI contracts, real Chromium flows, locked declarations,
+concurrent budgets, future strategy registration and prop-only bypass guards.
+The final immutable code is `bafa7b0`; qualification, full log/JUnit and actual
+product outputs are under `artifacts/is-oos-20261028/final-suite/` and its parent.
+This includes the exact default simulation counts, fees and independent cash
+values above. Fixture servers stopped through their normal cleanup.
