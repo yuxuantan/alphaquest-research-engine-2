@@ -6,15 +6,17 @@ Start the existing local server from this checkout:
 .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open `http://127.0.0.1:8000/` and select **Backtests**, or go directly to
-`http://127.0.0.1:8000/#backtests`. Mobile navigation is in the top bar.
+Open `http://127.0.0.1:8000/`, select **Strategies**, then **New backtest**, or go
+directly to `http://127.0.0.1:8000/#backtests/new`. Mobile navigation is in the top
+bar. The library groups saved backtests by instrument only; the report arrow
+opens the full results. Choose single or exhaustive mode in the shared form.
 
 ## Run the arithmetic fixture
 
 1. In **Datasets**, choose `tests/fixtures/backtest_contract/arithmetic_5m.csv`.
    Keep the source timezone **UTC**, validate the CSV, then save it. If already
    saved, use its existing library entry. Open the dataset, set **Tick size 0.25** and **Monetary point value 10**, then click **Save instrument settings**. These values may also be supplied during upload.
-2. Open **Backtests** and select that saved dataset. Its seven bars, filename,
+2. Open **Strategies → New backtest** and select that saved dataset. Its seven bars, filename,
    UTC range, and saved source timezone appear beneath the controls.
 3. Select **Consecutive green hold**. This is selected automatically when it is
    the only available strategy. Read its description. Exactly three strategy

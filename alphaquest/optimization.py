@@ -24,8 +24,7 @@ from .optimization_cache import engine_identity, trial_key, artifacts, digest
 from .prop.automatic import profile, publish_backtest
 
 MAX_COMBINATIONS = 10_000
-MAX_WORKERS = max(1, min(8, (os.cpu_count() or 1) - 1))
-DEFAULT_WORKERS = min(4, MAX_WORKERS)
+from .worker_limits import MAX_WORKERS,DEFAULT_WORKERS
 logger = logging.getLogger(__name__)
 BACKTEST_METRICS = (
     "total_net_pnl", "total_gross_pnl", "total_commissions", "total_slippage_cost",

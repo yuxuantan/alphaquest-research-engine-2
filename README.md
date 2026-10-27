@@ -213,9 +213,9 @@ Generate and independently check all nine reviewed fixtures, retaining isolated 
 
 ## Backtest API
 
-The existing server exposes allowlisted strategy discovery, explicit-config backtest execution, live progress, and durable paginated results. See [backtest API commands and behavior](docs/backtest_api.md) for a reproducible saved-fixture run. `POST /api/backtests` stays open while worker-thread processing runs; poll the existing `/api/progress/UUID` endpoint from a separate request. Completed results live in `backtests.sqlite3` and `backtest_runs/` beside the dataset database. The equity endpoint returns starting equity plus one point per completed trade.
+The existing server exposes allowlisted strategy discovery, explicit-config backtest execution, live progress, and durable paginated results. See [backtest API commands and behavior](docs/backtest_api.md) for a reproducible saved-fixture run. `POST /api/backtests` accepts a single parameter set (HTTP 201 after worker-thread processing) or an exhaustive grid (HTTP 202 with a background batch). Poll `/api/progress/UUID` for single replay progress or `/api/backtests/batches/{id}` for a batch. Completed results live in `backtests.sqlite3` and `backtest_runs/` beside the dataset database. The equity endpoint returns starting equity plus one point per completed trade.
 
-## Backtests screen
+## Strategies and backtests
 
 New standalone runs default to compact reports: all trades, metrics, trade-close
 equity and prop analysis are retained. **Generate full detail** saves a separately
@@ -238,14 +238,19 @@ Independent prop sweeps share a bounded process pool; `ALPHAQUEST_PROP_WORKERS=1
 selects serial execution. Parsed bars and declared pure indicators use a bounded
 disposable cache (`ALPHAQUEST_REPLAY_CACHE_MB`, default 2048 MiB).
 
-Use **Delete** beside a completed report, or **Delete backtest** inside the report,
+The main navigation contains Datasets and Strategies. The Strategies view has
+two equal desktop panes: instruments and their saved backtest summaries. A row
+arrow opens the full report. Date ranges do not split instrument groups. See
+[the navigation workflow and evidence](docs/strategies_navigation.md).
+
+Open a completed report and use **Delete backtest**
 to permanently remove that selected backtest and its report/CSV files after
 confirmation. The source dataset, saved prop analyses and optimization metrics
 are kept. Optimization rows identify deleted backtests and retain their results;
 the deleted report is excluded from future trial reuse. Wait for any prop analysis
 or full-detail replay using that source to finish before deleting it.
 
-Select **Backtests** in the portal, or open `http://127.0.0.1:8000/#backtests`. Choose a saved dataset and a backend-listed strategy. The sample shows exactly its three strategy parameters; account, instrument, slippage, and commissions are separate. Review the bar-close timestamp assumption and source timezone, then run with live processed/total bars and elapsed time. The form prevents duplicate submissions while active and shows the saved run ID and the exact settings used after completion. Reports include max drawdown amount, percentage, and duration from full trade-close equity, plus paginated trades, the equity chart and CSV downloads. Dataset management remains available. See [the fixture walkthrough and submitted-setting checks](docs/backtests_portal.md).
+Select **Strategies** in the portal, choose an instrument to browse saved backtests, or use **New backtest** (`http://127.0.0.1:8000/#backtests/new`). Choose **Single parameter set** or **Parameter sweep · exhaustive** in the same form. Choose a saved dataset and a backend-listed strategy. The sample shows exactly its three strategy parameters; account, instrument, slippage, and commissions are separate. Review the bar-close timestamp assumption and source timezone, then run with live processed/total bars and elapsed time. The form prevents duplicate submissions while active and shows the saved run ID and the exact settings used after completion. Reports include max drawdown amount, percentage, and duration from full trade-close equity, plus paginated trades, the equity chart and CSV downloads. Dataset management remains available. See [the fixture walkthrough and submitted-setting checks](docs/backtests_portal.md).
 
 ## Verify
 

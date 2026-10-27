@@ -16,7 +16,8 @@
   const state = { datasets: [], strategies: [], busy: false, loading: false, ready: false, strategy: null, instrumentEdited: false };
   const drafts = new Map();
   let reportRecord, detailedBusy = false;
-  const optimizing = () => location.hash.startsWith("#optimizations");
+  const mode = get("#backtest-mode");
+  const optimizing = () => mode.value === "exhaustive";
   const executionLabels = {
     initial_capital: "Initial capital", tick_size: "Tick size", point_value: "Monetary point value",
     slippage_ticks: "Slippage · ticks per fill", commission_per_contract_per_side: "Commission · per contract per side",
@@ -35,6 +36,7 @@
   }
 
   function controls() {
+    mode.disabled=state.busy || state.loading;
     for (const fieldset of form.querySelectorAll("fieldset")) fieldset.disabled = state.busy || state.loading;
     for (const input of get("#strategy-parameters").querySelectorAll("input")) input.disabled = optimizing() || state.busy || state.loading;
     for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = !optimizing() || state.busy || state.loading;
@@ -44,7 +46,7 @@
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
     start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || (optimizing() && !window.optimizations.workersReady());
-    start.textContent = state.busy ? "Submitting / running…" : optimizing() ? "Start optimization →" : "Start backtest →";
+    start.textContent = state.busy ? "Submitting / running…" : optimizing() ? "Start backtests →" : "Start backtest →";
     form.setAttribute("aria-busy", String(state.busy));
   }
 
@@ -475,29 +477,38 @@
   refresh.addEventListener("click", loadChoices);
   window.addEventListener("optimization-workers-changed", controls);
 
-  function navigate() {
-    const screen = optimizing() ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
-    get("#datasets-screen").hidden = screen !== "datasets";
-    get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || location.hash.startsWith("#backtests/prop/");
-    get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
-    const title = screen === "optimizations" ? "Optimizations" : screen === "backtests" ? "Backtests" : "Datasets";
-    get("#current-screen").textContent = title;
-    document.title = `${title} · AlphaQuest`;
-    get("#backtests-title").textContent = optimizing() ? "Optimize a strategy." : "Run a backtest.";
+  function modeChanged(loadWorkers=true) {
     get("#strategy-parameters").hidden = optimizing();
     get("#strategy-parameters-heading").hidden = optimizing();
     get("#optimization-settings").hidden = !optimizing();
     get("#backtest-reuse-settings").hidden=optimizing();
     get("#backtest-progress").hidden = optimizing() || get("#backtest-progress").hidden;
+    if(loadWorkers && optimizing() && !window.optimizations.workersReady())void window.optimizations.loadSettings();
+    controls();
+  }
+  mode.addEventListener("change",()=>modeChanged());
+
+  function navigate() {
+    if(location.hash==="#optimizations")mode.value="exhaustive";
+    const screen = location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
+    get("#strategies-screen").hidden=screen!=="strategies";
+    get("#datasets-screen").hidden = screen !== "datasets";
+    get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || location.hash.startsWith("#backtests/prop/");
+    get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
+    const title = screen === "datasets" ? "Datasets" : "Strategies";
+    get("#current-screen").textContent = title;
+    document.title = `${title} · AlphaQuest`;
+    get("#backtests-title").textContent = "Run backtests.";
+    modeChanged(false);
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
-      const active = link.dataset.screen === screen;
+      const active = link.dataset.screen === (screen === "datasets" ? "datasets" : "strategies");
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
-    if (["#backtests", "#optimizations"].includes(location.hash)) loadChoices();
+    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Backtests by instrument" : optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
+    if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash)) loadChoices();
   }
   window.addEventListener("hashchange", navigate);
   navigate();

@@ -44,7 +44,7 @@
         throw new Error(typeof result.detail === "string" ? result.detail : `HTTP ${response.status}`);
       }
       status.textContent = "Backtest deleted. Source dataset, saved prop analyses and optimization metrics kept.";
-      if (location.hash === `#backtests/report/${record.id}`) location.hash = "#backtests";
+      if (location.hash === `#backtests/report/${record.id}`) location.hash = "#strategies";
       else if (location.hash === "#backtests") await history(historyOffset);
     } catch (exc) {
       status.textContent = `Could not delete backtest: ${exc.message}`;
@@ -437,8 +437,8 @@
     chartData = null;
     const match = location.hash.match(/^#backtests\/report\/([0-9a-f]{32})$/);
     const report = Boolean(match);
-    get("#backtest-setup").hidden = report || location.hash.startsWith("#optimizations/");
-    get("#completed-runs").hidden = report || location.hash.startsWith("#optimizations");
+    get("#backtest-setup").hidden = report || location.hash.startsWith("#optimizations/") || location.hash.startsWith("#backtests/batches");
+    get("#completed-runs").hidden = report || location.hash.startsWith("#optimizations") || location.hash !== "#backtests";
     get("#backtest-completion").hidden = true;
     get("#report-status").hidden = true;
     if (report) openReport(match[1]);

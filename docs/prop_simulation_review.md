@@ -1339,3 +1339,34 @@ Validation passed 20 checks across both groups; the paused-stage demonstration
 was also rerun with an explicitly labelled SYNTHETIC dataset. Temporary browser
 servers are fixture-owned and shut down after validation; the existing
 application server is left running.
+
+### Strategies navigation and shared backtest execution — 2026-10-28
+
+The main navigation is Datasets and Strategies. Choose an instrument in the left
+half of Strategies to populate the right half with actual saved backtests and
+short summaries. Date ranges remain per-report context; they do not split
+instrument groups. The row arrow opens the original full backtest-report page,
+including inline default prop cash and the existing Configure -> Check -> Run ->
+durable result journey. The summary's Historical net is read from the original
+saved default prop report; unavailable/error cases remain N/A. Existing report
+files and downloads are preserved. Instrument grouping uses a disposable index
+of the existing catalogue, not duplicate result storage.
+
+Use Strategies -> New backtest for either a single set or exhaustive sweep in
+the same form and `/api/backtests` endpoint. Each sweep trial remains an ordinary
+backtest with its default Apex 50K EOD analysis (49 evaluation, 129 activation,
+20 slots, standard simulation counts). No production calculation engine changes
+are made. Existing optimization links remain readable, with normal resume guards.
+
+Review `docs/strategies_navigation.md` for exact product steps. Actual labelled
+synthetic demonstrations live under `artifacts/strategies-navigation/`: the
+`02-library-reviewed/` seven-bar source has independently expected net 13 CU
+and three trial nets 13/26/39; its single session is correctly rejected as too
+short for prop analysis. `03-shared-form/` captures the identical execution
+settings submitted for both modes. `04-product-regression/` preserves the normal
+60-weekday cash-source workflow, checking source net 180,000, historical payouts
+360,000, acquisition fees 7,120 and Historical net 352,880. It includes source
+checking, invalid-setting rejection, configure/run/reopen, downloads and stable
+original-report hashes. All servers used for demonstrations are temporary test
+fixtures and stop after the checks. The user's existing checkout/server and
+Windows VM are untouched; only this request's branch is published.

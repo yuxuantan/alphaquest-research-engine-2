@@ -29,20 +29,7 @@ from .prop.automatic import descriptor, compute_default, publish_backtest
 from .performance import Performance, save_performance
 
 
-class ExecutionSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    initial_capital: StrictStr
-    slippage_ticks: StrictInt = Field(ge=0)
-    commission_per_contract_per_side: StrictStr
-    tick_size: StrictStr | None = Field(default=None, max_length=128)
-    point_value: StrictStr | None = Field(default=None, max_length=128)
-
-    def execution_config(self, dataset):
-        try:
-            return RunSettings(Decimal(self.initial_capital), self.slippage_ticks,
-                               Decimal(self.commission_per_contract_per_side), self.tick_size, self.point_value).execution_config(dataset)
-        except InvalidOperation:
-            raise ValueError("Execution monetary values must be finite decimal strings.") from None
+from .backtest_requests import ExecutionSettings,OptimizationRequest
 
 
 class BacktestRequest(BaseModel):
@@ -71,6 +58,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
     stage("preparing")
     metadata = {"dataset": {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")},
+                "instrument": {key:dataset.get(key) for key in ("symbol","interval_seconds","interval_kind")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
     if source_run_id:
@@ -176,7 +164,11 @@ def strategies():
 
 
 @router.post("/api/backtests", status_code=201)
-async def start_backtest(body: BacktestRequest, request: Request, progress_id: UUID | None = None):
+async def start_backtest(body: BacktestRequest | OptimizationRequest, request: Request, progress_id: UUID | None = None):
+    if isinstance(body,OptimizationRequest):
+        from .optimization_api import start
+        from starlette.responses import JSONResponse
+        return JSONResponse(await start(body,request),status_code=202)
     try:
         definition = get_strategy(body.strategy_id)
         parameters = definition.parameters(body.strategy_parameters)

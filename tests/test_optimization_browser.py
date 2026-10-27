@@ -22,7 +22,7 @@ def prepare(page, portal):
 
 def run(page):
     page.locator("#start-backtest").click()
-    playwright.expect(page).to_have_url(re.compile(r"/#optimizations/[a-f0-9]{32}$"))
+    playwright.expect(page).to_have_url(re.compile(r"/#backtests/batches/[a-f0-9]{32}$"))
     playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(3)
 
@@ -86,7 +86,8 @@ def test_grid_run_sort_export_reopen_and_normal_report(page, portal, tmp_path):
     playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE")
     page.reload()
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(3)
-    page.get_by_role("link", name="Optimizations", exact=True).click()
+    page.get_by_role("link", name="Strategies", exact=True).click()
+    page.get_by_role("link", name="Backtest activity", exact=True).click()
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(1)
     page.locator("#optimization-results tbody a").click()
     playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE")
@@ -102,9 +103,11 @@ def test_invalid_integer_grid_is_rejected_without_jobs_and_drafts_persist(page, 
     playwright.expect(page.locator("#start-backtest")).to_be_enabled()
     assert page.request.get(portal["url"] + "/api/optimizations").json()["total"] == 0
     page.get_by_role("link", name="Datasets", exact=True).click()
-    page.get_by_role("link", name="Optimizations", exact=True).click()
+    page.goto(portal["url"] + "/#backtests/new")
+    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.get_by_label("Contracts end", exact=True)).to_have_value("2")
-    page.get_by_role("link", name="Backtests", exact=True).click()
+    page.goto(portal["url"] + "/#backtests/new")
+    page.locator("#backtest-mode").select_option("single")
     playwright.expect(page.locator("#strategy-contracts")).to_be_enabled()
     playwright.expect(page.locator("#optimization-settings")).to_be_hidden()
 
@@ -112,7 +115,8 @@ def test_invalid_integer_grid_is_rejected_without_jobs_and_drafts_persist(page, 
 def test_mobile_grid_and_results_do_not_expand_page(page, portal):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(portal["url"])
-    page.get_by_role("link", name="Optimizations", exact=True).click()
+    page.goto(portal["url"] + "/#backtests/new")
+    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.locator("#optimization-settings")).to_be_visible()
     prepare(page, portal)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -132,7 +136,7 @@ def test_running_job_remains_visible_after_reload_and_duplicate_submit_is_blocke
     monkeypatch.setattr(sample.ConsecutiveGreenHold, "on_bar", paused)
     prepare(page, portal)
     requests = []
-    page.on("request", lambda request: requests.append(request) if request.method == "POST" and request.url.endswith("/api/optimizations") else None)
+    page.on("request", lambda request: requests.append(request) if request.method == "POST" and request.url.endswith("/api/backtests") else None)
     try:
         page.locator("#backtest-form").evaluate("form => {for(let i=0;i<3;i++) form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}")
         assert entered.wait(5)
@@ -193,7 +197,7 @@ def test_adx_boolean_endpoints_auto_count_run_and_reopen(page, portal, tmp_path)
     playwright.expect(count).to_have_value("2")
     page.screenshot(path=str(tmp_path / "adx-boolean-configured.png"), full_page=True)
     page.locator("#start-backtest").click()
-    playwright.expect(page).to_have_url(re.compile(r"/#optimizations/[a-f0-9]{32}$"))
+    playwright.expect(page).to_have_url(re.compile(r"/#backtests/batches/[a-f0-9]{32}$"))
     playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
     job_id = page.url.rsplit("/", 1)[-1]
     job = page.request.get(f"{portal['url']}/api/optimizations/{job_id}").json()
@@ -295,7 +299,7 @@ def test_parallel_worker_selection_persists_and_process_results_reopen(page, por
 
 @pytest.mark.parametrize("failure", ["network", "missing", "server", "malformed", "invalid"])
 def test_worker_loading_failure_has_retry_and_preserves_choices(page, portal, failure):
-    endpoint = "**/api/optimizations/settings"
+    endpoint = "**/api/backtests/settings"
     def fail(route):
         if failure == "network": route.abort()
         elif failure == "missing": route.fulfill(status=422, json={"detail": "Invalid UUID"})
@@ -313,9 +317,11 @@ def test_worker_loading_failure_has_retry_and_preserves_choices(page, portal, fa
     page.get_by_label("Contracts end", exact=True).fill("5")
     playwright.expect(page.locator("#start-backtest")).to_be_disabled()
     # Ordinary backtests do not depend on the parallel-worker settings service.
-    page.get_by_role("link", name="Backtests", exact=True).click()
+    page.goto(portal["url"] + "/#backtests/new")
+    page.locator("#backtest-mode").select_option("single")
     playwright.expect(page.locator("#start-backtest")).to_be_enabled()
-    page.get_by_role("link", name="Optimizations", exact=True).click()
+    page.goto(portal["url"] + "/#backtests/new")
+    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.locator("#optimization-workers-retry")).to_be_visible()
     page.unroute(endpoint)
     page.locator("#optimization-workers-retry").click()
@@ -344,11 +350,11 @@ def test_worker_request_timeout_stops_loading_and_retries(page, portal):
         # the selector loading indefinitely. Return after the client timeout.
         time.sleep(11)
         route.fulfill(json={"default_workers": 1, "max_workers": 1})
-    page.route("**/api/optimizations/settings", delayed)
+    page.route("**/api/backtests/settings", delayed)
     page.goto(portal["url"] + "/#optimizations")
     playwright.expect(page.locator("#optimization-workers-help")).to_contain_text("timed out", timeout=15000)
     playwright.expect(page.locator("#optimization-workers-retry")).to_be_visible()
-    page.unroute("**/api/optimizations/settings")
+    page.unroute("**/api/backtests/settings")
     page.locator("#optimization-workers-retry").click()
     playwright.expect(page.locator("#optimization-workers")).to_be_enabled()
 
@@ -367,7 +373,7 @@ def test_worker_retry_retains_inspectable_product_evidence(page, portal, tmp_pat
     }, data=b"\xef\xbb\xbf" + source.read_bytes(), headers={"content-type": "text/csv"})
     assert response.status == 201, response.text()
     dataset = response.json()
-    page.route("**/api/optimizations/settings", lambda route: route.fulfill(status=503, json={"detail": "Review: temporary settings outage"}))
+    page.route("**/api/backtests/settings", lambda route: route.fulfill(status=503, json={"detail": "Review: temporary settings outage"}))
     page.goto(portal["url"] + "/#optimizations")
     playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     playwright.expect(page.locator("#optimization-workers")).to_have_text("Worker options unavailable")
@@ -377,7 +383,7 @@ def test_worker_retry_retains_inspectable_product_evidence(page, portal, tmp_pat
     page.get_by_label("Contracts end", exact=True).fill("3")
     playwright.expect(page.locator("#start-backtest")).to_be_disabled()
     page.screenshot(path=str(tmp_path / "worker-options-unavailable.png"), full_page=True)
-    page.unroute("**/api/optimizations/settings")
+    page.unroute("**/api/backtests/settings")
     page.locator("#optimization-workers-retry").click()
     playwright.expect(page.locator("#optimization-workers")).to_be_enabled()
     page.locator("#optimization-workers").select_option("1")

@@ -72,7 +72,7 @@
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch("/api/optimizations/settings", {cache: "no-store", signal: controller.signal});
+      const response = await fetch("/api/backtests/settings", {cache: "no-store", signal: controller.signal});
       if ([404, 422].includes(response.status)) throw new Error("This server needs to be restarted to load parallel optimization support. Restart the backend, then retry.");
       if (!response.ok) throw new Error(`Could not load worker options (HTTP ${response.status}). Retry worker options.`);
       settings(await response.json());
@@ -238,13 +238,13 @@
     const { strategy_parameters, ...settings } = payload;
     let job;
     try {
-      job = await read("/api/optimizations", { method: "POST", headers: { "Content-Type": "application/json" },
+      job = await read("/api/backtests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...settings, method: "exhaustive", parameter_ranges, workers: Number(get("#optimization-workers").value), reuse_results: get("#optimization-reuse").checked }) });
     } catch (error) {
       if (error instanceof TypeError || error instanceof SyntaxError) throw new Error("Completion is unconfirmed. Check optimization history before starting another job; the request was not retried.");
       throw error;
     }
-    location.hash = `#optimizations/${job.id}`;
+    location.hash = `#backtests/batches/${job.id}`;
   }
   function pagination() {
     get("#optimization-page").textContent = total ? `${offset + 1}–${Math.min(total, offset + pageSize())} of ${total}` : "No saved results yet";
@@ -319,7 +319,7 @@
       table.tBodies[0].append(tr);
     }
     const download = get("#optimization-download");
-    download.href = `/api/optimizations/${job.id}/exports/results?${new URLSearchParams({sort, direction})}`;
+    download.href = `/api/backtests/batches/${job.id}/exports/results?${new URLSearchParams({sort, direction})}`;
     download.hidden = false;
     total = page.total;
     pagination();
@@ -331,11 +331,11 @@
     try {
       if (!jobId) {
         get("#optimization-parameter-legend").hidden = true;
-        const history = await read(`/api/optimizations?${new URLSearchParams({offset, limit: 25})}`);
+        const history = await read(`/api/backtests/batches?${new URLSearchParams({offset, limit: 25})}`);
         if (current !== version) return;
-        get("#optimization-title").textContent = "Saved optimizations";
+        get("#optimization-title").textContent = "Backtest activity";
         get("#optimization-context").textContent = "Reopen running jobs and durable results.";
-        get("#optimization-status").textContent = history.total ? "Select a job to inspect its grid and results." : "No optimizations yet. Configure the grid above to start.";
+        get("#optimization-status").textContent = history.total ? "Select a job to inspect its grid and results." : "No backtest batches yet. Use New backtest to run a parameter sweep.";
         const table = get("#optimization-results");
         const header = node("tr");
         for (const title of ["Created · UTC", "Strategy", "Status", "Completed trials"]) header.append(node("th", title));
@@ -343,7 +343,7 @@
         table.tBodies[0].replaceChildren();
         for (const job of history.items) {
           const row = node("tr"), cell = node("td"), link = node("a", job.created_at_utc);
-          link.href = `#optimizations/${job.id}`;
+          link.href = `#backtests/batches/${job.id}`;
           cell.append(link);
           row.append(cell, node("td", label(job.strategy.id)), node("td", job.status), node("td", `${job.completed_trials} / ${job.total_trials}`));
           table.tBodies[0].append(row);
@@ -355,11 +355,11 @@
         return;
       }
       const [job, page] = await Promise.all([
-        read(`/api/optimizations/${jobId}`),
-        read(`/api/optimizations/${jobId}/results?${new URLSearchParams({sort, direction, offset, limit: 50})}`),
+        read(`/api/backtests/batches/${jobId}`),
+        read(`/api/backtests/batches/${jobId}/results?${new URLSearchParams({sort, direction, offset, limit: 50})}`),
       ]);
       if (current !== version) return;
-      get("#optimization-title").textContent = "Optimization results";
+      get("#optimization-title").textContent = "Backtest batch results";
       const profile = job.default_prop_profile?.settings;
       get("#optimization-context").textContent = `${job.dataset.name} · ${label(job.strategy.id)} · ${job.id}${profile ? ` · Historical net: Apex 50K EOD, ${profile.SLOTS} slots, $${profile.EVAL_PRICE} evaluation + $${profile.ACTIVATION_FEE} activation, full history. Native close-only excursion fallback.` : ""}`;
       const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}${job.engine_identity ? ` · ${job.reused_trials || 0} reused · ${job.completed_trials - (job.reused_trials || 0)} computed` : ""}`;
@@ -383,10 +383,11 @@
   function navigate() {
     ++version;
     clearTimeout(timer);
-    const active = location.hash.startsWith("#optimizations");
+    const match=location.hash.match(/^#backtests\/batches(?:\/([0-9a-f]{32}))?$/) || location.hash.match(/^#optimizations(?:\/([0-9a-f]{32}))?$/);
+    const active=Boolean(match);
     get("#optimization-panel").hidden = !active;
     if (!active) return;
-    jobId = location.hash.match(/^#optimizations\/([0-9a-f]{32})$/)?.[1] || null;
+    jobId = match?.[1] || null;
     offset = 0; sort = "trial"; direction = "asc";
     get("#optimization-provenance").hidden = true;
     get("#optimization-download").hidden = true;
@@ -408,7 +409,7 @@
     get("#optimization-resume").disabled = true;
     get("#optimization-resume-error").hidden = true;
     try {
-      await read(`/api/optimizations/${id}/resume`, {method: "POST"});
+      await read(`/api/backtests/batches/${id}/resume`, {method: "POST"});
       if (jobId === id) await refresh();
     } catch (error) {
       if (jobId === id) {

@@ -35,8 +35,9 @@ def test_delete_from_list_and_report_confirm_cancel_and_preserve_dataset(page,po
     def accept(dialog):dialogs.append(dialog.message);dialog.accept()
     page.once('dialog',accept)
     page.locator('#report-delete').click()
-    playwright.expect(page).to_have_url(portal['url']+'/#backtests')
-    playwright.expect(page.locator('.completed-run-row')).to_have_count(1)
+    playwright.expect(page).to_have_url(portal['url']+'/#strategies')
+    playwright.expect(page.locator('#strategy-groups tr')).to_have_count(1)
+    page.goto(portal['url']+'/#backtests')
     playwright.expect(page.locator('#backtest-delete-status')).to_contain_text('Backtest deleted')
     assert page.request.get(portal['url']+'/api/backtests/'+first['id']).status==404
     assert page.request.get(portal['url']+'/api/backtests/'+second['id']).json()==second
@@ -93,7 +94,7 @@ def test_deleted_trial_keeps_optimization_metrics_without_broken_report_link(pag
     page.goto(portal['url']+'/#backtests/report/'+row['run_id'])
     playwright.expect(page.locator('#report-delete')).to_be_visible()
     page.once('dialog',lambda dialog:dialog.accept());page.locator('#report-delete').click()
-    playwright.expect(page).to_have_url(portal['url']+'/#backtests')
+    playwright.expect(page).to_have_url(portal['url']+'/#strategies')
     page.goto(portal['url']+'/#optimizations/'+id)
     cell=page.locator('#optimization-results td[data-column="run_id"]')
     playwright.expect(cell).to_contain_text('Backtest deleted')
