@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from tempfile import TemporaryDirectory
+from time import monotonic
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
@@ -88,10 +89,17 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         # callback/fill. Final-bar count is visible before report publication.
         def counted_bars():
             nonlocal processed
+            last_update=monotonic()
             for bar in timings.iterate(selected.bars, 'source_loading'):
                 yield bar
                 processed = bar.bar_number
-                stage("replaying")
+                # Small replays retain per-bar responsiveness. Long replays
+                # avoid a callback/lock/IPC attempt for every completed bar.
+                # Check time only every 64 bars for expensive future strategies.
+                if (total <= 1000 or processed == total or processed % 1000 == 0
+                        or (processed % 64 == 0 and monotonic()-last_update >= .25)):
+                    stage("replaying")
+                    last_update=monotonic()
 
         stage("replaying")
         events = timings.iterate(execute(counted_bars(), strategy, config), 'replay')

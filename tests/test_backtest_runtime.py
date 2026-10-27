@@ -49,3 +49,17 @@ def test_standalone_compact_default_and_full_detail_have_exact_same_csv_and_summ
         assert client.get(f'/api/backtests/{compact["id"]}/exports/{kind}').content==client.get(f'/api/backtests/{detailed["id"]}/exports/{kind}').content
     archive=client.get(f'/api/backtests/{detailed["id"]}/exports/report').content
     assert 'equity' in json.loads(gzip.decompress(archive))
+
+
+def test_large_replay_batches_progress_with_exact_final_counts_and_financial_outputs(tmp_path,monkeypatch):
+    import sys
+    from review_progress_runtime import main
+    output=tmp_path/'normal-progress-run'
+    monkeypatch.setattr(sys,'argv',['review_progress_runtime','--output',str(output),'--bars','2501'])
+    main()
+    result=json.loads((output/'verification.json').read_text())
+    assert 4<=result['replay_progress_updates']<=45
+    assert result['final_progress']['bars_processed']==2501
+    assert result['final_progress']['total_bars']==2501
+    assert result['summary']['trades_taken']==0
+    assert result['summary']['total_net_pnl']=='0'

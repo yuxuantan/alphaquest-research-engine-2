@@ -1242,3 +1242,58 @@ Validation: **91 core checks and 31 product/VWAP checks passed**. Actual browser
 screenshots/downloads include `verified-backtest-reopened.png`, source checking,
 rejection, configure/run/reopen, historical cash and optimization results. Earlier
 reports remain byte-identical. Temporary servers and pools stopped normally.
+
+### Increment 7 — batched replay progress
+
+Long replays emit progress each 1,000 completed bars, at the final bar, or at a
+quarter-second checkpoint checked every 64 bars for expensive strategies. Small
+replays retain per-bar updates. Stage transitions and final publication remain
+immediate. This avoids a callback, lock and possible IPC attempt for every bar;
+financial events, fills, reporting and source checks are unchanged.
+
+Retained normal API benchmark:
+`artifacts/backtest-runtime-20261027/07-progress-before/verification.json` and
+`07-progress-after/verification.json`. The labelled 20,000-bar flat source has
+independent expectations of no entries, zero P&L and unchanged 10,000 equity;
+its default prop analysis explicitly has no compatible trade source. Replay
+updates fell from **20,001 to 21**, with identical trade/equity SHA-256 hashes,
+summary and final processed/total counts. Request times were **1.7064 / 1.6966 s**;
+this run demonstrates the callback reduction, not a significant measured wall
+speedup. The normal browser cash workflow remains the prop product demonstration.
+
+```bash
+PYTHONPATH=tests:. .venv/bin/python tests/review_progress_runtime.py \
+  --output artifacts/progress-runtime-NEW --bars 20000
+.venv/bin/python -m pytest -q tests/test_backtest_runtime.py \
+  tests/test_backtest_api.py tests/test_backtest_reuse.py \
+  tests/test_optimization_acceleration.py --basetemp artifacts/progress-tests-NEW
+```
+
+Validation: **75 checks passed**, including responsive paused replay, failure/
+save boundaries, exact final progress, result reuse and optimization preparation.
+Additional worker-budget qualification under `04-budget-qualified/` passed four
+checks: standard-count serial/parallel cash equality, concurrent serial-slot
+transfer without deadlock, one-worker optimization refusing a nested pool, and
+spawned child refusal to nest pools. Serial validation occupies the same shared
+budget as parallel tasks. All prior evidence and datasets are preserved.
+
+The final source preparation check also verifies exactly one original-byte read
+on both cold and warm preparation and rejects missing/invalid saved timezones
+before cache access (`05-source-boundaries/`: seven checks passed). Cold misses
+use that same verified snapshot for parsing. Final integrated qualification is
+saved as `artifacts/backtest-runtime-20261027/full-suite-final.log` and
+`10-full-suite-final/junit.xml`. Reproduce all checks with:
+
+```bash
+.venv/bin/python -m pytest -q --basetemp artifacts/runtime-full-NEW \
+  --junitxml artifacts/runtime-full-NEW/junit.xml
+```
+
+The first complete integration run passed 765 checks and found two obsolete
+browser expectations: the submitted payload lacked the new reuse flag, and the
+storage comparison relied on the former full-report default. Both now assert
+the explicit product settings; the focused browser rerun passed both checks
+(`09-browser-expectations/`). Their corrections belong to the corresponding
+compact-report and reuse commits. Prior failing-run evidence remains under
+`08-full-suite-verified/` and `full-suite-initial.log`; the final log/XML above
+records the complete rerun against the committed feature branch.
