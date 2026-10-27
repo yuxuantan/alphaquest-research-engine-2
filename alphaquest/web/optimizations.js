@@ -17,6 +17,35 @@
   let workerState = "idle", workerValue = "";
   const workerHelp = get("#optimization-workers-help").textContent;
   const pageSize = () => jobId ? 50 : 25;
+  const resultScroll = get("#optimization-results-scroll");
+  let headerFrame = null;
+  function pinHeaders() {
+    if (headerFrame !== null) return;
+    headerFrame = requestAnimationFrame(() => {
+      headerFrame = null;
+      const table = get("#optimization-results");
+      const height = table.tHead.getBoundingClientRect().height;
+      const widths = Array.from(table.querySelectorAll("thead .optimization-frozen-parameter"),
+                                (cell) => cell.getBoundingClientRect().width);
+      // Sticky positioning uses the table's scroll box. Offset that position
+      // when the page moves the box above the viewport; keep the real, sortable
+      // header aligned with its cells for both horizontal and vertical scrolling.
+      const offset = Math.min(Math.max(0, -resultScroll.getBoundingClientRect().top),
+                              Math.max(0, resultScroll.clientHeight - height));
+      resultScroll.style.setProperty("--optimization-header-top", `${offset}px`);
+      // Use rendered widths so resized views and different result pages keep
+      // every frozen column adjacent, with the same offsets in header and body.
+      let left = 0;
+      widths.forEach((width, index) => {
+        table.style.setProperty(`--optimization-frozen-left-${index}`, `${left}px`);
+        left += width;
+      });
+    });
+  }
+  window.addEventListener("scroll", pinHeaders, {passive: true});
+  window.addEventListener("resize", pinHeaders);
+  new ResizeObserver(pinHeaders).observe(resultScroll);
+  new ResizeObserver(pinHeaders).observe(get("#optimization-results"));
   function settings(config) {
     if (!Number.isInteger(config?.max_workers) || config.max_workers < 1 || config.max_workers > 8
         || !Number.isInteger(config.default_workers) || config.default_workers < 1 || config.default_workers > config.max_workers) {
@@ -224,13 +253,34 @@
   function results(job, page) {
     const table = get("#optimization-results");
     const header = node("tr");
-    const columns = [["trial", "Trial"], ...Object.keys(job.axes).map((name) => [`param.${name}`, label(name)]),
+    const varying = new Set(Object.keys(job.axes).filter((name) => job.axes[name].length > 1).map((name) => `param.${name}`));
+    const legend = get("#optimization-parameter-legend");
+    legend.hidden = false;
+    legend.textContent = varying.size
+      ? `Highlighted columns vary across trials: ${Array.from(varying, (key) => label(key.slice(6))).join(", ")}. These columns are frozen on the left; headers marked “Varies” identify the optimized parameters.`
+      : "All strategy parameters are fixed for this run.";
+    const parameters = Object.keys(job.axes).map((name) => [`param.${name}`, label(name)]);
+    const columns = [...parameters.filter(([key]) => varying.has(key)), ["trial", "Trial"],
+      ...parameters.filter(([key]) => !varying.has(key)),
       ...job.metric_columns.map((name) => [name, label(name)]), ["run_id", "Backtest report"]];
+    const freeze = (cell, key) => {
+      const index = columns.findIndex(([name]) => name === key);
+      cell.classList.add("optimization-varying-parameter", "optimization-frozen-parameter");
+      if (index === varying.size - 1) cell.classList.add("optimization-frozen-last");
+      cell.style.setProperty("--optimization-frozen-left", `var(--optimization-frozen-left-${index}, 0px)`);
+    };
     for (const [key, title] of columns) {
       const th = node("th");
+      th.scope = "col";
+      th.dataset.column = key;
       th.setAttribute("aria-sort", sort === key ? direction === "asc" ? "ascending" : "descending" : "none");
       const button = node("button", `${title}${sort === key ? direction === "asc" ? " ↑" : " ↓" : " ↕"}`);
       button.type = "button";
+      if (varying.has(key)) {
+        freeze(th, key);
+        th.title = `${job.axes[key.slice(6)].length} values in this optimization grid`;
+        button.append(node("span", "Varies", "optimization-varying-badge"));
+      }
       button.onclick = () => { direction = sort === key && direction === "asc" ? "desc" : "asc"; sort = key; offset = 0; refresh(); };
       th.append(button);
       header.append(th);
@@ -241,6 +291,8 @@
       const tr = node("tr");
       for (const [key] of columns) {
         const td = node("td");
+        td.dataset.column = key;
+        if (varying.has(key)) freeze(td, key);
         if (key === "run_id") {
           const link = node("a", row.run_id);
           link.href = `#backtests/report/${row.run_id}`;
@@ -258,12 +310,14 @@
     download.hidden = false;
     total = page.total;
     pagination();
+    pinHeaders();
   }
   async function refresh() {
     clearTimeout(timer);
     const current = ++version;
     try {
       if (!jobId) {
+        get("#optimization-parameter-legend").hidden = true;
         const history = await read(`/api/optimizations?${new URLSearchParams({offset, limit: 25})}`);
         if (current !== version) return;
         get("#optimization-title").textContent = "Saved optimizations";
@@ -283,6 +337,7 @@
         }
         total = history.total;
         pagination();
+        pinHeaders();
         if (history.items.some((job) => ["queued", "running"].includes(job.status))) timer = setTimeout(refresh, 1500);
         return;
       }
@@ -319,6 +374,7 @@
     get("#optimization-status").textContent = "Loading…";
     get("#optimization-results").tHead.replaceChildren();
     get("#optimization-results").tBodies[0].replaceChildren();
+    get("#optimization-parameter-legend").hidden = true;
     refresh();
   }
   get("#optimization-previous").onclick = () => { offset = Math.max(0, offset - pageSize()); refresh(); };

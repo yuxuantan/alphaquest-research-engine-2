@@ -1533,11 +1533,19 @@ dialog::backdrop {
 .optimization-grid th small { display:block; font-size:11px; white-space:normal; font-weight:400; max-width:300px; }
 .optimization-grid input, .optimization-grid select { min-width:100px; width:100%; }
 .optimization-count { font-weight:650; color:var(--accent-dark); }
-#optimization-results { width:100%; font-variant-numeric:tabular-nums; }
+#optimization-results { width:100%; font-variant-numeric:tabular-nums; border-collapse:separate; border-spacing:0; }
+#optimization-results-scroll { max-height:min(620px, calc(100dvh - 48px)); }
 #optimization-results th { font-size:12px; text-transform:none; letter-spacing:normal; }
 #optimization-results td { font-size:13px; }
 #optimization-results th, #optimization-results td { white-space:nowrap; }
-#optimization-results th { position:sticky; top:0; background:#f6f9f9; z-index:1; }
+#optimization-results thead th { position:sticky; top:var(--optimization-header-top, 0px); background:#f6f9f9; z-index:3; box-shadow:0 1px 0 var(--line); }
+#optimization-results td.optimization-varying-parameter { background:#edf8f4; color:#164c40; font-weight:600; border-left:1px solid #d0e8de; border-right:1px solid #d0e8de; }
+#optimization-results thead th.optimization-varying-parameter { background:#dcefe7; color:#075b49; border-left:1px solid #c3dfd2; border-right:1px solid #c3dfd2; }
+#optimization-results .optimization-frozen-parameter { position:sticky; left:var(--optimization-frozen-left, 0px); z-index:2; }
+#optimization-results thead th.optimization-frozen-parameter { z-index:4; }
+#optimization-results .optimization-frozen-last { box-shadow:4px 0 5px -3px #5c8174; }
+#optimization-results thead th.optimization-frozen-last { box-shadow:4px 0 5px -3px #5c8174, 0 1px 0 var(--line); }
+.optimization-varying-badge { display:inline-block; margin-left:8px; padding:2px 5px; border:1px solid #a5cbbb; border-radius:4px; font-size:10px; font-weight:600; }
 #optimization-results th button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:8px 0; text-align:left; }
 #optimization-results th button:focus-visible { outline:2px solid var(--accent-dark); }
 #optimization-settings-used { max-height:400px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:16px; font-size:12px; }

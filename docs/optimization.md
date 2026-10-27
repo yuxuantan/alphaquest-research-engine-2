@@ -110,6 +110,45 @@ Money uses CU (unspecified account currency). Metrics retain normal engine
 semantics, including trade-close drawdown. No metric is calculated in the browser.
 
 Click **any column heading** to sort ascending, then click it again to reverse.
+Headers stay visible while scrolling within the result table and while moving
+down the page through the table. Horizontal scrolling keeps each header aligned
+with its values. Parameters with more than one generated value appear first,
+before Trial, and remain frozen on the left during horizontal scrolling. They
+have highlighted headers and cells, a **Varies** badge, and a legend above the table. Fixed
+parameters and metrics keep their normal appearance. A range that generates
+only one value (for example, 1 through 2 with step 5) is treated as fixed.
+The highlight uses the whole saved grid, so it remains consistent across sort
+orders, result pages and reopened reports. Existing saved jobs gain this display
+on refresh without rerunning any backtests.
+
+To reproduce the table review, use the synthetic arithmetic dataset below with
+green bar count **3 / 3 / 0**, hold minutes **20 / 25 / 5**, and contracts
+**1 / 30 / 1** (start / end / step), using one worker. Expect **60** saved trials
+across two result pages. **Hold minutes** and **Contracts** are highlighted and
+marked **Varies** and occupy the first two columns, followed by **Trial** and
+**Green bar count**. Fixed parameters and metric columns are plain. Scroll the
+page until the table's top moves above the viewport, then scroll within the
+table and horizontally. The header remains visible and aligned; **Hold minutes**
+and **Contracts** stay in place while the other columns scroll underneath. Sorting,
+switching to the ten-row second page, and reloading retain the same highlights.
+Desktop/mobile screenshots, measured frozen column positions before/after a
+600px horizontal scroll, and actual reports are retained under
+`artifacts/optimization-frozen-columns-review-20261027-verified/`. Earlier header
+review evidence remains under `artifacts/optimization-table-review-20261027-verified/`.
+Repeat the browser
+check in a new evidence directory with:
+
+```bash
+.venv/bin/python -m pytest tests/test_optimization_browser.py -k 'headers_stay_visible or single_generated' -q --basetemp artifacts/optimization-frozen-columns-review-NEW
+```
+
+Use a new `--basetemp` directory to preserve earlier evidence. These checks own
+and stop their temporary servers and retain the isolated normal reports.
+The normal portal review also passed with the frozen column order: all 18
+headings sorted both ways, CSV order and report links matched, and reopening
+worked on desktop/mobile. Its outputs are saved separately under
+`artifacts/optimization-frozen-columns-sort-review-20261027/`.
+
 Sorting applies to all saved trials before pagination (50 rows per page), with
 exact Decimal comparisons rather than lexical or floating-point money order.
 Missing win rates from zero-trade runs display N/A and sort last in both directions;

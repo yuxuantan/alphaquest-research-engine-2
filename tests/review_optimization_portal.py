@@ -84,10 +84,12 @@ def review(output, url):
         column_count = page.locator("#optimization-results th button").count()
         for column in range(column_count):
             button = page.locator("#optimization-results th button").nth(column)
+            header = page.locator("#optimization-results th").nth(column)
+            expected = "descending" if header.get_attribute("aria-sort") == "ascending" else "ascending"
             button.click()
-            expect(page.locator("#optimization-results th").nth(column)).to_have_attribute("aria-sort", "descending" if column == 0 else "ascending")
+            expect(header).to_have_attribute("aria-sort", expected)
             page.locator("#optimization-results th button").nth(column).click()
-            expect(page.locator("#optimization-results th").nth(column)).to_have_attribute("aria-sort", "ascending" if column == 0 else "descending")
+            expect(header).to_have_attribute("aria-sort", "ascending" if expected == "descending" else "descending")
         page.get_by_role("button", name="Total net pnl", exact=False).click()
         expect(page.locator("#optimization-results th[aria-sort='ascending']")).to_contain_text("Total net pnl")
         page.get_by_role("button", name="Total net pnl", exact=False).click()

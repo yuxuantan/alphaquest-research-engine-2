@@ -396,8 +396,9 @@
             <div class="page-heading"><div><a href="#optimizations" class="eyebrow">← Configure optimization</a><h1 id="optimization-title">Optimizations</h1><p id="optimization-context"></p></div><a id="optimization-download" class="button secondary" hidden>Results CSV ↓</a></div>
             <div id="optimization-status" class="validation-box" role="status" aria-live="polite"></div>
             <details id="optimization-provenance" class="panel" hidden><summary>Saved grid, source &amp; execution settings</summary><pre id="optimization-settings-used"></pre></details>
-            <p class="small muted">Scroll horizontally within the table to view all columns.</p>
-            <div class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally">
+            <p class="small muted">Scroll horizontally within the table to view all columns. Parameters with multiple trial values stay frozen on the left.</p>
+            <p id="optimization-parameter-legend" class="small muted" hidden></p>
+            <div id="optimization-results-scroll" class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally or vertically; column headers and varying parameter columns stay visible">
               <table id="optimization-results" class="library-table"><thead></thead><tbody></tbody></table>
             </div>
             <div class="report-pagination"><button id="optimization-previous" class="button secondary" type="button">Previous</button><span id="optimization-page"></span><button id="optimization-next" class="button secondary" type="button">Next</button></div>

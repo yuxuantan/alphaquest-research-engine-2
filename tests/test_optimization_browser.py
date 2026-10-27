@@ -32,12 +32,12 @@ def test_grid_run_sort_export_reopen_and_normal_report(page, portal, tmp_path):
     run(page)
     url = page.url
     rows = page.locator("#optimization-results tbody tr")
-    playwright.expect(rows.nth(0).locator("td").nth(3)).to_have_text("1")
-    playwright.expect(rows.nth(0).locator("td").nth(4)).to_have_text("13.00")
+    playwright.expect(rows.nth(0).locator('td[data-column="param.contracts"]')).to_have_text("1")
+    playwright.expect(rows.nth(0).locator('td[data-column="total_net_pnl"]')).to_have_text("13.00")
     page.get_by_role("button", name="Total net pnl", exact=False).click()
     playwright.expect(page.locator('#optimization-results th[aria-sort="ascending"]')).to_contain_text("Total net pnl")
     page.get_by_role("button", name="Total net pnl", exact=False).click()
-    playwright.expect(rows.nth(0).locator("td").nth(4)).to_have_text("39.00")
+    playwright.expect(rows.nth(0).locator('td[data-column="total_net_pnl"]')).to_have_text("39.00")
     playwright.expect(page.locator('#optimization-results th[aria-sort="descending"]')).to_contain_text("Total net pnl")
     with page.expect_download() as downloaded:
         page.locator("#optimization-download").click()
@@ -129,6 +129,8 @@ def test_vwap_range_controls_include_boolean_and_decimal_endpoints(page, portal)
     assert response["axes"]["trade_shorts"] == [False, True]
     assert response["axes"]["mm_risk_pct"] == ["1.1", "1.2", "1.3"]
     assert response["total_trials"] == 6
+    assert page.locator("#optimization-results thead th.optimization-varying-parameter").evaluate_all(
+        "items => items.map(item => item.dataset.column)") == ["param.mm_risk_pct", "param.trade_shorts"]
 
 
 def test_adx_boolean_endpoints_auto_count_run_and_reopen(page, portal, tmp_path):
@@ -360,3 +362,118 @@ def test_worker_retry_retains_inspectable_product_evidence(page, portal, tmp_pat
         "retry_loaded_real_settings": True, "parameter_edits_preserved": True,
         "job_id": job_id, "expected_net_pnl": [13, 26, 39], "actual_rows": rows,
     }, indent=2) + "\n")
+
+
+@pytest.mark.parametrize("viewport", [{"width": 1440, "height": 650}, {"width": 390, "height": 650}], ids=["desktop", "mobile"])
+def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page, portal, tmp_path, viewport):
+    import json
+    from pathlib import Path
+
+    page.set_viewport_size(viewport)
+    source = Path(__file__).parent / "fixtures/backtest_contract/arithmetic_5m.csv"
+    response = page.request.post(portal["url"] + "/api/datasets", params={
+        "filename": "SYNTHETIC-table-review.csv", "name": "SYNTHETIC optimization table review",
+        "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10",
+    }, data=b"\xef\xbb\xbf" + source.read_bytes(), headers={"content-type": "text/csv"})
+    assert response.status == 201
+    prepare(page, portal)
+    page.locator("#backtest-dataset").select_option(response.json()["id"])
+    page.get_by_label("Hold minutes end", exact=True).fill("25")
+    page.get_by_label("Hold minutes step", exact=True).fill("5")
+    page.get_by_label("Contracts end", exact=True).fill("30")
+    page.locator("#start-backtest").click()
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
+    playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(50)
+    job_id = page.url.rsplit("/", 1)[1]
+    headers = page.locator("#optimization-results thead th.optimization-varying-parameter")
+    assert headers.evaluate_all("items => items.map(item => item.dataset.column)") == ["param.hold_minutes", "param.contracts"]
+    assert page.locator("#optimization-results thead th").evaluate_all("items => items.slice(0, 4).map(item => item.dataset.column)") == [
+        "param.hold_minutes", "param.contracts", "trial", "param.green_bar_count"]
+    playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-parameter")).to_have_count(100)
+    playwright.expect(page.locator("#optimization-results tbody td.optimization-varying-parameter")).to_have_count(100)
+    playwright.expect(page.locator("#optimization-parameter-legend")).to_contain_text("Hold minutes, Contracts")
+    for key in ("param.green_bar_count", "total_net_pnl"):
+        assert "optimization-varying-parameter" not in (page.locator(f'#optimization-results th[data-column="{key}"]').get_attribute("class") or "")
+    region = page.locator("#optimization-results-scroll")
+    # Both the document and the result body must actually scroll in this probe.
+    region.evaluate("element => element.scrollTop = 450")
+    page.evaluate("window.scrollTo(0, document.querySelector('#optimization-results-scroll').getBoundingClientRect().top + window.scrollY + 70)")
+    page.wait_for_function("""() => {
+        const region = document.querySelector('#optimization-results-scroll');
+        const header = document.querySelector('#optimization-results thead th');
+        return region.getBoundingClientRect().top < -20 && region.scrollTop > 400
+            && header.getBoundingClientRect().top >= -1 && header.getBoundingClientRect().top < 3;
+    }""")
+    before = page.locator("#optimization-results thead th").first.bounding_box()
+    columns_before = headers.evaluate_all("items => items.map(item => ({x: item.getBoundingClientRect().x, width: item.getBoundingClientRect().width}))")
+    metric = page.locator('#optimization-results th[data-column="total_net_pnl"]')
+    metric_x_before = metric.bounding_box()["x"]
+    region.evaluate("element => { element.scrollTop = 900; element.scrollLeft = 600; }")
+    page.wait_for_function("document.querySelector('#optimization-results-scroll').scrollTop >= 900")
+    after = page.locator("#optimization-results thead th").first.bounding_box()
+    assert abs(before["y"] - after["y"]) <= 1
+    columns_after = headers.evaluate_all("items => items.map(item => ({x: item.getBoundingClientRect().x, width: item.getBoundingClientRect().width}))")
+    assert region.evaluate("element => element.scrollLeft") == 600
+    assert abs(metric_x_before - metric.bounding_box()["x"] - 600) < 1
+    for first, second in zip(columns_before, columns_after):
+        assert abs(first["x"] - second["x"]) < 1
+    assert abs(columns_after[1]["x"] - columns_after[0]["x"] - columns_after[0]["width"]) < 1
+    # Scrolled metrics must paint underneath both frozen headers and body cells.
+    assert headers.evaluate_all("""items => items.every(cell => {
+        const r = cell.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).closest('th') === cell;
+    })""")
+    assert page.locator("#optimization-results tbody td.optimization-frozen-parameter").evaluate_all("""items => {
+        const region = document.querySelector('#optimization-results-scroll').getBoundingClientRect();
+        const header = document.querySelector('#optimization-results thead th').getBoundingClientRect();
+        const visible = items.filter(cell => {
+            const r = cell.getBoundingClientRect();
+            return r.y > header.bottom && r.bottom < Math.min(innerHeight, region.bottom) - 2;
+        });
+        return visible.length > 0 && visible.every(cell => {
+            const r = cell.getBoundingClientRect();
+            return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).closest('td') === cell;
+        });
+    }""")
+    th = page.locator('#optimization-results th[data-column="param.contracts"]')
+    td = page.locator('#optimization-results tbody td[data-column="param.contracts"]').first
+    assert abs(th.bounding_box()["x"] - td.bounding_box()["x"]) < 1
+    assert abs(th.bounding_box()["width"] - td.bounding_box()["width"]) < 1
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.screenshot(path=str(tmp_path / "scrolled-results.png"))
+    # The visible sticky header remains the real sortable column header.
+    th.get_by_role("button").click()
+    playwright.expect(th).to_have_attribute("aria-sort", "ascending")
+    playwright.expect(th.locator(".optimization-varying-badge")).to_have_text("Varies")
+    page.locator("#optimization-next").click()
+    playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(10)
+    playwright.expect(page.locator("#optimization-results tbody td.optimization-varying-parameter")).to_have_count(20)
+    playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-parameter")).to_have_count(20)
+    page.reload()
+    playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(50)
+    playwright.expect(headers).to_have_count(2)
+    records = page.request.get(f"{portal['url']}/api/optimizations/{job_id}/results?limit=100").json()
+    assert records["total"] == len(records["items"]) == 60
+    (tmp_path / "verification.json").write_text(json.dumps({
+        "synthetic": True, "job_id": job_id, "viewport": viewport,
+        "expected_varying_parameters": ["hold_minutes", "contracts"], "fixed_parameter": "green_bar_count",
+        "inner_scroll_before": 450, "inner_scroll_after": 900,
+        "header_viewport_y_before": before["y"], "header_viewport_y_after": after["y"],
+        "frozen_columns_before": columns_before, "frozen_columns_after": columns_after,
+        "horizontal_scroll": 600, "metrics_scrolled_under_frozen_cells": True,
+        "header_and_body_columns_aligned": True, "sorting_pagination_reload_verified": True,
+        "total_saved_trials": 60,
+    }, indent=2) + "\n")
+
+
+def test_single_generated_value_is_not_highlighted_even_when_endpoints_differ(page, portal):
+    prepare(page, portal)
+    page.get_by_label("Contracts end", exact=True).fill("2")
+    page.get_by_label("Contracts step", exact=True).fill("5")
+    page.locator("#start-backtest").click()
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
+    playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(1)
+    playwright.expect(page.locator("#optimization-results .optimization-varying-parameter")).to_have_count(0)
+    playwright.expect(page.locator("#optimization-results .optimization-frozen-parameter")).to_have_count(0)
+    playwright.expect(page.locator("#optimization-results thead th").first).to_have_attribute("data-column", "trial")
+    playwright.expect(page.locator("#optimization-parameter-legend")).to_have_text("All strategy parameters are fixed for this run.")
