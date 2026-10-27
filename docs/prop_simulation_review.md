@@ -1297,3 +1297,45 @@ the explicit product settings; the focused browser rerun passed both checks
 compact-report and reuse commits. Prior failing-run evidence remains under
 `08-full-suite-verified/` and `full-suite-initial.log`; the final log/XML above
 records the complete rerun against the committed feature branch.
+
+### Progress display correction — 2026-10-28
+
+Source preparation and pure-indicator preparation each scan bars before strategy
+replay. Their independent counters previously filled the same percentage bar,
+which then appeared to restart when the next phase began. The normal Backtests
+screen now labels both preparation phases explicitly, shows their own counts
+without a replay percentage, and starts the percentage bar when strategy replay
+begins. The Apex stage explains that replay finished and prop analysis is running
+before saving. A 100% replay reading describes bars, not total job completion.
+
+Actual portal evidence is saved under
+`artifacts/backtest-progress-labelled-verified-20261028/test_real_preparation_then_rep0/`: source,
+indicator and replay screenshots plus `verification.json`. The real registered
+VWAP strategy prepares its declared indicators and executes once through the
+normal API. Independent expectations on the seven-bar arithmetic source: zero
+entries, zero P&L and final equity 10,000. A single POST is observed. Source and
+indicator counts reach 7/7 without a percentage; replay then starts once at 0%.
+The report remains usable. Additional product evidence under
+`artifacts/backtest-progress-workflow-20261028/` covers selected-date completion
+and the standard cash-source configure/check/run/reopen/download journey, with
+independently expected Historical net 352,880 and source net 180,000.
+
+Reproduce in the portal: choose a dataset and the VWAP strategy, uncheck **Reopen
+identical saved results**, then run. During preparation expect **checking source
+bars** and **calculating indicators** (the latter can be skipped on a warm cache).
+The preparation count describes scanned bars. **Running backtest** introduces
+the actual replay percentage; the subsequent Apex/save stages retain completed
+replay counts and describe their remaining work. For inspectable paused stages:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_backtest_preparation_browser.py \
+  tests/test_backtests_browser.py tests/test_backtest_runtime.py \
+  --basetemp artifacts/backtest-progress-NEW
+.venv/bin/python -m pytest -q tests/test_backtest_date_range_browser.py \
+  tests/test_automatic_prop_browser.py --basetemp artifacts/progress-workflow-NEW
+```
+
+Validation passed 20 checks across both groups; the paused-stage demonstration
+was also rerun with an explicitly labelled SYNTHETIC dataset. Temporary browser
+servers are fixture-owned and shut down after validation; the existing
+application server is left running.

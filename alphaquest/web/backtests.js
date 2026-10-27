@@ -254,21 +254,28 @@
   }
 
   function paintProgress(progress, started) {
-    const titles = { waiting: "Waiting for server", preparing: "Preparing saved dataset", replaying: "Running backtest",
+    const titles = { waiting: "Waiting for server", preparing: "Preparing saved dataset",
+      preparing_data: "Preparing backtest · checking source bars", preparing_features: "Preparing backtest · calculating indicators", replaying: "Running backtest",
       saving_report: "Saving report", saving_results: "Saving run results", done: "Backtest saved", failed: "Backtest failed", unconfirmed: "Result unconfirmed" };
     get("#backtest-progress").hidden = false;
     get("#backtest-progress").classList.toggle("failed", ["failed", "unconfirmed"].includes(progress.stage));
     get("#backtest-progress-title").textContent = progress.stage.startsWith("prop_simulation:")
       ? `Apex 50K EOD · ${progress.stage.slice("prop_simulation: ".length)}` : titles[progress.stage] || "Processing backtest";
-    const determinate = !["waiting", "preparing", "failed", "unconfirmed"].includes(progress.stage) && progress.total_bars > 0;
+    // Preparation counters scan the source independently; their percentages
+    // cannot represent strategy replay or overall job completion.
+    const preparing = ["waiting", "preparing", "preparing_data", "preparing_features"].includes(progress.stage);
+    const determinate = !preparing && !["failed", "unconfirmed"].includes(progress.stage) && progress.total_bars > 0;
     const percent = determinate ? Math.min(100, progress.bars_processed / progress.total_bars * 100) : null;
     get("#backtest-progress-percent").textContent = percent === null ? "" : `${Math.floor(percent)}% of bars`;
     const bar = get("#backtest-progress-bar");
     if (percent === null) bar.removeAttribute("value");
     else bar.value = percent;
-    get("#backtest-progress-detail").textContent = progress.stage === "preparing" && progress.total_bars === 0
-      ? "Preparing selected date range…"
-      : `${count.format(progress.bars_processed || 0)} / ${count.format(progress.total_bars || 0)} bars processed`;
+    const counts = `${count.format(progress.bars_processed || 0)} / ${count.format(progress.total_bars || 0)}`;
+    get("#backtest-progress-detail").textContent = progress.stage === "preparing_data"
+      ? `${counts} source bars checked`
+      : progress.stage === "preparing_features" ? `${counts} indicator bars prepared`
+      : preparing ? "Strategy replay has not started yet."
+      : `${counts} bars processed`;
     const seconds = Math.floor((performance.now() - started) / 1000);
     get("#backtest-elapsed").textContent = seconds < 60 ? `${seconds}s elapsed` : `${Math.floor(seconds / 60)}m ${seconds % 60}s elapsed`;
   }
@@ -408,8 +415,10 @@
           const progress = await response.json();
           if (finished) return;
           current = progress;
-          get("#backtest-progress-note").textContent = progress.stage.startsWith("saving")
-            ? "Replay finished. Waiting for results to be saved."
+          get("#backtest-progress-note").textContent = ["preparing", "preparing_data", "preparing_features"].includes(progress.stage)
+            ? "Checking the source and preparing indicators before strategy replay. The percentage bar tracks strategy replay only."
+            : progress.stage.startsWith("prop_simulation:") ? "Strategy replay finished. Running Apex 50K EOD analysis before saving the result."
+            : progress.stage.startsWith("saving") ? "Replay finished. Waiting for results to be saved."
             : progress.stage === "done" ? "Results saved. Waiting for the completed run response." : "";
           paintProgress(current, started);
         } else if (!finished) {
