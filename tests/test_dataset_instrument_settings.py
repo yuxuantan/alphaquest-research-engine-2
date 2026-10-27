@@ -173,11 +173,13 @@ def test_cli_instrument_overrides_share_api_resolution_and_provenance(client, tm
     import sys
 
     dataset = save_fixture(client)
+    from research_fixtures import cli_split,declaration
     output = tmp_path / "cli-override"
     completed = subprocess.run([
         sys.executable, "-m", "alphaquest.run_backtest", "--database", str(client.app.state.store.path),
         "--dataset-id", dataset["id"], "--output", str(output), "--contracts", "2", "--initial-capital", "10000",
         "--slippage-ticks", "1", "--commission-per-contract-per-side", "1", "--tick-size", "0.5", "--point-value", "20",
+        *cli_split(declaration(dataset["id"])),
     ], capture_output=True, text=True)
     assert completed.returncode == 0, completed.stderr
     report = json.loads((output / "report.json").read_text())

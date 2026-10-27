@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from .prop.native_analysis import DEFAULTS, MODEL_VERSION, prepare
 from .prop.adapter import source_record
 from .prop.source import matching_exports
+from .research import ResearchConflict
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
 
@@ -35,7 +36,10 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
 async def check(body: AnalysisRequest, request: Request):
     try:
         snapshot,rows,settings=await run_in_threadpool(prepare,request.app.state.runs,body.source_backtest_id,body.trade_file,body.settings,body.export_timezone)
+        await run_in_threadpool(request.app.state.prop_analyses.check_oos,snapshot,settings,request.app.state.runs)
         return dict(status='compatible',source=snapshot,settings=settings,matched_trades=len(rows),model_version=MODEL_VERSION)
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from exc
     except (ValueError,KeyError,OSError) as exc:
         raise HTTPException(422,str(exc)) from exc
 
@@ -43,6 +47,8 @@ async def check(body: AnalysisRequest, request: Request):
 async def submit(body: AnalysisRequest, request: Request):
     try:
         return await run_in_threadpool(request.app.state.prop_analyses.submit,request.app.state.runs,body.model_dump())
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from exc
     except (ValueError,KeyError,OSError) as exc:
         raise HTTPException(422,str(exc)) from exc
 

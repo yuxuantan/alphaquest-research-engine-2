@@ -65,7 +65,7 @@ def test_api_saves_range_and_exact_selected_progress(client, bounds, count, firs
     selection = record["run_metadata"]["selection"]
     assert selection["row_count"] == count
     assert selection["first_source_bar_number"] == first and selection["last_source_bar_number"] == last
-    assert record["run_metadata"]["dataset"]["row_count"] == 15
+    assert record["run_metadata"]["dataset"]["row_count"] == 16  # 15 oracle bars + one reserved fixture bar
     assert record["summary"]["trades_taken"] == count // 5
     assert Decimal(record["summary"]["total_net_pnl"]) == Decimal(26) * (count // 5)
     progress = client.get("/api/progress/" + operation).json()
@@ -73,7 +73,8 @@ def test_api_saves_range_and_exact_selected_progress(client, bounds, count, firs
     assert record["reconciliation"]["observed_bar_count"] == record["reconciliation"]["expected_bar_count"] == count
     assert client.get(f"/api/backtests/{record['id']}").json() == record
     assert client.get(f"/api/datasets/{dataset['id']}").json() == dataset
-    assert client.get(f"/api/datasets/{dataset['id']}/csv").content == raw_days()
+    from research_fixtures import reserved_source
+    assert client.get(f"/api/datasets/{dataset['id']}/csv").content == reserved_source(raw_days())[0]
 
 
 def test_selection_end_is_end_of_data_and_no_outside_bars_warm_up_strategy(client):
@@ -109,8 +110,8 @@ def test_empty_range_fails_without_a_completed_report(client):
     saved = save_range_fixture(client)
     operation = str(uuid4())
     response = client.post("/api/backtests", params={"progress_id": operation}, json={**body(saved["id"]), "from_date": "2026-01-07"})
-    assert response.status_code == 422 and "No bars" in response.json()["detail"]
-    assert client.get("/api/progress/" + operation).json()["stage"] == "failed"
+    assert response.status_code == 422
+    assert client.get("/api/progress/" + operation).status_code == 404  # rejected before execution
     assert client.get("/api/backtests").json()["total"] == 0
     assert list(client.app.state.runs.root.iterdir()) == []
 
@@ -153,7 +154,7 @@ def test_cli_accepts_the_same_date_selection(tmp_path):
     saved = store.save(raw, validate_csv(raw, "days.csv", "Asia/Singapore"), "Days", "SYNTHETIC")
     store.set_instrument_settings(saved["id"], "0.25", "10")
     command = [sys.executable, "-m", "alphaquest.run_backtest", "--database", str(store.path), "--dataset-id", saved["id"], "--output", str(tmp_path / "report"),
-               "--from-date", "2026-01-05", "--to-date", "2026-01-05", "--contracts", "2", "--initial-capital", "10000", "--slippage-ticks", "1", "--commission-per-contract-per-side", "1"]
+               "--is-start", "2026-01-05", "--is-end", "2026-01-05", "--oos-start", "2026-01-06", "--oos-end", "2026-01-06", "--contracts", "2", "--initial-capital", "10000", "--slippage-ticks", "1", "--commission-per-contract-per-side", "1"]
     response = subprocess.run(command, capture_output=True, text=True, check=True)
     assert json.loads(response.stdout)["summary"]["trades_taken"] == 1
     report = json.loads((tmp_path / "report/report.json").read_text())

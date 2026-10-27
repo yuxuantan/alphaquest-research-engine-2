@@ -27,17 +27,25 @@ def _decimal_argument(value: str) -> Decimal:
 
 def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Path,
                       parameters, settings: RunSettings, *, strategy_id=sample.STRATEGY_ID,
-                      from_date=None, to_date=None, report_detail='compact',reuse_results=True,reuse_prepared=True,reuse_calculations=True) -> dict:
+                      from_date=None, to_date=None, report_detail='compact',reuse_results=True,reuse_prepared=True,reuse_calculations=True,sample_split=None) -> dict:
     """Use the normal backtest/prop catalogue; expose one output shortcut."""
     dataset = store.get(dataset_id)
     if dataset is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
     config = settings.execution_config(dataset)
     definition = get_strategy(strategy_id)
-    date_range = DateRange.parse(from_date, to_date)
+    from .research import ResearchStore,SplitDeclaration,dates_for,metadata
+    if from_date is not None or to_date is not None:
+        raise ValueError('Declare an IS/OOS split instead of from_date/to_date.')
+    if sample_split is None:raise ValueError('An IS/OOS split is required before running a backtest.')
     output=Path(output_directory).expanduser().absolute()
     if output.exists() or output.is_symlink():raise FileExistsError(f'Output already exists: {output}')
     runs=RunStore(store.path.parent)
+    research=ResearchStore(runs,recover_interrupted=False)
+    declaration=SplitDeclaration.model_validate(sample_split)
+    plan=research.resolve(store,dataset,strategy_id,declaration)
+    research.claim(plan)
+    date_range=dates_for(plan)
     analyses=AnalysisStore(store.path.parent,recover_interrupted=False)
     run_id=uuid4().hex
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -47,7 +55,7 @@ def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Pa
         # second result store. A failed run removes only its own shortcut.
         output.symlink_to(destination,target_is_directory=True)
         record=run_backtest(store,runs,run_id,dataset,definition,parameters,config,date_range,lambda *args:None,
-                            prop_analyses=analyses, report_detail=report_detail,reuse_results=reuse_results,reuse_prepared=reuse_prepared,reuse_calculations=reuse_calculations)
+                            prop_analyses=analyses, report_detail=report_detail,reuse_results=reuse_results,reuse_prepared=reuse_prepared,reuse_calculations=reuse_calculations,research=metadata(plan))
         if record['id']!=run_id:
             output.unlink();output.symlink_to(runs.root/record['id'],target_is_directory=True)
         return record
@@ -65,6 +73,9 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="New directory for report.json, trades.csv, equity.csv")
     parser.add_argument("--from-date", help="Inclusive YYYY-MM-DD in the saved source timezone")
     parser.add_argument("--to-date", help="Inclusive YYYY-MM-DD in the saved source timezone")
+    parser.add_argument('--is-percent',type=float,help='IS percentage of chronological whole trading dates; the remainder is reserved for OOS.')
+    for name in ('is-start','is-end','oos-start','oos-end'):
+        parser.add_argument('--'+name,help='Inclusive YYYY-MM-DD in the saved source timezone')
     parser.add_argument('--report-detail',choices=('compact','full'),default='compact',help='Compact retains all trades and trade-close equity; full also writes per-bar JSON.')
     parser.add_argument("--fresh",action="store_true",help="Force a fresh backtest and prop calculation; bypass prepared data reuse.")
     parser.add_argument("--green-bar-count", type=int, default=3)
@@ -92,8 +103,11 @@ def main():
                                args.tick_size, args.point_value)
         if not args.database.is_file():
             raise DatasetReadError(f"Dataset database does not exist: {args.database}")
+        split=dict(mode='percentage',is_percent=args.is_percent) if args.is_percent is not None else dict(mode='dates',is_start=args.is_start,is_end=args.is_end,oos_start=args.oos_start,oos_end=args.oos_end)
+        if args.is_percent is not None and any((args.is_start,args.is_end,args.oos_start,args.oos_end)):
+            raise ValueError('Choose --is-percent or all four explicit dates, not both.')
         manifest = run_saved_dataset(DatasetStore(args.database), args.dataset_id, args.output, parameters, settings,
-                                     strategy_id=args.strategy_id, from_date=args.from_date, to_date=args.to_date, report_detail=args.report_detail,reuse_results=not args.fresh,reuse_prepared=not args.fresh,reuse_calculations=not args.fresh)
+                                     strategy_id=args.strategy_id, from_date=args.from_date, to_date=args.to_date, report_detail=args.report_detail,reuse_results=not args.fresh,reuse_prepared=not args.fresh,reuse_calculations=not args.fresh,sample_split=split)
     except (ValueError, OSError, InvalidOperation, InvalidDataset) as exc:
         parser.error(str(exc))
     print(json.dumps({"output_directory": str(args.output), "summary": manifest["summary"],

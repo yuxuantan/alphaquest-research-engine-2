@@ -1,5 +1,7 @@
 """Rendered equity axes adapt to financial ranges without altering saved results."""
 
+from research_fixtures import ResearchHTTPClient
+
 from decimal import Decimal
 
 import httpx
@@ -22,7 +24,7 @@ from test_backtest_api import body
     (('0', '0'), ['-1', '-0.5', '0', '0.5', '1']),
 ], ids=['screenshot-range', 'flat', 'negative', 'cross-zero', 'fractional', 'large', 'tiny', 'falling', 'flat-negative', 'flat-zero'])
 def test_dynamic_equity_axis_labels_bounds_and_mobile_readouts(page, portal, values, labels):
-    with httpx.Client(base_url=portal['url']) as client:
+    with ResearchHTTPClient(base_url=portal['url']) as client:
         response = client.post('/api/backtests', json=body(portal['saved']['arithmetic_5m']['id']))
         assert response.status_code == 201, response.text
         record = response.json()
@@ -51,5 +53,5 @@ def test_dynamic_equity_axis_labels_bounds_and_mobile_readouts(page, portal, val
     playwright.expect(axis).to_have_text(labels)
     assert axis.evaluate_all('els => els.every(el => el.getBBox().x >= 0)')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
-    with httpx.Client(base_url=portal['url']) as client:
+    with ResearchHTTPClient(base_url=portal['url']) as client:
         assert client.get('/api/backtests/' + record['id']).json() == record

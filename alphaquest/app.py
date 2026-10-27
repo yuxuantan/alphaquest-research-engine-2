@@ -26,6 +26,8 @@ from .optimization_api import router as optimization_router
 from .prop_api import router as prop_router
 from .prop.store import AnalysisStore
 from .strategy_library import StrategyLibrary,router as strategy_library_router
+from .research import ResearchStore
+from .research_api import router as research_router
 
 WEB = Path(__file__).parent / "web"
 
@@ -85,6 +87,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     async def lifespan(app):
         app.state.store = DatasetStore(db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3")
         app.state.runs = RunStore(app.state.store.path.parent)
+        app.state.research = ResearchStore(app.state.runs)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
         app.state.optimizations = OptimizationStore(app.state.runs, app.state.prop_analyses)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
@@ -94,6 +97,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.prop_analyses.close()
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
+    app.include_router(research_router)
     app.include_router(optimization_router)
     app.include_router(backtest_router)
     app.include_router(prop_router)

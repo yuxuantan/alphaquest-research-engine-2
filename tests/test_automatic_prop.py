@@ -183,9 +183,11 @@ def test_cli_uses_default_analysis_and_normal_catalogue_without_interrupting_job
     with client.app.state.prop_analyses.connect() as db:
         db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(pending,'pending','d'*32,'2026-01-01','queued','Queued',None))
     output=tmp_path/'cli-default-report'
+    from research_fixtures import declaration
+    split_args=[value for key,value in declaration(dataset['id']).items() if key!='mode' for value in ('--'+key.replace('_','-'),value)]
     completed=subprocess.run([sys.executable,'-m','alphaquest.run_backtest','--database',str(client.app.state.store.path),
         '--dataset-id',dataset['id'],'--output',str(output),'--initial-capital','10000','--slippage-ticks','1',
-        '--commission-per-contract-per-side','1'],capture_output=True,text=True,check=True)
+        '--commission-per-contract-per-side','1',*split_args],capture_output=True,text=True,check=True)
     result=json.loads(completed.stdout)
     record=client.get('/api/backtests/'+result['backtest_id']).json()
     automatic=record['run_metadata']['automatic_prop_analysis']

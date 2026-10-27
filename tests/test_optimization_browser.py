@@ -7,6 +7,7 @@ import pytest
 
 from test_backtests_browser import browser, page, portal, playwright
 from alphaquest.strategies import consecutive_green_hold as sample
+from research_fixtures import reserved_source,declare_in_form
 
 
 def prepare(page, portal):
@@ -370,7 +371,7 @@ def test_worker_retry_retains_inspectable_product_evidence(page, portal, tmp_pat
     response = page.request.post(portal["url"] + "/api/datasets", params={
         "filename": "SYNTHETIC-worker-retry.csv", "name": "SYNTHETIC worker retry review",
         "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10",
-    }, data=b"\xef\xbb\xbf" + source.read_bytes(), headers={"content-type": "text/csv"})
+    }, data=b"\xef\xbb\xbf" + reserved_source(source.read_bytes())[0], headers={"content-type": "text/csv"})
     assert response.status == 201, response.text()
     dataset = response.json()
     page.route("**/api/backtests/settings", lambda route: route.fulfill(status=503, json={"detail": "Review: temporary settings outage"}))
@@ -378,6 +379,7 @@ def test_worker_retry_retains_inspectable_product_evidence(page, portal, tmp_pat
     playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     playwright.expect(page.locator("#optimization-workers")).to_have_text("Worker options unavailable")
     page.locator("#backtest-dataset").select_option(dataset["id"])
+    declare_in_form(page,reserved_source(source.read_bytes())[1])
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
     page.get_by_label("Contracts end", exact=True).fill("3")
@@ -413,10 +415,11 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     response = page.request.post(portal["url"] + "/api/datasets", params={
         "filename": "SYNTHETIC-table-review.csv", "name": "SYNTHETIC optimization table review",
         "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10",
-    }, data=b"\xef\xbb\xbf" + source.read_bytes(), headers={"content-type": "text/csv"})
+    }, data=b"\xef\xbb\xbf" + reserved_source(source.read_bytes())[0], headers={"content-type": "text/csv"})
     assert response.status == 201
     prepare(page, portal)
     page.locator("#backtest-dataset").select_option(response.json()["id"])
+    declare_in_form(page,reserved_source(source.read_bytes())[1])
     page.get_by_label("Hold minutes end", exact=True).fill("25")
     page.get_by_label("Hold minutes step", exact=True).fill("5")
     page.get_by_label("Contracts end", exact=True).fill("30")
@@ -532,7 +535,7 @@ def test_resume_remaining_trials_preserves_twelve_saved_reports(page, portal, tm
     response = page.request.post(portal["url"] + "/api/datasets", params={
         "filename": "SYNTHETIC-database-recovery.csv", "name": "SYNTHETIC database recovery review",
         "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10",
-    }, data=b"\xef\xbb\xbf" + source.read_bytes(), headers={"content-type": "text/csv"})
+    }, data=b"\xef\xbb\xbf" + reserved_source(source.read_bytes())[0], headers={"content-type": "text/csv"})
     assert response.status == 201
     store = portal["app"].state.optimizations
     publish = store.publish
@@ -545,6 +548,7 @@ def test_resume_remaining_trials_preserves_twelve_saved_reports(page, portal, tm
     monkeypatch.setattr(store, "publish", unavailable_last_batch)
     prepare(page, portal)
     page.locator("#backtest-dataset").select_option(response.json()["id"])
+    declare_in_form(page,reserved_source(source.read_bytes())[1])
     page.locator("#optimization-workers").select_option("4")
     page.get_by_label("Hold minutes end", exact=True).fill("35")
     page.get_by_label("Hold minutes step", exact=True).fill("5")

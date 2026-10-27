@@ -18,6 +18,7 @@ from .backtest_data import DateRange
 from .datasets import COLUMNS
 from .optimization import grid, DEFAULT_WORKERS, MAX_WORKERS
 from .strategies.registry import get_strategy
+from .research import ResearchConflict,dates_for,metadata as research_metadata
 
 
 
@@ -35,7 +36,8 @@ async def start(body: OptimizationRequest, request: Request):
     try:
         definition = get_strategy(body.strategy_id)
         axes, total = await run_in_threadpool(grid, definition, body.parameter_ranges)
-        dates = DateRange.parse(body.from_date, body.to_date)
+        if body.from_date is not None or body.to_date is not None:
+            raise ValueError('Declare IS/OOS with sample_split instead of from_date/to_date.')
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from None
     dataset = await run_in_threadpool(request.app.state.store.get, body.dataset_id)
@@ -45,10 +47,15 @@ async def start(body: OptimizationRequest, request: Request):
         raise HTTPException(422, "Unsupported dataset schema.")
     try:
         config = body.execution_settings.execution_config(dataset)
+        plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
+        await run_in_threadpool(request.app.state.research.claim, plan)
+        dates = dates_for(plan)
+    except ResearchConflict as exc:
+        raise HTTPException(409, str(exc)) from None
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
     store = request.app.state.optimizations
-    job = await run_in_threadpool(store.create, body, dataset, definition, config, axes, total)
+    job = await run_in_threadpool(store.create, body, dataset, definition, config, axes, total, research_metadata(plan))
     store.executor.submit(store.run, job, request.app.state.store, definition, config, dates)
     return job
 
@@ -103,7 +110,11 @@ def resume(job_id: UUID, request: Request):
         settings = {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()}
         if settings != job["execution_settings"]:
             raise ValueError("Execution settings no longer match this job. Start a new optimization.")
-        dates = DateRange.parse(body.from_date, body.to_date)
+        if not job.get('research') or job['research']['phase']!='is':
+            raise ValueError('This historical job has no IS/OOS declaration and cannot be resumed. Declare a split and start a new IS job.')
+        plan=request.app.state.research.resolve(request.app.state.store,dataset,body.strategy_id,body.sample_split)
+        if plan!=job['research']['plan']:raise ValueError('The saved research declaration no longer matches.')
+        dates = dates_for(plan)
     except sqlite3.OperationalError as exc:
         raise HTTPException(503, str(exc)) from None
     except (TypeError, ValueError) as exc:

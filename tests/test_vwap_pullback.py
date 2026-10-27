@@ -12,7 +12,7 @@ import subprocess
 import sys
 from zoneinfo import ZoneInfo
 
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 import pytest
 
 from alphaquest.app import create_app
@@ -296,7 +296,8 @@ def test_cli_writes_real_report_with_selected_strategy_parameters(tmp_path):
     writer = csv.writer(source)
     writer.writerow("Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol".split(","))
     writer.writerows(row.source_fields for row in scenario())
-    raw = source.getvalue().encode()
+    from research_fixtures import reserved_source,cli_split
+    raw,split = reserved_source(source.getvalue().encode())
     database = tmp_path / "datasets.sqlite3"
     store = DatasetStore(database)
     saved = store.save(raw, validate_csv(raw, "synthetic.csv", "UTC"), "synthetic", "NQ")
@@ -306,6 +307,7 @@ def test_cli_writes_real_report_with_selected_strategy_parameters(tmp_path):
         sys.executable, "-m", "alphaquest.run_backtest", "--database", str(database),
         "--dataset-id", saved["id"], "--output", str(output),
         '--report-detail','full',
+        *cli_split(split),
         "--strategy-id", "vwap_pullback_risk_sizing",
         "--strategy-parameters", json.dumps(asdict(parameters()), default=json_value),
         "--initial-capital", "10000",

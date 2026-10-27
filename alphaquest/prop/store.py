@@ -86,6 +86,8 @@ class AnalysisStore:
         # Source fingerprint is checked by preparation, and included in the key.
         from .native_analysis import prepare
         snapshot,_,settings=prepare(runs,request['source_backtest_id'],request.get('trade_file'),request['settings'],request['export_timezone'])
+        existing=self.check_oos(snapshot,settings,runs)
+        if existing:return existing
         request={**request,'trade_file':snapshot['excursion_input']['path'] or ''}
         key=request_key(snapshot,settings)
         with self.connect() as db:
@@ -98,6 +100,38 @@ class AnalysisStore:
             db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(id,key,request['source_backtest_id'],datetime.now(timezone.utc).isoformat(),'queued','Queued',None))
         self.worker.submit(self._run,runs,id,request,(snapshot['trades_sha256'],snapshot['excursion_input']['sha256']))
         return self.get(id)
+
+    def check_oos(self,snapshot,settings,runs):
+        """A saved OOS source can reopen its verified automatic report only."""
+        record=snapshot['backtest']
+        research=record['run_metadata'].get('research') or {}
+        if research.get('phase')=='is':return None
+        if research.get('phase')!='oos':
+            # A pre-policy full-history report must not become a way to tune
+            # prop assumptions on a subsequently declared holdout indefinitely.
+            with runs.connect() as db:
+                exists=db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_plans'").fetchone()
+                row=db.execute('SELECT payload FROM research_plans WHERE strategy_id=? AND source_sha256=?',
+                    (record['run_metadata']['strategy']['id'],record['run_metadata']['dataset']['sha256'])).fetchone() if exists else None
+            if not row:return None
+            plan=json.loads(row[0])
+            from zoneinfo import ZoneInfo
+            zone=ZoneInfo(plan['source_timezone'])
+            start=datetime.fromisoformat(record['period_start_utc'].replace('Z','+00:00')).astimezone(zone).date().isoformat()
+            end=datetime.fromisoformat(record['period_end_utc'].replace('Z','+00:00')).astimezone(zone).date().isoformat()
+            if plan['is_start']<=start<=end<=plan['is_end']:return None
+            with self.connect() as db:
+                cached=db.execute("SELECT id FROM analyses WHERE source_id=? AND request_hash=? AND status='complete' ORDER BY created DESC LIMIT 1",(record['id'],request_key(snapshot,settings))).fetchone()
+            if cached and self.fingerprint(cached[0]) is not None:return self.get(cached[0])
+            from ..research import ResearchConflict
+            raise ResearchConflict('This legacy report includes data outside the locked IS period. New prop calculations require a declared IS report or a budgeted OOS selection; existing saved reports remain readable.')
+        from ..research import ResearchConflict
+        automatic=record['run_metadata'].get('automatic_prop_analysis',{})
+        saved=self.get(automatic.get('id',''))
+        if (saved and saved['source_id']==record['id'] and saved['status']=='complete'
+                and saved['request_hash']==request_key(snapshot,settings) and self.fingerprint(saved['id']) is not None):
+            return saved
+        raise ResearchConflict('New OOS prop calculations are blocked outside the OOS budget. Reopen the saved automatic analysis, or explicitly select an IS parameter set for another budgeted OOS test.')
 
     def _update(self,id,status,progress,error=None):
         with self.connect() as db:db.execute('UPDATE analyses SET status=?,progress=?,error=? WHERE id=?',(status,progress,error,id))

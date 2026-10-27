@@ -9,7 +9,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import statistics
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 from alphaquest.app import create_app
 
 

@@ -4,6 +4,7 @@ from typing import Any,Literal
 from pydantic import BaseModel,ConfigDict,Field,StrictBool,StrictInt,StrictStr
 from .backtest_config import RunSettings
 from .worker_limits import DEFAULT_WORKERS,MAX_WORKERS
+from .research import SplitDeclaration
 
 
 class ExecutionSettings(BaseModel):
@@ -39,5 +40,6 @@ class OptimizationRequest(BaseModel):
     reuse_results: StrictBool = True
     prepare_data: StrictBool = True
     execution_settings: ExecutionSettings
+    sample_split: SplitDeclaration
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None

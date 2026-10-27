@@ -3,6 +3,7 @@ import json
 from threading import Event
 from test_backtests_browser import browser,page,portal,playwright,prepare,post_requests,FIXTURES
 from alphaquest import backtest_api,prepared_data,strategy_features
+from research_fixtures import reserved_source,register,seed_declarations
 
 
 def test_real_preparation_then_replay_uses_a_single_percentage_bar(page,portal,tmp_path,monkeypatch):
@@ -34,11 +35,13 @@ def test_real_preparation_then_replay_uses_a_single_percentage_bar(page,portal,t
     monkeypatch.setattr(prepared_data,'prepare_data',paused_data)
     monkeypatch.setattr(strategy_features,'prepare_features',paused_features)
     monkeypatch.setattr(backtest_api,'prepare_backtest_report',paused_report)
+    raw,split=reserved_source((FIXTURES/'arithmetic_5m.csv').read_bytes())
     uploaded=page.request.post(portal['url']+'/api/datasets',
         params=dict(filename='SYNTHETIC-progress-stages.csv',name='SYNTHETIC progress stage demonstration',source_timezone='UTC',tick_size='.25',point_value='10'),
-        data=b'\xef\xbb\xbf'+(FIXTURES/'arithmetic_5m.csv').read_bytes())
+        data=b'\xef\xbb\xbf'+raw)
     assert uploaded.status==201
     portal['saved']['arithmetic_5m']=uploaded.json()
+    register(uploaded.json(),split);seed_declarations(portal['app'])
     prepare(page,portal)
     page.locator('#backtest-strategy').select_option('vwap_pullback_risk_sizing')
     requests=post_requests(page)
@@ -47,7 +50,7 @@ def test_real_preparation_then_replay_uses_a_single_percentage_bar(page,portal,t
         page.locator('#start-backtest').click()
         assert entered['source'].wait(10)
         playwright.expect(page.locator('#backtest-progress-title')).to_contain_text('checking source bars')
-        playwright.expect(page.locator('#backtest-progress-detail')).to_have_text('7 / 7 source bars checked')
+        playwright.expect(page.locator('#backtest-progress-detail')).to_have_text('8 / 8 source bars checked')
         playwright.expect(percent).to_have_text('')
         assert bar.get_attribute('value') is None
         page.locator('#backtest-progress').screenshot(path=str(tmp_path/'01-source-preparation.png'))

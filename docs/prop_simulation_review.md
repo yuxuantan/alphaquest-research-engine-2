@@ -1370,3 +1370,44 @@ checking, invalid-setting rejection, configure/run/reopen, downloads and stable
 original-report hashes. All servers used for demonstrations are temporary test
 fixtures and stop after the checks. The user's existing checkout/server and
 Windows VM are untouched; only this request's branch is published.
+
+## Declared IS/OOS research and budgeted holdout execution
+
+The normal product now requires an explicit date or percentage declaration before
+a single backtest or exhaustive batch. Only IS trades reach the default native
+Apex calculation. The normal saved IS report exposes its exact parameters, locked
+OOS dates and shared remaining budget. Explicit confirmation runs that one set
+on OOS and publishes a normal source-bound backtest and prop report. Three atomic
+reservations are allowed per strategy/source, including failed/interrupted work.
+A fourth is blocked across parameters, deleted reports, restarts and identical
+CSV re-uploads. Old reports remain immutable and are labelled Legacy.
+
+Actual saved product journey and independent expectations are documented in
+[research_workflow.md](research_workflow.md), with original evidence under
+`artifacts/is-oos-20261028/browser-01/`. The labelled 120-weekday, 50/50 cash
+source yields **60 trades / 180,000 CU trading net / 352,880 USD Historical net**
+in each independent 60-weekday period. Expected payouts are 360,000 and acquisition
+fees are 7,120, including activation. The saved JSON and screenshots cover upload,
+split review, IS execution, configure/source check/run/reopen/download, an IS
+parameter sweep, explicit one-trial OOS selection and the same durable OOS prop
+journey. Standard counts and the local model remain unchanged.
+
+The two-weekday boundary journey independently expects one 30 CU trade per period
+and incompatible prop input for one weekday, never a fabricated cash zero. Its
+cancelled OOS confirmation spends nothing, its first three confirmed attempts
+consume the budget, and both UI and API reject the fourth. IS remains available.
+New API checks cover malformed/empty/overlapping declarations, immutable plans,
+IS/OOS trade separation, frozen costs/parameters, concurrent limits, idempotent
+UUID retries, failures, restart recovery and budget persistence after deletion.
+Fixture servers are temporary and stop normally. Existing data/report preservation
+and local-server activation are recorded separately in the running checkout's
+`artifacts/is-oos-20261028/` when deployed locally.
+
+The same budget boundary applies to manual prop calculations: verified saved OOS
+results can reopen freely, while changed settings, exports and fresh calculations
+are rejected outside a budgeted IS selection. OOS configuration shows the saved
+defaults without editable tuning controls. Legacy full-period reports spanning a
+locked holdout cannot launch fresh prop calculations either. Original reports
+remain readable. The product browser case checks HTTP 409 for both check/submit
+with altered OOS activation fees, then successfully source-checks/reopens/downloads
+the original default report with its source and fees unchanged.

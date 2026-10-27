@@ -12,6 +12,7 @@
     <script src="/static/app.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
     <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
@@ -329,15 +330,24 @@
                     <p class="field-help" id="backtest-instrument-status" role="status"></p>
                     <p class="field-help" id="point-value-help">Point value is money per 1.0 price point, per contract. Run-specific edits leave the saved dataset defaults unchanged.</p>
                     <a href="#datasets" class="small">Edit instrument settings in Datasets →</a>
-                    <div class="backtest-execution-grid">
-                      <label>From date <span class="muted small">optional</span>
-                        <input id="backtest-from-date" name="from_date" type="date" aria-label="From date" aria-describedby="backtest-date-range-help" />
-                      </label>
-                      <label>To date <span class="muted small">optional</span>
-                        <input id="backtest-to-date" name="to_date" type="date" aria-label="To date" aria-describedby="backtest-date-range-help" />
-                      </label>
+                    <h3>Required IS / OOS declaration</h3>
+                    <label for="sample-split-mode">Split method</label>
+                    <select id="sample-split-mode" required><option value="">Choose a split method</option><option value="percentage">Percentage of trading dates</option><option value="dates">Explicit dates</option></select>
+                    <div id="sample-percent-fields" class="backtest-execution-grid" hidden>
+                      <label>IS %<input id="sample-is-percent" type="number" min="0.01" max="99.99" step="0.01" value="70" /></label>
+                      <label>OOS %<input id="sample-oos-percent" type="text" value="30" readonly /></label>
                     </div>
-                    <p class="field-help" id="backtest-date-range-help">Both dates are inclusive in the dataset's saved source timezone. Leave blank to use all available dates.</p>
+                    <div id="sample-date-fields" class="backtest-execution-grid" hidden>
+                      <label>IS start<input id="backtest-from-date" type="date" aria-label="IS start" /></label>
+                      <label>IS end<input id="backtest-to-date" type="date" aria-label="IS end" /></label>
+                      <label>OOS start<input id="sample-oos-start" type="date" /></label>
+                      <label>OOS end<input id="sample-oos-end" type="date" /></label>
+                    </div>
+                    <p class="field-help" id="backtest-date-range-help">Dates are inclusive in the saved source timezone. Percentages split chronological whole trading dates, rounding the IS date count down. IS must precede OOS. Only IS bars and trades enter the initial backtest and prop analysis.</p>
+                    <button id="sample-review" class="button secondary" type="button">Review IS/OOS split</button>
+                    <p id="sample-status" class="field-help" role="status">Choose a dataset, strategy and split method before running.</p>
+                    <p id="sample-budget" class="field-help" role="status"></p>
+                    <p class="field-help">The first IS submission locks this split for this strategy and dataset source. OOS requires explicitly selecting one saved IS parameter set. A maximum of 3 OOS attempts is permitted; failed or interrupted attempts also count.</p>
                     <p class="field-help">The strategy starts fresh on the first selected bar. Signal counts and indicators use only selected bars; remaining positions close at the selection's end.</p>
                     <label for="backtest-strategy">Strategy</label>
                     <select id="backtest-strategy" required aria-describedby="strategy-description">
@@ -440,6 +450,14 @@
             <button id="report-delete" class="button danger" type="button">Delete backtest</button>
             <p id="report-storage-note" class="small muted"></p>
             <p id="report-detail-status" class="small" role="status" aria-live="polite" hidden></p>
+            <section id="report-research" class="panel report-prop-content" aria-label="IS and OOS research">
+              <h2 id="report-research-title">Research period</h2>
+              <p id="report-research-period"></p><p id="report-oos-budget" role="status"></p>
+              <p id="report-oos-parameters" class="small"></p>
+              <button id="report-run-oos" type="button" class="button primary" hidden>Run OOS with these parameters</button>
+              <p id="report-oos-status" class="small" role="status"></p>
+              <a id="report-oos-result" class="button secondary" hidden>Open saved OOS report →</a>
+            </section>
             <div id="report-summary" class="report-summary"></div>
             <section class="panel report-panel" aria-labelledby="equity-chart-title">
               <div class="panel-heading"><div><h2 id="equity-chart-title">Trade-close equity · CU</h2></div></div>

@@ -13,7 +13,7 @@ import pytest
 from alphaquest.execution import EquityPoint, ExecutionError, Trade, execute
 from alphaquest.reporting import ReportError, generate_report, json_value
 from alphaquest.strategy import CloseIntent, EntryIntent, ExecutionConfig
-from review_execution import ScheduledStrategy, fixtures
+from review_execution import ScheduledStrategy, fixtures, FIXTURES
 from review_reports import review_fixture
 from test_execution import bar
 
@@ -279,6 +279,8 @@ def test_cli_runs_by_saved_id_with_provenance_and_clear_invalid_decimal_error(tm
     output = tmp_path / "cli-report"
     command = [sys.executable, "-m", "alphaquest.run_backtest", "--database", str(tmp_path / case["id"] / "datasets.sqlite3"),
                "--dataset-id", dataset_id, "--output", str(output), "--initial-capital", "10000", "--slippage-ticks", "1", "--commission-per-contract-per-side", "1", "--contracts", "2"]
+    from research_fixtures import reserved_source,cli_split
+    command+=cli_split(reserved_source((FIXTURES / case["csv"]).read_bytes())[1])
     completed = subprocess.run(command, text=True, capture_output=True, check=True)
     assert json.loads(completed.stdout)["summary"]["total_net_pnl"] == "26.00"
     report = read_report(output)

@@ -45,7 +45,7 @@
     get("#optimization-workers-retry").disabled = state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
-    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || (optimizing() && !window.optimizations.workersReady());
+    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || !window.researchSplit.ready() || (optimizing() && !window.optimizations.workersReady());
     start.textContent = state.busy ? "Submitting / running…" : optimizing() ? "Start backtests →" : "Start backtest →";
     form.setAttribute("aria-busy", String(state.busy));
   }
@@ -134,11 +134,13 @@
       ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, BACKTEST LOOKAHEAD uses the last daytime bar to infer each session close, then closes five minutes earlier (at/before 15:55 CT) and blocks later entries. A missing cutoff minute uses the preceding available bar. Truncated data is treated as an early close. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     window.optimizations.configure(strategy);
+    window.researchSplit.configure(datasetSelect.value,strategySelect.value);
     controls();
   }
 
   function renderDataset(resetValues = true) {
     const dataset = selectedDataset();
+    window.researchSplit.configure(datasetSelect.value,strategySelect.value);
     get("#backtest-dataset-info").textContent = dataset
       ? `${count.format(dataset.row_count)} bars · ${dataset.filename} · ${dataset.start.replace("T", " ").replace("Z", " UTC")} to ${dataset.end.replace("T", " ").replace("Z", " UTC")}`
       : "Choose a saved dataset. New datasets can be uploaded and saved in Datasets.";
@@ -163,7 +165,7 @@
       : settings ? state.instrumentEdited ? "Instrument values edited for this run. Dataset defaults stay unchanged."
         : "Using dataset defaults. Edit the values above to override them for this run only."
       : "Set tick size and monetary point value in Datasets before running a backtest.";
-    get("#backtest-date-range-help").textContent = `Both dates are inclusive${dataset ? " in " + dataset.source_timezone : " in the dataset's saved source timezone"}. Leave either blank for an open end, or both blank for the full dataset.`;
+    get("#backtest-date-range-help").textContent = `All dates are inclusive${dataset ? " in " + dataset.source_timezone : " in the dataset's saved source timezone"}. Percentages split chronological whole trading dates, rounding the IS date count down. IS must precede OOS; initial backtests and prop simulations use IS only.`;
     controls();
   }
 
@@ -250,8 +252,7 @@
       dataset_id: datasetSelect.value, strategy_id: strategySelect.value,
       strategy_parameters: Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.dataset.type === "bool" ? input.checked : input.dataset.type === "Decimal" ? input.value.trim() : Number(input.value)])),
       execution_settings: execution,
-      ...(fromDate.value ? { from_date: fromDate.value } : {}),
-      ...(toDate.value ? { to_date: toDate.value } : {}),
+      sample_split: window.researchSplit.payload(),
     };
   }
 
@@ -287,11 +288,11 @@
     const compact = record.report_storage?.detail === "compact";
     const compressed = record.report_storage?.compression === "gzip";
     get("#report-storage-note").textContent = compact
-      ? "Compact report · All metrics, trades and trade-close equity are saved. Per-bar equity is available by generating a full-detail replay of this parameter set."
+      ? "Compact report · All metrics, trades and trade-close equity are saved. " + (record.run_metadata.research?.phase === 'is' ? "Per-bar equity is available by generating a full-detail replay of this IS parameter set." : "OOS and legacy reports cannot request an unbudgeted full-detail replay.")
       : `Full report · Includes per-bar equity${compressed ? "; JSON is compressed with gzip" : ""}.`;
     get("#report-json-download").href = `/api/backtests/${record.id}/exports/report`;
     get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
-    get("#report-generate-detail").hidden = !compact;
+    get("#report-generate-detail").hidden = !compact || record.run_metadata.research?.phase !== 'is';
     get("#report-generate-detail").disabled = detailedBusy;
     get("#report-detail-status").hidden = true;
     const content = get("#backtest-completion-content");
@@ -476,6 +477,7 @@
   strategySelect.addEventListener("change", renderStrategy);
   refresh.addEventListener("click", loadChoices);
   window.addEventListener("optimization-workers-changed", controls);
+  window.addEventListener("research-split-changed", controls);
 
   function modeChanged(loadWorkers=true) {
     get("#strategy-parameters").hidden = optimizing();

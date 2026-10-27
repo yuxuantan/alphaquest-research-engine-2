@@ -8,11 +8,13 @@ import re
 
 from test_backtests_browser import browser,page,portal,playwright
 from test_automatic_prop import synthetic_history,expected_cash
+from research_fixtures import reserved_source,register,declare_in_form
 
 
 def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,tmp_path):
     source=tmp_path/'SYNTHETIC-automatic-apex-cash.csv'
-    source.write_bytes(synthetic_history())
+    raw,split=reserved_source(synthetic_history())
+    source.write_bytes(raw)
     page.goto(portal['url'])
     page.locator('#csv-file').set_input_files(source)
     page.locator('#dataset-name').fill('SYNTHETIC automatic Apex cash arithmetic')
@@ -24,9 +26,11 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.locator('#save-button').click()
     playwright.expect(page.locator('#validation-result')).to_contain_text('Dataset saved')
     dataset=next(d for d in page.request.get(portal['url']+'/api/datasets').json() if d['name']=='SYNTHETIC automatic Apex cash arithmetic')
+    register(dataset,split)
     page.get_by_role("link", name="Strategies", exact=True).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
     page.locator('#backtest-dataset').select_option(dataset['id'])
+    declare_in_form(page,split)
     page.locator('#strategy-green_bar_count').fill('1')
     page.locator('#strategy-hold_minutes').fill('1')
     page.locator('#strategy-contracts').fill('1')

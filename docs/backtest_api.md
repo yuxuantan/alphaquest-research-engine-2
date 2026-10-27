@@ -1,5 +1,11 @@
 # Backtest API review
 
+All new executions now require a declared IS/OOS split. Read the
+[current research workflow and request examples](research_workflow.md) first.
+The earlier qualification snapshots and date-selection examples below document
+the prior API contract; they remain historical evidence, not a bypass of the new
+required declaration or OOS budget.
+
 The existing FastAPI server exposes the tested reader, allowlisted strategy,
 engine, and reporter. The Backtests configuration and completed report screens
 use these APIs. Start the server with:
@@ -242,3 +248,13 @@ legacy/new CSV downloads, unknown-job and ambiguous-request rejection. Together
 with the existing API/grid suite, 95 checks passed under
 `artifacts/strategies-navigation/01-api-verified/` and
 `01-unified-endpoint/`.
+
+## Required research declarations
+
+New single and exhaustive requests require `sample_split`; `from_date` and
+`to_date` are replaced by explicit IS/OOS dates or an IS percentage. Initial
+execution and default prop calculations are IS only. A separate explicit selected
+IS-report action runs one OOS parameter set and consumes a permanent slot from
+the hardcoded three-attempt strategy/source budget. See
+[the complete research workflow, endpoints and CLI contract](research_workflow.md).
+Historical reports remain readable; undeclared historical jobs cannot resume.

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from threading import Event
 import time
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 import pytest
 from alphaquest.app import create_app
 from alphaquest.backtest_runs import RunStore

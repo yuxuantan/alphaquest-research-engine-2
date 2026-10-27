@@ -1,5 +1,7 @@
 """Chromium selection, submitted dates, progress count and report reopening."""
 
+from research_fixtures import ResearchHTTPClient,declare_in_form,declaration
+
 from pathlib import Path
 
 import httpx
@@ -10,7 +12,7 @@ expect = playwright.expect
 
 
 def save_days(portal):
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         response = client.post("/api/datasets", params={"filename": "range.csv", "name": "Three day range", "source_timezone": "Asia/Singapore", "tick_size": "0.25", "point_value": "10"}, content=raw_days())
         assert response.status_code == 201, response.text
         return response.json()
@@ -21,11 +23,11 @@ def test_select_run_and_reopen_one_day_in_source_timezone(page, portal):
     prepare(page, portal)
     page.locator("#backtest-dataset").select_option(saved["id"])
     expect(page.locator("#backtest-date-range-help")).to_contain_text("inclusive in Asia/Singapore")
-    page.get_by_label("From date", exact=True).fill("2026-01-05")
-    page.get_by_label("To date", exact=True).fill("2026-01-05")
     # The dates remain while switching strategies and portal screens.
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
     page.locator("#backtest-strategy").select_option("consecutive_green_hold")
+    declare_in_form(page,dict(mode="dates",is_start="2026-01-05",is_end="2026-01-05",oos_start="2026-01-06",oos_end="2026-01-06"))
+    expect(page.locator("#start-backtest")).to_be_enabled()
     page.get_by_role("link", name="Datasets", exact=True).click()
     page.get_by_role("link", name="Strategies", exact=True).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
@@ -36,7 +38,7 @@ def test_select_run_and_reopen_one_day_in_source_timezone(page, portal):
     assert completed.value.status == 201
     record = completed.value.json()
     assert len(requests) == 1
-    assert requests[0].post_data_json["from_date"] == requests[0].post_data_json["to_date"] == "2026-01-05"
+    assert requests[0].post_data_json["sample_split"]["is_start"] == requests[0].post_data_json["sample_split"]["is_end"] == "2026-01-05"
     assert record["run_metadata"]["selection"]["row_count"] == 5
     expect(page.locator("#backtest-completion")).to_be_visible()
     expect(page.locator("#report-net")).to_have_text("26.00")
@@ -59,31 +61,29 @@ def test_select_run_and_reopen_one_day_in_source_timezone(page, portal):
         assert Path(downloaded.value.path()).read_bytes() == source.read_bytes()
 
 
-def test_invalid_empty_open_ended_and_cleared_range(page, portal):
+def test_invalid_missing_and_locked_research_range(page, portal):
     saved = save_days(portal)
     prepare(page, portal)
     page.locator("#backtest-dataset").select_option(saved["id"])
     requests = post_requests(page)
-    page.locator("#backtest-from-date").fill("2026-01-06")
-    page.locator("#backtest-to-date").fill("2026-01-04")
-    page.locator("#start-backtest").click()
-    expect(page.locator("#backtest-error")).to_contain_text("on or after From date")
+    split=dict(mode="dates",is_start="2026-01-06",is_end="2026-01-04",oos_start="2026-01-07",oos_end="2026-01-07")
+    declare_in_form(page,split)
+    expect(page.locator("#sample-status")).to_contain_text("on or before")
+    expect(page.locator("#start-backtest")).to_be_disabled()
     assert requests == []
-    page.locator("#backtest-from-date").fill("2026-02-01")
-    page.locator("#backtest-to-date").fill("")
-    page.locator("#start-backtest").click()
-    expect(page.locator("#backtest-error")).to_contain_text("No bars")
-    expect(page.locator("#start-backtest")).to_be_enabled()
-    expect(page.locator("#backtest-completion")).to_be_hidden()
     page.locator("#backtest-from-date").fill("2026-01-05")
+    page.locator("#backtest-to-date").fill("")
+    page.locator("#sample-review").click()
+    expect(page.locator("#sample-status")).to_contain_text("requires IS start/end")
+    expect(page.locator("#start-backtest")).to_be_disabled()
+    page.locator("#backtest-to-date").fill("2026-01-06")
+    page.locator("#sample-review").click()
+    expect(page.locator("#start-backtest")).to_be_enabled()
     page.locator("#start-backtest").click()
     expect(page.locator("#backtest-completion")).to_be_visible()
     expect(page.locator("#report-trades")).to_have_text("2")
-    assert "to_date" not in requests[-1].post_data_json
-    page.get_by_role("link", name="Strategies", exact=True).click()
-    page.get_by_role("link", name="New backtest →", exact=True).click()
-    page.locator("#backtest-from-date").fill("")
-    page.locator("#start-backtest").click()
-    expect(page.locator("#backtest-completion")).to_be_visible()
-    expect(page.locator("#report-trades")).to_have_text("3")
-    assert "from_date" not in requests[-1].post_data_json and "to_date" not in requests[-1].post_data_json
+    assert requests[-1].post_data_json["sample_split"]["is_end"] == "2026-01-06"
+    page.goto(portal['url']+'/#backtests/new')
+    expect(page.locator("#sample-split-mode")).to_be_disabled()
+    expect(page.locator("#sample-status")).to_contain_text("Locked declaration")
+    expect(page.locator("#backtest-from-date")).to_be_disabled()

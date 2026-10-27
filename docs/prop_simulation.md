@@ -9,6 +9,13 @@ This supersedes the integration and older notebook specifications retained below
 
 ## Product and source contract
 
+New research runs require a declared chronological IS/OOS split. Initial backtests,
+optimisation trials and their automatic prop analyses use **IS only**. An explicitly
+selected saved IS parameter set can later run OOS backtest + prop analysis, subject
+to the durable hardcoded three-attempt budget. See [the workflow and API contract](research_workflow.md).
+The model's internal validation remains within that selected period. Previously saved
+reports are preserved and do not establish an untouched holdout.
+
 Every new portal/API backtest, CLI backtest and trial in a new optimization now
 checks and runs this default model automatically: **Apex 50K EOD, $49 evaluation,
 $129 activation, 20 slots**, block 5, last 30% holdout and standard simulation

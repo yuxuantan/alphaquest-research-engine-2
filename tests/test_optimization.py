@@ -6,7 +6,7 @@ import json
 from threading import Event
 import time
 
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 import pytest
 
 from alphaquest.app import create_app
@@ -334,10 +334,9 @@ def test_zero_trade_grids_and_no_bars_date_selection_are_explicit(client):
     assert all(row["metrics"]["trades_taken"] == 0 and row["metrics"]["win_rate_pct"] is None
                and Decimal(row["metrics"]["total_net_pnl"]) == 0 for row in rows)
     request["from_date"] = "2030-01-01"
-    empty_id = start(client, request)
-    job = wait_job(client, empty_id)
-    assert job["status"] == "failed" and job["completed_trials"] == 0
-    assert "No bars" in job["error"]
+    response=client.post('/api/optimizations',json=request)
+    assert response.status_code==422
+    assert client.get('/api/optimizations').json()['total']==1
 
 
 def test_queued_jobs_run_sequentially(client, monkeypatch):

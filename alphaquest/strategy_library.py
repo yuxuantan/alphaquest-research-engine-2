@@ -55,7 +55,7 @@ class StrategyLibrary:
             record=json.loads(raw);metadata=record['run_metadata'];summary=record['summary']
             prop=metadata.get('automatic_prop_analysis')
             analysis=self.analyses.summary(prop['id']) if prop else None
-            items.append(dict(id=record['id'],strategy_id=metadata['strategy']['id'],dataset_id=metadata['dataset']['id'],dataset_name=metadata['dataset']['name'],created_at_utc=record['created_at_utc'],selection=metadata.get('selection',{}),metrics={key:summary.get(key) for key in ('total_net_pnl','trades_taken','max_drawdown_amount')},historical_net=analysis.get('historical_net') if analysis else None,prop_status=analysis.get('status') if analysis else None,batch_id=batch))
+            items.append(dict(id=record['id'],strategy_id=metadata['strategy']['id'],dataset_id=metadata['dataset']['id'],dataset_name=metadata['dataset']['name'],created_at_utc=record['created_at_utc'],selection=metadata.get('selection',{}),research_phase=metadata.get('research',{}).get('phase','legacy'),metrics={key:summary.get(key) for key in ('total_net_pnl','trades_taken','max_drawdown_amount')},historical_net=analysis.get('historical_net') if analysis else None,prop_status=analysis.get('status') if analysis else None,batch_id=batch))
         return dict(group=dict(id=group,instrument=found[0]),items=items,total=found[1],offset=offset,limit=limit)
 
 

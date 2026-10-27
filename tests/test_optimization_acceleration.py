@@ -51,7 +51,7 @@ def test_parse_once_and_date_range_has_identical_metadata_metrics_and_csv(client
     calls.clear()
     accelerated = wait_job(client, start(client, request))
     assert len(calls) == dataset["row_count"]
-    assert baseline_calls == 6 * dataset["row_count"]  # original + date-selected CSV per trial
+    assert baseline_calls == 3 * (dataset["row_count"] + dataset["row_count"]-1)  # full source + IS oracle rows per trial
     for left, right in zip(rows(client, baseline), rows(client, accelerated), strict=True):
         assert left["metrics"] == right["metrics"]
         for kind in ("trades", "equity"):
@@ -87,7 +87,7 @@ def test_reuse_across_jobs_preserves_reports_and_handles_partial_grid_overlap(cl
 
 
 def test_cache_survives_restart_and_changed_engine_rejects_resume(client):
-    from fastapi.testclient import TestClient
+    from research_fixtures import ResearchClient as TestClient
     from alphaquest.app import create_app
     dataset = save_fixture(client)
     request = {**optimization_body(dataset["id"]), "reuse_results": True}
@@ -112,8 +112,11 @@ def test_changed_commission_and_date_selection_recompute_instead_of_reusing(clie
     assert changed["reused_trials"] == 0
     assert [Decimal(row["metrics"]["total_net_pnl"]) for row in rows(client, changed)] == [11, 22, 33]
     selected = wait_job(client, start(client, {**request, "from_date": "2026-01-05"}))
-    assert selected["reused_trials"] == 0
-    assert {row["run_id"] for row in rows(client, selected)}.isdisjoint(row["run_id"] for row in rows(client, first))
+    # An equivalent date declaration is the same locked IS and may reuse it.
+    assert selected["reused_trials"] == 3
+    assert {row["run_id"] for row in rows(client, selected)} == {row["run_id"] for row in rows(client, first)}
+    incompatible=client.post('/api/optimizations',json={**request,'sample_split':{**request['sample_split'],'is_end':'2026-01-06'}})
+    assert incompatible.status_code in (409,422)
 
 
 def test_legacy_job_without_engine_identity_can_resume_without_cache_reuse(client):

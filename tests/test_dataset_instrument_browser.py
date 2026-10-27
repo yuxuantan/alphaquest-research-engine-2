@@ -1,5 +1,7 @@
 """Dataset defaults populate editable, isolated run settings."""
 
+from research_fixtures import ResearchHTTPClient,declare_in_form,declaration
+
 import httpx
 
 from test_backtests_browser import browser, page, portal, prepare, playwright, FIXTURES, post_requests
@@ -46,7 +48,7 @@ def test_upload_edit_reload_and_use_dataset_settings_in_backtest(page, portal):
 
 
 def test_existing_dataset_requires_configuration_and_save_errors_are_visible(page, portal):
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         legacy = client.post("/api/datasets", params={"filename": "end.csv", "name": "Unconfigured", "source_timezone": "UTC"},
                              content=(FIXTURES / "end_of_data.csv").read_bytes()).json()
     prepare(page, portal)
@@ -73,12 +75,13 @@ def test_existing_dataset_requires_configuration_and_save_errors_are_visible(pag
     page.get_by_role("link", name="Strategies", exact=True).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
     playwright.expect(page.locator("#backtest-dataset")).to_have_value(legacy["id"])
+    declare_in_form(page,declaration(legacy["id"]))
     playwright.expect(page.locator("#start-backtest")).to_be_enabled()
     playwright.expect(page.locator("#backtest-instrument-settings")).to_contain_text("0.25")
 
 
 def test_dataset_selection_updates_instrument_defaults_and_values(page, portal):
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         result = client.patch(f"/api/datasets/{portal['saved']['gap_deadline']['id']}/instrument-settings",
                               json={"tick_size": "0.01", "point_value": "2"})
         assert result.status_code == 200
@@ -90,7 +93,7 @@ def test_dataset_selection_updates_instrument_defaults_and_values(page, portal):
 
 
 def test_run_overrides_reset_switch_dataset_preserve_drafts_and_reopen_report(page, portal):
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         response = client.patch(f"/api/datasets/{portal['saved']['gap_deadline']['id']}/instrument-settings",
                                 json={"tick_size": "0.01", "point_value": "2"})
         assert response.status_code == 200
@@ -138,7 +141,7 @@ def test_run_overrides_reset_switch_dataset_preserve_drafts_and_reopen_report(pa
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
     page.get_by_text("Dataset, strategy & settings used", exact=True).click()
     playwright.expect(overrides).to_have_text("Tick size: 0.5 · Monetary point value: 20")
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         dataset = client.get(f"/api/datasets/{portal['saved']['arithmetic_5m']['id']}").json()
     assert dataset == portal["saved"]["arithmetic_5m"]
     page.set_viewport_size({"width": 390, "height": 844})

@@ -13,10 +13,33 @@ opens the full results. Choose single or exhaustive mode in the shared form.
 
 ## Run the arithmetic fixture
 
-1. In **Datasets**, choose `tests/fixtures/backtest_contract/arithmetic_5m.csv`.
+The original one-date fixture needs a labelled synthetic reserved date for the
+required declaration. Prepare a new artifact file first (do not overwrite older
+outputs):
+
+```bash
+python - <<'PYTHON'
+from pathlib import Path
+source=Path('tests/fixtures/backtest_contract/arithmetic_5m.csv').read_bytes()
+target=Path('artifacts/SYNTHETIC-arithmetic-IS-OOS-NEW.csv')
+target.parent.mkdir(parents=True,exist_ok=True)
+with target.open('xb') as stream:
+    stream.write(source.rstrip(b'\r\n')+b'\n01/06/2026,10:30,102,102,102,102,100,60,40\n')
+PYTHON
+```
+
+The seven original bars remain IS; the extra neutral bar is explicitly synthetic
+and reserved for the UI exercise. It is not an observed future market outcome.
+
+After selecting the dataset and strategy, choose **Explicit dates** and set IS
+start/end **2026-01-05** and OOS start/end **2026-01-06**. Click **Review IS/OOS
+split**. The initial run uses IS only; the one-weekday automatic prop analysis is
+correctly unavailable rather than borrowing OOS bars.
+
+1. In **Datasets**, choose `artifacts/SYNTHETIC-arithmetic-IS-OOS-NEW.csv`.
    Keep the source timezone **UTC**, validate the CSV, then save it. If already
    saved, use its existing library entry. Open the dataset, set **Tick size 0.25** and **Monetary point value 10**, then click **Save instrument settings**. These values may also be supplied during upload.
-2. Open **Strategies → New backtest** and select that saved dataset. Its seven bars, filename,
+2. Open **Strategies → New backtest** and select that saved dataset. Its eight source bars (seven IS plus one reserved), filename,
    UTC range, and saved source timezone appear beneath the controls.
 3. Select **Consecutive green hold**. This is selected automatically when it is
    the only available strategy. Read its description. Exactly three strategy
@@ -91,6 +114,17 @@ fills, P&L and elapsed holding times are unchanged. Older reports use their save
 source timezone when reopened; no backtest rerun is required.
 
 ## Check the submitted settings
+
+The current form requires a reviewed IS/OOS declaration. For the arithmetic
+example, use IS start/end **2026-01-05** and OOS start/end **2026-01-06**, then
+click **Review IS/OOS split** before running. Only the seven IS bars are replayed.
+See [the current workflow](research_workflow.md) for percentages, locked plans,
+selected OOS execution and the three-attempt budget.
+
+### Historical date-selection behavior
+
+The prior optional date-selection behavior below is retained as historical
+qualification context; it is superseded for new execution by the required split.
 
 To replay a subset, set **From date** and/or **To date** beneath the dataset
 selector. Both include the entire date in the displayed saved source timezone;

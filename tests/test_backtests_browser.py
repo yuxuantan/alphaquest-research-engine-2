@@ -1,5 +1,7 @@
 """Real Chromium checks against the local FastAPI app; optional browser extra."""
 
+from research_fixtures import ResearchHTTPClient,declaration,declare_in_form
+
 from pathlib import Path
 import re
 import socket
@@ -43,12 +45,14 @@ def portal(tmp_path):
             assert thread.is_alive() and time.monotonic() < deadline, "Browser test server did not start"
             time.sleep(.01)
         saved = {}
-        with httpx.Client(base_url=url) as client:
+        with ResearchHTTPClient(base_url=url) as client:
             for name, zone in (("arithmetic_5m", "UTC"), ("gap_deadline", "America/New_York")):
                 response = client.post("/api/datasets", params={"filename": name + ".csv", "name": name, "source_timezone": zone, "tick_size": "0.25", "point_value": "10"},
                                        content=(FIXTURES / (name + ".csv")).read_bytes())
                 assert response.status_code == 201, response.text
                 saved[name] = response.json()
+        from research_fixtures import seed_declarations
+        seed_declarations(app)
         yield {"url": url, "saved": saved, "app": app}
     finally:
         server.should_exit = True
@@ -106,7 +110,7 @@ def test_dataset_strategy_selection_description_parameters_and_navigation(page, 
 
 
 def test_strategy_fields_follow_backend_definitions_when_selection_changes(page, portal):
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         definitions = client.get("/api/strategies").json()
     alternate = {"id": "alternate_definition", "description": "A browser-only alternate parameter definition.",
                  "parameters": [{"name": "trigger_length", "type": "int", "default": 5, "minimum": 1, "description": "Alternate trigger length."}]}
@@ -124,7 +128,7 @@ def test_strategy_fields_follow_backend_definitions_when_selection_changes(page,
 
 
 def test_exact_submitted_configuration_and_saved_completion_summary(page, portal):
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         response = client.patch(f"/api/datasets/{portal['saved']['arithmetic_5m']['id']}/instrument-settings",
                                 json={"tick_size": "0.25", "point_value": "10.000000000000000000000000001"})
         assert response.status_code == 200
@@ -140,6 +144,7 @@ def test_exact_submitted_configuration_and_saved_completion_summary(page, portal
     assert len(requests) == 1
     submitted = requests[0].post_data_json
     assert submitted == {
+        "sample_split": declaration(portal['saved']['arithmetic_5m']['id']),
         "reuse_results": True,
         "dataset_id": portal["saved"]["arithmetic_5m"]["id"], "strategy_id": "consecutive_green_hold",
         "strategy_parameters": {"green_bar_count": 2, "hold_minutes": 7, "contracts": 2},
@@ -342,7 +347,7 @@ def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(pag
 def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal):
     from test_inferred_session_close import session_rows, csv_bytes
     prepare(page, portal)
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         saved = client.post("/api/datasets", params={"filename": "synthetic-early-close.csv", "name": "SYNTHETIC early close",
             "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=csv_bytes(session_rows()))
         assert saved.status_code == 201, saved.text
@@ -350,6 +355,7 @@ def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal
     page.reload()
     page.locator("#backtest-dataset").select_option(dataset_id)
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
+    declare_in_form(page,declaration(dataset_id))
     page.locator("#strategy-stop_swing_len").fill("1")
     page.locator("#strategy-target_swing_len").fill("1")
     page.locator("#strategy-use_adx_elev").uncheck()
@@ -364,7 +370,7 @@ def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal
     assert completed.value.status == 201, record
     assert record["summary"]["total_net_pnl"] == "48.00"
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("1 inferred sessions")
-    with httpx.Client(base_url=portal["url"]) as client:
+    with ResearchHTTPClient(base_url=portal["url"]) as client:
         trade = client.get(f"/api/backtests/{record['id']}/trades").json()["items"][0]
         assert trade["exit_time_utc"] == "2026-01-05T17:55:00Z" and trade["exit_reason"] == "eod_flat"
     page.reload()

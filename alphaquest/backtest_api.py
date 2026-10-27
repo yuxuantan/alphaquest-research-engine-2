@@ -30,6 +30,7 @@ from .performance import Performance, save_performance
 
 
 from .backtest_requests import ExecutionSettings,OptimizationRequest
+from .research import SplitDeclaration, ResearchConflict, dates_for, metadata as research_metadata
 
 
 class BacktestRequest(BaseModel):
@@ -38,6 +39,7 @@ class BacktestRequest(BaseModel):
     strategy_id: StrictStr = Field(min_length=1, max_length=128)
     strategy_parameters: dict[str, Any]
     execution_settings: ExecutionSettings
+    sample_split: SplitDeclaration
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None
     report_detail: Literal['compact','full'] = 'compact'
@@ -48,7 +50,7 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None, automatic_prop=None, timings=None):
+                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None):
     timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
@@ -63,6 +65,8 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "instrument_overrides": instrument_overrides(dataset, config)}
     if source_run_id:
         metadata["detailed_from_run_id"] = source_run_id
+    if research:
+        metadata["research"] = research
     if automatic_prop:
         metadata["automatic_prop_analysis"] = automatic_prop
     with ExitStack() as stack:
@@ -100,11 +104,11 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None):
     from . import backtest_cache
     reuse_key=None
     if not source_record:
-        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses))
+        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research)
         if reuse_results:
             reused=backtest_cache.lookup(runs,prop_analyses,reuse_key)
             if reused:
@@ -130,7 +134,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings, report_detail='full' if source_record else report_detail,prepared=prepared,feature_paths=features)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record else report_detail,prepared=prepared,feature_paths=features,research=research)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -172,7 +176,8 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
     try:
         definition = get_strategy(body.strategy_id)
         parameters = definition.parameters(body.strategy_parameters)
-        date_range = DateRange.parse(body.from_date, body.to_date)
+        if body.from_date is not None or body.to_date is not None:
+            raise ValueError('Declare IS/OOS with sample_split instead of from_date/to_date.')
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
     dataset = await run_in_threadpool(request.app.state.store.get, body.dataset_id)
@@ -182,14 +187,19 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
         raise HTTPException(422, "Unsupported dataset schema. Backtests require: " + ",".join(COLUMNS))
     try:
         config = body.execution_settings.execution_config(dataset)
+        plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
+        await run_in_threadpool(request.app.state.research.claim, plan)
+        date_range = dates_for(plan)
+    except ResearchConflict as exc:
+        raise HTTPException(409, str(exc)) from None
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations)
+    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations,research=research_metadata(plan))
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True):
-    run_id = uuid4().hex
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None):
+    run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
     if operation_id:
@@ -204,7 +214,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research)
         if record['id']!=run_id:
             if operation_id:
                 count=record['run_metadata']['selection']['row_count']
@@ -224,6 +234,8 @@ async def detailed(run_id: UUID, request: Request, progress_id: UUID | None = No
     record = await run_in_threadpool(request.app.state.runs.get, run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    if record.get('run_metadata',{}).get('research',{}).get('phase') != 'is':
+        raise HTTPException(409, 'Only declared IS reports can be replayed for detail. OOS replays require a budgeted OOS request; legacy reports remain read-only.')
     if record.get("report_storage", {}).get("detail") != "compact":
         raise HTTPException(409, "This report already retains full detail.")
     runs = request.app.state.runs
@@ -257,7 +269,7 @@ async def generate_detail(request, record, progress_id):
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from None
     return await execute_backtest(request, dataset, definition, parameters, config, dates, progress_id,
-                                   compress_report=True, source_record=record)
+                                   compress_report=True, source_record=record,research=metadata['research'])
 
 
 @router.get("/api/backtests")

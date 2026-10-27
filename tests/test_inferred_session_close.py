@@ -7,7 +7,7 @@ import csv
 import io
 import json
 
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 import pytest
 
 from alphaquest.app import create_app
@@ -169,7 +169,8 @@ def test_api_durable_report_exports_and_selected_range_use_the_new_rule(tmp_path
         assert flatten["examples"][0]["executed_cutoff"].endswith("11:55:00-06:00")
         exports = {kind: client.get(f"/api/backtests/{run_id}/exports/{kind}").content for kind in ("trades", "equity", "report")}
         assert b"eod_flat" in exports["trades"] and b"48.00" in exports["equity"]
-        assert client.get(f"/api/datasets/{dataset_id}/csv").content == raw
+        from research_fixtures import reserved_source
+        assert client.get(f"/api/datasets/{dataset_id}/csv").content == reserved_source(raw)[0]
         # A separate run with EOD disabled leaves the first immutable result intact.
         body["strategy_parameters"]["use_eod_flat"] = False
         baseline = client.post("/api/backtests", json=body)

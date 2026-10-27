@@ -178,7 +178,7 @@ Run the sample strategy on an existing saved dataset ID using its saved instrume
 ```bash
 .venv/bin/python -m alphaquest.run_backtest \
   --database data/datasets.sqlite3 --dataset-id YOUR_DATASET_ID \
-  --output artifacts/my-backtest \
+  --output artifacts/my-backtest --is-percent 70 \
   --green-bar-count 3 --hold-minutes 20 --contracts 2 \
   --initial-capital 10000 \
   --slippage-ticks 1 --commission-per-contract-per-side 1
@@ -280,3 +280,13 @@ Tests cover datasets and the portal, reader snapshots and incremental parsing, e
 - `tests/`: dataset, API, reader, execution, and strategy checks; runnable fixture reviews.
 
 The original [AlphaQuest repository](https://github.com/yuxuantan/alphaquest-research-engine) was consulted for context. This increment uses a small new implementation, with no imported governance, campaign, or backtest framework.
+
+## Required IS/OOS declaration
+
+Before a new backtest or parameter sweep, declare IS/OOS dates or an IS percentage
+and review the resolved split. Initial backtests and prop analyses use only IS.
+Open one saved IS result and explicitly select its parameters to run OOS later.
+Each strategy/source has a hardcoded lifetime budget of three OOS attempts; the
+portal warns and the API blocks further attempts after exhaustion. Splits lock
+at first IS submission, and failed/interrupted OOS attempts count. See
+[the workflow, API, CLI and reproducible evidence](docs/research_workflow.md).

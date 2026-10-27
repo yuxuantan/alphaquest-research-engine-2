@@ -47,7 +47,7 @@
       get('#strategy-results-heading').textContent=`${page.group.instrument} · Backtests`;
       for(const record of page.items){
         const row=make('tr');row.dataset.runId=record.id;
-        const strategy=make('td',record.strategy_id.replaceAll('_',' '));
+        const strategy=make('td',`${record.research_phase==='is'?'IS':record.research_phase==='oos'?'OOS':'Legacy'} · ${record.strategy_id.replaceAll('_',' ')}`);
         strategy.append(make('small',record.dataset_name,'field-help'));
         strategy.title=`Created ${record.created_at_utc} · ${record.id}`;
         const period=record.selection;const dates=make('td',`${localDate(period.from_date||period.start_utc,period.source_timezone)} → ${localDate(period.to_date||period.end_utc,period.source_timezone)}`);

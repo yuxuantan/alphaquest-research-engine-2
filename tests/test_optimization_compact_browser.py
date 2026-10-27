@@ -7,6 +7,7 @@ from hashlib import sha256
 import json
 
 from test_backtests_browser import browser, page, portal, playwright
+from research_fixtures import reserved_source,declare_in_form
 
 
 def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_path):
@@ -19,7 +20,8 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
             prices = "99,100,99,100" if minute < 3 else "102,102,102,102"
             lines.append(stamp.strftime("%m/%d/%Y,%H:%M") + f",{prices},100,60,40")
     source = tmp_path / "SYNTHETIC-compact-report.csv"
-    source.write_text("\n".join(lines) + "\n")
+    raw,split=reserved_source(("\n".join(lines)+"\n").encode())
+    source.write_bytes(raw)
     page.goto(portal["url"])
     page.locator("#csv-file").set_input_files(source)
     page.locator("#dataset-name").fill("SYNTHETIC compact optimization review")
@@ -36,6 +38,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     page.locator("#backtest-dataset").select_option(dataset["id"])
+    declare_in_form(page,split)
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
     settings = page.request.get(portal["url"] + "/api/optimizations/settings").json()
@@ -55,6 +58,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     before = {p.name: sha256(p.read_bytes()).hexdigest() for p in folder.iterdir()}
     baseline_response = page.request.post(portal["url"] + "/api/backtests", data={
         "report_detail":"full",
+        "sample_split":split,
         "dataset_id": dataset["id"], "strategy_id": compact["run_metadata"]["strategy"]["id"],
         "strategy_parameters": compact["run_metadata"]["strategy"]["parameters"],
         "execution_settings": compact["execution_settings"],

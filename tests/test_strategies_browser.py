@@ -3,14 +3,16 @@ import json,re,time
 from test_backtests_browser import browser,page,portal,playwright,FIXTURES
 from test_backtest_api import body
 from test_optimization import optimization_body
+from research_fixtures import reserved_source,register
 
 
 def seed(page,portal,symbol='MNQ'):
     raw=(FIXTURES/'arithmetic_5m.csv').read_bytes()
     if symbol!='MNQ':raw=raw.replace(b',100,60,40',b',101,61,40',1)
+    raw,split=reserved_source(raw)
     response=page.request.post(portal['url']+'/api/datasets',params=dict(filename='SYNTHETIC-navigation.csv',name='SYNTHETIC navigation '+symbol,symbol=symbol,source_timezone='UTC',tick_size='.25',point_value='10'),data=b'\xef\xbb\xbf'+raw)
     assert response.status==201,response.text()
-    dataset=response.json()
+    dataset=response.json();register(dataset,split)
     request=body(dataset['id']);request['strategy_parameters']['contracts']=1
     record=page.request.post(portal['url']+'/api/backtests',data=request).json()
     return dataset,record

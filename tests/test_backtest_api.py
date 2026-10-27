@@ -10,7 +10,7 @@ from threading import Event, get_ident
 import time
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 from anyio.to_thread import current_default_thread_limiter
 import pytest
 
@@ -20,6 +20,7 @@ from alphaquest.backtest_runs import RunStore
 from alphaquest.strategies import consecutive_green_hold as sample
 from review_execution import FIXTURES, fixtures
 from review_reports import _equal_record
+from research_fixtures import declaration, reserved_source
 
 
 @pytest.fixture
@@ -41,6 +42,7 @@ def body(dataset_id, case=None):
     case = case or fixtures()[0]
     return {"reuse_results":False,"dataset_id": dataset_id, "strategy_id": "consecutive_green_hold",
             "strategy_parameters": deepcopy(case["strategy_parameters"]),
+            "sample_split": declaration(dataset_id),
             "execution_settings": {k: v for k, v in case["execution_settings"].items() if k not in ("tick_size", "point_value")}}
 
 
@@ -99,7 +101,7 @@ def test_api_retrieves_exact_independently_reviewed_results_and_provenance(clien
     assert progress == {"stage": "done", "bars_processed": case["bar_count"],
                         "total_bars": case["bar_count"], "run_id": run_id}
     assert client.get(f"/api/datasets/{dataset['id']}").json() == dataset
-    assert client.get(f"/api/datasets/{dataset['id']}/csv").content == (FIXTURES / case["csv"]).read_bytes()
+    assert client.get(f"/api/datasets/{dataset['id']}/csv").content == reserved_source((FIXTURES / case["csv"]).read_bytes())[0]
     persisted = client.app.state.runs.root / run_id
     assert {p.name for p in persisted.iterdir()} == {"report.json", "trades.csv", "equity.csv", 'performance.json'}
     stored_report = json.loads((persisted / "report.json").read_text())

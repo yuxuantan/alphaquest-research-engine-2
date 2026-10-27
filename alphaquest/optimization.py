@@ -126,12 +126,12 @@ class OptimizationStore:
     def close(self):
         self.executor.shutdown(wait=True)
 
-    def create(self, request, dataset, definition, config, axes, total):
+    def create(self, request, dataset, definition, config, axes, total, research=None):
         job = {"id": uuid4().hex, "created_at_utc": datetime.now(timezone.utc).isoformat(),
                "status": "queued", "stage": "queued", "completed_trials": 0, "total_trials": total,
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
                "worker_count": min(request.workers, total), "worker_pids": [], "failed_trials": [], "request": request.model_dump(), "axes": axes,
-               "dataset": dataset, "strategy": definition.description(), "report_detail": "compact",
+               "dataset": dataset, "strategy": definition.description(), "report_detail": "compact", "research": research,
                "engine_identity": engine_identity(), "reused_trials": 0, "default_prop_profile": profile(),
                "prop_unavailable_trials": 0, "prop_error_trials": 0,
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
@@ -342,7 +342,7 @@ class OptimizationStore:
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
                 context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range, prepared, features,
-                                       default_prop=bool(job.get("default_prop_profile")),calculation_cache=self.prop_analyses.calculation_snapshot())
+                                       default_prop=bool(job.get("default_prop_profile")),calculation_cache=self.prop_analyses.calculation_snapshot(),research=job.get('research'))
                 trials = iter(pending)
                 workers = job["worker_count"]
                 if workers == 1:

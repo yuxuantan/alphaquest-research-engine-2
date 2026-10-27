@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
-from fastapi.testclient import TestClient
+from research_fixtures import ResearchClient as TestClient
 from alphaquest.app import create_app
 
 
