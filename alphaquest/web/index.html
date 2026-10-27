@@ -328,6 +328,7 @@
                     <h3 id="strategy-parameters-heading" class="parameter-heading">Strategy parameters</h3>
                     <div id="strategy-parameters" class="backtest-parameter-grid"></div>
                     <div id="optimization-settings" hidden>
+                      <p class="small muted">Trials save compact reports with all metrics, trades and trade-close equity. Generate full per-bar detail later from an individual result.</p>
                       <h3 class="parameter-heading">Exhaustive parameter grid</h3>
                       <p class="field-help">Set start, end and step for every strategy parameter. Step defaults to 0 for equal endpoints and 1 otherwise; edit it to choose the increment. Step count is calculated automatically. Values stop at or before end; end is included only if a step lands on it. Boolean endpoints can use either order, with step 1 for both values.</p>
                       <div class="optimization-scroll" tabindex="0" aria-label="Parameter ranges, scroll horizontally">
@@ -409,8 +410,10 @@
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
               <div><a href="#backtests" class="eyebrow">← Back to backtests</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
-              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a></div>
+              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
             </div>
+            <p id="report-storage-note" class="small muted"></p>
+            <p id="report-detail-status" class="small" role="status" aria-live="polite" hidden></p>
             <div id="report-summary" class="report-summary"></div>
             <section class="panel report-panel" aria-labelledby="equity-chart-title">
               <div class="panel-heading"><div><h2 id="equity-chart-title">Trade-close equity · CU</h2></div></div>

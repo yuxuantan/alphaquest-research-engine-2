@@ -123,7 +123,7 @@ class OptimizationStore:
                "status": "queued", "stage": "queued", "completed_trials": 0, "total_trials": total,
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
                "worker_count": min(request.workers, total), "worker_pids": [], "failed_trials": [], "request": request.model_dump(), "axes": axes,
-               "dataset": dataset, "strategy": definition.description(),
+               "dataset": dataset, "strategy": definition.description(), "report_detail": "compact",
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()}, "metric_columns": list(METRICS)}
         with self.runs.connect() as conn:

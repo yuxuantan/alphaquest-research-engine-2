@@ -117,6 +117,27 @@ def test_snapshot_releases_database_and_survives_dataset_deletion(store, monkeyp
     assert store.get(saved["id"]) is None
 
 
+def test_frozen_optimization_source_is_shared_readonly_and_hash_checked(store, tmp_path, monkeypatch):
+    from alphaquest.optimization_worker import FrozenSource
+    raw = (FIXTURES / "gap_deadline.csv").read_bytes()
+    dataset = save(store, raw)
+    path = tmp_path / "frozen.csv"
+    path.write_bytes(raw)
+    frozen = FrozenSource(dataset, path)
+    def no_copy(*args, **kwargs):
+        pytest.fail("An optimization worker must not copy the frozen source to a TemporaryFile")
+    monkeypatch.setattr(reader_module, "TemporaryFile", no_copy)
+    with frozen.open_snapshot(dataset["id"]) as stream:
+        assert stream.mode == "rb"
+    with read_bars(frozen, dataset["id"]) as bars:
+        assert len(list(bars)) == dataset["row_count"]
+    assert path.read_bytes() == raw
+    path.write_bytes(raw + b"\n")
+    with pytest.raises(DatasetReadError, match="bytes"):
+        with read_bars(frozen, dataset["id"]):
+            pytest.fail("Corrupted snapshot must reject before replay")
+
+
 def test_rows_are_parsed_on_demand_and_bad_rows_are_not_skipped(store, monkeypatch):
     raw = (HEADER + ROW + ROW.replace("14:00", "14:01").replace(",60,40", ",NaN,40")).encode()
     saved = save(store, raw, unchecked=True, row_count=2)

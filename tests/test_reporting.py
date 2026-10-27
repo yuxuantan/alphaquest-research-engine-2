@@ -139,8 +139,9 @@ def test_empty_input_and_initial_only_are_not_complete_reports(tmp_path):
         assert not output.exists()
 
 
+@pytest.mark.parametrize("detail", ["full", "compact"])
 @pytest.mark.parametrize("corruption", ["missing_trade", "missing_final_point", "wrong_equity", "open_final", "non_decimal", "bad_trade_number", "wrong_bar", "bad_net", "wrong_commissions", "unknown_event", "initial_capital", "missing_initial"])
-def test_inconsistent_outputs_are_rejected_without_publishing(corruption, tmp_path):
+def test_inconsistent_outputs_are_rejected_without_publishing(corruption, tmp_path, detail):
     stream = list(events())
     if corruption == "missing_trade":
         stream = [event for event in stream if not isinstance(event, Trade)]
@@ -168,7 +169,7 @@ def test_inconsistent_outputs_are_rejected_without_publishing(corruption, tmp_pa
         stream.pop(0)
     output = tmp_path / "report"
     with pytest.raises(ReportError):
-        generate_report(stream, output, CONFIG)
+        generate_report(stream, output, CONFIG, detail=detail)
     assert not output.exists()
     assert list(tmp_path.iterdir()) == []
 
@@ -177,6 +178,58 @@ def test_saved_bar_count_detects_flat_but_truncated_stream(tmp_path):
     with pytest.raises(ReportError, match="bar count"):
         generate_report(events(), tmp_path / "report", CONFIG, expected_bar_count=4)
     assert not (tmp_path / "report").exists()
+
+
+def test_compact_retains_exact_metrics_and_csvs_without_creating_arrays(tmp_path, monkeypatch):
+    full = tmp_path / "full"
+    expected = generate_report(events(), full, CONFIG)
+    opened = []
+    original = Path.open
+    def track(path, *args, **kwargs):
+        opened.append(path.name)
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", track)
+    compact = tmp_path / "compact"
+    actual = generate_report(events(), compact, CONFIG, detail="compact")
+    assert not {"trades.array", "equity.array"}.intersection(opened)
+    assert actual["summary"] == expected["summary"]
+    assert actual["reconciliation"] == expected["reconciliation"]
+    report = read_report(compact)
+    assert report["format_version"] == 2
+    assert report["report_storage"]["detail"] == "compact"
+    assert not report["report_storage"]["per_bar_equity_retained"]
+    assert "equity" not in report and "trades" not in report
+    for name in ("trades.csv", "equity.csv"):
+        assert (compact / name).read_bytes() == (full / name).read_bytes()
+
+
+def test_compressed_full_report_preserves_every_event_and_cleans_staging(tmp_path):
+    import gzip
+    full = tmp_path / "full"
+    expected = generate_report(events(), full, CONFIG)
+    compressed = tmp_path / "compressed"
+    actual = generate_report(events(), compressed, CONFIG, compress=True)
+    with gzip.open(compressed / "report.json.gz", "rt") as stream:
+        report = json.load(stream)
+    assert report["equity"] == read_report(full)["equity"]
+    assert report["trades"] == read_report(full)["trades"]
+    assert actual["summary"] == expected["summary"]
+    assert report["report_storage"]["per_bar_equity_retained"]
+    assert not (compressed / "report.json").exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["compressed", "full"]
+
+
+def test_compact_still_rejects_truncated_bars_and_keeps_zero_trade_semantics(tmp_path):
+    from review_execution import ScheduledStrategy
+    def flat():
+        return execute((bar(i) for i in range(1, 101)), ScheduledStrategy(), CONFIG)
+    report = generate_report(flat(), tmp_path / "flat", CONFIG, detail="compact", expected_bar_count=100)
+    assert report["summary"]["trades_taken"] == 0
+    assert report["summary"]["win_rate_pct"] is None
+    assert report["summary"]["total_net_pnl"] == 0
+    with pytest.raises(ReportError, match="bar count"):
+        generate_report(flat(), tmp_path / "truncated", CONFIG, detail="compact", expected_bar_count=101)
+    assert not (tmp_path / "truncated").exists()
 
 
 def test_engine_error_never_publishes_partial_artifacts(tmp_path):

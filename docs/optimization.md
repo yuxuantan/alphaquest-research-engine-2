@@ -92,11 +92,13 @@ saved trials and never silently resuming or rerunning them.
 The process pool uses Python's **spawn** start method, including on macOS. Every
 combination uses a fresh strategy instance and the normal backtest engine and
 report writer. Workers write temporary reports to separate directories; the
-coordinator publishes full backtests and optimization rows through the existing
+coordinator publishes compact backtest reports and optimization rows through the existing
 run store. Child processes never open or write the dataset/results databases.
-Only small manifests and progress messages cross process boundaries; full report
-arrays stay on disk. One disk snapshot supplies the same original CSV
+Only small manifests and progress messages cross process boundaries. One disk snapshot supplies the same original CSV
 bytes to all trials, with the saved byte count/hash checked by the normal reader.
+Workers open that file read-only with independent file positions, rather than
+copying it into another full input snapshot for each trial. Date-range selection
+still uses its normal bounded-memory temporary selection file.
 Deleting the original after snapshot preparation does not change the job. The
 captured dataset metadata, strategy source hash, resolved axes, execution settings
 and requested dates remain inspectable. Each selected date range starts with fresh
@@ -156,7 +158,7 @@ equal values retain trial order. Trial numbers always identify the same Cartesia
 parameter set, regardless of finish order. Finished trials appear immediately,
 even if earlier trial numbers are still running. CSV/page snapshots follow
 publication order internally so late completions cannot shift or duplicate rows.
-Each row links to its full saved Backtest report,
+Each row links to its saved Backtest report,
 including trades, equity and normal downloads. **Results CSV** exports all saved
 trials in the selected order. While a job runs, the export contains the number of
 trials captured when the export starts. A failed/interrupted job retains completed
@@ -174,6 +176,113 @@ use the existing `backtest_runs/RUN_ID` store and appear in completed backtest
 history. Existing reports and datasets are unchanged. There is no automatic start-request
 retry, job resumption, pruning or cancellation. If a start
 request loses its connection, inspect **Saved optimizations** before starting again.
+
+## Compact storage and optional full detail
+
+New optimization trials use **compact** storage by default in both serial and
+process-worker execution. They retain every performance metric and reconciliation
+check, source/strategy hashes, execution settings, replay bounds, all `trades.csv`
+fields and the complete initial/trade-close `equity.csv`. Every engine event is
+still validated, including the per-bar accounting identities and final bar count.
+The writer skips serializing the per-bar equity series and does not create
+temporary JSON arrays. Its format-2 `report.json` contains the manifest only;
+`report_storage` explicitly records that per-bar equity was not retained.
+Trade/equity CSVs, charts, sorting, report links and prop analysis remain available.
+
+Open a trial's Backtest report to see its storage notice and download **Report
+JSON**. Click **Generate full detail** to replay only that parameter set, retaining
+the exact source, dates, strategy and execution settings. It saves a separate
+normal Backtest report with `report.json.gz`; the full arrays and their staging
+files use streaming gzip. The original compact report remains unchanged. Before
+publication, replay metrics and both CSV hashes must match the original. Missing
+source, changed strategy, or different replay outputs reject; a duplicate active
+request rejects. Repeating a completed request reopens the existing detailed run
+instead of writing another copy. Its source run ID remains in provenance.
+
+Ordinary standalone backtests retain their existing full JSON default. Existing
+optimization reports are not automatically converted or deleted, and existing evidence remains
+unchanged. Missing trials resumed after this update use compact reports; an old
+job can therefore contain reports with different retention modes, explicitly
+identified in each Backtest report. This reduces future storage and temporary
+worker I/O; it does not reclaim space already occupied by old full reports.
+
+Actual labeled synthetic evidence is saved under
+`artifacts/optimization-compact-review-20261027/test_compact_storage_and_norma0/`.
+Two weekday sessions contain 2,880 bars and one trade each. Entry 100.25, exit
+101.75, monetary point value 10 and commissions 2 give net 13 CU per trade per
+contract: the two trial rows independently expect **26** and **52 CU**. Compact
+files for the one-contract result total **3,718 bytes**, versus **551,057 bytes**
+for a normal full backtest of the same inputs: **99.33% smaller**. The compressed
+full-detail JSON is **19,702 bytes**, retaining all **2,881 equity events**. Byte
+counts are this measured example, not a universal reduction estimate.
+
+The evidence includes source CSV, optimization/backtest catalogues and reports,
+downloaded compact/full JSON, screenshots, and `verification.json` with expected
+metrics, actual file sizes and unchanged compact-report hashes. It also follows
+the compact result through Configure prop analysis → Check source → Run → saved
+report/download → reload/reopen. Native source net P&L remains 26.00; measured MAE
+count is zero and the realized-loss fallback is disclosed. See
+`docs/prop_simulation_review.md` for the exact prop observations and rejection case.
+
+Reproduce in a new evidence directory (the test owns/stops its temporary server):
+
+```bash
+.venv/bin/python -m pytest tests/test_optimization_compact_browser.py -q --basetemp artifacts/optimization-compact-review-NEW
+```
+
+Use the normal `ALPHAQUEST_DATA_DIR` command with the saved test directory to
+reopen these durable reports. Test URLs use temporary ports; substitute the new
+server address and retain the saved `#optimizations/ID`, `#backtests/report/ID`
+or `#backtests/prop/job/ID` fragment from `verification.json`.
+
+### Compress existing optimization reports
+
+Explicit maintenance can losslessly gzip existing trial JSON without rerunning
+backtests or discarding any per-bar detail:
+
+```bash
+.venv/bin/python -m alphaquest.compress_optimization_reports --data-dir data --evidence artifacts/optimization-existing-compression-NEW
+```
+
+The evidence directory must be new. Queued/running optimization jobs reject
+before any report changes; completed trials from interrupted jobs are eligible.
+Only report IDs indexed by `optimization_trials` are selected. Standalone
+backtests, source datasets, trade/equity CSVs, optimization rows and earlier
+saved evidence stay unchanged.
+
+For every report the command streams `report.json` into gzip, verifies the full
+decompressed byte count and SHA-256 against the original, and checks the source
+identity has not changed. It publishes `report.json.gz` without overwriting an
+existing archive, then atomically updates that report's catalogue metadata.
+Only after the verified archive is published and both CSV hashes still match
+does it remove the uncompressed duplicate. The archive contains the original
+JSON bytes, including its original metadata; catalogue `report_archive` records
+the original filename, both file sizes and both hashes. The Backtest page and
+Report JSON.gz download use the new location. Legacy drawdown readers support gzip.
+
+A database backup, original job/report metadata and per-report durable journal
+are saved under the evidence directory. An interruption before cleanup leaves
+two verified copies; rerun with a new evidence directory to finish safely.
+Already compressed reports are verified and skipped. A conflicting/corrupt
+archive, changed catalogue, or changed source leaves the original in place and
+stops the command rather than overwriting data. An OS lock prevents concurrent
+compression commands on the same library.
+
+The explicit local maintenance run on 27 October 2026 compressed **21** existing
+optimization reports from **13,192,075,669** to **419,415,544 bytes**, saving
+**12,772,660,125 bytes (96.82%)**. All archives were independently decompressed
+and checked against their original SHA-256 and byte count after conversion.
+All optimization job states/trial rows and non-storage run metadata stayed exact;
+70 protected dataset/CSV/standalone-report files and nine standalone run manifests
+were unchanged. The existing 16-trial results page, chart, gzip notice and actual
+browser download were verified against the archive hash.
+
+Original catalogue backup, original metadata, publication journal, per-report
+hashes/sizes, portal screenshot and download verification are saved under
+`artifacts/optimization-existing-compression-20261027/`. Independent preservation
+checks are under `artifacts/optimization-compression-protection-20261027/`.
+Earlier evidence directories were left unchanged. This was lossless compression
+of existing full JSON; no historical per-bar detail was removed or recalculated.
 
 ## Recover a failed optimization
 

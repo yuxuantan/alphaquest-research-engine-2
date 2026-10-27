@@ -4,6 +4,7 @@ import csv
 from datetime import datetime
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 import json
+import gzip
 
 from .decimal_math import multiply, subtract
 
@@ -61,7 +62,8 @@ def saved_period(path):
     Original report artifacts are preserved.
     """
     start = end = None
-    with path.open(encoding="utf-8") as source:
+    opener = gzip.open if path.suffix == ".gz" else lambda path, mode, **kwargs: path.open(mode, **kwargs)
+    with opener(path, "rt", encoding="utf-8") as source:
         for line in source:
             if line.startswith('"equity": ['):
                 break  # Initial balance has a null timestamp; use first bar.
@@ -87,7 +89,7 @@ def saved_drawdown(folder, record):
     if "period_start_utc" in record and "period_end_utc" in record:
         start, end = (datetime.fromisoformat(record[key]) for key in ("period_start_utc", "period_end_utc"))
     else:
-        start, end = saved_period(folder / "report.json")
+        start, end = saved_period(folder / record.get("artifacts", {}).get("report", "report.json"))
     tracker = Drawdown(Decimal(record["summary"]["initial_capital"]), start)
     count = 0
     with (folder / "equity.csv").open(encoding="utf-8", newline="") as source:

@@ -5,6 +5,7 @@ from dataclasses import fields
 import json
 from pathlib import Path
 import shutil
+from threading import Lock
 
 from .execution import Trade
 from .drawdown import saved_drawdown
@@ -21,6 +22,8 @@ class RunStore:
         self.root = Path(directory) / "backtest_runs"
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = Path(directory) / "backtests.sqlite3"
+        self.detail_lock = Lock()
+        self.detail_active = set()
         with self.connect() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS runs (
@@ -40,6 +43,21 @@ class RunStore:
 
     def connect(self):
         return connection(self.path)
+
+    def claim_detail(self, source_id):
+        with self.detail_lock, self.connect() as conn:
+            if source_id in self.detail_active:
+                raise ValueError("Full detail is already being generated for this report.")
+            row = conn.execute("SELECT manifest FROM runs WHERE json_extract(manifest, '$.run_metadata.detailed_from_run_id')=? ORDER BY created_at DESC LIMIT 1",
+                               (source_id,)).fetchone()
+            if row:
+                return json.loads(row[0])
+            self.detail_active.add(source_id)
+        return None
+
+    def release_detail(self, source_id):
+        with self.detail_lock:
+            self.detail_active.discard(source_id)
 
     def _rows(self, source: Path, kind: str):
         with source.open(encoding="utf-8", newline="") as stream:

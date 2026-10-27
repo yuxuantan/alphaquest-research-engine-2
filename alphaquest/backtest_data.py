@@ -7,7 +7,7 @@ import io
 import json
 import os
 import re
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from collections.abc import Generator, Iterator
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
@@ -121,11 +121,15 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
         zone = ZoneInfo(source_timezone)
     except (ZoneInfoNotFoundError, ValueError):
         raise DatasetReadError(f"Invalid saved source timezone: {source_timezone!r}.") from None
-    with TemporaryFile(mode="w+b") as snapshot:
+    with ExitStack() as stack:
+        open_snapshot = getattr(store, "open_snapshot", None)
+        snapshot = stack.enter_context(open_snapshot(dataset_id) if open_snapshot else TemporaryFile(mode="w+b"))
         digest = hashlib.sha256()
         size = 0
-        for chunk in store.iter_csv(dataset_id):
-            snapshot.write(chunk)
+        chunks = iter(lambda: snapshot.read(1024 * 1024), b"") if open_snapshot else store.iter_csv(dataset_id)
+        for chunk in chunks:
+            if not open_snapshot:
+                snapshot.write(chunk)
             digest.update(chunk)
             size += len(chunk)
         # iter_csv has fully exited its database context before any bar is yielded.

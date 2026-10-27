@@ -358,7 +358,7 @@
       resume.textContent = job.completed_trials < job.total_trials
         ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
       get("#optimization-provenance").hidden = false;
-      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
+      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
       results(job, page);
       if (["queued", "running"].includes(job.status)) timer = setTimeout(refresh, 1000);
     } catch (error) {

@@ -217,7 +217,7 @@ def test_preparation_and_saving_stages_are_visible_and_only_saved_runs_complete(
     entered, release = Event(), Event()
     operation_id = str(uuid4())
 
-    def wrapped(*args):
+    def wrapped(*args, **kwargs):
         args = list(args)
         original_progress = args[-1]
 
@@ -228,7 +228,7 @@ def test_preparation_and_saving_stages_are_visible_and_only_saved_runs_complete(
                 assert release.wait(5)
 
         args[-1] = progress
-        return original_run(*args)
+        return original_run(*args, **kwargs)
 
     monkeypatch.setattr(backtest_api, "run_backtest", wrapped)
     with ThreadPoolExecutor(max_workers=1) as pool:

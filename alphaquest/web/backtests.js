@@ -15,6 +15,7 @@
   const count = new Intl.NumberFormat("en-US");
   const state = { datasets: [], strategies: [], busy: false, loading: false, ready: false, strategy: null, instrumentEdited: false };
   const drafts = new Map();
+  let reportRecord, detailedBusy = false;
   const optimizing = () => location.hash.startsWith("#optimizations");
   const executionLabels = {
     initial_capital: "Initial capital", tick_size: "Tick size", point_value: "Monetary point value",
@@ -271,6 +272,17 @@
   }
 
   function completion(record) {
+    reportRecord = record;
+    const compact = record.report_storage?.detail === "compact";
+    const compressed = record.report_storage?.compression === "gzip";
+    get("#report-storage-note").textContent = compact
+      ? "Compact report · All metrics, trades and trade-close equity are saved. Per-bar equity is available by generating a full-detail replay of this parameter set."
+      : `Full report · Includes per-bar equity${compressed ? "; JSON is compressed with gzip" : ""}.`;
+    get("#report-json-download").href = `/api/backtests/${record.id}/exports/report`;
+    get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
+    get("#report-generate-detail").hidden = !compact;
+    get("#report-generate-detail").disabled = detailedBusy;
+    get("#report-detail-status").hidden = true;
     const content = get("#backtest-completion-content");
     content.replaceChildren();
     const metadata = record.run_metadata;
@@ -316,6 +328,42 @@
     }
   }
   window.addEventListener("report-loaded", (event) => completion(event.detail));
+  get("#report-generate-detail").onclick = async () => {
+    if (detailedBusy || !reportRecord) return;
+    const id = reportRecord.id, operationId = crypto.randomUUID();
+    const hash = location.hash;
+    const status = get("#report-detail-status");
+    const current = () => location.hash === hash;
+    detailedBusy = true;
+    get("#report-generate-detail").disabled = true;
+    status.hidden = false;
+    status.textContent = "Replaying this parameter set to save compressed full detail…";
+    let pollTimer, finished = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/progress/${operationId}`, {cache: "no-store"});
+        if (response.ok && current() && !finished) {
+          const progress = await response.json();
+          status.textContent = `Generating full detail · ${progress.stage.replaceAll("_", " ")} · ${count.format(progress.bars_processed)} / ${count.format(progress.total_bars)} bars`;
+        }
+      } catch { /* The run request remains active when progress is unavailable. */ }
+      if (!finished) pollTimer = setTimeout(poll, 1000);
+    };
+    void poll();
+    try {
+      const record = await readResponse(await fetch(`/api/backtests/${id}/detailed?progress_id=${operationId}`, {method: "POST"}));
+      if (current()) location.hash = `#backtests/report/${record.id}`;
+    } catch (error) {
+      if (current()) status.textContent = error instanceof TypeError
+        ? "Connection lost. Check saved backtests before generating detail again; completion is unconfirmed."
+        : `Could not generate full detail: ${error.message || JSON.stringify(error.detail || error)}`;
+    } finally {
+      finished = true;
+      clearTimeout(pollTimer);
+      detailedBusy = false;
+      get("#report-generate-detail").disabled = false;
+    }
+  };
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

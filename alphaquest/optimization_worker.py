@@ -37,16 +37,21 @@ class FrozenSource:
             while chunk := stream.read(1024 * 1024):
                 yield chunk
 
+    def open_snapshot(self, dataset_id):
+        if self.get(dataset_id) is None:
+            raise DatasetReadError("Unknown optimization source.")
+        return self.path.open("rb")
+
 
 def compute_trial(context, trial, values, run_id, progress):
-    """Return small metadata; full report arrays stay on disk for the publisher."""
+    """Retain compact reports; only small metadata crosses process boundaries."""
     started = time.monotonic()
     started_at = datetime.now(timezone.utc).isoformat()
     definition = get_strategy(context.strategy_id)
     manifest, processed, total = prepare_backtest_report(
         FrozenSource(context.dataset, context.snapshot), context.output_root / run_id,
         context.dataset, definition, definition.parameters(values), context.config,
-        context.date_range, progress)
+        context.date_range, progress, report_detail="compact")
     return {"manifest": manifest, "processed": processed, "total": total,
             "execution": {"worker_pid": os.getpid(), "started_at_utc": started_at,
                           "finished_at_utc": datetime.now(timezone.utc).isoformat(),

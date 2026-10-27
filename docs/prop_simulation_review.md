@@ -631,3 +631,59 @@ measured MAE/MFE, so native analysis uses the documented fallback. Known noteboo
 financial/model shortcuts remain limitations, including holdout reuse and
 selection fallbacks; provider correctness and actual micro-contract execution
 are not claims of this product. Operations over resource bounds reject explicitly.
+
+## Compact optimization source compatibility — 27 October 2026
+
+New optimization trials retain compact Backtest reports: all metrics, original
+trade CSV fields and trade-close equity remain. Source identity, exact cost
+reconciliation and native prop calculations use the same inputs as before.
+The omitted per-bar equity JSON is not an input to prop analysis. No measured
+MAE/MFE is removed or fabricated; native-only sources retain the disclosed
+realized-loss fallback. Earlier saved results and reference evidence remain unchanged.
+
+The demonstration uses the actual Datasets → Optimizations → Backtest report →
+Configure prop analysis → Check source → Run → durable result workflow. Evidence:
+`artifacts/optimization-compact-review-20261027/test_compact_storage_and_norma0/`.
+It contains the labeled synthetic source CSV, normal catalogues/reports, report
+downloads, full-detail replay, source-check/results screenshots and independent
+expected observations in `verification.json`. The owned test server stopped.
+
+Reproduce with a new evidence directory:
+
+```bash
+.venv/bin/python -m pytest tests/test_optimization_compact_browser.py -q --basetemp artifacts/optimization-compact-review-NEW
+```
+
+Manual steps and expected observations:
+
+1. Upload the saved `SYNTHETIC-compact-report.csv` through Datasets as a synthetic
+   source, UTC, tick size 0.25 and monetary point value 10. It contains 2,880
+   minute bars over 5–6 January 2026, with exactly one trade per weekday.
+2. In Optimizations, fix green count at 3 and hold minutes at 20. Try contracts
+   1–2 with step 1; slippage 1 tick per fill, commission 1 per contract per side.
+   Expect two rows with **26.00** and **52.00 CU** net. Independently: each day
+   enters at 100.25, exits at 101.75, gross 15 minus commission 2 = net 13 per
+   contract. No second charge for slippage is applied to the saved net value.
+3. Open the one-contract Backtest report. Its compact notice, chart, trades and
+   downloads work. **Generate full detail** produces a separate gzip report;
+   all 2,881 equity events are retained and both CSVs exactly match. The original
+   compact files remain byte-identical.
+4. Return to the compact report and click Configure prop analysis. Enter
+   `{"unsupported_storage_test":1}` in additional overrides and Check source:
+   expect an explicit unknown-setting rejection and disabled Run. Restore `{}`
+   and check again: expect two trades, source net **26.00**, measured MAE count
+   **0**, and the native fallback disclosure. Do not supply a fabricated export.
+5. Run with standard defaults. Expect validation evaluation pass rate **0** and
+   funded outcomes explicitly unavailable: repeating this small daily return
+   cannot reach the evaluation target within its deadline at the supported sizes.
+   These are actual local calculations, not invented future outcomes. Download
+   Report data JSON, reload, return through Backtest/configuration and reopen
+   the saved analysis. The source identity, net costs and unavailable funded
+   result remain unchanged, with no recomputation on reload/reopen.
+
+The saved one-contract files total 3,718 bytes versus 551,057 bytes for a full
+ordinary backtest of identical inputs (99.33% reduction in this example). The
+compressed detailed JSON is 19,702 bytes. Automated checks also cover corrupt
+events/truncated streams, zero-trade reports, missing/changed replay inputs,
+replay mismatch rejection, duplicate detail generation, serial/process parity,
+and direct read-only snapshot hashing without a per-worker input copy.

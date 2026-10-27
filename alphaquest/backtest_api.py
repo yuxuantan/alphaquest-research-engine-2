@@ -1,6 +1,8 @@
 """HTTP boundary and worker orchestration; strategy/fill/report logic is reused."""
 
 from decimal import Decimal, InvalidOperation
+import hashlib
+import json
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ from .backtest_runs import RunStore
 from .backtest_config import RunSettings, instrument_overrides
 from .datasets import COLUMNS, InvalidDataset
 from .execution import ExecutionError, execute
-from .reporting import ReportError, generate_report
+from .reporting import ReportError, generate_report, json_value
 from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
 
@@ -47,7 +49,8 @@ class BacktestRequest(BaseModel):
     to_date: StrictStr | None = None
 
 
-def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress):
+def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
+                            *, report_detail="full", compress_report=False, source_run_id=None):
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
 
@@ -58,6 +61,8 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
     metadata = {"dataset": {key: dataset[key] for key in ("id", "name", "sha256", "source_timezone", "row_count", "instrument_settings")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
+    if source_run_id:
+        metadata["detailed_from_run_id"] = source_run_id
     with read_selected_bars(store, dataset["id"], date_range) as selected:
         total = selected.row_count
         metadata["selection"] = selected.metadata
@@ -73,15 +78,25 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         stage("replaying")
         manifest = generate_report(execute(counted_bars(), definition.create(parameters, config), config), output, config,
                                    execution_assumption=definition.execution_assumption,
-                                   metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"))
+                                   metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
+                                   detail=report_detail, compress=compress_report)
     return manifest, processed, total
 
 
-def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress):
+def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
+                 *, compress_report=False, source_record=None):
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         output = Path(temporary) / "report"
         manifest, processed, total = prepare_backtest_report(
-            store, output, dataset, definition, parameters, config, date_range, progress)
+            store, output, dataset, definition, parameters, config, date_range, progress,
+            compress_report=compress_report, source_run_id=source_record["id"] if source_record else None)
+        if source_record:
+            if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
+                raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
+            for name in ("trades.csv", "equity.csv"):
+                with (runs.root / source_record["id"] / name).open("rb") as original, (output / name).open("rb") as replay:
+                    if hashlib.file_digest(original, "sha256").digest() != hashlib.file_digest(replay, "sha256").digest():
+                        raise ReportError("Detailed replay trades/equity differ from the saved report. No detailed report was published.")
         progress("saving_results", processed, total)
         record = runs.complete(run_id, output, manifest)
     progress("done", processed, total)
@@ -113,6 +128,11 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
         config = body.execution_settings.execution_config(dataset)
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
+    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id)
+
+
+async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
+                           *, compress_report=False, source_record=None):
     run_id = uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -126,13 +146,55 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
 
     try:
         return await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
-                                       dataset, definition, parameters, config, date_range, progress)
+                                       dataset, definition, parameters, config, date_range, progress,
+                                       compress_report=compress_report, source_record=source_record)
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))
         if isinstance(exc, (DatasetReadError, InvalidDataset, ExecutionError, ReportError)):
             raise HTTPException(422, str(exc)) from None
         raise HTTPException(500, "Backtest failed; no completed run was saved.") from exc
+
+
+@router.post("/api/backtests/{run_id}/detailed", status_code=201)
+async def detailed(run_id: UUID, request: Request, progress_id: UUID | None = None):
+    record = await run_in_threadpool(request.app.state.runs.get, run_id.hex)
+    if record is None:
+        raise HTTPException(404, "Completed backtest not found.")
+    if record.get("report_storage", {}).get("detail") != "compact":
+        raise HTTPException(409, "This report already retains full detail.")
+    runs = request.app.state.runs
+    try:
+        cached = await run_in_threadpool(runs.claim_detail, record["id"])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    if cached:
+        return cached
+    try:
+        return await generate_detail(request, record, progress_id)
+    finally:
+        runs.release_detail(record["id"])
+
+
+async def generate_detail(request, record, progress_id):
+    metadata = record["run_metadata"]
+    dataset = await run_in_threadpool(request.app.state.store.get, metadata["dataset"]["id"])
+    if dataset is None:
+        raise HTTPException(422, "The original dataset is missing; it is required to generate per-bar detail.")
+    try:
+        if any(dataset[key] != metadata["dataset"][key] for key in ("sha256", "source_timezone", "row_count")):
+            raise ValueError("The dataset no longer matches the saved report.")
+        definition = get_strategy(metadata["strategy"]["id"])
+        if definition.description()["source_sha256"] != metadata["strategy"]["source_sha256"]:
+            raise ValueError("Strategy source has changed; detailed replay requires the original strategy.")
+        parameters = definition.parameters(metadata["strategy"]["parameters"])
+        config = ExecutionSettings.model_validate(record["execution_settings"]).execution_config(dataset)
+        selection = metadata["selection"]
+        dates = DateRange.parse(selection.get("from_date"), selection.get("to_date"))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from None
+    return await execute_backtest(request, dataset, definition, parameters, config, dates, progress_id,
+                                   compress_report=True, source_record=record)
 
 
 @router.get("/api/backtests")
@@ -181,9 +243,14 @@ def chart(run_id: UUID, request: Request, max_points: int = Query(1000, ge=16, l
 @router.get("/api/backtests/{run_id}/exports/{kind}")
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
-    if kind not in ("trades", "equity") or runs.get(run_id.hex) is None:
+    record = runs.get(run_id.hex)
+    if kind not in ("trades", "equity", "report") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
-    path = runs.root / run_id.hex / f"{kind}.csv"
+    name = record["artifacts"]["report"] if kind == "report" else f"{kind}.csv"
+    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv"):
+        raise HTTPException(404, "Unknown report artifact.")
+    path = runs.root / run_id.hex / name
     if not path.is_file():
         raise HTTPException(404, "Saved CSV not found.")
-    return FileResponse(path, media_type="text/csv", filename=f"{run_id.hex}-{kind}.csv")
+    media_type = "application/gzip" if name.endswith(".gz") else "application/json" if kind == "report" else "text/csv"
+    return FileResponse(path, media_type=media_type, filename=f"{run_id.hex}-{name}")

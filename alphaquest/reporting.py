@@ -2,10 +2,12 @@
 
 from collections.abc import Callable, Iterable
 import csv
+from contextlib import ExitStack
 from dataclasses import asdict, fields
 from datetime import datetime, timedelta, timezone
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 import json
+import gzip
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
@@ -34,14 +36,14 @@ def json_value(value):
     raise TypeError(f"Unsupported report value: {type(value).__name__}")
 
 
-def _record(event) -> dict:
+def _record(event, *, serialize=True) -> dict | None:
     for field in fields(event):
         value = getattr(event, field.name)
         if field.type is Decimal and (not isinstance(value, Decimal) or not value.is_finite()):
             raise ReportError(f"{type(event).__name__}.{field.name} must be a finite Decimal.")
         if field.type is int and type(value) is not int:
             raise ReportError(f"{type(event).__name__}.{field.name} must be an integer.")
-    return asdict(event)
+    return asdict(event) if serialize else None
 
 
 def _utc(value) -> bool:
@@ -62,11 +64,14 @@ def generate_report(
     *, metadata: dict | None = None, expected_bar_count: int | None = None,
     on_saving: Callable[[], None] | None = None,
     execution_assumption: str = "same_close_full_fill",
+    detail: str = "full", compress: bool = False,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
-    The returned manifest has summary/checks, while the JSON on disk additionally
-    contains full `trades` and `equity` arrays. Arrays and CSVs stream through
+    Compact reports retain the manifest and complete trade/trade-close CSVs.
+    Full reports additionally contain `trades` and per-bar `equity` arrays.
+    Compressed full reports and their temporary arrays use streaming gzip.
+    Arrays and CSVs stream through
     temporary files with bounded memory. A new output directory is required;
     errors remove staging files and publish no completed report. Pass the saved
     row count to detect a prematurely truncated stream that happened to be flat.
@@ -79,6 +84,8 @@ def generate_report(
     """
     if type(config) is not ExecutionConfig:
         raise ReportError("config must be an ExecutionConfig.")
+    if detail not in ("compact", "full") or type(compress) is not bool:
+        raise ReportError("Report detail must be compact or full; compress must be a boolean.")
     if expected_bar_count is not None and (type(expected_bar_count) is not int or expected_bar_count < 1):
         raise ReportError("expected_bar_count must be an integer >= 1.")
     destination = Path(output_directory)
@@ -94,21 +101,23 @@ def generate_report(
         staging = Path(temporary) / "complete"
         staging.mkdir()
         trades_path, equity_path = Path(temporary) / "trades.array", Path(temporary) / "equity.array"
-        with (
-            trades_path.open("w", encoding="utf-8") as trade_array,
-            equity_path.open("w", encoding="utf-8") as equity_array,
-            (staging / "trades.csv").open("w", encoding="utf-8", newline="") as trades_csv,
-            (staging / "equity.csv").open("w", encoding="utf-8", newline="") as equity_csv,
-        ):
+        open_array = (lambda path, mode: gzip.open(path, mode + "t", encoding="utf-8", compresslevel=6)) if compress else (
+            lambda path, mode: path.open(mode, encoding="utf-8"))
+        with ExitStack() as stack:
+            if detail == "full":
+                trade_array = stack.enter_context(open_array(trades_path, "w"))
+                equity_array = stack.enter_context(open_array(equity_path, "w"))
+                trade_array.write("[")
+                equity_array.write("[")
+            trades_csv = stack.enter_context((staging / "trades.csv").open("w", encoding="utf-8", newline=""))
+            equity_csv = stack.enter_context((staging / "equity.csv").open("w", encoding="utf-8", newline=""))
             trade_writer = csv.DictWriter(trades_csv, fieldnames=TRADE_FIELDS)
             equity_writer = csv.DictWriter(equity_csv, fieldnames=EQUITY_FIELDS)
             trade_writer.writeheader()
             equity_writer.writeheader()
-            trade_array.write("[")
-            equity_array.write("[")
             for event in events:
                 _check(type(event) in (Trade, EquityPoint), f"Unsupported report event: {type(event).__name__}")
-                record = _record(event)
+                record = _record(event, serialize=detail == "full" or type(event) is Trade)
                 if type(event) is Trade:
                     _check(last is not None, "Initial equity must precede trades.")
                     _check(pending_trade is None, "Missing equity point after completed trade.")
@@ -134,9 +143,10 @@ def generate_report(
                     winning += event.net_pnl > 0
                     losing += event.net_pnl < 0
                     breakeven += event.net_pnl == 0
-                    if trade_count:
-                        trade_array.write(",\n")
-                    json.dump(record, trade_array, default=json_value, allow_nan=False)
+                    if detail == "full":
+                        if trade_count:
+                            trade_array.write(",\n")
+                        json.dump(record, trade_array, default=json_value, allow_nan=False)
                     trade_writer.writerow(_csv_record(record))
                     trade_count += 1
                     previous_trade = pending_trade = event
@@ -161,7 +171,8 @@ def generate_report(
                                "Equity points must be contiguous bars with UTC timestamps.")
                         _check(last.timestamp_utc is None or event.timestamp_utc > last.timestamp_utc,
                                "Equity timestamps must be strictly increasing.")
-                        equity_array.write(",\n")
+                        if detail == "full":
+                            equity_array.write(",\n")
                     if pending_trade is not None:
                         _check(event.bar_number == pending_trade.exit_bar_number
                                and event.timestamp_utc == pending_trade.exit_time_utc and event.position_contracts == 0,
@@ -180,12 +191,14 @@ def generate_report(
                     elif last is not None and last.position_contracts:
                         _check(event.position_contracts == last.position_contracts,
                                "Position changed without a completed trade.")
-                    json.dump(record, equity_array, default=json_value, allow_nan=False)
+                    if detail == "full":
+                        json.dump(record, equity_array, default=json_value, allow_nan=False)
                     if drawdown is None and event.bar_number == 1:
                         drawdown = Drawdown(initial.equity, event.timestamp_utc)
                     last = event
-            trade_array.write("]")
-            equity_array.write("]")
+            if detail == "full":
+                trade_array.write("]")
+                equity_array.write("]")
         _check(initial is not None and last.bar_number > 0, "Report requires initial equity and at least one observed bar.")
         _check(pending_trade is None, "Missing final equity point after trade.")
         _check(expected_bar_count is None or last.bar_number == expected_bar_count, "Equity bar count does not match the saved dataset.")
@@ -207,8 +220,9 @@ def generate_report(
             "ending_position_contracts": last.position_contracts,
             **drawdown.finish(last.timestamp_utc),
         }
+        report_name = "report.json.gz" if compress else "report.json"
         manifest = {
-            "format_version": 1, "status": "complete",
+            "format_version": 2 if detail == "compact" or compress else 1, "status": "complete",
             "created_at_utc": datetime.now(timezone.utc),
             "period_start_utc": drawdown.start, "period_end_utc": last.timestamp_utc,
             "timestamp_convention": TIMESTAMP_CONVENTION,
@@ -225,18 +239,25 @@ def generate_report(
                 "observed_bar_count": last.bar_number,
                 "expected_bar_count": expected_bar_count,
             },
-            "artifacts": {"report": "report.json", "trades_csv": "trades.csv", "equity_csv": "equity.csv"},
+            "artifacts": {"report": report_name, "trades_csv": "trades.csv", "equity_csv": "equity.csv"},
         }
+        if detail == "compact" or compress:
+            manifest["report_storage"] = {"detail": detail, "compression": "gzip" if compress else "none",
+                                          "per_bar_equity_retained": detail == "full",
+                                          "trades": "all", "equity_csv": "initial_and_trade_close"}
         if on_saving is not None:
             on_saving()
-        with (staging / "report.json").open("w", encoding="utf-8") as report:
+        with open_array(staging / report_name, "w") as report:
             header = json.dumps(manifest, default=json_value, allow_nan=False, indent=2)
-            report.write(header[:-1])
-            for name, path in (("trades", trades_path), ("equity", equity_path)):
-                report.write(f',\n"{name}": ')
-                with path.open(encoding="utf-8") as source:
-                    shutil.copyfileobj(source, report, length=1024 * 1024)
-            report.write("\n}\n")
+            if detail == "compact":
+                report.write(header + "\n")
+            else:
+                report.write(header[:-1])
+                for name, path in (("trades", trades_path), ("equity", equity_path)):
+                    report.write(f',\n"{name}": ')
+                    with open_array(path, "r") as source:
+                        shutil.copyfileobj(source, report, length=1024 * 1024)
+                report.write("\n}\n")
         if destination.exists():
             raise FileExistsError(f"Report output directory already exists: {destination}")
         staging.rename(destination)
