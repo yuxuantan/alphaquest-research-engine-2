@@ -215,6 +215,7 @@
       const data=await read(`/api/backtests/${record.id}/performance`,controller.signal);
       if(active!==controller)return;
       get('#report-performance-status').textContent=data.unavailable || `Total elapsed: ${data.elapsed_seconds.toFixed(3)} seconds. Phase times exclude time attributed to nested phases.`;
+      if(data.details?.prop_backend)get('#report-performance-status').textContent+=` Prop engine: ${data.details.prop_backend}.`;
       for(const [key,value] of Object.entries(data.phases_seconds || {})) {
         const row=node('tr');row.append(node('td',key.replaceAll('_',' ')),node('td',value.toFixed(3)));get('#report-performance-body').append(row);
       }

@@ -122,6 +122,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
             with timings.span('prop_analysis'):
                 prop_result = compute_default(Path(temporary), run_id, manifest, Path(temporary)/"prop", automatic,
                                               lambda message: progress("prop_simulation: " + message, processed, total))
+            timings.details['prop_backend']=prop_result.get('native_kernel',{}).get('name','source incompatible')
         progress("saving_results", processed, total)
         with timings.span('publication'):
             record = publish_backtest(runs, prop_analyses, run_id, output, manifest, prop_result, Path(temporary)/"prop")

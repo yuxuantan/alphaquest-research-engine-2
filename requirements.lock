@@ -29,6 +29,7 @@ pyee==14.0.0
 greenlet==3.5.6
 
 # Numerical runtime pinned to fresh notebook parity environment.
+Cython==3.3.0
 numpy==2.5.4
 pandas==3.1.0
 python-dateutil==3.0.0

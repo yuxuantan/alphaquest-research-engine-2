@@ -5,3 +5,6 @@ __pycache__/
 data/
 artifacts/
 .DS_Store
+build/
+*.so
+*.pyd

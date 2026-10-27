@@ -21,7 +21,8 @@ def engine_identity():
     # Editable installs can appear through both cwd and site-packages. Import
     # path aliases do not change the executing package versions.
     dependencies = sorted({(item.metadata["Name"], item.version) for item in distributions()})
-    return digest([sys.version, dependencies, files])
+    from .prop.native_backend import identity
+    return digest([sys.version, dependencies, files, identity()])
 
 
 def trial_key(job, values):

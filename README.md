@@ -223,6 +223,12 @@ verified compressed per-bar report when needed. The API accepts
 `report_detail: "full"`; the CLI accepts `--report-detail full`. Expand **Runtime
 breakdown** on a saved report for phase times and their original JSON download.
 
+Installation optionally compiles AlphaQuest's local prop model with Cython. A
+matching build is selected automatically; the Python reference remains available
+when no matching binary exists. Rebuild an editable checkout with
+`.venv/bin/python setup.py build_ext --inplace` after editing the model source.
+Runtime breakdown and saved prop report metadata identify the chosen backend.
+
 Use **Delete** beside a completed report, or **Delete backtest** inside the report,
 to permanently remove that selected backtest and its report/CSV files after
 confirmation. The source dataset, saved prop analyses and optimization metrics

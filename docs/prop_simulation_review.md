@@ -1070,3 +1070,43 @@ Validation: **155 checks passed**, covering runtime/CLI, exact independent
 financial fixtures, API, dates, VWAP, compact/full replay and the normal browser
 workflow. Full-array fixture oracles explicitly request full reports. Servers
 stop in their normal fixtures; prior reports and evidence remain preserved.
+
+### Increment 3 — compiled prop arithmetic with exact reference qualification
+
+Normal installation builds an optional AlphaQuest-owned Cython extension from
+the **same `native_engine.py` source** used by the interpreted reference. Typed
+numeric locals remove Python arithmetic overhead in evaluation and account-day
+loops. Compiler flags disable fast math and fused floating contraction. The
+original NumPy MT19937 calls and stopping/draw order remain unchanged. No vendor
+executable, generated external result or Windows VM participates. A missing or
+stale binary selects the Python reference; a matching source hash is required.
+The compiled binary fingerprint enters reuse identity and the saved report.
+
+Open a normal new Backtest report and expand Runtime breakdown: expect **Prop
+engine: compiled** after building. Historical net, cost arithmetic and the normal
+configure/check/reopen workflow remain identical. `ALPHAQUEST_PROP_BACKEND=python`
+selects the reference for qualification; `compiled` refuses a missing/stale build.
+
+Actual standard-count financial comparison and product evidence:
+`artifacts/backtest-runtime-20261027/03-compiled/`. In
+`test_standard_count_portal_cal0/compiled-verification.json`, both runs used the
+same labelled 60-weekday source, normal APIs, default 3,000/20,000 counts and
+independent expected net **352,880**. Every calculation field and distribution
+matches exactly. Observed prop times were **17.9153 s Python / 11.0983 s compiled**
+(about **1.61x**) on this workload. These observations do not guarantee other
+workloads' speed. Browser evidence in `test_automatic_apex_backtest_o0/` includes
+the durable runtime display, native source checks, downloads and unchanged cash.
+
+```bash
+.venv/bin/python -m pip install -e '.[dev,browser]' -c requirements.lock
+# Or rebuild an editable checkout after changing the model source:
+.venv/bin/python setup.py build_ext --inplace
+.venv/bin/python -m pytest -q tests/test_native_prop_compiled.py \
+  tests/test_native_prop_engine.py tests/test_automatic_prop_browser.py \
+  --basetemp artifacts/backtest-runtime-review-compiled-NEW
+```
+
+Validation: **18 checks passed**, including multiple seeds, block lengths,
+account sizes, rules, exact-floor hits, repeated funding attempts, every account
+state, complete standard-count calculations and the full browser journey. Earlier
+reports and benchmark evidence are preserved; fixture servers stopped.

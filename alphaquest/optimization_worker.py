@@ -63,6 +63,7 @@ def compute_trial(context, trial, values, run_id, progress):
     with timings.span('prop_analysis'):
         prop_result = compute_default(context.output_root, run_id, manifest, context.output_root / ("prop-" + automatic["id"]), automatic,
                                       lambda message: progress("prop_simulation: " + message, processed, total)) if automatic else None
+    if prop_result:timings.details['prop_backend']=prop_result.get('native_kernel',{}).get('name','source incompatible')
     return {"manifest": manifest, "processed": processed, "total": total, "prop_analysis": prop_result, 'performance': timings.snapshot(),
             "execution": {"worker_pid": os.getpid(), "started_at_utc": started_at,
                           "finished_at_utc": datetime.now(timezone.utc).isoformat(),

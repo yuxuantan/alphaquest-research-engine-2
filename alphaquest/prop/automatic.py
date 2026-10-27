@@ -58,7 +58,7 @@ def compute_default(root, run_id, manifest, staged, description, progress=lambda
         seal_report(staged,report,description['id'],created)
         history=report['calculations'].get('history')
         result.update(status='complete',historical_net=history['totals']['net'] if history else None,
-                      reason=report['calculations'].get('unavailable'))
+                      reason=report['calculations'].get('unavailable'),native_kernel=report['runtime']['native_kernel'])
     except Exception as exc:
         shutil.rmtree(staged,ignore_errors=True)
         result.update(status='error',reason=f'{type(exc).__name__}: {exc}')

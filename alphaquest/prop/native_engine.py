@@ -7,6 +7,7 @@ these calculations. Parity qualification is maintained outside this module.
 from dataclasses import dataclass, field
 from collections import deque
 import numpy as np
+import cython
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,10 @@ class FundedAccount:
     outcome: str = 'open'
     approval: bool = False
 
+    @cython.locals(opening=cython.double, floor=cython.double, cap=cython.double,
+                   dll=cython.double, size=cython.double, daily_floor=cython.double,
+                   net=cython.double, adverse=cython.double, trough=cython.double,
+                   profit=cython.double, cycle_profit=cython.double, amount=cython.double)
     def advance(self, trades, micros, max_micros=40):
         """Consume one session of nonoverlapping (net, adverse) trade pairs."""
         if self.outcome != 'open':
@@ -129,6 +134,10 @@ def compact_neutral_runs(days):
     return result
 
 
+@cython.locals(equity=cython.double, high=cython.double, size=cython.double,
+               opening=cython.double, floor=cython.double, daily_floor=cython.double,
+               net=cython.double, adverse=cython.double, trough=cython.double,
+               day=cython.longlong, duration=cython.longlong, attempt=cython.longlong)
 def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
                max_micros=40):
     rng = np.random.RandomState(seed)

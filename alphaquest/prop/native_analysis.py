@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .adapter import digest
-from .native_engine import Rules, FundedAccount, evaluation, funded, compact_neutral_runs
+from .native_backend import Rules, FundedAccount, evaluation, funded, compact_neutral_runs, identity as backend_identity
 
 MODEL_VERSION = 'alphaquest-apex50k-eod-v1'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
@@ -291,5 +291,5 @@ def run_analysis(runs,request,staged,progress):
     except (OSError,subprocess.CalledProcessError):commit='unavailable'
     return dict(format_version=3,model_version=MODEL_VERSION,source=snapshot,settings=settings,calculations=result,
                 calculation_contract='AlphaQuest local account transitions, random sampling, sizing, economics and charts; no external engine or generated report inputs.',
-                runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__),
+                runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__,native_kernel=backend_identity()),
                 application_commit=commit,implementation_sha256={p.name:digest(p) for p in Path(__file__).parent.glob('*.py')})
