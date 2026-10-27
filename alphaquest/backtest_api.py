@@ -1,6 +1,7 @@
 """HTTP boundary and worker orchestration; strategy/fill/report logic is reused."""
 
 from decimal import Decimal, InvalidOperation
+from contextlib import ExitStack
 import hashlib
 import json
 import sqlite3
@@ -24,6 +25,7 @@ from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
 from .strategy_features import create_strategy
 from .prop.automatic import descriptor, compute_default, publish_backtest
+from .performance import Performance, save_performance
 
 
 class ExecutionSettings(BaseModel):
@@ -54,7 +56,8 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None, automatic_prop=None):
+                            prepared=None, feature_paths=None, automatic_prop=None, timings=None):
+    timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
 
@@ -69,8 +72,10 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["detailed_from_run_id"] = source_run_id
     if automatic_prop:
         metadata["automatic_prop_analysis"] = automatic_prop
-    with (prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range)) as selected, \
-            create_strategy(definition, parameters, config, feature_paths or {}) as strategy:
+    with ExitStack() as stack:
+        with timings.span('source_loading'):
+            selected = stack.enter_context(prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range))
+            strategy = stack.enter_context(create_strategy(definition, parameters, config, feature_paths or {}))
         total = selected.row_count
         metadata["selection"] = selected.metadata
         if hasattr(strategy, "session_flattening"):
@@ -79,28 +84,31 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         # callback/fill. Final-bar count is visible before report publication.
         def counted_bars():
             nonlocal processed
-            for bar in selected.bars:
+            for bar in timings.iterate(selected.bars, 'source_loading'):
                 yield bar
                 processed = bar.bar_number
                 stage("replaying")
 
         stage("replaying")
-        manifest = generate_report(execute(counted_bars(), strategy, config), output, config,
-                                   execution_assumption=definition.execution_assumption,
-                                   metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
-                                   detail=report_detail, compress=compress_report)
+        events = timings.iterate(execute(counted_bars(), strategy, config), 'replay')
+        with timings.span('report_writing'):
+            manifest = generate_report(events, output, config,
+                                       execution_assumption=definition.execution_assumption,
+                                       metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
+                                       detail=report_detail, compress=compress_report)
     return manifest, processed, total
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
                  *, compress_report=False, source_record=None, prop_analyses=None):
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
+        timings = Performance()
         output = Path(temporary) / run_id
         automatic = source_record["run_metadata"].get("automatic_prop_analysis") if source_record else descriptor() if prop_analyses else None
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic)
+            automatic_prop=automatic, timings=timings)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -110,10 +118,13 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
                         raise ReportError("Detailed replay trades/equity differ from the saved report. No detailed report was published.")
         prop_result = None
         if not source_record and prop_analyses:
-            prop_result = compute_default(Path(temporary), run_id, manifest, Path(temporary)/"prop", automatic,
-                                          lambda message: progress("prop_simulation: " + message, processed, total))
+            with timings.span('prop_analysis'):
+                prop_result = compute_default(Path(temporary), run_id, manifest, Path(temporary)/"prop", automatic,
+                                              lambda message: progress("prop_simulation: " + message, processed, total))
         progress("saving_results", processed, total)
-        record = publish_backtest(runs, prop_analyses, run_id, output, manifest, prop_result, Path(temporary)/"prop")
+        with timings.span('publication'):
+            record = publish_backtest(runs, prop_analyses, run_id, output, manifest, prop_result, Path(temporary)/"prop")
+        save_performance(runs.root/run_id, timings.snapshot())
     progress("done", processed, total)
     return record
 
@@ -275,17 +286,26 @@ def chart(run_id: UUID, request: Request, max_points: int = Query(1000, ge=16, l
         raise HTTPException(500, "Saved equity chart could not be read.") from exc
 
 
+@router.get('/api/backtests/{run_id}/performance')
+def performance(run_id: UUID, request: Request):
+    runs=request.app.state.runs
+    if runs.get(run_id.hex) is None:raise HTTPException(404,'Completed backtest not found.')
+    path=runs.root/run_id.hex/'performance.json'
+    if not path.is_file():return dict(version=1,unavailable='Timing diagnostics were not captured for this historical report.')
+    return json.loads(path.read_text())
+
+
 @router.get("/api/backtests/{run_id}/exports/{kind}")
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report") or record is None:
+    if kind not in ("trades", "equity", "report", "performance") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
-    name = record["artifacts"]["report"] if kind == "report" else f"{kind}.csv"
-    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv"):
+    name = record["artifacts"]["report"] if kind == "report" else 'performance.json' if kind == 'performance' else f"{kind}.csv"
+    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv", "performance.json"):
         raise HTTPException(404, "Unknown report artifact.")
     path = runs.root / run_id.hex / name
     if not path.is_file():
         raise HTTPException(404, "Saved CSV not found.")
-    media_type = "application/gzip" if name.endswith(".gz") else "application/json" if kind == "report" else "text/csv"
+    media_type = "application/gzip" if name.endswith(".gz") else "application/json" if name.endswith('.json') else "text/csv"
     return FileResponse(path, media_type=media_type, filename=f"{run_id.hex}-{name}")

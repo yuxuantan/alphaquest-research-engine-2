@@ -48,6 +48,12 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     assert float(inline.locator('#report-prop-average-payout').get_attribute('title').split(': ')[1])==report['calculations']['funded']['selected']['E[payout]']
     assert inline.evaluate("n => n.previousElementSibling.querySelector('h2').id")=='equity-chart-title'
     inline.scroll_into_view_if_needed();inline.screenshot(path=str(tmp_path/'inline-prop-summary.png'))
+    page.locator('#report-performance > summary').click()
+    playwright.expect(page.locator('#report-performance-status')).to_contain_text('Total elapsed:')
+    playwright.expect(page.locator('#report-performance-body')).to_contain_text('prop analysis')
+    page.locator('#report-performance').screenshot(path=str(tmp_path/'runtime-breakdown.png'))
+    diagnostic=page.request.get(f"{portal['url']}/api/backtests/{backtest_id}/performance").json()
+    (tmp_path/'runtime-breakdown.json').write_text(json.dumps(diagnostic,indent=2))
     with page.expect_download() as downloaded:
         inline.get_by_role('link',name='Report data (JSON)',exact=False).click()
     assert sha256(open(downloaded.value.path(),'rb').read()).hexdigest()==sha256(report_bytes).hexdigest()

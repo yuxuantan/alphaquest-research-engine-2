@@ -207,8 +207,15 @@ class OptimizationStore:
     def publish(self, job_id, trial, run_id, context, result):
         """Only the coordinator publishes reports and writes the SQLite catalogue."""
         prop = result.get("prop_analysis")
+        publishing = time.perf_counter()
         record = publish_backtest(self.runs, self.prop_analyses, run_id, context.output_root / run_id, result["manifest"],
                                   prop, context.output_root / ("prop-" + prop["id"]) if prop else None)
+        if result.get('performance'):
+            from .performance import save_performance
+            diagnostic=result['performance']
+            diagnostic['phases_seconds']['publication']=time.perf_counter()-publishing
+            diagnostic['elapsed_seconds']+=diagnostic['phases_seconds']['publication']
+            save_performance(self.runs.root/run_id,diagnostic)
         row = {"trial": trial, "run_id": record["id"],
                "parameters": record["run_metadata"]["strategy"]["parameters"],
                "metrics": {name: record["summary"][name] for name in BACKTEST_METRICS},

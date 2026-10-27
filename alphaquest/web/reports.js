@@ -207,6 +207,20 @@
       get("#report-prop-status").textContent = `Could not load saved prop analysis: ${exc.message}`;
     }
   }
+  async function performance(record, controller) {
+    get('#report-performance-body').replaceChildren();
+    get('#report-performance-status').textContent='Loading timing diagnostics…';
+    get('#report-performance-download').hidden=true;
+    try {
+      const data=await read(`/api/backtests/${record.id}/performance`,controller.signal);
+      if(active!==controller)return;
+      get('#report-performance-status').textContent=data.unavailable || `Total elapsed: ${data.elapsed_seconds.toFixed(3)} seconds. Phase times exclude time attributed to nested phases.`;
+      for(const [key,value] of Object.entries(data.phases_seconds || {})) {
+        const row=node('tr');row.append(node('td',key.replaceAll('_',' ')),node('td',value.toFixed(3)));get('#report-performance-body').append(row);
+      }
+      const link=get('#report-performance-download');link.hidden=Boolean(data.unavailable);link.href=`/api/backtests/${record.id}/exports/performance`;
+    } catch(exc) {if(active===controller&&!controller.signal.aborted)get('#report-performance-status').textContent=`Timing diagnostics unavailable: ${exc.message}`;}
+  }
   function equityScale(min, max) {
     // Aim for about five labels, extending the domain to clean step multiples.
     // Do not force zero: a large starting balance can have a small trading range.
@@ -367,6 +381,7 @@
       remove.disabled = deleting.has(record.id);
       remove.onclick = () => deleteBacktest(record);
       propSummary(record, controller);
+      performance(record, controller);
       window.dispatchEvent(new CustomEvent("report-loaded", { detail: record }));
       get("#report-prop-setup").href = `#backtests/prop/new/${record.id}`;
       get("#report-run-id").textContent = `Run ${record.id} · ${stamp(record.created_at_utc)} UTC`;

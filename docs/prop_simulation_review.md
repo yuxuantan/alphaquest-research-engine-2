@@ -998,3 +998,38 @@ trial. That affected case then passed independently in **3.47 seconds**. No
 deletion behavior failed. Commands, file hashes and outcomes are retained in
 `artifacts/delete-backtests-final-20261027/validation.json`, with read-only
 existing-data checks in `preservation.json`. Earlier test outputs remain intact.
+
+## Backtest runtime improvements — timing instrumentation (increment 1)
+
+New backtests and optimization trial reports include a durable `performance.json`.
+Open the normal Backtest report and expand **Runtime breakdown**, below the prop
+summary, to inspect source loading, chronological replay, report writing, prop
+analysis and publication. Nested work is subtracted from its enclosing phase;
+phase totals are not double counted. Download the original timing JSON there.
+Historical reports display an explicit unavailable message rather than invented
+timings. Diagnostic-file failures do not invalidate completed financial results.
+
+The actual upload -> backtest -> configure -> source-check -> run -> durable
+report demonstration is retained in
+`artifacts/backtest-runtime-20261027/01-timings/test_automatic_apex_backtest_o0/`.
+`runtime-breakdown.png` and `runtime-breakdown.json` show 19.2324 seconds elapsed,
+including 19.1044 seconds of prop analysis, 0.0179 source loading, 0.0136 replay,
+0.0406 report writing and 0.0550 publication on this labelled synthetic workload.
+These are observations for this input and host, not general speed guarantees.
+Independent cash expectations remain 360,000 payouts - 7,120 acquisition fees =
+352,880 Historical net, with all default counts and exact original downloads.
+The same workflow covers unsupported/no-pass sources, unknown-setting rejection,
+reopen, sorting, native cost conservation and no recalculation on reload.
+
+Reproduce with a fresh directory:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_backtest_runtime.py \
+  tests/test_automatic_prop_browser.py \
+  --basetemp artifacts/backtest-runtime-review-timings-NEW
+```
+
+For function-level profiling of a normal CLI run, use
+`python -m cProfile -o <new-file.pstats> -m alphaquest.run_backtest <normal arguments>`.
+Compare unprofiled end-to-end runs for speed claims. Timings and profiling do not
+enter financial calculations. Test servers stop through their normal fixtures.

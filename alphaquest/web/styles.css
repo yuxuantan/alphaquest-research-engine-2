@@ -1564,6 +1564,8 @@ dialog::backdrop {
 .completed-run-row { display:flex; align-items:center; border-top:1px solid var(--line); gap:12px; padding-right:24px; }
 .completed-run-row .completed-run { flex:1; min-width:0; border-top:0; }
 #backtest-delete-status { margin:16px 0; overflow-wrap:anywhere; }
+.runtime-panel { margin-top:24px; }
+.runtime-panel > summary { cursor:pointer; padding:24px; font-weight:600; }
 @media(max-width:600px) {
   #report-prop-summary .prop-metric-grid { grid-template-columns:1fr; }
 }
