@@ -12,6 +12,7 @@ import pandas as pd
 
 from .adapter import digest
 from .native_backend import Rules, FundedAccount, evaluation, funded, compact_neutral_runs, identity as backend_identity
+from .parallel import map_sweep,diagnostics as execution_diagnostics
 
 MODEL_VERSION = 'alphaquest-apex50k-eod-v1'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
@@ -171,6 +172,31 @@ def replay_history(grid, days, micros, replacement_days, cost, slots, rules=Rule
 
 
 
+def _evaluation_size(value):
+    days,size,block,max_micros=value
+    sim=evaluation(days,size,3000,42,block,max_micros=max_micros)
+    return dict(micros=size,passed=int(sum(sim['outcomes']=='passed')),simulations=3000)
+
+
+def _funded_size(value):
+    days,size,block,rules,max_micros,eval_price,activation=value
+    life=funded(days,size,3000,42,block,rules=rules,max_micros=max_micros)
+    annual=funded(days,size,3000,42,block,horizon=261,rules=rules,max_micros=max_micros)
+    stats={**summary(life,size),**annual_summary(annual)}
+    stats['slot_year']=261*(stats['E[payout]']-(eval_price/.525+activation))/(stats['days alive']+5.)
+    return stats
+
+
+def _funded_holdout(value):
+    days,size,block,rules,max_micros,horizon=value
+    accounts=funded(days,size,20000,43,block,horizon=horizon,rules=rules,max_micros=max_micros)
+    if horizon==261:return dict(stats=annual_summary(accounts))
+    return dict(stats=summary(accounts,size),outcomes=dict(never_paid=sum(not a.payouts for a in accounts)/20000,
+        paid_partial=sum(0<len(a.payouts)<6 for a in accounts)/20000,paid_all=sum(len(a.payouts)==6 for a in accounts)/20000),
+        distributions=dict(lifetime_totals=[sum(v for _,v in a.payouts) for a in accounts],payout_counts=[len(a.payouts) for a in accounts],
+                           lifetimes=[a.day for a in accounts],first_payout_days=[a.payouts[0][0] for a in accounts if a.payouts]))
+
+
 def calculate(rows, settings, progress=lambda _:None):
     grid, days, split = day_book(rows,settings)
     if split==0:
@@ -180,10 +206,9 @@ def calculate(rows, settings, progress=lambda _:None):
     block = int(settings['BLOCK_DAYS']); max_micros = int(round(float(settings['MAX_TOTAL_NQ'])*10))
     rules = replace(Rules(),approval_day_counts=settings['APPROVAL_DAY_COUNTS'])
     progress('Local evaluation sizing on training sessions')
-    evaluation_sweep=[]
-    for size in sorted(set([min(s,max_micros,25) for s in [*range(1,21),25]])):
-        sim = evaluation(train,size,3000,42,block,max_micros=max_micros)
-        evaluation_sweep.append(dict(micros=size,passed=int(sum(sim['outcomes']=='passed')),simulations=3000))
+    sizes=sorted(set([min(s,max_micros,25) for s in [*range(1,21),25]]))
+    work=sum(map(len,train))*3000
+    evaluation_sweep=map_sweep(_evaluation_size,[(train,size,block,max_micros) for size in sizes],work*len(sizes))
     selected=max(evaluation_sweep,key=lambda r:r['passed'])['micros']
     progress('Local holdout evaluation: 20,000 paths')
     sim=evaluation(validation,selected,20000,43,block,max_micros=max_micros)
@@ -206,28 +231,18 @@ def calculate(rows, settings, progress=lambda _:None):
     replacement=float(chain['days'].mean())
     result['evaluation'].update(cost_per_funded=cost,evaluations_per_funded=1/probability,
                                 days_to_funded=replacement,days_to_funded_median=float(np.median(chain['days'])))
-    sweep=[]
-    for size in range(1,min(20,max_micros)+1):
-        progress(f'Local funded sizing: {size} / {min(20,max_micros)} MNQ')
-        life=funded(train,size,3000,42,block,rules=rules,max_micros=max_micros)
-        annual=funded(train,size,3000,42,block,horizon=261,rules=rules,max_micros=max_micros)
-        stats={**summary(life,size),**annual_summary(annual)}
-        stats['slot_year']=261*(stats['E[payout]']-(float(settings['EVAL_PRICE'])/.525+float(settings['ACTIVATION_FEE'])))/(stats['days alive']+5.)
-        sweep.append(stats)
+    progress('Local funded sizing on training sessions')
+    sizes=list(range(1,min(20,max_micros)+1))
+    sweep=map_sweep(_funded_size,[(train,size,block,rules,max_micros,float(settings['EVAL_PRICE']),float(settings['ACTIVATION_FEE'])) for size in sizes],work*len(sizes)*2)
     size=max(sweep,key=lambda r:r['slot_year'])['micros']
     progress('Local funded holdout: 20,000 lifetime and 20,000 first-year accounts')
-    life=funded(validation,size,20000,43,block,rules=rules,max_micros=max_micros)
-    annual=funded(validation,size,20000,43,block,horizon=261,rules=rules,max_micros=max_micros)
-    stats={**summary(life,size),**annual_summary(annual)}
+    life,annual=map_sweep(_funded_holdout,[(validation,size,block,rules,max_micros,horizon) for horizon in (2000,261)],sum(map(len,validation))*20000*2)
+    stats={**life['stats'],**annual['stats']}
     result['funded']=dict(selected=stats,sweep=sweep,selection_economics=dict(pass_rate=.525,replacement_days=5,source='Fixed training-selection assumptions; validation handover used for reported acquisition cost and historical replay'),
-        outcomes=dict(never_paid=sum(not a.payouts for a in life)/20000,paid_partial=sum(0<len(a.payouts)<6 for a in life)/20000,paid_all=sum(len(a.payouts)==6 for a in life)/20000))
+        outcomes=life['outcomes'])
     progress('Local chronological account replay and calendar-year cash totals')
     result['history']=replay_history(grid,days,size,replacement,cost,int(settings['SLOTS']),rules,max_micros,split)
-    result['distributions']=dict(lifetime_totals=[sum(v for _,v in a.payouts) for a in life],
-                                  payout_counts=[len(a.payouts) for a in life],
-                                  lifetimes=[a.day for a in life],
-                                  first_payout_days=[a.payouts[0][0] for a in life if a.payouts],
-                                  evaluation_days=sim['days'].tolist())
+    result['distributions']={**life['distributions'],'evaluation_days':sim['days'].tolist()}
     return result
 
 
@@ -291,5 +306,5 @@ def run_analysis(runs,request,staged,progress):
     except (OSError,subprocess.CalledProcessError):commit='unavailable'
     return dict(format_version=3,model_version=MODEL_VERSION,source=snapshot,settings=settings,calculations=result,
                 calculation_contract='AlphaQuest local account transitions, random sampling, sizing, economics and charts; no external engine or generated report inputs.',
-                runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__,native_kernel=backend_identity()),
+                runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__,native_kernel=backend_identity(),prop_execution=execution_diagnostics()),
                 application_commit=commit,implementation_sha256={p.name:digest(p) for p in Path(__file__).parent.glob('*.py')})

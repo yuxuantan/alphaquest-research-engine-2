@@ -14,6 +14,7 @@ from uuid import uuid4
 import zipfile
 from .adapter import canonical
 from .native_analysis import run_analysis
+from .parallel import Runtime
 
 
 def seal_report(staged, result, id, created):
@@ -48,6 +49,7 @@ class AnalysisStore:
         self.root=Path(directory)/'prop_analyses';self.root.mkdir(parents=True,exist_ok=True)
         self.path=self.root/'catalog.sqlite3';self.lock=Lock()
         self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='prop-analysis')
+        self.runtime=Runtime()
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
@@ -61,7 +63,9 @@ class AnalysisStore:
             with db:yield db
         finally:db.close()
 
-    def close(self):self.worker.shutdown(wait=True)
+    def close(self):
+        self.worker.shutdown(wait=True)
+        self.runtime.close()
 
     def get(self,id):
         with self.connect() as db:
@@ -175,7 +179,8 @@ class AnalysisStore:
             self._update(id,'running','Preparing source')
             with TemporaryDirectory(prefix='.pending-',dir=self.root) as temp:
                 staged=Path(temp)/'report';staged.mkdir()
-                result=run_analysis(runs,request,staged,lambda msg:self._update(id,'running',msg))
+                with self.runtime.activate():
+                    result=run_analysis(runs,request,staged,lambda msg:self._update(id,'running',msg))
                 if (result['source']['trades_sha256'],result['source']['excursion_input']['sha256'])!=expected_source:
                     raise ValueError('Source changed after submission.')
                 self._update(id,'running','Publishing local calculation report and downloads')

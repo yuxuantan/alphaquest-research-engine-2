@@ -279,6 +279,10 @@ class OptimizationStore:
         return True
 
     def run(self, job, source, definition, config, date_range):
+        with self.prop_analyses.runtime.optimization(job['worker_count']):
+            return self._run(job,source,definition,config,date_range)
+
+    def _run(self, job, source, definition, config, date_range):
         job_id = job["id"]
         started = time.monotonic()
         failures = []

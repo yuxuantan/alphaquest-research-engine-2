@@ -5,6 +5,7 @@ AnalysisStore; failed source checks never fabricate a historical cash value.
 """
 
 from dataclasses import dataclass
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 import json
@@ -35,7 +36,7 @@ class FrozenBacktest:
         return self.record if id==self.record['id'] else None
 
 
-def compute_default(root, run_id, manifest, staged, description, progress=lambda message: None):
+def compute_default(root, run_id, manifest, staged, description, progress=lambda message: None, *, runtime=None):
     """Return small result metadata; full calculations remain in worker files."""
     created=datetime.now(timezone.utc).isoformat()
     source=FrozenBacktest(Path(root),json.loads(json.dumps(dict(id=run_id,**manifest),default=json_value)))
@@ -53,12 +54,13 @@ def compute_default(root, run_id, manifest, staged, description, progress=lambda
         return result
     try:
         staged=Path(staged);staged.mkdir(parents=True)
-        report=run_analysis(source,request,staged,progress)
+        with runtime.activate() if runtime else nullcontext():
+            report=run_analysis(source,request,staged,progress)
         if report['source']!=snapshot:raise ValueError('Source changed during automatic analysis.')
         seal_report(staged,report,description['id'],created)
         history=report['calculations'].get('history')
         result.update(status='complete',historical_net=history['totals']['net'] if history else None,
-                      reason=report['calculations'].get('unavailable'),native_kernel=report['runtime']['native_kernel'])
+                      reason=report['calculations'].get('unavailable'),native_kernel=report['runtime']['native_kernel'],prop_execution=report['runtime']['prop_execution'])
     except Exception as exc:
         shutil.rmtree(staged,ignore_errors=True)
         result.update(status='error',reason=f'{type(exc).__name__}: {exc}')

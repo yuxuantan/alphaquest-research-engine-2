@@ -1110,3 +1110,35 @@ Validation: **18 checks passed**, including multiple seeds, block lengths,
 account sizes, rules, exact-floor hits, repeated funding attempts, every account
 state, complete standard-count calculations and the full browser journey. Earlier
 reports and benchmark evidence are preserved; fixture servers stopped.
+
+### Increment 4 — bounded parallel native prop sweeps
+
+Independent size sweeps and lifetime/annual validation now share a bounded,
+reusable process pool. Seeds, per-size draw order, tie order, standard simulation
+counts and chronological historical replay remain unchanged. Optimization workers
+execute their prop tasks serially; the coordinator reserves their CPU slots so
+standalone prop tasks cannot oversubscribe that budget. Workers never open the
+catalogue database. `ALPHAQUEST_PROP_WORKERS=1` selects serial qualification;
+the default permits up to four workers, bounded by available capacity.
+
+Run a normal backtest, open Runtime breakdown and inspect Prop workers. Continue
+through Configure prop analysis, source checks, run and durable results as in
+the preceding browser journey. Results remain reopenable without computation.
+Actual evidence: `artifacts/backtest-runtime-20261027/04-parallel/`, including
+`test_normal_backtest_runs_stan0/parallel-verification.json` and the separate
+`prior-reference-comparison.json`. A labelled 600-trade, 60-weekday source has
+independent source net 180,000 and Historical net **352,880**. Every calculation
+and distribution matches serial execution and the earlier interpreted reference.
+Observed prop runtime: **15.9573 s serial / 10.6502 s two workers (1.50x)**,
+including cold worker startup. This is workload-specific, not a promised speedup.
+
+```bash
+.venv/bin/python -m pytest -q tests/test_prop_parallel_runtime.py \
+  tests/test_native_prop_engine.py tests/test_automatic_prop_browser.py \
+  --basetemp artifacts/backtest-runtime-parallel-NEW
+```
+
+Validation: **14 checks passed**, including bounded reservations, deterministic
+order, child-process refusal to nest pools, exact normal API results, and the
+full existing browser journey. Temporary servers and pools stopped normally;
+original datasets and earlier evidence are preserved.
