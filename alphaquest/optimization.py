@@ -7,8 +7,10 @@ from decimal import Decimal, localcontext
 from fractions import Fraction
 from itertools import product
 import json
+import logging
 import multiprocessing
 import os
+import sqlite3
 from pathlib import Path
 from queue import Empty
 from tempfile import TemporaryDirectory
@@ -20,6 +22,7 @@ from .optimization_worker import TrialContext, compute_trial, initialize_worker,
 MAX_COMBINATIONS = 10_000
 MAX_WORKERS = max(1, min(8, (os.cpu_count() or 1) - 1))
 DEFAULT_WORKERS = min(4, MAX_WORKERS)
+logger = logging.getLogger(__name__)
 METRICS = (
     "total_net_pnl", "total_gross_pnl", "total_commissions", "total_slippage_cost",
     "final_equity", "trades_taken", "winning_trades", "losing_trades", "breakeven_trades",
@@ -134,6 +137,26 @@ class OptimizationStore:
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
         return job
 
+    def resume(self, job_id):
+        """Atomically claim an incomplete job; successful trial rows stay untouched."""
+        with self.runs.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            job = json.loads(conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()[0])
+            if job["status"] not in ("failed", "interrupted"):
+                raise ValueError("Only failed or interrupted optimizations can be resumed.")
+            saved = conn.execute("SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?", (job_id,)).fetchone()[0]
+            if saved != job["completed_trials"]:
+                raise ValueError("Saved trial count does not match this job; inspect the catalogue before resuming.")
+            attempts = list(job.get("previous_attempts", []))
+            attempts.append({key: job.get(key) for key in (
+                "status", "error", "failed_trials", "elapsed_seconds", "started_at_utc", "finished_at_utc", "completed_trials")})
+            job.update(status="queued", stage="queued", active_trials=[], failed_trials=[], previous_attempts=attempts,
+                       worker_count=job.get("worker_count", 1), elapsed_seconds=0)
+            for key in ("error", "started_at_utc", "finished_at_utc"):
+                job.pop(key, None)
+            conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+        return job
+
     def get(self, job_id):
         with self.runs.connect() as conn:
             row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
@@ -197,11 +220,18 @@ class OptimizationStore:
                 last_update = now
 
         def save_progress():
-            self.update(job_id, status="running", stage="finishing_active_trials" if failures else "running_trials",
-                        failed_trials=list(failures), active_trials=list(active.values()),
-                        bars_processed=sum(item["bars_processed"] for item in active.values()),
-                        total_bars=sum(item["total_bars"] for item in active.values()),
-                        elapsed_seconds=time.monotonic() - started)
+            try:
+                self.update(job_id, status="running", stage="finishing_active_trials" if failures else "running_trials",
+                            failed_trials=list(failures), active_trials=list(active.values()),
+                            bars_processed=sum(item["bars_processed"] for item in active.values()),
+                            total_bars=sum(item["total_bars"] for item in active.values()),
+                            elapsed_seconds=time.monotonic() - started)
+            except sqlite3.OperationalError as exc:
+                if getattr(exc, "sqlite_errorcode", 0) & 255 != sqlite3.SQLITE_CANTOPEN:
+                    raise
+                # Progress is advisory. A missed update must not discard the
+                # completed reports of every worker that is still computing.
+                logger.exception("Could not save progress for optimization %s; continuing active trials", job_id)
 
         try:
             self.update(job_id, status="running", stage="preparing", started_at_utc=datetime.now(timezone.utc).isoformat())
@@ -212,7 +242,9 @@ class OptimizationStore:
                     for chunk in source.iter_csv(job["dataset"]["id"]):
                         stream.write(chunk)
                 context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range)
-                trials = enumerate(combinations(job["axes"]), 1)
+                with self.runs.connect() as conn:
+                    saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
+                trials = ((trial, values) for trial, values in enumerate(combinations(job["axes"]), 1) if trial not in saved)
                 workers = job["worker_count"]
                 if workers == 1:
                     for trial, values in trials:
@@ -223,6 +255,7 @@ class OptimizationStore:
                             self.publish(job_id, trial, run_id, context, result)
                             active.pop(trial, None)
                         except Exception as exc:
+                            logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
                             break
                 else:
@@ -232,6 +265,7 @@ class OptimizationStore:
                         **({"error": f"Trial {failures[0]['trial']}: {failures[0]['error']}"} if failures else {}),
                         elapsed_seconds=time.monotonic() - started, finished_at_utc=datetime.now(timezone.utc).isoformat())
         except Exception as exc:
+            logger.exception("Optimization %s coordinator failed", job_id)
             self.update(job_id, status="failed", stage="failed", error=str(exc), active_trials=[],
                         failed_trials=failures, elapsed_seconds=time.monotonic() - started)
 
@@ -282,6 +316,7 @@ class OptimizationStore:
                         try:
                             self.publish(job_id, trial, run_id, context, future.result())
                         except Exception as exc:
+                            logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
                     if failures:
                         # Do not launch more trials. Already running trials finish

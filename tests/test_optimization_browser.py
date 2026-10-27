@@ -477,3 +477,73 @@ def test_single_generated_value_is_not_highlighted_even_when_endpoints_differ(pa
     playwright.expect(page.locator("#optimization-results .optimization-frozen-parameter")).to_have_count(0)
     playwright.expect(page.locator("#optimization-results thead th").first).to_have_attribute("data-column", "trial")
     playwright.expect(page.locator("#optimization-parameter-legend")).to_have_text("All strategy parameters are fixed for this run.")
+
+
+def test_resume_remaining_trials_preserves_twelve_saved_reports(page, portal, tmp_path, monkeypatch):
+    from decimal import Decimal
+    from hashlib import sha256
+    import json
+    from pathlib import Path
+    import sqlite3
+    from alphaquest.optimization import MAX_WORKERS
+
+    if MAX_WORKERS < 4:
+        pytest.skip("Review requires four worker processes")
+    source = Path(__file__).parent / "fixtures/backtest_contract/arithmetic_5m.csv"
+    response = page.request.post(portal["url"] + "/api/datasets", params={
+        "filename": "SYNTHETIC-database-recovery.csv", "name": "SYNTHETIC database recovery review",
+        "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10",
+    }, data=b"\xef\xbb\xbf" + source.read_bytes(), headers={"content-type": "text/csv"})
+    assert response.status == 201
+    store = portal["app"].state.optimizations
+    publish = store.publish
+    def unavailable_last_batch(job_id, trial, run_id, context, result):
+        if trial >= 13:
+            # Real SQLite CANTOPEN at publication, after real backtests. The
+            # inaccessible path is confined to this test's owned workspace.
+            sqlite3.connect(context.output_root / "unavailable" / "backtests.sqlite3")
+        return publish(job_id, trial, run_id, context, result)
+    monkeypatch.setattr(store, "publish", unavailable_last_batch)
+    prepare(page, portal)
+    page.locator("#backtest-dataset").select_option(response.json()["id"])
+    page.locator("#optimization-workers").select_option("4")
+    page.get_by_label("Hold minutes end", exact=True).fill("35")
+    page.get_by_label("Hold minutes step", exact=True).fill("5")
+    page.get_by_label("Contracts end", exact=True).fill("4")
+    page.locator("#start-backtest").click()
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("FAILED", timeout=20000)
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("12 / 16 trials saved")
+    job_id = page.url.rsplit("/", 1)[1]
+    before = page.request.get(f"{portal['url']}/api/optimizations/{job_id}/results").json()["items"]
+    assert [row["trial"] for row in before] == list(range(1, 13))
+    def csv_hashes(rows):
+        return {row["run_id"]: {name: sha256((store.runs.root / row["run_id"] / name).read_bytes()).hexdigest()
+                for name in ("trades.csv", "equity.csv")} for row in rows}
+    saved_hashes = csv_hashes(before)
+    resume = page.locator("#optimization-resume")
+    playwright.expect(resume).to_have_text("Resume remaining 4 trials")
+    resume.scroll_into_view_if_needed()
+    page.screenshot(path=str(tmp_path / "failed-twelve-of-sixteen.png"), full_page=True)
+    monkeypatch.setattr(store, "publish", publish)
+    resume.click()
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("16 / 16 trials saved")
+    playwright.expect(resume).to_be_hidden()
+    after = page.request.get(f"{portal['url']}/api/optimizations/{job_id}/results").json()["items"]
+    assert after[:12] == before
+    assert csv_hashes(after[:12]) == saved_hashes
+    assert [Decimal(row["metrics"]["total_net_pnl"]) for row in after] == [13, 26, 39, 52] * 4
+    assert page.request.get(portal["url"] + "/api/backtests").json()["total"] == 16
+    page.screenshot(path=str(tmp_path / "resumed-sixteen-of-sixteen.png"), full_page=True)
+    page.reload()
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("16 / 16 trials saved")
+    page.locator("#optimization-results tbody tr").last.get_by_role("link").click()
+    playwright.expect(page.locator("#backtest-completion")).to_be_visible()
+    playwright.expect(page.locator("#report-summary")).to_contain_text("52.00")
+    (tmp_path / "verification.json").write_text(json.dumps({
+        "synthetic": True, "simulated_boundary": "Real SQLite CANTOPEN on trials 13-16 publication",
+        "workers": 4, "job_id": job_id, "saved_trials_before": 12, "saved_trials_after": 16,
+        "preserved_rows": before, "preserved_csv_sha256": saved_hashes,
+        "new_trials": after[12:], "all_expected_net_pnl": [13, 26, 39, 52] * 4,
+        "existing_reports_unchanged": True, "reload_and_normal_report_verified": True,
+    }, indent=2) + "\n")

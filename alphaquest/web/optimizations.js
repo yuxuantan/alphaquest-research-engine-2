@@ -14,6 +14,7 @@
   let jobId = null;
   let sort = "trial", direction = "asc", offset = 0, total = 0;
   let version = 0, timer;
+  let resumeBusy = false;
   let workerState = "idle", workerValue = "";
   const workerHelp = get("#optimization-workers-help").textContent;
   const pageSize = () => jobId ? 50 : 25;
@@ -351,8 +352,13 @@
       const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}`;
       const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.bars_processed}/${trial.total_bars} bars)`).join(", ")}` : "";
       get("#optimization-status").textContent = `${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. Monetary metrics use CU; drawdown duration uses seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
+      const resume = get("#optimization-resume");
+      resume.hidden = !["failed", "interrupted"].includes(job.status);
+      resume.disabled = resumeBusy;
+      resume.textContent = job.completed_trials < job.total_trials
+        ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
       get("#optimization-provenance").hidden = false;
-      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings}, null, 2);
+      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, worker_count: job.worker_count || 1, axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
       results(job, page);
       if (["queued", "running"].includes(job.status)) timer = setTimeout(refresh, 1000);
     } catch (error) {
@@ -371,6 +377,8 @@
     offset = 0; sort = "trial"; direction = "asc";
     get("#optimization-provenance").hidden = true;
     get("#optimization-download").hidden = true;
+    get("#optimization-resume").hidden = true;
+    get("#optimization-resume-error").hidden = true;
     get("#optimization-status").textContent = "Loading…";
     get("#optimization-results").tHead.replaceChildren();
     get("#optimization-results").tBodies[0].replaceChildren();
@@ -380,6 +388,25 @@
   get("#optimization-previous").onclick = () => { offset = Math.max(0, offset - pageSize()); refresh(); };
   get("#optimization-next").onclick = () => { offset += pageSize(); refresh(); };
   get("#optimization-workers-retry").onclick = () => { void loadSettings(); };
+  get("#optimization-resume").onclick = async () => {
+    if (resumeBusy || !jobId) return;
+    const id = jobId;
+    resumeBusy = true;
+    get("#optimization-resume").disabled = true;
+    get("#optimization-resume-error").hidden = true;
+    try {
+      await read(`/api/optimizations/${id}/resume`, {method: "POST"});
+      if (jobId === id) await refresh();
+    } catch (error) {
+      if (jobId === id) {
+        get("#optimization-resume-error").textContent = `Could not resume: ${errorMessage(error)}`;
+        get("#optimization-resume-error").hidden = false;
+      }
+    } finally {
+      resumeBusy = false;
+      get("#optimization-resume").disabled = false;
+    }
+  };
   window.optimizations = { configure, start, loadSettings, workersReady: () => workerState === "ready" };
   window.addEventListener("hashchange", navigate);
   navigate();

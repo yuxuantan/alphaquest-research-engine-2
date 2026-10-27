@@ -1,16 +1,15 @@
 """Durable completed runs and indexed pages, streamed from report CSVs."""
 
-from contextlib import contextmanager
 import csv
 from dataclasses import fields
 import json
 from pathlib import Path
 import shutil
-import sqlite3
 
 from .execution import Trade
 from .drawdown import saved_drawdown
 from .reporting import json_value
+from .database import connection
 
 
 INTEGER_TRADE_FIELDS = {field.name for field in fields(Trade) if field.type is int}
@@ -18,6 +17,7 @@ INTEGER_TRADE_FIELDS = {field.name for field in fields(Trade) if field.type is i
 
 class RunStore:
     def __init__(self, directory: Path):
+        directory = Path(directory).expanduser().resolve()
         self.root = Path(directory) / "backtest_runs"
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = Path(directory) / "backtests.sqlite3"
@@ -38,15 +38,8 @@ class RunStore:
                 );
             """)
 
-    @contextmanager
     def connect(self):
-        conn = sqlite3.connect(self.path, timeout=30)
-        conn.execute("PRAGMA foreign_keys = ON")
-        try:
-            with conn:
-                yield conn
-        finally:
-            conn.close()
+        return connection(self.path)
 
     def _rows(self, source: Path, kind: str):
         with source.open(encoding="utf-8", newline="") as stream:

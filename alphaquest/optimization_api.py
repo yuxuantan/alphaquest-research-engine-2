@@ -2,6 +2,9 @@
 
 import csv
 import io
+import sqlite3
+from dataclasses import asdict
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -82,6 +85,49 @@ def get_job(request, job_id):
 @router.get("/api/optimizations/{job_id}")
 def detail(job_id: UUID, request: Request):
     return get_job(request, job_id)
+
+
+@router.post("/api/optimizations/{job_id}/resume", status_code=202)
+def resume(job_id: UUID, request: Request):
+    try:
+        job = get_job(request, job_id)
+    except sqlite3.OperationalError as exc:
+        raise HTTPException(503, str(exc)) from None
+    if job["status"] not in ("failed", "interrupted"):
+        raise HTTPException(409, "Only failed or interrupted optimizations can be resumed.")
+    try:
+        body = OptimizationRequest.model_validate(job["request"])
+        definition = get_strategy(body.strategy_id)
+        if definition.description()["source_sha256"] != job["strategy"]["source_sha256"]:
+            raise ValueError("Strategy source has changed since this optimization. Start a new job to keep results consistent.")
+        axes, total = grid(definition, body.parameter_ranges)
+        if axes != job["axes"] or total != job["total_trials"]:
+            raise ValueError("The saved parameter grid no longer matches this strategy. Start a new optimization.")
+        dataset = request.app.state.store.get(body.dataset_id)
+        if dataset is None:
+            raise ValueError("The original dataset is missing. Restore it before resuming.")
+        if any(dataset.get(key) != job["dataset"].get(key) for key in ("sha256", "source_timezone", "row_count", "columns")):
+            raise ValueError("The dataset no longer matches the saved source. Start a new optimization.")
+        # Resolve defaults against the original instrument metadata, retaining
+        # the exact costs/capital/tick settings of already successful trials.
+        config = body.execution_settings.execution_config(job["dataset"])
+        settings = {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()}
+        if settings != job["execution_settings"]:
+            raise ValueError("Execution settings no longer match this job. Start a new optimization.")
+        dates = DateRange.parse(body.from_date, body.to_date)
+    except sqlite3.OperationalError as exc:
+        raise HTTPException(503, str(exc)) from None
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from None
+    store = request.app.state.optimizations
+    try:
+        job = store.resume(job_id.hex)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    except sqlite3.OperationalError as exc:
+        raise HTTPException(503, str(exc)) from None
+    store.executor.submit(store.run, job, request.app.state.store, definition, config, dates)
+    return job
 
 
 @router.get("/api/optimizations/{job_id}/results")

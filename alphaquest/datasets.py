@@ -6,12 +6,13 @@ import io
 import json
 import re
 import sqlite3
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from .database import connection
 
 COLUMNS = ["Date", "Time", "Open", "High", "Low", "Close", "Volume", "UpVol", "DownVol"]
 MAX_BYTES = 1_000_000_000
@@ -223,6 +224,7 @@ class DuplicateDataset(ValueError):
 
 class DatasetStore:
     def __init__(self, path: Path):
+        path = Path(path).expanduser().resolve()
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
@@ -237,15 +239,8 @@ class DatasetStore:
                 PRIMARY KEY(dataset_id, ordinal)
             )""")
 
-    @contextmanager
     def connect(self):
-        conn = sqlite3.connect(self.path, timeout=30)
-        conn.execute("PRAGMA foreign_keys = ON")
-        try:
-            with conn:
-                yield conn
-        finally:
-            conn.close()
+        return connection(self.path)
 
     def save(self, raw: bytes, metadata: dict, name: str, symbol: str) -> dict:
         return self.save_file(io.BytesIO(raw), metadata, name, symbol)

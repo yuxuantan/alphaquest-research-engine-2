@@ -39,6 +39,22 @@ def crashing_trial(trial, values, run_id):
     return optimization_worker.run_trial(trial, values, run_id)
 
 
+def sparse_failure_trial(trial, values, run_id):
+    context = optimization_worker._context
+    if trial == 2:
+        deadline = time.monotonic() + 12
+        while not (context.output_root / "third-computed").exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError("Third-trial gate timed out")
+            time.sleep(.01)
+        raise RuntimeError("Controlled second-trial failure")
+    if trial == 1:
+        return gated_first_trial(trial, values, run_id)
+    result = optimization_worker.run_trial(trial, values, run_id)
+    (context.output_root / "third-computed").touch()
+    return result
+
+
 def wait_for(client, job_id, predicate):
     deadline = time.monotonic() + 12
     while time.monotonic() < deadline:
@@ -185,3 +201,26 @@ def test_crashed_process_is_failed_without_hanging_or_lingering_children(client,
     assert job["status"] == "failed" and job["failed_trials"], job
     assert not list(client.app.state.runs.root.glob(".optimization-*"))
     assert {child.pid for child in multiprocessing.active_children()} <= before
+
+
+@pytest.mark.skipif(MAX_WORKERS < 3, reason="Host allows fewer than three workers")
+def test_resume_parallel_sparse_saved_trials_skips_successful_reports(client, monkeypatch):
+    dataset = save_fixture(client)
+    monkeypatch.setattr(optimization, "run_trial", sparse_failure_trial)
+    job_id = start(client, {**optimization_body(dataset["id"]), "workers": 3})
+    try:
+        wait_for(client, job_id, lambda job: bool(job["failed_trials"]))
+    finally:
+        (workspace(client) / "release-first").touch()
+    assert wait_job(client, job_id)["status"] == "failed"
+    before = client.get(f"/api/optimizations/{job_id}/results").json()["items"]
+    assert [row["trial"] for row in before] == [1, 3]
+    monkeypatch.setattr(optimization, "run_trial", optimization_worker.run_trial)
+    response = client.post(f"/api/optimizations/{job_id}/resume")
+    assert response.status_code == 202, response.text
+    final = wait_job(client, job_id)
+    assert final["status"] == "complete" and final["completed_trials"] == 3
+    after = client.get(f"/api/optimizations/{job_id}/results").json()["items"]
+    assert [after[0], after[2]] == before
+    assert [Decimal(row["metrics"]["total_net_pnl"]) for row in after] == [13, 26, 39]
+    assert client.get("/api/backtests").json()["total"] == 3

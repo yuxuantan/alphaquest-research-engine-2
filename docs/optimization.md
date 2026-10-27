@@ -171,9 +171,57 @@ for inspectable concurrency evidence.
 Results, statuses and saved job settings live in the existing `backtests.sqlite3`
 catalogue (`optimizations` and `optimization_trials` tables). Full trial artifacts
 use the existing `backtest_runs/RUN_ID` store and appear in completed backtest
-history. Existing reports and datasets are unchanged. There is no automatic request
-retry, job resumption, pruning or cancellation in this increment. If a start
+history. Existing reports and datasets are unchanged. There is no automatic start-request
+retry, job resumption, pruning or cancellation. If a start
 request loses its connection, inspect **Saved optimizations** before starting again.
+
+## Recover a failed optimization
+
+Reopen its saved results page and click **Resume remaining N trials**. It queues
+the same job with its original worker count and runs only missing trial IDs,
+including gaps from out-of-order parallel completion. Successful rows, run IDs,
+normal Backtest reports and CSVs are retained. The source dataset must still be
+available with the same hash, timezone, schema and row count; the strategy source,
+parameter grid and resolved execution settings must match. Changed inputs reject
+before scheduling work. A second resume request while queued/running rejects.
+Earlier attempt status/error/timing remains inspectable under **Saved grid,
+source & execution settings**. Elapsed time displays the current attempt.
+If every trial is already saved but final status failed, **Finalize saved results**
+finishes the job without rerunning those trials.
+
+SQLite paths are anchored to an absolute path at startup. A connection-open
+`SQLITE_CANTOPEN` failure retries up to four times with bounded delays before SQL
+runs. Transactions are never automatically replayed. Connection/transaction
+errors identify the database path and SQLite error name; full failure tracebacks
+are logged in the backend terminal. A database-open failure saving advisory
+progress no longer aborts workers and discards their pending results. Persistent
+publication failures still fail explicitly and leave saved trials available.
+If access remains unavailable, check the data directory/mount and write access,
+free disk space and the server's open-file limit, then resume after restoring access.
+Do not delete/recreate the database to clear an error.
+
+The reported local job `cc3d1f1241f54ff089f95d9429ebd269` was inspected read-only:
+SQLite `quick_check` returned `ok`, all 12 saved reports/CSVs were present, and
+trial IDs 13–16 were missing. Its original OS-level cause cannot be established
+from the saved generic error without the old traceback. A backup, original job
+and row JSON, CSV hashes and the actual ready-to-resume portal screenshot are
+saved under `artifacts/optimization-database-recovery-20261027/`. Its remaining
+four backtests have not been started by this review.
+
+An independent synthetic portal demonstration is saved under
+`artifacts/optimization-database-recovery-portal-20261027/`. Four real worker
+processes execute the normal arithmetic backtests; a controlled inaccessible
+publication database path causes a real SQLite `CANTOPEN` after twelve saved
+trials. Clicking Resume completes exactly four missing trials. All twelve saved
+rows and CSV hashes remain identical, there are exactly sixteen normal Backtest
+reports, and net P&L is `[13, 26, 39, 52]` CU repeated four times. The dataset and
+injected failure are explicitly labeled synthetic in its evidence. Repeat with:
+
+```bash
+.venv/bin/python -m pytest tests/test_optimization_browser.py -k resume_remaining -q --basetemp artifacts/optimization-database-recovery-portal-NEW
+```
+
+Use a new evidence directory. The check starts and stops its own temporary server.
 
 ## Reproduce the arithmetic example
 
@@ -315,6 +363,7 @@ to reopen both durable jobs.
 | POST | `/api/optimizations` | Validate grid, save queued job, return HTTP 202. |
 | GET | `/api/optimizations?offset=0&limit=25` | Saved jobs (limit 1–100). |
 | GET | `/api/optimizations/JOB_ID` | Durable job status, grid, settings and progress. |
+| POST | `/api/optimizations/JOB_ID/resume` | Explicitly resume failed/interrupted jobs, skipping saved trials; rejects changed inputs or active jobs. |
 | GET | `/api/optimizations/JOB_ID/results?sort=total_net_pnl&direction=desc&offset=0&limit=50` | Globally sorted saved trials (limit 1–1000). |
 | GET | `/api/optimizations/JOB_ID/exports/results?sort=total_net_pnl&direction=desc` | CSV in the same order. |
 

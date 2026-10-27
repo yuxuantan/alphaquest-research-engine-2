@@ -50,6 +50,87 @@ def start(client, request):
     return response.json()["id"]
 
 
+def test_database_open_failure_during_progress_does_not_discard_trials(client, monkeypatch):
+    import sqlite3
+    dataset = save_fixture(client)
+    store = client.app.state.optimizations
+    original = store.update
+    missed = []
+    def unavailable_progress(job_id, **values):
+        if values.get("stage") == "running_trials":
+            missed.append(True)
+            error = sqlite3.OperationalError("unable to open database file")
+            error.sqlite_errorcode = sqlite3.SQLITE_CANTOPEN
+            raise error
+        return original(job_id, **values)
+    monkeypatch.setattr(store, "update", unavailable_progress)
+    job = wait_job(client, start(client, optimization_body(dataset["id"])))
+    assert missed and job["status"] == "complete" and job["completed_trials"] == 3
+    rows = client.get(f"/api/optimizations/{job['id']}/results").json()["items"]
+    assert [Decimal(row["metrics"]["total_net_pnl"]) for row in rows] == [13, 26, 39]
+
+
+def test_resume_only_missing_trials_preserves_reports_and_rejects_duplicate(client, monkeypatch):
+    dataset = save_fixture(client)
+    original = sample.ConsecutiveGreenHold.on_bar
+    def fail_second(self, bar, position):
+        if self.parameters.contracts == 2:
+            raise RuntimeError("Recovery boundary")
+        return original(self, bar, position)
+    monkeypatch.setattr(sample.ConsecutiveGreenHold, "on_bar", fail_second)
+    job_id = start(client, optimization_body(dataset["id"]))
+    failed = wait_job(client, job_id)
+    assert failed["status"] == "failed" and failed["completed_trials"] == 1
+    before = client.get(f"/api/optimizations/{job_id}/results").json()["items"]
+    entered, release = Event(), Event()
+    attempted = set()
+    def resume_second(self, bar, position):
+        attempted.add(self.parameters.contracts)
+        if self.parameters.contracts == 2 and bar.bar_number == 2:
+            entered.set()
+            assert release.wait(10)
+        return original(self, bar, position)
+    monkeypatch.setattr(sample.ConsecutiveGreenHold, "on_bar", resume_second)
+    try:
+        resumed = client.post(f"/api/optimizations/{job_id}/resume")
+        assert resumed.status_code == 202, resumed.text
+        assert entered.wait(5)
+        assert client.post(f"/api/optimizations/{job_id}/resume").status_code == 409
+    finally:
+        release.set()
+    final = wait_job(client, job_id)
+    assert final["status"] == "complete" and final["completed_trials"] == 3
+    assert attempted == {2, 3}
+    rows = client.get(f"/api/optimizations/{job_id}/results").json()["items"]
+    assert rows[:1] == before
+    assert [Decimal(row["metrics"]["total_net_pnl"]) for row in rows] == [13, 26, 39]
+    assert client.get("/api/backtests").json()["total"] == 3
+    assert final["previous_attempts"][0]["error"] == failed["error"]
+    assert client.post(f"/api/optimizations/{job_id}/resume").status_code == 409
+
+
+@pytest.mark.parametrize("boundary", ["source_missing", "source_changed", "strategy_changed", "settings_changed"])
+def test_resume_rejects_changed_inputs_before_claiming_job(client, monkeypatch, boundary):
+    dataset = save_fixture(client)
+    job_id = start(client, optimization_body(dataset["id"]))
+    wait_job(client, job_id)
+    store = client.app.state.optimizations
+    job = store.update(job_id, status="interrupted")
+    if boundary == "source_missing":
+        client.delete(f"/api/datasets/{dataset['id']}")
+    elif boundary == "source_changed":
+        get = client.app.state.store.get
+        monkeypatch.setattr(client.app.state.store, "get", lambda key: {**get(key), "sha256": "changed"})
+    elif boundary == "strategy_changed":
+        store.update(job_id, strategy={**job["strategy"], "source_sha256": "changed"})
+    else:
+        store.update(job_id, execution_settings={**job["execution_settings"], "initial_capital": "1"})
+    response = client.post(f"/api/optimizations/{job_id}/resume")
+    assert response.status_code == 422, response.text
+    assert store.get(job_id)["status"] == "interrupted"
+    assert client.get("/api/backtests").json()["total"] == 3
+
+
 def test_every_combination_matches_independent_arithmetic_and_regular_reports(client):
     dataset = save_fixture(client)
     request = optimization_body(dataset["id"])
