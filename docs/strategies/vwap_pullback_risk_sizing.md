@@ -191,13 +191,13 @@ prepares the future session context required for this declared lookahead.
 ```
 
 The command uses the normal saved-dataset and Backtests UI workflow with
-clearly labelled synthetic one-minute-price fixtures. It retains an isolated
+clearly labelled synthetic minute-labelled price fixtures. It retains an isolated
 library, durable report files, screenshots, CSV downloads, and comparisons in
 that new directory. Its temporary server stops automatically.
 
-Expected observations: a 16:00 close exits at15:55; a 12:00 close exits at11:55;
-a 12:15 close exits at12:10. Each synthetic trade enters at115.25, exits at117.75,
-earns50 gross, pays2 total commissions and nets48 CU. The saved report explicitly
+Expected observations: a 16:00 close exits at 15:55; a 12:00 close exits at 11:55;
+a 12:15 close exits at 12:10. Each synthetic trade enters at 115.25, exits at 117.75,
+earns 50 gross, pays 2 total commissions and nets 48 CU. The saved report explicitly
 shows backtest lookahead; source CSV bytes and earlier runs remain unchanged.
 To reopen the isolated review library after the command ends:
 
@@ -209,4 +209,4 @@ ALPHAQUEST_DATA_DIR="$PWD/artifacts/vwap-session-flatten-review-NEW" \
 Open `http://127.0.0.1:8001/#reports`, open a **SYNTHETIC** review report,
 inspect its trade exit and settings, and download its trade/equity CSVs.
 Stop this optional server with Ctrl-C. The user journey and run IDs are also
-in the generated `verification.json`; this command never starts a persistent server.
+in the generated `verification.json`. The review script leaves no server running.
