@@ -216,6 +216,8 @@
       if(active!==controller)return;
       get('#report-performance-status').textContent=data.unavailable || `Total elapsed: ${data.elapsed_seconds.toFixed(3)} seconds. Phase times exclude time attributed to nested phases.`;
       if(data.details?.prop_backend)get('#report-performance-status').textContent+=` Prop engine: ${data.details.prop_backend}.`;
+      if(data.details?.source_cache_hit)get('#report-performance-status').textContent+=' Parsed source reused.';
+      if(data.details?.prepared_feature_series)get('#report-performance-status').textContent+=` Prepared indicator series: ${data.details.prepared_feature_series}.`;
       if(data.details?.prop_execution?.workers_used)get('#report-performance-status').textContent+=` Prop workers: ${data.details.prop_execution.workers_used}.`;
       for(const [key,value] of Object.entries(data.phases_seconds || {})) {
         const row=node('tr');row.append(node('td',key.replaceAll('_',' ')),node('td',value.toFixed(3)));get('#report-performance-body').append(row);

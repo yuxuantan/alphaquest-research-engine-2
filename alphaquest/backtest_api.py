@@ -53,6 +53,7 @@ class BacktestRequest(BaseModel):
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None
     report_detail: Literal['compact','full'] = 'compact'
+    reuse_prepared: bool = True
 
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
@@ -101,15 +102,25 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact'):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True):
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         timings = Performance()
         output = Path(temporary) / run_id
         automatic = source_record["run_metadata"].get("automatic_prop_analysis") if source_record else descriptor() if prop_analyses else None
+        prepared,features=None,{}
+        if reuse_prepared:
+            from .prepared_data import prepare_data
+            from .strategy_features import prepare_features
+            with timings.span('source_loading'):
+                prepared=prepare_data(store,dataset['id'],date_range,Path(temporary)/'bars.bin',progress,cache=runs.replay_cache)
+                timings.details['source_cache_hit']=prepared.cache_hit
+                values=json.loads(json.dumps(definition.provenance(parameters)['parameters'],default=json_value))
+                features=prepare_features(definition,prepared,[values],Path(temporary),progress,workers=0,cache=runs.replay_cache)
+                timings.details['prepared_feature_series']=len(features)
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings, report_detail='full' if source_record else report_detail)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record else report_detail,prepared=prepared,feature_paths=features)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -157,11 +168,11 @@ async def start_backtest(body: BacktestRequest, request: Request, progress_id: U
         config = body.execution_settings.execution_config(dataset)
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail)
+    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared)
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact'):
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True):
     run_id = uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -177,7 +188,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         return await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared)
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))

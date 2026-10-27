@@ -1142,3 +1142,43 @@ Validation: **14 checks passed**, including bounded reservations, deterministic
 order, child-process refusal to nest pools, exact normal API results, and the
 full existing browser journey. Temporary servers and pools stopped normally;
 original datasets and earlier evidence are preserved.
+
+### Increment 5 — persistent verified replay and pure-feature streams
+
+Standalone backtests and optimization preparation now share a disposable bounded
+cache in `.replay_cache` beside the normal catalogues (default 2 GiB;
+`ALPHAQUEST_REPLAY_CACHE_MB` sets its bound). Keys include original metadata,
+source checksum, selected dates, timezone bytes and engine/dependency identity.
+Every hit revalidates the original CSV checksum/schema/timezone. A cache entry
+is copied into the private job workspace and checked against its indexed SHA-256
+before decoding. Corrupt or missing entries rebuild from source. Eviction removes
+only disposable streams. No positions, orders, fills or account state are cached.
+Future strategies can use the existing declared-pure-feature interface; strategies
+without declarations still reuse parsed bars without strategy changes.
+
+Run the same source/dates twice through the normal Backtests form. Open Runtime
+breakdown on the second report: expect **Parsed source reused**. Trade/equity
+CSV downloads and summaries must match the fresh run exactly. Configure/check/
+run/reopen the saved default prop analysis as before: source reconciliation and
+fees still apply. The API option `reuse_prepared:false` forces ordinary source
+reading for qualification. Evidence under
+`artifacts/backtest-runtime-20261027/05-replay-cache-verified/` retains a normal
+API comparison in `test_normal_backtest_warm_cach0/prepared-cache-verification.json`
+and the full existing browser cash-source journey. Boundary checks exercise a
+changed original CSV, poisoned cached bytes, bounded eviction and pure-feature
+reuse in a new workspace without running feature builders.
+
+Validation: the combined runtime/API/optimization/date/browser run passed 93
+checks; two new test setup mistakes were corrected (lazy-generator probe and
+registered default construction), then all 25 replay/runtime/date checks passed
+under `artifacts/backtest-runtime-20261027/05-replay-cache-final/`. This final
+directory contains the corrected warm-cache verification. The browser journey
+in the earlier directory passed with exact Historical net and saved downloads.
+Reproduce with a new `--basetemp` directory:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_replay_cache.py \
+  tests/test_backtest_runtime.py tests/test_optimization_acceleration.py \
+  tests/test_backtest_api.py tests/test_backtest_date_range.py \
+  tests/test_automatic_prop_browser.py --basetemp artifacts/replay-cache-NEW
+```

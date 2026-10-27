@@ -47,7 +47,7 @@ class FeatureReader:
         self.values.close()
 
 
-def prepare_features(definition, prepared, values, root, progress=lambda *args: None, *, workers=1):
+def prepare_features(definition, prepared, values, root, progress=lambda *args: None, *, workers=1, cache=None):
     """Precompute repeated dependency sets only; cap speculative temporary storage.
 
     Four series and 512 MiB at most (plus one chunk per active feature).
@@ -58,14 +58,21 @@ def prepare_features(definition, prepared, values, root, progress=lambda *args: 
     parameters = [definition.parameters(value) for value in values]
     paths = {}
     planned = []
+    cache_keys = {}
     for feature in definition.acceleration.features:
         keys = Counter(feature.key(p) for p in parameters)
         for parameter in parameters:
             key = feature.key(parameter)
-            if keys[key] <= workers or key in paths or len(paths) >= 4:
-                continue
+            if key in paths or len(paths) >= 4:continue
             path = root / f"feature-{key}.bin"
+            from .optimization_cache import digest
+            persistent_key=digest(['feature-v1',prepared.cache_key,key]) if cache and prepared.cache_key else None
+            if persistent_key and cache.restore(persistent_key,path) is not None:
+                paths[key]=path
+                continue
+            if keys[key] <= workers:continue
             paths[key] = path
+            cache_keys[key]=persistent_key
             planned.append((feature, parameter, path))
     if not planned:
         return paths
@@ -101,6 +108,8 @@ def prepare_features(definition, prepared, values, root, progress=lambda *args: 
                 return {}
         if count != prepared.metadata["row_count"]:
             raise ValueError("Every feature must produce one value per bar.")
+    for key,persistent_key in cache_keys.items():
+        if persistent_key:cache.save(persistent_key,paths[key],{'row_count':prepared.metadata['row_count']})
     return paths
 
 

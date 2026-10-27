@@ -23,6 +23,8 @@ class RunStore:
         self.root = Path(directory) / "backtest_runs"
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = Path(directory) / "backtests.sqlite3"
+        from .replay_cache import ReplayCache
+        self.replay_cache=ReplayCache(Path(directory)/".replay_cache")
         self.detail_lock = Lock()
         self.detail_active = set()
         with self.connect() as conn:

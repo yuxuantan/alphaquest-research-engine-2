@@ -335,10 +335,10 @@ class OptimizationStore:
                             self.update(job_id, stage=stage, bars_processed=processed, total_bars=total,
                                         elapsed_seconds=time.monotonic() - started)
                         preparation_progress("preparing_data", 0, job["dataset"]["row_count"])
-                        prepared = prepare_data(FrozenSource(job["dataset"], snapshot), job["dataset"]["id"], date_range, root / "bars.bin", preparation_progress)
+                        prepared = prepare_data(FrozenSource(job["dataset"], snapshot), job["dataset"]["id"], date_range, root / "bars.bin", preparation_progress,cache=self.runs.replay_cache)
                         snapshot.unlink()
                         features = prepare_features(definition, prepared, [values for _, values in pending], root,
-                                                    preparation_progress, workers=job["worker_count"])
+                                                    preparation_progress, workers=job["worker_count"],cache=self.runs.replay_cache)
                 self.update(job_id, preparation_seconds=time.monotonic() - preparation_started,
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))

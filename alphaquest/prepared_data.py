@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from itertools import islice
 from pathlib import Path
+import hashlib
 import pickle
 
 from .backtest_data import SelectedBars
@@ -41,6 +42,8 @@ def read_stream(path):
 class PreparedData:
     path: Path
     metadata: dict
+    cache_key: str | None = None
+    cache_hit: bool = False
 
     @contextmanager
     def selected(self):
@@ -51,18 +54,31 @@ class PreparedData:
             bars.close()
 
 
-def prepare_data(source, dataset_id, dates, path, progress=lambda *args: None):
+def prepare_data(source, dataset_id, dates, path, progress=lambda *args: None, *, cache=None):
     # Full original-source hash/schema/row validation runs before publication,
     # even when only a date slice is used. No second CSV parse for a slice.
     from .backtest_data import DateRange, DatasetReadError, read_bars
-    from zoneinfo import ZoneInfo
+    from zoneinfo import ZoneInfo,TZPATH
     dataset = source.get(dataset_id)
+    if dataset is None:raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
     dates = dates or DateRange()
+    from .optimization_cache import digest,engine_identity
+    key=None
     metadata = {"from_date": dates.from_date.isoformat() if dates.from_date else None,
                 "to_date": dates.to_date.isoformat() if dates.to_date else None,
-                "source_timezone": dataset["source_timezone"], "warmup": "none"}
-    zone = ZoneInfo(dataset["source_timezone"])
+                "source_timezone": dataset.get("source_timezone"), "warmup": "none"}
     with read_bars(source, dataset_id) as bars:
+        zone = ZoneInfo(dataset["source_timezone"])
+        # Reuse the same verified snapshot for a miss; never hash/copy the
+        # original twice just to discover that no derived stream exists.
+        if cache:
+            zone_file=next((Path(root)/dataset['source_timezone'] for root in TZPATH if (Path(root)/dataset['source_timezone']).is_file()),None)
+            zone_hash=hashlib.sha256(zone_file.read_bytes()).hexdigest() if zone_file else 'package-tzdata'
+            key=digest(dict(kind='bars-v1',dataset=dataset,dates=dates,timezone=zone_hash,engine=engine_identity()))
+            cached=cache.restore(key,path)
+            if cached is not None:
+                progress('preparing_data',dataset['row_count'],dataset['row_count'])
+                return PreparedData(Path(path),cached,key,True)
         def selected():
             count = 0
             for bar in bars:
@@ -82,4 +98,5 @@ def prepare_data(source, dataset_id, dates, path, progress=lambda *args: None):
         raise DatasetReadError("No bars fall within the selected date range in the dataset's source timezone.")
     metadata["row_count"] = count
     progress("preparing_data", dataset["row_count"], dataset["row_count"])
-    return PreparedData(Path(path), metadata)
+    if cache:cache.save(key,path,metadata)
+    return PreparedData(Path(path), metadata,key)
