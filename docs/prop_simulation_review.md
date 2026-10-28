@@ -1537,3 +1537,22 @@ checkout too. Financial fixture oracles remain unchanged; file-list assertions
 now include the risk CSV. The property/actual-source checks above accompany the
 full suite; tests alone are not the product demonstration. The temporary product
 browser server on 8001 shut down normally.
+
+Local activation completed on branch `fix/prop-intratrade-risk` in the original
+checkout. Implementation commit: `490ebbf`; the earlier audit is `51c2bd3`.
+The idle old reloader was stopped before switching tracked code. Existing audit
+notes were preserved both in the committed audit and recovery stash
+`61885de62e4620553821a0bd9aed5b293aa18b5e`; the former compiled kernel is retained
+as `previous-native-kernel.so` in the evidence directory. All activated source
+hashes and the copied qualified compiled binary match the actual saved report.
+
+The primary portal is serving port **8000**, PID **98400**, from
+`/Users/yx/alphaquest-research-engine-2`, with the original `data` directory and
+without automatic reload. Stop it with **`kill 98400`**. Its PID/log and startup
+record are in `artifacts/prop-risk-20261028/portal-server.pid`,
+`portal-server.log` and `restart.json`. Temporary browser servers have stopped.
+`verify-live.py.txt` and `live-verification.json` record the final port-8000
+journey: old-model label visible, native source check passed, all 40 sizes visible,
+the same saved v2 analysis reopened without a new analysis row, exact JSON bytes,
+no browser errors, original file hashes and OOS budget unchanged. No commits were
+pushed. This activation record changes documentation only.
