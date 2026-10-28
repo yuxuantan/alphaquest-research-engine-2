@@ -158,7 +158,8 @@
     const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
     context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
     if(source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
-    if(r.model_version!=='alphaquest-apex50k-eod-v2-ohlc-risk')root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. A new IS backtest or risk capture replay uses the current sizing range and risk model.`, 'prop-assumption-note'));
+    if(r.model_version!=='alphaquest-apex50k-eod-v3-training-economics')root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Configure a new analysis on an IS report to use the current training-calibrated model.`, 'prop-assumption-note'));
+    if(f&&e.pass_rate===0)root.append(el('p','No holdout evaluation passed. Funded outcomes are conditional on starting with a funded account; training-selected size and replay economics remain frozen.','prop-assumption-note'));
     const nav=el('div',undefined,'prop-report-tabs');nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Simulation report views');
     root.append(nav);
     const views={},buttons={},definitions=[['overview','Overview'],['evaluation','Evaluation'],...(f?[['sizing','Sizing'],['history','Historical replay']]:[]),['model','Source & model']];
@@ -227,13 +228,24 @@
     const evalDetails=el('details',undefined,'prop-help');evalDetails.append(el('summary','Evaluation sizes tried on training days'));p.append(evalDetails);
     readableTable(evalDetails,c.evaluation_sweep,[{key:'micros',label:'Size',format:v=>`${v} MNQ`},{key:'passed',label:'Passed paths',format:number,numeric:true},{key:'simulations',label:'Paths simulated',format:number,numeric:true}],{caption:'Training evaluation size sweep',selected:row=>row.micros===e.selected_micros});
     details(p,'Full-precision evaluation metrics',e);
+    if(c.training_economics){
+      const t=c.training_economics;p=reportBlock(views.evaluation,'Training calibration used for selection','Estimated before holdout testing; the holdout figures above do not choose or rescore the funded size.');
+      facts(p,[['Training evaluation size',`${t.evaluation_micros} MNQ`],['Training pass rate',percent(t.pass_rate)],['Training acquisition cost',money(t.cost_per_funded)],['Training replacement time',days(t.replacement_days)]]);
+      if(t.reason)p.append(el('p',t.reason,'prop-assumption-note'));
+      details(p,'Training calibration and sample identity',t);fileLink(p,'training_economics.json','Download training calibration (JSON)');
+    }
+
 
     if(f){
       p=reportBlock(views.sizing,`Why was ${s.micros} MNQ selected?`,'The highest estimated annual net per slot on training days selects the funded size. It is then tested on separate holdout days.');
       facts(p,[['Chosen funded size',`${s.micros} MNQ`],['Training window',dateRange(c.samples.train)],['Simulations per size',number(f.sweep[0]?.sims)]],'prop-facts-inline');
       if(f.search_range){const g=f.search_range;p.append(el('p',`Tried every size from ${g.min_micros} to ${g.max_micros} MNQ in increments of ${g.step}. Funded scaling limits actual orders to 20, 30 or 40 MNQ from the prior closing balance. ${g.selected_at_limit ? 'The selected size is at the search limit; no size above the permitted or user cap was tested.' : ''}`,'prop-assumption-note'));}
       const assumptions=f.selection_economics;
-      if(assumptions)p.append(el('p',`Training selection assumes a ${percent(assumptions.pass_rate)} evaluation pass rate and ${number(assumptions.replacement_days)} replacement trading days. Acquisition figures in Evaluation use the holdout evaluation simulation.`, 'prop-assumption-note'));
+      if(assumptions?.method==='training_simulation'){
+        facts(p,[['Training evaluation pass rate',percent(assumptions.pass_rate)],['Training acquisition cost',money(assumptions.cost_per_funded)],['Training replacement time',days(assumptions.replacement_days)]],'prop-facts-inline');
+        p.append(el('p',`Funded sizing uses training-derived acquisition economics at ${assumptions.evaluation_micros} MNQ: ${percent(assumptions.pass_rate)} evaluation pass rate, ${number(assumptions.replacement_days,2)} replacement trading days including activation, and ${money(assumptions.cost_per_funded)} per funded account. Frozen before holdout testing; Evaluation shows separate holdout estimates.`, 'prop-assumption-note'));
+        details(p,'Inspect training calibration, samples and seeds',assumptions);
+      }else if(assumptions)p.append(el('p',`Training selection assumes a ${percent(assumptions.pass_rate)} evaluation pass rate and ${number(assumptions.replacement_days)} replacement trading days. Acquisition figures in Evaluation use the holdout evaluation simulation.`, 'prop-assumption-note'));
       const control=el('div',undefined,'prop-table-control'),label=el('label','Sort sizes by'),sort=el('select');sort.id='prop-sweep-sort';label.htmlFor=sort.id;
       for(const [value,text] of [['slot_year','Annual net per slot · highest first'],['micros','Size · smallest first'],['E[payout]','Average lifetime payout · highest first'],['blown','Drawdown failure · lowest first']]){const option=el('option',text);option.value=value;sort.append(option);}
       control.append(label,sort);p.append(control);const target=el('div');p.append(target);
@@ -242,12 +254,13 @@
         readableTable(target,rows,[{key:'micros',label:'Size',render:(v)=>{const cell=el('span',`${v} MNQ`);if(v===s.micros)cell.append(el('span','Selected','prop-selected-badge'));return cell;}},{key:'slot_year',label:'Annual net / slot',format:money,numeric:true,tone:true},{key:'E[payout]',label:'Avg. lifetime payout',format:money,numeric:true},{key:'P(>=1 payout)',label:'Any payout',format:percent,numeric:true},{key:'blown',label:'Drawdown failure',format:percent,numeric:true},{key:'days alive',label:'Avg. lifetime · days',format:v=>number(v,1),numeric:true}],{caption:'Training funded size comparison',selected:row=>row.micros===s.micros});
       }
       sort.addEventListener('change',drawSweep);drawSweep();
-      p.append(el('p','All rows are training estimates. “Annual net / slot” includes the fixed acquisition assumptions and replacement delay; it is not the lifetime payout of one account.','prop-explainer'));
+      p.append(el('p',assumptions?.method==='training_simulation'?'All rows use training-derived acquisition cost and replacement time. Annual net / slot is an annualized renewal estimate, not the lifetime payout of one account.':'All rows are training estimates. “Annual net / slot” includes the fixed acquisition assumptions and replacement delay; it is not the lifetime payout of one account.','prop-explainer'));
       fileLink(p,'funded_sizing.csv','Download all sizing metrics (CSV)');
       details(p,'All training metrics at full precision',f.sweep);
       details(p,`Full-precision holdout metrics at ${s.micros} MNQ`,s);
 
       p=reportBlock(views.history,'What did the slots earn in the observed history?',`${r.settings.SLOTS} slots taking the same trades · full history ${dateRange(c.samples.data)} · not an annual forecast.`);
+      if(c.history.acquisition_economics?.source==='training')p.append(el('p','Historical acquisition costs and replacement delays use the frozen training calibration. Evaluation holdout estimates are reserved for validation.','prop-assumption-note'));
       const totals=c.history.totals,historyCards=el('div',undefined,'prop-metric-grid prop-three-metrics');p.append(historyCards);
       metricCard(historyCards,'Historical net',money(totals.net,0),'Total payouts minus acquisition costs, over the full history.',totals.net);
       metricCard(historyCards,'Total payouts',money(totals.payouts,0),'Across all historical slots.',totals.payouts);
@@ -276,7 +289,7 @@
     details(p,'Account rules',c.rules);details(p,'Resolved settings',r.settings);details(p,'Random streams and samples',{samples:c.samples,seeds:c.seeds});
     details(p,'Report identity and reproducibility',{id:r.id,created_at_utc:r.created_at_utc,model:r.model_version,application_commit:r.application_commit,implementation:r.implementation_sha256,runtime:r.runtime});
     p=reportBlock(views.model,'Downloads and full precision','Display values are rounded. The original saved values remain in the report data and exports.');
-    const names={'calculations.json':'All calculated metrics (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)','inputs/intratrade_risk.csv':'Captured OHLC risk bounds (CSV)'};
+    const names={'calculations.json':'All calculated metrics (JSON)','training_economics.json':'Training acquisition calibration (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)','inputs/intratrade_risk.csv':'Captured OHLC risk bounds (CSV)'};
     for(const path of Object.keys(r.files).sort())fileLink(p,path,names[path]||(path.startsWith('charts/')?`Original ${path.split('/').pop().replace('.svg','')} chart (SVG)`:path.endsWith('.xlsx')?'Original measured-excursion export (XLSX)':path));
     selectView('overview');window.scrollTo(0,0);
   }

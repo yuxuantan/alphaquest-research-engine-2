@@ -41,6 +41,13 @@ def expected_cash(report):
     assert all(row['simulations']==3000 for row in c['evaluation_sweep'])
     assert c['evaluation']['pass_rate']==1 and c['evaluation']['selected_micros']==1
     assert c['evaluation']['cost_per_funded']==178  # 49 / 100% + 129 activation
+    assert c['training_economics']['method']=='training_simulation'
+    assert c['training_economics']['pass_rate']==1
+    assert c['training_economics']['cost_per_funded']==178
+    assert c['training_economics']['replacement_days']==11
+    assert c['training_economics']['funding_chain_simulations']==20000
+    assert c['funded']['selection_economics']==c['training_economics']
+    assert c['history']['acquisition_economics']['source']=='training'
     assert c['evaluation']['days_to_funded']==11  # 10 x 300 + one activation day
     assert c['funded']['selected']['micros']==3 and c['funded']['selected']['sims']==20000
     assert all(row['sims']==3000 for row in c['funded']['sweep'])

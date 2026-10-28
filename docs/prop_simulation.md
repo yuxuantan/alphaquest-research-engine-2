@@ -2,7 +2,7 @@
 
 All production account arithmetic, resampling, evaluation attempts, funded
 payouts, sizing, economics, charts and downloads are calculated by AlphaQuest.
-Model version: `alphaquest-apex50k-eod-v2-ohlc-risk`. Earlier saved v1 reports remain unchanged. No external executable/DLL, generated
+Model version: `alphaquest-apex50k-eod-v3-training-economics`. Earlier saved v1/v2 reports remain unchanged. No external executable/DLL, generated
 reference HTML/JSON/CSV/chart, Windows VM or vendor license participates in a new
 calculation. Saved external results are independent qualification oracles only.
 This supersedes the integration and older notebook specifications retained below.
@@ -145,19 +145,26 @@ are editable. Unsupported choices reject, without silently substituting a model.
 - Random draws: local NumPy RandomState/MT19937, streamed circular contiguous
   blocks. Training seed 42, holdout seed 43. Draw only when the previous block
   is consumed. A new account resets the block; failed evaluations within a
-  funding chain retain the unfinished block. Funding-chain seed 44; one
+  funding chain retain the unfinished block. Training funding-chain seed 45,
+  holdout funding-chain seed 44; one
   activation day is added after passing. No global RNG state is shared.
-- Counts: 3,000 per sizing point, 20,000 final evaluations, 20,000 final funded
+- Counts: 3,000 per sizing point, 20,000 training funding chains,
+  20,000 final evaluations, 20,000 final funded
   lifetime accounts and 20,000 independent first-year accounts. Lifetime guard
   is 2,000 weekdays; first year is 261. Independent horizons consume draws
   differently, so first-year and lifetime probabilities need not be monotone.
-- Economics: reported acquisition cost is evaluation_price / holdout_pass_rate
-  + activation_fee. Historical replacement delay is ceil(mean funding-chain
-  days). Training funded size selection preserves the reference model's fixed
-  52.5% acquisition pass assumption and five-day replacement delay: maximize
-  261 * (mean lifetime payout - assumed acquisition cost) / (mean lifetime days
-  + 5), over 1 through the lower of 40 MNQ and the user cap. These fixed selection assumptions are disclosed separately
-  from the reported holdout handover. They are not current provider evidence.
+- Economics: select evaluation size on training only, then calibrate acquisition
+  cost as evaluation_price / selected_training_pass_rate + activation_fee.
+  Training pass rate is the selected 3,000-path sweep point; replacement time is
+  the mean of 20,000 repeated training evaluation chains including failed attempts
+  and one activation day. Freeze these inputs before any holdout calculation.
+  Rank funded sizes by 261 * (mean training lifetime payout - training acquisition
+  cost) / (mean training funded lifetime + training replacement days), over every
+  permitted/user-capped size. Holdout evaluation acquisition cost/time are separate
+  validation estimates and cannot choose, rescore or gate a successful training
+  fit. Historical replay uses the frozen training cost and ceil(training mean
+  replacement days). No training passes or bounded-chain failure makes funded
+  sizing unavailable; no hardcoded probability/delay fallback is used.
 - Historical slots: one actual chronological account replay, scaled by number
   of slots; slots share their trades. Replacements incur expected acquisition
   cost. Payouts/costs round by calendar quarter before annual totals are added.
@@ -518,3 +525,41 @@ OOS risk replays are blocked: the user must select an IS parameter set and spend
 another explicit OOS attempt. Legacy undeclared reports remain read-only. All
 original reports/evidence stay unchanged; new prop ZIPs include the captured risk
 CSV, source reconciliation and complete size sweeps.
+
+
+## Training-calibrated acquisition economics (v3, 2026-10-28)
+
+The 52.5%/five-day constants are retired for new calculations. V3 inherits the
+held-OHLC risk measurements and complete permitted sweep from v2. A single
+strategy-independent calibration is derived from the training portion of the
+selected source period; all candidate funded sizes share it. Actual funded size
+and training cost/delay are fixed before holdout evaluation or funded simulations.
+A low acquisition pass rate raises the repeated evaluation cost; a long funding
+chain also reduces productive time. Because funded lifetimes differ, those
+common acquisition inputs can change the ranking of candidate sizes.
+
+`calculations.training_economics` records method/status, exact training date
+window, selected evaluation micro size, passes/path count, pass-rate interval,
+fees, expected evaluation attempts, acquisition cost, funding-chain count/seed,
+and mean/median replacement time including activation. The funded selection
+object links the same calibration. Each funded-sizing CSV row includes
+`acquisition_cost`, `replacement_days` and `evaluation_pass_rate`, allowing its
+`slot_year` score to be independently recalculated. `training_economics.json`
+is a normal captured artifact and is included in the standard report ZIP.
+
+The Evaluation view separates training calibration from holdout results. Sizing
+shows the training-derived inputs and a full-precision inspection. Historical
+replay labels its acquisition inputs as frozen training estimates. A zero-pass
+training sample remains an inspectable completed analysis with funded sizing and
+cash unavailable. Positive holdout passes cannot rescue it. If a valid training
+fit has zero holdout passes, its selected size remains frozen; funded holdout
+results are explicitly conditional on starting funded. Holdout acquisition
+estimates remain unavailable instead of becoming zero costs or replacement days.
+A bounded holdout funding-chain failure also cannot erase training selection.
+
+Saved v1/v2 reports retain their original arithmetic, values and assumption text
+and are labeled earlier models. Configure a new analysis from a declared IS
+backtest to obtain v3 without replaying its trades or rewriting earlier results.
+New backtests and optimization trials use v3 automatically. Existing OOS reports
+remain readable, and fresh OOS calculations still require the explicit budgeted
+backtest workflow. This increment does not loosen the OOS access policy.

@@ -1556,3 +1556,95 @@ journey: old-model label visible, native source check passed, all 40 sizes visib
 the same saved v2 analysis reopened without a new analysis row, exact JSON bytes,
 no browser errors, original file hashes and OOS budget unchanged. No commits were
 pushed. This activation record changes documentation only.
+
+## Training-derived acquisition calibration — v3, 2026-10-28
+
+This increment replaces the fixed 52.5%/five-day sizing assumptions with
+training-only calibration and explicitly prevents holdout feedback. The normal
+product journey used the existing IS backtest
+`4a88a36e50fd431aa337939f65e3d2c0`: report → Configure prop analysis → native source
+check → Run analysis → saved v3 report
+`e4d3b403f6e04a57a3ee994257b8c68e`. No backtest replay or OOS run was submitted.
+The v2 report `bc8b22b5d1294064b69556366ac8058f` and earlier v1 report remain
+unchanged. Existing backtest manifests, dataset metadata, analysis rows and all
+files of the audited original reports remain identical. The OOS budget remains
+**1 used, 2 remaining**. No external engine or vendor-generated results were used.
+
+Reproduce the actual saved product workflow:
+
+1. Open `/#backtests/report/4a88a36e50fd431aa337939f65e3d2c0`, select
+   **Configure prop analysis**, leave the export empty and **Check source**.
+   Expect 771 native held-OHLC trade matches and the original net **211.42 CU**.
+2. **Run analysis** with the default settings. The current completed v3 analysis
+   above reopens; before it exists, the same action creates a normal durable job.
+   New backtests/optimization trials use the same v3 calibration automatically.
+3. In **Sizing**, expect every size **1–40 MNQ**, with training calibration:
+   training window **2017-05-22 through 2021-11-08**, evaluation size **36 MNQ**,
+   **745 / 3,000 passes = 24.833333333333332%**, acquisition cost
+   **$326.31543624161077**, and **41.90495 replacement trading days** including
+   activation. Replacement timing uses **20,000 chains, seed 45**. The funded
+   size remains **17 MNQ**. This is an observed model result, not an assertion
+   that calibration must change the winning size.
+4. The **Evaluation** view separates those training inputs from the unchanged
+   holdout estimates: **21.745%**, acquisition cost **$354.3391584272247**,
+   **31.2671 days**. Every holdout evaluation field and every training evaluation
+   sweep row exactly match v2 because the underlying samples/model/seeds did not
+   change. These holdout outcomes cannot choose, rescore or gate a valid fit.
+5. **Historical replay** uses the frozen training cost and replacement delay.
+   Expect payouts **$270,000**, acquisition costs **$130,521**, **400 funded
+   starts**, and **Historical net $139,479** over the supplied IS history. This
+   historical total changes because acquisition costs/delays now come from
+   training; different renewal start dates can change which observed periods
+   are traded. It remains a modelled historical replay, not a future forecast.
+6. Download **Training calibration (JSON)** from Evaluation or Source & model,
+   complete funded-sizing CSV and the standard ZIP. Each CSV row saves its
+   acquisition cost, replacement time and evaluation pass rate. Its annual score
+   is independently reproducible as 261 × (mean payout − training acquisition
+   cost) / (mean lifetime + training replacement days). Reload/reopen the report:
+   saved values and JSON bytes remain identical, without another computation.
+
+Inspectable evidence is `artifacts/prop-training-economics-20261028/`: actual
+source-check JSON, four portal screenshots, complete report, training JSON,
+sweeps, trades, calculations, normal ZIP, browser-downloaded calibration and
+before/after preservation snapshots. `reproduce-product.py.txt` records this
+normal product journey using a temporary port-8001 server, which shut down.
+`implementation-source-sha256.json`, source ZIP and patch preserve the exact
+production source; its prop module hashes and compiled kernel match the report.
+
+Independent validation uses `reproduce-oracle.py.txt` without importing any
+AlphaQuest calculation functions. It independently groups the native trade/risk
+inputs into **1,166 training weekdays / 541 trades**, performs MT19937 circular
+block sampling, reconstructs evaluation account transitions, and reproduces
+**745 / 3,000** training passes and the mean of **20,000** repeated chains,
+**41.90495** days. Decimal arithmetic reproduces acquisition cost and all **40**
+funded-size scores. Expected/actual results and duration histogram are retained
+in `independent-calibration-oracle.json`. Run the saved script with the project
+venv Python; it reads the captured report/trades and uses NumPy for MT19937 only.
+
+Meaningful automated checks also perturb holdout data from profitable to slower
+and zero-return histories, keeping the training fit byte-identical; verify that
+funded fitting occurs before the first holdout call; and check an independent
+numeric example where acquisition costs reverse the size ranking. Zero training
+passes cannot be rescued by a profitable holdout. Training chain bound failures
+never substitute a delay; holdout chain failures do not erase a training fit.
+No-passes/bounded-chain outputs explicitly record unavailable calibration and no
+completed training chain batch, rather than claiming 20,000 successful runs.
+Normal API/browser synthetic fixtures demonstrate positive/zero training cases
+and retain their expected values in tests. No fixture oracle is shown as a
+production validation dashboard or fabricated measured excursion.
+
+Final complete regression gate: **832 passed, 24 existing dependency warnings**
+in **479.88 seconds**. The full log/JUnit are `full-suite.log`/`full-suite.xml` in
+this increment's evidence directory. Run from the intended checkout with
+`PYTHONPATH=. /path/to/venv/bin/python -m pytest -q`.
+
+`boundary-evidence/known-cash/` preserves an actual normal-workflow synthetic
+report and screenshot: pass rate **100%**, training acquisition cost **$178**,
+replacement time **11 days**, funded size **3 MNQ**, and independently known
+Historical net **$352,880**. `boundary-evidence/zero-training/` preserves the
+labeled source CSV, actual report and screenshot for seven zero-return training
+days followed by three profitable holdout days: training pass rate **0%**,
+holdout pass rate **100%**, funded sizing/history unavailable. Reproduce through
+`tests/test_prop_training_economics_browser.py`; both cases use the existing
+upload/backtest/configure/check/run/report routes, temporary fixture servers and
+normal storage. Saved downloads complement the actual 771-trade product report.

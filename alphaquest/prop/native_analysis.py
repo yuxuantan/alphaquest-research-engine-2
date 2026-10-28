@@ -14,7 +14,7 @@ from .adapter import digest
 from .native_backend import Rules, FundedAccount, evaluation, funded, compact_neutral_runs, identity as backend_identity
 from .parallel import map_sweep,diagnostics as execution_diagnostics
 
-MODEL_VERSION = 'alphaquest-apex50k-eod-v2-ohlc-risk'
+MODEL_VERSION = 'alphaquest-apex50k-eod-v3-training-economics'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
                 LUCID_EVAL_DAYS='no limit', SIZE_FOR='most net per year per slot', OUT_OF_SAMPLE_FROM='',
                 NET_OPPOSITE=False, EVAL_PRICE='49', ACTIVATION_FEE='129', SLOTS='20', MAX_TOTAL_NQ='4',
@@ -185,11 +185,12 @@ def _evaluation_size(value):
 
 
 def _funded_size(value):
-    days,size,block,rules,max_micros,eval_price,activation=value
+    days,size,block,rules,max_micros,economics=value
     life=funded(days,size,3000,42,block,rules=rules,max_micros=max_micros)
     annual=funded(days,size,3000,42,block,horizon=261,rules=rules,max_micros=max_micros)
     stats={**summary(life,size),**annual_summary(annual)}
-    stats['slot_year']=261*(stats['E[payout]']-(eval_price/.525+activation))/(stats['days alive']+5.)
+    stats.update(acquisition_cost=economics['cost_per_funded'], replacement_days=economics['replacement_days'], evaluation_pass_rate=economics['pass_rate'])
+    stats['slot_year']=261*(stats['E[payout]']-stats['acquisition_cost'])/(stats['days alive']+stats['replacement_days'])
     return stats
 
 
@@ -203,6 +204,33 @@ def _funded_holdout(value):
                            lifetimes=[a.day for a in accounts],first_payout_days=[a.payouts[0][0] for a in accounts if a.payouts]))
 
 
+def training_economics(train, selected, settings, block, max_micros, sample):
+    """Freeze acquisition inputs from training only, before holdout is touched."""
+    probability=selected['passed']/selected['simulations']
+    result=dict(method='training_simulation',status='unavailable',sample=sample,
+                evaluation_micros=selected['micros'],passed=selected['passed'],
+                simulations=selected['simulations'],pass_rate=probability,
+                pass_rate_ci=wilson(selected['passed'],selected['simulations']),
+                evaluation_seed=42,funding_chain_seed=45,funding_chain_simulations=0,requested_funding_chain_simulations=20000,
+                evaluation_price=float(settings['EVAL_PRICE']),activation_fee=float(settings['ACTIVATION_FEE']),
+                activation_days=1,cost_per_funded=None,replacement_days=None,
+                source='Training evaluation sweep and repeated funding chains only; frozen before all holdout simulations')
+    if not selected['passed']:
+        result['reason']='No training evaluation passed. Acquisition cost and replacement time cannot be calibrated; funded sizing is unavailable.'
+        return result
+    result.update(cost_per_funded=float(settings['EVAL_PRICE'])/probability+float(settings['ACTIVATION_FEE']),
+                  evaluations_per_funded=1/probability)
+    try:
+        chain=evaluation(train,selected['micros'],20000,45,block,chain=True,max_micros=max_micros)
+    except ValueError as exc:
+        if not str(exc).startswith('No pass within the 10,000-attempt funding-time bound'):raise
+        result['reason']='Training funding time is unavailable: '+str(exc)
+        return result
+    result.update(status='calibrated',funding_chain_simulations=20000,replacement_days=float(chain['days'].mean()),
+                  replacement_days_median=float(np.median(chain['days'])))
+    return result
+
+
 def calculate(rows, settings, progress=lambda _:None):
     grid, days, split = day_book(rows,settings)
     if split==0:
@@ -211,43 +239,61 @@ def calculate(rows, settings, progress=lambda _:None):
     train, validation = days[:split],days[split:]
     block = int(settings['BLOCK_DAYS']); max_micros = int(round(float(settings['MAX_TOTAL_NQ'])*10))
     rules = replace(Rules(),approval_day_counts=settings['APPROVAL_DAY_COUNTS'])
+    samples=dict(data=[str(grid[0].date()),str(grid[-1].date())],
+                 train=[str(grid[0].date()),str(grid[split-1].date())],
+                 validation=[str(grid[split].date()),str(grid[-1].date())],weekdays=[split,len(validation)])
     progress('Local evaluation sizing on training sessions')
     sizes=list(range(1,min(60,max_micros)+1))
     work=sum(map(len,train))*3000
     evaluation_sweep=map_sweep(_evaluation_size,[(train,size,block,max_micros) for size in sizes],work*len(sizes))
-    selected=max(evaluation_sweep,key=lambda r:r['passed'])['micros']
+    selected=max(evaluation_sweep,key=lambda r:r['passed'])
+    progress('Local training acquisition calibration: 20,000 funding chains')
+    economics=training_economics(train,selected,settings,block,max_micros,samples['train'])
+    sweep=None;size=None;funded_sizes=None
+    if economics['status']=='calibrated':
+        progress('Local funded sizing with frozen training acquisition economics')
+        funded_sizes=list(range(1,min(max(level[1] for level in rules.levels),max_micros)+1))
+        sweep=map_sweep(_funded_size,[(train,n,block,rules,max_micros,economics) for n in funded_sizes],work*len(funded_sizes)*2)
+        size=max(sweep,key=lambda r:r['slot_year'])['micros']
+    # Evaluation size, funded size and acquisition inputs are now fixed. Holdout
+    # results can neither rescore candidates nor gate a successful training fit.
     progress('Local holdout evaluation: 20,000 paths')
-    sim=evaluation(validation,selected,20000,43,block,max_micros=max_micros)
+    sim=evaluation(validation,selected['micros'],20000,43,block,max_micros=max_micros)
     outcomes=sim['outcomes']; passed=int(sum(outcomes=='passed')); probability=passed/20000
-    result=dict(model_version=MODEL_VERSION,rules=asdict(rules),settings=settings,
-                samples=dict(data=[str(grid[0].date()),str(grid[-1].date())],
-                             train=[str(grid[0].date()),str(grid[split-1].date())],
-                             validation=[str(grid[split].date()),str(grid[-1].date())],weekdays=[split,len(validation)]),
-                seeds=dict(training=42,holdout=43,funding_chain=44,generator='MT19937 / RandomState bounded integers',block_days=block),
-                evaluation=dict(selected_micros=selected,simulations=20000,passed=passed,pass_rate=probability,
+    result=dict(model_version=MODEL_VERSION,rules=asdict(rules),settings=settings,samples=samples,
+                seeds=dict(training=42,holdout=43,funding_chain=44,training_funding_chain=45,generator='MT19937 / RandomState bounded integers',block_days=block),
+                training_economics=economics,
+                evaluation=dict(selected_micros=selected['micros'],simulations=20000,passed=passed,pass_rate=probability,
                                 fail_drawdown=float((outcomes=='blown').mean()),timeout=float((outcomes=='timeout').mean()),
-                                pass_rate_ci=wilson(passed,20000),
+                                pass_rate_ci=wilson(passed,20000),cost_per_funded=None,evaluations_per_funded=None,
+                                days_to_funded=None,days_to_funded_median=None,
                                 median_days_to_pass=float(np.median(sim['days'][outcomes=='passed'])) if passed else None),
                 evaluation_sweep=evaluation_sweep)
-    if not passed:
-        result.update(funded=None,history=None,unavailable='No validation evaluation passed. Acquisition time/cost and replacement-dependent sizing are unavailable.')
+    if passed:
+        result['evaluation'].update(cost_per_funded=float(settings['EVAL_PRICE'])/probability+float(settings['ACTIVATION_FEE']),
+                                    evaluations_per_funded=1/probability)
+        try:
+            chain=evaluation(validation,selected['micros'],20000,44,block,chain=True,max_micros=max_micros)
+        except ValueError as exc:
+            if not str(exc).startswith('No pass within the 10,000-attempt funding-time bound'):raise
+            result['evaluation']['timing_unavailable']=str(exc)
+        else:
+            result['evaluation'].update(days_to_funded=float(chain['days'].mean()),days_to_funded_median=float(np.median(chain['days'])))
+    else:
+        result['evaluation']['unavailable']='No validation evaluation passed. Holdout acquisition cost and funding time are unavailable; training selection remains frozen.'
+    if sweep is None:
+        reason=economics['reason']
+        if not passed:reason+=' No validation evaluation passed either.'
+        result.update(funded=None,history=None,unavailable=reason)
         return result
-    chain=evaluation(validation,selected,20000,44,block,chain=True,max_micros=max_micros)
-    cost=float(settings['EVAL_PRICE'])/probability+float(settings['ACTIVATION_FEE'])
-    replacement=float(chain['days'].mean())
-    result['evaluation'].update(cost_per_funded=cost,evaluations_per_funded=1/probability,
-                                days_to_funded=replacement,days_to_funded_median=float(np.median(chain['days'])))
-    progress('Local funded sizing on training sessions')
-    sizes=list(range(1,min(max(level[1] for level in rules.levels),max_micros)+1))
-    sweep=map_sweep(_funded_size,[(train,size,block,rules,max_micros,float(settings['EVAL_PRICE']),float(settings['ACTIVATION_FEE'])) for size in sizes],work*len(sizes)*2)
-    size=max(sweep,key=lambda r:r['slot_year'])['micros']
     progress('Local funded holdout: 20,000 lifetime and 20,000 first-year accounts')
     life,annual=map_sweep(_funded_holdout,[(validation,size,block,rules,max_micros,horizon) for horizon in (2000,261)],sum(map(len,validation))*20000*2)
     stats={**life['stats'],**annual['stats']}
-    result['funded']=dict(selected=stats,sweep=sweep,search_range=dict(min_micros=1,max_micros=sizes[-1],step=1,selected_at_limit=size==sizes[-1],permitted_micros=max(level[1] for level in rules.levels),user_cap_micros=max_micros,tier_caps=[level[1] for level in rules.levels]),selection_economics=dict(pass_rate=.525,replacement_days=5,source='Fixed training-selection assumptions; validation handover used for reported acquisition cost and historical replay'),
+    result['funded']=dict(selected=stats,sweep=sweep,search_range=dict(min_micros=1,max_micros=funded_sizes[-1],step=1,selected_at_limit=size==funded_sizes[-1],permitted_micros=max(level[1] for level in rules.levels),user_cap_micros=max_micros,tier_caps=[level[1] for level in rules.levels]),selection_economics=economics,
         outcomes=life['outcomes'])
-    progress('Local chronological account replay and calendar-year cash totals')
-    result['history']=replay_history(grid,days,size,replacement,cost,int(settings['SLOTS']),rules,max_micros,split)
+    progress('Local chronological replay with frozen training acquisition economics')
+    result['history']=replay_history(grid,days,size,economics['replacement_days'],economics['cost_per_funded'],int(settings['SLOTS']),rules,max_micros,split)
+    result['history']['acquisition_economics']=dict(source='training',cost_per_funded=economics['cost_per_funded'],replacement_days=economics['replacement_days'])
     result['distributions']={**life['distributions'],'evaluation_days':sim['days'].tolist()}
     return result
 
@@ -307,6 +353,7 @@ def run_analysis(runs,request,staged,progress):
         raise ValueError('Excursion export changed during calculation.')
     (staged/'trades.csv').write_text(csv_text(rows))
     (staged/'evaluation_sizing.csv').write_text(csv_text(result['evaluation_sweep']))
+    (staged/'training_economics.json').write_text(json.dumps(result['training_economics'],indent=2,allow_nan=False))
     if result['funded']:
         (staged/'funded_sizing.csv').write_text(csv_text(result['funded']['sweep']))
         (staged/'slot_accounts.csv').write_text(csv_text(result['history']['accounts']))
