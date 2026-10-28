@@ -1648,3 +1648,21 @@ holdout pass rate **100%**, funded sizing/history unavailable. Reproduce through
 `tests/test_prop_training_economics_browser.py`; both cases use the existing
 upload/backtest/configure/check/run/report routes, temporary fixture servers and
 normal storage. Saved downloads complement the actual 771-trade product report.
+
+Local activation completed on `fix/prop-training-economics`, implementation
+commit `11e9dab`, in `/Users/yx/alphaquest-research-engine-2`. The idle v2 portal
+was stopped before switching code. All activated source hashes and the unchanged
+compiled kernel match the saved v3 report. Port **8000** now serves v3 with the
+original data directory, PID **4947**, without automatic reload. Stop it with
+**`kill 4947`**. PID/log/startup details are in this increment's
+`portal-server.pid`, `portal-server.log`, `pre-activation.json` and `restart.json`.
+The temporary port-8001 product server has stopped.
+
+`live-verification.json`, `verify-live.py.txt` and the two live screenshots confirm
+the actual port-8000 workflow: old report keeps its 52.5%/five-day values and
+shows its earlier-model label; the new report shows training calibration and
+separate holdout figures; checking/running from the existing IS source reopens
+`e4d3b403f6e04a57a3ee994257b8c68e` without creating another analysis row; all 40
+sizes and exact saved JSON remain available; original hashes and OOS budget are
+unchanged; no browser errors occurred. Nothing was pushed. This final activation
+record changes documentation only.
