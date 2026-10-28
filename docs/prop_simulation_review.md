@@ -1419,3 +1419,25 @@ The final immutable code is `bafa7b0`; qualification, full log/JUnit and actual
 product outputs are under `artifacts/is-oos-20261028/final-suite/` and its parent.
 This includes the exact default simulation counts, fees and independent cash
 values above. Fixture servers stopped through their normal cleanup.
+
+## Saved funded-sizing audit — 2026-10-28
+
+The actual report `fed437c6d2944703b94eb45484a7039d` was independently inspected
+through its normal portal Sizing view and its captured native source. See
+[the audit and exact reproduction steps](reviews/prop-sizing-fed437c6-20261028.md).
+The saved 1–20 sweep is truncated below its configured/tier-eligible 40 MNQ limit.
+Training-only extension with the original 3,000 paths per point raises the
+unchanged model's score from **4,625.97 at 20 to 6,985.55 at 40**. This is a
+diagnostic, not qualified real-account sizing. Original points 1/10/19/20 match
+exactly, 400 independent ledger cases match, and all 14 saved report files remain
+byte-identical. No research OOS or production analysis was submitted.
+
+Nonmonotone drawdown rates are explainable by inactivity, successful six-payout
+closure and model stop/lock rules; they do not establish that leverage is safer.
+Current-rule qualification remains incomplete: 21-weekday inactivity with a
+qualifying-day exception differs from the 30-calendar-day policy; exact-50%
+consistency is accepted locally; all 771 trades lack measured excursions; DLL
+fills are clipped exactly; and annualized selection uses fixed 52.5%/five-day
+replacement assumptions. The audit saves actual UI screenshots, full diagnostic
+CSV/JSON, independent boundary examples, primary provider links and commands.
+No simulator code, earlier numerical report or server was modified.

@@ -446,3 +446,15 @@ All four increments are delivered. Exact saved IDs, settings, outputs and
 reproduction steps are in `prop_simulation_review.md`. Original-count sweeps,
 main/detail simulations and 300 retained paths were tested through the portal;
 reduced fixture demonstrations are separately labeled.
+
+## Funded-sizing qualification status (2026-10-28)
+
+The saved-report audit of `fed437c6d2944703b94eb45484a7039d` reproduces its
+arithmetic but does **not** qualify its 20-MNQ recommendation as optimal or fully
+faithful to current Apex rules. The funded search omits eligible targets above
+20; an unchanged-model training extension favors 40. Current-rule inactivity,
+consistency boundaries, excursion coverage and selection-economics limitations
+are documented with independent probes and original provider sources in
+[the detailed audit](reviews/prop-sizing-fed437c6-20261028.md). The previously
+qualified numerical assumptions above remain preserved as versioned historical
+behavior; no saved results were rewritten by this audit.
