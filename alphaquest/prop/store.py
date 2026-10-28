@@ -10,7 +10,7 @@ from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
 from threading import Lock
-from uuid import uuid4
+from uuid import UUID, uuid4
 import zipfile
 from .adapter import canonical
 from .native_analysis import run_analysis
@@ -77,6 +77,38 @@ class AnalysisStore:
         with self.connect() as db:
             db.row_factory=sqlite3.Row;rows=db.execute('SELECT * FROM analyses WHERE source_id=? ORDER BY created DESC LIMIT 100',(source,)).fetchall()
         return [dict(row) for row in rows]
+
+    def delete(self, id):
+        """Delete one inactive analysis; roll back file staging on SQL failure."""
+        import shutil
+        id=UUID(id).hex
+        destination=self.root/id;staged=self.root/('.deleted-'+id);moved=False
+        with self.lock:
+            try:
+                with self.connect() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
+                    if record and record[0] in ('queued','running'):
+                        raise ValueError('This prop analysis is queued or running. Wait for it to finish before deleting.')
+                    if destination.is_symlink() or staged.is_symlink():
+                        raise OSError('Refusing to delete a symbolic-link prop report directory.')
+                    if not record and not staged.exists():return False
+                    if record:
+                        if staged.exists():
+                            if destination.exists():raise OSError('Conflicting staged deletion; no report files were removed.')
+                            staged.rename(destination)
+                        if destination.exists():destination.rename(staged);moved=True
+                    db.execute('DELETE FROM calculation_reuse WHERE id=?',(id,))
+                    db.execute('DELETE FROM analysis_report_checks WHERE id=?',(id,))
+                    db.execute('DELETE FROM analyses WHERE id=?',(id,))
+            except BaseException:
+                if moved:staged.rename(destination)
+                raise
+            if staged.exists():
+                try:shutil.rmtree(staged)
+                except OSError as exc:
+                    raise OSError(f'Prop report removed from the catalogue, but file cleanup failed. Retry Delete for {id}.') from exc
+        return True
 
     def submit(self,runs,request):
         # Deletion takes this same lock through the pending-job check and removal.

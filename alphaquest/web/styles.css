@@ -1590,3 +1590,6 @@ dialog::backdrop {
 .run-mode-panel select { width:100%; max-width:440px; }
 #strategy-groups tr { cursor:pointer; }
 #strategy-groups tr:hover { background:#f1f8f6; }
+
+.strategy-saved-prop-row { display:flex; align-items:center; gap:12px; margin:10px 0; flex-wrap:wrap; }
+#prop-delete { margin-bottom:16px; }

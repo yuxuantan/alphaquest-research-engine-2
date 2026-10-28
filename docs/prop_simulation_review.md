@@ -1666,3 +1666,22 @@ separate holdout figures; checking/running from the existing IS source reopens
 sizes and exact saved JSON remain available; original hashes and OOS budget are
 unchanged; no browser errors occurred. Nothing was pushed. This final activation
 record changes documentation only.
+
+
+## Selected prop report deletion — 2026-10-28
+
+The existing saved-report/configuration workflow now includes Delete on completed
+prop reports and in the saved-analysis list. Confirmation names the exact report;
+active jobs return HTTP 409. Backtests, source datasets, optimization metrics and
+spent OOS attempts remain intact. Removing an OOS analysis never permits an
+unbudgeted replacement calculation. Catalogue failures restore staged files;
+cleanup failures support a second Delete attempt. Symbolic-link directories are
+rejected. Optimization tables retain metrics and mark removed report links.
+
+Normal API/browser synthetic fixtures verify cancellation without a request,
+confirmed deletion of only the selected analysis, other-report preservation,
+backtest preservation, and both header/list controls. Evidence is retained under
+`artifacts/strategy-browser-20261028/fixture-evidence/prop-deletion/`; independent
+financial fixture oracles remain unchanged. On actual saved report
+`e4d3b403f6e04a57a3ee994257b8c68e`, the new confirmation was opened and cancelled;
+no actual user report was deleted. No simulation arithmetic or sampling changed.

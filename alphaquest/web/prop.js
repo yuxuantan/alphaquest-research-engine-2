@@ -1,6 +1,7 @@
 /* Existing portal report → configuration → durable local report; historical notebook reports remain readable. */
 (() => {
   const $ = s => document.querySelector(s);
+  const deletingReports=new Set();
   let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false;
   const el = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const display = v => v === null || v === undefined ? 'Unavailable' : typeof v === 'number' ? String(v) : String(v);
@@ -56,10 +57,11 @@
     $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
     $('#prop-block').value=defaults.defaults.BLOCK_DAYS;$('#prop-slots').value=defaults.defaults.SLOTS;
     $('#prop-max-nq').value=defaults.defaults.MAX_TOTAL_NQ;$('#prop-holdout').value='';
-    $('#prop-saved').replaceChildren();for(const a of data.analyses){const link=el('a',`${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;$('#prop-saved').append(link,el('br'));}
+    $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
     $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · Reopen the verified saved automatic analysis. New calculations require another budgeted selection from an IS report.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
   }
   function render(r) {
+    $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);
     $('#prop-heading-title').textContent='Prop analysis';$('#prop-heading-note').textContent='Saved analysis report';$('#prop-report-content').className='';
     if(r.format_version===3){renderNative(r);return;}
     if(r.format_version===2){renderExternalHistory(r);return;}
@@ -294,6 +296,20 @@
     selectView('overview');window.scrollTo(0,0);
   }
   async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(['error','incompatible'].includes(j.status)){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token)render(r);return;}await new Promise(resolve=>setTimeout(resolve,700));}}
-  async function navigate(){const t=++token;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
+  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
+
+  async function deleteProp(id,row){
+    if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS budget usage are kept. This cannot be undone.`))return;
+    deletingReports.add(id);const hash=location.hash,status=$('#prop-delete-status');status.hidden=false;status.textContent='Deleting selected prop report…';$('#prop-delete').disabled=true;if(row)row.querySelector('button').disabled=true;
+    try{
+      const response=await fetch(`/api/prop-analyses/${id}`,{method:'DELETE'});
+      if(!response.ok&&response.status!==404){const error=await response.json();throw Error(error.detail||`HTTP ${response.status}`);}
+      if(location.hash===hash){
+        status.textContent='Prop report deleted. Backtests, datasets and OOS budget usage kept.';
+        if(row)row.remove();else{const notice=document.querySelector('#strategy-delete-status')||document.querySelector('#backtest-delete-status');if(notice){notice.hidden=false;notice.textContent=status.textContent;}location.hash='#strategies';}
+      }
+    }catch(error){if(location.hash===hash)status.textContent=`Could not delete prop report: ${error.message}`;}
+    finally{deletingReports.delete(id);$('#prop-delete').disabled=false;if(row?.isConnected)row.querySelector('button').disabled=false;}
+  }
   window.addEventListener('hashchange',navigate);navigate();
 })();

@@ -563,3 +563,14 @@ backtest to obtain v3 without replaying its trades or rewriting earlier results.
 New backtests and optimization trials use v3 automatically. Existing OOS reports
 remain readable, and fresh OOS calculations still require the explicit budgeted
 backtest workflow. This increment does not loosen the OOS access policy.
+
+
+## Selected prop report deletion
+
+Completed prop reports and saved-analysis lists expose a selected-report Delete
+control. `DELETE /api/prop-analyses/{id}` removes that inactive analysis and its
+downloads/calculation-reuse references after confirmation. Backtest reports,
+source datasets, optimization metrics and spent OOS attempts remain intact.
+Queued/running analyses reject deletion. File staging rolls back on SQL failure;
+post-commit cleanup can be retried. Original numerical reports remain unchanged
+unless the user selects and confirms deletion of that particular report.

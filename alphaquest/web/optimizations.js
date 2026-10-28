@@ -295,7 +295,9 @@
         const td = node("td");
         td.dataset.column = key;
         if (varying.has(key)) freeze(td, key);
-        if (key === "historical_net" && row.prop_analysis) {
+        if (key === "historical_net" && row.prop_report_deleted) {
+          td.append(node("span", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style:"currency",currency:"USD",maximumFractionDigits:0}).format(row.metrics.historical_net)), node("small", "Prop report deleted", "field-help"));
+        } else if (key === "historical_net" && row.prop_analysis) {
           td.classList.add("optimization-prop-result");
           const link = node("a", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0}).format(row.metrics.historical_net));
           link.href = `#backtests/prop/job/${row.prop_analysis.id}`;

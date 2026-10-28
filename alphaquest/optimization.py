@@ -200,6 +200,8 @@ class OptimizationStore:
         for payload,available in rows:
             row=json.loads(payload)
             if not available:row['backtest_deleted']=True
+            if row.get('prop_analysis') and self.prop_analyses.get(row['prop_analysis']['id']) is None:
+                row['prop_report_deleted']=True
             items.append(row)
         return {"items": items, "total": job["completed_trials"], "offset": offset, "limit": limit}
 

@@ -1,5 +1,7 @@
 """Existing portal workflow, calculated locally in AlphaQuest."""
 import json
+import sqlite3
+from uuid import UUID
 from typing import Literal
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
@@ -78,3 +80,13 @@ def file(id: str,name: str,request: Request):
     path=(root/name).resolve()
     if not path.is_relative_to(root.resolve()) or not path.is_file():raise HTTPException(404,'Invalid artifact path.')
     return FileResponse(path,filename=None if path.suffix in ('.png','.svg') else path.name)
+
+
+@router.delete('/{id}',status_code=204)
+def delete_analysis(id:UUID,request:Request):
+    try:deleted=request.app.state.prop_analyses.delete(id.hex)
+    except ValueError as exc:raise HTTPException(409,str(exc)) from None
+    except OSError as exc:raise HTTPException(500,str(exc)) from exc
+    except sqlite3.Error as exc:
+        raise HTTPException(500,'Could not update the prop catalogue. No deletion was committed; try again.') from exc
+    if not deleted:raise HTTPException(404,'Prop analysis not found.')

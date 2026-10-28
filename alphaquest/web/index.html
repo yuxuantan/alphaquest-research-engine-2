@@ -491,7 +491,7 @@
         </section>
         <section id="prop-screen" aria-label="Prop analysis" hidden>
           <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1><span id="prop-heading-title">Prop analysis</span><span class="heading-dot">.</span></h1><p id="prop-heading-note">AlphaQuest · Apex 50K EOD analysis</p></div></div>
-          <p id="prop-status" role="status" aria-live="polite"></p>
+          <p id="prop-status" role="status" aria-live="polite"></p><button id="prop-delete" type="button" class="button danger" hidden>Delete prop report</button><p id="prop-delete-status" class="small" role="status" hidden></p>
           <div id="prop-config" hidden>
             <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. New backtests supply risk bounds from the OHLC bars actually held, with opening gaps and cost jumps. An optional matching export can supply measured MAE/MFE instead. OHLC bounds are not tick measurements. Checking compares every trade; source commissions and slippage are already included and are not deducted again.</p></section>
             <form id="prop-form" class="panel prop-panel">
