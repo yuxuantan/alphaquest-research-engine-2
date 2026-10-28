@@ -1,4 +1,4 @@
-"""Chronological research declarations and durable, atomic holdout access budgets."""
+"""Editable chronological splits and durable, explicit holdout execution history."""
 import csv
 from datetime import datetime,timezone
 from decimal import Decimal
@@ -12,9 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr, StrictInt, StrictF
 from typing import Literal
 
 from .backtest_data import DateRange, DatasetReadError
-
-OOS_BUDGET = 3
-
 
 class SplitDeclaration(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -67,7 +64,7 @@ class ResearchStore:
             if recover_interrupted:
                 db.execute("""UPDATE oos_attempts SET status=CASE WHEN EXISTS
                     (SELECT 1 FROM runs WHERE runs.id=oos_attempts.run_id) THEN 'complete' ELSE 'interrupted' END,
-                    error='Application restarted; this attempt remains counted.'
+                    error='Application restarted; this request remains in execution history.'
                     WHERE status='running'""")
 
     def status(self, dataset, strategy_id):
@@ -80,8 +77,9 @@ class ResearchStore:
                 AND json_extract(manifest,'$.run_metadata.strategy.id')=? AND json_extract(manifest,'$.run_metadata.research') IS NULL""",
                 (dataset['sha256'],strategy_id)).fetchone()[0]
         names = ('id','parent_run_id','run_id','status','created_at','error','report_available')
-        return dict(plan=json.loads(row[0]) if row else None, budget=OOS_BUDGET, used=len(attempts),
-                    remaining=max(0, OOS_BUDGET-len(attempts)), exhausted=len(attempts)>=OOS_BUDGET,
+        # Null limits retain compatibility for API readers without enforcing a cap.
+        return dict(plan=json.loads(row[0]) if row else None, budget=None, used=len(attempts),
+                    remaining=None, exhausted=False,
                     attempts=[dict(zip(names,a)) for a in attempts],legacy_reports=legacy)
 
     def days(self, source, dataset):
@@ -133,17 +131,13 @@ class ResearchStore:
         plan=dict(strategy_id=strategy_id,source_sha256=dataset['sha256'],source_timezone=dataset['source_timezone'],
                   is_start=is_start,is_end=is_end,oos_start=oos_start,oos_end=oos_end,is_bars=counts[0],oos_bars=counts[1],
                   percentage_basis='chronological whole trading dates; floor(IS% × date count)',version=1)
-        existing=self.status(dataset,strategy_id)['plan']
-        if existing and existing!=plan:raise ResearchConflict('This strategy/dataset split is locked. Held-out dates cannot be moved into IS or replaced.')
         return plan
 
     def claim(self, plan):
         with self.runs.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             pair=(plan['strategy_id'],plan['source_sha256'])
-            row=db.execute('SELECT payload FROM research_plans WHERE strategy_id=? AND source_sha256=?',pair).fetchone()
-            if row and json.loads(row[0])!=plan:raise ResearchConflict('This strategy/dataset split is already locked to a different declaration.')
-            db.execute('INSERT OR IGNORE INTO research_plans VALUES (?,?,?)',(*pair,json.dumps(plan)))
+            db.execute('INSERT INTO research_plans VALUES (?,?,?) ON CONFLICT(strategy_id,source_sha256) DO UPDATE SET payload=excluded.payload',(*pair,json.dumps(plan)))
 
     def reserve(self, plan, parent_run_id, attempt_id):
         with self.runs.connect() as db:
@@ -154,10 +148,11 @@ class ResearchStore:
                     raise ResearchConflict('This OOS request ID has already been used for a different selection.')
                 return dict(id=attempt_id,run_id=row[3],status=row[4],error=row[5]),False
             pair=(plan['strategy_id'],plan['source_sha256'])
-            stored=db.execute('SELECT payload FROM research_plans WHERE strategy_id=? AND source_sha256=?',pair).fetchone()
-            if not stored or json.loads(stored[0])!=plan:raise ResearchConflict('The saved IS declaration does not match the locked research plan.')
+            stored=db.execute('SELECT manifest FROM runs WHERE id=?',(parent_run_id,)).fetchone()
+            saved=json.loads(stored[0]).get('run_metadata',{}).get('research',{}) if stored else {}
+            if saved.get('phase')!='is' or saved.get('plan')!=plan:
+                raise ResearchConflict('Select a completed IS report with its saved declaration before running OOS.')
             used=db.execute('SELECT COUNT(*) FROM oos_attempts WHERE strategy_id=? AND source_sha256=?',pair).fetchone()[0]
-            if used>=OOS_BUDGET:raise ResearchConflict('OOS budget exhausted (3/3). Further OOS backtests and optimisations are blocked.')
             run_id=uuid4().hex
             db.execute("INSERT INTO oos_attempts VALUES (?,?,?,?,?,'running',?,NULL)",
                        (attempt_id,*pair,parent_run_id,run_id,datetime.now(timezone.utc).isoformat()))

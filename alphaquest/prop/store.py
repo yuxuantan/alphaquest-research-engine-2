@@ -134,7 +134,7 @@ class AnalysisStore:
         return self.get(id)
 
     def check_oos(self,snapshot,settings,runs):
-        """A saved OOS source can reopen its verified automatic report only."""
+        """Keep legacy sources within IS; saved manually executed OOS is usable."""
         record=snapshot['backtest']
         research=record['run_metadata'].get('research') or {}
         if research.get('phase')=='is':return None
@@ -156,14 +156,13 @@ class AnalysisStore:
                 cached=db.execute("SELECT id FROM analyses WHERE source_id=? AND request_hash=? AND status='complete' ORDER BY created DESC LIMIT 1",(record['id'],request_key(snapshot,settings))).fetchone()
             if cached and self.fingerprint(cached[0]) is not None:return self.get(cached[0])
             from ..research import ResearchConflict
-            raise ResearchConflict('This legacy report includes data outside the locked IS period. New prop calculations require a declared IS report or a budgeted OOS selection; existing saved reports remain readable.')
-        from ..research import ResearchConflict
+            raise ResearchConflict('This legacy report includes data outside the saved IS period. Run a declared IS backtest, then manually select its OOS test; existing saved reports remain readable.')
         automatic=record['run_metadata'].get('automatic_prop_analysis',{})
         saved=self.get(automatic.get('id',''))
         if (saved and saved['source_id']==record['id'] and saved['status']=='complete'
                 and saved['request_hash']==request_key(snapshot,settings) and self.fingerprint(saved['id']) is not None):
             return saved
-        raise ResearchConflict('New OOS prop calculations are blocked outside the OOS budget. Reopen the saved automatic analysis, or explicitly select an IS parameter set for another budgeted OOS test.')
+        return None
 
     def _update(self,id,status,progress,error=None):
         with self.connect() as db:db.execute('UPDATE analyses SET status=?,progress=?,error=? WHERE id=?',(status,progress,error,id))

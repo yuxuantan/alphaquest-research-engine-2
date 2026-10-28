@@ -64,8 +64,8 @@ def selected_status(run_id:UUID,request:Request):
     research=record['run_metadata'].get('research')
     if not research:raise HTTPException(409,'This legacy report has no IS/OOS declaration.')
     plan=research['plan']
-    return dict(**request.app.state.research.status(dict(sha256=plan['source_sha256']),plan['strategy_id']),
-                selected_run_id=record['id'],parameters=record['run_metadata']['strategy']['parameters'])
+    return dict(request.app.state.research.status(dict(sha256=plan['source_sha256']),plan['strategy_id']),
+                plan=plan,selected_run_id=record['id'],parameters=record['run_metadata']['strategy']['parameters'])
 
 
 @router.post('/api/backtests/{run_id}/oos',status_code=201)

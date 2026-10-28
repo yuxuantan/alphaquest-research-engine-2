@@ -1,92 +1,48 @@
-# Declared IS / OOS research workflow
+# Editable IS / OOS research workflow
 
-Every new portal/API or CLI backtest requires a chronological split before it
-runs. Single parameter sets and exhaustive grids share this requirement. Dates
-are inclusive in the dataset's saved source timezone, with `IS start <= IS end
-< OOS start <= OOS end`. Both periods must contain bars and lie within the source.
-Gaps outside the two declared windows are excluded. There is no cross-period
-indicator warm-up; positions close at the selected period's final bar.
+Every new portal/API/CLI backtest or optimisation requires a chronological split.
+Choose explicit inclusive dates in the saved source timezone, or an IS percentage
+strictly between 0 and 100. Percentage mode assigns complete chronological trading
+dates with floor(IS% × date count) dates to IS. Both windows must contain bars;
+IS end must precede OOS start, and all dates must lie within the dataset.
 
-Choose explicit IS start/end and OOS start/end dates, or an IS percentage strictly
-between 0 and 100. The portal fills OOS % as `100 - IS %`. Percentage mode counts
-observed trading dates, sorts them chronologically, and assigns
-`floor(IS% * distinct date count / 100)` complete dates to IS and the remaining
-complete dates to OOS. It does not randomly shuffle or split a trading date.
-At least two dates are required. The review displays the resolved dates and
-actual bar counts; unequal bars per date mean bar percentages may differ.
+Split settings remain editable after a run. The latest submitted split is a form
+prefill for the next IS run. Editing any split input requires Review IS/OOS split
+again. A new submission saves its own split snapshot; earlier reports and active
+optimisation jobs retain their recorded dates, settings and results. Previously
+viewed data is not made untouched by changing a split.
 
-Reviewing a split does not lock it or spend an OOS attempt. The first accepted IS
-submission permanently locks the resolved split for that strategy and source CSV
-SHA-256. Equivalent explicit/percentage declarations resolve to the same plan.
-Later IS requests cannot move OOS dates into IS, change the holdout, or use old
-`from_date` / `to_date` fields. The standard CLI has the same restriction. The
-source date index inspects dates/counts only, without evaluating OOS performance.
-The actual replay and all prop calculations receive only the chosen period.
+## Manual OOS execution
 
-## Running and inspecting results
+1. Select dataset, strategy, split and settings, review the split and run IS.
+   Initial backtests, exhaustive grids and their automatic prop analyses use IS
+   only. No OOS job is scheduled automatically.
+2. Open a completed IS report, including an individual optimisation trial.
+3. Select **Run OOS with these parameters** and confirm. The server uses that
+   report's saved OOS window, parameters and execution costs, even if a later IS
+   run changed the form's split. To change them, run a new IS backtest first.
+4. Inspect the ordinary durable OOS backtest and its automatic prop report.
+   Configure → check source → run can reopen the saved prop analysis or use new
+   prop settings on this manually executed OOS source.
 
-1. Open Strategies -> New backtest. Select the dataset and strategy.
-2. Choose a split method, complete its inputs and click Review IS/OOS split.
-   Initial execution remains disabled until the review succeeds.
-3. Select a single parameter set or an exhaustive sweep and run. Every result
-   is labelled IS, including the default Apex 50K EOD analysis with activation
-   fees. The batch summary states the held-out period. No OOS job is scheduled.
-4. Open a saved IS report, including an individual trial from a sorted batch.
-   Inspect its parameters, execution costs, IS results and remaining OOS budget.
-5. Click Run OOS with these parameters and explicitly confirm. The server copies
-   the saved strategy parameters and execution settings; the request cannot
-   substitute either. It runs one ordinary backtest and the default Apex analysis
-   on the locked OOS dates and saves a normal durable OOS report.
-6. Reopen that report or use Open saved OOS report from its IS parent. Saved
-   metrics, source checks, charts and original downloads remain available without
-   a new OOS replay. Configure -> check -> run can reopen the same verified prop
-   calculation for the same saved trade source.
+There is **no OOS attempt limit**. Failed/interrupted requests stay in execution
+history and do not prevent new requests. A request UUID remains idempotent:
+network retries return the same saved result/status instead of duplicating work.
+Legacy reports and OOS reports cannot launch an OOS backtest; select completed IS.
+Full-detail and risk replays remain IS actions; another OOS replay requires manual
+selection from IS. Source identity and strategy implementation checks remain.
 
-The hardcoded budget is **3 attempted OOS tests per strategy ID and source CSV
-SHA-256**, across all parameters, IS reports, batches and sessions. Each attempt
-is reserved in one SQLite transaction *before* computation. Concurrent requests
-cannot exceed three. Failed and interrupted attempts remain counted. A client
-request UUID makes a network retry idempotent: it returns the existing report or
-attempt, rather than spending another slot. A genuinely new attempt needs a new
-UUID and explicit selection. The fourth request gets HTTP 409; the portal warns
-that the budget is exhausted and disables OOS execution. IS research still works.
-
-Budget and plan records use the existing backtest catalogue, with no deletion
-cascade. Deleting a report, deleting/re-uploading identical CSV bytes, changing
-costs/parameters, updating code or restarting cannot reset the budget. Another
-strategy has its own budget. This is an application-level limit, not protection
-against an operator editing the SQLite database or deliberately altering source
-CSV bytes to create a different source identity.
-
-OOS reports cannot trigger a sweep or another OOS action. Generating per-bar
-full detail is available for declared IS reports only, so the detail endpoint
-cannot silently replay held-out data outside the budget. An OOS report retains
-all trades, metrics and trade-close equity in its normal compact report.
-The manual prop check/submit endpoints can reopen the verified automatic OOS
-analysis with exactly its recorded source and settings. Changed settings/exports,
-missing/corrupt artifacts or fresh OOS prop calculations are blocked (HTTP 409);
-select another budgeted OOS attempt from IS instead. Viewing original saved
-downloads remains available. This closes a separate prop-only tuning bypass.
-
-Historical reports are preserved unchanged and labelled Legacy. They cannot
-launch OOS tests or full-detail replays. A historical optimisation without a
-split can be read/downloaded but cannot resume under the new policy. Legacy
-reports for a strategy/source are disclosed in the declaration/budget display:
-previously viewed data cannot become an untouched holdout simply by declaring a
-new split. Historical exposures are not fabricated as newly budgeted attempts. Once a plan
-is locked, fresh manual prop calculations on a legacy report containing data
-outside its IS window are also blocked; that report cannot become a prop-only
-holdout tuning bypass. Original saved reports and downloads remain readable.
-
-The prop model's own training/validation split remains internal to the selected
-IS or OOS trade source. It never reads the research holdout during an IS run.
-Its reported Historical net describes the selected period only. Standard model,
-fees, counts, close-only excursion disclosure and account arithmetic are unchanged.
+Research metadata and execution history use the existing backtest catalogue.
+Existing datasets, report files and historical attempts are preserved. No migration
+or reset is needed: old three-attempt histories cease to enforce any limit.
+Legacy full-history prop sources outside the latest declared IS window require
+an explicitly declared IS/OOS backtest; saved downloads remain readable.
+The prop model's internal training/validation split stays inside the selected
+research period and never reads OOS during an IS run.
 
 ## API and CLI
 
-`POST /api/backtests` requires `sample_split` on both request shapes. The existing
-`POST /api/optimizations` alias enforces the same policy. Examples:
+`POST /api/backtests` and `POST /api/optimizations` require `sample_split`:
 
 ```json
 {"sample_split":{"mode":"percentage","is_percent":70}}
@@ -97,21 +53,26 @@ fees, counts, close-only excursion disclosure and account arithmetic are unchang
 ```
 
 `GET /api/backtests/research-plan?dataset_id=...&strategy_id=...` returns the
-locked plan, used/remaining budget, attempt statuses and legacy report count.
-`POST /api/backtests/research-plan/preview` takes those IDs and `sample_split`,
-and returns `proposed_plan` without locking or running a calculation.
-`GET /api/backtests/{IS-or-OOS-id}/oos` returns its plan and budget.
-`POST /api/backtests/{IS-id}/oos` takes only `{"request_id":"<UUID>"}` plus an
-optional `progress_id` query UUID. It returns 201 on completion, 200 for a saved
-idempotent retry, 202 for an already-running attempt, or 409 for an exhausted
-budget, disallowed source or previously failed/interrupted request. Extra
-parameter/date/cost fields are rejected. Poll normal `/api/progress/{id}` during
-execution. A changed strategy implementation or missing/mismatched source is
-rejected before reserving an attempt.
+latest submitted split, execution history and legacy report count. Compatibility
+fields are `budget: null`, `remaining: null`, `exhausted: false`; `used` is a
+history count only. Preview validates without running or saving a declaration.
+`GET /api/backtests/{id}/oos` returns the selected report's own saved split.
+`POST /api/backtests/{IS-id}/oos` accepts only `{"request_id":"<UUID>"}` and an
+optional progress_id query UUID. Responses are 201 for completion, 200 for a saved
+retry, 202 while running, or 409 for an invalid source or a failed/interrupted
+request UUID. Start a new explicit request to retry a failed operation. It does
+not accept parameter/date/cost overrides. CLI remains IS-only; use the saved IS
+report/API for manual OOS execution. CLI split settings are editable on each run.
 
-CLI: add `--is-percent 70` or all four `--is-start`, `--is-end`, `--oos-start`,
-`--oos-end` flags to the normal CLI command. CLI execution is IS only; use the
-saved IS report/API for an explicitly budgeted OOS selection.
+## Current qualification
+
+See `docs/prop_simulation_review.md`, Editable declarations and manual unlimited
+OOS (2026-10-29), for saved product evidence and exact reproduction steps.
+
+## Historical qualification of the retired lock and three-attempt policy
+
+The following records describe the former behavior and preserve earlier evidence.
+They do not specify the current editable/unlimited policy above.
 
 ## Reproducible qualification
 

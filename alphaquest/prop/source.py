@@ -114,8 +114,8 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
     risk = native_risk(runs, source_id, record, native)
     if not trade_file:
         snapshot['excursion_provenance']='No measured excursions. The local close-only fallback uses realized loss on losing trades and zero on winners; risk may be understated.'
-        snapshot['excursion_input']=dict(path=None,filename=None,sha256=None,export_timezone=export_timezone,matched_trades=len(native),measured_mae_count=0,measured_mfe_count=0,cost_contract='Saved net P&L includes source costs; no duplicate trading-cost deduction.')
-        comparisons = [dict(trade_id=int(n['trade_number']),entry_utc=n['entry_time_utc'],exit_utc=n['exit_time_utc'],source_net_pnl=n['net_pnl'],export_net_pnl=None,quantity=n['contracts'],measured_mae=None,measured_mfe=None) for n in native]
+        snapshot['excursion_input']=dict(path=None,filename=None,sha256=None,export_timezone=export_timezone,matched_trades=len(native),measured_mae_count=0,measured_mfe_count=0,cost_contract='Saved net P&L includes source costs. Original costs reconcile before the separately recorded simulation commission treatment; no duplicate source-cost deduction.')
+        comparisons = [dict(trade_id=int(n['trade_number']),entry_utc=n['entry_time_utc'],exit_utc=n['exit_time_utc'],source_net_pnl=n['net_pnl'],source_commission=n['total_commissions'],source_slippage=n['slippage_cost'],export_net_pnl=None,quantity=n['contracts'],measured_mae=None,measured_mfe=None) for n in native]
         if risk is not None:
             snapshot['native_risk'] = record['intratrade_risk']
             snapshot['excursion_provenance'] = 'Held OHLC account-equity excursion bounds, including entry costs and realized exit costs once. Uses the conservative MAE upper bound; target-exit ordering may be ambiguous. These are bar observations, not measured tick MAE/MFE. Observed opening gaps and actual exit-cost jumps can overshoot a DLL and breach the account floor. Other intrabar DLL fills assume the threshold price; unobserved tick gaps and liquidity are not modeled.'
@@ -150,14 +150,14 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
         if any(v is not None and not v.is_finite() for v in (e['mae'], e['mfe'])):
             raise ValueError(f'Trade {id}: non-finite excursion.')
         comparisons.append(dict(trade_id=id, entry_utc=n['entry_time_utc'], exit_utc=n['exit_time_utc'], source_net_pnl=n['net_pnl'], export_net_pnl=str(e['net']),
-                                quantity=n['contracts'], measured_mae=str(e['mae']) if e['mae'] is not None else None,
+                                quantity=n['contracts'], source_commission=n['total_commissions'], source_slippage=n['slippage_cost'], measured_mae=str(e['mae']) if e['mae'] is not None else None,
                                 measured_mfe=str(e['mfe']) if e['mfe'] is not None else None))
     if before != digest(path) or snapshot['trades_sha256'] != digest(native_path):
         raise ValueError('Source changed during checking.')
     snapshot['excursion_input'] = dict(path=str(path), filename=path.name, sha256=before, export_timezone=export_timezone,
                                    matched_trades=len(comparisons), measured_mae_count=sum(e['mae'] is not None for e in exported),
                                    measured_mfe_count=sum(e['mfe'] is not None for e in exported),
-                                   cost_contract='Export net P&L matches saved backtest net P&L, including source commission and slippage. AlphaQuest adds no trading costs.')
+                                   cost_contract='Export net P&L matches saved backtest net P&L, including source commission and slippage. Original costs reconcile before the separately recorded simulation commission treatment.')
     return snapshot, comparisons
 
 

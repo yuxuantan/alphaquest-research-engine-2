@@ -2,7 +2,7 @@
 (() => {
   const $ = s => document.querySelector(s);
   const deletingReports=new Set();
-  let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false;
+  let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,commissionDefault='';
   const el = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const display = v => v === null || v === undefined ? 'Unavailable' : typeof v === 'number' ? String(v) : String(v);
   async function read(url, options) {const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));return j;}
@@ -37,14 +37,16 @@
     const settings=JSON.parse($('#prop-overrides').value||'{}');
     Object.assign(settings,{EVAL_PRICE:$('#prop-eval-fee').value,ACTIVATION_FEE:$('#prop-activation').value,
       BLOCK_DAYS:$('#prop-block').value,SLOTS:$('#prop-slots').value,MAX_TOTAL_NQ:$('#prop-max-nq').value,
-      OUT_OF_SAMPLE_FROM:$('#prop-holdout').value});
+      OUT_OF_SAMPLE_FROM:$('#prop-holdout').value,COMMISSION_MODE:$('#prop-commission-mode').value,
+      SOURCE_INSTRUMENT:$('#prop-source-instrument').value,COMMISSION_BROKER:$('#prop-commission-broker').value,
+      COMMISSION_PER_SIDE:$('#prop-commission-broker').value==='Rithmic'&&$('#prop-commission-side').value===commissionDefault?'':$('#prop-commission-side').value});
     return {source_backtest_id:sourceId,trade_file:holdoutSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),
       export_timezone:$('#prop-export-timezone').value,settings};
   }
   function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v||holdoutSource);}
   function invalidate(){checked=false;$('#prop-check-output').replaceChildren();$('#prop-run').disabled=true;$('#prop-status').textContent='Settings changed. Check source costs and filtering before running.';}
   $('#prop-form').addEventListener('input',invalidate);
-  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
+  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});const commission=data.source.commission_simulation;p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));if(commission.applied)details(p,'Simulation commission reconciliation',commission);details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
   async function configure(id,t) {
     $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
@@ -57,8 +59,10 @@
     $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
     $('#prop-block').value=defaults.defaults.BLOCK_DAYS;$('#prop-slots').value=defaults.defaults.SLOTS;
     $('#prop-max-nq').value=defaults.defaults.MAX_TOTAL_NQ;$('#prop-holdout').value='';
+    commissionDefault=defaults.commissions.rates.MNQ;$('#prop-commission-side').value=commissionDefault;
+    $('#prop-commission-help').textContent=`Rithmic defaults: NQ $${defaults.commissions.rates.NQ} per side; MNQ $${commissionDefault} per side ($${(2*Number(commissionDefault)).toFixed(2)} round turn). ${data.commission_source_instrument?'Detected source: '+data.commission_source_instrument+'.':'Source symbol is unidentified. Select NQ or MNQ to apply instrument commission; automatic mode otherwise retains scaled source costs.'}`;
     $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
-    $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · Reopen the verified saved automatic analysis. New calculations require another budgeted selection from an IS report.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
+    $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
   }
   function render(r) {
     $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);
@@ -160,7 +164,9 @@
     const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
     context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
     if(source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
-    if(r.model_version!=='alphaquest-apex50k-eod-v3-training-economics')root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Configure a new analysis on an IS report to use the current training-calibrated model.`, 'prop-assumption-note'));
+    if(r.model_version!=='alphaquest-apex50k-eod-v4-instrument-commissions')root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Configure a new analysis on an IS report to use the current instrument-commission model.`, 'prop-assumption-note'));
+    const commission=source.commission_simulation;
+    if(commission)root.append(el('p',commission.applied?`${commission.broker} · MNQ commission $${commission.per_side} per contract per side ($${commission.round_turn} round turn), applied to evaluation and funded trades. Source commission replaced once; source slippage retained. Risk uses conservative commission-adjusted bounds.`:commission.explanation,'prop-assumption-note'));
     if(f&&e.pass_rate===0)root.append(el('p','No holdout evaluation passed. Funded outcomes are conditional on starting with a funded account; training-selected size and replay economics remain frozen.','prop-assumption-note'));
     const nav=el('div',undefined,'prop-report-tabs');nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Simulation report views');
     root.append(nav);
@@ -288,10 +294,18 @@
     explanation(p,'Drawdown failures can also receive payouts','Payout outcomes partition accounts by how many payouts they received. Drawdown failure describes how an account closed. An account can belong to a paid group and later fail its drawdown limit.');
     explanation(p,'Simulation and historical replay answer different questions','Simulation resamples historical days to estimate account outcomes. Historical replay follows the one observed sequence of trades. Slots share that sequence, and training years influenced the size choice.');
     explanation(p,'Model limits and missing excursions','Measured adverse excursions do not reveal the exact intratrade price path. New native reports use conservative held-OHLC bounds and observed opening/cost jumps; target-exit ordering can be ambiguous. Cross-session native inputs reject. Legacy sources without capture use a disclosed close-only fallback that may understate risk. The model supports one strategy with nonoverlapping positions; payouts, costs and delays are model estimates.');
+    if(commission){
+      p.append(el('h3','Trading commission reconciliation'));
+      if(commission.applied)facts(p,[['Broker',commission.broker],['Source instrument',commission.source_instrument],['Simulated instrument',commission.simulated_instrument],['Commission per side',money(commission.per_side)],['Commission round turn',money(commission.round_turn)]]);
+      p.append(el('p',commission.applied?commission.formula:commission.explanation));
+      if(commission.applied)p.append(el('p',commission.risk_policy));
+      details(p,'Commission settings, provenance and normalized totals',commission);
+      fileLink(p,'commission_reconciliation.json','Download commission reconciliation (JSON)');
+    }
     details(p,'Account rules',c.rules);details(p,'Resolved settings',r.settings);details(p,'Random streams and samples',{samples:c.samples,seeds:c.seeds});
     details(p,'Report identity and reproducibility',{id:r.id,created_at_utc:r.created_at_utc,model:r.model_version,application_commit:r.application_commit,implementation:r.implementation_sha256,runtime:r.runtime});
     p=reportBlock(views.model,'Downloads and full precision','Display values are rounded. The original saved values remain in the report data and exports.');
-    const names={'calculations.json':'All calculated metrics (JSON)','training_economics.json':'Training acquisition calibration (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)','inputs/intratrade_risk.csv':'Captured OHLC risk bounds (CSV)'};
+    const names={'calculations.json':'All calculated metrics (JSON)','commission_reconciliation.json':'Trading commission reconciliation (JSON)','training_economics.json':'Training acquisition calibration (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)','inputs/intratrade_risk.csv':'Captured OHLC risk bounds (CSV)'};
     for(const path of Object.keys(r.files).sort())fileLink(p,path,names[path]||(path.startsWith('charts/')?`Original ${path.split('/').pop().replace('.svg','')} chart (SVG)`:path.endsWith('.xlsx')?'Original measured-excursion export (XLSX)':path));
     selectView('overview');window.scrollTo(0,0);
   }
@@ -299,13 +313,13 @@
   async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
 
   async function deleteProp(id,row){
-    if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS budget usage are kept. This cannot be undone.`))return;
+    if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS execution history are kept. This cannot be undone.`))return;
     deletingReports.add(id);const hash=location.hash,status=$('#prop-delete-status');status.hidden=false;status.textContent='Deleting selected prop report…';$('#prop-delete').disabled=true;if(row)row.querySelector('button').disabled=true;
     try{
       const response=await fetch(`/api/prop-analyses/${id}`,{method:'DELETE'});
       if(!response.ok&&response.status!==404){const error=await response.json();throw Error(error.detail||`HTTP ${response.status}`);}
       if(location.hash===hash){
-        status.textContent='Prop report deleted. Backtests, datasets and OOS budget usage kept.';
+        status.textContent='Prop report deleted. Backtests, datasets and OOS execution history kept.';
         if(row)row.remove();else{const notice=document.querySelector('#strategy-delete-status')||document.querySelector('#backtest-delete-status');if(notice){notice.hidden=false;notice.textContent=status.textContent;}location.hash='#strategies';}
       }
     }catch(error){if(location.hash===hash)status.textContent=`Could not delete prop report: ${error.message}`;}

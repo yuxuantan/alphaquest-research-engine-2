@@ -1788,3 +1788,301 @@ There were no mutating requests or browser errors. Inspect `live-verification.js
 `final-run-table.json`, `live-strategy-datasets.png`, `live-is-oos-table.png` and
 `verify-live.py.txt` under `artifacts/strategy-browser-20261028/`. The active
 production/static source hashes match `implementation-source-sha256.json`.
+
+## Editable Apex instrument commissions — 29 October 2026
+
+Implementation: `alphaquest-apex50k-eod-v4-instrument-commissions`. The existing
+backtest report → Configure prop analysis → Check source → Run analysis → saved
+report journey now exposes broker, source instrument, and MNQ per-side commission.
+The Rithmic schedule is a dated, centrally maintained catalog; account arithmetic
+does not hardcode the fee. New reports replace the actual saved source commission
+once and retain source slippage. The current model orders MNQ for both evaluation
+and funded, including when a candidate quantity is a multiple of ten. Its NQ/MNQ
+scope is unchanged; the wider commission catalog does not imply support for other
+account/instrument models.
+
+Inspectable evidence is under
+`artifacts/prop-commissions-20261029/final-browser/test_actual_instrument_commiss0/`.
+This is a normal isolated product datastore containing an explicitly labeled
+**synthetic** dataset/backtest and durable reports, not observed market outcomes.
+The original user datastore, existing reports, datasets, backtests, Windows VM and
+other processes were not modified. Earlier harness attempts and the first successful browser run are retained
+separately in `browser.xml`/`browser-run1.xml`/`browser-run2.xml` and their directories.
+
+- Source backtest: `e9b5819499f94aa78876dc191a1df246`, 60 synthetic trades.
+- Automatic Rithmic report: `6ffae6ec3faf461fa73641adc51a03ec`.
+- Custom $0.70/side report: `3c1d4ccaacec4ac5a69d1e83181c7727`.
+- Downloads: `analysis.zip`, `report.json`, `default-report.json`, and
+  `commission_reconciliation.json`. The standard ZIP contains source trade
+  reconciliation, simulated per-MNQ net/commission, all 40 evaluation and funded
+  sizing points, run settings, captured risk, charts and immutable report data.
+- `source-check.png` shows editable rates and the successful source check;
+  `source-model.png` shows the saved cost assumptions and download.
+- `validation.json` records source SHA-256 preservation, expected/actual net values,
+  full simulation counts and reopen/reload without calculation POSTs.
+  `rejections.json` captures actual HTTP 422 results for negative commission,
+  conflicting NQ/MNQ identity and a custom broker without a rate.
+
+Independent expected arithmetic: each source NQ trade makes $3,000 before $10
+slippage and $3.98 commission, leaving **$2,986.02**. One simulated MNQ retains
+$1 slippage and pays $1.02 Rithmic round turn, leaving **$297.98**. At custom
+$0.70/side, it pays $1.40 round turn and leaves **$297.60**. At 10 MNQ these become
+$2,979.80 and $2,976.00; the contracts still pay ten micro commissions. The old
+scaled-source result would have been $298.602 per MNQ. Inspect these values in the
+normal `trades.csv` download (`simulation_net_per_mnq` and
+`simulation_commission_per_mnq`). Raw source net/commission columns remain intact.
+The custom report selects 1 MNQ evaluation and 3 MNQ funded on this synthetic
+history; its historical replay records $360,000 payouts less $7,120 acquisition
+costs, $352,880 net across 20 correlated slots. These are synthetic replay outputs,
+not future returns or a claim that commission changes must alter selected sizes.
+
+Captured/measured source excursions remain preserved. Simulation risk uses a
+conservative commission-adjusted bound, explicitly disclosed in the check/report;
+it is not newly measured MAE/MFE or exact repriced tick risk. Unit checks include
+fee changes at 1/10/25/40 MNQ, zero/custom fees, source quantity normalization,
+MNQ sources, unchanged measured values, conservative gap frontiers, and an account
+floor boundary where replacing commission changes survival to failure. V4
+intentionally changes earlier cost-scaling semantics and does not claim external
+numerical parity.
+
+To reopen this saved demonstration without calculations, from the repository run:
+
+```sh
+ALPHAQUEST_DATA_DIR=artifacts/prop-commissions-20261029/final-browser/test_actual_instrument_commiss0 \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011
+```
+
+1. Open `http://127.0.0.1:8011/#backtests/report/e9b5819499f94aa78876dc191a1df246`
+   and choose **Configure prop analysis**. Expect detected NQ, Rithmic broker and
+   MNQ $0.51/side. Source NQ costs remain the actual $1.99/side saved by the backtest.
+2. Check the source. Expect 60 matched trades, source net $179,161.20, explicit
+   NQ → MNQ commission replacement and $1.02 round turn. Run analysis; identical
+   unchanged requests can reopen the saved default report.
+3. Configure **Custom broker**, MNQ **0.7**, then check and run. Expect $1.40 round
+   turn. Editing any input disables Run until another source check succeeds.
+   Open Source & model and download the commission reconciliation and trade CSV.
+4. Reopen saved custom report
+   `http://127.0.0.1:8011/#backtests/prop/job/3c1d4ccaacec4ac5a69d1e83181c7727`.
+   Expect the same rate, results and downloads without a new analysis POST.
+5. Negative fees, a selected MNQ source conflicting with the saved NQ symbol, or a
+   different broker with an empty rate reject during source checking. An unknown
+   symbol displays a source-cost notice and requires explicit NQ/MNQ identification
+   before a commission override can apply. Zero is a valid override.
+6. Stop this optional user-started server with Ctrl-C.
+
+To reproduce the automated product journey in a new isolated datastore, use a
+**new, unused** basetemp directory (pytest clears its basetemp). For example:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_commissions_browser.py \
+  --basetemp /tmp/alphaquest-commission-review-NEW
+```
+
+The browser test uses the normal dataset/backtest/report APIs, standard 3,000-path
+size sweeps and 20,000-path final simulations. Its temporary server shuts down in
+fixture cleanup; no persistent server was started for this increment.
+
+The existing port-8000 server was left running. It does not autoreload Python;
+restart that backend before using the new commission form against the main
+datastore. The isolated server above loads the updated backend without touching
+that process or its jobs.
+
+The final commission unit/browser run passed **24 checks**; its log and JUnit
+are `artifacts/prop-commissions-20261029/focused-final.log` and
+`focused-final.xml`. The existing backend/API/automatic suite also passed
+**56 checks** before the final source-provenance wording refinement.
+The older automatic backtest/configuration/reuse browser flow passed its isolated
+rerun (`automatic-rerun.log`/`automatic-rerun.xml`).
+
+The broad run finished **872 passed, 3 failed, 24 warnings** in 763.72 seconds
+(`regression.log`/`regression.xml`). All three failures occurred while creating
+fixture backtests (HTTP 500 / no completed run), before their financial checks.
+The affected automatic browser flow passed in `automatic-rerun.xml`; compiled
+portal parity and the legacy source-rejection workflow both passed in
+`regression-rerun.xml` (**2 passed**). Other research/OOS files were edited and
+restored concurrently while the broad suite was running. Their effect on those
+failures was not established; this is **not a green full-suite baseline**.
+The commission unit/API arithmetic and actual commission browser journey all
+passed in that run as well as the final focused run. No tests or servers remain
+running from this increment. `implementation-sha256.json` records the qualified
+commission files; unrelated concurrent edits were preserved.
+
+## Recheck of fixed sizing assumptions and MAE risk — 2026-10-29
+
+The reported 52.5% evaluation pass rate and five replacement trading days are
+present in preserved v1/v2 results. They were already removed from new
+calculations by `11e9dab`. The running port-8000 backend serves v3 training
+economics. No further production calculation change is needed for this finding.
+Existing uncommitted v4 commission work was preserved.
+
+Reproduce through the actual saved product workflow:
+
+1. Open `/#backtests/prop/job/fed437c6d2944703b94eb45484a7039d`, then **Sizing**.
+   Its saved fixed assumptions remain visible with an earlier-model notice.
+2. Open backtest `/#backtests/report/4a88a36e50fd431aa337939f65e3d2c0`, select
+   **Configure prop analysis**, leave the export empty, and **Check source**.
+   Expect 771 captured held-OHLC trades and zero measured export MAE trades.
+   Select the saved completed analysis
+   `e4d3b403f6e04a57a3ee994257b8c68e` (v3) to inspect the already corrected
+   report without submitting a new calculation.
+3. In **Sizing**, expect 40 sizes, training evaluation passes **745/3,000**
+   (**24.833333333333332%**), replacement time **41.90495 trading days**, and
+   acquisition cost **$326.31543624161077**. The UI rounds these for display;
+   download **Training acquisition calibration (JSON)** or report JSON for full
+   precision. Every funded score uses these frozen training inputs. Holdout
+   evaluation results remain separate.
+4. In **Source & model**, inspect the risk provenance and captured risk download.
+   Native adverse bounds include movement before a profitable close: **500**
+   of the **771** trades have both positive realized net P&L and nonzero adverse
+   excursion. MAE/adverse bounds check intratrade account/DLL breaches; they
+   are not planned stop distances or predictions of future maximum losses.
+   OHLC bounds are not exact tick paths. Legacy sources without capture still
+   disclose their realized-loss fallback; use **Capture intratrade risk** on
+   an eligible IS backtest to obtain captured bounds in a new report.
+
+Fresh evidence is `artifacts/prop-bug-check-20261029/`. Run
+`.venv/bin/python artifacts/prop-bug-check-20261029/verify_saved.py` to check
+the actual saved calibration, independently recompute every funded score with
+Decimal arithmetic, count profitable trades with adverse movement, verify the
+live download, and hash all three historical reports before/after. It writes
+only new audit evidence. `verify_portal.py` opens the actual historical/corrected
+Sizing views, saves screenshots/text, and asserts that no POST was submitted.
+These scripts use the existing port-8000 server and do not start or stop it.
+
+The existing browser qualification exercises dataset upload → backtest →
+configuration → source check → run → saved results → downloads → reload/reopen
+with labeled synthetic inputs. Reproduce using
+`PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_prop_training_economics_browser.py`.
+Its independent positive oracle is **100%**, **11 days**, **$178 acquisition**,
+and **$352,880 historical net**. Its boundary oracle is zero training passes
+with profitable holdout: funded sizing/history must remain unavailable.
+Fixture servers shut down on teardown; no persistent server was started.
+
+The user's clarified second concern is missing adverse movement before trade
+close when enforcing drawdown rules. This is covered by the existing native
+capture and first-adverse-hit engine from `490ebbf`: both Python and compiled
+accounts fail when a winning trade crosses the account floor before recovering.
+Exact floor touches, daily-loss stops, ordered opening gaps, entry/exit costs,
+and 400 independent expanded-equity-ledger cases passed in the fresh recheck.
+
+Final focused result: **34 passed, 1 deselected** (the slower full Python/compiled
+portal parity test), plus **2 browser workflow tests passed**. Logs/JUnit are
+`focused.log`/`focused.xml` and `browser-rerun.log`/`browser-rerun.xml` in the new
+evidence directory. The first attempts had HTTP 500 failures while creating
+fixture backtests, before the financial assertions; an isolated retry and the
+complete focused/browser reruns passed. The original browser failure remains in
+`browser.log`/`browser.xml`; its cause was not established. No full-suite result
+is claimed for this audit. Saved actual portal screenshots and the hash audit
+also passed without calculation POSTs or any changes to existing reports.
+## Editable declarations and manual unlimited OOS — 2026-10-29
+
+The declaration lock and three-attempt cap are removed from form and backend.
+The latest accepted split is a prefill for the next IS run, with enabled date
+and percentage fields. Editing requires another split review. Each saved run
+retains its own split, parameters and execution costs; changing the next run's
+split does not rewrite an earlier result. Existing attempt rows remain history,
+with no limit, remaining count or exhausted state. No data reset is required.
+
+Initial single runs and optimisation grids still execute IS and its automatic
+prop analysis only. OOS requires opening a completed IS report, selecting **Run
+OOS with these parameters**, and confirming. The server uses that IS report's
+recorded OOS window, even after a newer split was submitted. OOS and legacy
+reports cannot launch OOS. Request UUIDs remain idempotent under concurrency;
+failed/interrupted requests can be followed by a new explicit request. Manually
+executed OOS sources can configure/check/run prop analyses with new settings.
+All production calculations remain local; no account arithmetic changed here.
+
+Normal product reproduction:
+
+1. Open Strategies → New backtest and choose dataset/strategy. A saved split
+   now prefills editable controls. Choose dates or percentage, change the
+   declaration, and click **Review IS/OOS split**. Invalid chronology, empty
+   windows and missing dates still prevent execution.
+2. Run IS with the selected parameters. Open its backtest report and configure
+   prop analysis → check source → run → durable result. The source and report
+   contain only IS data. No OOS is queued by any of these steps.
+3. From a completed IS report select **Run OOS with these parameters**. Cancel
+   once: no request is submitted. Confirm: OOS runs with its saved split and
+   parameters, then saves the ordinary backtest and automatic prop analysis.
+   Configure/check/run can reopen that saved prop result and downloads.
+4. Repeat the manual OOS action more than three times: it remains available.
+   Return to New backtest and change the split. The earlier IS report and its
+   saved OOS dates remain unchanged. An OOS request from that earlier IS still
+   uses its original dates, rather than the latest form prefill.
+
+Evidence is saved under `artifacts/editable-is-oos-20261029/`. The browser journey
+uses labeled synthetic data through the normal upload/backtest/configure/check/
+run/durable-report routes and standard simulation counts, with independent
+fixture expectations kept in tests. The four-date boundary case produces
+**30 CU** in the original one-day IS/OOS windows; four manual OOS runs succeed.
+Editing IS to two days produces **60 CU** and does not launch another OOS run.
+The 120-weekday positive case has 60 trades and **180,000 CU** per period; each
+saved prop report has **$360,000 payouts − $7,120 acquisition = $352,880 net**.
+Both periods' native source checks, JSON downloads and saved results are
+inspectable in the normal isolated fixture datastore. Screenshots, verification
+JSON and JUnit/logs accompany the saved reports. Existing user datasets and
+financial reports are not modified by these synthetic demonstrations.
+
+Reproduce with a fresh unused basetemp path (pytest clears it):
+
+```sh
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_research_workflow.py \
+  tests/test_prop_risk_workflow.py tests/test_strategy_dataset_browser.py
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_research_browser.py \
+  tests/test_backtest_date_range_browser.py --basetemp /tmp/alphaquest-editable-split-NEW
+```
+
+Temporary fixture servers shut down in teardown. Earlier lock/budget evidence
+remains unchanged and describes the retired policy, not the current workflow.
+
+Fresh qualification: **37 API checks and four browser workflows passed**, with
+one existing dependency warning per test process. `api.log`/`api.xml` and
+`browser.log`/`browser.xml` record these results. The completed positive journey
+is in `browser/test_percentage_is_sweep_selec0/`: IS
+`e744d3688fd04d19963e2d8d94d67b58`, OOS
+`f06900b8b80d49058bf1eb544a91a162`, plus both prop-report downloads and the
+underlying ordinary datastore. `browser/test_editable_dates_and_unlimi0/` holds
+the four-OOS/edited-split demonstration. To inspect saved outputs without new
+calculations, optionally serve either fixture directory with
+`ALPHAQUEST_DATA_DIR=<absolute fixture directory> .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011`,
+open its saved report route, then stop that optional server with Ctrl-C.
+
+Local activation replaced the verified idle port-8000 backend PID 13477 with
+**PID 28791**, using the same original `data` directory. It activates the other
+chat's completed v4 commission changes alongside editable splits and unlimited
+manual OOS. Stop the persistent replacement portal with **`kill 28791`**.
+`activate-local.py.txt`, `activation.json`, server log/PID and before/after
+snapshots are in this evidence directory. All dataset/backtest/prop catalogue
+rows, research plans, OOS history, optimisation jobs/trials and the original
+v1/v2/v3 audited report-file hashes matched across activation. No user financial
+run, OOS request or deletion was submitted. `verify-live.py.txt` edits/reviews the
+actual source's split without saving it, checks 771 held-OHLC trades, verifies the
+manual OOS button and cancels both actual delete dialogs. Live screenshots,
+source-check JSON and `live-verification.json` retain those observations.
+
+## Portal deletion of stale reports — reverified 2026-10-29
+
+The existing final-product controls already support this request. No additional
+deletion API/store or automatic cleanup is needed. Use Strategies → strategy →
+instrument/full dataset period → **Delete** beside the selected report, or open
+it and select **Delete backtest**. Open a completed prop result and select
+**Delete prop report**, or delete it from the saved-analysis configuration list.
+Each confirmation identifies the exact selected report. Source datasets remain;
+backtest and prop results are independently selectable. No existing user report
+was deleted during verification. See `docs/strategy_navigation.md` for the steps.
+
+**21 deletion API/browser checks passed** with one existing dependency warning.
+Evidence is `artifacts/portal-report-deletion-20261029/`: results log/JUnit and
+saved screenshots/verification JSON under `verification/`. It covers cancellation
+without a DELETE, actual selected synthetic report deletion, source/unselected
+report preservation, both prop deletion locations, backtest header/table controls,
+busy-source rejection, file/catalogue rollback checks, saved optimisation metrics
+and reload/pagination. Normal fixture servers shut down after the tests.
+
+Reproduce in a fresh unused basetemp directory:
+
+```sh
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_delete_backtests.py \
+  tests/test_delete_prop_reports.py tests/test_strategy_run_management_browser.py \
+  tests/test_delete_backtests_browser.py --basetemp /tmp/alphaquest-report-delete-NEW
+```

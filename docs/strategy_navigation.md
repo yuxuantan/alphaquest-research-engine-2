@@ -33,7 +33,8 @@ inspectable in each row. The parameter cell and table headers remain visible
 while scrolling. Sort by metrics or any parameter, ascending/descending, with
 unavailable values last. Run links open the exact saved report; Back to
 Strategies returns to the selected dataset/run table. Listing and opening results
-never submit an OOS test or spend the research budget.
+never submit an OOS test. OOS has no attempt limit and requires manual selection
+from a completed IS report; split settings remain editable for each new IS run.
 
 ## Report deletion
 
@@ -43,8 +44,15 @@ for confirmation identifying the selected report. Backtest deletion keeps the
 source dataset, saved prop analyses, optimization metrics and OOS attempts. Prop
 report deletion removes that analysis and its downloads/calculation-reuse index;
 it keeps backtest reports, datasets, optimization metrics and OOS attempts.
-Neither deletion refunds the OOS budget or permits an unbudgeted recomputation.
+Execution history remains intact; there is no OOS attempt cap to reset.
 Optimization results retain their recorded metrics and mark removed report links.
+
+To remove a stale backtest, open Strategies → choose the strategy → choose its
+instrument/dataset period. Use **Delete** beside the particular IS, OOS or legacy
+report, or open it and select **Delete backtest**. Confirm the report ID shown.
+To remove a stale prop result, open that completed result and select **Delete prop
+report**, or use its Delete button in **Configure prop analysis → Saved analyses**.
+Backtest and prop reports are deleted separately so either can be retained.
 
 Queued/running prop analyses cannot be deleted. Backtest deletion is also blocked
 while its source is in use or being replayed. Files are staged before catalogue
@@ -68,6 +76,6 @@ bookmarks resolve to the latest matching strategy/dataset where available.
 `#backtests` and sweep URLs retain their compatibility readers and the shared
 single/exhaustive run form. The new hierarchy uses
 `#strategies/{strategy_id}/datasets/{group_id}`. The lightweight `library_*`
-tables are disposable indexes; authoritative reports, datasets and budget records
+tables are disposable indexes; authoritative reports, datasets and execution history
 remain in their original stores. No new calculation engine or report store is
 introduced.

@@ -73,7 +73,7 @@ def test_is_risk_upgrade_keeps_original_financial_results_and_budget(client):
     assert status(client,dataset)['used']==0
     out=oos(client,upgraded);assert out.status_code==201,out.text
     blocked=client.post('/api/backtests/'+out.json()['id']+'/risk')
-    assert blocked.status_code==409 and 'budgeted' in blocked.text
+    assert blocked.status_code==409 and 'manual OOS' in blocked.text
     assert status(client,dataset)['used']==1
 
 

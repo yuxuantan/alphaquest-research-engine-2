@@ -142,25 +142,26 @@ def test_is_isolation_then_selected_oos_exact_values_and_idempotency(client,tmp_
     (tmp_path/'is-oos-independent-values.json').write_text(json.dumps(dict(synthetic=True,is_report=record,oos_report=holdout,expected_net_per_period=30,expected_trades_per_period=1,expected_prop='incompatible: one source weekday per period',budget=status(client,dataset)),indent=2))
 
 
-def test_budget_shared_across_parameters_atomic_concurrency_deletion_and_restart(client,tmp_path):
+def test_unlimited_manual_oos_history_concurrency_deletion_and_restart(client,tmp_path):
     dataset=save(client);record=start_is(client,dataset)
     with ThreadPoolExecutor(max_workers=6) as workers:
         responses=list(workers.map(lambda _:oos(client,record),range(6)))
-    assert sorted(r.status_code for r in responses)==[201,201,201,409,409,409]
-    assert status(client,dataset)['exhausted'] and status(client,dataset)['used']==3
+    assert [r.status_code for r in responses]==[201]*6
+    assert not status(client,dataset)['exhausted'] and status(client,dataset)['used']==6
+    assert status(client,dataset)['budget'] is None and status(client,dataset)['remaining'] is None
     original_ids=[r.json()['id'] for r in responses if r.status_code==201]
     for id in original_ids:assert client.delete('/api/backtests/'+id).status_code==204
     request=body(dataset);request['strategy_parameters']['contracts']=2
     another=client.post('/api/backtests',json=request);assert another.status_code==201
-    assert oos(client,another.json()).status_code==409
+    assert oos(client,another.json()).status_code==201
     assert status(client,dataset,'vwap_pullback_risk_sizing')['used']==0
     assert client.delete('/api/datasets/'+dataset['id']).status_code==204
     restored=save(client);assert restored['sha256']==dataset['sha256']
-    assert status(client,restored)['used']==3
+    assert status(client,restored)['used']==7
     # Reopen the same on-disk catalogue without creating another server/analysis worker.
     reopened=ResearchStore(client.app.state.runs)
-    assert reopened.status(restored,STRATEGY)['used']==3
-    assert oos(client,start_is(client,restored)).status_code==409
+    assert reopened.status(restored,STRATEGY)['used']==7
+    assert oos(client,start_is(client,restored)).status_code==201
 
 
 def test_failed_and_interrupted_attempts_count_and_reused_request_is_not_recomputed(client,monkeypatch):
@@ -180,17 +181,25 @@ def test_failed_and_interrupted_attempts_count_and_reused_request_is_not_recompu
     assert next(a for a in status(client,dataset)['attempts'] if a['id']==id)['status']=='interrupted'
     assert oos(client,record,id).status_code==409
     assert oos(client,record).status_code==201
-    assert oos(client,record).status_code==409
+    assert oos(client,record).status_code==201
 
 
-def test_locked_split_cannot_relabel_oos_as_is_or_override_selection(client):
+def test_editing_split_preserves_old_is_plan_and_manual_oos_selection(client):
     dataset=save(client,days=10)
-    plan=client.app.state.research.resolve(client.app.state.store,dataset,STRATEGY,SplitDeclaration(mode='percentage',is_percent=70))
-    client.app.state.research.claim(plan)
+    original=client.post('/api/backtests',json=body(dataset,dict(mode='percentage',is_percent=70))).json()
+    original_bytes=client.get('/api/backtests/'+original['id']+'/exports/report').content
     request=body(dataset,dict(mode='percentage',is_percent=80))
-    assert client.post('/api/backtests',json=request).status_code==409
-    assert client.post('/api/optimizations',json={**sweep(dataset),'sample_split':request['sample_split']}).status_code==409
+    changed=client.post('/api/backtests',json=request)
+    assert changed.status_code==201,changed.text
+    assert changed.json()['run_metadata']['selection']['row_count']==24
+    assert status(client,dataset)['plan']['is_end']=='2026-01-14'
     assert status(client,dataset)['used']==0
+    assert client.get('/api/backtests/'+original['id']+'/oos').json()['plan']==original['run_metadata']['research']['plan']
+    heldout=oos(client,original);assert heldout.status_code==201,heldout.text
+    assert heldout.json()['run_metadata']['selection']['row_count']==9
+    assert heldout.json()['run_metadata']['research']['plan']==original['run_metadata']['research']['plan']
+    assert client.get('/api/backtests/'+original['id']+'/exports/report').content==original_bytes
+    assert client.post('/api/optimizations',json={**sweep(dataset),'sample_split':request['sample_split']}).status_code==202
 
 
 @pytest.mark.parametrize('workers',[1,2])

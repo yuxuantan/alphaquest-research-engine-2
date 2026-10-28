@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from .prop.native_analysis import DEFAULTS, MODEL_VERSION, prepare
 from .prop.adapter import source_record
 from .prop.source import matching_exports
+from .prop.commissions import catalog, source_instrument
 from .research import ResearchConflict
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
@@ -23,14 +24,14 @@ class AnalysisRequest(BaseModel):
 
 @router.get('/defaults')
 def defaults():
-    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations')
+    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog())
 
 @router.get('/sources/{source_id}')
 async def source(source_id: str, request: Request, discover_exports: bool = True):
     try:
         record=source_record(request.app.state.runs,source_id)
         matches=await run_in_threadpool(matching_exports,request.app.state.runs,source_id) if discover_exports else []
-        return dict(source=record,matched_exports=matches,analyses=request.app.state.prop_analyses.list(source_id))
+        return dict(source=record,matched_exports=matches,analyses=request.app.state.prop_analyses.list(source_id),commission_source_instrument=source_instrument(record))
     except ValueError as exc:
         raise HTTPException(404,str(exc)) from exc
 

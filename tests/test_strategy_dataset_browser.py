@@ -117,7 +117,7 @@ def test_parameters_paging_sort_nulls_last_and_legacy_is_not_labeled_is(client):
     assert row['insample'] is None and row['legacy']['id']==legacy['id'] and not row['oos']
 
 
-def test_deleting_oos_prop_report_preserves_budget_and_blocks_unbudgeted_recalculation(client):
+def test_deleting_oos_prop_report_preserves_history_and_allows_manual_recalculation(client):
     dataset=save(client,days=4);record=run(client,dataset);heldout=oos(client,record).json()
     prop_id=heldout['run_metadata']['automatic_prop_analysis']['id'];group=groups(client)[0]['id']
     assert table(client,group)['items'][0]['oos'][0]['prop_status']=='complete'
@@ -126,7 +126,7 @@ def test_deleting_oos_prop_report_preserves_budget_and_blocks_unbudgeted_recalcu
     assert result['prop_status']=='deleted' and result['historical_net'] is None
     assert status(client,dataset)['used']==1
     assert client.get('/api/backtests/'+heldout['id']).json()==heldout
-    assert client.post('/api/prop-analyses',json=dict(source_backtest_id=heldout['id'],trade_file='',settings={})).status_code==409
+    assert client.post('/api/prop-analyses',json=dict(source_backtest_id=heldout['id'],trade_file='',settings={})).status_code==202
     assert status(client,dataset)['used']==1
 
 

@@ -14,18 +14,36 @@ from .adapter import digest
 from .native_backend import Rules, FundedAccount, evaluation, funded, compact_neutral_runs, identity as backend_identity
 from .parallel import map_sweep,diagnostics as execution_diagnostics
 
-MODEL_VERSION = 'alphaquest-apex50k-eod-v3-training-economics'
+MODEL_VERSION = 'alphaquest-apex50k-eod-v4-instrument-commissions'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
                 LUCID_EVAL_DAYS='no limit', SIZE_FOR='most net per year per slot', OUT_OF_SAMPLE_FROM='',
                 NET_OPPOSITE=False, EVAL_PRICE='49', ACTIVATION_FEE='129', SLOTS='20', MAX_TOTAL_NQ='4',
                 PAYOUT_REQUEST='the full payout cap each time', APPROVAL_DAY_COUNTS=True,
-                SIMULATION_SIZE='standard', BLOCK_DAYS='5')
+                SIMULATION_SIZE='standard', BLOCK_DAYS='5', COMMISSION_MODE='auto',
+                COMMISSION_BROKER='Rithmic', SOURCE_INSTRUMENT='auto', COMMISSION_PER_SIDE='')
 
 
 def resolved_settings(overrides):
     if not isinstance(overrides, dict) or set(overrides) - DEFAULTS.keys():
         raise ValueError('Unknown prop analysis setting.')
     settings = {**DEFAULTS, **overrides}
+    if settings['COMMISSION_MODE'] not in ('auto', 'source', 'override'):
+        raise ValueError('Commission mode must be auto, source or override.')
+    if settings['SOURCE_INSTRUMENT'] not in ('auto', 'NQ', 'MNQ'):
+        raise ValueError('This account model supports NQ or MNQ sources.')
+    if not isinstance(settings['COMMISSION_BROKER'], str) or not settings['COMMISSION_BROKER'].strip() or len(settings['COMMISSION_BROKER']) > 80:
+        raise ValueError('Enter a broker name of 1 to 80 characters.')
+    rate = settings['COMMISSION_PER_SIDE']
+    if not isinstance(rate, str) or len(rate) > 32:
+        raise ValueError('Per-side commission must be a numeric string or blank for the broker default.')
+    if rate:
+        from decimal import Decimal, InvalidOperation
+        try:
+            fee = Decimal(rate)
+        except InvalidOperation as exc:
+            raise ValueError('Invalid per-side commission.') from exc
+        if not fee.is_finite() or not 0 <= fee <= 100000:
+            raise ValueError('Per-side commission must be finite and nonnegative.')
     fixed = ('PROP_FIRM', 'ACCOUNT_TYPE', 'ACCOUNT_SIZE', 'LUCID_EVAL_DAYS', 'SIZE_FOR', 'PAYOUT_REQUEST', 'SIMULATION_SIZE', 'DAILY_LOSS_LIMIT', 'NET_OPPOSITE')
     if any(settings[k] != DEFAULTS[k] for k in fixed):
         raise ValueError('Supported model: one strategy, Apex 50K EOD, DLL on, standard counts, slot-year selection and full-cap payouts.')
@@ -62,6 +80,8 @@ def prepare(runs, source_id, trade_file=None, settings=None, export_timezone='Am
         if len(matches) == 1:
             trade_file = matches[0]['path']
     snapshot, rows = prepare_source(runs, source_id, trade_file, export_timezone)
+    from .commissions import adapt as adapt_commissions
+    adapt_commissions(snapshot, rows, resolved)
     grid, days, split = day_book(rows, resolved)
     if split==0:raise ValueError('At least two session weekdays are needed for separate training and validation.')
     snapshot['session_grid'] = dict(first=str(grid[0].date()), last=str(grid[-1].date()),
@@ -90,8 +110,13 @@ def day_book(rows, settings):
         # reconciliation. Native Decimal amounts remain preserved alongside it.
         net = float(row['export_net_pnl'] if row['export_net_pnl'] is not None else row['source_net_pnl']) / q
         mae = float(row['ohlc_mae_upper']) / q if row.get('ohlc_mae_upper') is not None else float(row['measured_mae']) / q if row['measured_mae'] is not None else max(0., -net)
-        if row.get('ohlc_adverse_path') is not None:
-            path=tuple((float(amount)/q,gap) for amount,gap in json.loads(row['ohlc_adverse_path']))
+        if 'simulation_net_per_nq' in row:
+            net = float(row['simulation_net_per_nq'])
+            mae = float(row['simulation_mae_per_nq'])
+        raw_path = row.get('simulation_adverse_path_per_nq', row.get('ohlc_adverse_path'))
+        if raw_path is not None:
+            divisor = 1 if 'simulation_adverse_path_per_nq' in row else q
+            path=tuple((float(amount)/divisor,gap) for amount,gap in json.loads(raw_path))
             by_day.setdefault(day, []).append((net, mae, path))
         else:
             by_day.setdefault(day, []).append((net, mae))
@@ -352,6 +377,7 @@ def run_analysis(runs,request,staged,progress):
     if export['path'] and digest(export['path'])!=export['sha256']:
         raise ValueError('Excursion export changed during calculation.')
     (staged/'trades.csv').write_text(csv_text(rows))
+    (staged/'commission_reconciliation.json').write_text(json.dumps(snapshot['commission_simulation'],indent=2,allow_nan=False))
     (staged/'evaluation_sizing.csv').write_text(csv_text(result['evaluation_sweep']))
     (staged/'training_economics.json').write_text(json.dumps(result['training_economics'],indent=2,allow_nan=False))
     if result['funded']:

@@ -355,7 +355,7 @@
                     <button id="sample-review" class="button secondary" type="button">Review IS/OOS split</button>
                     <p id="sample-status" class="field-help" role="status">Choose a dataset, strategy and split method before running.</p>
                     <p id="sample-budget" class="field-help" role="status"></p>
-                    <p class="field-help">The first IS submission locks this split for this strategy and dataset source. OOS requires explicitly selecting one saved IS parameter set. A maximum of 3 OOS attempts is permitted; failed or interrupted attempts also count.</p>
+                    <p class="field-help">You can edit this split for each new IS run. OOS runs only when you manually select a completed IS report, using that report’s saved split and parameters. There is no OOS attempt limit.</p>
                     <p class="field-help">The strategy starts fresh on the first selected bar. Signal counts and indicators use only selected bars; remaining positions close at the selection's end.</p>
                     <label for="backtest-strategy">Strategy</label>
                     <select id="backtest-strategy" required aria-describedby="strategy-description">
@@ -501,7 +501,7 @@
           <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1><span id="prop-heading-title">Prop analysis</span><span class="heading-dot">.</span></h1><p id="prop-heading-note">AlphaQuest · Apex 50K EOD analysis</p></div></div>
           <p id="prop-status" role="status" aria-live="polite"></p><button id="prop-delete" type="button" class="button danger" hidden>Delete prop report</button><p id="prop-delete-status" class="small" role="status" hidden></p>
           <div id="prop-config" hidden>
-            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. New backtests supply risk bounds from the OHLC bars actually held, with opening gaps and cost jumps. An optional matching export can supply measured MAE/MFE instead. OHLC bounds are not tick measurements. Checking compares every trade; source commissions and slippage are already included and are not deducted again.</p></section>
+            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. New backtests supply risk bounds from the OHLC bars actually held, with opening gaps and cost jumps. An optional matching export can supply measured MAE/MFE instead. OHLC bounds are not tick measurements. Checking reconciles source costs first. Instrument commission replaces the saved commission once; source slippage is retained.</p></section>
             <form id="prop-form" class="panel prop-panel">
               <h2>Configure prop analysis</h2>
               <p>Calculates locally from the saved backtest and captured risk bounds, or an explicitly selected measured-excursion export. Defaults: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, 20 slots, and standard simulation counts. Results, charts and downloads are saved for reopening.</p>
@@ -515,6 +515,16 @@
                 <label>Total NQ limit<input id="prop-max-nq" value="4" type="number" min="0.1" max="100000" step="any" required /></label>
                 <label>Explicit holdout start · optional<input id="prop-holdout" type="date" /></label>
               </div>
+              <h3>Trading commissions</h3>
+              <p>This model orders MNQ for both evaluation and funded accounts. Ten MNQ contracts pay ten MNQ commissions. The saved backtest is unchanged.</p>
+              <div class="prop-fields">
+                <label>Commission treatment<select id="prop-commission-mode"><option value="auto">Instrument commission · auto-detect source</option><option value="override">Instrument commission · explicit source required</option><option value="source">Retain scaled source costs</option></select></label>
+                <label>Source instrument<select id="prop-source-instrument"><option value="auto">Auto-detect saved symbol</option><option value="NQ">NQ · $20 per point</option><option value="MNQ">MNQ · $2 per point</option></select></label>
+                <label>Commission broker<input id="prop-commission-broker" value="Rithmic" maxlength="80" required /></label>
+                <label>MNQ commission · USD per contract per side<input id="prop-commission-side" type="number" min="0" max="100000" step="any" placeholder="0.51" /></label>
+              </div>
+              <p id="prop-commission-help"></p>
+              <p><a href="https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/" target="_blank" rel="noopener">Apex Rithmic commission schedule</a> · defaults checked 29 October 2026. Rates can be changed for another broker. Source slippage is retained; repriced risk uses conservative commission-adjusted bounds, not new measured MAE/MFE.</p>
               <p>Leave holdout start blank to use the final 30% of the full history. Set prices to 109 and 0 for the alternative pricing choice. AlphaQuest selects evaluation and funded sizes; these can differ.</p>
               <label>Additional model overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
               <details><summary>Resolved-form defaults</summary><pre id="prop-defaults"></pre></details>

@@ -84,6 +84,6 @@ def test_invalid_missing_and_locked_research_range(page, portal):
     expect(page.locator("#report-trades")).to_have_text("2")
     assert requests[-1].post_data_json["sample_split"]["is_end"] == "2026-01-06"
     page.goto(portal['url']+'/#backtests/new')
-    expect(page.locator("#sample-split-mode")).to_be_disabled()
-    expect(page.locator("#sample-status")).to_contain_text("Locked declaration")
-    expect(page.locator("#backtest-from-date")).to_be_disabled()
+    expect(page.locator("#sample-split-mode")).to_be_enabled()
+    expect(page.locator("#sample-status")).to_contain_text("editable")
+    expect(page.locator("#backtest-from-date")).to_be_enabled()

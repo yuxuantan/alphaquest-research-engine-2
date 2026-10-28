@@ -2,7 +2,7 @@
 
 All production account arithmetic, resampling, evaluation attempts, funded
 payouts, sizing, economics, charts and downloads are calculated by AlphaQuest.
-Model version: `alphaquest-apex50k-eod-v3-training-economics`. Earlier saved v1/v2 reports remain unchanged. No external executable/DLL, generated
+Model version: `alphaquest-apex50k-eod-v4-instrument-commissions`. Earlier saved v1/v2/v3 reports remain unchanged. No external executable/DLL, generated
 reference HTML/JSON/CSV/chart, Windows VM or vendor license participates in a new
 calculation. Saved external results are independent qualification oracles only.
 This supersedes the integration and older notebook specifications retained below.
@@ -11,8 +11,7 @@ This supersedes the integration and older notebook specifications retained below
 
 New research runs require a declared chronological IS/OOS split. Initial backtests,
 optimisation trials and their automatic prop analyses use **IS only**. An explicitly
-selected saved IS parameter set can later run OOS backtest + prop analysis, subject
-to the durable hardcoded three-attempt budget. See [the workflow and API contract](research_workflow.md).
+selected saved IS parameter set can later run OOS backtest + prop analysis, through an explicit manual action, without an attempt limit. See [the workflow and API contract](research_workflow.md).
 The model's internal validation remains within that selected period. Previously saved
 reports are preserved and do not establish an untouched holdout.
 
@@ -521,8 +520,8 @@ On a pre-capture declared IS report, **Capture intratrade risk** performs the no
 immutable-source replay, verifies summary and trade/equity CSV hashes against the
 original, and publishes a new compact backtest plus automatic v2 prop analysis.
 Its `risk_from_run_id` links the source. Repeated requests reopen that replay.
-OOS risk replays are blocked: the user must select an IS parameter set and spend
-another explicit OOS attempt. Legacy undeclared reports remain read-only. All
+OOS risk replays are blocked: the user must select a completed IS report and manually
+run OOS again. Legacy undeclared reports remain read-only. All
 original reports/evidence stay unchanged; new prop ZIPs include the captured risk
 CSV, source reconciliation and complete size sweeps.
 
@@ -561,7 +560,7 @@ Saved v1/v2 reports retain their original arithmetic, values and assumption text
 and are labeled earlier models. Configure a new analysis from a declared IS
 backtest to obtain v3 without replaying its trades or rewriting earlier results.
 New backtests and optimization trials use v3 automatically. Existing OOS reports
-remain readable, and fresh OOS calculations still require the explicit budgeted
+remain readable, and fresh OOS calculations still require the explicit manual
 backtest workflow. This increment does not loosen the OOS access policy.
 
 
@@ -570,7 +569,7 @@ backtest workflow. This increment does not loosen the OOS access policy.
 Completed prop reports and saved-analysis lists expose a selected-report Delete
 control. `DELETE /api/prop-analyses/{id}` removes that inactive analysis and its
 downloads/calculation-reuse references after confirmation. Backtest reports,
-source datasets, optimization metrics and spent OOS attempts remain intact.
+source datasets, optimization metrics and OOS execution history remain intact.
 Queued/running analyses reject deletion. File staging rolls back on SQL failure;
 post-commit cleanup can be retried. Original numerical reports remain unchanged
 unless the user selects and confirms deletion of that particular report.
@@ -578,3 +577,61 @@ unless the user selects and confirms deletion of that particular report.
 See [strategy navigation and report management](strategy_navigation.md) for the
 strategy → instrument/full dataset → saved IS/OOS run browser. Browsing never
 resimulates or rescales a saved result.
+
+## Instrument commissions (v4, 2026-10-29)
+
+New reports separate source costs from simulated trading commissions. The current
+account/sizing model trades **MNQ at every candidate size**: 10 MNQ is ten micro
+contracts, not an order for one NQ. Broker rate defaults live in
+`alphaquest/prop/commissions.py`, separately from account arithmetic. The saved
+Apex Rithmic schedule lists NQ $1.99 and MNQ $0.51 **per contract per side** for
+both evaluation and funded accounts. Other published instrument rates are retained
+in the schedule catalog, with the source URL and verification date, without adding
+support for other instruments to this NQ/MNQ account model. Runtime does not fetch
+or depend on the website. Broker name and MNQ per-side commission are editable;
+custom brokers require a rate, and zero is allowed.
+
+The normal configuration form exposes commission treatment, source instrument,
+broker, and per-side commission. `auto` recognizes an immutable saved NQ/MNQ
+symbol (including the full-dataset metadata), verifies the source point value
+($20/$2), and applies the Rithmic default or explicit rate. An unidentified source
+retains source costs with a visible notice; an explicit commission override then
+requires selecting the source instrument. Other instrument conversions, conflicting
+symbols, incompatible point values, and negative/nonfinite rates reject. `source`
+mode deliberately retains source costs while normalizing identified MNQ exposure.
+No assumption is made from a dataset filename. Defaults are suggestions and saved
+settings/rate provenance are inspectable in the report.
+
+For each source trade, **add back its actual recorded commission**, retain its
+slippage, normalize to source quantity/point value, and deduct the simulated MNQ
+round-turn commission once. With an NQ source, per-MNQ net is
+`(source_net + source_commission) / source_quantity / 10 - 2 * MNQ_per_side`.
+With an MNQ source it is
+`(source_net + source_commission) / source_quantity - 2 * MNQ_per_side`.
+The same adjusted daily pool feeds evaluation, funding chains, funded sizing,
+holdout simulations and historical replay. Training/holdout selection boundaries,
+path counts, account rules and source slippage stay as specified above. Recorded
+source commission is authoritative; the NQ schedule default does not overwrite it.
+
+Captured OHLC and measured source excursions include source costs, and compact
+frontiers omit dominated observations and commission-side labels. A new exact tick
+path cannot be reconstructed from them. V4 preserves every original observation
+and uses a **conservative commission-adjusted simulation bound**: reserve the larger
+of the one-side and round-turn fee deltas at saved adverse marks, also include the
+new entry commission and realized exit loss. Observed gap flags remain in order.
+This can overstate adverse risk; it is not exact repriced MAE/MFE. Close-only inputs
+retain the realized-loss fallback. Source measurements and earlier reports are
+never relabeled or modified. This correction intentionally differs from earlier
+net-scaling engines; no external-engine numerical parity is claimed for v4.
+
+Source checking shows the selected treatment/rate and original cost reconciliation.
+Saved `trades.csv` retains source costs and adds `simulation_net_per_mnq`,
+`simulation_commission_per_mnq`, plus NQ-equivalent kernel amounts and conservative
+risk inputs. `commission_reconciliation.json` captures the applied rate, broker,
+schedule provenance, formula, risk policy and totals normalized to one NQ exposure
+per source trade (divide those totals by ten for one MNQ). The Source & model view
+and standard report ZIP include this artifact. Report/model identities and calculation
+cache hashes distinguish the new engine; all prior saved reports remain readable.
+
+Source: [Apex Rithmic commissions and instruments](https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/),
+checked 29 October 2026. The schedule is not a live guarantee of future fees.

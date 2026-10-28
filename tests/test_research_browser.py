@@ -22,8 +22,8 @@ def configure(page,portal,dataset):
     page.locator('#backtest-slippage-ticks').fill('0');page.locator('#backtest-commission').fill('0')
 
 
-def test_explicit_dates_required_budget_warning_and_block_in_actual_portal(page,portal,tmp_path):
-    dataset=upload(page,portal);configure(page,portal,dataset)
+def test_editable_dates_and_unlimited_manual_oos_in_actual_portal(page,portal,tmp_path):
+    dataset=upload(page,portal,days=4);configure(page,portal,dataset)
     playwright.expect(page.locator('#start-backtest')).to_be_disabled()
     page.locator('#sample-split-mode').select_option('percentage')
     page.locator('#sample-is-percent').fill('70')
@@ -39,32 +39,42 @@ def test_explicit_dates_required_budget_warning_and_block_in_actual_portal(page,
     page.screenshot(path=str(tmp_path/'declared-date-split.png'),full_page=True)
     page.locator('#start-backtest').click()
     playwright.expect(page.locator('#report-research-title')).to_have_text('In-sample backtest')
-    playwright.expect(page.locator('#report-oos-budget')).to_contain_text('0 / 3 used')
+    playwright.expect(page.locator('#report-oos-budget')).to_contain_text('No attempt limit')
     is_id=page.url.rsplit('/',1)[1]
     playwright.expect(page.locator('#report-run-oos')).to_be_enabled()
     page.once('dialog',lambda d:d.dismiss());page.locator('#report-run-oos').click()
     assert page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json()['used']==0
     page.once('dialog',lambda d:d.accept());page.locator('#report-run-oos').click()
     playwright.expect(page.locator('#report-research-title')).to_have_text('Out-of-sample backtest',timeout=30000)
-    playwright.expect(page.locator('#report-oos-budget')).to_contain_text('1 / 3 used')
+    playwright.expect(page.locator('#report-oos-budget')).to_contain_text('No attempt limit')
     oos_id=page.url.rsplit('/',1)[1]
     playwright.expect(page.locator('#report-run-oos')).to_be_hidden()
-    for _ in range(2):
+    for _ in range(3):
         response=page.request.post(portal['url']+'/api/backtests/'+is_id+'/oos',data=dict(request_id=str(uuid4())))
         assert response.status==201,response.text()
     page.goto(portal['url']+'/#backtests/report/'+is_id)
-    playwright.expect(page.locator('#report-oos-budget')).to_contain_text('Budget exhausted')
-    playwright.expect(page.locator('#report-run-oos')).to_be_disabled()
-    assert page.request.post(portal['url']+'/api/backtests/'+is_id+'/oos',data=dict(request_id=str(uuid4()))).status==409
-    page.screenshot(path=str(tmp_path/'oos-budget-exhausted.png'),full_page=True)
+    playwright.expect(page.locator('#report-oos-budget')).to_contain_text('No attempt limit')
+    playwright.expect(page.locator('#report-run-oos')).to_be_enabled()
+    assert page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json()['used']==4
+    page.screenshot(path=str(tmp_path/'four-oos-runs.png'),full_page=True)
     page.goto(portal['url']+'/#backtests/new')
-    playwright.expect(page.locator('#sample-split-mode')).to_be_disabled()
-    playwright.expect(page.locator('#sample-status')).to_contain_text('Locked declaration')
-    playwright.expect(page.locator('#sample-budget')).to_contain_text('3 / 3 used')
-    playwright.expect(page.locator('#start-backtest')).to_be_enabled(),'IS research remains permitted after OOS exhaustion'
+    playwright.expect(page.locator('#sample-split-mode')).to_be_enabled()
+    playwright.expect(page.locator('#sample-status')).to_contain_text('editable')
+    playwright.expect(page.locator('#backtest-to-date')).to_be_enabled()
+    page.locator('#backtest-to-date').fill('2026-01-06')
+    page.locator('#sample-oos-start').fill('2026-01-07')
+    page.locator('#sample-oos-end').fill('2026-01-08')
+    playwright.expect(page.locator('#start-backtest')).to_be_disabled()
+    page.locator('#sample-review').click()
+    playwright.expect(page.locator('#start-backtest')).to_be_enabled()
+    page.screenshot(path=str(tmp_path/'edited-split.png'),full_page=True)
+    page.locator('#start-backtest').click()
+    playwright.expect(page.locator('#report-research-title')).to_have_text('In-sample backtest')
+    playwright.expect(page.locator('#report-net')).to_have_text('60.00')
+    assert page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json()['used']==4,'Editing and IS execution must not run OOS'
     page.set_viewport_size(dict(width=390,height=844))
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-    (tmp_path/'budget-verification.json').write_text(json.dumps(dict(synthetic=True,is_id=is_id,first_oos_id=oos_id,budget=page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json(),fourth_blocked=True,explicit_cancel_did_not_consume=True,is_still_allowed=True),indent=2))
+    (tmp_path/'manual-oos-verification.json').write_text(json.dumps(dict(synthetic=True,is_id=is_id,first_oos_id=oos_id,history=page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json(),fourth_succeeded=True,explicit_cancel_did_not_consume=True,edited_is_net='60.00',is_did_not_run_oos=True),indent=2))
 
 
 def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(page,portal,tmp_path):
@@ -125,11 +135,9 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     assert oos_prop['runtime']['calculation_reused_from'] is None
     assert oos_prop['source']['backtest']['run_metadata']['research']['phase']=='oos'
     assert oos_prop['source']['backtest']['run_metadata']['selection']['row_count']==180
-    # Changing prop settings, exports or recomputing an OOS source cannot bypass
-    # the selected-backtest budget via the independent analysis endpoint.
+    # A manually executed saved OOS source can use editable prop settings.
     changed=dict(source_backtest_id=oos_id,trade_file='',settings=dict(ACTIVATION_FEE='0'))
-    assert page.request.post(portal['url']+'/api/prop-analyses/check',data=changed).status==409
-    assert page.request.post(portal['url']+'/api/prop-analyses',data=changed).status==409
+    assert page.request.post(portal['url']+'/api/prop-analyses/check',data=changed).status==200
     assert len(page.request.get(portal['url']+'/api/prop-analyses/sources/'+oos_id+'?discover_exports=false').json()['analyses'])==1
     page.screenshot(path=str(tmp_path/'oos-cash-summary.png'),full_page=True)
     page.locator('#report-prop-setup').click();page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()

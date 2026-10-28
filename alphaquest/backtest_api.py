@@ -236,7 +236,7 @@ async def detailed(run_id: UUID, request: Request, progress_id: UUID | None = No
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
     if record.get('run_metadata',{}).get('research',{}).get('phase') != 'is':
-        raise HTTPException(409, 'Only declared IS reports can be replayed for detail. OOS replays require a budgeted OOS request; legacy reports remain read-only.')
+        raise HTTPException(409, 'Only declared IS reports can be replayed for detail. OOS replays require a manual OOS request from IS; legacy reports remain read-only.')
     if record.get("report_storage", {}).get("detail") != "compact":
         raise HTTPException(409, "This report already retains full detail.")
     runs = request.app.state.runs
@@ -260,7 +260,7 @@ async def capture_risk(run_id: UUID, request: Request, progress_id: UUID | None 
     if record is None:
         raise HTTPException(404, 'Completed backtest not found.')
     if record.get('run_metadata', {}).get('research', {}).get('phase') != 'is':
-        raise HTTPException(409, 'Risk capture replay requires declared IS. OOS needs a new explicit budgeted OOS run; legacy reports remain read-only.')
+        raise HTTPException(409, 'Risk capture replay requires declared IS. OOS needs a new explicit manual OOS run from IS; legacy reports remain read-only.')
     if record.get('intratrade_risk'):
         return record
     try:

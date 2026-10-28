@@ -290,7 +290,7 @@
     const compact = record.report_storage?.detail === "compact";
     const compressed = record.report_storage?.compression === "gzip";
     get("#report-storage-note").textContent = compact
-      ? "Compact report · All metrics, trades and trade-close equity are saved. " + (record.run_metadata.research?.phase === 'is' ? "Per-bar equity is available by generating a full-detail replay of this IS parameter set." : "OOS and legacy reports cannot request an unbudgeted full-detail replay.")
+      ? "Compact report · All metrics, trades and trade-close equity are saved. " + (record.run_metadata.research?.phase === 'is' ? "Per-bar equity is available by generating a full-detail replay of this IS parameter set." : "OOS and legacy reports cannot request a full-detail replay; select a new manual OOS run from IS instead.")
       : `Full report · Includes per-bar equity${compressed ? "; JSON is compressed with gzip" : ""}.`;
     get("#report-json-download").href = `/api/backtests/${record.id}/exports/report`;
     get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
