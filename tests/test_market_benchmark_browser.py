@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from time import sleep
 
 from test_backtests_browser import browser, page, portal, playwright
 from test_market_benchmark import EXPECTED, FIXTURES, SPLIT
@@ -66,8 +67,15 @@ def test_actual_product_market_comparison_and_saved_evidence(page, portal, tmp_p
     assert float(comparison['accounts']['holding']['net_pnl']) == 188
     assert comparison['observed_bar_count'] == 4
     assert page.request.get(portal['url'] + '/api/backtests/' + is_id + '/oos').json()['used'] == 0
+    # Delayed asset delivery must not let the report-loaded event precede the
+    # comparison listener when opening an existing report directly.
+    def delayed_script(route):
+        sleep(.3)
+        route.continue_()
+    page.route('**/static/market-benchmark.js*', delayed_script)
     page.reload()
     playwright.expect(page.locator('#market-benchmark-results')).to_be_visible()
+    page.unroute('**/static/market-benchmark.js*', delayed_script)
     assert page.request.get(portal['url'] + '/api/backtests/' + is_id + '/exports/market_benchmark').body() == (tmp_path / 'IS-comparison.json').read_bytes()
     page.once('dialog', lambda dialog: dialog.accept())
     page.locator('#report-run-oos').click()
@@ -91,4 +99,4 @@ def test_actual_product_market_comparison_and_saved_evidence(page, portal, tmp_p
     (tmp_path / 'independent-expected.json').write_text(json.dumps(EXPECTED, indent=2))
     (tmp_path / 'verification.json').write_text(json.dumps(dict(synthetic=True, is_id=is_id, oos_id=oos_id, expected=EXPECTED,
                                                               downloads_sha256=files, reopened_after_dataset_deletion=True,
-                                                              manual_oos_only=True, mobile_no_page_overflow=True), indent=2))
+                                                              manual_oos_only=True, delayed_script_reload_verified=True, mobile_no_page_overflow=True), indent=2))
