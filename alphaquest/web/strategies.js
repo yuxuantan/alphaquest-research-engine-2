@@ -1,87 +1,82 @@
 "use strict";
-
 (() => {
-  const get = selector => document.querySelector(selector);
-  const make = (tag,text,cls) => { const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n; };
-  const number=new Intl.NumberFormat('en-US',{maximumFractionDigits:2});
-  let groupOffset=0,reportOffset=0,groupId=null,generation=0,controller;
-  const read=async (url,signal) => {
-    const response=await fetch(url,{cache:'no-store',signal});const result=await response.json();
-    if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:`HTTP ${response.status}`);
-    return result;
-  };
-  const money=value=>value==null?'N/A':number.format(Number(value));
-  const localDate=(value,zone)=>!value?'':value.length===10?value:new Intl.DateTimeFormat('en-CA',{timeZone:zone||'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
-  const groupRoute=()=>location.hash.match(/^#strategies\/([0-9a-f]{64})$/)?.[1]||null;
-  async function groups() {
-    const current=generation;
-    get('#strategies-status').textContent='Loading instruments…';
-    get('#strategy-groups-previous').disabled=get('#strategy-groups-next').disabled=true;
-    try {
-      const page=await read(`/api/strategies/groups?${new URLSearchParams({offset:groupOffset,limit:50})}`,controller.signal);
-      if(current!==generation)return;
-      if(groupOffset>=page.total&&groupOffset){groupOffset=0;return groups();}
-      const list=get('#strategy-groups');list.replaceChildren();
-      for(const group of page.items){
-        const row=make('tr'),instrument=make('td'),link=make('a',group.instrument,'instrument-link');
-        link.href=`#strategies/${group.id}`;link.setAttribute('aria-current',group.id===groupId?'true':'false');
-        row.dataset.groupId=group.id;if(group.id===groupId)row.className='selected-instrument';
-        row.onclick=event=>{if(!event.target.closest('a'))location.hash=link.hash;};
-        instrument.append(link);row.append(instrument,make('td',String(group.backtests)));list.append(row);
+  const $=s=>document.querySelector(s),el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
+  const fmt=new Intl.NumberFormat('en-US',{maximumFractionDigits:2}),money=v=>v==null?'N/A':fmt.format(Number(v));
+  const label=v=>v.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+  let strategy=null,group=null,datasetOffset=0,runOffset=0,generation=0,controller,sort='created_at_utc',direction='desc',strategies=[];
+  const pending=new Set();
+  const remember=id=>{try{sessionStorage.setItem('strategy-report-return',JSON.stringify({id,route:location.hash}));}catch{}};
+  async function read(url,signal=controller?.signal){const r=await fetch(url,{cache:'no-store',signal}),j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:`HTTP ${r.status}`);return j;}
+  const strategyRoute=id=>`#strategies/${encodeURIComponent(id)}`;
+  const datasetRoute=(id,key)=>`${strategyRoute(id)}/datasets/${key}`;
+  const api=()=>`/api/strategies/${encodeURIComponent(strategy)}/datasets`;
+  const period=d=>d.full_range_available?`${d.start_date} → ${d.end_date}`:'Full dataset dates unavailable';
+  function resetResults(){ $('#strategy-full-period').textContent='';$('#strategy-run-sort').disabled=$('#strategy-run-direction').disabled=true;$('#strategy-results').replaceChildren();$('#strategy-results-wrap').hidden=true;$('#strategy-results-heading').textContent='Saved runs';$('#strategy-results-status').textContent='';$('#strategy-reports-page').textContent='';$('#strategy-reports-previous').disabled=$('#strategy-reports-next').disabled=true; }
+  async function loadStrategies(version){
+    $('#strategies-status').textContent='Loading strategies…';
+    const page=await read('/api/strategies/library');if(version!==generation)return;
+    strategies=page.items;$('#strategy-groups').replaceChildren();
+    for(const item of strategies){const row=el('tr'),cell=el('td'),a=el('a',item.name,'instrument-link');a.href=strategyRoute(item.id);a.setAttribute('aria-current',item.id===strategy?'true':'false');row.dataset.strategyId=item.id;if(item.id===strategy)row.className='selected-instrument';cell.append(a,el('small',`${item.reports} saved reports${item.registered?'':' · archived strategy'}`,'field-help'));row.append(cell,el('td',String(item.datasets)));row.onclick=e=>{if(!e.target.closest('a'))location.hash=a.hash;};$('#strategy-groups').append(row);}
+    $('#strategies-status').textContent=strategies.length?'Select a strategy to browse the datasets used.':'No strategies available.';
+  }
+  async function loadDatasets(version){
+    if(!strategy)return;
+    $('#strategy-datasets-heading').textContent=`${label(strategy)} · datasets`;$('#strategy-datasets-status').textContent='Loading full dataset periods…';$('#strategy-datasets-table').hidden=true;$('#strategy-datasets').replaceChildren();
+    $('#strategy-datasets-previous').disabled=$('#strategy-datasets-next').disabled=true;
+    try{
+      const page=await read(`${api()}?${new URLSearchParams({offset:datasetOffset,limit:50})}`);if(version!==generation)return;
+      if(datasetOffset>=page.total&&datasetOffset){datasetOffset=0;return loadDatasets(version);}
+      for(const item of page.items){const row=el('tr'),instrument=el('td'),a=el('a',item.instrument,'instrument-link');a.href=datasetRoute(strategy,item.id);a.setAttribute('aria-label',`Open ${item.instrument} dataset ${period(item.dataset)}`);instrument.append(a);const dates=el('td'),dateLink=el('a',period(item.dataset));dateLink.href=a.href;dates.append(dateLink,el('small',`${item.dataset.name} · ${item.dataset.source_timezone}`,'field-help'));if(!item.available_dataset_id)dates.append(el('small','Source dataset deleted; saved reports remain available.','field-help'));row.append(instrument,dates,el('td',`${item.is_reports} IS · ${item.oos_reports} OOS · ${item.reports-item.is_reports-item.oos_reports} legacy`));row.dataset.groupId=item.id;row.onclick=e=>{if(!e.target.closest('a'))location.hash=a.hash;};$('#strategy-datasets').append(row);}
+      $('#strategy-datasets-table').hidden=!page.total;$('#strategy-datasets-status').textContent=page.total?'Select an instrument and full dataset period to compare saved parameter runs.':'No datasets have saved reports for this strategy yet.';
+      $('#strategy-datasets-page').textContent=page.total?`${datasetOffset+1}–${datasetOffset+page.items.length} of ${page.total}`:'0 datasets';$('#strategy-datasets-previous').disabled=!datasetOffset;$('#strategy-datasets-next').disabled=datasetOffset+page.items.length>=page.total;
+    }catch(e){if(e.name!=='AbortError'&&version===generation)$('#strategy-datasets-status').textContent=`Could not load datasets: ${e.message}. Use Refresh.`;}
+  }
+  function metricCell(record,key,phase){const td=el('td',money(key==='historical_net'?record?.historical_net:record?.metrics[key]));td.dataset.column=`${phase}.${key}`;if(record){td.title=`Run ${record.id}${record.prop_model?' · '+record.prop_model:''}`;if(key==='historical_net'&&record.prop_id&&record.prop_status==='complete'){const a=el('a',money(record.historical_net));a.href=`#backtests/prop/job/${record.prop_id}`;a.title=`Open saved prop report · ${record.prop_model||'saved model'}`;a.onclick=()=>remember(record.id);td.replaceChildren(a);}else if(key==='historical_net'&&record.prop_status==='deleted')td.append(el('small','Prop report deleted','field-help'));}return td;}
+  function reportAction(record,kind){const wrap=el('span',undefined,'strategy-report-actions'),a=el('a',`Open ${kind} report ↗`,'button secondary');a.href=`#backtests/report/${record.id}`;a.setAttribute('aria-label',`Open ${kind} backtest report ${record.id}`);a.onclick=()=>remember(record.id);const remove=el('button','Delete','button danger');remove.type='button';remove.dataset.deleteRun=record.id;remove.disabled=pending.has(record.id);remove.setAttribute('aria-label',`Delete backtest ${record.id}`);remove.onclick=()=>deleteRun(record);wrap.append(a,remove);return wrap;}
+  const metricNames=[['total_net_pnl','Net P&L · CU'],['max_drawdown_amount','Max DD · CU'],['trades_taken','Trades'],['win_rate_pct','Win %'],['historical_net','Historical net · USD']];
+  async function loadRuns(version){
+    resetResults();$('#strategy-results-status').textContent='Loading saved IS/OOS results…';
+    try{
+      const page=await read(`${api()}/${group}/backtests?${new URLSearchParams({offset:runOffset,limit:25,sort,direction})}`);if(version!==generation)return;
+      if(runOffset>=page.total&&runOffset){runOffset=Math.max(0,Math.floor((page.total-1)/25)*25);return loadRuns(version);}
+      const d=page.group.dataset;$('#strategy-results-heading').textContent=`${label(strategy)} · ${page.group.instrument}`;$('#strategy-full-period').textContent=`Full dataset: ${period(d)} · ${d.source_timezone} · ${d.name}`;
+      $('#strategy-new-run').href=`#backtests/new?${new URLSearchParams({strategy,dataset:d.id})}`;
+      const select=$('#strategy-run-sort');select.replaceChildren();for(const [key,name] of [['created_at_utc','Created'],...['is','oos'].flatMap(p=>metricNames.map(([k,n])=>[`${p}.${k}`,`${p.toUpperCase()} ${n}`])),...page.parameter_columns.map(p=>['param.'+p,'Parameter · '+label(p)])])select.add(new Option(name,key));select.value=sort;$('#strategy-run-direction').value=direction;select.disabled=$('#strategy-run-direction').disabled=false;
+      const head=el('tr');head.append(el('th','Parameters / run'));for(const p of ['is','oos'])for(const [key,name] of metricNames){const th=el('th'),button=el('button',`${p.toUpperCase()} ${name}`,'strategy-sort-heading');button.type='button';button.onclick=()=>{direction=sort===`${p}.${key}`&&direction==='desc'?'asc':'desc';sort=`${p}.${key}`;runOffset=0;void loadRuns(++generation);};th.setAttribute('aria-sort',sort===`${p}.${key}`?(direction==='asc'?'ascending':'descending'):'none');th.append(button);head.append(th);}head.append(el('th','Reports'));$('#strategy-runs-table thead').replaceChildren(head);
+      for(const record of page.items){const row=el('tr');row.dataset.runId=record.id;const params=el('td',undefined,'strategy-parameter-cell');params.append(el('strong',`${record.phase.toUpperCase()} · ${record.created_at_utc.slice(0,19).replace('T',' ')} UTC`));const runLink=el('a',record.id,'run-identifier field-help');runLink.href=`#backtests/report/${record.id}`;runLink.setAttribute('aria-label',`Open run report ${record.id}`);runLink.onclick=()=>remember(record.id);params.append(runLink);
+        const varying=page.varying_parameters.length?page.varying_parameters:page.parameter_columns;for(const key of varying){const value=el('span',`${key} = ${String(record.parameters[key]??'N/A')}`,'strategy-parameter-value');if(page.varying_parameters.includes(key))value.classList.add('strategy-parameter-varies');params.append(value);}
+        const details=el('details'),summary=el('summary',`All ${Object.keys(record.parameters).length} parameters`),values=el('dl','', 'strategy-parameter-details');for(const [key,value] of Object.entries(record.parameters)){values.append(el('dt',key),el('dd',String(value)));}details.append(summary,values);params.append(details);
+        if(record.insample){const s=record.insample.selection;params.append(el('small',`IS: ${s.from_date||s.start_utc||'unknown'} → ${s.to_date||s.end_utc||'unknown'}`,'field-help'));}
+        if(record.legacy)params.append(el('small',`Legacy / undeclared · Net ${money(record.legacy.metrics.total_net_pnl)} CU · ${record.legacy.metrics.trades_taken} trades · DD ${money(record.legacy.metrics.max_drawdown_amount)} CU`,'field-help'));
+        if(record.phase==='oos')params.append(el('small','OOS-only report · matching IS report unavailable','field-help'));
+        row.append(params);for(const [key] of metricNames)row.append(metricCell(record.insample,key,'is'));
+        const actions=el('td',undefined,'strategy-run-actions');if(record.insample)actions.append(reportAction(record.insample,'IS'));if(record.legacy)actions.append(reportAction(record.legacy,'legacy'));
+        let chosen=record.oos[0]||null;
+        const oosCells=metricNames.map(([key])=>metricCell(chosen,key,'oos'));row.append(...oosCells);
+        const heldoutActions=el('div');function oosActions(){heldoutActions.replaceChildren();if(chosen){heldoutActions.append(reportAction(chosen,'OOS'));const s=chosen.selection;heldoutActions.append(el('small',`OOS: ${s.from_date||s.start_utc||'unknown'} → ${s.to_date||s.end_utc||'unknown'}`,'field-help'));}else heldoutActions.append(el('small','OOS not run','field-help'));}
+        if(record.oos.length>1){const choose=el('select');choose.setAttribute('aria-label',`OOS report for run ${record.id}`);for(const candidate of record.oos)choose.add(new Option(`${candidate.created_at_utc.slice(0,19)} · ${candidate.id.slice(0,8)}`,candidate.id));choose.onchange=()=>{chosen=record.oos.find(r=>r.id===choose.value);oosCells.forEach((cell,i)=>{const next=metricCell(chosen,metricNames[i][0],'oos');cell.replaceWith(next);oosCells[i]=next;});oosActions();};actions.append(choose);}
+        oosActions();actions.append(heldoutActions);const batch=record.insample?.batch_id||record.legacy?.batch_id;if(batch){const a=el('a','Open parameter sweep');a.href=`#backtests/batches/${batch}`;actions.append(a);}row.append(actions);$('#strategy-results').append(row);
       }
-      get('#strategies-status').textContent=page.total?'Select an instrument to see its backtests.':'No saved backtests yet. Run your first backtest to create an instrument group.';
-      get('#strategy-groups-page').textContent=page.total?`${groupOffset+1}–${groupOffset+page.items.length} of ${page.total}`:'0 instruments';
-      get('#strategy-groups-previous').disabled=groupOffset===0;
-      get('#strategy-groups-next').disabled=groupOffset+page.items.length>=page.total;
-    } catch(error){if(error.name!=='AbortError'&&current===generation)get('#strategies-status').textContent=`Could not load instruments: ${error.message}. Use Refresh.`;}
+      $('#strategy-results-wrap').hidden=false;$('#strategy-results-status').textContent=`${page.total} saved runs · IS and OOS paired only through matching recorded parent links. OOS defaults to the latest saved attempt; choose earlier reports from its selector. N/A means no saved metric. Highlighted parameters vary across this dataset. Missing IS reports and legacy results are labeled separately. Historical net uses each run’s saved default prop analysis; hover its link for the model.`;
+      $('#strategy-reports-page').textContent=`${runOffset+1}–${runOffset+page.items.length} of ${page.total}`;$('#strategy-reports-previous').disabled=!runOffset;$('#strategy-reports-next').disabled=runOffset+page.items.length>=page.total;
+    }catch(e){if(e.name!=='AbortError'&&version===generation){resetResults();$('#strategy-results-status').textContent=`Could not load runs: ${e.message}. Use Refresh or return to datasets.`;}}
   }
-  async function reports(){
-    if(!groupId)return;
-    const current=generation;get('#strategy-results-heading').textContent='Backtests';get('#strategy-results-status').textContent='Loading backtests…';
-    get('#strategy-results').replaceChildren();get('#strategy-results-wrap').hidden=true;
-    get('#strategy-reports-previous').disabled=get('#strategy-reports-next').disabled=true;
-    try {
-      const page=await read(`/api/strategies/groups/${groupId}/backtests?${new URLSearchParams({offset:reportOffset,limit:25})}`,controller.signal);
-      if(current!==generation)return;
-      if(reportOffset>=page.total&&reportOffset){reportOffset=0;return reports();}
-      get('#strategy-results-heading').textContent=`${page.group.instrument} · Backtests`;
-      for(const record of page.items){
-        const row=make('tr');row.dataset.runId=record.id;
-        const strategy=make('td',`${record.research_phase==='is'?'IS':record.research_phase==='oos'?'OOS':'Legacy'} · ${record.strategy_id.replaceAll('_',' ')}`);
-        strategy.append(make('small',record.dataset_name,'field-help'));
-        strategy.title=`Created ${record.created_at_utc} · ${record.id}`;
-        const period=record.selection;const dates=make('td',`${localDate(period.from_date||period.start_utc,period.source_timezone)} → ${localDate(period.to_date||period.end_utc,period.source_timezone)}`);
-        strategy.append(make('small',dates.textContent,'field-help'));
-        strategy.append(make('small',period.source_timezone||'','field-help'));
-        const net=make('td',money(record.metrics.total_net_pnl));net.title=record.metrics.total_net_pnl;
-        net.className=Number(record.metrics.total_net_pnl)<0?'negative':'positive';
-        net.append(make('small',`${record.metrics.trades_taken} ${record.metrics.trades_taken===1?"trade":"trades"}`,'field-help'),make('small',`DD ${money(record.metrics.max_drawdown_amount)}`,'field-help'));
-        const action=make('td'),open=make('a','↗','button secondary report-open-icon');
-        open.href=`#backtests/report/${record.id}`;open.setAttribute('aria-label',`Open backtest report ${record.id}`);open.title='Open full backtest report';action.append(open);
-        if(record.batch_id){const batch=make('a','Sweep','small');batch.href=`#backtests/batches/${record.batch_id}`;batch.title='Open this parameter sweep';action.append(batch);}
-        row.append(strategy,net,make('td',money(record.historical_net)),action);
-        get('#strategy-results').append(row);
-      }
-      get('#strategy-results-wrap').hidden=false;
-      get('#strategy-results-status').textContent=`${page.total} saved backtests · P&L/drawdown in CU; Historical net in USD after prop acquisition fees. N/A means unavailable.`;
-      get('#strategy-reports-page').textContent=page.total?`${reportOffset+1}–${reportOffset+page.items.length} of ${page.total}`:'0 backtests';
-      get('#strategy-reports-previous').disabled=reportOffset===0;get('#strategy-reports-next').disabled=reportOffset+page.items.length>=page.total;
-    } catch(error){if(error.name!=='AbortError'&&current===generation)get('#strategy-results-status').textContent=`Could not load backtests: ${error.message}. Use Refresh.`;}
+  async function deleteRun(record){
+    if(pending.has(record.id)||!confirm(`Delete backtest ${record.id}?\n\nThis removes this report and its files. Source datasets, saved prop reports, optimization metrics and OOS budget usage are kept. This cannot be undone.`))return;
+    pending.add(record.id);const route=location.hash,status=$('#strategy-delete-status');status.hidden=false;status.textContent='Deleting selected report…';document.querySelectorAll('[data-delete-run]').forEach(b=>{if(b.dataset.deleteRun===record.id)b.disabled=true;});
+    try{const response=await fetch(`/api/backtests/${record.id}`,{method:'DELETE'});if(!response.ok&&response.status!==404){const error=await response.json();throw Error(error.detail||`HTTP ${response.status}`);}status.textContent='Backtest report deleted. Dataset, saved prop reports and OOS budget usage kept.';if(location.hash===route){const page=await read(`${api()}/${group}/backtests?limit=1`);if(page.total)await loadRuns(++generation);}}catch(e){if(e.message.includes('Saved strategy/dataset group not found'))location.hash=strategyRoute(strategy);else status.textContent=`Could not delete report: ${e.message}`;}finally{pending.delete(record.id);document.querySelectorAll('[data-delete-run]').forEach(b=>{if(b.dataset.deleteRun===record.id)b.disabled=false;});}
   }
-  function navigate(){
-    ++generation;controller?.abort();controller=new AbortController();
-    if(!location.hash.startsWith('#strategies'))return;
-    groupId=groupRoute();reportOffset=0;
-    get('#strategy-results').replaceChildren();get('#strategy-results-wrap').hidden=true;
-    get('#strategy-results-heading').textContent='Backtests';
-    get('#strategy-results-status').textContent='Select an instrument on the left to view saved backtests.';
-    get('#strategy-reports-page').textContent='';get('#strategy-reports-previous').disabled=get('#strategy-reports-next').disabled=true;
-    void groups();if(groupId)void reports();
+  async function navigate(){
+    ++generation;controller?.abort();controller=new AbortController();if(!location.hash.startsWith('#strategies'))return;const version=generation;
+    const previousGroup=group;const match=location.hash.match(/^#strategies(?:\/([^/]+)(?:\/datasets\/([0-9a-f]{64}))?)?$/);strategy=match?.[1]?decodeURIComponent(match[1]):null;group=match?.[2]||null;datasetOffset=runOffset=0;if(previousGroup!==group){sort='created_at_utc';direction='desc';}
+    $('#strategy-picker').hidden=!!group;$('#strategy-run-panel').hidden=!group;resetResults();$('#strategy-datasets').replaceChildren();$('#strategy-datasets-table').hidden=true;$('#strategy-datasets-heading').textContent='Instruments & datasets';$('#strategy-datasets-status').textContent='Select a strategy on the left.';$('#strategy-datasets-page').textContent='';$('#strategy-datasets-previous').disabled=$('#strategy-datasets-next').disabled=true;$('#strategy-new-run').href=strategy?`#backtests/new?${new URLSearchParams({strategy})}`:'#backtests/new';$('#strategy-back-datasets').href=strategy?strategyRoute(strategy):'#strategies';
+    // Resolve old instrument-only bookmarks through their latest saved report.
+    if(strategy&&/^[0-9a-f]{64}$/.test(strategy)&&!group){try{const old=await read(`/api/strategies/groups/${strategy}/backtests?limit=1`);const latest=old.items[0];if(latest){const page=await read(`/api/strategies/${encodeURIComponent(latest.strategy_id)}/datasets?limit=100`);const target=page.items.find(item=>item.dataset.id===latest.dataset_id);if(version===generation){location.replace(target?datasetRoute(latest.strategy_id,target.id):strategyRoute(latest.strategy_id));return;}}}catch{}if(version===generation)location.hash='#strategies';return;}
+    try{await loadStrategies(version);if(version!==generation)return;if(group)await loadRuns(version);else if(strategy)await loadDatasets(version);}catch(e){if(e.name!=='AbortError'&&version===generation)$('#strategies-status').textContent=`Could not load strategies: ${e.message}. Use Refresh.`;}
   }
-  get('#refresh-strategies').onclick=()=>{void groups();if(groupId)void reports();};
-  get('#strategy-groups-previous').onclick=()=>{groupOffset=Math.max(0,groupOffset-50);void groups();};
-  get('#strategy-groups-next').onclick=()=>{groupOffset+=50;void groups();};
-  get('#strategy-reports-previous').onclick=()=>{reportOffset=Math.max(0,reportOffset-25);void reports();};
-  get('#strategy-reports-next').onclick=()=>{reportOffset+=25;void reports();};
+  $('#refresh-strategies').onclick=()=>{const version=++generation;if(group)void loadRuns(version);else{void loadStrategies(version);if(strategy)void loadDatasets(version);}};
+  $('#strategy-datasets-previous').onclick=()=>{datasetOffset=Math.max(0,datasetOffset-50);void loadDatasets(++generation);};$('#strategy-datasets-next').onclick=()=>{datasetOffset+=50;void loadDatasets(++generation);};
+  $('#strategy-reports-previous').onclick=()=>{runOffset=Math.max(0,runOffset-25);void loadRuns(++generation);};$('#strategy-reports-next').onclick=()=>{runOffset+=25;void loadRuns(++generation);};
+  for(const name of ['sort','direction'])$(`#strategy-run-${name}`).onchange=()=>{sort=$('#strategy-run-sort').value;direction=$('#strategy-run-direction').value;runOffset=0;void loadRuns(++generation);};
   window.addEventListener('hashchange',navigate);navigate();
 })();

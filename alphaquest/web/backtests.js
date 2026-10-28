@@ -181,8 +181,10 @@
         fetch("/api/datasets", { cache: "no-store" }).then(readResponse),
         fetch("/api/strategies", { cache: "no-store" }).then(readResponse),
       ]);
+      const preset = new URLSearchParams(location.hash.split("?")[1] || "");
       const previousDataset = datasetSelect.value;
-      const previousStrategy = strategySelect.value;
+      const desiredDataset = preset.get("dataset") || previousDataset;
+      const previousStrategy = preset.get("strategy") || strategySelect.value;
       state.datasets = datasets;
       state.strategies = strategies;
       datasetSelect.replaceChildren(new Option("Choose a saved dataset", ""));
@@ -194,7 +196,7 @@
         datasetSelect.add(option);
         if (compatible) supported++;
       }
-      datasetSelect.value = Array.from(datasetSelect.options).some((option) => option.value === previousDataset && !option.disabled) ? previousDataset : "";
+      datasetSelect.value = Array.from(datasetSelect.options).some((option) => option.value === desiredDataset && !option.disabled) ? desiredDataset : "";
       strategySelect.replaceChildren(new Option("Choose a strategy", ""));
       for (const strategy of strategies) strategySelect.add(new Option(label(strategy.id), strategy.id));
       strategySelect.value = strategies.some((strategy) => strategy.id === previousStrategy)
@@ -519,8 +521,8 @@
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Backtests by instrument" : optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
-    if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash)) loadChoices();
+    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
+    if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
   window.addEventListener("hashchange", navigate);
   navigate();

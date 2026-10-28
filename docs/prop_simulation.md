@@ -574,3 +574,7 @@ source datasets, optimization metrics and spent OOS attempts remain intact.
 Queued/running analyses reject deletion. File staging rolls back on SQL failure;
 post-commit cleanup can be retried. Original numerical reports remain unchanged
 unless the user selects and confirms deletion of that particular report.
+
+See [strategy navigation and report management](strategy_navigation.md) for the
+strategy → instrument/full dataset → saved IS/OOS run browser. Browsing never
+resimulates or rescales a saved result.

@@ -1667,7 +1667,6 @@ sizes and exact saved JSON remain available; original hashes and OOS budget are
 unchanged; no browser errors occurred. Nothing was pushed. This final activation
 record changes documentation only.
 
-
 ## Selected prop report deletion — 2026-10-28
 
 The existing saved-report/configuration workflow now includes Delete on completed
@@ -1685,3 +1684,76 @@ backtest preservation, and both header/list controls. Evidence is retained under
 financial fixture oracles remain unchanged. On actual saved report
 `e4d3b403f6e04a57a3ee994257b8c68e`, the new confirmation was opened and cancelled;
 no actual user report was deleted. No simulation arithmetic or sampling changed.
+
+
+## Saved-report hierarchy and deletion — 2026-10-28
+
+The portal now opens Strategies as strategy names on the left and the selected
+strategy's instrument/full dataset periods on the right. Selecting the dataset
+opens saved parameter runs with IS/OOS trading P&L, drawdown, trades, win rate and
+saved default-prop Historical net. Parameter differences are highlighted, full
+parameter values are inspectable, and sorting/pagination/report links use saved
+catalogue values. No backtest or prop calculation runs when browsing. See
+[strategy navigation and management](strategy_navigation.md) for API contracts.
+
+On the actual NQ source, the full period is **2017-05-21 through 2026-07-07** in
+America/New_York, even though the selected IS backtest ends **2023-10-10**.
+The dataset group contains **115 reports: 97 IS, one OOS and 17 legacy**. The table
+has **114 primary rows** because the explicit matching OOS child is displayed
+beside its parent. The recorded parent is
+`404e70186bde41df90f2c4a4912a8013`; its OOS child is
+`b3d47b3147aa4c12a8281abb681355e0`. Their net trading P&L values are respectively
+**211.42 CU** and **62,316.18 CU**, read exactly from the saved reports.
+
+The actual product browser journey was Strategies → VWAP strategy → NQ/full
+period → runs → individual report → Back to the same dataset table. It also
+checked reload and a 390-pixel viewport. A read-only actual-data check opened
+both the backtest Delete confirmation and the completed prop report Delete
+confirmation for `e4d3b403f6e04a57a3ee994257b8c68e`, then cancelled both. **No
+mutating HTTP request was sent.** All authoritative run manifests, dataset
+metadata, analysis rows, OOS-attempt rows and inspected report/download hashes
+remain identical. Budget remains **1 used, 2 remaining**. A temporary port-8001
+server provided this check and shut down normally.
+
+Actual evidence and reproduction are saved under
+`artifacts/strategy-browser-20261028/`: six screenshots, run-table and dataset
+JSON, exact source periods, product-verification JSON, before/after preservation
+snapshots, and `reproduce-product.py.txt`. This product check uses the existing
+portal/report routes, not a demo API or new calculation store. The `library_*`
+tables are disposable metadata indexes; original numerical files remain intact.
+
+Confirmed deletion is demonstrated only on labeled synthetic fixtures through
+the normal product. `fixture-evidence/hierarchy/` preserves the expected
+13/26/39 CU saved-report values and opening/reload/mobile journey.
+`fixture-evidence/is-oos-deletion/` shows IS 13 CU paired with OOS 0 CU, selecting
+between two saved OOS attempts, cancelling without a DELETE request, deleting
+only selected IS reports and retaining their OOS reports as OOS-only rows.
+Its OOS budget remains **2 used** after parent deletion.
+`fixture-evidence/prop-deletion/` records cancellation, prop-header deletion and
+saved-analysis-list deletion, with independent backtest/dataset/other-report
+preservation before those reports themselves were selected. Fixture oracles
+remain in the API/browser tests and are not presented as a production test page.
+
+Automated checks cover dataset/strategy separation, source-timezone full dates,
+retained full metadata after source deletion/restart, honest missing legacy dates,
+matching parent/parameters/costs, absent or mismatched IS parents, all OOS attempts,
+exact numeric sorting with N/A last, deleted-prop cache invalidation, no OOS-budget
+refund or recalculation bypass, active-analysis rejection, transaction rollback,
+retryable staged cleanup, symbolic-link rejection, and preserved optimization
+metrics with removed links. Strategy parameters remain recorded exactly; numeric
+spellings `2` and `2.0` compare equal for highlighting, while a difference at the
+28th decimal place remains visible and sortable.
+
+The complete regression gate passed **850 tests, 24 existing dependency warnings**
+in **524.60 seconds**. Its final log/JUnit are `final-suite.log` and
+`final-suite.xml`; the earlier 849-test pass is retained separately. After the
+last UI-only dataset-shortcut refinement, **14 focused browser tests passed**
+(`final-browser-checks.log`), including a new check that switching to another
+source restores that dataset's tick-size/point-value defaults instead of carrying
+old instrument overrides. Calculation code was unchanged by that refinement.
+
+Run checks from the intended checkout with
+`PYTHONPATH=. /path/to/venv/bin/python -m pytest -q`. Temporary fixture servers
+shut down through their normal cleanup. The source patch/ZIP and SHA-256 inventory
+in this increment's evidence directory identify the exact final implementation;
+financial fixture oracles and saved user results remain unchanged.

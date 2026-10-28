@@ -379,6 +379,9 @@
     try {
       const record = await read(`/api/backtests/${id}`, controller.signal);
       if (active !== controller) return;
+      let back="#strategies";
+      try{const context=JSON.parse(sessionStorage.getItem('strategy-report-return'));if(context?.id===record.id&&/^#strategies\/[^/]+\/datasets\/[0-9a-f]{64}$/.test(context.route))back=context.route;}catch{}
+      get("#report-back-strategies").href=back;
       tradeTimezone(record);
       metrics(record);
       const remove = get("#report-delete");

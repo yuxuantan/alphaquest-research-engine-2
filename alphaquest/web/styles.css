@@ -1591,5 +1591,30 @@ dialog::backdrop {
 #strategy-groups tr { cursor:pointer; }
 #strategy-groups tr:hover { background:#f1f8f6; }
 
+/* Strategy -> full dataset -> saved parameter runs. */
+#strategy-datasets tr { cursor:pointer; }
+#strategy-datasets tr:hover { background:#f1f8f6; }
+.strategy-dataset-scroll { overflow-x:auto; max-width:100%; }
+.strategy-run-panel { min-width:0; padding:24px; }
+.strategy-run-panel .panel-heading { padding:16px 0; }
+.strategy-run-scroll { overflow:auto; max-width:100%; max-height:75vh; margin-top:16px; border:1px solid var(--line); border-radius:8px; }
+#strategy-runs-table { width:100%; min-width:1500px; font-size:12px; }
+#strategy-runs-table th,#strategy-runs-table td { padding:12px; vertical-align:top; }
+#strategy-runs-table thead th { position:sticky; top:0; z-index:3; background:#f3f8f7; min-width:105px; }
+#strategy-runs-table .strategy-parameter-cell { position:sticky; left:0; z-index:1; background:white; min-width:280px; max-width:340px; box-shadow:2px 0 3px #dce8e4; white-space:normal; }
+#strategy-runs-table thead th:first-child { left:0; z-index:4; min-width:280px; }
+.strategy-parameter-value { display:inline-block; margin:3px 4px 0 0; max-width:100%; font-size:11px; overflow-wrap:anywhere; }
+.strategy-parameter-varies { background:#e2f2ea; color:#155842; padding:4px 6px; border-radius:4px; font-weight:600; }
+.strategy-parameter-details { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:4px; overflow-wrap:anywhere; }
+.strategy-parameter-details dd { margin:0; }
+.strategy-run-actions { min-width:205px; }
+.strategy-report-actions { display:flex; gap:6px; margin-bottom:8px; align-items:center; }
+.strategy-report-actions .button { font-size:11px; padding:7px 9px; white-space:nowrap; }
+.strategy-run-actions select { max-width:210px; margin-bottom:8px; }
+.strategy-run-panel .field-help { display:block; white-space:normal; line-height:1.5; }
+.strategy-sort { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.strategy-sort select { max-width:320px; }
+.strategy-sort-heading { border:0; padding:0; background:none; font:inherit; font-weight:700; cursor:pointer; color:inherit; text-align:left; }
 .strategy-saved-prop-row { display:flex; align-items:center; gap:12px; margin:10px 0; flex-wrap:wrap; }
 #prop-delete { margin-bottom:16px; }
+@media(max-width:600px) { .strategy-run-panel { padding:12px; } #strategy-runs-table .strategy-parameter-cell { min-width:200px; max-width:220px; } #strategy-runs-table thead th:first-child { min-width:200px; } }

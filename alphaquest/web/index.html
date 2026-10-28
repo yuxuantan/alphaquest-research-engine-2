@@ -273,21 +273,29 @@
 
           <p id="backtest-delete-status" class="small" role="status" hidden></p>
         <section id="strategies-screen" aria-labelledby="strategies-title" hidden>
-          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose an instrument to browse its backtest results.</p></div><div class="report-downloads"><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new" class="button primary">New backtest →</a></div></div>
-          <div class="strategies-layout">
+          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose a strategy, then an instrument and full dataset period to compare saved runs.</p></div><div class="report-downloads"><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a id="strategy-new-run" href="#backtests/new" class="button primary">New backtest →</a></div></div>
+          <p id="strategy-delete-status" class="small" role="status" hidden></p>
+          <div id="strategy-picker" class="strategies-layout">
             <section class="panel strategies-instruments" aria-labelledby="strategy-instruments-heading">
-              <div class="panel-heading"><h2 id="strategy-instruments-heading">Instruments</h2></div>
+              <div class="panel-heading"><h2 id="strategy-instruments-heading">Strategies</h2></div>
               <p id="strategies-status" role="status" class="small"></p>
-              <table class="library-table"><thead><tr><th>Instrument</th><th>Backtests</th></tr></thead><tbody id="strategy-groups"></tbody></table>
-              <div class="report-pagination"><button id="strategy-groups-previous" class="button secondary" type="button">Previous instruments</button><span id="strategy-groups-page"></span><button id="strategy-groups-next" class="button secondary" type="button">Next instruments</button></div>
+              <table class="library-table"><thead><tr><th>Strategy</th><th>Datasets</th></tr></thead><tbody id="strategy-groups"></tbody></table>
             </section>
-            <section class="panel strategies-backtests" aria-labelledby="strategy-results-heading">
-              <div class="panel-heading"><h2 id="strategy-results-heading">Backtests</h2></div>
-              <p id="strategy-results-status" role="status" class="small">Select an instrument on the left to view saved backtests.</p>
-              <div id="strategy-results-wrap" class="optimization-scroll" tabindex="0" aria-label="Backtest summaries, scroll horizontally" hidden><table class="library-table"><thead><tr><th>Backtest</th><th>Net P&amp;L · CU</th><th>Historical net · USD</th><th>Report</th></tr></thead><tbody id="strategy-results"></tbody></table></div>
-              <div class="report-pagination"><button id="strategy-reports-previous" class="button secondary" type="button" disabled>Previous backtests</button><span id="strategy-reports-page"></span><button id="strategy-reports-next" class="button secondary" type="button" disabled>Next backtests</button></div>
+            <section class="panel strategies-backtests" aria-labelledby="strategy-datasets-heading">
+              <div class="panel-heading"><h2 id="strategy-datasets-heading">Instruments &amp; datasets</h2></div>
+              <p id="strategy-datasets-status" role="status" class="small">Select a strategy on the left.</p>
+              <div class="strategy-dataset-scroll"><table id="strategy-datasets-table" class="library-table" hidden><thead><tr><th>Instrument</th><th>Full dataset period</th><th>Reports</th></tr></thead><tbody id="strategy-datasets"></tbody></table></div>
+              <div class="report-pagination"><button id="strategy-datasets-previous" class="button secondary" type="button" disabled>Previous datasets</button><span id="strategy-datasets-page"></span><button id="strategy-datasets-next" class="button secondary" type="button" disabled>Next datasets</button></div>
             </section>
           </div>
+          <section id="strategy-run-panel" class="panel strategy-run-panel" hidden>
+            <a id="strategy-back-datasets" href="#strategies" class="eyebrow">← Back to instruments &amp; datasets</a>
+            <div class="panel-heading"><div><h2 id="strategy-results-heading">Saved runs</h2><p id="strategy-full-period" class="small"></p></div></div>
+            <p id="strategy-results-status" role="status" class="small"></p>
+            <div class="strategy-sort"><label for="strategy-run-sort">Sort runs by</label><select id="strategy-run-sort"><option value="created_at_utc">Created</option></select><label for="strategy-run-direction">Order</label><select id="strategy-run-direction"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
+            <div id="strategy-results-wrap" class="strategy-run-scroll" tabindex="0" aria-label="Parameters and IS/OOS metrics, scroll horizontally" hidden><table id="strategy-runs-table" class="library-table"><thead></thead><tbody id="strategy-results"></tbody></table></div>
+            <div class="report-pagination"><button id="strategy-reports-previous" class="button secondary" type="button" disabled>Previous runs</button><span id="strategy-reports-page"></span><button id="strategy-reports-next" class="button secondary" type="button" disabled>Next runs</button></div>
+          </section>
         </section>
 
         <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
@@ -444,7 +452,7 @@
           <div id="report-status" class="validation-box" role="status" hidden></div>
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
-              <div><a href="#strategies" class="eyebrow">← Back to Strategies</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
+              <div><a id="report-back-strategies" href="#strategies" class="eyebrow">← Back to Strategies</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
               <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><a id="report-risk-download" class="button secondary" hidden>Intratrade risk CSV ↓</a><button id="report-capture-risk" class="button secondary" type="button" hidden>Capture intratrade risk</button><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
             </div>
             <button id="report-delete" class="button danger" type="button">Delete backtest</button>

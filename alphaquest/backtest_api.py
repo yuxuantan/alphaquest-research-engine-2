@@ -63,6 +63,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "instrument": {key:dataset.get(key) for key in ("symbol","interval_seconds","interval_kind")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
+    metadata["full_dataset"] = {key:dataset.get(key) for key in ("id","name","sha256","source_timezone","row_count","start","end","symbol")}
     if source_run_id:
         metadata["risk_from_run_id" if risk_replay else "detailed_from_run_id"] = source_run_id
     if research:

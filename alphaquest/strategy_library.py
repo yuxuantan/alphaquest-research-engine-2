@@ -9,6 +9,8 @@ from fastapi import APIRouter,HTTPException,Query,Request
 class StrategyLibrary:
     def __init__(self,runs,datasets,analyses):
         self.runs,self.datasets,self.analyses=runs,datasets,analyses
+        from .strategy_browser import StrategyBrowser
+        self.browser=StrategyBrowser(runs,datasets,analyses)
         self.lock=Lock()
         with runs.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS strategy_run_index (run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE, group_id TEXT NOT NULL,instrument TEXT NOT NULL,dataset_id TEXT NOT NULL)')
@@ -71,4 +73,24 @@ def groups(request:Request,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=1
 def reports(group_id:str,request:Request,offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
     result=request.app.state.strategy_library.reports(group_id,offset,limit)
     if result is None:raise HTTPException(404,'Instrument group not found.')
+    return result
+
+
+@router.get('/api/strategies/library')
+def strategy_library(request:Request):
+    return request.app.state.strategy_library.browser.strategies()
+
+
+@router.get('/api/strategies/{strategy_id}/datasets')
+def strategy_datasets(strategy_id:str,request:Request,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
+    result=request.app.state.strategy_library.browser.dataset_groups(strategy_id,offset,limit)
+    if result is None:raise HTTPException(404,'Strategy not found.')
+    return result
+
+
+@router.get('/api/strategies/{strategy_id}/datasets/{group_id}/backtests')
+def strategy_runs(strategy_id:str,group_id:str,request:Request,offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100),sort:str='created_at_utc',direction:str='desc'):
+    try:result=request.app.state.strategy_library.browser.reports(strategy_id,group_id,offset,limit,sort,direction)
+    except ValueError as exc:raise HTTPException(422,str(exc)) from None
+    if result is None:raise HTTPException(404,'Saved strategy/dataset group not found.')
     return result

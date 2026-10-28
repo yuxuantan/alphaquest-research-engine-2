@@ -36,7 +36,7 @@ def test_delete_from_list_and_report_confirm_cancel_and_preserve_dataset(page,po
     page.once('dialog',accept)
     page.locator('#report-delete').click()
     playwright.expect(page).to_have_url(portal['url']+'/#strategies')
-    playwright.expect(page.locator('#strategy-groups tr')).to_have_count(1)
+    playwright.expect(page.locator('#strategy-groups a').filter(has_text='Consecutive Green Hold')).to_be_visible()
     page.goto(portal['url']+'/#backtests')
     playwright.expect(page.locator('#backtest-delete-status')).to_contain_text('Backtest deleted')
     assert page.request.get(portal['url']+'/api/backtests/'+first['id']).status==404
