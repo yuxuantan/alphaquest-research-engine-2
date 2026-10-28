@@ -103,7 +103,7 @@ def test_api_retrieves_exact_independently_reviewed_results_and_provenance(clien
     assert client.get(f"/api/datasets/{dataset['id']}").json() == dataset
     assert client.get(f"/api/datasets/{dataset['id']}/csv").content == reserved_source((FIXTURES / case["csv"]).read_bytes())[0]
     persisted = client.app.state.runs.root / run_id
-    assert {p.name for p in persisted.iterdir()} == {"report.json", "trades.csv", "equity.csv", 'performance.json'}
+    assert {p.name for p in persisted.iterdir()} == {"report.json", "trades.csv", "equity.csv", "intratrade_risk.csv", 'performance.json'}
     stored_report = json.loads((persisted / "report.json").read_text())
     assert stored_report["summary"] == record["summary"]
     assert stored_report["trades"] == trades["items"]

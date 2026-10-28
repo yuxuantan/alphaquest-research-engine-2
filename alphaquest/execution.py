@@ -8,6 +8,7 @@ from typing import Literal
 from contextlib import nullcontext
 
 from .decimal_math import add as _add, multiply as _mul, subtract as _sub
+from .intratrade import IntratradeRisk, RiskCapture
 from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
 
 
@@ -91,8 +92,10 @@ def _validate_bar(bar: Bar, previous: Bar | None) -> None:
 
 
 class _Account:
-    def __init__(self, config: ExecutionConfig):
+    def __init__(self, config: ExecutionConfig, capture_risk=False):
         self.config = config
+        self.capture_risk = capture_risk
+        self.risk = self.closed_risk = None
         self.cash = config.initial_capital
         self.position: Position | None = None
         self.entry_intent: EntryIntent | None = None
@@ -102,7 +105,7 @@ class _Account:
         self.slippage = _mul(config.tick_size, Decimal(config.slippage_ticks))
 
     def apply(self, intent: EntryIntent | CloseIntent | None, bar: Bar, *, finishing: bool = False,
-              reference: Decimal | None = None, limit: bool = False) -> Trade | None:
+              reference: Decimal | None = None, limit: bool = False, phase: str = "close") -> Trade | None:
         if intent is None:
             return None
         reference = bar.close if reference is None else reference
@@ -120,6 +123,8 @@ class _Account:
             self.entry_reference = reference
             self.entry_commission = commission
             self.cash = _sub(self.cash, commission)
+            if self.capture_risk:
+                self.risk = RiskCapture(self.position, self.config, commission, reference, phase)
             return None
         if type(intent) is not CloseIntent:
             raise ExecutionError(f"Unsupported intent {type(intent).__name__}; return one EntryIntent, CloseIntent, or None.")
@@ -149,6 +154,11 @@ class _Account:
             actual_holding_minutes=_holding_minutes(position.entry_time_utc, bar.timestamp_utc),
             entry_reason=entry.reason, exit_reason=intent.reason,
         )
+        if self.risk is not None:
+            if phase in ("open", "stop", "target"):
+                self.risk.observe_bar(bar, phase, reference)
+            self.closed_risk = self.risk.finish(trade, phase)
+            self.risk = None
         self.cash = _sub(_add(self.cash, gross), commission)
         self.position = None
         self.entry_intent = None
@@ -180,17 +190,17 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
     stop, target = bracket.stop_price, bracket.target_price
     long = position.side == "long"
     if (bar.open <= stop if long else bar.open >= stop):
-        return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open)
+        return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open, phase="open")
     if (bar.open >= target if long else bar.open <= target):
-        return account.apply(CloseIntent("take_profit"), bar, reference=bar.open, limit=True)
+        return account.apply(CloseIntent("take_profit"), bar, reference=bar.open, limit=True, phase="open")
     if (bar.low <= stop if long else bar.high >= stop):
-        return account.apply(CloseIntent("stop_loss"), bar, reference=stop)
+        return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop")
     if (bar.high >= target if long else bar.low <= target):
-        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True)
+        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True, phase="target")
     return None
 
 
-def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -> Iterator[Trade | EquityPoint]:
+def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     VWAP's EOD option deliberately looks ahead within each session to infer its
@@ -199,10 +209,10 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) ->
     """
     prepare = getattr(strategy, "prepare_replay", None)
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
-        yield from _execute(replay, strategy, config)
+        yield from _execute(replay, strategy, config, capture_risk=capture_risk)
 
 
-def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -> Iterator[Trade | EquityPoint]:
+def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -221,7 +231,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -
         raise ExecutionError("config must be an ExecutionConfig with explicit Decimal settings.")
     if not callable(getattr(strategy, "on_bar", None)) or not callable(getattr(strategy, "on_finish", None)):
         raise ExecutionError("Strategy must supply on_bar and on_finish callbacks.")
-    account = _Account(config)
+    account = _Account(config, capture_risk)
     previous = None
     pending = None
     next_order = None
@@ -239,10 +249,14 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -
                 if type(next_order) is EntryIntent and allow_entry is not None and not allow_entry(bar):
                     trade = None
                 else:
-                    trade = account.apply(next_order, bar, reference=bar.open)
+                    trade = account.apply(next_order, bar, reference=bar.open, phase="open")
             if trade is not None:
                 closed_on_bar = True
                 yield trade
+                if capture_risk:
+                    yield account.closed_risk
+        if account.risk is not None:
+            account.risk.observe_bar(bar)
         intent = strategy.on_bar(bar, account.position)
         next_order = None
         if type(intent) is BracketIntent:
@@ -262,6 +276,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -
             trade = account.apply(intent, bar)
             if trade is not None:
                 yield trade
+                if capture_risk:
+                    yield account.closed_risk
         pending = account.mark(bar)
         previous = bar
     if previous is None:
@@ -269,6 +285,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig) -
     trade = account.apply(strategy.on_finish(previous, account.position), previous, finishing=True)
     if trade is not None:
         yield trade
+        if capture_risk:
+            yield account.closed_risk
     if account.position is not None:
         raise ExecutionError("Unsupported completion: strategy left an open position after on_finish.")
     yield account.mark(previous)

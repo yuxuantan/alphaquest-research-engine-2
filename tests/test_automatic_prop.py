@@ -52,7 +52,11 @@ def expected_cash(report):
     assert c['history']['totals']['net']==352880
     assert c['history']['totals']['new_funded_accounts']==40
     assert report['source']['excursion_input']['measured_mae_count']==0
-    assert 'close-only fallback' in report['source']['excursion_provenance']
+    assert 'Held OHLC' in report['source']['excursion_provenance']
+    assert report['source']['excursion_input']['native_ohlc_count']==report['source']['reconciliation']['source_count']
+    assert [r['micros'] for r in c['funded']['sweep']]==list(range(1,41))
+    assert [r['micros'] for r in c['evaluation_sweep']]==list(range(1,41))
+    assert c['funded']['search_range']['max_micros']==40
 
 
 def test_default_fees_unavailable_source_and_immutable_backtest(client):

@@ -8,12 +8,14 @@ from datetime import datetime, timedelta, timezone
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 import json
 import gzip
+from hashlib import sha256
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
 
 from .decimal_math import add, multiply, subtract
 from .drawdown import Drawdown
+from .intratrade import IntratradeRisk, VERSION as RISK_VERSION
 from .execution import EquityPoint, TIMESTAMP_CONVENTION, Trade
 from .strategy import ExecutionConfig
 
@@ -60,11 +62,11 @@ def _csv_record(record: dict) -> dict:
 
 
 def generate_report(
-    events: Iterable[Trade | EquityPoint], output_directory: Path, config: ExecutionConfig,
+    events: Iterable[Trade | EquityPoint | IntratradeRisk], output_directory: Path, config: ExecutionConfig,
     *, metadata: dict | None = None, expected_bar_count: int | None = None,
     on_saving: Callable[[], None] | None = None,
     execution_assumption: str = "same_close_full_fill",
-    detail: str = "full", compress: bool = False,
+    detail: str = "full", compress: bool = False, capture_risk: bool = False,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -96,6 +98,7 @@ def generate_report(
     trade_count = winning = losing = breakeven = 0
     previous_trade = pending_trade = initial = last = None
     saw_exposure = False
+    risk_count = ambiguous_risk = cross_session_risk = 0
     drawdown = None
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
@@ -111,11 +114,24 @@ def generate_report(
                 equity_array.write("[")
             trades_csv = stack.enter_context((staging / "trades.csv").open("w", encoding="utf-8", newline=""))
             equity_csv = stack.enter_context((staging / "equity.csv").open("w", encoding="utf-8", newline=""))
+            if capture_risk:
+                risk_csv = stack.enter_context((staging / "intratrade_risk.csv").open("w", encoding="utf-8", newline=""))
+                risk_writer = csv.DictWriter(risk_csv, fieldnames=[f.name for f in fields(IntratradeRisk)])
+                risk_writer.writeheader()
             trade_writer = csv.DictWriter(trades_csv, fieldnames=TRADE_FIELDS)
             equity_writer = csv.DictWriter(equity_csv, fieldnames=EQUITY_FIELDS)
             trade_writer.writeheader()
             equity_writer.writeheader()
             for event in events:
+                if type(event) is IntratradeRisk:
+                    _check(capture_risk and pending_trade is not None and event.trade_number == risk_count + 1 == pending_trade.trade_number, "Risk must follow its completed trade exactly once.")
+                    _check(all(getattr(event, k) == getattr(pending_trade, k) for k in ("side", "entry_time_utc", "exit_time_utc", "contracts", "net_pnl")), "Risk identity/costs differ from the completed trade.")
+                    _check(0 <= event.mae_lower <= event.mae_upper and 0 <= event.mfe_lower <= event.mfe_upper, "Invalid excursion bounds.")
+                    risk_writer.writerow(_csv_record(_record(event)))
+                    risk_count += 1
+                    ambiguous_risk += event.mae_lower != event.mae_upper
+                    cross_session_risk += event.cross_session
+                    continue
                 _check(type(event) in (Trade, EquityPoint), f"Unsupported report event: {type(event).__name__}")
                 record = _record(event, serialize=detail == "full" or type(event) is Trade)
                 if type(event) is Trade:
@@ -199,6 +215,7 @@ def generate_report(
             if detail == "full":
                 trade_array.write("]")
                 equity_array.write("]")
+        _check(not capture_risk or risk_count == trade_count, "Missing intratrade risk measurements.")
         _check(initial is not None and last.bar_number > 0, "Report requires initial equity and at least one observed bar.")
         _check(pending_trade is None, "Missing final equity point after trade.")
         _check(expected_bar_count is None or last.bar_number == expected_bar_count, "Equity bar count does not match the saved dataset.")
@@ -241,6 +258,9 @@ def generate_report(
             },
             "artifacts": {"report": report_name, "trades_csv": "trades.csv", "equity_csv": "equity.csv"},
         }
+        if capture_risk:
+            manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
+            manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
         if detail == "compact" or compress:
             manifest["report_storage"] = {"detail": detail, "compression": "gzip" if compress else "none",
                                           "per_bar_equity_retained": detail == "full",

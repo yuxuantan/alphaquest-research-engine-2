@@ -1441,3 +1441,99 @@ fills are clipped exactly; and annualized selection uses fixed 52.5%/five-day
 replacement assumptions. The audit saves actual UI screenshots, full diagnostic
 CSV/JSON, independent boundary examples, primary provider links and commands.
 No simulator code, earlier numerical report or server was modified.
+
+## Complete permitted sizing and native intratrade risk — 2026-10-28
+
+This increment uses the normal report/configure/check/run/durable-report workflow
+on the actual audited source, without an external calculation engine or a new
+storage system. The original IS backtest `404e70186bde41df90f2c4a4912a8013` and prop
+report `fed437c6d2944703b94eb45484a7039d` remain unchanged. The actual replay is
+`4a88a36e50fd431aa337939f65e3d2c0`, with new prop report
+`bc8b22b5d1294064b69556366ac8058f`. All original catalogued backtest manifests,
+dataset metadata and analysis IDs were preserved; the audited original backtest
+and prop files remain byte-identical. The existing OOS budget remains **1 used,
+2 remaining**. No OOS operation was submitted.
+
+To reproduce the saved product journey on the local portal:
+
+1. Open `/#backtests/report/404e70186bde41df90f2c4a4912a8013` and click
+   **Capture intratrade risk**. Its completed verified IS replay reopens the new
+   backtest above. A future pre-capture IS report runs the same verification and
+   publishes its own compact replay. Original parameters, fees and IS dates are
+   retained. OOS and undeclared legacy risk replays return HTTP 409.
+2. Expect **771 trades**, unchanged **211.42 CU net trading P&L**, identical
+   trade/equity CSV bytes, and **771 held-OHLC risk rows**. Download
+   **Intratrade risk CSV**. It is **186,399 bytes** (182 KiB), not per-bar equity
+   storage; its SHA-256 is
+   `3c4b3e13e2e8886002e1515e472c785915683b197a9fa22291681d7341eb1332`.
+3. Use **Configure prop analysis**, leave the optional export empty and click
+   **Check source**. Expect native OHLC coverage **771**, measured tick/export
+   MAE/MFE **0**, **6** ambiguous adverse bounds, and the conserved source net
+   **211.42**. All trade IDs/times/quantities/net costs match. The source is IS
+   2017-05-21 through 2023-10-10; no declared external OOS dates are included.
+4. Click **Run analysis**. Identical settings reopen the verified automatic v2
+   report above. In **Sizing**, choose size ascending: **40 rows, 1–40 MNQ**, unit
+   increment, with size **40 MNQ** at the bottom and tier caps **20/30/40**.
+   Internal training remains 2017-05-22 through 2021-11-08, validation
+   2021-11-09 through 2023-10-10. The selected funded size is **17 MNQ**; its
+   internal holdout drawdown-failure estimate is **95.005%**, lifetime expected
+   payout **$597.60**. Evaluation selects **36 MNQ**, pass rate **21.745%**.
+   These are saved model estimates, not future outcomes or a sizing endorsement.
+5. In **Historical replay**, expect payouts **$270,000**, acquisition costs
+   **$184,262** including activation, and **Historical net $85,738** over the
+   supplied IS history. Both the search range and risk inputs changed, so this
+   comparison does not isolate the contribution of each change.
+6. Download the report JSON, full ZIP and funded/evaluation sizing CSVs. The ZIP
+   includes `inputs/intratrade_risk.csv`, source reconciliation, settings and all
+   original-count results. Reload/reopen the saved report: no new simulation or
+   OOS attempt is submitted. The funded sweep retains **3,000 paths per size**,
+   holdout evaluation/funded lifetime/funded first year retain **20,000 each**.
+
+Evidence is saved in `artifacts/prop-risk-20261028/`: product-verification JSON,
+before/after preservation manifests, four actual portal screenshots, source
+check, backtest/prop report, risk CSV, complete sizing CSVs, calculations, ZIP and
+an exact browser-download copy. `reproduce-product.py.txt` records the normal
+portal journey; it uses a temporary server on 8001 and asserts its shutdown.
+`reproduce-ohlc-oracle.py.txt` independently scans saved source bars and computes
+all four price/cost bounds for all 771 source trades, without using RiskCapture
+or the prop account engine. Run it from the implementation checkout with
+`PYTHONPATH=. /path/to/venv/bin/python /path/to/reproduce-ohlc-oracle.py.txt`.
+The source's actual scope is all long, next-open entries and no same-bar exits;
+other fill modes are covered by independent synthetic boundary fixtures in tests.
+
+Automated rejection/boundary checks include profitable trades breaching the
+account before recovery, exact floor touches, long/short held extremes,
+same-close entry exclusion, next-open entry inclusion, next-open/gap exit
+exclusion, stop exits versus later lows, ambiguous target exits, entry/exit costs
+once, low Decimal precision, corrupt/missing risk artifacts and mismatched costs,
+overnight rejection and unchanged OOS budgets. An independent expanded-mark
+ledger checks 400 valid synthetic account cases against compressed frontiers in
+both Python and the rebuilt compiled engine. A gap through both limits closes
+the account at the observed mark; an earlier DLL stop ignores later gaps.
+
+OHLC bounds are explicitly distinguished from tick measurements. Conservative
+adverse ordering can count a possible target-bar breach. Unobserved tick gaps and
+liquidity still cannot be inferred, and cross-session native inputs reject rather
+than silently using close-only risk. Earlier notebook/ledger oracles remain
+unchanged; v2 risk-input changes are intentional and do not claim parity with
+old close-only outcomes or complete current-provider-rule certification. The
+existing deadline/inactivity/consistency and fixed training-selection economics
+remain disclosed model limitations outside this increment.
+
+Independent actual-source qualification completed: **771 trades × four bounds =
+3,084 exact Decimal comparisons**, including **500 profitable trades with nonzero
+adverse equity excursion** and the same **6 ambiguous target-exit bounds** shown
+in the product source check. `independent-ohlc-oracle.json` saves every expected
+and observed bound. `implementation-source-sha256.json`, `implementation.diff`
+and `implementation-source.zip` preserve the exact local code behind the actual
+report; all captured prop-module hashes and the compiled-kernel identity match
+its saved runtime metadata. The later commit ID does not alter those code hashes.
+
+Final complete regression gate: **823 passed, 24 existing dependency warnings**
+in 436.19 seconds. The full log and JUnit are `final-suite.log` and
+`final-suite.xml` under the evidence directory. Run from the intended checkout
+with `PYTHONPATH=. /path/to/venv/bin/python -m pytest -q` so subprocesses use that
+checkout too. Financial fixture oracles remain unchanged; file-list assertions
+now include the risk CSV. The property/actual-source checks above accompany the
+full suite; tests alone are not the product demonstration. The temporary product
+browser server on 8001 shut down normally.

@@ -19,8 +19,8 @@ from ..reporting import json_value
 
 
 def profile():
-    return dict(version='automatic-apex50k-eod-native-v1',model_version=MODEL_VERSION,
-                settings=dict(DEFAULTS),source_mode='native_close_only')
+    return dict(version='automatic-apex50k-eod-native-v2-ohlc-risk',model_version=MODEL_VERSION,
+                settings=dict(DEFAULTS),source_mode='native_held_ohlc_bounds')
 
 
 def descriptor():

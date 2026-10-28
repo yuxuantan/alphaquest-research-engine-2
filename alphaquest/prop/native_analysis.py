@@ -14,7 +14,7 @@ from .adapter import digest
 from .native_backend import Rules, FundedAccount, evaluation, funded, compact_neutral_runs, identity as backend_identity
 from .parallel import map_sweep,diagnostics as execution_diagnostics
 
-MODEL_VERSION = 'alphaquest-apex50k-eod-v1'
+MODEL_VERSION = 'alphaquest-apex50k-eod-v2-ohlc-risk'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
                 LUCID_EVAL_DAYS='no limit', SIZE_FOR='most net per year per slot', OUT_OF_SAMPLE_FROM='',
                 NET_OPPOSITE=False, EVAL_PRICE='49', ACTIVATION_FEE='129', SLOTS='20', MAX_TOTAL_NQ='4',
@@ -83,12 +83,18 @@ def day_book(rows, settings):
         day = (entry.astimezone(ZoneInfo('America/Chicago')).replace(tzinfo=None) + timedelta(hours=7)).date()
         if day.weekday() >= 5:
             raise ValueError('Entry lies outside a weekday CME session; no trade is silently excluded.')
+        if row.get('risk_cross_session'):
+            raise ValueError('Native OHLC risk spans CME session days. This daily model cannot allocate overnight unrealized P&L safely; use an intraday-flat source. No close-only fallback was substituted.')
         q = float(row['quantity'])
         # Retain the matched export's floating representation after full cost/ID
         # reconciliation. Native Decimal amounts remain preserved alongside it.
         net = float(row['export_net_pnl'] if row['export_net_pnl'] is not None else row['source_net_pnl']) / q
-        mae = float(row['measured_mae']) / q if row['measured_mae'] is not None else max(0., -net)
-        by_day.setdefault(day, []).append((net, mae))
+        mae = float(row['ohlc_mae_upper']) / q if row.get('ohlc_mae_upper') is not None else float(row['measured_mae']) / q if row['measured_mae'] is not None else max(0., -net)
+        if row.get('ohlc_adverse_path') is not None:
+            path=tuple((float(amount)/q,gap) for amount,gap in json.loads(row['ohlc_adverse_path']))
+            by_day.setdefault(day, []).append((net, mae, path))
+        else:
+            by_day.setdefault(day, []).append((net, mae))
     grid = pd.bdate_range(min(by_day), max(by_day))
     if len(grid) > 20000:
         raise ValueError('Source exceeds 20,000 weekdays.')
@@ -206,7 +212,7 @@ def calculate(rows, settings, progress=lambda _:None):
     block = int(settings['BLOCK_DAYS']); max_micros = int(round(float(settings['MAX_TOTAL_NQ'])*10))
     rules = replace(Rules(),approval_day_counts=settings['APPROVAL_DAY_COUNTS'])
     progress('Local evaluation sizing on training sessions')
-    sizes=sorted(set([min(s,max_micros,25) for s in [*range(1,21),25]]))
+    sizes=list(range(1,min(60,max_micros)+1))
     work=sum(map(len,train))*3000
     evaluation_sweep=map_sweep(_evaluation_size,[(train,size,block,max_micros) for size in sizes],work*len(sizes))
     selected=max(evaluation_sweep,key=lambda r:r['passed'])['micros']
@@ -232,13 +238,13 @@ def calculate(rows, settings, progress=lambda _:None):
     result['evaluation'].update(cost_per_funded=cost,evaluations_per_funded=1/probability,
                                 days_to_funded=replacement,days_to_funded_median=float(np.median(chain['days'])))
     progress('Local funded sizing on training sessions')
-    sizes=list(range(1,min(20,max_micros)+1))
+    sizes=list(range(1,min(max(level[1] for level in rules.levels),max_micros)+1))
     sweep=map_sweep(_funded_size,[(train,size,block,rules,max_micros,float(settings['EVAL_PRICE']),float(settings['ACTIVATION_FEE'])) for size in sizes],work*len(sizes)*2)
     size=max(sweep,key=lambda r:r['slot_year'])['micros']
     progress('Local funded holdout: 20,000 lifetime and 20,000 first-year accounts')
     life,annual=map_sweep(_funded_holdout,[(validation,size,block,rules,max_micros,horizon) for horizon in (2000,261)],sum(map(len,validation))*20000*2)
     stats={**life['stats'],**annual['stats']}
-    result['funded']=dict(selected=stats,sweep=sweep,selection_economics=dict(pass_rate=.525,replacement_days=5,source='Fixed training-selection assumptions; validation handover used for reported acquisition cost and historical replay'),
+    result['funded']=dict(selected=stats,sweep=sweep,search_range=dict(min_micros=1,max_micros=sizes[-1],step=1,selected_at_limit=size==sizes[-1],permitted_micros=max(level[1] for level in rules.levels),user_cap_micros=max_micros,tier_caps=[level[1] for level in rules.levels]),selection_economics=dict(pass_rate=.525,replacement_days=5,source='Fixed training-selection assumptions; validation handover used for reported acquisition cost and historical replay'),
         outcomes=life['outcomes'])
     progress('Local chronological account replay and calendar-year cash totals')
     result['history']=replay_history(grid,days,size,replacement,cost,int(settings['SLOTS']),rules,max_micros,split)
@@ -283,6 +289,10 @@ def run_analysis(runs,request,staged,progress):
     inputs=staged/'inputs';inputs.mkdir()
     import shutil
     export=snapshot['excursion_input']
+    if snapshot.get('native_risk'):
+        copied=inputs/'intratrade_risk.csv'
+        shutil.copyfile(runs.root/request['source_backtest_id']/'intratrade_risk.csv',copied)
+        if digest(copied)!=snapshot['native_risk']['sha256']:raise ValueError('Native risk changed before capture.')
     if export['path']:
         copied=inputs/export['filename'];shutil.copyfile(export['path'],copied)
         if digest(copied)!=export['sha256']:raise ValueError('Excursion export changed before capture.')
@@ -291,6 +301,8 @@ def run_analysis(runs,request,staged,progress):
     result,reused_from,calculation_key=cached_calculate(rows,settings,snapshot,progress,calculate)
     if digest(runs.root/request['source_backtest_id']/'trades.csv')!=snapshot['trades_sha256']:
         raise ValueError('Native source changed during calculation.')
+    if snapshot.get('native_risk') and digest(runs.root/request['source_backtest_id']/'intratrade_risk.csv')!=snapshot['native_risk']['sha256']:
+        raise ValueError('Native risk changed during calculation.')
     if export['path'] and digest(export['path'])!=export['sha256']:
         raise ValueError('Excursion export changed during calculation.')
     (staged/'trades.csv').write_text(csv_text(rows))

@@ -26,6 +26,25 @@ class Rules:
     levels: tuple = ((0., 20, 1000.), (1500., 30, 1000.), (3000., 40, 2000.), (6000., 40, 3000.))
 
 
+@cython.locals(balance=cython.double, threshold=cython.double, loss=cython.double,
+               equity=cython.double, size=cython.double, daily_floor=cython.double, floor=cython.double)
+def risk_hit(path, equity, size, daily_floor, floor):
+    """First adverse threshold hit; observed jumps liquidate at the observed mark.
+
+    Only record adverse extrema, in order, are needed for fixed session floors.
+    Intrabar OHLC segments assume continuous threshold fills. Opening gaps and
+    actual cost jumps bypass that assumption and can breach both floors at once.
+    """
+    threshold = max(daily_floor, floor)
+    for loss, gap in path:
+        balance = equity - loss * size / 10.
+        if balance <= threshold:
+            if gap:
+                return (2 if balance <= floor else 1), balance
+            return (2 if floor >= daily_floor else 1), threshold
+    return 0, equity
+
+
 @dataclass
 class FundedAccount:
     rules: Rules = field(default_factory=Rules)
@@ -46,7 +65,7 @@ class FundedAccount:
                    net=cython.double, adverse=cython.double, trough=cython.double,
                    profit=cython.double, cycle_profit=cython.double, amount=cython.double)
     def advance(self, trades, micros, max_micros=40):
-        """Consume one session of nonoverlapping (net, adverse) trade pairs."""
+        """Consume (net, adverse[, ordered adverse frontier]) session trades."""
         if self.outcome != 'open':
             raise ValueError('Cannot advance a closed account.')
         r = self.rules
@@ -62,8 +81,17 @@ class FundedAccount:
                 cap, dll = level_cap, level_dll
         size = min(micros, cap, max_micros)
         daily_floor = opening - dll
-        for net, adverse in trades:
+        for trade in trades:
+            net, adverse = trade[0], trade[1]
             trough = self.equity - adverse * size / 10.
+            if len(trade) > 2 and trough <= max(daily_floor, floor):
+                hit, balance = risk_hit(trade[2], self.equity, size, daily_floor, floor)
+                if hit:
+                    self.equity = balance
+                    if hit == 2:
+                        self.outcome = 'blown'
+                        return 0.
+                    break
             if daily_floor > floor and trough <= daily_floor:
                 self.equity = daily_floor
                 break
@@ -153,8 +181,15 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
                 opening = equity
                 floor = min(high - 2000., 3000.)
                 daily_floor = opening - 1000.
-                for net, adverse in days[next(sequence)]:
+                for trade in days[next(sequence)]:
+                    net, adverse = trade[0], trade[1]
                     trough = equity - adverse * size / 10.
+                    if len(trade) > 2 and trough <= max(daily_floor, floor):
+                        hit, balance = risk_hit(trade[2], equity, size, daily_floor, floor)
+                        if hit:
+                            equity = balance
+                            if hit == 2:result = 'blown'
+                            break
                     if daily_floor > floor and trough <= daily_floor:
                         equity = daily_floor
                         break

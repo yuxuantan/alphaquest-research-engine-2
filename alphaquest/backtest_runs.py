@@ -51,13 +51,14 @@ class RunStore:
     def connect(self):
         return connection(self.path)
 
-    def claim_detail(self, source_id):
+    def claim_detail(self, source_id, kind="detail"):
+        field = "risk_from_run_id" if kind == "risk" else "detailed_from_run_id"
         with self.detail_lock, self.connect() as conn:
             if not conn.execute('SELECT 1 FROM runs WHERE id=?',(source_id,)).fetchone():
                 raise ValueError('The source backtest has been deleted.')
             if source_id in self.detail_active:
                 raise ValueError("Full detail is already being generated for this report.")
-            row = conn.execute("SELECT manifest FROM runs WHERE json_extract(manifest, '$.run_metadata.detailed_from_run_id')=? ORDER BY created_at DESC LIMIT 1",
+            row = conn.execute(f"SELECT manifest FROM runs WHERE json_extract(manifest, '$.run_metadata.{field}')=? ORDER BY created_at DESC LIMIT 1",
                                (source_id,)).fetchone()
             if row:
                 return json.loads(row[0])

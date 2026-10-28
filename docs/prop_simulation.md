@@ -2,7 +2,7 @@
 
 All production account arithmetic, resampling, evaluation attempts, funded
 payouts, sizing, economics, charts and downloads are calculated by AlphaQuest.
-Model version: `alphaquest-apex50k-eod-v1`. No external executable/DLL, generated
+Model version: `alphaquest-apex50k-eod-v2-ohlc-risk`. Earlier saved v1 reports remain unchanged. No external executable/DLL, generated
 reference HTML/JSON/CSV/chart, Windows VM or vendor license participates in a new
 calculation. Saved external results are independent qualification oracles only.
 This supersedes the integration and older notebook specifications retained below.
@@ -19,8 +19,8 @@ reports are preserved and do not establish an untouched holdout.
 Every new portal/API backtest, CLI backtest and trial in a new optimization now
 checks and runs this default model automatically: **Apex 50K EOD, $49 evaluation,
 $129 activation, 20 slots**, block 5, last 30% holdout and standard simulation
-counts. Automatic inputs are native fills with the disclosed close-only MAE
-fallback; automatic runs do not discover or substitute an export from Downloads.
+counts. Automatic inputs are native fills plus captured held-OHLC equity excursion
+bounds and observed opening/cost jumps; automatic runs do not discover or substitute an export from Downloads.
 The default is strategy-independent. Ordinary report generation and model
 qualification helpers remain usable independently of the orchestration layer.
 
@@ -104,8 +104,9 @@ threshold path. Original native Decimal net values and export values both remain
 in trades.csv; the source's exact cost ledger is unchanged. No commission or
 slippage is deducted a second time. Excursions normalize by original quantity.
 
-Native-only inputs use realized losing P&L as adverse excursion, zero for winners;
-this is explicitly labelled close-only fallback, with understated path risk.
+Pre-capture native inputs use realized losing P&L as adverse excursion, zero for
+winners; this remains explicitly labeled close-only fallback. New native inputs
+use captured held-bar risk and ordered adverse extrema as described below.
 No measured excursions or trades are fabricated. Variable quantities, overlapping
 positions, empty sources and invalid source cost arithmetic reject explicitly.
 
@@ -125,9 +126,10 @@ are editable. Unsupported choices reject, without silently substituting a model.
 - Evaluation: $3,000 target, $2,000 trail based on best close, $1,000 DLL,
   21 weekday deadline, no minimum days. Intratrade adverse checks use the tighter
   DLL/account floor; a DLL hit clips the day at its floor and ends trading for
-  that day, while touching the account floor fails the account. Passes stop at
-  the trade reaching the target. Size grid is 1–20 MNQ plus the capped 25 MNQ
-  endpoint, limited further by the user's total NQ limit. Highest training pass
+  that day, while touching the account floor fails the account. Observed opening
+  and cost jumps can overshoot both floors. Passes stop at the trade reaching
+  the target. Every size from 1 through the lower of 60 MNQ and the user cap
+  is tested (1–40 by default). Highest training pass
   count wins, with grid order resolving exact ties.
 - Funded: $2,000 EOD trail, floor locks at +$100 after a close reaches +$2,100.
   Prior-close levels: 20 MNQ/$1,000 DLL below +$1,500; 30/$1,000 from +$1,500;
@@ -154,7 +156,7 @@ are editable. Unsupported choices reject, without silently substituting a model.
   days). Training funded size selection preserves the reference model's fixed
   52.5% acquisition pass assumption and five-day replacement delay: maximize
   261 * (mean lifetime payout - assumed acquisition cost) / (mean lifetime days
-  + 5), over 1–20 MNQ. These fixed selection assumptions are disclosed separately
+  + 5), over 1 through the lower of 40 MNQ and the user cap. These fixed selection assumptions are disclosed separately
   from the reported holdout handover. They are not current provider evidence.
 - Historical slots: one actual chronological account replay, scaled by number
   of slots; slots share their trades. Replacements incur expected acquisition
@@ -458,3 +460,61 @@ are documented with independent probes and original provider sources in
 [the detailed audit](reviews/prop-sizing-fed437c6-20261028.md). The previously
 qualified numerical assumptions above remain preserved as versioned historical
 behavior; no saved results were rewritten by this audit.
+
+
+## Held-bar risk and complete permitted sizing (2026-10-28)
+
+The v2 model tests every integer micro-equivalent size through the lower of the
+user exposure cap and the stage limit: funded 40 MNQ; evaluation 60 MNQ. The
+default user cap is 4 NQ, so both grids contain 1–40 MNQ. Funded orders still obey
+the 20/30/40-MNQ tier from the prior session close; selecting 40 does not start a
+fresh account at 40. Training selects the objective maximum and the selected size
+is fixed for holdout. The Sizing view saves/displays the complete range, caps,
+unit increment and whether the selected size is at the search boundary. This
+implements the [published 50K funded size tiers](https://apextraderfunding.com/help-center/additional-helpful-items/scaling-levels-pa-explained/).
+
+The shared execution engine captures risk for every new backtest and optimization
+trial, independently of the strategy. `intratrade_risk.csv` retains trade identity,
+quantity, net costs, lower/upper MAE and MFE in source account currency, fill
+phases, full bars held, session crossing, and an ordered adverse frontier. Each
+frontier entry is `[loss, observed_jump]`; only a new adverse maximum is retained.
+The manifest seals the CSV SHA-256 and coverage counts. Financial trade/equity
+CSVs and strategy decisions retain their original arithmetic. Entry commission
+and adverse entry fill appear in marked equity; actual final net includes exit
+costs once. Analysis normalizes source quantity once, with no extra cost debit.
+
+Same-close entries exclude earlier entry-bar OHLC; next-open entries include their
+entry bar. Next-open and bracket-gap exits exclude later exit-bar prices. An
+intrabar stop excludes prices beyond the stop after exit. A target exit cannot
+establish whether the adverse bar extreme preceded the target; lower/upper bounds
+retain that ambiguity. Prop analysis uses the conservative adverse upper bound.
+These are observed OHLC bounds, **not measured tick MAE/MFE**, and may classify a
+possible breach conservatively. Independently reconciled measured exports remain
+available explicitly; their earlier model contract is preserved.
+
+Evaluation, funded simulations and historical replay use the first adverse
+threshold hit. A continuous segment reaches the tighter DLL/account floor first;
+a DLL stops the day and a touched account floor closes the account. Observed
+opening gaps and actual entry/exit cost jumps liquidate at the observed equity,
+so they can overshoot the DLL and close the account. Later risk events after a
+DLL stop are ignored. OHLC cannot reveal unobserved tick gaps or liquidity: other
+intrabar threshold fills remain an idealized assumption. MFE is captured for
+inspection; it does not convert EOD trailing drawdown into intraday trailing DD.
+See [EOD drawdown enforcement](https://apextraderfunding.com/help-center/eod-trailing-drawdown-accounts/eod-drawdown-explained/).
+
+The source check rejects a missing/modified declared risk artifact, mismatched
+trade IDs/timestamps/quantities/net costs, invalid bounds/frontiers and native
+positions crossing CME session dates. The daily model cannot allocate overnight
+unrealized P&L safely and **does not substitute close-only risk** for those inputs.
+A new backtest remains available with its risk download and an incompatible prop
+status. No account outcome is fabricated. Earlier sources without capture remain
+explicitly labeled close-only fallback if analyzed without an upgrade.
+
+On a pre-capture declared IS report, **Capture intratrade risk** performs the normal
+immutable-source replay, verifies summary and trade/equity CSV hashes against the
+original, and publishes a new compact backtest plus automatic v2 prop analysis.
+Its `risk_from_run_id` links the source. Repeated requests reopen that replay.
+OOS risk replays are blocked: the user must select an IS parameter set and spend
+another explicit OOS attempt. Legacy undeclared reports remain read-only. All
+original reports/evidence stay unchanged; new prop ZIPs include the captured risk
+CSV, source reconciliation and complete size sweeps.

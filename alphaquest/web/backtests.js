@@ -294,6 +294,12 @@
     get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
     get("#report-generate-detail").hidden = !compact || record.run_metadata.research?.phase !== 'is';
     get("#report-generate-detail").disabled = detailedBusy;
+    get("#report-capture-risk").hidden = !!record.intratrade_risk || record.run_metadata.research?.phase !== 'is';
+    get("#report-capture-risk").disabled = detailedBusy;
+    get("#report-risk-download").hidden = !record.intratrade_risk;
+    get("#report-risk-download").href = `/api/backtests/${record.id}/exports/intratrade_risk`;
+    if (record.intratrade_risk) get("#report-storage-note").textContent += ` Intratrade risk: ${record.intratrade_risk.trades} trades captured from held OHLC bars; ${record.intratrade_risk.ambiguous_trades} have ambiguous adverse ordering. Uses conservative bounds, not tick measurements.`;
+    else get("#report-storage-note").textContent += " Legacy risk coverage: realized close-only fallback. Capture risk from an IS replay to include held-bar excursions.";
     get("#report-detail-status").hidden = true;
     const content = get("#backtest-completion-content");
     content.replaceChildren();
@@ -348,7 +354,9 @@
     }
   }
   window.addEventListener("report-loaded", (event) => completion(event.detail));
-  get("#report-generate-detail").onclick = async () => {
+  get("#report-generate-detail").onclick = () => replayReport(false);
+  get("#report-capture-risk").onclick = () => replayReport(true);
+  async function replayReport(risk) {
     if (detailedBusy || !reportRecord) return;
     const id = reportRecord.id, operationId = crypto.randomUUID();
     const hash = location.hash;
@@ -356,32 +364,34 @@
     const current = () => location.hash === hash;
     detailedBusy = true;
     get("#report-generate-detail").disabled = true;
+    get("#report-capture-risk").disabled = true;
     status.hidden = false;
-    status.textContent = "Replaying this parameter set to save compressed full detail…";
+    status.textContent = risk ? "Replaying IS to capture held-bar risk and run a new Apex analysis…" : "Replaying this parameter set to save compressed full detail…";
     let pollTimer, finished = false;
     const poll = async () => {
       try {
         const response = await fetch(`/api/progress/${operationId}`, {cache: "no-store"});
         if (response.ok && current() && !finished) {
           const progress = await response.json();
-          status.textContent = `Generating full detail · ${progress.stage.replaceAll("_", " ")} · ${count.format(progress.bars_processed)} / ${count.format(progress.total_bars)} bars`;
+          status.textContent = `Generating ${risk ? "intratrade risk" : "full detail"} · ${progress.stage.replaceAll("_", " ")} · ${count.format(progress.bars_processed)} / ${count.format(progress.total_bars)} bars`;
         }
       } catch { /* The run request remains active when progress is unavailable. */ }
       if (!finished) pollTimer = setTimeout(poll, 1000);
     };
     void poll();
     try {
-      const record = await readResponse(await fetch(`/api/backtests/${id}/detailed?progress_id=${operationId}`, {method: "POST"}));
+      const record = await readResponse(await fetch(`/api/backtests/${id}/${risk ? "risk" : "detailed"}?progress_id=${operationId}`, {method: "POST"}));
       if (current()) location.hash = `#backtests/report/${record.id}`;
     } catch (error) {
       if (current()) status.textContent = error instanceof TypeError
         ? "Connection lost. Check saved backtests before generating detail again; completion is unconfirmed."
-        : `Could not generate full detail: ${error.message || JSON.stringify(error.detail || error)}`;
+        : `Could not generate ${risk ? "intratrade risk" : "full detail"}: ${error.message || JSON.stringify(error.detail || error)}`;
     } finally {
       finished = true;
       clearTimeout(pollTimer);
       detailedBusy = false;
       get("#report-generate-detail").disabled = false;
+      get("#report-capture-risk").disabled = false;
     }
   };
 

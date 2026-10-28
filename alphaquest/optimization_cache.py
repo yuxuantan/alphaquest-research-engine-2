@@ -36,6 +36,8 @@ def trial_key(job, values):
 
 def artifacts(root, record):
     names = {"trades.csv", "equity.csv", record["artifacts"]["report"]}
+    if record.get("intratrade_risk"):
+        names.add("intratrade_risk.csv")
     result = {}
     for name in sorted(names):
         with (root / record["id"] / name).open("rb") as stream:

@@ -50,7 +50,7 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None):
+                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False):
     timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
@@ -64,7 +64,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
     if source_run_id:
-        metadata["detailed_from_run_id"] = source_run_id
+        metadata["risk_from_run_id" if risk_replay else "detailed_from_run_id"] = source_run_id
     if research:
         metadata["research"] = research
     if automatic_prop:
@@ -94,17 +94,17 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                     last_update=monotonic()
 
         stage("replaying")
-        events = timings.iterate(execute(counted_bars(), strategy, config), 'replay')
+        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
                                        execution_assumption=definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
-                                       detail=report_detail, compress=compress_report)
+                                       detail=report_detail, compress=compress_report, capture_risk=True)
     return manifest, processed, total
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False):
     from . import backtest_cache
     reuse_key=None
     if not source_record:
@@ -120,7 +120,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
     with TemporaryDirectory(prefix=".pending-", dir=runs.root) as temporary:
         timings = Performance()
         output = Path(temporary) / run_id
-        automatic = source_record["run_metadata"].get("automatic_prop_analysis") if source_record else descriptor() if prop_analyses else None
+        automatic = source_record["run_metadata"].get("automatic_prop_analysis") if source_record and not risk_replay else descriptor() if prop_analyses else None
         prepared,features=None,{}
         if reuse_prepared:
             from .prepared_data import prepare_data
@@ -134,7 +134,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings, report_detail='full' if source_record else report_detail,prepared=prepared,feature_paths=features,research=research)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -143,7 +143,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
                     if hashlib.file_digest(original, "sha256").digest() != hashlib.file_digest(replay, "sha256").digest():
                         raise ReportError("Detailed replay trades/equity differ from the saved report. No detailed report was published.")
         prop_result = None
-        if not source_record and prop_analyses:
+        if (not source_record or risk_replay) and prop_analyses:
             with timings.span('prop_analysis'):
                 prop_result = compute_default(Path(temporary), run_id, manifest, Path(temporary)/"prop", automatic,
                                               lambda message: progress("prop_simulation: " + message, processed, total), runtime=prop_analyses.runtime,calculation_cache=prop_analyses.calculation_snapshot() if reuse_calculations else None)
@@ -198,7 +198,7 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None):
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -214,7 +214,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay)
         if record['id']!=run_id:
             if operation_id:
                 count=record['run_metadata']['selection']['row_count']
@@ -251,7 +251,30 @@ async def detailed(run_id: UUID, request: Request, progress_id: UUID | None = No
         runs.release_detail(record["id"])
 
 
-async def generate_detail(request, record, progress_id):
+@router.post('/api/backtests/{run_id}/risk', status_code=201)
+async def capture_risk(run_id: UUID, request: Request, progress_id: UUID | None = None):
+    """Verified compact IS replay; preserves the source and its saved analysis."""
+    runs = request.app.state.runs
+    record = await run_in_threadpool(runs.get, run_id.hex)
+    if record is None:
+        raise HTTPException(404, 'Completed backtest not found.')
+    if record.get('run_metadata', {}).get('research', {}).get('phase') != 'is':
+        raise HTTPException(409, 'Risk capture replay requires declared IS. OOS needs a new explicit budgeted OOS run; legacy reports remain read-only.')
+    if record.get('intratrade_risk'):
+        return record
+    try:
+        cached = await run_in_threadpool(runs.claim_detail, record['id'], 'risk')
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    if cached:
+        return cached
+    try:
+        return await generate_detail(request, record, progress_id, risk_replay=True)
+    finally:
+        runs.release_detail(record['id'])
+
+
+async def generate_detail(request, record, progress_id, *, risk_replay=False):
     metadata = record["run_metadata"]
     dataset = await run_in_threadpool(request.app.state.store.get, metadata["dataset"]["id"])
     if dataset is None:
@@ -269,7 +292,7 @@ async def generate_detail(request, record, progress_id):
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from None
     return await execute_backtest(request, dataset, definition, parameters, config, dates, progress_id,
-                                   compress_report=True, source_record=record,research=metadata['research'])
+                                   compress_report=True, source_record=record,research=metadata['research'],risk_replay=risk_replay)
 
 
 @router.get("/api/backtests")
@@ -347,10 +370,10 @@ def performance(run_id: UUID, request: Request):
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance") or record is None:
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
     name = record["artifacts"]["report"] if kind == "report" else 'performance.json' if kind == 'performance' else f"{kind}.csv"
-    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv", "performance.json"):
+    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv", "performance.json", "intratrade_risk.csv"):
         raise HTTPException(404, "Unknown report artifact.")
     path = runs.root / run_id.hex / name
     if not path.is_file():

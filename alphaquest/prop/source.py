@@ -1,9 +1,9 @@
-"""Reconcile a prop analysis trade export with an existing immutable native backtest.
+"""Reconcile immutable native costs and held-bar risk or a measured trade export.
 
-The extra export supplies measured excursions absent from native trade storage.
-It never replaces native P&L or changes the source backtest.
+Excursions never replace native P&L or change the source backtest.
 """
 import csv
+import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -111,10 +111,18 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
                   excursion_provenance='Native trades contain no measured excursions. The matched export supplies measured MAE/MFE; the portal inserts no synthetic excursions.',
                   reconciliation=dict(source_totals={k:str(v) for k,v in totals.items()},source_count=len(native),exact_source_arithmetic=True),
                   filtering='The portal passes all matched entry rows unchanged; AlphaQuest groups Chicago entry timestamps into CME session days, retaining zero-trade weekdays.')
+    risk = native_risk(runs, source_id, record, native)
     if not trade_file:
         snapshot['excursion_provenance']='No measured excursions. The local close-only fallback uses realized loss on losing trades and zero on winners; risk may be understated.'
         snapshot['excursion_input']=dict(path=None,filename=None,sha256=None,export_timezone=export_timezone,matched_trades=len(native),measured_mae_count=0,measured_mfe_count=0,cost_contract='Saved net P&L includes source costs; no duplicate trading-cost deduction.')
-        return snapshot,[dict(trade_id=int(n['trade_number']),entry_utc=n['entry_time_utc'],exit_utc=n['exit_time_utc'],source_net_pnl=n['net_pnl'],export_net_pnl=None,quantity=n['contracts'],measured_mae=None,measured_mfe=None) for n in native]
+        comparisons = [dict(trade_id=int(n['trade_number']),entry_utc=n['entry_time_utc'],exit_utc=n['exit_time_utc'],source_net_pnl=n['net_pnl'],export_net_pnl=None,quantity=n['contracts'],measured_mae=None,measured_mfe=None) for n in native]
+        if risk is not None:
+            snapshot['native_risk'] = record['intratrade_risk']
+            snapshot['excursion_provenance'] = 'Held OHLC account-equity excursion bounds, including entry costs and realized exit costs once. Uses the conservative MAE upper bound; target-exit ordering may be ambiguous. These are bar observations, not measured tick MAE/MFE. Observed opening gaps and actual exit-cost jumps can overshoot a DLL and breach the account floor. Other intrabar DLL fills assume the threshold price; unobserved tick gaps and liquidity are not modeled.'
+            snapshot['excursion_input'].update(native_risk_sha256=record['intratrade_risk']['sha256'], native_ohlc_count=len(risk), ambiguous_mae_count=record['intratrade_risk']['ambiguous_trades'], risk_policy='conservative_held_ohlc_upper')
+            for row, r in zip(comparisons, risk):
+                row.update(ohlc_mae_lower=r['mae_lower'], ohlc_mae_upper=r['mae_upper'], ohlc_mfe_lower=r['mfe_lower'], ohlc_mfe_upper=r['mfe_upper'], risk_cross_session=r['cross_session']=='True', ohlc_adverse_path=r['adverse_path'])
+        return snapshot, comparisons
     path = Path(trade_file).expanduser().resolve()
     before = digest(path)
     try:
@@ -163,3 +171,54 @@ def matching_exports(runs, source_id):
         except (ValueError, KeyError, OSError, zipfile.BadZipFile, ET.ParseError):
             continue
     return matches
+
+
+def native_risk(runs, source_id, record, native):
+    try:
+        return _native_risk(runs, source_id, record, native)
+    except (InvalidOperation, TypeError, KeyError, IndexError) as exc:
+        raise ValueError('Malformed native intratrade risk artifact or manifest.') from exc
+
+
+def _native_risk(runs, source_id, record, native):
+    """Fail closed for a declared artifact; legacy sources stay explicitly legacy."""
+    description = record.get('intratrade_risk')
+    if description is None:
+        return None
+    from ..intratrade import VERSION
+    if description.get('version') != VERSION or record.get('artifacts', {}).get('intratrade_risk_csv') != 'intratrade_risk.csv':
+        raise ValueError('Unsupported native intratrade risk capture.')
+    path = runs.root / source_id / 'intratrade_risk.csv'
+    if not path.is_file() or digest(path) != description.get('sha256'):
+        raise ValueError('Native intratrade risk artifact is missing or its SHA-256 differs.')
+    with path.open(newline='') as stream:
+        risk = list(csv.DictReader(stream))
+    if len(risk) != len(native) or description['trades'] != len(native):
+        raise ValueError('Native risk coverage differs from the source trade count.')
+    ambiguous = crossed = 0
+    for n, r in zip(native, risk):
+        if any(r[k] != n[k] for k in ('trade_number', 'side', 'entry_time_utc', 'exit_time_utc', 'contracts', 'net_pnl')):
+            raise ValueError('Native risk identity, quantity or net costs differ from source trades.')
+        values = [Decimal(r[k]) for k in ('mae_lower', 'mae_upper', 'mfe_lower', 'mfe_upper')]
+        if any(not v.is_finite() or v < 0 for v in values) or values[0] > values[1] or values[2] > values[3]:
+            raise ValueError('Invalid native excursion bounds.')
+        if values[1] < max(Decimal(0), Decimal(n['net_pnl']).copy_negate()) or values[3] < max(Decimal(0), Decimal(n['net_pnl'])):
+            raise ValueError('Native excursion bounds omit the realized trade outcome.')
+        frontier = json.loads(r['adverse_path'])
+        previous = Decimal(0)
+        if not isinstance(frontier, list):raise ValueError('Invalid adverse path.')
+        for item in frontier:
+            if not isinstance(item,list) or len(item)!=2 or type(item[1]) is not bool:raise ValueError('Invalid adverse path event.')
+            loss = Decimal(item[0])
+            if not loss.is_finite() or loss <= previous:raise ValueError('Adverse path is not a finite increasing frontier.')
+            previous = loss
+        if previous != values[1]:raise ValueError('Adverse path does not reconcile to its MAE upper bound.')
+        if r['cross_session'] not in ('True', 'False') or r['entry_phase'] not in ('open', 'close') or r['exit_phase'] not in ('open', 'close', 'stop', 'target') or int(r['full_bars']) < 0:
+            raise ValueError('Invalid native risk holding interval.')
+        ambiguous += values[0] != values[1]
+        crossed += r['cross_session'] == 'True'
+    if ambiguous != description['ambiguous_trades'] or crossed != description['cross_session_trades']:
+        raise ValueError('Native risk coverage counters differ from its saved manifest.')
+    if digest(path) != description['sha256']:
+        raise ValueError('Native risk artifact changed during checking.')
+    return risk
