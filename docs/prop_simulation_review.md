@@ -1757,3 +1757,34 @@ Run checks from the intended checkout with
 shut down through their normal cleanup. The source patch/ZIP and SHA-256 inventory
 in this increment's evidence directory identify the exact final implementation;
 financial fixture oracles and saved user results remain unchanged.
+
+### Local activation and final product verification
+
+The original checkout now uses `feat/strategy-dataset-navigation`. Implementation
+commits are `4ab04f4` (selected prop report deletion) and
+`ca99e99a3a48799c5829311dce6939cfea593939` (strategy/dataset navigation).
+Nothing was pushed. After checking that no optimization, prop or OOS job was
+active, the previous portal was restarted with the original data directory.
+The persistent server is PID **13477**, listening at `http://127.0.0.1:8000`
+without autoreload; stop it with `kill 13477`. The PID, restart record and server
+log are `portal-server.pid`, `restart.json` and `portal-server.log` in the evidence
+directory. The temporary port-8001 verification server has stopped.
+
+To reproduce in the active portal, open `http://127.0.0.1:8000/#strategies`, select
+VWAP Pullback Risk Sizing, and select NQ with full dates **2017-05-21 through
+2026-07-07**. In the parameter table, open run
+`404e70186bde41df90f2c4a4912a8013`; its paired IS/OOS net P&L must be **211.42 CU**
+and **62,316.18 CU**. Back to Strategies returns to this dataset table. For a
+non-destructive deletion check, open Delete on that backtest, verify the exact
+report ID, and cancel. Open prop report `e4d3b403f6e04a57a3ee994257b8c68e` through
+its saved-analysis link and cancel its Delete confirmation as well. Confirmed
+deletions and their rejection boundaries are demonstrated by the preserved
+synthetic product fixtures rather than by removing actual user results.
+
+Final verification on port 8000 passed: full source dates, exact paired metrics,
+equal numeric spellings not highlighted, return navigation, both deletion
+controls and preservation of every checked original record, file and budget.
+There were no mutating requests or browser errors. Inspect `live-verification.json`,
+`final-run-table.json`, `live-strategy-datasets.png`, `live-is-oos-table.png` and
+`verify-live.py.txt` under `artifacts/strategy-browser-20261028/`. The active
+production/static source hashes match `implementation-source-sha256.json`.
