@@ -5,6 +5,7 @@ from pydantic import BaseModel,ConfigDict,Field,StrictBool,StrictInt,StrictStr
 from .backtest_config import RunSettings
 from .worker_limits import DEFAULT_WORKERS,MAX_WORKERS
 from .research import SplitDeclaration
+from .market_benchmark import BenchmarkSettings
 
 
 class ExecutionSettings(BaseModel):
@@ -41,5 +42,6 @@ class OptimizationRequest(BaseModel):
     prepare_data: StrictBool = True
     execution_settings: ExecutionSettings
     sample_split: SplitDeclaration
+    market_benchmark: BenchmarkSettings = Field(default_factory=BenchmarkSettings)
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None

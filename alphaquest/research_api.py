@@ -9,6 +9,7 @@ from .backtest_requests import ExecutionSettings
 from .research import SplitDeclaration,ResearchConflict,dates_for,metadata
 from .strategies.registry import get_strategy
 from .datasets import COLUMNS
+from .market_benchmark import VERSION as BENCHMARK_VERSION
 
 router=APIRouter()
 
@@ -82,6 +83,8 @@ async def run_oos(run_id:UUID,body:OOSRequest,request:Request,progress_id:UUID|N
             raise ValueError('Strategy source changed. OOS requires the original selected strategy implementation.')
         parameters=definition.parameters(saved['strategy']['parameters'])
         config=ExecutionSettings.model_validate(record['execution_settings']).execution_config(dataset)
+        if record.get('market_benchmark',{}).get('version',BENCHMARK_VERSION)!=BENCHMARK_VERSION:
+            raise ValueError('The saved benchmark model version changed. Run a new IS backtest to freeze the current benchmark before OOS.')
         attempt,fresh=await run_in_threadpool(request.app.state.research.reserve,plan,record['id'],str(body.request_id))
     except ResearchConflict as exc:raise HTTPException(409,str(exc)) from None
     except ValueError as exc:raise HTTPException(422,str(exc)) from None
@@ -91,6 +94,7 @@ async def run_oos(run_id:UUID,body:OOSRequest,request:Request,progress_id:UUID|N
         return JSONResponse(dict(attempt=attempt,**request.app.state.research.status(dataset,plan['strategy_id'])),status_code=202 if attempt['status']=='running' else 409)
     try:
         result=await execute_backtest(request,dataset,definition,parameters,config,dates_for(plan,'oos'),progress_id,
+                                      market_benchmark=record.get('market_benchmark',{}).get('settings',{'contracts':1}),
                                       reuse_results=False,reuse_calculations=False,
                                       research=metadata(plan,'oos',parent_run_id=record['id'],attempt_id=attempt['id'],attempt_number=attempt['number']),
                                       run_id_override=attempt['run_id'])

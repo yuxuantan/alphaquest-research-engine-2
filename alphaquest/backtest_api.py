@@ -27,6 +27,7 @@ from .strategies.registry import get_strategy, list_strategies
 from .strategy_features import create_strategy
 from .prop.automatic import descriptor, compute_default, publish_backtest
 from .performance import Performance, save_performance
+from .market_benchmark import VERSION as BENCHMARK_VERSION, BenchmarkSettings, MarketBenchmark, load_comparison, comparison_preview, file_hash
 
 
 from .backtest_requests import ExecutionSettings,OptimizationRequest
@@ -40,6 +41,7 @@ class BacktestRequest(BaseModel):
     strategy_parameters: dict[str, Any]
     execution_settings: ExecutionSettings
     sample_split: SplitDeclaration
+    market_benchmark: BenchmarkSettings = Field(default_factory=BenchmarkSettings)
     from_date: StrictStr | None = None
     to_date: StrictStr | None = None
     report_detail: Literal['compact','full'] = 'compact'
@@ -50,7 +52,7 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False):
+                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False, market_benchmark=None):
     timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
@@ -78,6 +80,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["selection"] = selected.metadata
         if hasattr(strategy, "session_flattening"):
             metadata["strategy"]["session_flattening"] = strategy.session_flattening
+        comparison = MarketBenchmark(config, market_benchmark, metadata, total, source_backtest_id=Path(output).name)
         # The source iterator advances here only after the engine's current
         # callback/fill. Final-bar count is visible before report publication.
         def counted_bars():
@@ -95,21 +98,24 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                     last_update=monotonic()
 
         stage("replaying")
-        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True), 'replay')
+        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True, observe_bar=comparison.set_bar), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
                                        execution_assumption=definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
-                                       detail=report_detail, compress=compress_report, capture_risk=True)
+                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison)
     return manifest, processed, total
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None):
     from . import backtest_cache
+    market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
+    if source_record:
+        market_benchmark = source_record.get('market_benchmark', {}).get('settings', market_benchmark)
     reuse_key=None
     if not source_record:
-        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research)
+        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research,market_benchmark)
         if reuse_results:
             reused=backtest_cache.lookup(runs,prop_analyses,reuse_key)
             if reused:
@@ -135,7 +141,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -195,11 +201,11 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
         raise HTTPException(409, str(exc)) from None
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations,research=research_metadata(plan))
+    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations,research=research_metadata(plan),market_benchmark=body.market_benchmark.model_dump())
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False):
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -215,7 +221,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark)
         if record['id']!=run_id:
             if operation_id:
                 count=record['run_metadata']['selection']['row_count']
@@ -286,6 +292,8 @@ async def generate_detail(request, record, progress_id, *, risk_replay=False):
         definition = get_strategy(metadata["strategy"]["id"])
         if definition.description()["source_sha256"] != metadata["strategy"]["source_sha256"]:
             raise ValueError("Strategy source has changed; detailed replay requires the original strategy.")
+        if record.get('market_benchmark', {}).get('version', BENCHMARK_VERSION) != BENCHMARK_VERSION:
+            raise ValueError('The saved benchmark model version is no longer supported for replay. Run a new IS backtest; the saved comparison remains readable.')
         parameters = definition.parameters(metadata["strategy"]["parameters"])
         config = ExecutionSettings.model_validate(record["execution_settings"]).execution_config(dataset)
         selection = metadata["selection"]
@@ -367,17 +375,39 @@ def performance(run_id: UUID, request: Request):
     return json.loads(path.read_text())
 
 
+@router.get('/api/backtests/{run_id}/market-benchmark')
+def market_comparison(run_id: UUID, request: Request, max_points: int = Query(1000, ge=16, le=2000)):
+    runs = request.app.state.runs
+    record = runs.get(run_id.hex)
+    if record is None:
+        raise HTTPException(404, 'Completed backtest not found.')
+    descriptor = record.get('market_benchmark')
+    if descriptor is None:
+        return dict(unavailable='This saved report predates market comparisons. Its results are preserved. Run a new IS backtest to capture a comparison; OOS execution remains a manual action.')
+    try:
+        folder = runs.root / run_id.hex
+        return dict(**load_comparison(folder, descriptor), chart=comparison_preview(folder, descriptor, max_points))
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(500, 'Saved market comparison could not be verified. No comparison was recalculated.') from exc
+
+
 @router.get("/api/backtests/{run_id}/exports/{kind}")
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk") or record is None:
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
-    name = record["artifacts"]["report"] if kind == "report" else 'performance.json' if kind == 'performance' else f"{kind}.csv"
-    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv", "performance.json", "intratrade_risk.csv"):
+    name = record["artifacts"]["report"] if kind == "report" else f'{kind}.json' if kind in ('performance', 'market_benchmark') else f"{kind}.csv"
+    if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv", "performance.json", "intratrade_risk.csv", "market_benchmark.json", "market_equity.csv"):
         raise HTTPException(404, "Unknown report artifact.")
     path = runs.root / run_id.hex / name
     if not path.is_file():
         raise HTTPException(404, "Saved CSV not found.")
+    if kind in ('market_benchmark', 'market_equity'):
+        descriptor = record.get('market_benchmark')
+        if not descriptor:
+            raise HTTPException(404, 'This report has no saved market comparison.')
+        if file_hash(path) != descriptor['sha256' if kind == 'market_benchmark' else 'equity_sha256']:
+            raise HTTPException(500, 'Saved market comparison integrity check failed.')
     media_type = "application/gzip" if name.endswith(".gz") else "application/json" if name.endswith('.json') else "text/csv"
     return FileResponse(path, media_type=media_type, filename=f"{run_id.hex}-{name}")

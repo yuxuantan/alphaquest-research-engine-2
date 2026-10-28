@@ -15,6 +15,7 @@
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
     <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/market-benchmark.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
   <body>
@@ -401,7 +402,12 @@
                       <input id="backtest-commission" name="commission_per_contract_per_side" type="text" inputmode="decimal" value="0" required data-decimal="nonnegative" />
                       <span class="field-help">Charged on entry and exit, in account currency.</span>
                     </label>
+                    <label>Holding benchmark contracts
+                      <input id="backtest-benchmark-contracts" type="number" min="1" max="9007199254740991" step="1" value="1" required data-integer />
+                      <span class="field-help">Fixed long quantity for the market comparison. Match fixed strategy size here; variable risk sizing is not risk matched. Saved with IS and reused unchanged for OOS.</span>
+                    </label>
                   </fieldset>
+                  <p class="field-help">Holding uses the first selected Open through the final Close with the same account capital and fill costs. Price-series comparison only: contract rolls, dividends, cash interest and margin liquidation are not modelled.</p>
                 </section>
               </div>
               <aside class="panel backtest-assumptions" aria-labelledby="backtest-assumptions-heading">
@@ -467,6 +473,26 @@
               <a id="report-oos-result" class="button secondary" hidden>Open saved OOS report →</a>
             </section>
             <div id="report-summary" class="report-summary"></div>
+            <section id="report-market-benchmark" class="panel report-panel" aria-labelledby="market-benchmark-title">
+              <div class="panel-heading"><div><h2 id="market-benchmark-title">Market benchmark</h2><p id="market-benchmark-context" class="small muted"></p></div></div>
+              <div class="chart-content">
+                <p id="market-benchmark-status" role="status">Loading saved comparison…</p>
+                <div id="market-benchmark-results" hidden>
+                  <p id="market-benchmark-checks" class="small"></p>
+                  <p id="market-benchmark-warning" class="small"></p>
+                  <div class="report-table-scroll"><table class="library-table"><thead><tr><th>Metric</th><th>Strategy</th><th>Long holding</th></tr></thead><tbody id="market-benchmark-metrics"></tbody></table></div>
+                  <p id="market-benchmark-excess"></p>
+                  <label>Comparison chart<select id="market-benchmark-view"><option value="equity">Mark-to-market equity</option><option value="excess">Cumulative excess net P&amp;L</option></select></label>
+                  <p id="market-benchmark-legend" class="small">Strategy (blue) · Long holding (orange, dashed)</p>
+                  <svg id="market-benchmark-chart" viewBox="0 0 1000 300" role="img" aria-label="Market comparison equity in account currency" tabindex="0"></svg>
+                  <p id="market-benchmark-readout" class="small chart-readout" aria-live="polite"></p>
+                  <p id="market-benchmark-chart-note" class="small muted"></p>
+                  <details><summary>Monthly and yearly comparison</summary><label>Period grouping<select id="market-benchmark-period"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label><div class="report-table-scroll"><table class="library-table"><thead><tr><th>Period</th><th>Strategy net · CU</th><th>Holding net · CU</th><th>Excess net · CU</th></tr></thead><tbody id="market-benchmark-periods"></tbody></table></div></details>
+                  <details><summary>Source checks, fills and assumptions</summary><ul id="market-benchmark-assumptions"></ul><pre id="market-benchmark-source"></pre></details>
+                  <p class="report-downloads"><a id="market-benchmark-json" class="button secondary">Comparison JSON ↓</a><a id="market-benchmark-csv" class="button secondary">Aligned equity CSV ↓</a></p>
+                </div>
+              </div>
+            </section>
             <section class="panel report-panel" aria-labelledby="equity-chart-title">
               <div class="panel-heading"><div><h2 id="equity-chart-title">Trade-close equity · CU</h2></div></div>
               <div class="chart-content"><p class="small muted">CU = account currency (unspecified). Initial equity and equity after each completed trade, including commissions and slippage. Open-position gains and losses are excluded.</p>

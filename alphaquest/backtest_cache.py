@@ -7,10 +7,10 @@ from .optimization_cache import digest,engine_identity,artifacts
 from .prop.automatic import profile
 
 
-def key(dataset,definition,parameters,config,dates,detail,compress,with_prop,research=None):
+def key(dataset,definition,parameters,config,dates,detail,compress,with_prop,research=None,market_benchmark=None):
     return digest(dict(engine=engine_identity(),dataset=dataset,strategy=definition.provenance(parameters),
                        execution=asdict(config),dates=dates,detail=detail,compress=compress,
-                       prop=profile() if with_prop else None,research=research))
+                       prop=profile() if with_prop else None,research=research,market_benchmark=market_benchmark))
 
 
 def lookup(runs,analyses,key):

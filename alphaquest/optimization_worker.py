@@ -28,6 +28,7 @@ class TrialContext:
     default_prop: bool = True
     calculation_cache: dict | None = None
     research: dict | None = None
+    market_benchmark: dict | None = None
 
 
 class FrozenSource:
@@ -61,7 +62,7 @@ def compute_trial(context, trial, values, run_id, progress):
         FrozenSource(context.dataset, context.snapshot), context.output_root / run_id,
         context.dataset, definition, definition.parameters(values), context.config,
         context.date_range, progress, report_detail="compact", prepared=context.prepared,
-        feature_paths=context.feature_paths, automatic_prop=automatic, timings=timings,research=context.research)
+        feature_paths=context.feature_paths, automatic_prop=automatic, timings=timings,research=context.research,market_benchmark=context.market_benchmark)
     with timings.span('prop_analysis'):
         prop_result = compute_default(context.output_root, run_id, manifest, context.output_root / ("prop-" + automatic["id"]), automatic,
                                       lambda message: progress("prop_simulation: " + message, processed, total),calculation_cache=context.calculation_cache) if automatic else None

@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "explanation": "Independent arithmetic: holding buys first Open plus .25 and sells last Close minus .25; point value 20; commission 1 per side. Strategy buys first Close plus .25 and exits two minutes later. No dividends, interest or rolls.",
+  "settings": {"initial_capital": "10000", "tick_size": "0.25", "point_value": "20", "slippage_ticks": 1, "commission_per_contract_per_side": "1"},
+  "is": {"holding_net_pnl": "188", "strategy_net_pnl": "168", "excess_net_pnl": "-20", "holding_max_drawdown": "220", "strategy_max_drawdown": "226", "trade_close_drawdown": "0", "holding_equity": ["10000", "10014", "9794", "10194", "10188"], "strategy_equity": ["10000", "9994", "9774", "10168", "10168"]},
+  "oos": {"holding_net_pnl": "388", "strategy_net_pnl": "368", "excess_net_pnl": "-20"}
+}
