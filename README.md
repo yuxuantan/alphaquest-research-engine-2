@@ -2,6 +2,13 @@
 
 A small local research portal with CSV dataset management, a streaming backtest dataset reader, a strategy-agnostic execution engine, a consecutive-green-bars sample strategy, and JSON/CSV backtest reports. The Backtests screen configures runs and opens completed reports with exact metrics, a bounded trade-close equity chart, paginated trades, saved settings, and CSV downloads.
 
+New reports also include a **Market benchmark**: fixed long holding versus the
+strategy, aligned mark-to-market equity/drawdowns, monthly/yearly results and
+durable JSON/CSV downloads. Choose holding contracts before IS; manual OOS
+inherits that quantity. These are explicitly price-series comparisons; executable
+futures roll performance remains unverified. See [the guide and reproducible
+synthetic example](docs/market_benchmark.md).
+
 **Optimizations** runs exhaustive parameter combinations through the same engine.
 Set start, end and an editable step for every strategy parameter; the read-only
 step counts and total backtests update automatically. Inspect saved

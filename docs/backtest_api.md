@@ -1,5 +1,11 @@
 # Backtest API review
 
+New runs support a saved fixed-long [market benchmark](market_benchmark.md),
+including aligned equity, drawdown and verified downloads. Supply
+`market_benchmark: {"contracts": 1}` in single/exhaustive requests (default 1).
+`GET /api/backtests/{id}/market-benchmark` reads saved results; exports use
+`/exports/market_benchmark` (JSON) and `/exports/market_equity` (CSV).
+
 All new executions now require a declared IS/OOS split. Read the
 [current research workflow and request examples](research_workflow.md) first.
 The earlier qualification snapshots and date-selection examples below document

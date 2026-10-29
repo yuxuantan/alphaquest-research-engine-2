@@ -318,4 +318,4 @@ def test_cli_writes_real_report_with_selected_strategy_parameters(tmp_path):
     assert report["run_metadata"]["strategy"]["id"] == "vwap_pullback_risk_sizing"
     assert D(report["summary"]["total_net_pnl"]) == 293
     assert report["trades"][0]["exit_reason"] == "take_profit"
-    assert {p.name for p in output.iterdir()} == {"report.json", "trades.csv", "equity.csv", "intratrade_risk.csv", 'performance.json'}
+    assert {p.name for p in output.iterdir()} == {"report.json", "trades.csv", "equity.csv", "intratrade_risk.csv", 'performance.json', 'market_benchmark.json', 'market_equity.csv'}

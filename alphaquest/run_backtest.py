@@ -27,12 +27,14 @@ def _decimal_argument(value: str) -> Decimal:
 
 def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Path,
                       parameters, settings: RunSettings, *, strategy_id=sample.STRATEGY_ID,
-                      from_date=None, to_date=None, report_detail='compact',reuse_results=True,reuse_prepared=True,reuse_calculations=True,sample_split=None) -> dict:
+                      from_date=None, to_date=None, report_detail='compact',reuse_results=True,reuse_prepared=True,reuse_calculations=True,sample_split=None,market_benchmark=None) -> dict:
     """Use the normal backtest/prop catalogue; expose one output shortcut."""
     dataset = store.get(dataset_id)
     if dataset is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
     config = settings.execution_config(dataset)
+    from .market_benchmark import BenchmarkSettings
+    market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
     definition = get_strategy(strategy_id)
     from .research import ResearchStore,SplitDeclaration,dates_for,metadata
     if from_date is not None or to_date is not None:
@@ -55,7 +57,7 @@ def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Pa
         # second result store. A failed run removes only its own shortcut.
         output.symlink_to(destination,target_is_directory=True)
         record=run_backtest(store,runs,run_id,dataset,definition,parameters,config,date_range,lambda *args:None,
-                            prop_analyses=analyses, report_detail=report_detail,reuse_results=reuse_results,reuse_prepared=reuse_prepared,reuse_calculations=reuse_calculations,research=metadata(plan))
+                            prop_analyses=analyses, report_detail=report_detail,reuse_results=reuse_results,reuse_prepared=reuse_prepared,reuse_calculations=reuse_calculations,research=metadata(plan),market_benchmark=market_benchmark)
         if record['id']!=run_id:
             output.unlink();output.symlink_to(runs.root/record['id'],target_is_directory=True)
         return record
@@ -81,6 +83,7 @@ def main():
     parser.add_argument("--green-bar-count", type=int, default=3)
     parser.add_argument("--hold-minutes", type=int, default=20)
     parser.add_argument("--contracts", type=int, default=1)
+    parser.add_argument('--benchmark-contracts', type=int, default=1, help='Fixed long holding comparison quantity, frozen before replay (default 1).')
     parser.add_argument("--strategy-id", choices=STRATEGIES, default=sample.STRATEGY_ID)
     parser.add_argument("--strategy-parameters", help="JSON object with all strategy parameters; decimals as strings")
     for name in ("initial-capital", "commission-per-contract-per-side"):
@@ -107,7 +110,7 @@ def main():
         if args.is_percent is not None and any((args.is_start,args.is_end,args.oos_start,args.oos_end)):
             raise ValueError('Choose --is-percent or all four explicit dates, not both.')
         manifest = run_saved_dataset(DatasetStore(args.database), args.dataset_id, args.output, parameters, settings,
-                                     strategy_id=args.strategy_id, from_date=args.from_date, to_date=args.to_date, report_detail=args.report_detail,reuse_results=not args.fresh,reuse_prepared=not args.fresh,reuse_calculations=not args.fresh,sample_split=split)
+                                     strategy_id=args.strategy_id, from_date=args.from_date, to_date=args.to_date, report_detail=args.report_detail,reuse_results=not args.fresh,reuse_prepared=not args.fresh,reuse_calculations=not args.fresh,sample_split=split,market_benchmark={'contracts':args.benchmark_contracts})
     except (ValueError, OSError, InvalidOperation, InvalidDataset) as exc:
         parser.error(str(exc))
     print(json.dumps({"output_directory": str(args.output), "summary": manifest["summary"],

@@ -67,6 +67,7 @@ def generate_report(
     on_saving: Callable[[], None] | None = None,
     execution_assumption: str = "same_close_full_fill",
     detail: str = "full", compress: bool = False, capture_risk: bool = False,
+    market_benchmark=None,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -107,6 +108,8 @@ def generate_report(
         open_array = (lambda path, mode: gzip.open(path, mode + "t", encoding="utf-8", compresslevel=6)) if compress else (
             lambda path, mode: path.open(mode, encoding="utf-8"))
         with ExitStack() as stack:
+            if market_benchmark is not None:
+                market_benchmark.start(staging, stack)
             if detail == "full":
                 trade_array = stack.enter_context(open_array(trades_path, "w"))
                 equity_array = stack.enter_context(open_array(equity_path, "w"))
@@ -211,6 +214,8 @@ def generate_report(
                         json.dump(record, equity_array, default=json_value, allow_nan=False)
                     if drawdown is None and event.bar_number == 1:
                         drawdown = Drawdown(initial.equity, event.timestamp_utc)
+                    if market_benchmark is not None:
+                        market_benchmark.observe(event)
                     last = event
             if detail == "full":
                 trade_array.write("]")
@@ -261,6 +266,9 @@ def generate_report(
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+        if market_benchmark is not None:
+            manifest["market_benchmark"] = market_benchmark.finish(staging, summary)
+            manifest["artifacts"].update(market_benchmark_json="market_benchmark.json", market_equity_csv="market_equity.csv")
         if detail == "compact" or compress:
             manifest["report_storage"] = {"detail": detail, "compression": "gzip" if compress else "none",
                                           "per_bar_equity_retained": detail == "full",

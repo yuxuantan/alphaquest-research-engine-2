@@ -70,7 +70,13 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
         assert (root / baseline["id"] / name).read_bytes() == (folder / name).read_bytes()
     sizes = lambda path: {p.name: p.stat().st_size for p in path.iterdir()}
     compact_sizes, baseline_sizes = sizes(folder), sizes(root / baseline["id"])
-    assert sum(compact_sizes.values()) < sum(baseline_sizes.values()) / 50
+    # The new comparison deliberately retains every bar in a separate aligned
+    # CSV for both report modes. Preserve the original native-report compaction
+    # gate, and account for this additional feature's storage explicitly.
+    comparison_names = {'market_benchmark.json', 'market_equity.csv'}
+    native_size = lambda values: sum(size for name, size in values.items() if name not in comparison_names)
+    assert native_size(compact_sizes) < native_size(baseline_sizes) / 50
+    assert (folder / 'market_equity.csv').read_bytes() == (root / baseline['id'] / 'market_equity.csv').read_bytes()
     page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
     playwright.expect(page.locator("#report-storage-note")).to_contain_text("Compact report")
     playwright.expect(page.locator("#equity-chart")).to_be_visible()
@@ -137,6 +143,8 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
         "compact_file_bytes": compact_sizes, "baseline_file_bytes": baseline_sizes,
         "detailed_file_bytes": sizes(root / detailed_id),
         "compact_reduction_percent": 100 * (1 - sum(compact_sizes.values()) / sum(baseline_sizes.values())),
+        "native_compact_reduction_percent": 100 * (1 - native_size(compact_sizes) / native_size(baseline_sizes)),
+        "additional_comparison_bytes": {name: compact_sizes[name] for name in comparison_names},
         "compact_report_sha256_unchanged": before, "prop_url": prop_url,
         "expected_prop_source_net_pnl": "26.00", "expected_measured_mae_count": 0,
         "expected_validation_pass_rate": 0, "funded_results_expected_unavailable": True,

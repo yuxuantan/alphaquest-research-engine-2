@@ -145,6 +145,7 @@ def test_exact_submitted_configuration_and_saved_completion_summary(page, portal
     submitted = requests[0].post_data_json
     assert submitted == {
         "sample_split": declaration(portal['saved']['arithmetic_5m']['id']),
+        "market_benchmark": {"contracts": 1},
         "reuse_results": True,
         "dataset_id": portal["saved"]["arithmetic_5m"]["id"], "strategy_id": "consecutive_green_hold",
         "strategy_parameters": {"green_bar_count": 2, "hold_minutes": 7, "contracts": 2},

@@ -200,7 +200,7 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
     return None
 
 
-def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
+def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     VWAP's EOD option deliberately looks ahead within each session to infer its
@@ -209,10 +209,10 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
     """
     prepare = getattr(strategy, "prepare_replay", None)
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
-        yield from _execute(replay, strategy, config, capture_risk=capture_risk)
+        yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar)
 
 
-def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
+def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -240,6 +240,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         if pending is not None:
             yield pending
         _validate_bar(bar, previous)
+        if observe_bar is not None:
+            observe_bar(bar)
         closed_on_bar = False
         if next_order is not None:
             if type(next_order) is BracketIntent:

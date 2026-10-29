@@ -254,6 +254,7 @@
       dataset_id: datasetSelect.value, strategy_id: strategySelect.value,
       strategy_parameters: Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.dataset.type === "bool" ? input.checked : input.dataset.type === "Decimal" ? input.value.trim() : Number(input.value)])),
       execution_settings: execution,
+      market_benchmark: {contracts: Number(get("#backtest-benchmark-contracts").value)},
       sample_split: window.researchSplit.payload(),
     };
   }
@@ -290,8 +291,9 @@
     const compact = record.report_storage?.detail === "compact";
     const compressed = record.report_storage?.compression === "gzip";
     get("#report-storage-note").textContent = compact
-      ? "Compact report · All metrics, trades and trade-close equity are saved. " + (record.run_metadata.research?.phase === 'is' ? "Per-bar equity is available by generating a full-detail replay of this IS parameter set." : "OOS and legacy reports cannot request a full-detail replay; select a new manual OOS run from IS instead.")
+      ? "Compact report · All metrics, trades and trade-close equity are saved. " + (record.run_metadata.research?.phase === 'is' ? "Full per-bar account records are available by generating a full-detail replay of this IS parameter set." : "OOS and legacy reports cannot request a full-detail replay; select a new manual OOS run from IS instead.")
       : `Full report · Includes per-bar equity${compressed ? "; JSON is compressed with gzip" : ""}.`;
+    if (record.market_benchmark) get("#report-storage-note").textContent += " Aligned strategy/holding bar-close equity is already saved in the Market benchmark CSV; viewing it requires no replay.";
     get("#report-json-download").href = `/api/backtests/${record.id}/exports/report`;
     get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
     get("#report-generate-detail").hidden = !compact || record.run_metadata.research?.phase !== 'is';

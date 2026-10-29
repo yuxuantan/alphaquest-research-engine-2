@@ -1373,6 +1373,12 @@ dialog::backdrop {
 .chart-grid { stroke: #e6ecef; stroke-width: 1; }
 .chart-label { font-size: 12px; fill: #657783; }
 .chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+#market-benchmark-chart { display: block; width: 100%; height: auto; min-height: 180px; margin-top: 12px; }
+.market-series-0 { stroke: #2474bd; }
+.market-series-1 { stroke: #bb6218; stroke-dasharray: 8 5; }
+.market-cursor { stroke: #73818c; stroke-width: 1; stroke-dasharray: 3 3; }
+#market-benchmark-source { overflow: auto; max-height: 420px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#market-benchmark-results details { margin: 16px 0; }
 .chart-cursor { fill: var(--accent); stroke: white; stroke-width: 2; }
 .chart-readout { min-height: 2.8em; font-variant-numeric: tabular-nums; line-height: 1.6; }
 .report-table-scroll { overflow-x: auto; max-width: 100%; }

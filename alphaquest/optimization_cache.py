@@ -31,6 +31,7 @@ def trial_key(job, values):
                    "execution": job["execution_settings"],
                    "from_date": job["request"].get("from_date"), "to_date": job["request"].get("to_date"),
                    "research": job.get('research'),
+                   "market_benchmark": job['request'].get('market_benchmark'),
                    "detail": job["report_detail"], "default_prop_profile": job.get("default_prop_profile")})
 
 
@@ -38,6 +39,8 @@ def artifacts(root, record):
     names = {"trades.csv", "equity.csv", record["artifacts"]["report"]}
     if record.get("intratrade_risk"):
         names.add("intratrade_risk.csv")
+    if record.get('market_benchmark'):
+        names.update(('market_benchmark.json', 'market_equity.csv'))
     result = {}
     for name in sorted(names):
         with (root / record["id"] / name).open("rb") as stream:
