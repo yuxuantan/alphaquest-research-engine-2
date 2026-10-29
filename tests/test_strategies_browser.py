@@ -1,4 +1,6 @@
 """Real instrument -> saved backtest -> durable report navigation."""
+
+from test_backtests_browser import set_parameter
 import json,re,time
 from test_backtests_browser import browser,page,portal,playwright,FIXTURES
 from test_backtest_api import body
@@ -67,9 +69,11 @@ def test_one_form_and_endpoint_run_single_or_exhaustive_backtests(page,portal,tm
     page.on('request',lambda r:posts.append(r.post_data_json) if r.method=='POST' and r.url.split('?')[0].endswith('/api/backtests') else None)
     page.goto(portal['url']+'/#strategies')
     page.get_by_role('link',name='New backtest →',exact=True).click()
-    playwright.expect(page.locator('#backtest-mode')).to_have_value('single')
+    playwright.expect(page.locator('#backtest-mode')).to_have_count(0)
+    playwright.expect(page.locator('#optimization-settings')).to_be_visible()
+    playwright.expect(page.locator('#optimization-count')).to_have_text('Total combinations: 1 = 1 backtest')
     page.locator('#backtest-dataset').select_option(dataset['id'])
-    page.locator('#strategy-contracts').fill('1')
+    set_parameter(page, "contracts", '1')
     page.locator('#backtest-slippage-ticks').fill('1');page.locator('#backtest-commission').fill('1')
     page.locator('#backtest-initial-capital').fill('12345.67')
     page.locator('#start-backtest').click()
@@ -77,14 +81,11 @@ def test_one_form_and_endpoint_run_single_or_exhaustive_backtests(page,portal,tm
     playwright.expect(page.locator('#report-net')).to_have_text('13.00')
     page.get_by_role('link',name='Back to Strategies',exact=False).click()
     page.get_by_role('link',name='New backtest →',exact=True).click()
-    page.locator('#backtest-mode').select_option('exhaustive')
     playwright.expect(page.locator('#optimization-settings')).to_be_visible()
-    playwright.expect(page.locator('#strategy-parameters')).to_be_hidden()
+    playwright.expect(page.locator('#strategy-parameters')).to_have_count(0)
     page.get_by_label('Contracts end',exact=True).fill('3')
     playwright.expect(page.locator('#optimization-count')).to_have_text('Total combinations: 3 = 3 backtests')
-    page.locator('#backtest-mode').select_option('single')
-    playwright.expect(page.locator('#strategy-contracts')).to_have_value('1')
-    page.locator('#backtest-mode').select_option('exhaustive')
+    playwright.expect(page.locator('#optimization-ranges [data-parameter=contracts] [data-range=start]')).to_have_value('1')
     playwright.expect(page.get_by_label('Contracts end',exact=True)).to_have_value('3')
     playwright.expect(page.locator('#backtest-initial-capital')).to_have_value('12345.67')
     page.locator('#optimization-workers').select_option('1')

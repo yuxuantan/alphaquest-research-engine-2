@@ -1,5 +1,7 @@
 """Report workflow in Chromium, using real saved datasets and replay outputs."""
 
+from test_backtests_browser import set_parameter
+
 from research_fixtures import ResearchHTTPClient,seed_declarations
 
 from datetime import datetime, timedelta
@@ -30,7 +32,7 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
     prepare(page, portal)
     page.locator("#backtest-dataset").select_option(saved["id"])
     for key, value in case["strategy_parameters"].items():
-        page.locator(f"#strategy-{key}").fill(str(value))
+        set_parameter(page, key, str(value))
     ids = {"initial_capital": "initial-capital", "tick_size": "tick-size", "point_value": "point-value", "slippage_ticks": "slippage-ticks", "commission_per_contract_per_side": "commission"}
     for key, value in case["execution_settings"].items():
         if key in ("tick_size", "point_value"): continue
@@ -116,7 +118,7 @@ def test_large_run_progress_bounded_chart_and_trade_pagination(page, portal, mon
     prepare(page, portal)
     page.locator("#backtest-dataset").select_option(saved["id"])
     for field in ("green_bar_count", "hold_minutes", "contracts"):
-        page.locator("#strategy-" + field).fill("1")
+        set_parameter(page, field, "1")
     page.locator("#backtest-slippage-ticks").fill("0")
     page.locator("#backtest-commission").fill("0")
     responses = []

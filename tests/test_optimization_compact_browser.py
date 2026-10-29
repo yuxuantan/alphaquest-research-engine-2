@@ -35,7 +35,6 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
                    if d["name"] == "SYNTHETIC compact optimization review")
     page.get_by_role("link", name="Strategies", exact=True).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
-    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     page.locator("#backtest-dataset").select_option(dataset["id"])
     declare_in_form(page,split)

@@ -1,5 +1,7 @@
 """Usable automatic Apex workflow with actual standard-count saved outputs."""
 
+from test_backtests_browser import set_parameter
+
 from hashlib import sha256
 import csv
 import io
@@ -31,9 +33,9 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.get_by_role("link", name="New backtest →", exact=True).click()
     page.locator('#backtest-dataset').select_option(dataset['id'])
     declare_in_form(page,split)
-    page.locator('#strategy-green_bar_count').fill('1')
-    page.locator('#strategy-hold_minutes').fill('1')
-    page.locator('#strategy-contracts').fill('1')
+    set_parameter(page, "green_bar_count", '1')
+    set_parameter(page, "hold_minutes", '1')
+    set_parameter(page, "contracts", '1')
     page.locator('#backtest-slippage-ticks').fill('0')
     page.locator('#backtest-commission').fill('0')
     page.locator('#start-backtest').click()
@@ -95,10 +97,10 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.goto(portal['url']+'/#backtests')
     page.locator('#backtest-dataset').select_option(dataset['id'])
     for name in ('green_bar_count','hold_minutes','contracts'):
-        page.locator('#strategy-'+name).fill('1')
+        set_parameter(page, name, '1')
     page.locator('#backtest-slippage-ticks').fill('0')
     page.locator('#backtest-commission').fill('0')
-    playwright.expect(page.locator('#backtest-reuse')).to_be_checked()
+    playwright.expect(page.locator('#optimization-reuse')).to_be_checked()
     with page.expect_response(lambda r:r.request.method=='POST' and '/api/backtests?' in r.url) as reused:
         page.locator('#start-backtest').click()
     assert reused.value.status==200

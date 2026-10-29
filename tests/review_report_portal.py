@@ -4,6 +4,8 @@
 The output directory must be new. No existing workspace datasets are touched.
 """
 
+from test_backtests_browser import set_parameter
+
 import argparse
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -26,7 +28,7 @@ def configure(page, saved, parameters, settings):
     page.locator("#backtest-dataset").select_option(saved["id"])
     page.locator("#backtest-strategy").select_option("consecutive_green_hold")
     for name, value in parameters.items():
-        page.locator("#strategy-" + name).fill(str(value))
+        set_parameter(page, name, str(value))
     ids = {"initial_capital": "initial-capital", "tick_size": "tick-size", "point_value": "point-value",
            "slippage_ticks": "slippage-ticks", "commission_per_contract_per_side": "commission"}
     for name, value in settings.items():
@@ -69,7 +71,7 @@ def review(output, url):
             assert saved_response.status_code == 201, saved_response.text
             saved = saved_response.json()
             page.goto(url + "/#backtests")
-            expect(page.locator("#strategy-parameters input")).to_have_count(3)
+            expect(page.locator("#optimization-ranges tr")).to_have_count(3)
             configure(page, saved, case["strategy_parameters"], case["execution_settings"])
             run_id, progress = run(page)
             record = client.get("/api/backtests/" + run_id).json()
@@ -126,7 +128,7 @@ def review(output, url):
             lines.append(stamp + ",100,101,100,101,0,0,0")
         saved = client.post("/api/datasets", params={"filename": "large.csv", "name": "Large synthetic 20002", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "10"}, content=("\n".join(lines) + "\n").encode()).json()
         page.goto(url + "/#backtests")
-        expect(page.locator("#strategy-parameters input")).to_have_count(3)
+        expect(page.locator("#optimization-ranges tr")).to_have_count(3)
         settings = {"initial_capital": "10000", "tick_size": "0.25", "point_value": "10", "slippage_ticks": 0, "commission_per_contract_per_side": "0"}
         configure(page, saved, {"green_bar_count": 1, "hold_minutes": 1, "contracts": 1}, settings)
         responses = []

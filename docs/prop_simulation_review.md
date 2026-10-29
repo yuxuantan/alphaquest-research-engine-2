@@ -2086,3 +2086,152 @@ PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_delete_backtests.py \
   tests/test_delete_prop_reports.py tests/test_strategy_run_management_browser.py \
   tests/test_delete_backtests_browser.py --basetemp /tmp/alphaquest-report-delete-NEW
 ```
+# One parameter grid for all new backtests — 2026-10-29
+
+The new-backtest form no longer offers a Backtest mode selector or a separate
+single-parameter form. Its exhaustive grid is always visible. Equal start/end
+values on every row give step 0, count 1 and **Total combinations: 1 = 1
+backtest**. Wider ranges generate every combination, using the same parameter
+drafts, costs, IS/OOS declaration, benchmark settings and reuse checkbox.
+One generated combination opens the ordinary backtest report with its existing
+live preparation/replay/saving progress. Multiple combinations open the saved
+batch table and individual report links. Both submit to `/api/backtests`; the
+single-report API remains an execution primitive for integrations, replays and
+manually selected OOS. No production calculation, prop sizing or sampling changed.
+
+The normal-product arithmetic demonstration is saved under
+`artifacts/unified-backtest-grid-20261029/fixtures/test_one_form_and_endpoint_run0/`.
+Its `shared-form-verification.json` and screenshots show the same form running
+one contract for **13 CU** and then contracts 1–3 for **13/26/39 CU** net. The
+independent arithmetic is 1.5 fill-price points × 10 CU/point/contract minus
+2 CU commission/contract = 13 CU/contract. Costs and capital remain identical
+between submissions; the old saved batch URL reopens those exact results.
+Another boundary check sets contracts 1→2 with step 5: only 1 is generated, so
+exactly one report is saved with 13 CU net. Fractional integer endpoints/steps
+remain rejected before execution, and boolean/Decimal values retain their types
+and precision through report saving.
+
+To reproduce manually, follow the labeled arithmetic upload/declaration in
+[Backtests screen review](backtests_portal.md), then set both endpoints of green
+bar count to 3, hold minutes to 20 and contracts to 1, with tick size 0.25,
+point value 10, slippage 1 and commission 1. Expect count 1 and net 13 CU.
+Return to New backtest, change only contracts end to 3, and expect count 3 and
+the three net values above. No mode change is required. In an existing report,
+Configure prop analysis → Check source → Run still uses the normal durable
+analysis workflow; selected manual OOS remains a separate report action.
+
+The live portal was checked read-only through Strategies → New backtest:
+no selector/duplicate inputs, default one-combination grid, recalculated three
+combinations, navigation preserving drafts, VWAP boolean defaults and a 390-pixel
+layout without page overflow. `live-verification.json`, three `live-*.png`
+screenshots and `verify-live.py.txt` preserve the observations and exact source
+hashes. There were no browser errors or mutating requests; actual dataset and
+backtest catalogue responses stayed identical. Existing port 8000 serves the
+updated assets on refresh; no persistent server was started or restarted.
+
+The automatic-prop browser fixture uses the same new grid through upload,
+IS declaration, backtest, inline prop summary, configuration/source checking,
+analysis reuse, downloads, batch results and reopen. Saved outputs remain
+**360,000 USD** payouts minus **7,120 USD** acquisition costs = **352,880 USD**
+Historical net, matching its unchanged arithmetic oracle. Evidence is in
+`workflow-fixtures/test_automatic_apex_backtest_o0/` beneath this increment's
+artifact directory, including `verification.json`, report JSON and CSV downloads.
+All fixture servers shut down after their checks. Reproduce into a new evidence
+directory, preserving these original outputs:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_strategies_browser.py \
+  tests/test_automatic_prop_browser.py tests/test_optimization_browser.py \
+  --basetemp artifacts/unified-grid-NEW
+```
+
+Qualification: **39 form/grid/navigation checks** and **31 workflow/report checks**
+passed (70 total), with one existing dependency deprecation warning per run.
+Logs and JUnit files are `browser-results.*` and `workflow-results.*` in this
+increment's evidence directory. Checks include source-timezone declarations,
+parameter type/precision validation, preparation/replay progress, duplicate-submit
+protection, worker retry, mobile overflow, sorting, reuse, prop configuration and
+downloads, benchmark comparison, manual OOS and durable report reopening.
+JavaScript syntax and patch whitespace checks also passed.
+
+# Selectable frozen optimization columns — 2026-10-29
+
+The normal saved batch results now include a collapsible **Freeze columns**
+section with searchable checkboxes for every parameter, metric, Trial and report
+link. Only Trial is frozen by default. Checked columns move to the left; unchecked
+columns scroll. Reset to Trial and Unfreeze all are provided. Varied parameters
+remain highlighted regardless of freezing. Selections are stored per strategy in
+this browser, separately from server calculations and saved reports.
+
+Actual rendered frozen widths are limited to 40% of the table viewport. Additional
+boxes are disabled with a Width limit label and an explanation. Checked columns
+remain available to uncheck. Narrow screens temporarily release selections that
+no longer fit, restoring them when widened. Sticky headers work even when no
+columns are frozen. Window scrolling updates header positioning without
+reprocessing every result cell. No production backtest/prop arithmetic, source
+adaptation, sizing, sampling or economics changed.
+
+Actual product evidence is under
+`artifacts/optimization-freeze-20261029/live-final/`. Saved job
+`ad0b3cec75864d7897c6c855160c0fa9` has **128 trials and seven varied parameters**.
+The browser demonstrated the existing page with only Trial frozen, then Trial +
+Min rr + Use adx elev (375.30 px of a 1,266 px viewport), enforcing the maximum
+at 495.05 px, below the 506.4 px allowance. A Trial + Historical net selection
+used 254.08 px. At a 356 px mobile table width, only Trial remained frozen
+(73.59 px); widening restored both saved selections. Screenshots capture the
+controls, width rejection, two-axis scrolling and mobile behavior. Sorting,
+pagination and refresh all retained the choices. All 128 saved result rows,
+job metadata and the full CSV remained identical, with **no mutating requests,
+new simulations or browser errors**. These are existing saved outcomes, not
+newly calculated or forecast performance. No persistent server was started or
+restarted; the existing portal serves the updated assets on refresh.
+
+To reproduce without submitting any calculation:
+
+1. Open `http://127.0.0.1:8000/#backtests/batches/ad0b3cec75864d7897c6c855160c0fa9`.
+2. Expand Freeze columns and use Reset to Trial if this browser has prior choices.
+   The table starts with Trial frozen; all seven varied parameters remain green.
+3. On a wide desktop, check Min rr and Use adx elev. Their columns move to the
+   frozen left area. Search filters the checkbox list without changing selections.
+4. Select more available columns until others show Width limit. The displayed
+   frozen width never exceeds 40%; unchecking a column frees space for others.
+5. Reset to Trial and check Historical net · USD. Collapse the controls, scroll
+   right/down, sort Historical net in both directions and change result pages.
+   Trial/Historical net stay visible with aligned headers. Refresh retains them.
+6. Narrow the viewport to 390 px. Historical net temporarily unfreezes; Trial
+   remains. Widening restores the saved selection. Unfreeze all is also retained
+   across refresh and leaves vertical headers sticky.
+
+The saved `live-verification.json` contains measured widths and source SHA-256
+values. `actual-job-before.json`, `actual-results-before.json` and
+`actual-results-before.csv` preserve the original outputs; `verify-live.py.txt`
+contains the exact non-mutating reproduction. Earlier verification attempts
+remain separately inspectable in the parent evidence directory.
+
+Automated qualification: **39 existing browser checks passed**, covering the
+shared form, sweep execution, sorting, exports, report links, frozen/header
+geometry on desktop/mobile, pagination, reuse and resumption. **Five new controls
+checks passed** in `final-column-results.log/xml`: parameter/metric selections,
+keyboard focus and Space activation, search/no matches, width rejection, resize
+restoration, reset/unfreeze persistence, per-strategy isolation across ordinary
+three-parameter and 32-parameter strategy results, malformed/blocked storage and
+unchanged saved metrics/CSV access. The earlier bundle log records one newly
+added fixture's rejected Decimal step; its corrected string-valued request passed
+both the targeted rerun and final five-check suite. No product failure remains.
+`qualification.json` resolves the final results by test case. Earlier logs and
+fixture outputs are preserved. JavaScript syntax and patch whitespace checks
+passed. Fixture oracles remain unchanged: one-/two-/three-contract arithmetic
+runs produce **13/26/39 CU**, independent of freezing.
+
+Run checks into a new directory to preserve the saved evidence:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_optimization_columns_browser.py \
+  tests/test_optimization_browser.py tests/test_optimization_compact_browser.py \
+  tests/test_strategies_browser.py tests/test_backtests_browser.py \
+  --basetemp artifacts/optimization-freeze-NEW
+```
+
+Temporary fixture servers shut down through their normal test cleanup. The
+existing report/configuration/prop-analysis routes and durable stores are reused;
+there is no demo page, report recalculation or duplicate calculation store.
