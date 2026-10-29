@@ -247,7 +247,7 @@
     const legend = get("#optimization-parameter-legend");
     legend.hidden = false;
     legend.textContent = varying.size
-      ? `Highlighted columns vary across trials: ${Array.from(varying, (key) => label(key.slice(6))).join(", ")}. Headers marked “Varies” identify the optimized parameters. Use Freeze columns to choose which columns stay visible.`
+      ? `Highlighted columns vary across trials: ${Array.from(varying, (key) => label(key.slice(6))).join(", ")}. Headers marked “Varies” identify the optimized parameters. Use Columns to choose what is shown, frozen and in which order.`
       : "All strategy parameters are fixed for this run.";
     const parameters = Object.keys(job.axes).map((name) => [`param.${name}`, label(name)]);
     const columns = [...parameters.filter(([key]) => varying.has(key)), ["trial", "Trial"],
@@ -304,6 +304,8 @@
       table.tBodies[0].append(tr);
     }
     frozenColumns.configure(job.strategy.id, columns);
+    get("#optimization-sort-note").hidden = false;
+    get("#optimization-sort-note").textContent = `Sorted by ${columns.find(([key]) => key === sort)?.[1] || sort} · ${direction === "asc" ? "ascending" : "descending"}.`;
     const download = get("#optimization-download");
     download.href = `/api/backtests/batches/${job.id}/exports/results?${new URLSearchParams({sort, direction})}`;
     download.hidden = false;
@@ -374,6 +376,7 @@
     const active=Boolean(match);
     get("#optimization-panel").hidden = !active;
     frozenColumns.clear();
+    get("#optimization-sort-note").hidden = true;
     if (!active) return;
     jobId = match?.[1] || null;
     offset = 0; sort = "trial"; direction = "asc";

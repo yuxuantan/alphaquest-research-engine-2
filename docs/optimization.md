@@ -129,39 +129,54 @@ headers/cells and a **Varies** badge regardless of whether they are frozen.
 Highlighting uses the entire saved grid and remains consistent across sorting,
 pagination and reopening. A range generating one value is treated as fixed.
 
-### Choose frozen columns
+### Choose visible columns, freezing and order
 
-Expand **Freeze columns** above the results. Search for a column and check its
-box to move it to the frozen area on the left. Uncheck it to return it to the
-scrolling columns. Every parameter and performance metric, Trial and report-link
-column is available. **Only Trial is frozen by default.** **Reset to Trial**
-restores that default; **Unfreeze all** clears all selections. The section can
-stay collapsed while reviewing results; its summary shows the frozen count.
+Expand **Columns** above the results. Every parameter, performance metric, Trial
+and report-link column has separate **Show** and **Freeze** checkboxes. Only
+columns checked under Show are displayed. A visible column with Freeze unchecked
+scrolls normally; a checked Freeze box keeps it on the left. Hiding a frozen
+column also unfreezes it. Use the search box to find names without changing the
+selection. The collapsed summary shows how many columns are shown and frozen.
 
-Frozen columns together can occupy at most **40% of the visible table width**,
+Use **↑ / ↓** beside a visible column to move it earlier/later. Frozen columns
+stay together on the left, and each group can be reordered independently. Hidden
+columns have disabled movement controls until shown. Movement skips hidden
+columns, so each action changes the visible order. These native buttons work
+with keyboard and touch as well as a mouse.
+
+**Show all** selects all available columns while retaining the current order.
+**Hide all** clears the view so a small selection can be built quickly. An empty
+view displays a recovery message and retains the controls. **Reset layout**
+restores all columns, their default order and only Trial frozen. **Unfreeze all**
+clears freezing while retaining visibility and order. All columns are shown by
+default. A sort note remains visible even if the sorted column is hidden.
+
+Frozen columns together can occupy at most **40% of the visible table viewport**,
 measured from their actual rendered widths. A box that would exceed the limit is
 disabled with a Width limit label and an explanation to unfreeze another column
 or widen the table. Checked columns remain available to uncheck. Resizing to a
 narrower screen temporarily releases saved columns that no longer fit; they
-return when sufficient width is available. At least 60% of the table stays
-available for scrolling results, including on mobile.
+return when sufficient width is available. Headers stay sticky independently of
+freezing. A small set of columns uses its natural width rather than stretching
+across the entire viewport.
 
-Preferences are saved in this browser's local storage separately for each
-strategy. They survive refresh, sorting, result pages and other batches of the
-same strategy. They do not change server-side results, calculations, CSV column
-order or report links. When browser storage is unavailable, selections still
-work during the current page session. Unknown saved column names are ignored.
-Existing saved batches gain these controls on refresh without rerunning trials.
+Visibility, order and freezing are saved in this browser's local storage
+separately for each strategy and survive refresh, sorting, result pages and
+other batches of the same strategy. Existing freeze-only preferences migrate
+with all columns shown. Saved numerical results, full CSV contents and report
+links are retained; no backtest is rerun. If browser storage is unavailable,
+preferences still work during the current page session. Unknown stored column
+names are ignored. Newly introduced columns appear through Show or Show all
+when using an explicitly selected subset.
 
 For a reproducible synthetic review, use green bar count **3 / 3 / 0**, hold
 minutes **20 / 25 / 5** and contracts **1 / 30 / 1** (start/end/step), with one
 worker and the arithmetic dataset below. Expect 60 saved trials across two pages.
-Hold minutes and Contracts are highlighted; only Trial is frozen. On desktop,
-expand Freeze columns, uncheck Trial and check Hold minutes and Contracts. Scroll
-both axes and the page: the selected columns and headers stay aligned, sorting
-still works, and changing pages/reloading retains the choices. On mobile, the
-width limit may permit only Trial; expanding the viewport restores wider saved
-selections. Inspect current evidence in `artifacts/optimization-freeze-20261029/`.
+Hold minutes and Contracts are highlighted; only Trial is frozen by default.
+Choose the columns to show and move them within their groups, then scroll/sort,
+change pages and refresh. Expect the same column layout and highlights. Current
+visibility/order evidence is in `artifacts/optimization-layout-20261029/`; the
+previous freezing-only review remains in `artifacts/optimization-freeze-20261029/`.
 
 The earlier automatically frozen-parameter implementation's evidence remains
 unchanged under `artifacts/optimization-frozen-columns-review-20261027-verified/`,
@@ -171,7 +186,8 @@ Repeat the current checks into a new directory to preserve saved evidence:
 
 ```bash
 PYTHONPATH=. .venv/bin/python -m pytest tests/test_optimization_columns_browser.py \
-  tests/test_optimization_browser.py -q --basetemp artifacts/optimization-freeze-NEW
+  tests/test_optimization_layout_browser.py tests/test_optimization_browser.py -q \
+  --basetemp artifacts/optimization-layout-NEW
 ```
 
 These checks own and stop their temporary servers and retain the isolated normal

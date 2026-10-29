@@ -443,22 +443,26 @@
             <button id="optimization-resume" class="button primary" type="button" hidden>Resume remaining trials</button>
             <p id="optimization-resume-error" class="small" role="alert" hidden></p>
             <details id="optimization-provenance" class="panel" hidden><summary>Saved grid, source &amp; execution settings</summary><pre id="optimization-settings-used"></pre></details>
-            <p class="small muted">Scroll within the table to view all columns. Headers stay visible; choose which columns to freeze below.</p>
+            <p class="small muted">Scroll within the table to view all columns. Headers stay visible; choose visible and frozen columns below.</p>
             <p id="optimization-parameter-legend" class="small muted" hidden></p>
             <details id="optimization-freeze" class="panel optimization-freeze" hidden>
-              <summary>Freeze columns <span class="optimization-freeze-count small muted"></span></summary>
+              <summary>Columns <span class="optimization-column-count small muted"></span><span class="optimization-freeze-count small muted"></span></summary>
               <div class="optimization-freeze-body">
-                <p id="optimization-freeze-help" class="field-help">Checked columns move to the left and stay visible while scrolling. Frozen columns can use up to 40% of the table width. Selections are remembered for this strategy in this browser.</p>
+                <p id="optimization-freeze-help" class="field-help">Use Show to choose the columns displayed, and Freeze to keep selected columns on the left. Use ↑ and ↓ to reorder visible columns within the frozen or scrolling group. Frozen columns can use up to 40% of the table width. This layout is remembered for this strategy in this browser.</p>
                 <div class="optimization-freeze-actions">
                   <label>Find a column<input id="optimization-freeze-search" type="search" placeholder="Search columns…" autocomplete="off" /></label>
-                  <button class="button secondary" type="button" data-freeze="reset">Reset to Trial</button>
+                  <button class="button secondary" type="button" data-columns="all">Show all</button>
+                  <button class="button secondary" type="button" data-columns="hide">Hide all</button>
+                  <button class="button secondary" type="button" data-columns="reset">Reset layout</button>
                   <button class="button secondary" type="button" data-freeze="none">Unfreeze all</button>
                 </div>
                 <p id="optimization-freeze-status" class="field-help" role="status" aria-live="polite"></p>
-                <div class="optimization-column-choices" role="group" aria-label="Columns to freeze"></div>
+                <div class="optimization-column-choices" role="group" aria-label="Column visibility, freezing and order"></div>
                 <p class="optimization-column-empty field-help" hidden>No matching columns.</p>
               </div>
             </details>
+            <p id="optimization-sort-note" class="small muted" hidden></p>
+            <p id="optimization-visible-empty" class="validation-box" role="status" hidden>No columns selected. Open Columns to choose what to show.</p>
             <div id="optimization-results-scroll" class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally or vertically; column headers and selected frozen columns stay visible">
               <table id="optimization-results" class="library-table"><thead></thead><tbody></tbody></table>
             </div>

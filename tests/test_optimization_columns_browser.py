@@ -80,17 +80,17 @@ def test_width_limit_unfreeze_reset_resize_and_restore(page, portal, tmp_path):
     page.locator("#optimization-freeze summary").click()
     # Fill the budget using actual rendered widths, regardless of font metrics.
     for _ in range(30):
-        available = page.locator(".optimization-column-choice input:enabled:not(:checked)")
+        available = page.locator(".optimization-column-choice input[data-control=freeze]:enabled:not(:checked)")
         if not available.count():
             break
         available.first.check()
-        page.wait_for_function("() => document.querySelectorAll('.optimization-column-choice input:checked').length === document.querySelectorAll('#optimization-results thead .optimization-frozen-column').length")
+        page.wait_for_function("() => document.querySelectorAll('.optimization-column-choice input[data-control=freeze]:checked').length === document.querySelectorAll('#optimization-results thead .optimization-frozen-column').length")
         assert fits(page)
     desired = frozen_keys(page)
     assert len(desired) > 1
-    playwright.expect(page.locator(".optimization-column-choice input:disabled").first).to_be_disabled()
+    playwright.expect(page.locator(".optimization-column-choice input[data-control=freeze]:disabled").first).to_be_disabled()
     playwright.expect(page.locator("#optimization-freeze [role=status]")).to_contain_text("Unfreeze another column")
-    assert "40%" in page.locator(".optimization-column-choice:has(input:disabled)").first.get_attribute("title")
+    assert "40%" in page.locator(".optimization-column-choice:has(input[data-control=freeze]:disabled)").first.get_attribute("title")
     page.screenshot(path=str(tmp_path / "width-limit.png"), full_page=True)
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_function("() => document.querySelectorAll('#optimization-results thead .optimization-frozen-column').length <= 1")
@@ -107,7 +107,7 @@ def test_width_limit_unfreeze_reset_resize_and_restore(page, portal, tmp_path):
     page.reload()
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("0 frozen")
     page.locator("#optimization-freeze summary").click()
-    page.get_by_role("button", name="Reset to Trial", exact=True).click()
+    page.get_by_role("button", name="Reset layout", exact=True).click()
     playwright.expect(page.get_by_label("Freeze Trial", exact=True)).to_be_checked()
     assert frozen_keys(page) == ["trial"]
     page.reload()
@@ -125,6 +125,7 @@ def test_preferences_are_separate_for_each_strategy(page, portal):
     page.locator("#optimization-freeze summary").click()
     page.get_by_role("button", name="Unfreeze all", exact=True).click()
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("0 frozen")
+    page.get_by_label("Show Contracts", exact=True).uncheck()
     definition = next(item for item in page.request.get(portal["url"] + "/api/strategies").json() if item["id"] == "vwap_pullback_risk_sizing")
     request = optimization_body(portal["saved"]["arithmetic_5m"]["id"])
     request["strategy_id"] = definition["id"]
@@ -146,6 +147,7 @@ def test_preferences_are_separate_for_each_strategy(page, portal):
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("2 frozen")
     page.goto(first_url)
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("0 frozen")
+    playwright.expect(page.get_by_label("Show Contracts", exact=True)).not_to_be_checked()
     page.goto(second_url)
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("2 frozen")
     assert frozen_keys(page) == ["trial", "param.min_rr"]

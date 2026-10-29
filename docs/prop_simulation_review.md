@@ -2235,3 +2235,88 @@ PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_optimization_columns_brows
 Temporary fixture servers shut down through their normal test cleanup. The
 existing report/configuration/prop-analysis routes and durable stores are reused;
 there is no demo page, report recalculation or duplicate calculation store.
+
+# Optimization column visibility and order — 2026-10-29
+
+The saved batch's collapsible **Columns** panel now provides separate **Show**
+and **Freeze** checkboxes, plus **↑ / ↓** controls. Only Show-selected columns
+are displayed. Visible, unfrozen columns scroll normally. Hiding a frozen column
+also unfreezes it; hidden columns cannot be frozen or moved until shown again.
+Movement skips hidden columns and reorders each frozen/scrolling group separately,
+keeping the frozen group on the left. All controls work with mouse, keyboard and
+touch. A sort note identifies the active ordering even when its column is hidden.
+
+Show all, Hide all, Reset layout and Unfreeze all support quick configuration.
+An empty selection has a recovery message and retains the panel. Reset layout
+shows all columns in their default order with only Trial frozen; Unfreeze all
+preserves visibility and order. The previous 40% frozen-width limit, sticky headers
+and varied-parameter highlighting remain. Small selections use their natural
+width. Preferences are saved per strategy in this browser; valid earlier
+freeze-only preferences migrate with all columns shown. Saved jobs, reports,
+metrics and full CSV contents remain authoritative and no calculation is triggered
+by layout changes. Production backtest/prop arithmetic, adaptation, sampling,
+sizing and economics are unchanged.
+
+Actual product evidence is saved in
+`artifacts/optimization-layout-20261029/live-final/`. On existing job
+`ad0b3cec75864d7897c6c855160c0fa9` (**128 saved trials, 48 available columns**), the
+normal page was reduced to **11 selected columns**. The saved left-to-right order
+begins Historical net, Trial, Total net P&L, then the selected parameters and other
+metrics, with the report link last. Historical net and Trial were frozen in that
+order. The frozen area measured **249.59 px / 1,266 px**, leaving roughly 80% of
+the viewport for scrolling results. All other columns were absent from the
+visible table. A 400 px horizontal scroll and vertical/page scrolling retained
+aligned selected headers. Changing pages, refresh and opening backtest
+`236973b9f07a491e9af0c64a57d6e840` then returning all retained the custom layout.
+On a 390 px screen, Trial remained frozen at **73.59 px / 356 px** table viewport;
+widening restored the saved frozen order. All 128 result rows, job metadata and
+the complete CSV were identical before/after, with **no mutating requests or
+browser errors**. No new historical or future performance was calculated.
+
+Reproduce through the existing portal without running a backtest:
+
+1. Refresh `http://127.0.0.1:8000/#backtests/batches/ad0b3cec75864d7897c6c855160c0fa9`.
+2. Expand Columns, then Hide all. Expect the recovery message. Check Show for
+   Trial, Historical net · USD, Total net pnl and Backtest report. Only those
+   four columns appear; the other 44 remain hidden.
+3. Check Freeze for Trial and Historical net · USD. Move Historical net earlier
+   to place it before Trial within the frozen group. Use the movement controls
+   for the scrolling fields to change their order independently. Hiding a frozen
+   column removes its freeze selection as well.
+4. Refresh and change result pages. Expect the same visibility/order/freezing.
+   Open a selected report link and return to the job; its saved layout remains.
+5. Use Show all to reveal all fields, or Reset layout to restore the default
+   order and only Trial frozen. Narrowing the viewport releases frozen columns
+   that no longer fit without losing the saved wide-screen preference.
+
+The evidence includes four screenshots, the complete original job/results/CSV,
+`live-verification.json` with measured geometry and exact source SHA-256 values,
+and `verify-live.py.txt` for the automated read-only reproduction. Earlier
+verification attempts remain separately inspectable. The existing port-8000
+portal serves the updated static assets on refresh; no persistent server was
+started or restarted.
+
+**47 browser checks passed**, with one existing dependency deprecation warning.
+`artifacts/optimization-layout-20261029/final-results.log` and `final-results.xml`
+record the complete focused gate. Checks cover visibility, hiding frozen and
+sorted columns, empty selections, bulk/reset actions, ordering both groups,
+keyboard activation/focus, persisted layouts, migration from freeze-only storage,
+per-strategy isolation, blocked/malformed storage, width limits, resize recovery,
+mobile overflow, sorting, CSV downloads, pagination, report reopening, sweep
+execution/reuse and resumption. Synthetic numerical oracles remain **13/26/39 CU**
+for one/two/three-contract arithmetic reports, independent of layout. Normal
+fixture stores, screenshots and verification JSON are retained under the same
+evidence directory. JavaScript syntax and patch whitespace checks also passed.
+
+Reproduce into a new directory to preserve earlier evidence:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_optimization_layout_browser.py \
+  tests/test_optimization_columns_browser.py tests/test_optimization_browser.py \
+  tests/test_optimization_compact_browser.py tests/test_strategies_browser.py \
+  tests/test_backtests_browser.py --basetemp artifacts/optimization-layout-NEW
+```
+
+Temporary fixture servers stopped through their normal cleanup. The implementation
+uses the existing batch/report workflow and storage; the only new persistence is
+browser-local display preferences.
