@@ -41,9 +41,18 @@ def artifacts(root, record):
     if record.get("intratrade_risk"):
         names.add("intratrade_risk.csv")
     if record.get('market_benchmark'):
-        names.update(('market_benchmark.json', 'market_equity.csv'))
+        names.add('market_benchmark.json')
+        if 'storage' in record['market_benchmark']:
+            from .market_equity import STRATEGY_FILE, holding_path
+            names.add(STRATEGY_FILE)
+        else:
+            names.add('market_equity.csv')
     result = {}
     for name in sorted(names):
         with (root / record["id"] / name).open("rb") as stream:
             result[name] = hashlib.file_digest(stream, "sha256").hexdigest()
+    if record.get('market_benchmark', {}).get('storage'):
+        path = holding_path(root / record['id'], record['market_benchmark'])
+        with path.open('rb') as stream:
+            result['shared_holding_day'] = hashlib.file_digest(stream, 'sha256').hexdigest()
     return result

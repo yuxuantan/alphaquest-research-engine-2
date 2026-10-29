@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import FileResponse,JSONResponse
+from starlette.responses import FileResponse,JSONResponse,Response
 
 from .backtest_data import DatasetReadError, DateRange, read_selected_bars
 from .backtest_runs import RunStore
@@ -397,6 +397,18 @@ def download(run_id: UUID, kind: str, request: Request):
     record = runs.get(run_id.hex)
     if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
+    if kind == 'market_equity' and record.get('market_benchmark', {}).get('storage'):
+        from .market_equity import equity_csv
+        try:
+            folder = runs.root / run_id.hex
+            load_comparison(folder, record['market_benchmark'])
+            content = equity_csv(folder, record['market_benchmark'])
+            if hashlib.sha256(content).hexdigest() != record['market_benchmark']['equity_sha256']:
+                raise ValueError('Saved daily export integrity check failed.')
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(500, 'Saved daily comparison could not be verified. No comparison was recalculated.') from exc
+        return Response(content, media_type='text/csv', headers={
+            'Content-Disposition': f'attachment; filename="{run_id.hex}-market_equity_day.csv"'})
     name = record["artifacts"]["report"] if kind == "report" else f'{kind}.json' if kind in ('performance', 'market_benchmark') else f"{kind}.csv"
     if name not in ("report.json", "report.json.gz", "trades.csv", "equity.csv", "performance.json", "intratrade_risk.csv", "market_benchmark.json", "market_equity.csv"):
         raise HTTPException(404, "Unknown report artifact.")

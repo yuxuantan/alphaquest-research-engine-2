@@ -19,6 +19,7 @@ from .decimal_math import add, multiply, subtract
 from .drawdown import Drawdown
 from .execution import _Account
 from .strategy import CloseIntent, EntryIntent
+from .market_equity import DailyEquityWriter, daily_storage, equity_csv, equity_rows
 
 
 VERSION = "price-series-holding-v1"
@@ -67,13 +68,11 @@ class MarketBenchmark:
         self.bar = bar
 
     def start(self, staging, stack):
-        stream = stack.enter_context((staging / "market_equity.csv").open("w", encoding="utf-8", newline=""))
-        self.writer = csv.DictWriter(stream, fieldnames=FIELDS)
-        self.writer.writeheader()
+        self.writer = DailyEquityWriter(staging, stack, str(self.zone))
 
     def observe(self, point):
         if point.bar_number == 0:
-            self.writer.writerow(dict(bar_number=0, timestamp_utc="", close="",
+            self.writer.observe(dict(bar_number=0, timestamp_utc="", close="",
                                       strategy_equity=self.config.initial_capital,
                                       holding_equity=self.config.initial_capital,
                                       excess_net_pnl=0, strategy_contracts=0, holding_contracts=0))
@@ -104,10 +103,12 @@ class MarketBenchmark:
             totals[i] = add(totals[i], subtract(value, self.previous[i]))
         self.previous = values
         self.end_time = bar.timestamp_utc
-        self.writer.writerow(dict(bar_number=point.bar_number, timestamp_utc=bar.timestamp_utc.isoformat().replace("+00:00", "Z"),
+        self.writer.observe(dict(bar_number=point.bar_number, timestamp_utc=bar.timestamp_utc.isoformat().replace("+00:00", "Z"),
                                   close=bar.close, strategy_equity=point.equity, holding_equity=held.equity,
                                   excess_net_pnl=subtract(point.equity, held.equity),
                                   strategy_contracts=point.position_contracts, holding_contracts=held.position_contracts))
+        if self.count == self.bar_count:
+            self.writer.finish_day()
 
     def finish(self, staging, summary):
         from .reporting import json_value
@@ -175,11 +176,13 @@ class MarketBenchmark:
                     excess_net_pnl=subtract(accounts["strategy"]["net_pnl"], accounts["holding"]["net_pnl"]),
                     entry=self.entry, holding_trade=asdict(self.trade), monthly=periods,
                     yearly=[dict(period=year, strategy_net_pnl=v[0], holding_net_pnl=v[1], excess_net_pnl=subtract(*v)) for year, v in years.items()])
-        equity_hash = file_hash(staging / "market_equity.csv")
+        data["storage"] = daily_storage(staging, data, self.writer.days)
+        equity_hash = hashlib.sha256(equity_csv(staging, data)).hexdigest()
         data["equity_sha256"] = equity_hash
         (staging / "market_benchmark.json").write_text(json.dumps(data, default=json_value, allow_nan=False, indent=2) + "\n", encoding="utf-8")
         return dict(version=VERSION, settings=self.settings.model_dump(), observed_bar_count=self.count,
-                    sha256=file_hash(staging / "market_benchmark.json"), equity_sha256=equity_hash)
+                    sha256=file_hash(staging / "market_benchmark.json"), equity_sha256=equity_hash,
+                    storage=data["storage"])
 
 
 def load_comparison(folder, descriptor):
@@ -187,17 +190,16 @@ def load_comparison(folder, descriptor):
     if file_hash(path) != descriptor["sha256"]:
         raise ValueError("Saved market comparison integrity check failed.")
     result = json.loads(path.read_text(encoding="utf-8"))
-    if result["version"] != descriptor["version"] or result["settings"] != descriptor["settings"]:
+    if (result["version"] != descriptor["version"] or result["settings"] != descriptor["settings"]
+            or result.get("storage") != descriptor.get("storage")):
         raise ValueError("Saved market comparison specification changed.")
     return result
 
 
 def comparison_preview(folder, descriptor, limit):
-    """Stream full data, retaining endpoints and each series' bucket extremes."""
-    path = folder / "market_equity.csv"
-    if file_hash(path) != descriptor["equity_sha256"]:
-        raise ValueError("Saved comparison equity integrity check failed.")
-    total = descriptor["observed_bar_count"] + 1
+    """Read saved daily (or legacy bar) data; keep endpoints and bucket extremes."""
+    daily = "storage" in descriptor
+    total = (descriptor["storage"]["observed_day_count"] if daily else descriptor["observed_bar_count"]) + 1
     buckets = max(1, (limit - 2) // 6)
     items, extremes = [], {}
     previous_bucket = None
@@ -207,31 +209,25 @@ def comparison_preview(folder, descriptor, limit):
         items.extend(sorted({p["bar_number"]: p for p in extremes.values()}.values(), key=lambda p: p["bar_number"]))
         extremes.clear()
 
-    with path.open(encoding="utf-8", newline="") as source:
-        reader = csv.DictReader(source)
-        if reader.fieldnames != FIELDS:
-            raise ValueError("Unsupported market comparison equity schema.")
-        for point in reader:
-            if None in point or any(value is None for value in point.values()):
-                raise ValueError("Incomplete market comparison equity.")
-            point["bar_number"] = int(point["bar_number"])
-            if point["bar_number"] != seen:
-                raise ValueError("Non-contiguous comparison equity.")
-            seen += 1
-            if total <= limit or point["bar_number"] in (0, total - 1):
-                if point["bar_number"] == total - 1:
-                    flush()
-                items.append(point)
-                continue
-            bucket = (point["bar_number"] - 1) * buckets // (total - 2)
-            if bucket != previous_bucket:
+    for point in equity_rows(folder, descriptor):
+        point["bar_number"] = int(point["bar_number"])
+        seen += 1
+        if total <= limit or seen in (1, total):
+            if seen == total:
                 flush()
-                previous_bucket = bucket
-            for field in SERIES:
-                for direction in ("min", "max"):
-                    key = (field, direction)
-                    if key not in extremes or (Decimal(point[field]) < Decimal(extremes[key][field]) if direction == "min" else Decimal(point[field]) > Decimal(extremes[key][field])):
-                        extremes[key] = point
+            items.append(point)
+            continue
+        bucket = (seen - 2) * buckets // (total - 2)
+        if bucket != previous_bucket:
+            flush()
+            previous_bucket = bucket
+        for field in SERIES:
+            for direction in ("min", "max"):
+                key = (field, direction)
+                if key not in extremes or (Decimal(point[field]) < Decimal(extremes[key][field]) if direction == "min" else Decimal(point[field]) > Decimal(extremes[key][field])):
+                    extremes[key] = point
     if seen != total:
         raise ValueError("Saved comparison equity count differs from the report.")
-    return dict(items=items, total=total, sampled=total > limit, limit=limit, method="bar_bucket_extremes_all_three_series")
+    return dict(items=items, total=total, sampled=total > limit, limit=limit,
+                granularity="DAY" if daily else "BAR",
+                method="day_bucket_extremes_all_three_series" if daily else "bar_bucket_extremes_all_three_series")

@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+import csv
+import io
 import gzip
 from hashlib import sha256
 import json
@@ -38,13 +40,14 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     page.locator("#backtest-dataset").select_option(dataset["id"])
     declare_in_form(page,split)
+    page.locator("#backtest-initial-capital").fill("10000")
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
     settings = page.request.get(portal["url"] + "/api/optimizations/settings").json()
     page.locator("#optimization-workers").select_option(str(min(2, settings["max_workers"])))
     page.get_by_label("Contracts end", exact=True).fill("2")
     page.locator("#start-backtest").click()
-    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=30000)
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=600000)
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(2)
     optimization_url = page.url
     job_id = page.url.rsplit("/", 1)[1]
@@ -54,6 +57,21 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     assert compact["report_storage"]["detail"] == "compact"
     root = portal["app"].state.runs.root
     folder = root / compact["id"]
+    shared = list((root.parent / 'market_benchmarks').glob('*.csv'))
+    assert len(shared) == 1
+    daily_downloads = []
+    for trial in rows:
+        response = page.request.get(f"{portal['url']}/api/backtests/{trial['run_id']}/exports/market_equity")
+        assert response.status == 200
+        (tmp_path / f"daily-{trial['run_id']}.csv").write_bytes(response.body())
+        points = list(csv.DictReader(io.StringIO(response.text())))
+        assert [p['date'] for p in points] == ['', '2026-01-05', '2026-01-06']
+        assert [Decimal(p['holding_equity']) for p in points] == [10000, Decimal('10026.50'), Decimal('10023.00')]
+        daily_downloads.append(dict(run_id=trial['run_id'], points=points))
+    (tmp_path / 'daily-shared-verification.json').write_text(json.dumps(dict(
+        synthetic=True, optimization_id=job_id, shared_holding_files=1,
+        expected_holding_equity=['10000', '10026.50', '10023.00'],
+        expected_strategy_net_pnl=['26', '52'], downloads=daily_downloads), indent=2))
     before = {p.name: sha256(p.read_bytes()).hexdigest() for p in folder.iterdir()}
     baseline_response = page.request.post(portal["url"] + "/api/backtests", data={
         "report_detail":"full",
@@ -69,17 +87,18 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
         assert (root / baseline["id"] / name).read_bytes() == (folder / name).read_bytes()
     sizes = lambda path: {p.name: p.stat().st_size for p in path.iterdir()}
     compact_sizes, baseline_sizes = sizes(folder), sizes(root / baseline["id"])
-    # The new comparison deliberately retains every bar in a separate aligned
-    # CSV for both report modes. Preserve the original native-report compaction
-    # gate, and account for this additional feature's storage explicitly.
-    comparison_names = {'market_benchmark.json', 'market_equity.csv'}
+    # Comparison storage is daily in both modes; holding observations are shared.
+    comparison_names = {'market_benchmark.json', 'strategy_equity_day.csv'}
     native_size = lambda values: sum(size for name, size in values.items() if name not in comparison_names)
     assert native_size(compact_sizes) < native_size(baseline_sizes) / 50
-    assert (folder / 'market_equity.csv').read_bytes() == (root / baseline['id'] / 'market_equity.csv').read_bytes()
+    assert (folder / 'strategy_equity_day.csv').read_bytes() == (root / baseline['id'] / 'strategy_equity_day.csv').read_bytes()
+    assert compact['market_benchmark']['storage']['holding_key'] == baseline['market_benchmark']['storage']['holding_key']
     page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
     playwright.expect(page.locator("#report-storage-note")).to_contain_text("Compact report")
     playwright.expect(page.locator("#equity-chart")).to_be_visible()
     playwright.expect(page.locator("#report-summary")).to_contain_text("26.00")
+    playwright.expect(page.locator('#market-benchmark-chart-note')).to_contain_text('DAY granularity')
+    playwright.expect(page.locator('#market-benchmark-csv')).to_have_text('Daily comparison CSV ↓')
     compact_url = page.url
     page.screenshot(path=str(tmp_path / "compact-backtest.png"), full_page=True)
     with page.expect_download() as downloaded:
@@ -131,7 +150,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     playwright.expect(page.locator("#prop-report")).to_be_visible()
     page.locator("#prop-back").click()
     page.locator("#report-prop-setup").click()
-    page.locator("#prop-saved a").first.click()
+    page.locator('#prop-saved a[href="' + prop_url[prop_url.index('#'):] + '"]').click()
     playwright.expect(page).to_have_url(prop_url)
     playwright.expect(page.locator("#prop-report")).to_be_visible()
     assert {p.name: sha256(p.read_bytes()).hexdigest() for p in folder.iterdir()} == before

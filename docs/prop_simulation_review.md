@@ -2521,3 +2521,35 @@ all 40 size scores, 11-day acquisition timing and $80,195 cash outcome too;
 fixture deliberately has unidentified synthetic instrument units and retains
 zero source trading costs with the product's visible notice. It qualifies the
 account ledger; this second fixture additionally qualifies provider repricing.
+
+
+## Daily shared market comparisons (2026-10-30)
+
+Market comparisons now save DAY observations and share the buy-and-hold series
+across matching optimization trials. This changes comparison storage and exports;
+prop calculations continue to use their saved trade/intratrade-risk sources.
+
+User journey: run an optimization from the existing New backtest form, open each
+completed report, inspect Market benchmark, and download Daily comparison CSV.
+The initial balance and each observed source-local date appear once. Each run
+has its own strategy series and the same shared holding reference when dataset,
+dates, quantity, execution settings and calculation version match. Summary
+drawdowns still use all replay bars. The ordinary report-to-prop configuration,
+source checking, analysis and durable-report workflow remains covered by
+`tests/test_optimization_compact_browser.py`.
+
+Reproduction and independent arithmetic are in `docs/market_benchmark.md`.
+The synthetic two-day compact-optimization browser journey expects holding
+equity `10000, 10026.50, 10023.00` and strategy net profits `26, 52` for
+one/two contracts, with one shared holding file. The four-bar qualification
+fixture expects daily strategy `10000, 10168, 10168`, holding
+`10000, 10194, 10188`, and unchanged all-bar drawdowns `226, 220`. Changing
+holding quantity, costs, capital or dates creates a different holding reference.
+Corrupted shared data rejects display/download/reuse rather than overwriting
+it. Deleting one run preserves other reports and their downloads.
+
+Saved evidence: `artifacts/market-equity-day-20261030/` contains the independent
+existing-run daily selection, browser downloads/screenshots, automated checks,
+and the existing-report conversion catalogue backup/journal/verification.
+Earlier qualification evidence remains unchanged. Temporary browser servers
+are stopped by their fixtures; no persistent demonstration server is required.

@@ -57,7 +57,7 @@ def test_hand_calculated_equity_drawdowns_and_costs(client):
         account = result['accounts'][name]
         assert Decimal(account['net_pnl']) == Decimal(wanted[name + '_net_pnl'])
         assert Decimal(account['max_drawdown_amount']) == Decimal(wanted[name + '_max_drawdown'])
-        assert [Decimal(p[name + '_equity']) for p in result['chart']['items']] == list(map(Decimal, wanted[name + '_equity']))
+        assert [Decimal(p[name + '_equity']) for p in result['chart']['items']] == [Decimal(wanted[name + '_equity'][i]) for i in (0, 3, 4)]
         assert Decimal(account['total_commissions']) == 2
         assert Decimal(account['total_slippage_cost']) == 10
     assert Decimal(result['accounts']['holding']['return_pct']) == Decimal('1.88')
@@ -98,14 +98,15 @@ def test_oos_freezes_quantity_detail_preserves_it_and_no_read_replay(client, mon
     assert Decimal(comparison['accounts']['holding']['net_pnl']) == 776
     root = client.app.state.runs.root / run['id']
     before = {p.name: p.read_bytes() for p in root.iterdir()}
+    csv_before = client.get(base + '/exports/market_equity').content
     monkeypatch.setattr('alphaquest.backtest_api.execute', lambda *a, **kw: pytest.fail('Reopening must not replay a strategy'))
     monkeypatch.setattr(client.app.state.store, 'iter_csv', lambda *a, **kw: pytest.fail('Reopening must not read source prices'))
     assert client.delete('/api/datasets/' + dataset['id']).status_code == 204
     assert client.get(base + '/market-benchmark').json() == result
-    for kind, name in [('market_benchmark', 'market_benchmark.json'), ('market_equity', 'market_equity.csv')]:
+    for kind, expected in [('market_benchmark', before['market_benchmark.json']), ('market_equity', csv_before)]:
         download = client.get(base + '/exports/' + kind)
         assert download.status_code == 200
-        assert download.content == before[name]
+        assert download.content == expected
     assert before == {p.name: p.read_bytes() for p in root.iterdir()}
 
 
@@ -116,7 +117,7 @@ def test_invalid_quantity_publishes_nothing(client, quantity):
     assert client.get('/api/backtests').json()['total'] == 0
 
 
-@pytest.mark.parametrize('name,kind', [('market_equity.csv', 'market_equity'), ('market_benchmark.json', 'market_benchmark')])
+@pytest.mark.parametrize('name,kind', [('strategy_equity_day.csv', 'market_equity'), ('market_benchmark.json', 'market_benchmark')])
 def test_corruption_is_rejected_without_recalculation(client, name, kind):
     _, run = start(client)
     folder = client.app.state.runs.root / run['id']
@@ -231,7 +232,7 @@ def test_quantity_affects_reuse_and_corrupt_market_files_invalidate_reuse(client
     assert changed.status_code == 201 and changed.json()['id'] != first.json()['id']
     assert changed.json()['market_benchmark']['settings'] == {'contracts': 2}
     folder = client.app.state.runs.root / first.json()['id']
-    (folder / 'market_equity.csv').write_bytes(b'corrupted')
+    (folder / 'strategy_equity_day.csv').write_bytes(b'corrupted')
     fresh = client.post('/api/backtests', json=body)
     assert fresh.status_code == 201 and fresh.json()['id'] != first.json()['id']
 
@@ -246,7 +247,7 @@ def test_vwap_lookahead_preparation_keeps_actual_equity_aligned(client):
     result = client.get('/api/backtests/' + response.json()['id'] + '/market-benchmark').json()
     assert result['observed_bar_count'] == 4
     assert result['source']['strategy']['session_flattening']
-    assert [p['close'] for p in result['chart']['items'][1:]] == ['101', '90', '110', '110']
+    assert [p['close'] for p in result['chart']['items'][1:]] == ['110', '110']
     assert Decimal(result['accounts']['holding']['net_pnl']) == 188
 
 
@@ -280,6 +281,8 @@ def test_monthly_attribution_uses_source_dates_and_observed_gaps(client):
     assert result['observed_bar_count'] == 4
     assert [(p['period'], Decimal(p['holding_net_pnl'])) for p in result['monthly']] == [('2026-01', Decimal(194)), ('2026-02', Decimal(-206))]
     assert Decimal(result['yearly'][0]['holding_net_pnl']) == -12
+    assert [p['date'] for p in result['chart']['items']] == ['', '2026-01-31', '2026-02-01']
+    assert [Decimal(p['holding_equity']) for p in result['chart']['items']] == [10000, 10194, 9988]
 
 
 def test_failed_comparison_is_never_published(client, monkeypatch):

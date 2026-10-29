@@ -130,6 +130,9 @@ class RunStore:
         destination = self.root / run_id
         if destination.exists():
             raise FileExistsError(f"Run artifacts already exist: {run_id}")
+        from .market_equity import publish_holding
+        if manifest.get("market_benchmark"):
+            publish_holding(report_directory, self.root.parent, manifest["market_benchmark"])
         record = json.loads(json.dumps({"id": run_id, **manifest}, default=json_value, allow_nan=False))
         published = False
         try:

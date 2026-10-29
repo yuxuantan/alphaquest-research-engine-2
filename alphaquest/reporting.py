@@ -268,7 +268,7 @@ def generate_report(
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
         if market_benchmark is not None:
             manifest["market_benchmark"] = market_benchmark.finish(staging, summary)
-            manifest["artifacts"].update(market_benchmark_json="market_benchmark.json", market_equity_csv="market_equity.csv")
+            manifest["artifacts"].update(market_benchmark_json="market_benchmark.json", strategy_equity_day_csv="strategy_equity_day.csv")
         if detail == "compact" or compress:
             manifest["report_storage"] = {"detail": detail, "compression": "gzip" if compress else "none",
                                           "per_bar_equity_retained": detail == "full",

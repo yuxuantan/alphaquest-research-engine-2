@@ -17,17 +17,19 @@ remain later increments.
    of an exhaustive batch.
 3. Start the IS backtest and open **Market benchmark** in its completed report.
    Inspect the strategy/holding metrics, source checks and execution assumptions.
+   Comparisons use **DAY** granularity: the initial balance and the last selected
+   bar of each observed calendar date in the dataset's source timezone.
    The chart offers aligned mark-to-market equity or cumulative excess net P&L.
    Hover or focus it and press Home/End/arrow keys to inspect exact saved values.
 4. Expand monthly/yearly comparisons or source checks. Download **Comparison
-   JSON** and **Aligned equity CSV**. The existing trade-close chart, summary and
+   JSON** and **Daily comparison CSV**. The existing trade-close chart, summary and
    exports retain their previous definitions.
 5. Select **Run OOS with these parameters** explicitly when ready. The OOS run
    uses the selected IS report's saved holding quantity. Neither form edits nor
    an OOS request can override it. No OOS data enters an IS comparison. Repeated
    OOS inspection still reduces its usefulness as independent research evidence.
 6. Reopening a comparison, including after restart or source-dataset deletion,
-   reads saved artifacts only. Older reports show comparison unavailable and
+   reads saved artifacts only. Reports predating benchmark support show comparison unavailable and
    remain unchanged; they are not silently replayed or enriched.
 
 The saved policy has version `price-series-holding-v1`. An IS report with an
@@ -47,9 +49,12 @@ comparison as part of that new run.
   its P&L is not reconstructed or charged costs a second time. Benchmark costs
   are its own costs, under the same point value, tick size, slippage, commission
   and starting account equity as the strategy.
-- Every selected bar's post-fill equity is saved for both accounts, including
+- Every selected bar's post-fill equity is calculated for both accounts, including
   open-position P&L and initial capital. Max drawdown and duration use every one
-  of these observations. These are **bar-close**, not tick/intrabar, measurements.
+  of these observations. Only the initial balance and each source date's final
+  observation are retained for charts/exports. Summary metrics therefore retain
+  intraday bar-close extremes that are not visible on the daily curve.
+  These are **bar-close**, not tick/intrabar, measurements.
   A final holding liquidation includes the exit costs in its terminal equity.
 - Net return divides net P&L by starting account equity. Futures notional is not
   treated as invested cash or posted margin. Average/maximum notional samples
@@ -65,7 +70,8 @@ comparison as part of that new run.
   the dataset's saved source timezone. It includes entry/exit costs exactly once.
   Only observed periods appear; gaps are not filled with invented prices/dates.
   Chart spacing uses elapsed UTC time. Preview downsampling retains endpoints
-  and bucket minima/maxima of both accounts **and their difference**, but never
+  and bucket minima/maxima of the saved daily observations for both accounts
+  **and their difference**, but never
   supplies the input to any financial metric.
 - All comparisons are labelled **price-series comparison; executable futures
   performance unverified**. The dataset contract does not establish individual
@@ -86,29 +92,38 @@ comparison as part of that new run.
 events through `execution.py`/`reporting.py`. The callback runs after any strategy
 preparation, preserving VWAP's buffered session replay order. Recording and
 drawdown calculations have bounded memory; monthly summaries grow by calendar
-period only. Full bar-close CSV storage and hash verification add disk I/O.
-The additional series also increases compact-report disk usage: the former
-whole-folder 50-fold reduction versus full detail no longer describes a report
-that includes this required per-bar download. Qualification preserves that
-reduction check for the original native artifacts, verifies identical aligned
-CSVs across compact/full modes, and records comparison bytes and total savings
-separately. No original native account arrays are added to compact report JSON.
+period only. `daily-shared-v1` storage retains one observation per source-local
+calendar date, plus the initial balance. It does not invent weekends, missing
+dates, session closes, or observations outside the selected IS/OOS period.
+No original native account arrays are added to compact report JSON.
 
-The same atomic backtest report publication saves two additional artifacts:
+Backtest report publication saves small run artifacts and a shared dependency:
 
 | Artifact | Contents |
 | --- | --- |
 | `market_benchmark.json` | Version, quantity, source backtest ID/dataset hash, selected dates, strategy provenance, execution settings, calculation-source hashes, source checks, assumptions, holding fills, metrics, monthly/yearly results and equity checksum. |
-| `market_equity.csv` | Initial balance plus every selected bar's UTC label/Close, strategy equity, holding equity, excess P&L and post-fill contract quantities. |
+| `strategy_equity_day.csv` | Initial balance and each day's final strategy equity/contracts, aligned by original bar number. Each run owns this small file. |
+| `data/market_benchmarks/{holding_key}.csv` | Shared initial balance and daily date/UTC label/Close, holding equity/contracts. Matching optimization trials reference one immutable file. |
 
 The manifest/catalogue carries the specification and both artifact hashes.
-Compact reports save the comparison CSV without requiring a full-detail replay;
+The shared holding key includes dataset content/timezone/instrument settings,
+selected dates/bars, execution settings, holding quantity, model and calculation
+source versions. Strategy parameters and run IDs are excluded. Sharing applies
+across matching runs and optimization jobs; changed costs, capital, quantities,
+dates or source identities cannot silently reuse a different baseline. Publication
+is atomic across workers. Each saved descriptor records both daily file hashes.
+Shared files are independent of run directories and remain available when a run
+is deleted, including for surviving reports and saved analysis snapshots.
+
+The normal aligned CSV download joins the two daily files and calculates excess
+P&L in memory; no duplicate aligned CSV is stored per run. Its checksum is saved.
+Compact reports save daily observations without requiring a full-detail replay;
 their `per_bar_equity_retained` flag still describes the full native account
 array inside report JSON. No dataset/report duplication or separate database is
 introduced. Backtest and optimization reuse keys include benchmark settings and
 verify the new files; corruption refuses reuse/display/download rather than
-recomputing on a read. Existing report deletion removes these owned files using
-the ordinary backtest deletion path.
+recomputing on a read. Existing report deletion removes run-owned files using
+the ordinary backtest deletion path and preserves shared holding files.
 
 `POST /api/backtests` and exhaustive `POST /api/optimizations` accept:
 
@@ -122,9 +137,55 @@ its existing request UUID and inherits the IS quantity.
 
 | Method/path | Behaviour |
 | --- | --- |
-| `GET /api/backtests/{id}/market-benchmark?max_points=1000` | Verified saved comparison and bounded chart (limit 16–2000); legacy returns an unavailable explanation. No replay or source-data read. |
+| `GET /api/backtests/{id}/market-benchmark?max_points=1000` | Verified saved comparison and bounded chart (limit 16–2000); reports without comparisons return an unavailable explanation. No replay or source-data read. |
 | `GET /api/backtests/{id}/exports/market_benchmark` | Verified saved comparison JSON download. |
-| `GET /api/backtests/{id}/exports/market_equity` | Verified full aligned CSV download. |
+| `GET /api/backtests/{id}/exports/market_equity` | Verified aligned daily CSV download, including the source-local `date` column; filename ends in `market_equity_day.csv`. |
+
+## Convert existing saved comparisons and reclaim space
+
+New reports use daily shared storage automatically. To convert existing bar CSVs,
+wait for queued/running optimizations to finish, then run:
+
+```bash
+.venv/bin/python -m alphaquest.migrate_market_equity --data-dir data --evidence artifacts/NEW-daily-conversion-evidence
+```
+
+The evidence directory must be new. Conversion reads saved comparisons, without
+replaying strategies or running prop simulations. It preserves exact summary
+metrics, trades, trade-close equity and intratrade-risk records. The existing
+comparison JSON, report JSON (including gzip reports), catalogue and CSV endpoint
+all reference daily storage afterward. Original large CSVs are removed only
+after the new files are published and their reconstructed download is verified.
+The evidence keeps the pre-conversion catalogue, small original report files,
+hashes and a journal; it does not keep space-consuming copies of old bar CSVs.
+Converted exports replace the earlier comparison exports by explicit request.
+Rerunning skips completed conversions and finishes verified cleanup interrupted
+after catalogue publication. Old reports remain readable until explicitly
+converted. Restart an already-running application to load the new readers.
+
+The 2026-10-30 conversion updated all **129** existing reports. The **128** trials
+of optimization `ad0b3cec75864d7897c6c855160c0fa9` share one 75,965-byte daily
+holding CSV; the separate run has a different date range and its own baseline.
+Backtest run files plus both shared baselines fell from **13,019,659,316** bytes
+to **33,782,320** bytes. All existing benchmark CSV, comparison JSON and report
+JSON routes were independently read and verified; original numerical comparison
+fields, trades, equity/risk hashes, optimization records and all 128 trial rows
+were preserved. No optimization rerun was required.
+
+Evidence and exact repeatable verification are under
+`artifacts/market-equity-day-20261030/`. From the repository:
+
+```bash
+.venv/bin/python artifacts/market-equity-day-20261030/verify_saved_exports.py
+```
+
+After restarting the portal, open the saved optimization above, select report
+`7ab7d5036c4746479b69e83f324cbf92`, and open **Market benchmark**. Expect the
+DAY explanation and a **Daily comparison CSV** download with **1,245 rows**
+(initial balance plus 1,244 observed dates). The chart may show a bounded subset;
+the CSV contains every saved daily observation. Its bytes match
+`independent-existing-run-daily.csv` in the evidence directory. This verification
+is read-only and starts no server, recovery task, simulation or dataset import.
 
 CLI: add `--benchmark-contracts 1` to the ordinary declared-IS command. Existing
 output shortcuts continue to reference the single normal saved report directory.
@@ -167,6 +228,11 @@ Holding IS: `(109.75 - 100.25) * 20 - 2 = 188`. Strategy IS:
 `10000 → 9994 → 9774 → 10168 → 10168`; maximum loss is `10000 - 9774 = 226`.
 The final holding exit costs are paid on January 6. OOS's different 1000+ prices
 must have no effect on any IS result. All prices/outcomes here are synthetic.
+
+The daily IS chart/download has three rows: initial balance, January 5 and
+January 6. Strategy equity is `10000, 10168, 10168`; holding equity is
+`10000, 10194, 10188`. The exact bar-close drawdowns remain `226` and `220`;
+they must not be recalculated from the daily observations.
 
 Download both comparison files, refresh, and confirm identical contents. Run
 OOS manually, inspect its phase/parent/quantity, and download again. In this

@@ -78,7 +78,9 @@
       inspect(event.key === "Home" ? 0 : event.key === "End" ? points.length - 1 : selected + (event.key === "ArrowRight" ? 1 : -1));
     };
     svg.dataset.points = points.length; svg.dataset.total = data.chart.total;
-    get("#market-benchmark-chart-note").textContent = `${points.length} of ${data.chart.total} observations shown. ${data.chart.sampled ? "Endpoints and bucket extremes for both accounts and their difference; lines omit intermediate observations." : "Full series shown."} Horizontal spacing uses elapsed UTC time; gaps remain gaps. All metrics use every selected bar. Drawdown is measured at bar closes. Hover or use arrow keys for exact values.`;
+    const daily = data.chart.granularity === "DAY";
+    const frequency = daily ? `DAY granularity: initial balance plus the last selected bar of each calendar date in ${data.storage.timezone}. Holding equity is stored once and shared across matching runs. ` : "Legacy per-bar series. ";
+    get("#market-benchmark-chart-note").textContent = `${frequency}${points.length} of ${data.chart.total} observations shown. ${data.chart.sampled ? "Endpoints and bucket extremes for both accounts and their difference; lines omit intermediate observations." : "Full saved series shown."} Horizontal spacing uses elapsed UTC time; gaps remain gaps. Summary metrics still use every selected bar, including bar-close drawdown. Hover or use arrow keys for exact values.`;
     inspect(points.length - 1);
   }
 
@@ -126,6 +128,7 @@
       get("#market-benchmark-source").textContent = JSON.stringify({source: data.source, source_checks: data.source_checks, entry: data.entry, holding_trade: data.holding_trade, equity_sha256: data.equity_sha256}, null, 2);
       get("#market-benchmark-json").href = `/api/backtests/${record.id}/exports/market_benchmark`;
       get("#market-benchmark-csv").href = `/api/backtests/${record.id}/exports/market_equity`;
+      get("#market-benchmark-csv").textContent = data.storage?.granularity === "DAY" ? "Daily comparison CSV ↓" : "Aligned equity CSV ↓";
       get("#market-benchmark-results").hidden = false;
       periods(); draw();
     } catch (error) {
