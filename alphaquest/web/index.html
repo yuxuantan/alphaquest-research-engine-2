@@ -10,6 +10,7 @@
     <title>Datasets · AlphaQuest</title>
     <link rel="stylesheet" href="/static/styles.css?v=ASSET_VERSION" />
     <script src="/static/app.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/optimization-columns.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
@@ -442,9 +443,23 @@
             <button id="optimization-resume" class="button primary" type="button" hidden>Resume remaining trials</button>
             <p id="optimization-resume-error" class="small" role="alert" hidden></p>
             <details id="optimization-provenance" class="panel" hidden><summary>Saved grid, source &amp; execution settings</summary><pre id="optimization-settings-used"></pre></details>
-            <p class="small muted">Scroll horizontally within the table to view all columns. Parameters with multiple trial values stay frozen on the left.</p>
+            <p class="small muted">Scroll within the table to view all columns. Headers stay visible; choose which columns to freeze below.</p>
             <p id="optimization-parameter-legend" class="small muted" hidden></p>
-            <div id="optimization-results-scroll" class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally or vertically; column headers and varying parameter columns stay visible">
+            <details id="optimization-freeze" class="panel optimization-freeze" hidden>
+              <summary>Freeze columns <span class="optimization-freeze-count small muted"></span></summary>
+              <div class="optimization-freeze-body">
+                <p id="optimization-freeze-help" class="field-help">Checked columns move to the left and stay visible while scrolling. Frozen columns can use up to 40% of the table width. Selections are remembered for this strategy in this browser.</p>
+                <div class="optimization-freeze-actions">
+                  <label>Find a column<input id="optimization-freeze-search" type="search" placeholder="Search columns…" autocomplete="off" /></label>
+                  <button class="button secondary" type="button" data-freeze="reset">Reset to Trial</button>
+                  <button class="button secondary" type="button" data-freeze="none">Unfreeze all</button>
+                </div>
+                <p id="optimization-freeze-status" class="field-help" role="status" aria-live="polite"></p>
+                <div class="optimization-column-choices" role="group" aria-label="Columns to freeze"></div>
+                <p class="optimization-column-empty field-help" hidden>No matching columns.</p>
+              </div>
+            </details>
+            <div id="optimization-results-scroll" class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally or vertically; column headers and selected frozen columns stay visible">
               <table id="optimization-results" class="library-table"><thead></thead><tbody></tbody></table>
             </div>
             <div class="report-pagination"><button id="optimization-previous" class="button secondary" type="button">Previous</button><span id="optimization-page"></span><button id="optimization-next" class="button secondary" type="button">Next</button></div>

@@ -2153,3 +2153,85 @@ parameter type/precision validation, preparation/replay progress, duplicate-subm
 protection, worker retry, mobile overflow, sorting, reuse, prop configuration and
 downloads, benchmark comparison, manual OOS and durable report reopening.
 JavaScript syntax and patch whitespace checks also passed.
+
+# Selectable frozen optimization columns — 2026-10-29
+
+The normal saved batch results now include a collapsible **Freeze columns**
+section with searchable checkboxes for every parameter, metric, Trial and report
+link. Only Trial is frozen by default. Checked columns move to the left; unchecked
+columns scroll. Reset to Trial and Unfreeze all are provided. Varied parameters
+remain highlighted regardless of freezing. Selections are stored per strategy in
+this browser, separately from server calculations and saved reports.
+
+Actual rendered frozen widths are limited to 40% of the table viewport. Additional
+boxes are disabled with a Width limit label and an explanation. Checked columns
+remain available to uncheck. Narrow screens temporarily release selections that
+no longer fit, restoring them when widened. Sticky headers work even when no
+columns are frozen. Window scrolling updates header positioning without
+reprocessing every result cell. No production backtest/prop arithmetic, source
+adaptation, sizing, sampling or economics changed.
+
+Actual product evidence is under
+`artifacts/optimization-freeze-20261029/live-final/`. Saved job
+`ad0b3cec75864d7897c6c855160c0fa9` has **128 trials and seven varied parameters**.
+The browser demonstrated the existing page with only Trial frozen, then Trial +
+Min rr + Use adx elev (375.30 px of a 1,266 px viewport), enforcing the maximum
+at 495.05 px, below the 506.4 px allowance. A Trial + Historical net selection
+used 254.08 px. At a 356 px mobile table width, only Trial remained frozen
+(73.59 px); widening restored both saved selections. Screenshots capture the
+controls, width rejection, two-axis scrolling and mobile behavior. Sorting,
+pagination and refresh all retained the choices. All 128 saved result rows,
+job metadata and the full CSV remained identical, with **no mutating requests,
+new simulations or browser errors**. These are existing saved outcomes, not
+newly calculated or forecast performance. No persistent server was started or
+restarted; the existing portal serves the updated assets on refresh.
+
+To reproduce without submitting any calculation:
+
+1. Open `http://127.0.0.1:8000/#backtests/batches/ad0b3cec75864d7897c6c855160c0fa9`.
+2. Expand Freeze columns and use Reset to Trial if this browser has prior choices.
+   The table starts with Trial frozen; all seven varied parameters remain green.
+3. On a wide desktop, check Min rr and Use adx elev. Their columns move to the
+   frozen left area. Search filters the checkbox list without changing selections.
+4. Select more available columns until others show Width limit. The displayed
+   frozen width never exceeds 40%; unchecking a column frees space for others.
+5. Reset to Trial and check Historical net · USD. Collapse the controls, scroll
+   right/down, sort Historical net in both directions and change result pages.
+   Trial/Historical net stay visible with aligned headers. Refresh retains them.
+6. Narrow the viewport to 390 px. Historical net temporarily unfreezes; Trial
+   remains. Widening restores the saved selection. Unfreeze all is also retained
+   across refresh and leaves vertical headers sticky.
+
+The saved `live-verification.json` contains measured widths and source SHA-256
+values. `actual-job-before.json`, `actual-results-before.json` and
+`actual-results-before.csv` preserve the original outputs; `verify-live.py.txt`
+contains the exact non-mutating reproduction. Earlier verification attempts
+remain separately inspectable in the parent evidence directory.
+
+Automated qualification: **39 existing browser checks passed**, covering the
+shared form, sweep execution, sorting, exports, report links, frozen/header
+geometry on desktop/mobile, pagination, reuse and resumption. **Five new controls
+checks passed** in `final-column-results.log/xml`: parameter/metric selections,
+keyboard focus and Space activation, search/no matches, width rejection, resize
+restoration, reset/unfreeze persistence, per-strategy isolation across ordinary
+three-parameter and 32-parameter strategy results, malformed/blocked storage and
+unchanged saved metrics/CSV access. The earlier bundle log records one newly
+added fixture's rejected Decimal step; its corrected string-valued request passed
+both the targeted rerun and final five-check suite. No product failure remains.
+`qualification.json` resolves the final results by test case. Earlier logs and
+fixture outputs are preserved. JavaScript syntax and patch whitespace checks
+passed. Fixture oracles remain unchanged: one-/two-/three-contract arithmetic
+runs produce **13/26/39 CU**, independent of freezing.
+
+Run checks into a new directory to preserve the saved evidence:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_optimization_columns_browser.py \
+  tests/test_optimization_browser.py tests/test_optimization_compact_browser.py \
+  tests/test_strategies_browser.py tests/test_backtests_browser.py \
+  --basetemp artifacts/optimization-freeze-NEW
+```
+
+Temporary fixture servers shut down through their normal test cleanup. The
+existing report/configuration/prop-analysis routes and durable stores are reused;
+there is no demo page, report recalculation or duplicate calculation store.

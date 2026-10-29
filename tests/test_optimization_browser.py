@@ -426,8 +426,19 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     headers = page.locator("#optimization-results thead th.optimization-varying-parameter")
     assert headers.evaluate_all("items => items.map(item => item.dataset.column)") == ["param.hold_minutes", "param.contracts"]
     assert page.locator("#optimization-results thead th").evaluate_all("items => items.slice(0, 5).map(item => item.dataset.column)") == [
-        "param.hold_minutes", "param.contracts", "trial", "historical_net", "param.green_bar_count"]
-    playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-parameter")).to_have_count(100)
+        "trial", "param.hold_minutes", "param.contracts", "historical_net", "param.green_bar_count"]
+    page.locator("#optimization-freeze summary").click()
+    frozen_keys = ["trial"]
+    if viewport["width"] > 1000:
+        page.get_by_label("Freeze Trial", exact=True).uncheck()
+        page.get_by_label("Freeze Hold minutes", exact=True).check()
+        page.get_by_label("Freeze Contracts", exact=True).check()
+        frozen_keys = ["param.hold_minutes", "param.contracts"]
+    page.locator("#optimization-freeze summary").click()
+    frozen_headers = page.locator("#optimization-results thead th.optimization-frozen-column")
+    playwright.expect(frozen_headers).to_have_count(len(frozen_keys))
+    assert frozen_headers.evaluate_all("items => items.map(item => item.dataset.column)") == frozen_keys
+    playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-column")).to_have_count(50 * len(frozen_keys))
     playwright.expect(page.locator("#optimization-results tbody td.optimization-varying-parameter")).to_have_count(100)
     playwright.expect(page.locator("#optimization-parameter-legend")).to_contain_text("Hold minutes, Contracts")
     for key in ("param.green_bar_count", "total_net_pnl"):
@@ -443,25 +454,26 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
             && header.getBoundingClientRect().top >= -1 && header.getBoundingClientRect().top < 3;
     }""")
     before = page.locator("#optimization-results thead th").first.bounding_box()
-    columns_before = headers.evaluate_all("items => items.map(item => ({x: item.getBoundingClientRect().x, width: item.getBoundingClientRect().width}))")
+    columns_before = frozen_headers.evaluate_all("items => items.map(item => ({x: item.getBoundingClientRect().x, width: item.getBoundingClientRect().width}))")
     metric = page.locator('#optimization-results th[data-column="total_net_pnl"]')
     metric_x_before = metric.bounding_box()["x"]
     region.evaluate("element => { element.scrollTop = 900; element.scrollLeft = 600; }")
-    page.wait_for_function("document.querySelector('#optimization-results-scroll').scrollTop >= 900")
+    page.wait_for_function("() => document.querySelector('#optimization-results-scroll').scrollTop >= 900")
     after = page.locator("#optimization-results thead th").first.bounding_box()
     assert abs(before["y"] - after["y"]) <= 1
-    columns_after = headers.evaluate_all("items => items.map(item => ({x: item.getBoundingClientRect().x, width: item.getBoundingClientRect().width}))")
+    columns_after = frozen_headers.evaluate_all("items => items.map(item => ({x: item.getBoundingClientRect().x, width: item.getBoundingClientRect().width}))")
     assert region.evaluate("element => element.scrollLeft") == 600
     assert abs(metric_x_before - metric.bounding_box()["x"] - 600) < 1
     for first, second in zip(columns_before, columns_after):
         assert abs(first["x"] - second["x"]) < 1
-    assert abs(columns_after[1]["x"] - columns_after[0]["x"] - columns_after[0]["width"]) < 1
+    if len(columns_after) > 1:
+        assert abs(columns_after[1]["x"] - columns_after[0]["x"] - columns_after[0]["width"]) < 1
     # Scrolled metrics must paint underneath both frozen headers and body cells.
-    assert headers.evaluate_all("""items => items.every(cell => {
+    assert frozen_headers.evaluate_all("""items => items.every(cell => {
         const r = cell.getBoundingClientRect();
         return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).closest('th') === cell;
     })""")
-    assert page.locator("#optimization-results tbody td.optimization-frozen-parameter").evaluate_all("""items => {
+    assert page.locator("#optimization-results tbody td.optimization-frozen-column").evaluate_all("""items => {
         const region = document.querySelector('#optimization-results-scroll').getBoundingClientRect();
         const header = document.querySelector('#optimization-results thead th').getBoundingClientRect();
         const visible = items.filter(cell => {
@@ -486,7 +498,7 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     page.locator("#optimization-next").click()
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(10)
     playwright.expect(page.locator("#optimization-results tbody td.optimization-varying-parameter")).to_have_count(20)
-    playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-parameter")).to_have_count(20)
+    playwright.expect(page.locator("#optimization-results tbody td.optimization-frozen-column")).to_have_count(10 * len(frozen_keys))
     page.reload()
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(50)
     playwright.expect(headers).to_have_count(2)
@@ -497,7 +509,7 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
         "expected_varying_parameters": ["hold_minutes", "contracts"], "fixed_parameter": "green_bar_count",
         "inner_scroll_before": 450, "inner_scroll_after": 900,
         "header_viewport_y_before": before["y"], "header_viewport_y_after": after["y"],
-        "frozen_columns_before": columns_before, "frozen_columns_after": columns_after,
+        "selected_frozen_columns": frozen_keys, "frozen_columns_before": columns_before, "frozen_columns_after": columns_after,
         "horizontal_scroll": 600, "metrics_scrolled_under_frozen_cells": True,
         "header_and_body_columns_aligned": True, "sorting_pagination_reload_verified": True,
         "total_saved_trials": 60,

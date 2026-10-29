@@ -123,43 +123,59 @@ semantics, including trade-close drawdown. No metric is calculated in the browse
 
 Click **any column heading** to sort ascending, then click it again to reverse.
 Headers stay visible while scrolling within the result table and while moving
-down the page through the table. Horizontal scrolling keeps each header aligned
-with its values. Parameters with more than one generated value appear first,
-before Trial, and remain frozen on the left during horizontal scrolling. They
-have highlighted headers and cells, a **Varies** badge, and a legend above the table. Fixed
-parameters and metrics keep their normal appearance. A range that generates
-only one value (for example, 1 through 2 with step 5) is treated as fixed.
-The highlight uses the whole saved grid, so it remains consistent across sort
-orders, result pages and reopened reports. Existing saved jobs gain this display
-on refresh without rerunning any backtests.
+down the page through the table. Horizontal scrolling keeps headers aligned
+with their values. Parameters with more than one generated value have highlighted
+headers/cells and a **Varies** badge regardless of whether they are frozen.
+Highlighting uses the entire saved grid and remains consistent across sorting,
+pagination and reopening. A range generating one value is treated as fixed.
 
-To reproduce the table review, use the synthetic arithmetic dataset below with
-green bar count **3 / 3 / 0**, hold minutes **20 / 25 / 5**, and contracts
-**1 / 30 / 1** (start / end / step), using one worker. Expect **60** saved trials
-across two result pages. **Hold minutes** and **Contracts** are highlighted and
-marked **Varies** and occupy the first two columns, followed by **Trial** and
-**Green bar count**. Fixed parameters and metric columns are plain. Scroll the
-page until the table's top moves above the viewport, then scroll within the
-table and horizontally. The header remains visible and aligned; **Hold minutes**
-and **Contracts** stay in place while the other columns scroll underneath. Sorting,
-switching to the ten-row second page, and reloading retain the same highlights.
-Desktop/mobile screenshots, measured frozen column positions before/after a
-600px horizontal scroll, and actual reports are retained under
-`artifacts/optimization-frozen-columns-review-20261027-verified/`. Earlier header
-review evidence remains under `artifacts/optimization-table-review-20261027-verified/`.
-Repeat the browser
-check in a new evidence directory with:
+### Choose frozen columns
+
+Expand **Freeze columns** above the results. Search for a column and check its
+box to move it to the frozen area on the left. Uncheck it to return it to the
+scrolling columns. Every parameter and performance metric, Trial and report-link
+column is available. **Only Trial is frozen by default.** **Reset to Trial**
+restores that default; **Unfreeze all** clears all selections. The section can
+stay collapsed while reviewing results; its summary shows the frozen count.
+
+Frozen columns together can occupy at most **40% of the visible table width**,
+measured from their actual rendered widths. A box that would exceed the limit is
+disabled with a Width limit label and an explanation to unfreeze another column
+or widen the table. Checked columns remain available to uncheck. Resizing to a
+narrower screen temporarily releases saved columns that no longer fit; they
+return when sufficient width is available. At least 60% of the table stays
+available for scrolling results, including on mobile.
+
+Preferences are saved in this browser's local storage separately for each
+strategy. They survive refresh, sorting, result pages and other batches of the
+same strategy. They do not change server-side results, calculations, CSV column
+order or report links. When browser storage is unavailable, selections still
+work during the current page session. Unknown saved column names are ignored.
+Existing saved batches gain these controls on refresh without rerunning trials.
+
+For a reproducible synthetic review, use green bar count **3 / 3 / 0**, hold
+minutes **20 / 25 / 5** and contracts **1 / 30 / 1** (start/end/step), with one
+worker and the arithmetic dataset below. Expect 60 saved trials across two pages.
+Hold minutes and Contracts are highlighted; only Trial is frozen. On desktop,
+expand Freeze columns, uncheck Trial and check Hold minutes and Contracts. Scroll
+both axes and the page: the selected columns and headers stay aligned, sorting
+still works, and changing pages/reloading retains the choices. On mobile, the
+width limit may permit only Trial; expanding the viewport restores wider saved
+selections. Inspect current evidence in `artifacts/optimization-freeze-20261029/`.
+
+The earlier automatically frozen-parameter implementation's evidence remains
+unchanged under `artifacts/optimization-frozen-columns-review-20261027-verified/`,
+`artifacts/optimization-table-review-20261027-verified/` and
+`artifacts/optimization-frozen-columns-sort-review-20261027/`.
+Repeat the current checks into a new directory to preserve saved evidence:
 
 ```bash
-.venv/bin/python -m pytest tests/test_optimization_browser.py -k 'headers_stay_visible or single_generated' -q --basetemp artifacts/optimization-frozen-columns-review-NEW
+PYTHONPATH=. .venv/bin/python -m pytest tests/test_optimization_columns_browser.py \
+  tests/test_optimization_browser.py -q --basetemp artifacts/optimization-freeze-NEW
 ```
 
-Use a new `--basetemp` directory to preserve earlier evidence. These checks own
-and stop their temporary servers and retain the isolated normal reports.
-The normal portal review also passed with the frozen column order: all 18
-headings sorted both ways, CSV order and report links matched, and reopening
-worked on desktop/mobile. Its outputs are saved separately under
-`artifacts/optimization-frozen-columns-sort-review-20261027/`.
+These checks own and stop their temporary servers and retain the isolated normal
+reports, screenshots, expected metrics and verification JSON.
 
 Sorting applies to all saved trials before pagination (50 rows per page), with
 exact Decimal comparisons rather than lexical or floating-point money order.
