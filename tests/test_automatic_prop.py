@@ -245,4 +245,5 @@ def test_saved_analysis_lookup_skips_export_discovery(client,monkeypatch):
     assert result.status_code==200,result.text
     saved=result.json()
     assert saved['source']==record and saved['matched_exports']==[]
-    assert saved['analyses'][0]['id']==record['run_metadata']['automatic_prop_analysis']['id']
+    automatic=record['run_metadata']['automatic_prop_analysis']
+    assert {row['id'] for row in saved['analyses']}=={automatic['id'],*(item['id'] for item in automatic['companions'])}

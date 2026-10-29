@@ -105,6 +105,15 @@
       const link = node("a", "Open default prop analysis →"); link.href = `#backtests/prop/job/${automatic.id}`;
       card.append(amount, note, node("p", `Apex 50K EOD · ${automatic.settings.SLOTS} slots · $${automatic.settings.EVAL_PRICE} evaluation + $${automatic.settings.ACTIVATION_FEE} activation · full history`, "small muted"), link);
       holder.append(card);
+      for(const item of automatic.companions||[]){
+        const extra=node('div',undefined,'panel report-metric');
+        const value=node('strong','Loading…');value.id='report-lucid-historical-net';
+        const note=node('p','', 'small muted');note.id='report-lucid-result-note';
+        const open=node('a','Open LucidFlex analysis →');open.href=`#backtests/prop/job/${item.id}`;
+        extra.append(node('span','LucidFlex historical net · USD','stat-label'),value,
+          node('p',`${item.label} · ${item.settings.SLOTS} slots · $${item.settings.EVAL_PRICE} evaluation · no activation fee`,'small muted'),note,open);
+        holder.append(extra);
+      }
     }
     for (const [title, value, key] of [
       ["Total net P&L · CU", summary.total_net_pnl, "net"],
@@ -142,6 +151,7 @@
     parent.append(card);
   }
   async function propSummary(record, controller) {
+    void companionSummaries(record,controller);
     const automatic = record.run_metadata.automatic_prop_analysis;
     try {
       let id = automatic?.id;
@@ -205,6 +215,28 @@
       if (active !== controller || controller.signal.aborted) return;
       if (get("#report-historical-net")) get("#report-historical-net").textContent = "N/A";
       get("#report-prop-status").textContent = `Could not load saved prop analysis: ${exc.message}`;
+    }
+  }
+  async function companionSummaries(record,controller){
+    const holder=get('#report-prop-companions');holder.replaceChildren();
+    const companions=record.run_metadata.automatic_prop_analysis?.companions||[];holder.hidden=!companions.length;
+    for(const item of companions){
+      try{
+        const result=await read(`/api/prop-analyses/${item.id}`,controller.signal);if(active!==controller)return;
+        const value=get('#report-lucid-historical-net');if(value)value.textContent=usd(result.historical_net);
+        const note=get('#report-lucid-result-note');if(note)note.textContent=result.reason||'Trader payouts after 90/10 split, minus evaluation costs; full observed history.';
+        const block=node('section',undefined,'report-panel');block.append(node('h3',item.label||'LucidFlex 50K'));
+        const open=node('a','Open LucidFlex full analysis →','button secondary');open.href=`#backtests/prop/job/${item.id}`;
+        block.append(open,node('p',`${result.status} · $${item.settings.EVAL_PRICE} evaluation · ${item.settings.SLOTS} slots · no activation fee`,'small muted'));
+        if(result.status==='complete'){
+          const report=await read(`/api/prop-analyses/${item.id}/downloads/report.json`,controller.signal);if(active!==controller)return;
+          const c=report.calculations,f=c.funded?.selected;
+          block.append(node('p',`Historical net ${usd(result.historical_net)} · Evaluation pass ${probability(c.evaluation.pass_rate)} · Selected evaluation ${c.evaluation.selected_micros} MNQ${f?` · Funded ${f.micros} MNQ · Mean trader payout ${usd(f['E[payout]'])}`:''}`));
+          block.append(node('p',c.unavailable||'Sim-funded payouts stop at five; live trading and discretionary early live transitions are outside this model.','small muted'));
+          const download=node('a','LucidFlex report data (JSON) ↓','button secondary');download.href=`/api/prop-analyses/${item.id}/downloads/report.json`;block.append(download);
+        }else block.append(node('p',result.reason||result.progress));
+        holder.append(block);
+      }catch(error){if(active!==controller||controller.signal.aborted)return;holder.append(node('p','Could not load saved LucidFlex analysis: '+error.message));const amount=get('#report-lucid-historical-net');if(amount)amount.textContent='N/A';}
     }
   }
   async function performance(record, controller) {

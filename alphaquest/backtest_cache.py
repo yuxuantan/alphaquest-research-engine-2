@@ -22,6 +22,9 @@ def lookup(runs,analyses,key):
         if cached['prop'] is not None:
             id=record['run_metadata']['automatic_prop_analysis']['id']
             if analyses.fingerprint(id)!=cached['prop']:return None
+            for item in record['run_metadata']['automatic_prop_analysis'].get('companions',[]):
+                fingerprint=analyses.fingerprint(item['id'])
+                if fingerprint is None or fingerprint!=cached.get('prop_companions',{}).get(item['id']):return None
         return record
     except (OSError,ValueError,KeyError,sqlite3.Error):
         return None
@@ -29,13 +32,19 @@ def lookup(runs,analyses,key):
 
 def save(runs,analyses,key,record):
     try:
-        prop=None
+        prop=None;companions={}
         if analyses:
             id=record['run_metadata']['automatic_prop_analysis']['id']
             if analyses.get(id)['status']=='error':return
             prop=analyses.fingerprint(id)
             if prop is None:return
-        payload=dict(id=record['id'],record=digest(record),artifacts=artifacts(runs.root,record),prop=prop)
+            for item in record['run_metadata']['automatic_prop_analysis'].get('companions',[]):
+                saved=analyses.get(item['id'])
+                if not saved or saved['status']=='error':return
+                fingerprint=analyses.fingerprint(item['id'])
+                if fingerprint is None:return
+                companions[item['id']]=fingerprint
+        payload=dict(id=record['id'],record=digest(record),artifacts=artifacts(runs.root,record),prop=prop,prop_companions=companions)
         with runs.connect() as db:db.execute('INSERT OR REPLACE INTO backtest_reuse VALUES (?,?,?)',(key,record['id'],json.dumps(payload)))
     except (OSError,ValueError,KeyError,sqlite3.Error):
         logging.getLogger(__name__).warning('Could not index optional backtest reuse',exc_info=True)

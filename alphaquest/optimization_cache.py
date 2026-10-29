@@ -22,7 +22,8 @@ def engine_identity():
     # path aliases do not change the executing package versions.
     dependencies = sorted({(item.metadata["Name"], item.version) for item in distributions()})
     from .prop.native_backend import identity
-    return digest([sys.version, dependencies, files, identity()])
+    from .prop.lucid_backend import identity as lucid_identity
+    return digest([sys.version, dependencies, files, identity(),lucid_identity()])
 
 
 def trial_key(job, values):

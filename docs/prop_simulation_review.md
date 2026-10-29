@@ -2320,3 +2320,204 @@ PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_optimization_layout_browse
 Temporary fixture servers stopped through their normal cleanup. The implementation
 uses the existing batch/report workflow and storage; the only new persistence is
 browser-local display preferences.
+## Automatic LucidFlex 50K and Apex together — 2026-10-29
+
+New ordinary backtests, CLI runs and optimisation trials run the existing Apex
+50K EOD model **and** LucidFlex 50K, publishing two independent analyses into
+the existing catalogue. `automatic_prop_analysis` remains the Apex compatibility
+reference and its `companions` records Lucid. User datasets, prior reports,
+archived evidence and manual-only OOS execution are preserved. No vendor
+executable, DLL or generated report participates in either calculation.
+
+Current provider pages were checked before implementation. The newer
+[customization](https://support.lucidtrading.com/en/articles/16226050-lucidflex-customization)
+and [consistency](https://support.lucidtrading.com/en/articles/12945805-lucidflex-consistency-percentage)
+pages make **40%** the standard evaluation requirement, superseding the older
+overview's 50%. The model defaults to this standard and DLL on, with the user's
+**$80.50** evaluation price and zero activation fee. DLL off is configurable.
+The 50% add-on/cushion is outside this version. The current
+[commission schedule](https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions)
+specifies NQ $1.75 and MNQ $0.50 per side, separately from Apex's schedule.
+The public checkout page returned security verification during a direct browser
+check; the price is therefore recorded as user-supplied, not independently
+verified checkout pricing. `official-plan-cards.txt/.png` retain that observation.
+
+The local, dated `provider_rules.json` accompanies every Lucid report and ZIP.
+It records the $3,000 evaluation target, $2,000 EOD trail and +$100 lock; five
+$150+ winning days per payout cycle; 50%-of-total-profit gross requests with
+$500 minimum / $2,000 maximum; 90/10 split; 20/30/40-MNQ scaling at profit
+$0/$1,000/$2,000; and 30-calendar-day inactivity including qualifying losses.
+Payout requests force the drawdown lock. The full gross amount reduces account
+equity, while only the 90% trader payout contributes to economic results.
+
+Limits are visible in the product: DLL-on holds a $1,200 daily stop fixed above
+the trail as an explicit assumption because the official Flex help pages do not
+specify that adjustment. DLL-on requests stop the session at the first eligible
+observed trade close within 18:00–15:45 New York time; if none was made, eligibility
+is checked at session close. DLL-off requests occur at session close. No unobserved
+intratrade payout or bank-settlement timing is fabricated. The model ends at five
+sim-funded payouts and excludes discretionary early live transitions/live returns.
+No provider evaluation deadline is imposed; a 2,000-weekday computational guard
+produces censored paths, not provider failures. Censored funding chains make
+acquisition timing unavailable. No complete provider-rule parity is claimed.
+
+Inspectable final product evidence is
+`artifacts/lucidflex-50k-20261029/qualified-portal/test_both_automatic_models_act0/`.
+This is a normal isolated datastore created through dataset upload → IS backtest
+→ both automatic prop analyses, with an explicitly labeled synthetic source:
+
+- Source backtest: `e5b6618b84674fe984621e1d3c818764`.
+- Apex saved analysis: `3eb1886cad49415bb276c6ab28ab1937`.
+- Lucid saved analysis: `2b412988896b41afb94b82e033f98b5b`.
+- `backtest.json`, `apex-report.json`, `lucid-report.json`, `source-check.json`,
+  `provider_rules.json`, standard `analysis.zip`, screenshots and
+  `verification.json` preserve actual outputs. Normal `backtest_runs/`,
+  `prop_analyses/` and SQLite catalogues remain available to reopen these reports.
+
+The source has 60 weekdays, one $3,000 net reference-contract trade per day and
+zero adverse bound. These are synthetic arithmetic inputs, not market outcomes.
+Independent expected values:
+
+1. Evaluation at 1 MNQ makes $300/day and passes after 10 days, with no additional
+   activation weekday or fee. Training acquisition is $80.50 and replacement is
+   10 weekdays. Every evaluation sizing point uses 3,000 paths.
+2. At selected 3 MNQ, $900/day permits the $2,000 gross cap after each five-day
+   cycle. Five requests withdraw $10,000, pay the trader **$9,000**, and finish
+   the sim-funded stage after **25 days**. The final holdout uses 20,000 paths.
+3. Two 25-day accounts separated by 10 replacement weekdays fit the 60-weekday
+   observed history. Across five slots: **$90,000 trader payouts − $805 acquisition
+   costs = $89,195 historical net**. The separate Apex oracle remains **$352,880**
+   across its default 20 slots. These totals have different account models and
+   slot counts and are not future forecasts or single-account lifetime payouts.
+
+`independent-cash-oracle.py.txt` imports no AlphaQuest account/calculation code.
+It reads the saved source trades, rebuilds the payout ledger with Decimal
+arithmetic, independently ranks all 40 funded sizes, and matches every saved
+score plus historical cash. Run it with the project Python to reproduce
+`independent-cash-oracle.json` in the same evidence directory.
+
+To inspect the saved final workflow without recomputing, optionally start:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/lucidflex-50k-20261029/qualified-portal/test_both_automatic_models_act0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011
+```
+
+1. Open `http://127.0.0.1:8011/#backtests/report/e5b6618b84674fe984621e1d3c818764`.
+   Expect distinct Apex **$352,880** and LucidFlex **$89,195** Historical net cards,
+   provider labels, fees/slots and links to both saved analyses.
+2. Select **Configure prop analysis**, then **LucidFlex 50K**. Expect price 80.5,
+   activation 0, five slots, DLL on and MNQ commission 0.50/side. Leave export
+   empty and **Check source**: expect 60 native held-OHLC trades, no fabricated
+   measured MAE, and the Lucid model identity. Unknown instruments disclose that
+   source costs are retained until explicit instrument identification.
+3. Try six slots and check: expect rejection and disabled Run. Restore five,
+   check and **Run**: the existing durable Lucid analysis reopens with the same ID.
+   Inspect Historical replay, Source & model, official links and the rule snapshot.
+4. Download the ZIP and JSON; reload/reopen. Expect identical bytes and no new
+   calculation POST. The earlier Apex report and original source trade CSV remain
+   byte-identical. Stop this optional user-started server with Ctrl-C.
+
+Automated boundaries cover intratrade floor touches on winning trades, gap
+overshoots, DLL pause, payout-forced lock, full gross deductions versus trader
+receipts, the $500 gross minimum, scaling thresholds, five-payout termination,
+DLL-on trade-close request stopping, DLL-off session-close behavior, activity
+from losses, 30-calendar-day expiry, evaluation consistency, censoring, and
+zero extra activation time. Batch results and scalar MT19937 draw consumption
+match an independently advanced step ledger. Missing/deleted companion results
+invalidate reuse; failed companion publication rolls back the primary analysis.
+Every path count is retained; vectorized random-number prefetching consumes the
+same scalar stream, rather than replacing requested paths with fewer simulations.
+
+Rebuild and reproduce using fresh unused basetemp paths:
+
+```sh
+.venv/bin/python setup.py build_ext --inplace
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_lucid_prop.py tests/test_lucid_prop_workflow.py
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_lucid_prop_browser.py \
+  tests/test_prop_training_economics_browser.py tests/test_optimization_columns_browser.py \
+  --basetemp /tmp/alphaquest-lucid-review-NEW
+```
+
+The first browser attempt identified a missing browser binary after a Playwright
+upgrade; the matching Chromium was installed before rerunning. Early broad
+qualification was interrupted to optimize long low-profit paths. Those logs
+remain separate; final logs/JUnit are `final-browser.*` and
+`final-integration.*`. Fixture servers shut down on teardown. Test counts are
+reported separately from the saved product outputs and independent ledger.
+
+Final source-hour refinements enforce the normal 18:00–16:45 New York trading
+window, including DST and Sunday reopen, without fabricating a 16:45 liquidation
+price for late source exits. Provider auto-flattening itself is not an account
+breach. A normal synthetic backtest/API source check saves its actual HTTP 422
+boundary response under `boundaries/test_late_source_exit_is_reject0/`; the
+source still earns its independently known 60.00 CU and remains readable.
+On-demand requests are limited to observed trade closes in 18:00–15:45 New York
+time. Later eligibility waits until the session closes, so it cannot skip a
+subsequent source loss. Holiday early closes require properly session-filtered
+source data and are not independently validated here.
+
+Qualification logs distinguish the gates: the broader API/reuse gate passed
+**93 checks** and the browser/regression gate passed **eight workflows**. After
+the clock refinements, **71 kernel/API checks** passed in
+`qualified-kernel-rerun.log/.xml`, **four API/step-ledger boundaries** passed in
+`boundaries.log/.xml`, and the final saved portal workflow passed in
+`qualified-portal.log/.xml`. One boundary oracle initially expected a hard breach
+from a continuous loss; the correct first limit is the soft DLL at
+2,000 − 1,200 = 800. That expected value was corrected without changing the
+account engine, and the original failed log is retained. The all-40-size
+independent Decimal oracle also passes on this final qualified report. A full
+repository suite is not claimed; the costly standard-count full Python/compiled
+portal parity test was deselected, while kernel/state/draw-stream comparisons
+and the normal compiled-count product demonstration passed.
+
+Local activation replaced the verified idle PID 54529 with persistent portal
+**PID 98138**, using the same original `data` directory. Stop it with
+**`kill 98138`**. All catalogue rows, current dataset contents, the 128-trial
+completed optimisation and all files of the existing **129 backtests / 129 prop
+analyses** matched before/after. No synthetic source was added to the user store.
+`activate-local.py.txt`, `activation.json`, server log/PID, source ZIP/hashes,
+before/after preservation snapshots and live screenshots are in the evidence
+directory. The live form exposes both providers and the confirmed Lucid settings:
+80.5 evaluation, zero activation, DLL on, 40% consistency, 0.50 MNQ/side.
+
+`live-verification.json` and `live-source-check.json` record a genuine boundary
+on the user's latest saved source `e78d012fa73f491699002a98d2dc213e`: it holds a
+position beyond Lucid's regular 16:45 New York cutoff, so its Lucid source check
+returns **422 incompatible**, rather than an invented liquidation or a provider
+account failure. Rerun a new backtest with an earlier source flatten time to
+obtain a compatible Lucid calculation. Existing Apex results remain unchanged;
+new compatible backtests create both reports automatically. No financial run,
+OOS request or deletion was submitted during live verification.
+
+For that VWAP strategy, time parameters use **Chicago** time, separately from
+the dataset's New York timestamps. Its existing `eod_flat_time=1555` means
+16:55 New York on a normal full session. For a compatible next IS backtest, use
+`use_eod_flat=true` and a cutoff such as **`eod_flat_time=1540`** (16:40 New York),
+then review and run the new parameter set. The original strategy defaults,
+parameter sets and prior results were not changed. Early-close inference can
+move its exit earlier and remains a disclosed backtest research assumption.
+
+A second, provider-priced product fixture verifies actual NQ → MNQ commission
+replacement through the full portal workflow:
+`artifacts/lucidflex-50k-20261029/priced-portal/test_known_nq_source_provider_0/`.
+Its labeled synthetic NQ trade earns $3,000 before $10 slippage and $3.98 source
+commission, leaving $2,986.02. Lucid simulation restores that source commission
+once, retains slippage, scales to MNQ and charges two $0.50 sides, yielding
+**$298.00 per MNQ**. Evaluation at one micro needs **11 days** (ten earn only
+$2,980), with no added activation day. At three micros, five capped payouts still
+pay the trader $9,000 in 25 days. The 11-day replacement leaves only 24 days for
+the second account: four further payouts. Across five slots, this gives
+**$81,000 payouts − $805 costs = $80,195 net**. The separate Apex result stays
+$352,880. These remain synthetic arithmetic results, not market outcomes.
+
+That ordinary backtest is `0ec901deff7248588941fad4991ea0fb`; its Lucid analysis
+is `478cfe76939047b8ad3c7433572034a8`. Inspect `backtest.json`, `lucid-report.json`,
+`trades.csv`, `analysis.zip`, the two screenshots and `verification.json` in that
+directory. This additional browser workflow passed (`priced-portal.log/.xml`).
+The standalone Decimal oracle now independently reconciles its source commission,
+all 40 size scores, 11-day acquisition timing and $80,195 cash outcome too;
+`independent-priced-cash-oracle.json` saves those results. The earlier $89,195
+fixture deliberately has unidentified synthetic instrument units and retains
+zero source trading costs with the product's visible notice. It qualifies the
+account ledger; this second fixture additionally qualifies provider repricing.

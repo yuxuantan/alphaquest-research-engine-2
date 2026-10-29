@@ -31,7 +31,7 @@ BACKTEST_METRICS = (
     "final_equity", "trades_taken", "winning_trades", "losing_trades", "breakeven_trades",
     "win_rate_pct", "max_drawdown_amount", "max_drawdown_pct", "max_drawdown_duration_seconds",
 )
-METRICS = (*BACKTEST_METRICS, "historical_net")
+METRICS = (*BACKTEST_METRICS, "historical_net", "lucid_historical_net")
 
 
 def grid(definition, ranges):
@@ -202,6 +202,8 @@ class OptimizationStore:
             if not available:row['backtest_deleted']=True
             if row.get('prop_analysis') and self.prop_analyses.get(row['prop_analysis']['id']) is None:
                 row['prop_report_deleted']=True
+            for item in row.get('prop_companions',[]):
+                if self.prop_analyses.get(item['id']) is None:item['status']='deleted'
             items.append(row)
         return {"items": items, "total": job["completed_trials"], "offset": offset, "limit": limit}
 
@@ -223,7 +225,9 @@ class OptimizationStore:
                "execution": result["execution"]}
         if prop:
             row.update(prop_analysis={key: prop[key] for key in ("id", "status", "historical_net", "reason")})
+            row['prop_companions']=[{key:item[key] for key in ('id','status','historical_net','reason')} for item in prop.get('companions',[])]
             row["metrics"]["historical_net"] = prop["historical_net"]
+            row['metrics']['lucid_historical_net']=next((p['historical_net'] for p in prop.get('companions',[])),None)
         self._record_trial(job_id, row)
         job = self.get(job_id)
         if job.get("engine_identity") and job["request"].get("reuse_results", True) and (not prop or prop["status"] != "error"):
@@ -232,6 +236,8 @@ class OptimizationStore:
                       "optimization_id": job_id}
             if prop:
                 cached["prop_fingerprint"] = self.prop_analyses.fingerprint(prop["id"])
+                cached['companion_fingerprints']={item['id']:self.prop_analyses.fingerprint(item['id']) for item in prop.get('companions',[])}
+                if any(value is None for value in cached['companion_fingerprints'].values()):return job['completed_trials']
                 if cached["prop_fingerprint"] is None:
                     return job["completed_trials"]
             with self.runs.connect() as conn:
@@ -244,7 +250,7 @@ class OptimizationStore:
             current = json.loads(conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()[0])
             current.update(completed_trials=current["completed_trials"] + 1, results_snapshot_rowid=inserted.lastrowid)
             if row.get("prop_analysis"):
-                if row["prop_analysis"]["status"] == "error":
+                if any(item['status']=='error' for item in [row['prop_analysis'],*row.get('prop_companions',[])]):
                     current["prop_error_trials"] = current.get("prop_error_trials", 0) + 1
                 elif row["metrics"].get("historical_net") is None:
                     current["prop_unavailable_trials"] = current.get("prop_unavailable_trials", 0) + 1
@@ -271,6 +277,9 @@ class OptimizationStore:
                 prop=cached["row"].get("prop_analysis")
                 if not prop or not cached.get("prop_fingerprint") or self.prop_analyses.fingerprint(prop["id"]) != cached.get("prop_fingerprint"):
                     return False
+                for item in cached['row'].get('prop_companions',[]):
+                    fingerprint=self.prop_analyses.fingerprint(item['id'])
+                    if item['status']=='error' or fingerprint is None or fingerprint!=cached.get('companion_fingerprints',{}).get(item['id']):return False
         except (OSError,ValueError,KeyError):
             return False
         reused = {**cached["row"], "trial": trial, "execution": {

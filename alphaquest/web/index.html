@@ -357,6 +357,7 @@
                     <p id="sample-status" class="field-help" role="status">Choose a dataset, strategy and split method before running.</p>
                     <p id="sample-budget" class="field-help" role="status"></p>
                     <p class="field-help">You can edit this split for each new IS run. OOS runs only when you manually select a completed IS report, using that report’s saved split and parameters. There is no OOS attempt limit.</p>
+                    <p class="field-help">Each backtest automatically runs Apex 50K EOD and LucidFlex 50K prop analysis. Their account rules, costs, slot counts and saved results are shown separately.</p>
                     <p class="field-help">The strategy starts fresh on the first selected bar. Signal counts and indicators use only selected bars; remaining positions close at the selection's end.</p>
                     <label for="backtest-strategy">Strategy</label>
                     <select id="backtest-strategy" required aria-describedby="strategy-description">
@@ -517,7 +518,7 @@
             </section>
             <section id="report-prop-summary" class="panel report-panel" aria-labelledby="report-prop-title">
               <div class="panel-heading"><div><h2 id="report-prop-title">Prop analysis summary</h2><p id="report-prop-context" class="small muted"></p></div><div id="report-prop-actions" class="report-downloads"></div></div>
-              <div class="report-prop-content"><p id="report-prop-status" class="small" role="status"></p><div id="report-prop-metrics"></div></div>
+              <div class="report-prop-content"><p id="report-prop-status" class="small" role="status"></p><div id="report-prop-metrics"></div><div id="report-prop-companions" hidden></div></div>
             </section>
             <details id="report-performance" class="panel runtime-panel"><summary>Runtime breakdown</summary><div class="report-prop-content"><p id="report-performance-status" class="small"></p><table class="library-table"><thead><tr><th>Phase</th><th>Seconds</th></tr></thead><tbody id="report-performance-body"></tbody></table><p><a id="report-performance-download">Timing data (JSON) ↓</a></p></div></details>
             <section class="panel report-panel" aria-labelledby="report-trades-title">
@@ -543,11 +544,14 @@
             <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. New backtests supply risk bounds from the OHLC bars actually held, with opening gaps and cost jumps. An optional matching export can supply measured MAE/MFE instead. OHLC bounds are not tick measurements. Checking reconciles source costs first. Instrument commission replaces the saved commission once; source slippage is retained.</p></section>
             <form id="prop-form" class="panel prop-panel">
               <h2>Configure prop analysis</h2>
-              <p>Calculates locally from the saved backtest and captured risk bounds, or an explicitly selected measured-excursion export. Defaults: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, 20 slots, and standard simulation counts. Results, charts and downloads are saved for reopening.</p>
+              <label>Account model<select id="prop-model"><option value="0">Apex 50K EOD</option><option value="1">LucidFlex 50K</option></select></label>
+              <p id="prop-model-help"></p>
+              <p>Calculates locally from the saved backtest and captured risk bounds, or an explicitly selected measured-excursion export. Defaults: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, provider-specific slot count, and standard simulation counts. Results, charts and downloads are saved for reopening.</p>
               <label>Measured-excursion MultiCharts export · optional local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Leave blank for captured native OHLC risk; older sources may discover a matching export" /></label>
               <div class="prop-fields">
                 <label>Export timestamps<select id="prop-export-timezone"><option value="America/Chicago">Chicago (exchange)</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
                 <label>Bootstrap block · days<select id="prop-block"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option></select></label>
+                <label>Daily loss limit<select id="prop-dll"><option value="on">On</option><option value="off">Off · LucidFlex only</option></select></label>
                 <label>Evaluation price · USD<input id="prop-eval-fee" value="49" type="number" min="0" max="100000" step="any" required /></label>
                 <label>Funded activation · USD<input id="prop-activation" value="129" type="number" min="0" max="100000" step="any" required /></label>
                 <label>Funded slots<input id="prop-slots" value="20" type="number" min="1" max="20" step="1" required /></label>
@@ -563,7 +567,7 @@
                 <label>MNQ commission · USD per contract per side<input id="prop-commission-side" type="number" min="0" max="100000" step="any" placeholder="0.51" /></label>
               </div>
               <p id="prop-commission-help"></p>
-              <p><a href="https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/" target="_blank" rel="noopener">Apex Rithmic commission schedule</a> · defaults checked 29 October 2026. Rates can be changed for another broker. Source slippage is retained; repriced risk uses conservative commission-adjusted bounds, not new measured MAE/MFE.</p>
+              <p><a id="prop-commission-source" href="https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/" target="_blank" rel="noopener">Apex Rithmic commission schedule</a> · defaults checked 29 October 2026. Rates can be changed for another broker. Source slippage is retained; repriced risk uses conservative commission-adjusted bounds, not new measured MAE/MFE.</p>
               <p>Leave holdout start blank to use the final 30% of the full history. Set prices to 109 and 0 for the alternative pricing choice. AlphaQuest selects evaluation and funded sizes; these can differ.</p>
               <label>Additional model overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
               <details><summary>Resolved-form defaults</summary><pre id="prop-defaults"></pre></details>

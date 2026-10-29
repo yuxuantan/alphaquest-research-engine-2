@@ -1,5 +1,104 @@
 # AlphaQuest local prop simulation
 
+## Automatic LucidFlex 50K alongside Apex — 2026-10-29
+
+New backtests, CLI runs and optimisation trials now calculate **both** the
+existing Apex 50K EOD analysis and a separate **LucidFlex 50K** analysis. IS runs
+still use IS only; OOS backtesting remains a manual selection from completed IS.
+Both reports use the existing `/api/prop-analyses` catalogue, report format,
+configuration/source-check flow and downloads. There is no second result store.
+The existing `automatic_prop_analysis` remains the Apex result for compatibility;
+its `companions` contains the Lucid descriptor and saved analysis ID. Existing
+reports are not rewritten or automatically backfilled. Backtest summary cards
+and optimisation columns distinguish the two Historical net values; they are
+never added together or presented as comparable single-account payouts.
+
+Lucid defaults use the user's **$80.50 evaluation purchase price**, zero
+activation fee, five slots, standard 40% evaluation consistency and DLL on.
+This price is an editable user-supplied input, not a guaranteed checkout quote.
+The provider's current customization and consistency pages supersede the older
+evaluation overview which still lists 50%. The 50% add-on/cushion is outside
+this version. DLL off is supported through the same configuration form.
+
+The dated local contract is `alphaquest/prop/lucid_rules.py`, included as
+`provider_rules.json` in each Lucid report/ZIP. Rules checked on 2026-10-29:
+
+- Evaluation: $3,000 target, $2,000 EOD trailing maximum loss, 40% maximum
+  largest-day share assessed at session close, 40 MNQ maximum, no provider time
+  limit, and no activation charge. Replacement timing adds zero extra activation
+  weekdays; funded sampling begins on a subsequent session.
+- Drawdown: the floor follows highest session-close equity and locks at +$100
+  once the trail reaches that level. A funded payout request forces that lock
+  immediately, including requests made before the normal trail lock. Touching
+  the floor breaches the account intratrade, even if the source trade later wins.
+  Captured adverse frontiers, opening gaps and cost jumps retain their normal
+  source reconciliation and conservative held-OHLC interpretation.
+- DLL on: a $1,200 soft daily stop in both phases, with observed jumps able to
+  overshoot it and breach the account. **Holding $1,200 fixed above the trail is
+  an explicit assumption**: the official Flex help pages confirm soft breach and
+  phase coverage but do not specify the above-trail adjustment. This uncertainty
+  is visible on the report and in its contract; no complete provider parity is
+  claimed. DLL off has no daily stop.
+- Funded: session-start limits of 20 / 30 / 40 MNQ at profit balances below
+  $1,000 / from $1,000 / from $2,000; withdrawals can reduce the next tier. Five
+  distinct $150+ days are required for each payout cycle, together with positive
+  cycle profit. There is no funded consistency requirement or retained buffer.
+  The gross request is 50% of total account profit, capped at $2,000 and at least
+  $500. The account loses the **full gross amount**; the trader receives **90%**.
+  Counters reset after each request. Five payouts end the simulated funded stage.
+- DLL-on requests occur at the first eligible observed completed-trade mark
+  within 18:00–15:45 New York time, then stop that session. If no intraday request
+  is made, eligibility is checked at session close. DLL-off requests occur at session close. Unobserved
+  intratrade request opportunities and bank settlement delays are not invented.
+  Payouts are dated at request/deduction. Discretionary early live transitions,
+  live P&L and live bonuses are outside scope; five payouts are a simulated-stage
+  maximum, not a guaranteed entitlement to five actual payouts.
+- Sources must already respect the regular 16:45 New York flatten time and
+  18:00 session reopen. Later source exits are incompatible because the earlier
+  liquidation price is unavailable; they are not account failures. Source hours
+  use Eastern civil time including DST. Holiday early closes require correctly
+  session-filtered source data and are not independently validated by this adapter.
+- Inactivity uses 30 **calendar** days without an observed closed trade result
+  of at least $1 in absolute value. Losing trades can satisfy activity. Bootstrap
+  clocks start on Monday; historical replay uses actual elapsed calendar days.
+- Published Lucid NQ/MNQ commissions are $1.75/$0.50 per contract **per side**.
+  Source commission is replaced once; source slippage and original source values
+  remain. The existing unidentified-instrument notice and explicit NQ/MNQ source
+  selection apply. No Apex commission default is silently used for Lucid.
+
+Monte Carlo retains 3,000 paths per permitted sizing point and 20,000-path final
+evaluation, funding-chain, lifetime and first-year batches. Incomplete evaluation
+paths after a computational guard of 2,000 weekdays are **censored**, rather than
+provider deadline failures. Censored funding chains make replacement timing and
+funded sizing unavailable; no probability or delay fallback is substituted.
+Evaluation size, acquisition cost/time and funded size are fitted on training
+only; holdout cannot choose or rescore them. Historical replay and annual-per-slot
+ranking retain the existing research renewal convention (including an acquired
+funded account at the start), not a simulation of live accounts after payout five.
+
+The local Lucid kernel has an optional compiled build using the same source as
+its Python reference (`.venv/bin/python setup.py build_ext --inplace`). Random
+bounded integers are prefetched in batches and consumed in scalar MT19937 order;
+every requested account path is simulated. Step-ledger tests verify both state
+and random draw consumption. Both report fingerprints participate in backtest
+and optimisation reuse. Publication failure rolls back both newly published
+analyses instead of leaving a partially saved backtest.
+
+Primary sources: [customization](https://support.lucidtrading.com/en/articles/16226050-lucidflex-customization),
+[consistency](https://support.lucidtrading.com/en/articles/12945805-lucidflex-consistency-percentage),
+[evaluation](https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account),
+[drawdown](https://support.lucidtrading.com/en/articles/12945815-lucidflex-drawdown),
+[scaling](https://support.lucidtrading.com/en/articles/12945808-lucidflex-scaling-plan),
+[payouts](https://support.lucidtrading.com/en/articles/12945796-lucidflex-payouts),
+[inactivity](https://support.lucidtrading.com/en/articles/11404632-inactivity-policy),
+[commissions](https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions),
+[live boundary](https://support.lucidtrading.com/en/articles/16558826-new-live-structure).
+Regular hours and account caps: [allowed trading times](https://support.lucidtrading.com/en/articles/11404729-allowed-trading-times),
+[account limits](https://support.lucidtrading.com/en/articles/11404617-maximum-number-of-accounts).
+See `prop_simulation_review.md` for saved product evidence and independent values.
+
+The following Apex contract and historical records retain their original scope.
+
 All production account arithmetic, resampling, evaluation attempts, funded
 payouts, sizing, economics, charts and downloads are calculated by AlphaQuest.
 Model version: `alphaquest-apex50k-eod-v4-instrument-commissions`. Earlier saved v1/v2/v3 reports remain unchanged. No external executable/DLL, generated

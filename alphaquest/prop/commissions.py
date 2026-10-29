@@ -20,7 +20,11 @@ RITHMIC = {symbol: rate for symbols, rate in (
 ) for symbol in symbols.split()}
 
 
-def catalog():
+def catalog(provider='Apex'):
+    if provider=='Lucid':
+        return dict(broker='Lucid',currency='USD',unit='per contract per side',checked_on=SCHEDULE_DATE,
+            source_url='https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions',
+            rates=dict(NQ='1.75',MNQ='0.50'))
     return dict(broker='Rithmic', currency='USD', unit='per contract per side',
                 checked_on=SCHEDULE_DATE, source_url=SCHEDULE_URL, rates=RITHMIC)
 
@@ -42,7 +46,7 @@ def adapt(snapshot, rows, settings):
     instrument = detected if settings['SOURCE_INSTRUMENT'] == 'auto' else settings['SOURCE_INSTRUMENT']
     policy = dict(broker=settings['COMMISSION_BROKER'], simulated_instrument='MNQ',
                   source_instrument=instrument or None, detected_source_instrument=detected or None,
-                  schedule=catalog(), per_side=settings['COMMISSION_PER_SIDE'],
+                  schedule=catalog(settings['PROP_FIRM']), per_side=settings['COMMISSION_PER_SIDE'],
                   mode=settings['COMMISSION_MODE'])
     snapshot['commission_simulation'] = policy
     if instrument:
@@ -66,9 +70,10 @@ def adapt(snapshot, rows, settings):
         return
     rate = settings['COMMISSION_PER_SIDE']
     if rate == '':
-        if settings['COMMISSION_BROKER'] != 'Rithmic':
+        expected_broker='Lucid' if settings['PROP_FIRM']=='Lucid' else 'Rithmic'
+        if settings['COMMISSION_BROKER'] != expected_broker:
             raise ValueError('Enter an explicit per-side MNQ commission for this broker.')
-        rate = RITHMIC['MNQ']
+        rate = catalog(settings['PROP_FIRM'])['rates']['MNQ']
     target = Decimal(rate)
     # Existing kernel uses ten micro units per reference NQ contract.
     factor = Decimal(1) if instrument == 'NQ' else Decimal(10)

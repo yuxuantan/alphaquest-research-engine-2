@@ -69,7 +69,7 @@
     if(oosBusy||!selected)return;
     const record=selected,token=reportVersion;
     if(!requestId){
-      if(!confirm('Run OOS backtest and Apex prop analysis with this completed IS report’s saved split, parameters and execution costs? To use a different split or settings, run a new IS backtest first.'))return;
+      if(!confirm('Run OOS backtest and automatic Apex 50K EOD + LucidFlex 50K prop analyses with this completed IS report’s saved split, parameters and execution costs? To use a different split or settings, run a new IS backtest first.'))return;
       requestId=crypto.randomUUID();
     }
     oosBusy=true;run.disabled=true;message.textContent='Running the manually selected OOS backtest and prop simulation.';

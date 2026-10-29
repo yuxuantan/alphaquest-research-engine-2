@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from starlette.concurrency import run_in_threadpool
-from .prop.native_analysis import DEFAULTS, MODEL_VERSION, prepare
+from .prop.native_analysis import DEFAULTS, MODEL_VERSION, prepare,model_version
 from .prop.adapter import source_record
 from .prop.source import matching_exports
 from .prop.commissions import catalog, source_instrument
@@ -24,7 +24,9 @@ class AnalysisRequest(BaseModel):
 
 @router.get('/defaults')
 def defaults():
-    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog())
+    from .prop.automatic import profiles
+    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog(),
+        profiles=[dict(item,commissions=catalog(item['settings']['PROP_FIRM'])) for item in profiles()])
 
 @router.get('/sources/{source_id}')
 async def source(source_id: str, request: Request, discover_exports: bool = True):
@@ -40,7 +42,7 @@ async def check(body: AnalysisRequest, request: Request):
     try:
         snapshot,rows,settings=await run_in_threadpool(prepare,request.app.state.runs,body.source_backtest_id,body.trade_file,body.settings,body.export_timezone)
         await run_in_threadpool(request.app.state.prop_analyses.check_oos,snapshot,settings,request.app.state.runs)
-        return dict(status='compatible',source=snapshot,settings=settings,matched_trades=len(rows),model_version=MODEL_VERSION)
+        return dict(status='compatible',source=snapshot,settings=settings,matched_trades=len(rows),model_version=model_version(settings))
     except ResearchConflict as exc:
         raise HTTPException(409,str(exc)) from exc
     except (ValueError,KeyError,OSError) as exc:

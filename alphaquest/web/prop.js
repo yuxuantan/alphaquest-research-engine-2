@@ -2,7 +2,7 @@
 (() => {
   const $ = s => document.querySelector(s);
   const deletingReports=new Set();
-  let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,commissionDefault='';
+  let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,commissionDefault='',modelProfiles=[];
   const el = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const display = v => v === null || v === undefined ? 'Unavailable' : typeof v === 'number' ? String(v) : String(v);
   async function read(url, options) {const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));return j;}
@@ -39,11 +39,26 @@
       BLOCK_DAYS:$('#prop-block').value,SLOTS:$('#prop-slots').value,MAX_TOTAL_NQ:$('#prop-max-nq').value,
       OUT_OF_SAMPLE_FROM:$('#prop-holdout').value,COMMISSION_MODE:$('#prop-commission-mode').value,
       SOURCE_INSTRUMENT:$('#prop-source-instrument').value,COMMISSION_BROKER:$('#prop-commission-broker').value,
-      COMMISSION_PER_SIDE:$('#prop-commission-broker').value==='Rithmic'&&$('#prop-commission-side').value===commissionDefault?'':$('#prop-commission-side').value});
+      COMMISSION_PER_SIDE:['Rithmic','Lucid'].includes($('#prop-commission-broker').value)&&$('#prop-commission-side').value===commissionDefault?'':$('#prop-commission-side').value});
+    const model=modelProfiles[Number($('#prop-model').value)];
+    if(model)Object.assign(settings,{PROP_FIRM:model.settings.PROP_FIRM,ACCOUNT_TYPE:model.settings.ACCOUNT_TYPE,DAILY_LOSS_LIMIT:$('#prop-dll').value});
     return {source_backtest_id:sourceId,trade_file:holdoutSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),
       export_timezone:$('#prop-export-timezone').value,settings};
   }
-  function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v||holdoutSource);}
+  function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);}
+  function applyModel(){
+    const p=modelProfiles[Number($('#prop-model').value)];if(!p)return;
+    const s=p.settings,lucid=s.PROP_FIRM==='Lucid';
+    $('#prop-eval-fee').value=s.EVAL_PRICE;$('#prop-activation').value=s.ACTIVATION_FEE;
+    $('#prop-slots').value=s.SLOTS;$('#prop-slots').max=lucid?'5':'20';$('#prop-dll').value=s.DAILY_LOSS_LIMIT;
+    $('#prop-dll option[value="off"]').disabled=!lucid;
+    $('#prop-commission-broker').value=s.COMMISSION_BROKER;commissionDefault=p.commissions.rates.MNQ;$('#prop-commission-side').value=commissionDefault;
+    $('#prop-model-help').textContent=lucid?'LucidFlex 50K · $80.50 evaluation default · no activation fee · standard 40% evaluation consistency · five sim-funded payouts, 90% trader share. DLL-on requests stop the session at the first eligible observed trade close. No live-account returns are simulated.':'Apex 50K EOD · existing model, $49 evaluation and $129 activation defaults.';
+    $('#prop-commission-help').textContent=`${p.commissions.broker} defaults: NQ $${p.commissions.rates.NQ} per side; MNQ $${commissionDefault} per side. Source commission is replaced once when instrument identity is known; slippage is retained.`;
+    $('#prop-commission-source').href=p.commissions.source_url;$('#prop-commission-source').textContent=p.commissions.broker+' commission schedule';
+    invalidate();
+  }
+  $('#prop-model').addEventListener('change',applyModel);
   function invalidate(){checked=false;$('#prop-check-output').replaceChildren();$('#prop-run').disabled=true;$('#prop-status').textContent='Settings changed. Check source costs and filtering before running.';}
   $('#prop-form').addEventListener('input',invalidate);
   $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});const commission=data.source.commission_simulation;p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));if(commission.applied)details(p,'Simulation commission reconciliation',commission);details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
@@ -55,13 +70,17 @@
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-overrides').value='{}';
+    modelProfiles=defaults.profiles||[];
     $('#prop-trade-file').value=!holdoutSource&&!nativeRiskSource&&data.matched_exports?.length===1?data.matched_exports[0].path:'';
     $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
     $('#prop-block').value=defaults.defaults.BLOCK_DAYS;$('#prop-slots').value=defaults.defaults.SLOTS;
     $('#prop-max-nq').value=defaults.defaults.MAX_TOTAL_NQ;$('#prop-holdout').value='';
     commissionDefault=defaults.commissions.rates.MNQ;$('#prop-commission-side').value=commissionDefault;
     $('#prop-commission-help').textContent=`Rithmic defaults: NQ $${defaults.commissions.rates.NQ} per side; MNQ $${commissionDefault} per side ($${(2*Number(commissionDefault)).toFixed(2)} round turn). ${data.commission_source_instrument?'Detected source: '+data.commission_source_instrument+'.':'Source symbol is unidentified. Select NQ or MNQ to apply instrument commission; automatic mode otherwise retains scaled source costs.'}`;
-    $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
+    $('#prop-model-help').textContent='Apex 50K EOD · Choose LucidFlex 50K for its separate saved analysis and rule set.';
+    $('#prop-commission-source').href=defaults.commissions.source_url;$('#prop-commission-source').textContent='Apex Rithmic commission schedule';
+    const automatic=data.source.run_metadata.automatic_prop_analysis,labels=new Map(automatic?[automatic,...(automatic.companions||[])].map(a=>[a.id,a.label||'Apex 50K EOD']):[]);
+    $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${labels.get(a.id)||'Saved analysis'} · ${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
     $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
   }
   function render(r) {
@@ -150,9 +169,10 @@
     const d=el('details',undefined,'prop-help');d.append(el('summary',title),el('p',text));parent.append(d);return d;
   }
   function renderNative(r) {
+    const lucid=r.settings.ACCOUNT_TYPE==='LucidFlex',payoutLimit=lucid?5:6;
     nativeFrame(r);
     $('#prop-heading-title').textContent='Funded simulation';document.title='Funded simulation · AlphaQuest';
-    $('#prop-heading-note').textContent='Apex 50K EOD · AlphaQuest local model';
+    $('#prop-heading-note').textContent=(lucid?'LucidFlex 50K':'Apex 50K EOD')+' · AlphaQuest local model';
     const created=new Date(r.created_at_utc);
     $('#prop-status').textContent=`Saved ${Number.isNaN(created.getTime())?r.created_at_utc:created.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}`;
     const downloadNames=['Report data (JSON)','Source trades (CSV)','Download all results (ZIP)'];
@@ -164,7 +184,8 @@
     const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
     context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
     if(source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
-    if(r.model_version!=='alphaquest-apex50k-eod-v4-instrument-commissions')root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Configure a new analysis on an IS report to use the current instrument-commission model.`, 'prop-assumption-note'));
+    if(!['alphaquest-apex50k-eod-v4-instrument-commissions','alphaquest-lucidflex50k-eod-v1'].includes(r.model_version))root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Configure a new analysis on an IS report to use the current instrument-commission model.`, 'prop-assumption-note'));
+    if(lucid){root.append(el('p','LucidFlex standard 40% evaluation consistency; funded payouts are trader receipts after the 90/10 split. Evaluation has no provider deadline; paths still open after 2,000 trading days are censored. The sim-funded model stops after five payouts and excludes discretionary early live transitions.','prop-assumption-note'));if(r.settings.DAILY_LOSS_LIMIT==='on')root.append(el('p','DLL-on models a fixed $1,200 daily stop in both phases. Holding this amount fixed above the trail is an assumption: the official Flex help pages do not specify that adjustment. See Source & model.','prop-assumption-note'));}
     const commission=source.commission_simulation;
     if(commission)root.append(el('p',commission.applied?`${commission.broker} · MNQ commission $${commission.per_side} per contract per side ($${commission.round_turn} round turn), applied to evaluation and funded trades. Source commission replaced once; source slippage retained. Risk uses conservative commission-adjusted bounds.`:commission.explanation,'prop-assumption-note'));
     if(f&&e.pass_rate===0)root.append(el('p','No holdout evaluation passed. Funded outcomes are conditional on starting with a funded account; training-selected size and replay economics remain frozen.','prop-assumption-note'));
@@ -205,12 +226,12 @@
       p.insertBefore(takeaway,kpis);
       const split=el('div',undefined,'prop-two-column');views.overview.append(split);
       p=reportBlock(split,'How far do accounts get?','These three payout outcomes are mutually exclusive.');
-      probabilityRows(p,[['No payouts',f.outcomes.never_paid,'prop-neutral'],['1–5 payouts',f.outcomes.paid_partial,''],['All 6 payouts',f.outcomes.paid_all,'prop-complete']]);
+      probabilityRows(p,[['No payouts',f.outcomes.never_paid,'prop-neutral'],[`1–${payoutLimit-1} payouts`,f.outcomes.paid_partial,''],[`All ${payoutLimit} payouts`,f.outcomes.paid_all,'prop-complete']]);
       p.append(el('p','Drawdown failure is a separate measure: an account can be paid and later fail. Do not add the failure rate to these payout outcomes.','prop-explainer'));
       p=reportBlock(split,'When is the first payout?','Among accounts that receive at least one payout.');
       facts(p,[['Median',days(s['T1 median'])],['75th percentile',days(s['T1 p75'])],['90th percentile',days(s['T1 p90'])]]);
       p.append(el('p','Trading days include zero-trade weekdays; they are not calendar days.','prop-explainer'));
-      p=reportBlock(views.overview,'First year and account lifetime','Gross payouts per funded account, not the net profit of a slot portfolio.');
+      p=reportBlock(views.overview,'First year and account lifetime',lucid?'Trader receipts after the 90/10 split; before acquisition fees. Sim-funded stage only.':'Gross payouts per funded account, not the net profit of a slot portfolio.');
       readableTable(p,[{horizon:'First year · 261 trading days',average:s['E[P] 12m'],median:s['median 12m'],chance:s['P(>=1) 12m']},{horizon:'Lifetime · up to 2,000 trading days',average:s['E[payout]'],median:s['median life'],chance:s['P(>=1 payout)']}],[{key:'horizon',label:'Horizon'},{key:'average',label:'Average payout',format:money,numeric:true},{key:'median',label:'Median payout',format:money,numeric:true},{key:'chance',label:'Receives a payout',format:percent,numeric:true}],{caption:'First-year and lifetime payout comparison'});
       explanation(p,'Why can the payout chances differ slightly?','First-year and lifetime outcomes come from independent simulation runs. Each is an estimate from its own random draws; the first-year chance can be slightly higher or lower.');
       p=reportBlock(views.overview,'Getting to this funded account','Evaluation costs and timing are shown separately from funded payouts.');
@@ -228,7 +249,7 @@
     metricCard(evalCards,'Passes evaluation',percent(e.pass_rate),`${number(e.passed)} of ${number(e.simulations)} paths.`,e.pass_rate);
     metricCard(evalCards,'Average cost to get funded',money(e.cost_per_funded),'Across repeated evaluations, including activation.',e.cost_per_funded);
     metricCard(evalCards,'Average time to get funded',days(e.days_to_funded),'Failed attempts plus the activation day.',e.days_to_funded);
-    probabilityRows(p,[['Pass',e.pass_rate,''],['Fails drawdown',e.fail_drawdown,'prop-risk'],['Deadline reached',e.timeout,'prop-neutral']]);
+    probabilityRows(p,[['Pass',e.pass_rate,''],['Fails drawdown',e.fail_drawdown,'prop-risk'],[lucid?'Censored at 2,000 sessions':'Deadline reached',e.timeout,'prop-neutral'],...(lucid?[['Inactive',e.inactivity,'prop-neutral']]:[])]);
     p.append(el('p',`95% simulation interval for the pass rate: ${e.pass_rate_ci.map(percent).join(' – ')}. This describes sampling uncertainty within the model.`, 'prop-explainer'));
     p=reportBlock(views.evaluation,'Acquisition cost and timing','The pass-rate estimate determines the expected number of paid evaluations.');
     facts(p,[['One evaluation',money(r.settings.EVAL_PRICE)],['Activation fee',money(r.settings.ACTIVATION_FEE)],['Evaluations per funded account',number(e.evaluations_per_funded,2)],['Median time to funded',days(e.days_to_funded_median)],['Median time to pass',days(e.median_days_to_pass),'Among successful evaluation attempts.']]);
@@ -294,6 +315,12 @@
     explanation(p,'Drawdown failures can also receive payouts','Payout outcomes partition accounts by how many payouts they received. Drawdown failure describes how an account closed. An account can belong to a paid group and later fail its drawdown limit.');
     explanation(p,'Simulation and historical replay answer different questions','Simulation resamples historical days to estimate account outcomes. Historical replay follows the one observed sequence of trades. Slots share that sequence, and training years influenced the size choice.');
     explanation(p,'Model limits and missing excursions','Measured adverse excursions do not reveal the exact intratrade price path. New native reports use conservative held-OHLC bounds and observed opening/cost jumps; target-exit ordering can be ambiguous. Cross-session native inputs reject. Legacy sources without capture use a disclosed close-only fallback that may understate risk. The model supports one strategy with nonoverlapping positions; payouts, costs and delays are model estimates.');
+    if(lucid&&c.provider_contract){
+      p.append(el('h3','LucidFlex rules checked '+c.provider_contract.checked_on));
+      p.append(el('p',c.provider_contract.documentation_conflict),el('p',c.provider_contract.daily_loss_assumption),el('p',c.provider_contract.source_hours),el('p',c.provider_contract.timing),el('p',c.provider_contract.horizon),el('p',c.provider_contract.renewal));
+      for(const [name,url] of Object.entries(c.provider_contract.sources)){const a=el('a',name.replaceAll('_',' ')+' · official rules');a.href=url;a.target='_blank';a.rel='noopener';p.append(a,el('br'));}
+      details(p,'Dated provider contract and model limits',c.provider_contract);fileLink(p,'provider_rules.json','Download LucidFlex rule snapshot (JSON)');
+    }
     if(commission){
       p.append(el('h3','Trading commission reconciliation'));
       if(commission.applied)facts(p,[['Broker',commission.broker],['Source instrument',commission.source_instrument],['Simulated instrument',commission.simulated_instrument],['Commission per side',money(commission.per_side)],['Commission round turn',money(commission.round_turn)]]);

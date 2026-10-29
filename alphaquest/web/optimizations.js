@@ -253,7 +253,7 @@
     const columns = [...parameters.filter(([key]) => varying.has(key)), ["trial", "Trial"],
       ...(job.metric_columns.includes("historical_net") ? [["historical_net", "Historical net · USD"]] : []),
       ...parameters.filter(([key]) => !varying.has(key)),
-      ...job.metric_columns.filter((name) => name !== "historical_net").map((name) => [name, label(name)]), ["run_id", "Backtest report"]];
+      ...job.metric_columns.filter((name) => name !== "historical_net").map((name) => [name, name==='lucid_historical_net'?'LucidFlex historical net · USD':label(name)]), ["run_id", "Backtest report"]];
     for (const [key, title] of columns) {
       const th = node("th");
       th.scope = "col";
@@ -278,7 +278,12 @@
         const td = node("td");
         td.dataset.column = key;
         if (varying.has(key)) td.classList.add("optimization-varying-parameter");
-        if (key === "historical_net" && row.prop_report_deleted) {
+        if(key==='lucid_historical_net'){
+          const item=row.prop_companions?.[0];
+          const value=row.metrics.lucid_historical_net==null?'N/A':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(row.metrics.lucid_historical_net);
+          if(item&&item.status==='complete'){const a=node('a',value);a.href=`#backtests/prop/job/${item.id}`;td.append(a);}
+          else td.append(node('span',value),...(item?.status==='deleted'?[node('small','Prop report deleted','field-help')]:[]));
+        } else if (key === "historical_net" && row.prop_report_deleted) {
           td.append(node("span", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style:"currency",currency:"USD",maximumFractionDigits:0}).format(row.metrics.historical_net)), node("small", "Prop report deleted", "field-help"));
         } else if (key === "historical_net" && row.prop_analysis) {
           td.classList.add("optimization-prop-result");

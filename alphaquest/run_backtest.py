@@ -116,6 +116,7 @@ def main():
     print(json.dumps({"output_directory": str(args.output), "summary": manifest["summary"],
                       "backtest_id": manifest['id'],
                       "default_prop_analysis_id": manifest['run_metadata']['automatic_prop_analysis']['id'],
+                      "companion_prop_analysis_ids": [item['id'] for item in manifest['run_metadata']['automatic_prop_analysis'].get('companions',[])],
                       "reconciliation": manifest["reconciliation"]}, default=json_value, indent=2))
     if manifest["summary"]["win_rate_pct"] is None:
         print("Win rate: N/A (no completed trades)")
