@@ -1,4 +1,6 @@
 """Actual upload -> declared IS -> selected OOS -> durable native prop reports."""
+
+from test_backtests_browser import set_parameter
 from hashlib import sha256
 import json
 import re
@@ -18,7 +20,7 @@ def upload(page,portal,days=2,point='10'):
 def configure(page,portal,dataset):
     page.goto(portal['url']+'/#backtests/new')
     page.locator('#backtest-dataset').select_option(dataset['id'])
-    for name in ('green_bar_count','hold_minutes','contracts'):page.locator('#strategy-'+name).fill('1')
+    for name in ('green_bar_count','hold_minutes','contracts'):set_parameter(page, name, '1')
     page.locator('#backtest-slippage-ticks').fill('0');page.locator('#backtest-commission').fill('0')
 
 
@@ -109,7 +111,6 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     page.locator('#prop-run').click();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=30000)
     assert page.url.endswith('/'+is_prop_id)
     page.goto(portal['url']+'/#backtests/new')
-    page.locator('#backtest-mode').select_option('exhaustive')
     for label,value in [('Green bar count start','1'),('Green bar count end','2'),('Hold minutes start','1'),('Hold minutes end','1')]:page.get_by_label(label,exact=True).fill(value)
     page.get_by_label('Green bar count step',exact=True).fill('1')
     page.locator('#optimization-workers').select_option('1')

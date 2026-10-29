@@ -2086,3 +2086,70 @@ PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_delete_backtests.py \
   tests/test_delete_prop_reports.py tests/test_strategy_run_management_browser.py \
   tests/test_delete_backtests_browser.py --basetemp /tmp/alphaquest-report-delete-NEW
 ```
+# One parameter grid for all new backtests — 2026-10-29
+
+The new-backtest form no longer offers a Backtest mode selector or a separate
+single-parameter form. Its exhaustive grid is always visible. Equal start/end
+values on every row give step 0, count 1 and **Total combinations: 1 = 1
+backtest**. Wider ranges generate every combination, using the same parameter
+drafts, costs, IS/OOS declaration, benchmark settings and reuse checkbox.
+One generated combination opens the ordinary backtest report with its existing
+live preparation/replay/saving progress. Multiple combinations open the saved
+batch table and individual report links. Both submit to `/api/backtests`; the
+single-report API remains an execution primitive for integrations, replays and
+manually selected OOS. No production calculation, prop sizing or sampling changed.
+
+The normal-product arithmetic demonstration is saved under
+`artifacts/unified-backtest-grid-20261029/fixtures/test_one_form_and_endpoint_run0/`.
+Its `shared-form-verification.json` and screenshots show the same form running
+one contract for **13 CU** and then contracts 1–3 for **13/26/39 CU** net. The
+independent arithmetic is 1.5 fill-price points × 10 CU/point/contract minus
+2 CU commission/contract = 13 CU/contract. Costs and capital remain identical
+between submissions; the old saved batch URL reopens those exact results.
+Another boundary check sets contracts 1→2 with step 5: only 1 is generated, so
+exactly one report is saved with 13 CU net. Fractional integer endpoints/steps
+remain rejected before execution, and boolean/Decimal values retain their types
+and precision through report saving.
+
+To reproduce manually, follow the labeled arithmetic upload/declaration in
+[Backtests screen review](backtests_portal.md), then set both endpoints of green
+bar count to 3, hold minutes to 20 and contracts to 1, with tick size 0.25,
+point value 10, slippage 1 and commission 1. Expect count 1 and net 13 CU.
+Return to New backtest, change only contracts end to 3, and expect count 3 and
+the three net values above. No mode change is required. In an existing report,
+Configure prop analysis → Check source → Run still uses the normal durable
+analysis workflow; selected manual OOS remains a separate report action.
+
+The live portal was checked read-only through Strategies → New backtest:
+no selector/duplicate inputs, default one-combination grid, recalculated three
+combinations, navigation preserving drafts, VWAP boolean defaults and a 390-pixel
+layout without page overflow. `live-verification.json`, three `live-*.png`
+screenshots and `verify-live.py.txt` preserve the observations and exact source
+hashes. There were no browser errors or mutating requests; actual dataset and
+backtest catalogue responses stayed identical. Existing port 8000 serves the
+updated assets on refresh; no persistent server was started or restarted.
+
+The automatic-prop browser fixture uses the same new grid through upload,
+IS declaration, backtest, inline prop summary, configuration/source checking,
+analysis reuse, downloads, batch results and reopen. Saved outputs remain
+**360,000 USD** payouts minus **7,120 USD** acquisition costs = **352,880 USD**
+Historical net, matching its unchanged arithmetic oracle. Evidence is in
+`workflow-fixtures/test_automatic_apex_backtest_o0/` beneath this increment's
+artifact directory, including `verification.json`, report JSON and CSV downloads.
+All fixture servers shut down after their checks. Reproduce into a new evidence
+directory, preserving these original outputs:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_strategies_browser.py \
+  tests/test_automatic_prop_browser.py tests/test_optimization_browser.py \
+  --basetemp artifacts/unified-grid-NEW
+```
+
+Qualification: **39 form/grid/navigation checks** and **31 workflow/report checks**
+passed (70 total), with one existing dependency deprecation warning per run.
+Logs and JUnit files are `browser-results.*` and `workflow-results.*` in this
+increment's evidence directory. Checks include source-timezone declarations,
+parameter type/precision validation, preparation/replay progress, duplicate-submit
+protection, worker retry, mobile overflow, sorting, reuse, prop configuration and
+downloads, benchmark comparison, manual OOS and durable report reopening.
+JavaScript syntax and patch whitespace checks also passed.

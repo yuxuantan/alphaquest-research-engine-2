@@ -74,7 +74,8 @@ opening reports does not delete anything.
 Old instrument-group API endpoints remain readable. Existing instrument-only
 bookmarks resolve to the latest matching strategy/dataset where available.
 `#backtests` and sweep URLs retain their compatibility readers and the shared
-single/exhaustive run form. The new hierarchy uses
+exhaustive parameter-grid form. Equal endpoints on every row run one backtest;
+ranges run every combination, without a mode selector. The new hierarchy uses
 `#strategies/{strategy_id}/datasets/{group_id}`. The lightweight `library_*`
 tables are disposable indexes; authoritative reports, datasets and execution history
 remain in their original stores. No new calculation engine or report store is

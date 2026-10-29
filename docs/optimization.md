@@ -1,11 +1,20 @@
 # Exhaustive optimization
 
-Open **Optimizations** in the portal (`/#optimizations`). It shares the normal
-Backtests configuration: select a saved dataset and strategy, optionally choose
-inclusive source-timezone dates, review instrument settings, and enter capital,
-slippage and commissions. Account and execution settings are fixed across trials;
-every strategy parameter has **Start value**, **End value**, **Step** and
-**Step count** columns.
+Open **Strategies → New backtest** (`/#backtests/new`). All backtests use the
+same exhaustive parameter grid; there is no separate mode selector. Select a
+saved dataset and strategy, review the required IS/OOS declaration, review
+instrument settings, and enter capital, slippage and commissions. Account and
+execution settings are fixed across trials. Every strategy parameter has
+**Start value**, **End value**, **Step** and **Step count** columns.
+
+Keep start and end equal on every row to run one backtest. A grid generating one
+combination opens its normal report with live progress. Widen ranges for more
+combinations; the results open as a sortable batch table with links to individual
+reports. The same grid drafts, costs, benchmark settings and saved-result reuse
+control apply in both cases. There is no second parameter form to keep in sync.
+Both submit to `/api/backtests`; the server's single-report request remains
+available for integrations and selected manual OOS runs. Existing
+`/#optimizations` bookmarks open this same grid.
 
 **Step** is the editable increment between values. Equal endpoints set it to 0;
 changing endpoints to different values defaults it to 1. You can then enter a
@@ -55,7 +64,7 @@ including valid HHMM times and coupled pivot/history settings. For example,
 numeric stepping from 0950 through 1000 by 25 produces an invalid intermediate
 0975 and is rejected; HHMM fields are numeric inputs, not elapsed minutes.
 
-**Start optimization** runs the Cartesian product in definition order. The portal
+**Start backtests** runs the Cartesian product in definition order. The portal
 shows the product of step counts before submission; jobs are limited to 10,000
 combinations. Only Exhaustive is supported. Choose **Parallel backtests** below
 the grid: **1** runs serially; higher values compute trials in separate Python
@@ -68,9 +77,8 @@ bandwidth; small grids can be slower because of process startup.
 Worker options load independently of dataset/strategy choices. If loading fails
 or exceeds 10 seconds, the selector shows **Worker options unavailable** with
 **Retry worker options**. Retrying preserves the parameter grid and selected
-dataset. Optimization remains disabled until valid worker options load;
-ordinary backtests remain usable. An older backend without this endpoint shows
-a specific restart message. Reloading the portal fetches matching, current
+dataset. Submission remains disabled until valid worker options load. An older
+backend without this endpoint shows a specific restart message. Reloading the portal fetches matching, current
 frontend assets so older cached scripts cannot leave a stale loading selector.
 
 Saved retry evidence is under

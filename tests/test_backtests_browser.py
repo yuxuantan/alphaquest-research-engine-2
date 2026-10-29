@@ -72,13 +72,24 @@ def page(browser):
     assert errors == [], errors
 
 
+def set_parameter(page, name, value):
+    """Use the real parameter grid to request exactly one value."""
+    row = page.locator(f'#optimization-ranges tr[data-parameter="{name}"]')
+    for part in ("end", "start"):
+        field = row.locator(f'[data-range="{part}"]')
+        if isinstance(value, bool):
+            field.select_option(str(value).lower())
+        else:
+            field.fill(str(value))
+
+
 def prepare(page, portal):
     page.goto(portal["url"] + "/#backtests")
-    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(3)
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     page.locator("#backtest-dataset").select_option(portal["saved"]["arithmetic_5m"]["id"])
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
-    page.locator("#strategy-contracts").fill("2")
+    set_parameter(page, "contracts", "2")
 
 
 def post_requests(page):
@@ -90,22 +101,22 @@ def post_requests(page):
 def test_dataset_strategy_selection_description_parameters_and_navigation(page, portal):
     prepare(page, portal)
     playwright.expect(page.locator("#strategy-description")).to_have_text(sample.DESCRIPTION)
-    playwright.expect(page.locator("#strategy-green_bar_count")).to_have_value("3")
-    playwright.expect(page.locator("#strategy-hold_minutes")).to_have_value("20")
-    playwright.expect(page.get_by_label("Number of contracts", exact=True)).to_have_value("2")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=green_bar_count] [data-range=start]")).to_have_value("3")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=hold_minutes] [data-range=start]")).to_have_value("20")
+    playwright.expect(page.get_by_label("Contracts start", exact=True)).to_have_value("2")
     page.locator("#backtest-dataset").select_option(portal["saved"]["gap_deadline"]["id"])
     playwright.expect(page.locator("#backtest-timezone")).to_have_text("America/New_York")
     playwright.expect(page.locator("#backtest-dataset-info")).to_contain_text("19:00:00 UTC")
     playwright.expect(page.locator("#backtest-assumptions-heading")).to_contain_text("bar closes")
     playwright.expect(page.locator("#point-value-help")).to_contain_text("per contract")
-    page.locator("#strategy-green_bar_count").fill("2")
-    page.locator("#strategy-hold_minutes").fill("7")
+    set_parameter(page, "green_bar_count", "2")
+    set_parameter(page, "hold_minutes", "7")
     page.get_by_role("link", name="Datasets", exact=True).click()
     playwright.expect(page.locator("#datasets-screen")).to_be_visible()
     page.get_by_role("link", name="Strategies", exact=True).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
-    playwright.expect(page.locator("#strategy-green_bar_count")).to_have_value("2")
-    playwright.expect(page.locator("#strategy-hold_minutes")).to_have_value("7")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=green_bar_count] [data-range=start]")).to_have_value("2")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=hold_minutes] [data-range=start]")).to_have_value("7")
     playwright.expect(page.locator("#backtest-dataset")).to_have_value(portal["saved"]["gap_deadline"]["id"])
 
 
@@ -117,14 +128,14 @@ def test_strategy_fields_follow_backend_definitions_when_selection_changes(page,
     page.route("**/api/strategies", lambda route: route.fulfill(json=definitions + [alternate]))
     page.goto(portal["url"] + "/#backtests")
     page.locator("#backtest-strategy").select_option("consecutive_green_hold")
-    page.locator("#strategy-green_bar_count").fill("4")
+    set_parameter(page, "green_bar_count", "4")
     page.locator("#backtest-strategy").select_option("alternate_definition")
     playwright.expect(page.locator("#strategy-description")).to_have_text(alternate["description"])
-    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(1)
-    playwright.expect(page.get_by_label("Trigger length", exact=True)).to_have_value("5")
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(1)
+    playwright.expect(page.get_by_label("Trigger length start", exact=True)).to_have_value("5")
     page.locator("#backtest-strategy").select_option("consecutive_green_hold")
-    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(3)
-    playwright.expect(page.locator("#strategy-green_bar_count")).to_have_value("4")
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=green_bar_count] [data-range=start]")).to_have_value("4")
 
 
 def test_exact_submitted_configuration_and_saved_completion_summary(page, portal):
@@ -133,8 +144,8 @@ def test_exact_submitted_configuration_and_saved_completion_summary(page, portal
                                 json={"tick_size": "0.25", "point_value": "10.000000000000000000000000001"})
         assert response.status_code == 200
     prepare(page, portal)
-    page.locator("#strategy-green_bar_count").fill("2")
-    page.locator("#strategy-hold_minutes").fill("7")
+    set_parameter(page, "green_bar_count", "2")
+    set_parameter(page, "hold_minutes", "7")
     page.locator("#backtest-initial-capital").fill("10000.123456789123456789123456789")
     requests = post_requests(page)
     with page.expect_response(lambda response: "/api/backtests?" in response.url and response.request.method == "POST") as completed:
@@ -199,7 +210,7 @@ def test_live_progress_elapsed_saving_and_duplicate_submission_protection(page, 
         playwright.expect(page.locator("#backtest-elapsed")).to_have_text(re.compile(r"[1-9]\d*s elapsed"))
         playwright.expect(page.locator("#start-backtest")).to_be_disabled()
         playwright.expect(page.locator("#refresh-backtest-choices")).to_be_disabled()
-        playwright.expect(page.locator("#strategy-contracts")).to_be_disabled()
+        playwright.expect(page.locator("#optimization-ranges [data-parameter=contracts] [data-range=start]")).to_be_disabled()
         playwright.expect(page.locator("#reset-instrument-defaults")).to_be_disabled()
         playwright.expect(page.locator("#backtest-tick-size")).to_be_disabled()
         playwright.expect(page.locator("#backtest-point-value")).to_be_disabled()
@@ -229,11 +240,11 @@ def test_client_validation_and_server_validation_errors_are_visible(page, portal
     playwright.expect(page.locator("#backtest-error")).to_contain_text("greater than zero")
     assert requests == []
     page.locator("#backtest-initial-capital").fill("10000")
-    page.locator("#strategy-green_bar_count").fill("2.5")
+    set_parameter(page, "green_bar_count", "2.5")
     page.locator("#start-backtest").click()
     playwright.expect(page.locator("#backtest-error")).to_be_visible()
     assert requests == []
-    page.locator("#strategy-green_bar_count").fill("3")
+    set_parameter(page, "green_bar_count", "3")
     page.route("**/api/backtests?*", lambda route: route.fulfill(status=422, json={"detail": [
         {"loc": ["body", "execution_settings", "initial_capital"], "msg": "Initial capital rejected by server"},
     ]}))
@@ -269,7 +280,7 @@ def test_loading_error_can_be_retried_and_empty_library_is_clear(page, portal):
     playwright.expect(page.locator("#start-backtest")).to_be_disabled()
     page.unroute("**/api/strategies")
     page.locator("#refresh-backtest-choices").click()
-    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(3)
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     page.route("**/api/datasets", lambda route: route.fulfill(json=[]))
     page.locator("#refresh-backtest-choices").click()
     playwright.expect(page.locator("#backtest-options-status")).to_contain_text("No supported saved datasets")
@@ -308,7 +319,7 @@ def test_mobile_navigation_and_layout(page, portal):
     page.goto(portal["url"])
     page.get_by_role("link", name="Strategies", exact=True).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
-    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(3)
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     playwright.expect(page.locator("#backtests-screen")).to_be_visible()
     playwright.expect(page.locator("#backtest-assumptions-heading")).to_have_text("Timestamps label bar closes.")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -319,17 +330,17 @@ def test_mobile_navigation_and_layout(page, portal):
 def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(page, portal):
     prepare(page, portal)
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
-    playwright.expect(page.locator("#strategy-parameters input")).to_have_count(32)
-    playwright.expect(page.locator("#strategy-trade_longs")).to_be_checked()
-    playwright.expect(page.locator("#strategy-trade_shorts")).not_to_be_checked()
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(32)
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=trade_longs] [data-range=start]")).to_have_value("true")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=trade_shorts] [data-range=start]")).to_have_value("false")
     playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("next observed bar Open")
-    page.locator("#strategy-trade_shorts").check()
-    page.locator("#strategy-mm_risk_pct").fill("1.25")
-    page.locator("#strategy-position_size").fill("2")
+    set_parameter(page, "trade_shorts", True)
+    set_parameter(page, "mm_risk_pct", "1.25")
+    set_parameter(page, "position_size", "2")
     page.locator("#backtest-strategy").select_option("consecutive_green_hold")
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
-    playwright.expect(page.locator("#strategy-trade_shorts")).to_be_checked()
-    playwright.expect(page.locator("#strategy-mm_risk_pct")).to_have_value("1.25")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=trade_shorts] [data-range=start]")).to_have_value("true")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=mm_risk_pct] [data-range=start]")).to_have_value("1.25")
     requests = post_requests(page)
     page.locator("#start-backtest").click()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
@@ -357,11 +368,11 @@ def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal
     page.locator("#backtest-dataset").select_option(dataset_id)
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
     declare_in_form(page,declaration(dataset_id))
-    page.locator("#strategy-stop_swing_len").fill("1")
-    page.locator("#strategy-target_swing_len").fill("1")
-    page.locator("#strategy-use_adx_elev").uncheck()
-    page.locator("#strategy-use_adx_decay").uncheck()
-    page.locator("#strategy-use_eod_flat").check()
+    set_parameter(page, "stop_swing_len", "1")
+    set_parameter(page, "target_swing_len", "1")
+    set_parameter(page, "use_adx_elev", False)
+    set_parameter(page, "use_adx_decay", False)
+    set_parameter(page, "use_eod_flat", True)
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
     playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("BACKTEST LOOKAHEAD")

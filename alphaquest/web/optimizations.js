@@ -153,7 +153,7 @@
       } else {
         const [start, end, increment] = scaled([decimal(input("start").value), decimal(input("end").value), decimal(step.value)]);
         if (start > end) throw new Error("Start must be less than or equal to end.");
-        if (parameter.type === "int" && [input("start"), input("end"), step].some((field) => !safeInteger(field.value))) throw new Error("Enter whole numbers within the supported integer range.");
+        if (["int", "integer"].includes(parameter.type) && [input("start"), input("end"), step].some((field) => !safeInteger(field.value))) throw new Error("Enter whole numbers within the supported integer range.");
         if (start !== end && increment <= 0n) throw new Error("Step must be greater than zero when endpoints differ.");
         count = start === end ? 1n : (end - start) / increment + 1n;
       }
@@ -206,7 +206,7 @@
           input.inputMode = parameter.type === "Decimal" ? "decimal" : "numeric";
           input.maxLength = 128;
           if (part === "step") { input.min = "0"; input.step = parameter.type === "Decimal" ? "any" : "1"; }
-          else if (parameter.type === "int") {
+          else if (["int", "integer"].includes(parameter.type)) {
             input.step = "1";
             input.max = String(parameter.maximum ?? Number.MAX_SAFE_INTEGER);
             if (parameter.minimum !== undefined) input.min = String(parameter.minimum);
@@ -226,14 +226,29 @@
     }
     count();
   }
+  function convert(parameter, value) {
+    return parameter.type === "bool" ? value === "true"
+      : ["int", "integer"].includes(parameter.type) ? Number(value) : value.trim();
+  }
+  function fixedParameters() {
+    if (!strategy) return null;
+    const rows = Array.from(get("#optimization-ranges").rows);
+    const counts = rows.map((row, index) => rowCount(row, strategy.parameters[index]));
+    if (counts.some((value) => value !== 1n)) return null;
+    // A one-combination grid uses the normal backtest execution/progress path.
+    // No separate mode or parameter draft can diverge from the grid.
+    return Object.fromEntries(rows.map((row, index) => {
+      const parameter = strategy.parameters[index];
+      return [parameter.name, convert(parameter, row.querySelector('[data-range="start"]').value)];
+    }));
+  }
   async function start(payload) {
     if (workerState !== "ready") throw new Error("Load worker options successfully before starting optimization. Use Retry worker options.");
     remember();
     const parameter_ranges = {};
     for (const parameter of strategy.parameters) {
       const spec = drafts.get(strategy.id)[parameter.name];
-      const convert = (value) => parameter.type === "bool" ? value === "true" : parameter.type === "int" ? Number(value) : value.trim();
-      parameter_ranges[parameter.name] = { start: convert(spec.start), end: convert(spec.end), step: parameter.type === "Decimal" ? spec.step.trim() : Number(spec.step) };
+      parameter_ranges[parameter.name] = { start: convert(parameter, spec.start), end: convert(parameter, spec.end), step: parameter.type === "Decimal" ? spec.step.trim() : Number(spec.step) };
     }
     const { strategy_parameters, ...settings } = payload;
     let job;
@@ -424,7 +439,7 @@
       get("#optimization-resume").disabled = false;
     }
   };
-  window.optimizations = { configure, start, loadSettings, workersReady: () => workerState === "ready" };
+  window.optimizations = { configure, fixedParameters, start, loadSettings, workersReady: () => workerState === "ready" };
   window.addEventListener("hashchange", navigate);
   navigate();
 })();

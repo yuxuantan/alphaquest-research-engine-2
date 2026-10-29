@@ -8,8 +8,10 @@ Start the existing local server from this checkout:
 
 Open `http://127.0.0.1:8000/`, select **Strategies**, then **New backtest**, or go
 directly to `http://127.0.0.1:8000/#backtests/new`. Mobile navigation is in the top
-bar. The library groups saved backtests by instrument only; the report arrow
-opens the full results. Choose single or exhaustive mode in the shared form.
+bar. Choose a strategy, then an instrument and full dataset period to see saved
+IS/OOS runs; the report link opens the exact results. New backtests always use
+the exhaustive parameter grid. Keep start and end equal on every row for one
+backtest, or widen ranges to run more combinations. There is no mode selector.
 
 ## Run the arithmetic fixture
 
@@ -42,8 +44,10 @@ correctly unavailable rather than borrowing OOS bars.
 2. Open **Strategies → New backtest** and select that saved dataset. Its eight source bars (seven IS plus one reserved), filename,
    UTC range, and saved source timezone appear beneath the controls.
 3. Select **Consecutive green hold**. This is selected automatically when it is
-   the only available strategy. Read its description. Exactly three strategy
-   fields come from the backend definitions:
+   the only available strategy. Read its description. Three parameter rows come
+   from the backend definitions. Set both **Start value** and **End value** to
+   each fixture value below; step is **0** and step count is
+   **1** on every row. The total must show **1 = 1 backtest**:
 
    | Field | Fixture value |
    | --- | ---: |
@@ -70,7 +74,7 @@ correctly unavailable rather than borrowing OOS bars.
 5. Review **Timestamps label bar closes**. The saved timezone converts to UTC;
    signals and simulated fills use the same completed close with configured
    slippage. Holds measure elapsed time, including gaps.
-6. Click **Start backtest**. Inputs, refresh, and the start button are disabled
+6. Click **Start backtests**. Inputs, refresh, and the start button are disabled
    while the POST remains active. Progress displays preparation, replay, report
    saving, processed/total bars, and elapsed time. The seven-bar fixture may
    finish before an intermediate poll; larger runs show live replay progress.

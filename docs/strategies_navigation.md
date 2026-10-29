@@ -39,18 +39,21 @@ PYTHONPATH=. python -m pytest -q tests/test_strategy_library.py \
 
 ## Shared execution form
 
-Use **Strategies → New backtest**, then choose **Single parameter set** or
-**Parameter sweep · exhaustive** in Backtest mode. The selected dataset, strategy,
-dates, capital, costs and both sets of parameter drafts stay in the same form.
-A single set opens its normal report. A sweep opens the ordinary batch results
-with sortable metrics, highlighted/frozen varying parameters, CSV export and a
-report icon for each trial. Both creation modes POST to `/api/backtests`.
+Use **Strategies → New backtest**. The exhaustive parameter grid is always
+shown, without a mode selector. Keep start/end equal for every parameter to run
+one backtest, or widen ranges to run multiple combinations. Dataset, strategy,
+dates, capital, costs and parameter drafts stay in the same form. One combination
+opens its normal report; multiple combinations open the batch results with
+sortable metrics, highlighted/frozen varying parameters, CSV export and report
+links. Both submit to `/api/backtests`.
 **Backtest activity** reopens queued, running, interrupted and completed batches.
 Batch progress/results use `/api/backtests/batches/{id}`; old optimization URLs
 and API aliases reopen the same records. Deleting a report returns to Strategies.
 
 `03-shared-form/` retains actual shared-form and result screenshots plus request
 payloads in `test_one_form_and_endpoint_run0/shared-form-verification.json`.
+Those original mode-switch screenshots are historical; the current form always
+shows the grid.
 Independently expected one-contract net is 13 CU; contracts 1/2/3 give 13/26/39 CU.
 The browser verifies both POST payloads use identical execution settings, mode
 changes preserve drafts/capital, and the old saved job link reads the same job.

@@ -14,10 +14,7 @@
   const pointValue = get("#backtest-point-value");
   const count = new Intl.NumberFormat("en-US");
   const state = { datasets: [], strategies: [], busy: false, loading: false, ready: false, strategy: null, instrumentEdited: false };
-  const drafts = new Map();
   let reportRecord, detailedBusy = false;
-  const mode = get("#backtest-mode");
-  const optimizing = () => mode.value === "exhaustive";
   const executionLabels = {
     initial_capital: "Initial capital", tick_size: "Tick size", point_value: "Monetary point value",
     slippage_ticks: "Slippage · ticks per fill", commission_per_contract_per_side: "Commission · per contract per side",
@@ -36,17 +33,14 @@
   }
 
   function controls() {
-    mode.disabled=state.busy || state.loading;
     for (const fieldset of form.querySelectorAll("fieldset")) fieldset.disabled = state.busy || state.loading;
-    for (const input of get("#strategy-parameters").querySelectorAll("input")) input.disabled = optimizing() || state.busy || state.loading;
-    for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = !optimizing() || state.busy || state.loading;
-    get("#backtest-reuse").disabled=optimizing() || state.busy || state.loading;
-    get("#optimization-workers").disabled = !optimizing() || state.busy || state.loading || !window.optimizations.workersReady();
+    for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = state.busy || state.loading;
+    get("#optimization-workers").disabled = state.busy || state.loading || !window.optimizations.workersReady();
     get("#optimization-workers-retry").disabled = state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
-    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || !window.researchSplit.ready() || (optimizing() && !window.optimizations.workersReady());
-    start.textContent = state.busy ? "Submitting / running…" : optimizing() ? "Start backtests →" : "Start backtest →";
+    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || !window.researchSplit.ready() || !window.optimizations.workersReady();
+    start.textContent = state.busy ? "Submitting / running…" : "Start backtests →";
     form.setAttribute("aria-busy", String(state.busy));
   }
 
@@ -78,62 +72,18 @@
     return result;
   }
 
-  function rememberParameters() {
-    if (!state.strategy) return;
-    drafts.set(state.strategy.id, Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.type === "checkbox" ? input.checked : input.value])));
-  }
-
   function renderStrategy() {
-    rememberParameters();
     const strategy = state.strategies.find((item) => item.id === strategySelect.value);
     state.strategy = strategy || null;
-    const fields = get("#strategy-parameters");
-    fields.replaceChildren();
     get("#strategy-description").textContent = strategy?.description || "Select a strategy to see its description.";
-    if (strategy) {
-      for (const parameter of strategy.parameters) {
-        if (!["int", "integer", "bool", "Decimal"].includes(parameter.type)) {
-          state.strategy = null;
-          showError({ message: "This strategy uses a parameter type this screen does not support." });
-          break;
-        }
-        const wrapper = element("label", "", label(parameter.name));
-        const input = element("input");
-        input.id = `strategy-${parameter.name}`;
-        input.name = parameter.name;
-        input.dataset.parameter = parameter.name;
-        input.dataset.type = parameter.type;
-        const saved = drafts.get(strategy.id)?.[parameter.name] ?? parameter.default;
-        if (parameter.type === "bool") {
-          input.type = "checkbox";
-          input.checked = saved === true;
-        } else if (parameter.type === "Decimal") {
-          input.type = "text";
-          input.inputMode = "decimal";
-          input.dataset.decimal = "nonnegative";
-          input.required = true;
-          input.value = String(saved ?? "");
-        } else {
-          input.dataset.integer = "";
-          input.type = "number";
-          input.step = "1";
-          input.max = String(parameter.maximum ?? Number.MAX_SAFE_INTEGER);
-          if (parameter.minimum !== undefined) input.min = String(parameter.minimum);
-          input.required = true;
-          input.value = String(saved ?? "");
-        }
-        const help = element("span", "field-help", parameter.description);
-        help.id = `${input.id}-help`;
-        input.setAttribute("aria-describedby", help.id);
-        input.setAttribute("aria-label", label(parameter.name));
-        wrapper.append(input, help);
-        fields.append(wrapper);
-      }
+    if (strategy?.parameters.some((parameter) => !["int", "integer", "bool", "Decimal"].includes(parameter.type))) {
+      state.strategy = null;
+      showError({ message: "This strategy uses a parameter type this screen does not support." });
     }
     get("#backtest-fill-assumption").textContent = strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
       ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, BACKTEST LOOKAHEAD uses the last daytime bar to infer each session close, then closes five minutes earlier (at/before 15:55 CT) and blocks later entries. A missing cutoff minute uses the preceding available bar. Truncated data is treated as an early close. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
-    window.optimizations.configure(strategy);
+    window.optimizations.configure(state.strategy);
     window.researchSplit.configure(datasetSelect.value,strategySelect.value);
     controls();
   }
@@ -219,6 +169,7 @@
   }
 
   function configuration() {
+    const parameters = window.optimizations.fixedParameters();
     for (const input of form.querySelectorAll("input")) {
       if (input.disabled || input.closest("#optimization-settings")) continue;
       input.setCustomValidity("");
@@ -252,7 +203,7 @@
     }
     return {
       dataset_id: datasetSelect.value, strategy_id: strategySelect.value,
-      strategy_parameters: Object.fromEntries(Array.from(get("#strategy-parameters").querySelectorAll("input"), (input) => [input.dataset.parameter, input.dataset.type === "bool" ? input.checked : input.dataset.type === "Decimal" ? input.value.trim() : Number(input.value)])),
+      strategy_parameters: parameters,
       execution_settings: execution,
       market_benchmark: {contracts: Number(get("#backtest-benchmark-contracts").value)},
       sample_split: window.researchSplit.payload(),
@@ -405,7 +356,8 @@
     get("#backtest-error").hidden = true;
     const payload = configuration();
     if (!payload) return;
-    if (optimizing()) {
+    if (payload.strategy_parameters === null) {
+      get("#backtest-progress").hidden = true;
       state.busy = true;
       controls();
       try { await window.optimizations.start(payload); }
@@ -450,7 +402,7 @@
     };
     poll();
     try {
-      payload.reuse_results=get("#backtest-reuse").checked;
+      payload.reuse_results=get("#optimization-reuse").checked;
       const response = await fetch(`/api/backtests?progress_id=${operationId}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
@@ -493,19 +445,7 @@
   window.addEventListener("optimization-workers-changed", controls);
   window.addEventListener("research-split-changed", controls);
 
-  function modeChanged(loadWorkers=true) {
-    get("#strategy-parameters").hidden = optimizing();
-    get("#strategy-parameters-heading").hidden = optimizing();
-    get("#optimization-settings").hidden = !optimizing();
-    get("#backtest-reuse-settings").hidden=optimizing();
-    get("#backtest-progress").hidden = optimizing() || get("#backtest-progress").hidden;
-    if(loadWorkers && optimizing() && !window.optimizations.workersReady())void window.optimizations.loadSettings();
-    controls();
-  }
-  mode.addEventListener("change",()=>modeChanged());
-
   function navigate() {
-    if(location.hash==="#optimizations")mode.value="exhaustive";
     const screen = location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
     get("#strategies-screen").hidden=screen!=="strategies";
     get("#datasets-screen").hidden = screen !== "datasets";
@@ -515,7 +455,6 @@
     get("#current-screen").textContent = title;
     document.title = `${title} · AlphaQuest`;
     get("#backtests-title").textContent = "Run backtests.";
-    modeChanged(false);
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
       const active = link.dataset.screen === (screen === "datasets" ? "datasets" : "strategies");
@@ -523,7 +462,7 @@
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : optimizing() ? "Optimizations · Exhaustive parameter research" : screen === "backtests" ? "Backtests · Configure and run" : "Dataset management · Component 1 of your research workflow";
+    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : ["backtests", "optimizations"].includes(screen) ? "Backtests · Exhaustive parameter research" : "Dataset management · Component 1 of your research workflow";
     if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
   window.addEventListener("hashchange", navigate);

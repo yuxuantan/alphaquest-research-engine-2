@@ -105,19 +105,17 @@ def test_invalid_integer_grid_is_rejected_without_jobs_and_drafts_persist(page, 
     assert page.request.get(portal["url"] + "/api/optimizations").json()["total"] == 0
     page.get_by_role("link", name="Datasets", exact=True).click()
     page.goto(portal["url"] + "/#backtests/new")
-    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.get_by_label("Contracts end", exact=True)).to_have_value("2")
     page.goto(portal["url"] + "/#backtests/new")
-    page.locator("#backtest-mode").select_option("single")
-    playwright.expect(page.locator("#strategy-contracts")).to_be_enabled()
-    playwright.expect(page.locator("#optimization-settings")).to_be_hidden()
+    playwright.expect(page.locator("#optimization-ranges [data-parameter=contracts] [data-range=start]")).to_be_enabled()
+    playwright.expect(page.locator("#optimization-settings")).to_be_visible()
+    playwright.expect(page.locator("#backtest-mode")).to_have_count(0)
 
 
 def test_mobile_grid_and_results_do_not_expand_page(page, portal):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(portal["url"])
     page.goto(portal["url"] + "/#backtests/new")
-    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.locator("#optimization-settings")).to_be_visible()
     prepare(page, portal)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -317,12 +315,10 @@ def test_worker_loading_failure_has_retry_and_preserves_choices(page, portal, fa
     page.locator("#backtest-dataset").select_option(portal["saved"]["arithmetic_5m"]["id"])
     page.get_by_label("Contracts end", exact=True).fill("5")
     playwright.expect(page.locator("#start-backtest")).to_be_disabled()
-    # Ordinary backtests do not depend on the parallel-worker settings service.
+    # The grid is shared across the canonical and compatibility routes.
     page.goto(portal["url"] + "/#backtests/new")
-    page.locator("#backtest-mode").select_option("single")
-    playwright.expect(page.locator("#start-backtest")).to_be_enabled()
+    playwright.expect(page.locator("#start-backtest")).to_be_disabled()
     page.goto(portal["url"] + "/#backtests/new")
-    page.locator("#backtest-mode").select_option("exhaustive")
     playwright.expect(page.locator("#optimization-workers-retry")).to_be_visible()
     page.unroute(endpoint)
     page.locator("#optimization-workers-retry").click()
@@ -508,17 +504,18 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     }, indent=2) + "\n")
 
 
-def test_single_generated_value_is_not_highlighted_even_when_endpoints_differ(page, portal):
+def test_one_generated_combination_runs_once_even_when_endpoints_differ(page, portal):
     prepare(page, portal)
     page.get_by_label("Contracts end", exact=True).fill("2")
     page.get_by_label("Contracts step", exact=True).fill("5")
+    playwright.expect(page.locator("#optimization-count")).to_have_text("Total combinations: 1 = 1 backtest")
+    posts = []
+    page.on("request", lambda request: posts.append(request.post_data_json) if request.method == "POST" and request.url.split("?")[0].endswith("/api/backtests") else None)
     page.locator("#start-backtest").click()
-    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
-    playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(1)
-    playwright.expect(page.locator("#optimization-results .optimization-varying-parameter")).to_have_count(0)
-    playwright.expect(page.locator("#optimization-results .optimization-frozen-parameter")).to_have_count(0)
-    playwright.expect(page.locator("#optimization-results thead th").first).to_have_attribute("data-column", "trial")
-    playwright.expect(page.locator("#optimization-parameter-legend")).to_have_text("All strategy parameters are fixed for this run.")
+    playwright.expect(page.locator("#backtest-completion")).to_be_visible(timeout=20000)
+    playwright.expect(page.locator("#report-net")).to_have_text("13.00")
+    assert len(posts) == 1 and posts[0]["strategy_parameters"]["contracts"] == 1
+    assert page.request.get(portal["url"] + "/api/backtests").json()["total"] == 1
 
 
 def test_resume_remaining_trials_preserves_twelve_saved_reports(page, portal, tmp_path, monkeypatch):

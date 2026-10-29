@@ -1,5 +1,7 @@
 """Actual upload -> IS backtest -> benchmark -> manual OOS -> saved downloads."""
 
+from test_backtests_browser import set_parameter
+
 import hashlib
 import json
 from time import sleep
@@ -26,7 +28,7 @@ def test_actual_product_market_comparison_and_saved_evidence(page, portal, tmp_p
     page.locator('#backtest-dataset').select_option(dataset['id'])
     page.locator('#backtest-strategy').select_option('consecutive_green_hold')
     for key, value in dict(green_bar_count=1, hold_minutes=2, contracts=1).items():
-        page.locator('#strategy-' + key).fill(str(value))
+        set_parameter(page, key, str(value))
     page.locator('#backtest-initial-capital').fill('10000')
     page.locator('#backtest-slippage-ticks').fill('1')
     page.locator('#backtest-commission').fill('1')

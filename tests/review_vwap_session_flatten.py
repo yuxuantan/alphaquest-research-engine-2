@@ -4,6 +4,8 @@
 Uses an isolated normal library; the temporary server shuts down on exit.
 """
 
+from test_backtests_browser import set_parameter
+
 import argparse
 from decimal import Decimal
 import json
@@ -44,11 +46,11 @@ def review(output, url):
             page.get_by_role("link", name="Backtests", exact=True).click()
             page.locator("#backtest-dataset").select_option(dataset["id"])
             page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
-            page.locator("#strategy-stop_swing_len").fill("1")
-            page.locator("#strategy-target_swing_len").fill("1")
-            page.locator("#strategy-use_adx_elev").uncheck()
-            page.locator("#strategy-use_adx_decay").uncheck()
-            page.locator("#strategy-use_eod_flat").check()
+            set_parameter(page, "stop_swing_len", "1")
+            set_parameter(page, "target_swing_len", "1")
+            set_parameter(page, "use_adx_elev", False)
+            set_parameter(page, "use_adx_decay", False)
+            set_parameter(page, "use_eod_flat", True)
             page.locator("#backtest-slippage-ticks").fill("1")
             page.locator("#backtest-commission").fill("1")
             expect(page.locator("#backtest-fill-assumption")).to_contain_text("BACKTEST LOOKAHEAD")

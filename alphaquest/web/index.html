@@ -312,7 +312,6 @@
           </div>
           <div id="backtest-options-status" class="field-help" role="status" aria-live="polite"></div>
           <form id="backtest-form" novalidate>
-            <div class="panel run-mode-panel"><label for="backtest-mode">Backtest mode</label><select id="backtest-mode"><option value="single">Single parameter set</option><option value="exhaustive">Parameter sweep · exhaustive</option></select><p class="field-help">Use the same data, strategy, dates and costs for one backtest or every parameter combination.</p></div>
             <div id="backtest-error" class="validation-box error" role="alert" tabindex="-1" hidden></div>
             <div class="backtest-layout">
               <div class="backtest-form-panels">
@@ -363,11 +362,10 @@
                       <option value="">Choose a strategy</option>
                     </select>
                     <p id="strategy-description" class="strategy-description">Select a strategy to see its description.</p>
-                    <h3 id="strategy-parameters-heading" class="parameter-heading">Strategy parameters</h3>
-                    <div id="strategy-parameters" class="backtest-parameter-grid"></div>
-                    <div id="optimization-settings" hidden>
-                      <p class="small muted">Trials save compact reports with all metrics, trades and trade-close equity. Generate full per-bar detail later from an individual result.</p>
-                      <h3 class="parameter-heading">Exhaustive parameter grid</h3>
+                    <div id="optimization-settings">
+                      <p class="small muted">Parameter sweeps save compact reports with all metrics, trades and trade-close equity. Generate full per-bar detail later from an individual result.</p>
+                      <h3 class="parameter-heading">Parameter grid · exhaustive</h3>
+                      <p class="field-help">To run one backtest, keep start and end equal for every parameter. Set a range to try more values; every combination runs automatically.</p>
                       <p class="field-help">Set start, end and step for every strategy parameter. Step defaults to 0 for equal endpoints and 1 otherwise; edit it to choose the increment. Step count is calculated automatically. Values stop at or before end; end is included only if a step lands on it. Boolean endpoints can use either order, with step 1 for both values.</p>
                       <div class="optimization-scroll" tabindex="0" aria-label="Parameter ranges, scroll horizontally">
                         <table class="library-table optimization-grid"><thead><tr><th>Parameter</th><th>Start value</th><th>End value</th><th>Step</th><th>Step count</th></tr></thead><tbody id="optimization-ranges"></tbody></table>
@@ -424,13 +422,9 @@
                 <p class="small muted">Tick size and monetary point value start from the dataset defaults. You can override them for this run. Values are never inferred from the filename or symbol.</p>
               </aside>
             </div>
-            <div id="backtest-reuse-settings" class="panel">
-              <label><input id="backtest-reuse" type="checkbox" checked> Reopen identical saved results</label>
-              <p class="field-help">Verifies source, settings, engine and saved files. Uncheck to run a new backtest. Identical verified prop calculations can still be reused.</p>
-            </div>
             <div class="backtest-submit-row">
               <span class="small muted" id="backtest-form-hint">Loading available datasets and strategies.</span>
-              <button id="start-backtest" class="button primary" type="submit" disabled>Start backtest <span aria-hidden="true">→</span></button>
+              <button id="start-backtest" class="button primary" type="submit" disabled>Start backtests <span aria-hidden="true">→</span></button>
             </div>
           </form>
           <section id="backtest-progress" class="operation-progress" aria-label="Backtest progress" hidden>
