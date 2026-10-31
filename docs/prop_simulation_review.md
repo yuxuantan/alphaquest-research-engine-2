@@ -2553,3 +2553,222 @@ existing-run daily selection, browser downloads/screenshots, automated checks,
 and the existing-report conversion catalogue backup/journal/verification.
 Earlier qualification evidence remains unchanged. Temporary browser servers
 are stopped by their fixtures; no persistent demonstration server is required.
+
+## Architecture documentation increment — 31 October 2026
+
+Historical layout and validation record. The simplified guide and current
+navigation are described in the following documentation increment. Its
+layout-specific checks apply to the saved snapshots, not the current overview.
+
+This increment documents the existing product and proposed campaign/execution
+extensions in [architecture.md](architecture.md). It introduces no production
+calculation, schema parser, API, storage or UI behavior. Existing reports and
+qualification evidence remain unchanged. The standard product journey remains
+completed backtest → Configure prop analysis → Check source → Run analysis →
+durable report/downloads; the guides linked from the architecture describe it.
+
+To inspect and reproduce the documentation review:
+
+1. On GitHub, open the repository README → **Architecture decisions**. Use its
+   section links for **Current implementation**, **System and data flows**,
+   **Export contract**, **Acceptance gates** and **Evidence register**. Follow
+   **Documentation index** and **Repository home** to return. Relative links
+   retain the branch/commit being viewed; local edits must be published before
+   they appear on GitHub.
+2. Expect Python backtesting and local prop reports to be marked implemented;
+   standalone MultiCharts ingestion, the v1 exchange schema, general portfolio
+   allocation and live route qualification remain proposed/pending. The diagram
+   keeps external generated results in development qualification.
+3. Inspect the export contract. The synthetic worked example has source net
+   USD 36 unchanged and simulated one-MNQ net USD 1.00 with an explicit USD 0.50
+   per-side override. Export net 36.00000001 meets the existing tolerance;
+   36.00000002 rejects. Duplicate identity, quantity or UTC-entry mismatches
+   reject; missing MAE/MFE is not represented as a measured zero. Fixtures remain
+   in tests; this documentation does not add product test controls.
+4. Expect all 13 ADRs to have proposed, unassigned accountable roles and next
+   validation actions. Missing campaign values and installed-system evidence
+   remain explicit. Annual slot sizing is distinguished from a future fixed-date
+   received-cash objective; no campaign PASS or new parity claim is made.
+5. Run the saved documentation/arithmetic check from the repository root:
+
+   ```bash
+   .venv/bin/python artifacts/architecture-documentation-20261031-01/validate.py
+   .venv/bin/python -m pytest -q tests/test_prop_commissions.py tests/test_prop_analysis_api.py
+   ```
+
+   Expect all relative links/anchors in the four changed Markdown files to
+   resolve, 13 decision/owner/review rows, both Mermaid blocks to be present,
+   consistent budget arithmetic and the independently expected cost example.
+   The focused tests exercise existing source checks, cost replacement and
+   durable downloads in temporary storage; they do not qualify a live route.
+
+Evidence is saved in `artifacts/architecture-documentation-20261031-01/`:
+`validation.json`, `focused-tests.txt`, `mermaid-validation.json` and `snapshots/`.
+The Mermaid record reports parser results separately from visual rendering.
+To repeat the parser check, follow `mermaid-reproduction.md` in that directory.
+These are local inspectable artifacts; GitHub navigation uses the tracked guides
+rather than links to ignored artifacts. No browser or persistent server was
+started for this documentation increment.
+
+## Architecture simplification — 31 October 2026
+
+Historical layout record. The following increment restores alternatives and
+review conditions; the earlier size checks apply to its saved snapshots.
+
+The [architecture guide](architecture.md) is now a 93-line overview with one
+workflow diagram, a compact decisions table and five next steps. Technical
+contracts, storage, ownership, acceptance gates, evidence and budget sources are
+in the linked [architecture reference](architecture_reference.md). Repeated
+decision/review tables and the second workflow diagram were removed.
+
+On GitHub, follow repository README → **Architecture guide**. Expect the current
+system and proposed extensions to be clear without opening the reference. Use
+**Detailed references** for a specific question, then **Architecture overview**
+in the reference to return. The docs index links both pages. Missing campaign
+values, numerical examples, qualification limits and dated price assumptions
+retain their earlier meaning. The product workflow and stored results are unchanged.
+
+Reproduce the link, size, ADR and detail-preservation checks from the repository root:
+
+```bash
+python3 artifacts/architecture-simplification-20261031-01/validate.py
+```
+
+Expect all local links/anchors to resolve, all 13 decision IDs to remain, the
+overview to stay below 100 lines/800 words, and the moved technical sections to
+match their prior contents. Inspect `validation.json`, `before/` and `after/`
+in that fresh artifact directory. Earlier evidence remains unchanged. No
+application tests or servers are needed for this documentation reorganization.
+
+## Architecture decision rationale — 31 October 2026
+
+Historical wording; the language edit below retains these decisions and checks.
+
+The [architecture guide](architecture.md#decisions) now records the preferred
+approach and rationale, deferred alternatives and specific reconsideration
+conditions for each of the 13 ADRs. The short system overview, single workflow
+diagram and next steps remain; technical requirements stay in the unchanged
+[architecture reference](architecture_reference.md).
+
+On GitHub, open repository README → **Architecture guide** → **Decisions**.
+Expect to find, for example, MultiCharts versus TradingView/Sierra/Python visual
+references, optional Sheets versus a custom tracker, and manual versus automated
+reconciliation, with reasons and review triggers beside each choice. Owners and
+adoption dates remain unset. The diagram now says **Run prop simulation** and
+the accompanying sentence explains its inputs, purpose and local execution.
+
+Run the saved documentation check from the repository root:
+
+```bash
+python3 artifacts/architecture-decisions-20261031-01/validate.py
+```
+
+Expect all local links/anchors to resolve, all 13 ADRs to include alternatives
+and reconsideration conditions, the supporting reference to match its prior
+hash, and the diagram structure to be unchanged apart from the clearer label.
+Inspect `validation.json`, `before/` and `after/` in that fresh artifact directory.
+Earlier snapshots and evidence are preserved. This is a documentation edit;
+no application tests or servers were started.
+
+## Architecture language edit — 31 October 2026
+
+Shortened the [guide](architecture.md), [reference](architecture_reference.md)
+and [docs index](README.md). All 13 choices retain alternatives, reasons and
+review triggers. Technical limits, model gaps and dated price assumptions remain.
+The product workflow is unchanged; earlier evidence is preserved.
+
+From GitHub's repository README, follow **Architecture guide**, then **Details**.
+Expect shorter wording and working return links. Reproduce the word-count,
+link and key-detail checks from the repository root:
+
+```bash
+python3 artifacts/architecture-language-20261031-01/validate.py
+```
+
+Inspect `validation.json` and `before/`/`after/` there. Application tests, live
+checks and servers were not needed for this wording edit.
+
+## Architecture ownership removal — 31 October 2026
+
+Removed the placeholder ownership table and its links. From repository README →
+Architecture guide → Details, expect no ownership section or dead ownership link.
+Requirements, model limits and decision trade-offs remain. Earlier layout checks
+describe their saved snapshots; those records are unchanged.
+
+Check current navigation with:
+
+```bash
+python3 artifacts/architecture-onboarding-20261031-01/validate.py
+```
+
+Expected: all links resolve, the ownership section is absent and all 13 decisions
+remain. Before/after documents and `validation.json` are in that artifact folder.
+No product behavior changed or server started.
+
+## Architecture for new readers — 31 October 2026
+
+The [architecture](architecture.md) now has four sections: requirements, the
+end-to-end product workflow, a component diagram/code map and the unchanged 13
+decision rows. The code map explains the boundaries between UI/API, data,
+strategies/execution, jobs, prop calculations, reports and reuse.
+
+Follow repository README → Architecture guide → Workflow → Code. Expect direct
+source links and a diagram connecting browser, API, jobs, calculations and
+SQLite/report files. Workflow steps include automatic prop results, manual
+configure/check/run and manual OOS from a saved IS report.
+
+Campaign forms/checks moved to the [research guide](research_workflow.md#campaign-checks),
+prices to [planning](planning.md), and the unimplemented export design to its
+[proposal](designs/trade_export_v1.md). The [technical reference](architecture_reference.md)
+keeps current storage/export limits and worked rejection/cost examples. Numbered
+evidence/gate registers were removed from the reading path; existing dated
+results remain in this guide and their saved artifacts. Earlier layout checks
+describe their snapshots, not the current organization.
+
+Reproduce navigation, relocation, decision and source-preservation checks:
+
+```bash
+python3 artifacts/architecture-onboarding-restructure-20261031-01/validate.py
+```
+
+Expected: all links resolve, all 13 decision rows match, moved technical limits
+and planning values remain, no ownership/evidence register returns, and production
+source hashes match the saved pre-edit record. Inspect `validation.json`,
+`before/` and `after/`. `mermaid-final-validation.json` records parsing and local
+browser rendering; SVG/PNG output and reproduction steps are saved alongside it.
+GitHub rendering itself was not tested. No production
+calculation, application test or persistent server was started for this edit.
+
+## ADR meaning audit — 31 October 2026
+
+Earlier shortening checks preserved the 13 rows but missed some decision
+reasons and caveats. Compared every ADR with the saved full register, including
+its rationale, costs, acceptance notes and review triggers. Restored weakened
+points in the [decision table](architecture.md#decisions),
+[research checks](research_workflow.md#campaign-checks) and
+[data/cost assumptions](planning.md#market-data-access). The code diagram is unchanged.
+
+From repository README → Architecture guide → Decisions, expect the included-feed
+cost rationale, the paid MBO/L3 alternative, shared licence costs, simulator upkeep,
+independent specification checks, data limits and recovery caveats to be explicit.
+Lucid depth availability does not prove free L2 for every account; Databento is
+the chosen planned MBO option, not the only possible provider. Sources are linked
+in the planning notes; no account permissions or live feed was tested.
+
+Inspect the item-by-item manual audit in
+`artifacts/architecture-adr-audit-20261031-01/adr-audit.md` and `adr-audit.json`.
+They retain the full pre-shortening rows and map their decision points to current
+text. Original administrative placeholders stay removed; outdated Python/C#
+timing and blanket platform-capability claims are recorded as corrections.
+
+Reproduce the link, coverage-anchor, diagram and source-preservation checks:
+
+```bash
+python3 artifacts/architecture-adr-audit-20261031-01/validate.py
+```
+
+Expect all 13 manual coverage records and their quoted text/anchors to resolve,
+the diagram and production code to remain unchanged, and prior evidence to stay
+intact. `validation.json`, `before/` and `after/` save the checks and documents.
+Automated text checks support the manual meaning review; they do not prove
+semantic completeness. No application tests or servers were started.

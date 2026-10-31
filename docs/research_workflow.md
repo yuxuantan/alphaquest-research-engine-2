@@ -69,6 +69,99 @@ report/API for manual OOS execution. CLI split settings are editable on each run
 See `docs/prop_simulation_review.md`, Editable declarations and manual unlimited
 OOS (2026-10-29), for saved product evidence and exact reproduction steps.
 
+## Campaign checks
+
+These are campaign criteria, not new product limits. Splits remain editable and
+manual OOS unlimited; record prior access to identify untouched evidence.
+**PASS** advances; missing values/evidence → **INCONCLUSIVE**; broken limits → **FAIL**.
+
+### Research and mechanics
+
+For each finding, record source, sample, method, costs and limits; distinguish
+the reported result from our inference. Published results do not validate our
+implementation or transfer to another market automatically.
+
+A strategy specification covers indicators, warm-up, timing, sessions, orders,
+sizing and exits. Test entries, exits, no-trade cases, boundaries and intrabar
+ambiguity. Compare signals/order intentions separately from fills: two matching
+implementations can share one specification error. Visual examples should explain
+both trades and no-trades. Bridge features need calculation, timestamp/as-of and
+look-ahead checks, plus installed-build and historical/live comparisons.
+
+Data records include source/contracts, fields, timezone/timestamps, sessions,
+gaps, rolls, preprocessing, rights and feature-availability times. Compare data
+offers on the same fields and periods; trades alone do not establish quotes/depth.
+Where a prop rule depends on unrealized equity, supply intratrade equity/exposure.
+
+### Campaign declaration
+
+Before search, save the following. Values remain **unset** until supplied.
+
+| Field | Required values |
+| --- | --- |
+| People/dates | Owner/reviewer; POC and review dates; separate trading period, timezone and receipt cutoff. |
+| Resources | Spending and engineering-hour caps, review deadline; separate future commitments, sunk cash and forecasts. |
+| Search | Development/final holdout dates, prior access, parameter/sizing/allocation counts and total trial cap; count failed/abandoned trials. |
+| Frozen package | Code/input hashes, integer sizes/allocation, fills/costs, dated firm rules and selection rule before final OOS. |
+| Outcomes | Minimum cash by cutoff; loss/drawdown cap; maximum budget-overrun probability; sample/event counts and uncertainty width. |
+| Comparisons | Exact identity/count/native costs; field-specific absolute/relative floating tolerances fixed before comparison. |
+| Operations | Stale-data age, alert/recovery limits, forward-test sessions/events, exposure caps and stop/resume policy. |
+
+### Checks before advancing
+
+| Gate | PASS requires | Gap |
+| --- | --- | --- |
+| Plan | All required values set/versioned/frozen before assessment; spending, hours and trials within limits. | Campaign values are unset. |
+| Data | Zero unexplained invalid rows, duplicates, time-order or identity errors; required fields/sessions/history, rights and feature-availability times checked; exclusions recorded. | CSV checks exist; campaign coverage/rights need evidence. |
+| Mechanics/exports | 100% of deterministic cases match; zero unexplained signal/order differences; IDs, quantities and UTC instants match. Native money exact; companion net within USD 1e-8. | Current worksheet limits apply; v1 remains proposed. |
+| Prop/reports | All independent lifecycle/first-breach cases match, including recovering winners, gaps and cost boundaries. Random simulations meet preset tolerances; reopen keeps hashes unchanged without recalculation. | Past evidence applies only to the tested model/version; no live approval. |
+| Research | Frozen package passes cash, loss, spending, sample and precision limits on clean final data; cost/data/block-length stress tests pass. | Internal holdout is not final OOS; annual sizing cannot prove cash-by-deadline performance. |
+| Operations | Rejection, duplicate, partial-fill, disconnect, stale-data, protection, forced-flatten and restart tests meet timing/exposure limits; no unexplained orders/positions; broker records match. | NOT TESTED here. First prove installed platform/bridge compatibility and account/API permissions. |
+
+### Cash horizon versus current model objective
+
+[Current sizing](../alphaquest/prop/native_analysis.py) uses training data:
+
+`slot_year = 261 × (expected lifetime payout - acquisition cost) / (expected account days + replacement days)`
+
+Annual results and historical replay use model timing assumptions; they do not
+forecast all costs and cash receipts by a calendar deadline.
+
+For that proposed forecast, count receipts paid by cutoff minus fees/operating
+cash paid within the period. Record liabilities and sunk cash separately. Freeze
+evaluation/replacement delays, approval/settlement, eligibility, payment dates
+and shared-cost allocation before selection. Unpaid equity and payout requests
+are not receipts. Implement/test this selector and ledger before using it for final research decisions.
+Exclude sunk costs from future choices, but retain actual spending/cash history.
+
+If final OOS influences a revision, that data becomes development evidence;
+obtain fresh final evidence where needed. An operational-only fix may reuse
+research evidence only if a recorded impact check shows no change to the strategy
+or research assumptions. A stop requires diagnosis and the relevant retests.
+
+Use the [export contract](architecture_reference.md#multicharts-to-alphaquest-contract)
+for current limits. Available checks: [source/API](../tests/test_prop_analysis_api.py),
+[costs](../tests/test_prop_commissions.py), [risk](../tests/test_intratrade_risk.py),
+[research](../tests/test_research_workflow.py) and
+[reference comparisons](../scripts/verify_native_prop.py).
+See the [dated review records](prop_simulation_review.md) for saved results;
+new runs need evidence for their exact model/version. In a fresh run/evidence
+folder save date, code revision/local changes, input/settings hashes, model,
+command, expected/actual values and artifact hashes. Keep earlier snapshots.
+
+Live setup checks must record installed edition/build/bitness, API/ABI, permissions,
+actual depth samples, reconnects, order protection and broker reconciliation.
+Check freshness, stale-data detection and historical/live feature consistency.
+Attribute each trade to a strategy or recorded manual action. Keep unmatched
+orders/positions visible; missing records are not a clean reconciliation. Compare
+signals, submissions, acknowledgements, fills and final positions. Normal fill
+variation is different from missing protection; do not restart into unexplained
+broker state. Record protective-order location/ownership and emergency actions.
+Vendor pages alone do not prove these. Background pointers, not rechecked here:
+[MultiCharts depth discussion](https://www.multicharts.com/discussion/viewtopic.php?p=152176&view=show),
+[Sierra depth API](https://www.sierrachart.com/index.php?page=doc/c_ACSILDepthBars.php),
+[Sierra replay discussion](https://www.sierrachart.com/SupportBoard.php?Page=1&ThreadID=96234).
+
 ## Historical qualification of the retired lock and three-attempt policy
 
 The following records describe the former behavior and preserve earlier evidence.

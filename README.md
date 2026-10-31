@@ -27,6 +27,12 @@ OHLC execution assumptions. The same-close descriptions below apply to the
 original consecutive-green-bars sample; the VWAP strategy uses the execution
 extension described in its guide. MultiCharts export parity remains unverified.
 
+## Documentation
+
+- [Architecture guide](docs/architecture.md): requirements, workflow, code components and design trade-offs.
+- [Documentation index](docs/README.md): product guides, contracts, strategy
+  references and reproducible evidence.
+
 ## Run
 
 Requires Python 3.12 or newer. From this repository:
