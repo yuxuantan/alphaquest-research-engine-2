@@ -3357,3 +3357,44 @@ session suite passed 54 cases, and the report browser case passed. The earlier
 gate is recorded separately after completion. The wheel built successfully;
 an isolated extracted install loaded a byte-identical bundled CSV. Temporary
 review servers stopped and no persistent server or VM was started.
+
+## 2026-11-02 — Maintained C# MultiCharts strategy using the shared calendar
+
+Added the active `multicharts/ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs` alongside the
+AQ Python implementation. The attached original is retained byte-identically
+under `multicharts/reference/` (SHA recorded in its README). The new string Input
+`SessionCalendarFile` points at the Windows copy of the exact shared CSV.
+StartCalc validates and snapshots it, logging coverage and SHA. CalcBar resolves
+the current Chicago session, blocks late/closed-session submissions and submits
+the original next-bar market exit at the shared scheduled cutoff. Original
+signal, ADX, sizing and bracket mechanics remain intact.
+
+The usable installation/reconciliation journey is in `multicharts/README.md`:
+copy/checksum CSV, load the whole C# file in the existing MC signal, compile
+with the installed SDK, match Chicago timezone/history/Inputs/costs, recalculate
+the existing 2021–2024 IS, inspect the two shortened exits and two blocked-entry
+dates, then export/reconcile trades against AQ's saved 486-trade report. This
+is an extension of the same backtest source/report qualification, not a new
+prop page, calculation service or report store. The AQ report → configure →
+check → run → durable report evidence is retained in the previous increment.
+
+Actual compiled calendar evidence is in
+`artifacts/calendar-csharp-review-20261102/`: build log (zero errors/warnings),
+all plans and verification JSON. The check compiles the real helper embedded
+in the active C# file, using C# 5 syntax and .NET 8 outside MC. All 7,918
+date/cutoff combinations match Python across the complete declared coverage;
+31,672 cutoff-boundary assertions pass. Nine malformed/uncovered cases reject
+and quoted/BOM/newline CSV parsing passes. Reproduce with
+`tests/review_multicharts_calendar.py --output artifacts/calendar-csharp-review-NEW`
+and a .NET 8 SDK (`--dotnet` accepts its path).
+
+This evidence does not compile the full signal against the user's MC SDK,
+measure a fresh MC backtest or qualify live automation. The user's VM and
+processes were untouched. In bar-close MC execution a pending order can fill
+before CalcBar observes a gap; the signal rejects observed late fills and
+positions crossing close, including late brackets, but cannot undo a fill.
+The README distinguishes these rejection guards from AQ's pre-fill cancellation
+and from broker-side live protection. No fabricated MC results are supplied.
+Calendar/strategy updates must preserve the checks and obtain fresh actual MC
+exports before asserting platform parity. Coverage beyond 2026-11-02 remains
+unknown until manually reviewed and extended; no future outcomes are inferred.

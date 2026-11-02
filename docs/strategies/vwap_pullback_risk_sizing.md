@@ -19,6 +19,10 @@ the original source and is not silently rewritten.
 `plot_trade_levels` emits signal details through the module's INFO logger;
 enable INFO logging in your Python host to display them.
 
+The maintained [C# MultiCharts .NET version](../../multicharts/README.md) uses
+the same closure CSV. That guide includes installation, the four discrepancy
+dates and the remaining platform qualification boundaries.
+
 Use full-session **one-minute bars labelled by closing time**, with trade volume
 in CSV `Volume`. Save the dataset with its actual source timezone. The strategy
 converts UTC to `America/Chicago`, including DST. All session times use that zone.

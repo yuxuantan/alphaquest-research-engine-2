@@ -12,7 +12,8 @@ The [AQ Python strategy](../docs/strategies/vwap_pullback_risk_sizing.md) now
 loads this file once per run when EOD flattening is enabled. Its scheduled
 cutoffs replace the earlier last-observed-bar inference. Existing saved reports
 retain their original calculations and execution-model labels. The matching
-C# strategy and its installation/qualification steps are in `multicharts/`.
+C# strategy and its installation/qualification steps are in
+[`multicharts/README.md`](../multicharts/README.md).
 
 ## Scope and date meaning
 
