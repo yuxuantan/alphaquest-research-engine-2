@@ -9,7 +9,7 @@ from test_automatic_prop import save_history,expected_cash
 
 def expected_lucid(report):
     c=report['calculations'];t=c['training_economics'];s=c['funded']['selected']
-    assert report['model_version']=='alphaquest-lucidflex50k-eod-v1'
+    assert report['model_version']=='alphaquest-lucidflex50k-eod-v2-funding-continuation'
     assert report['settings']['EVAL_PRICE']=='80.5' and report['settings']['ACTIVATION_FEE']=='0'
     assert (t['pass_rate'],t['replacement_days'],t['cost_per_funded'])==(1,10,80.5)
     assert t['activation_days']==0 and t['funding_chain_simulations']==20000
@@ -59,7 +59,7 @@ def test_both_automatic_models_actual_product_download_and_reopen(page,portal,tm
         page.locator('#prop-check').click()
     assert check.value.status==200
     checked=check.value.json();assert checked['matched_trades']==60
-    assert checked['model_version']=='alphaquest-lucidflex50k-eod-v1'
+    assert checked['model_version']=='alphaquest-lucidflex50k-eod-v2-funding-continuation'
     assert checked['source']['excursion_input']['native_ohlc_count']==60
     (tmp_path/'source-check.json').write_text(json.dumps(checked,indent=2))
     playwright.expect(page.locator('#prop-run')).to_be_enabled()

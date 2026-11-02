@@ -380,10 +380,11 @@ def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal
         page.locator("#start-backtest").click()
     record = completed.value.json()
     assert completed.value.status == 201, record
-    assert record["summary"]["total_net_pnl"] == "48.00"
+    assert record["summary"]["total_net_pnl"] == "88.00"
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("1 inferred sessions")
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("fill next observed bar Open")
     with ResearchHTTPClient(base_url=portal["url"]) as client:
         trade = client.get(f"/api/backtests/{record['id']}/trades").json()["items"][0]
-        assert trade["exit_time_utc"] == "2026-01-05T17:55:00Z" and trade["exit_reason"] == "eod_flat"
+        assert trade["exit_time_utc"] == "2026-01-05T18:00:00Z" and trade["exit_reason"] == "eod_flat"
     page.reload()
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("Backtest lookahead")

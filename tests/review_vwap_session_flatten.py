@@ -5,6 +5,7 @@ Uses an isolated normal library; the temporary server shuts down on exit.
 """
 
 from test_backtests_browser import set_parameter
+from research_fixtures import declare_in_form, reserved_source
 
 import argparse
 from decimal import Decimal
@@ -26,10 +27,10 @@ def review(output, url):
         page.set_default_timeout(45000)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        for name, close, cutoff, utc in (("normal", (16, 0), "15:55", "21:55"),
-                                          ("noon", (12, 0), "11:55", "17:55"),
-                                          ("1215", (12, 15), "12:10", "18:10")):
-            raw = csv_bytes(session_rows(close=close))
+        for name, close, cutoff, utc in (("normal", (16, 0), "15:55", "22:00"),
+                                          ("noon", (12, 0), "11:55", "18:00"),
+                                          ("1215", (12, 15), "12:10", "18:15")):
+            raw, split = reserved_source(csv_bytes(session_rows(close=close)))
             source = output / f"SYNTHETIC-{name}.csv"
             source.write_bytes(raw)
             page.goto(url)
@@ -43,9 +44,10 @@ def review(output, url):
             page.locator("#save-button").click()
             expect(page.locator("#validation-result")).to_contain_text("Dataset saved")
             dataset = next(d for d in client.get("/api/datasets").json() if d["name"] == f"SYNTHETIC VWAP {name} session close")
-            page.get_by_role("link", name="Backtests", exact=True).click()
+            page.goto(url + "/#backtests/new")
             page.locator("#backtest-dataset").select_option(dataset["id"])
             page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
+            declare_in_form(page, split)
             set_parameter(page, "stop_swing_len", "1")
             set_parameter(page, "target_swing_len", "1")
             set_parameter(page, "use_adx_elev", False)
@@ -65,9 +67,9 @@ def review(output, url):
             expected_exit = f"2026-01-05T{utc}:00Z"
             assert trade["exit_time_utc"] == expected_exit and trade["exit_reason"] == "eod_flat"
             assert Decimal(trade["entry_fill_price"]) == Decimal("115.25")
-            assert Decimal(trade["exit_fill_price"]) == Decimal("117.75")
+            assert Decimal(trade["exit_fill_price"]) == Decimal("119.75")
             assert Decimal(trade["total_commissions"]) == 2
-            assert Decimal(record["summary"]["total_net_pnl"]) == 48
+            assert Decimal(record["summary"]["total_net_pnl"]) == 88
             assert client.get(f"/api/datasets/{dataset['id']}/csv").content == raw
             for kind in ("trades", "equity", "report"):
                 response = client.get(f"/api/backtests/{run_id}/exports/{kind}")
@@ -82,18 +84,18 @@ def review(output, url):
             observations.append({"synthetic": True, "case": name, "dataset_id": dataset["id"], "run_id": run_id,
                 "portal_path": f"/#backtests/report/{run_id}", "expected_close_ct": "%02d:%02d" % close,
                 "expected_cutoff_ct": cutoff, "expected_exit_time_utc": expected_exit,
-                "expected_net_pnl": "48", "actual_trade": trade,
+                "expected_net_pnl": "88", "actual_trade": trade,
                 "actual_net_pnl": record["summary"]["total_net_pnl"],
                 "session_flattening": record["run_metadata"]["strategy"]["session_flattening"],
                 "source_unchanged": True, "reopened_after_reload": True})
-            print(f"PASS {name}: inferred close {'%02d:%02d' % close} -> exit {cutoff} CT; net48 CU; run {run_id}")
+            print(f"PASS {name}: inferred close {'%02d:%02d' % close} -> order {cutoff} CT, next observed Open; net88 CU; run {run_id}")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.screenshot(path=str(output / "report-mobile.png"), full_page=True)
         assert not errors, errors
         browser.close()
     (output / "verification.json").write_text(json.dumps({"synthetic": True,
-        "arithmetic": "(117.75 - 115.25) * 20 - (1 + 1) = 48 CU",
+        "arithmetic": "(119.75 - 115.25) * 20 - (1 + 1) = 88 CU",
         "observations": observations, "browser_errors": errors}, indent=2) + "\n")
     print(f"Evidence retained: {output}")
 

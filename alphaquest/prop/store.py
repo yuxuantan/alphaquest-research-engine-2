@@ -36,7 +36,8 @@ def seal_report(staged, result, id, created):
 
 def request_key(snapshot, settings):
     from ..optimization_cache import engine_identity
-    return sha256(canonical(dict(source=snapshot,settings=settings,engine_identity=engine_identity())).encode()).hexdigest()
+    from .native_analysis import model_version
+    return sha256(canonical(dict(source=snapshot,settings=settings,model_version=model_version(settings),engine_identity=engine_identity())).encode()).hexdigest()
 
 
 def sealed_checks(directory):
@@ -289,3 +290,11 @@ class AnalysisStore:
             self.index_calculations(id)
         except Exception as exc:
             self._update(id,'error','Operation failed',f'{type(exc).__name__}: {exc}')
+        # Explicit batch refreshes attach their saved results after ordinary
+        # report publication. A link failure must not invalidate that report.
+        try:
+            from ..optimization_prop import synchronize
+            synchronize(runs, self, id)
+        except (sqlite3.Error,OSError,ValueError):
+            import logging
+            logging.getLogger(__name__).exception('Could not publish Lucid batch links; retry Refresh unavailable Lucid results.')

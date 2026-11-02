@@ -11,8 +11,10 @@ All source Inputs are available in snake_case with their actual defaults:
 The extra `max_bars_back=42` models the chart history setting. The source header
 says four contracts, but its Inputs specify **one contract**, the port's default.
 Risk sizing and shorts default off; both ADX gates and EOD flatten default on.
-EOD flattening now intentionally differs from the PowerLanguage source: it
-uses the backtest-only last-bar lookahead rule below. The retained `.pl` is
+EOD orders fill at the next observed bar Open, matching the supplied strategy's
+`MarketNextBar` instruction. The order cutoff still uses the backtest-only
+last-bar lookahead rule below, which intentionally adds shortened-session
+handling beyond the source. The retained `.pl` is
 the original source and is not silently rewritten.
 `plot_trade_levels` emits signal details through the module's INFO logger;
 enable INFO logging in your Python host to display them.
@@ -56,8 +58,9 @@ trade-volume provenance.
   HHMM **<= 23:00**, plus the first evaluated bar. Date rollover alone does
   not reset. Missing the crossing can miss a reset; RTH-only data is unsuitable.
 - With `use_eod_flat=true` (default), infer each session's close from its last
-  observed daytime bar. Exit at the actual bar Close at/before five minutes
-  earlier, capped by `eod_flat_time=1555`, and block entries at/after that cutoff.
+  observed daytime bar. Submit an exit at the actual bar Close at/before five
+  minutes earlier, capped by `eod_flat_time=1555`, and fill at the **next observed
+  bar Open** with costs. Block entries at/after the order cutoff.
   Pending entries that gap past the cutoff are cancelled. `use_eod_flat=false`
   disables this inference and entry restriction; remaining exposure closes at EOF.
 
@@ -79,6 +82,7 @@ This session-ending date is not an official CME clearing trade date.
 ```text
 target_cutoff = min(eod_flat_time, last_observed_daytime_bar - 5 elapsed minutes)
 executable_cutoff = last real bar at or before target_cutoff
+flatten_fill = next observed bar Open after executable_cutoff
 ```
 
 | Last daytime bar, CT | Target cutoff, CT |
@@ -89,10 +93,19 @@ executable_cutoff = last real bar at or before target_cutoff
 | 15:59 | 15:54 |
 
 Five minutes means elapsed time, not five CSV rows. If the exact cutoff minute
-is absent, use the preceding actual bar and its Close, including adverse
-slippage and both-side commissions. If no such bar exists, do not enter that
+is absent, submit from the preceding actual bar and fill at the next observed
+Open, including adverse slippage and both-side commissions. Do not invent a
+missing minute or use its price. If no cutoff bar exists, do not enter that
 session. Earlier stop/target exits stay intact, including a bracket that fills
-inside the cutoff bar before its Close. No new entry may fill at/after cutoff.
+inside the cutoff bar before its Close. After submission the flatten market
+replaces the bracket. No new entry may fill at/after the order cutoff.
+
+Timestamps label bar closes: an exit recorded on the 15:46 bar uses that bar's
+Open, normally near the 15:45 boundary, not its Close. Sparse data can delay
+the next observed bar. This does not establish an exact tick fill time or
+guarantee liquidation by a prop deadline. At EOF with no subsequent bar, the
+existing `end_of_data` policy uses the final actual Close; it does not invent
+an Open or label that fallback as a next-open EOD fill.
 
 The rule uses only the selected replay slice. A truncated or sparse day,
 including the final selected day, is deliberately treated as an early close.
@@ -100,10 +113,14 @@ For example, a selection ending at 09:03 moves that day's cutoff to 08:58 and
 can eliminate its morning entries. Choose complete data when that assumption
 is unwanted. This is the limitation accepted in place of maintaining dates.
 
-Reports label the execution model `inferred_session_close`. Their strategy
+New reports label execution with `eod_next_open_inferred_session_close`; older
+saved reports retain their cutoff-Close model and results. Their strategy
 metadata records the enabled lookahead rule, session count, missing/earlier
 cutoff counts, the first five resolved examples, and a SHA-256 of all resolved
-plans. Trades carry their executable cutoff in `exit_deadline_utc`; forced
+plans. `order_timing=next_open` identifies the new model. In each example,
+`order_cutoff` identifies the signal bar; the legacy `executed_cutoff` field
+is retained as an alias for that resolved cutoff, not the later fill timestamp.
+Trades carry their order cutoff in `exit_deadline_utc`; forced
 exits use reason `eod_flat`. These values persist in normal report downloads.
 
 ## History and ADX
@@ -135,7 +152,7 @@ selected execution assumption.
 | Target gap | Open beyond the target, without adverse limit slippage |
 | Ordinary target | Target price; a touch suffices; no adverse limit slippage |
 | Both levels hit | Stop first, unless the Open has already executed one side |
-| EOD | Last-bar lookahead chooses the executable cutoff; fill its Close with costs |
+| EOD | Last-bar lookahead chooses the order cutoff; fill next observed Open with costs |
 | EOF pending entry | Cancel; no fabricated future bar or fill |
 | EOF exposure | Final Close liquidation with costs and `end_of_data`, an explicit repository policy additional to the source |
 
@@ -195,9 +212,12 @@ clearly labelled synthetic minute-labelled price fixtures. It retains an isolate
 library, durable report files, screenshots, CSV downloads, and comparisons in
 that new directory. Its temporary server stops automatically.
 
-Expected observations: a 16:00 close exits at 15:55; a 12:00 close exits at 11:55;
-a 12:15 close exits at 12:10. Each synthetic trade enters at 115.25, exits at 117.75,
-earns 50 gross, pays 2 total commissions and nets 48 CU. The saved report explicitly
+Expected observations: order cutoffs are 15:55, 11:55 and 12:10 for session
+closes of 16:00, 12:00 and 12:15 respectively. These deliberately sparse
+fixtures have their next observed bar at the session close, so the exits fill
+those bars' Opens at 16:00, 12:00 and 12:15. Each synthetic trade enters at
+115.25, exits at 119.75, earns 90 gross, pays 2 commissions and nets 88 CU.
+The saved report explicitly
 shows backtest lookahead; source CSV bytes and earlier runs remain unchanged.
 To reopen the isolated review library after the command ends:
 

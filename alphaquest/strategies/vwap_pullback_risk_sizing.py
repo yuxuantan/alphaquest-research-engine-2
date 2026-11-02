@@ -22,10 +22,11 @@ DESCRIPTION = (
     "confirmed pivot target, pivot or pullback stop, ADX elevation/decay gates, fixed or risk sizing. "
     "Chicago time; full-session 1-minute close-labelled bars. Next-bar Open market fills; "
     "brackets start after the entry bar, stop first if both levels hit. With EOD flatten on, "
-    "BACKTEST LOOKAHEAD infers the session close from its last daytime bar and exits five "
-    "minutes earlier (at/before 15:55 CT), with no entries at/after the cutoff."
+    "BACKTEST LOOKAHEAD infers the session close from its last daytime bar and submits a flatten order five "
+    "minutes earlier (at/before 15:55 CT), then flattens at the next observed Open; "
+    "no entries at/after the cutoff."
 )
-EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_inferred_session_close"
+EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_eod_next_open_inferred_session_close"
 CT = ZoneInfo("America/Chicago")
 LOG = logging.getLogger(__name__)
 D = Decimal
@@ -76,8 +77,8 @@ class Parameters:
     entry_start_time: int = integer(900, "Entry start, exclusive, Chicago HHMM.", 0, 2359)
     entry_end_time: int = integer(1700, "Entry end, inclusive, Chicago HHMM.", 0, 2359)
     day_reset_time: int = integer(2300, "Reset only when Time > reset and previous Time <= reset.", 0, 2359)
-    use_eod_flat: bool = boolean(True, "Backtest lookahead: flatten five minutes before the last daytime bar; block later entries.")
-    eod_flat_time: int = integer(1555, "Latest flatten cutoff, Chicago HHMM; early-close inference can move it earlier.", 0, 2359)
+    use_eod_flat: bool = boolean(True, "Backtest lookahead: submit flatten five minutes before the last daytime bar; fill next observed Open; block later entries.")
+    eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM; fill next observed Open; early-close inference can move the cutoff earlier.", 0, 2359)
     plot_trade_levels: bool = boolean(True, "Log signal-bar entry details through Python logging.")
     max_bars_back: int = integer(42, "Leading history bars before PowerLanguage CurrentBar=1.")
 
@@ -194,7 +195,8 @@ class VwapPullbackRiskSizing:
         def stamp(value):
             return value.astimezone(CT).isoformat() if value is not None else None
         record = {"session_date": day.isoformat(), "inferred_close": stamp(last),
-                  "target_cutoff": stamp(target), "executed_cutoff": stamp(cutoff)}
+                  "target_cutoff": stamp(target), "executed_cutoff": stamp(cutoff),
+                  "order_cutoff": stamp(cutoff)}
         self._session_digest.update((json.dumps(record, sort_keys=True) + "\n").encode())
         metadata = self.session_flattening
         metadata["sessions"] += 1
@@ -321,7 +323,7 @@ class VwapPullbackRiskSizing:
         self._previous_time, self._previous_orb, self._previous_vwap = time, in_orb, in_vwap
 
         if p.use_eod_flat and not self.allow_entry_fill(bar):
-            return CloseIntent("eod_flat", timing="same_close") if position is not None else None
+            return CloseIntent("eod_flat", timing="next_open") if position is not None else None
         if position is not None:
             return BracketIntent(self.active_stop, self.active_target)
         if self.trades_today >= p.max_trades_per_day or not adx_ok:
@@ -372,5 +374,7 @@ def backtest_assumptions(parameters):
         "cutoff_rule": "min(eod_flat_time, last observed daytime bar minus five elapsed minutes)",
         "missing_cutoff_bar": "preceding observed bar; no entries if none exists",
         "truncated_session": "treated as an early close, including the final selected day",
-        "fill": "cutoff bar Close with adverse slippage and commissions; existing earlier brackets retain priority",
+        "order_timing": "next_open",
+        "fill": "next observed bar Open after the cutoff with adverse slippage and commissions; brackets through the cutoff bar retain priority",
+        "fill_timestamp": "containing bar close label; not a measured tick timestamp",
     }

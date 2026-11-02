@@ -155,11 +155,23 @@
     const automatic = record.run_metadata.automatic_prop_analysis;
     try {
       let id = automatic?.id;
+      let savedReport;
       if (!id) {
         const source = record.run_metadata.detailed_from_run_id || record.id;
         const saved = await read(`/api/prop-analyses/sources/${source}?discover_exports=false`, controller.signal);
         if (active !== controller) return;
-        id = (saved.analyses.find((item) => item.status === "complete") || saved.analyses[0])?.id;
+        // Apex is the primary summary; a newer Lucid companion must not
+        // replace it when an older report lacks automatic-analysis metadata.
+        const completed = saved.analyses.filter((item) => item.status === "complete");
+        for (const candidate of completed) {
+          const report = await read(`/api/prop-analyses/${candidate.id}/downloads/report.json`, controller.signal);
+          if (active !== controller) return;
+          if (!savedReport) { id = candidate.id; savedReport = report; }
+          if (report.settings?.ACCOUNT_TYPE === "Apex EOD") {
+            id = candidate.id; savedReport = report; break;
+          }
+        }
+        id ||= saved.analyses[0]?.id;
       }
       if (active !== controller) return;
       if (!id) {
@@ -184,7 +196,7 @@
         if (["queued", "running"].includes(result.status)) setTimeout(() => { if (active === controller) propSummary(record, controller); }, 1500);
         return;
       }
-      const report = await read(`/api/prop-analyses/${id}/downloads/report.json`, controller.signal);
+      const report = savedReport || await read(`/api/prop-analyses/${id}/downloads/report.json`, controller.signal);
       if (active !== controller) return;
       if (report.format_version !== 3 || !report.calculations) {
         status.textContent = "Historical engine report. Open the full analysis to inspect its original results and model.";
@@ -192,7 +204,8 @@
       }
       const c = report.calculations, e = c.evaluation, funded = c.funded?.selected, totals = c.history?.totals;
       const settings = report.settings;
-      context.textContent += ` · Apex 50K EOD · ${settings.SLOTS} slots · full history ${c.samples.data.join(" – ")} · $${settings.EVAL_PRICE} evaluation + $${settings.ACTIVATION_FEE} activation`;
+      const account = settings.ACCOUNT_TYPE === "LucidFlex" ? `LucidFlex ${settings.ACCOUNT_SIZE}` : "Apex 50K EOD";
+      context.textContent += ` · ${account} · ${settings.SLOTS} slots · full history ${c.samples.data.join(" – ")} · $${settings.EVAL_PRICE} evaluation + $${settings.ACTIVATION_FEE} activation`;
       const holder = get("#report-prop-metrics"); holder.replaceChildren();
       const cash = node("div", undefined, "prop-metric-grid prop-three-metrics"); holder.append(cash);
       propMetric(cash, "historical-net", "Historical net · USD", usd(totals?.net), "Payouts minus acquisition costs across all slots over the observed history.", totals?.net);

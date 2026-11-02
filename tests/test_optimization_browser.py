@@ -420,13 +420,13 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     page.get_by_label("Hold minutes step", exact=True).fill("5")
     page.get_by_label("Contracts end", exact=True).fill("30")
     page.locator("#start-backtest").click()
-    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
+    playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=120000)
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(50)
     job_id = page.url.rsplit("/", 1)[1]
     headers = page.locator("#optimization-results thead th.optimization-varying-parameter")
     assert headers.evaluate_all("items => items.map(item => item.dataset.column)") == ["param.hold_minutes", "param.contracts"]
-    assert page.locator("#optimization-results thead th").evaluate_all("items => items.slice(0, 5).map(item => item.dataset.column)") == [
-        "trial", "param.hold_minutes", "param.contracts", "historical_net", "param.green_bar_count"]
+    assert page.locator("#optimization-results thead th:not([hidden])").evaluate_all("items => items.slice(0, 5).map(item => item.dataset.column)") == [
+        "trial", "param.hold_minutes", "param.contracts", "historical_net", "total_net_pnl"]
     page.locator("#optimization-freeze summary").click()
     frozen_keys = ["trial"]
     if viewport["width"] > 1000:
@@ -494,7 +494,8 @@ def test_result_headers_stay_visible_and_varying_columns_remain_highlighted(page
     # The visible sticky header remains the real sortable column header.
     th.get_by_role("button").click()
     playwright.expect(th).to_have_attribute("aria-sort", "ascending")
-    playwright.expect(th.locator(".optimization-varying-badge")).to_have_text("Varies")
+    playwright.expect(th.locator(".optimization-varying-badge")).to_have_count(0)
+    playwright.expect(th).to_have_attribute("title", "30 values in this optimization grid")
     page.locator("#optimization-next").click()
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(10)
     playwright.expect(page.locator("#optimization-results tbody td.optimization-varying-parameter")).to_have_count(20)

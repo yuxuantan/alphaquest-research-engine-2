@@ -264,3 +264,56 @@ IS-report action runs one OOS parameter set and consumes a permanent slot from
 the hardcoded three-attempt strategy/source budget. See
 [the complete research workflow, endpoints and CLI contract](research_workflow.md).
 Historical reports remain readable; undeclared historical jobs cannot resume.
+
+## Delete a complete backtest activity
+
+`DELETE /api/backtests/batches/{id}` removes the activity, its saved trial rows,
+and every saved backtest report exclusively referenced by that activity. It
+covers all trials, regardless of result pagination or sorting. The compatibility
+alias is `DELETE /api/optimizations/{id}`. Success returns HTTP 200, for example:
+
+```json
+{"deleted_reports": 100, "shared_reports_kept": 0}
+```
+
+Reports referenced by another activity through result reuse are retained and
+counted in `shared_reports_kept`. Deleting the final referencing activity removes
+those reports. Reports previously deleted individually are skipped. Datasets,
+independent saved prop analyses, detailed replays, shared market benchmark data,
+and research declarations/OOS budgets are preserved.
+
+Queued/running activities return HTTP 409. A queued/running prop analysis or
+active detail generation on any report that would be removed also returns 409
+before removing any reports. Unknown IDs return 404; invalid UUIDs return 422.
+File staging and report catalogue removal share a transaction; staging/SQL
+failures restore all staged reports. If file cleanup or final activity removal
+fails after report deletion commits, the activity remains in `deleting` status
+with durable cleanup IDs. The endpoint returns 500 with retry instructions;
+repeat the same DELETE to finish, including after a server restart. Such an
+activity cannot resume backtesting.
+
+## Refresh unavailable Lucid results on a saved batch
+
+`POST /api/backtests/batches/{id}/lucid-refresh` (HTTP 202) checks unavailable
+trials, reuses verified current-model analyses or queues Lucid-only analyses of
+their saved trades. It returns `queued`, `reused`, `already_pending`, `blocked`
+and current totals. `GET` on the same path reads `available`, `unavailable`,
+`refreshed`, `pending`, `failed`, `total`, and `revision`. Compatibility aliases
+are `/api/optimizations/{id}/lucid-refresh`. Running/deleting batches return
+409; unknown batches return 404. Per-source rejection reasons appear in the
+trial companion. A rejected source does not prevent other trials from running.
+
+Results and CSVs project explicit saved analysis links over immutable trial
+snapshots. Optional nonnegative `prop_revision` pins the link snapshot; `0`
+reads original metrics. Requests beyond the latest revision clamp to the
+current revision. Export pins its revision before streaming. Sorting by
+`lucid_historical_net` uses that same projection, with N/A last and trial ties
+stable. The result response returns its `prop_revision`.
+
+CSV provenance columns are `lucid_analysis_id`, `lucid_status`, `lucid_reason`,
+`lucid_model_version`, and `lucid_original_analysis_id`. An updated result's
+companion also carries checked source/settings hashes and the saved report
+hash. GETs do not calculate or mutate reports/links. Completed analyses are
+linked by the publication hook; startup repairs completed/interrupted link
+publication without resimulating. A refresh retry can finish a failed link
+publication while reusing the already saved analysis.

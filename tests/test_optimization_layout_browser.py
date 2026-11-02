@@ -4,7 +4,7 @@ import json
 
 from test_backtests_browser import browser, page, portal, playwright
 from test_optimization_browser import prepare, run
-from test_optimization_columns_browser import frozen_keys, fits
+from test_optimization_columns_browser import frozen_keys, frozen_aligned
 
 
 def visible_keys(page):
@@ -41,7 +41,7 @@ def test_select_columns_reorder_both_groups_sort_and_persist(page, portal, tmp_p
     page.get_by_role("button", name="Move Total net pnl earlier", exact=True).click()
     playwright.expect(page.locator("#optimization-results thead th").first).to_have_attribute("data-column", "total_net_pnl")
     assert frozen_keys(page) == ["total_net_pnl", "trial"]
-    assert fits(page)
+    assert frozen_aligned(page)
     playwright.expect(page.get_by_role("button", name="Move Contracts earlier", exact=True)).to_be_disabled()
     page.get_by_role("button", name="Move Backtest report earlier", exact=True).click()
     playwright.expect(page.locator("#optimization-results thead th:not([hidden])").nth(2)).to_have_attribute("data-column", "run_id")
@@ -96,7 +96,7 @@ def test_hiding_frozen_and_sorted_columns_empty_view_show_all_and_reset(page, po
     page.locator("#optimization-freeze summary").click()
     page.locator("#optimization-freeze-search").fill("contracts")
     page.get_by_role("button", name="Show all", exact=True).click()
-    playwright.expect(page.locator("#optimization-results thead th:not([hidden])")).to_have_count(len(initial))
+    playwright.expect(page.locator("#optimization-results thead th:not([hidden])")).to_have_count(page.locator("#optimization-results thead th").count())
     playwright.expect(page.locator("#optimization-visible-empty")).to_be_hidden()
     page.get_by_role("button", name="Reset layout", exact=True).click()
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("1 frozen")
@@ -127,6 +127,7 @@ def test_migrates_previous_freeze_preferences_without_hiding_results(page, porta
     page.locator("#optimization-freeze summary").click()
     page.get_by_label("Show Contracts", exact=True).uncheck()
     page.reload()
+    playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("1 frozen")
     playwright.expect(page.locator('#optimization-results th[data-column="param.contracts"]')).to_be_hidden()
     assert frozen_keys(page) == ["total_net_pnl"]
-    assert page.evaluate("JSON.parse(localStorage.getItem('alphaquest.optimization.column-layout.v2:consecutive_green_hold')).visible.includes('param.contracts')") is False
+    assert page.evaluate("JSON.parse(localStorage.getItem('alphaquest.optimization.column-layout.v3:consecutive_green_hold')).visible.includes('param.contracts')") is False

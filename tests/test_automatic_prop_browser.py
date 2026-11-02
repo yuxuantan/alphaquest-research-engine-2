@@ -62,7 +62,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     diagnostic=page.request.get(f"{portal['url']}/api/backtests/{backtest_id}/performance").json()
     (tmp_path/'runtime-breakdown.json').write_text(json.dumps(diagnostic,indent=2))
     with page.expect_download() as downloaded:
-        inline.get_by_role('link',name='Report data (JSON)',exact=False).click()
+        inline.locator(f'a[href="/api/prop-analyses/{prop_id}/downloads/report.json"]').click()
     assert sha256(open(downloaded.value.path(),'rb').read()).hexdigest()==sha256(report_bytes).hexdigest()
     page.get_by_role('link',name='Open default prop analysis',exact=False).click()
     playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=10000)
@@ -91,7 +91,9 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.locator('#prop-run').click()
     playwright.expect(page).to_have_url(re.compile('/#backtests/prop/job/'+prop_id+'$'))
     playwright.expect(page.locator('#prop-report')).to_be_visible()
-    assert len(page.request.get(f"{portal['url']}/api/prop-analyses/sources/{backtest_id}").json()['analyses'])==1
+    automatic=record['run_metadata']['automatic_prop_analysis']
+    expected_ids={automatic['id'],*(item['id'] for item in automatic.get('companions',[]))}
+    assert {item['id'] for item in page.request.get(f"{portal['url']}/api/prop-analyses/sources/{backtest_id}").json()['analyses']}==expected_ids
 
     # The ordinary checked reuse control reopens the original verified report.
     page.goto(portal['url']+'/#backtests')
@@ -133,7 +135,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     assert reused_prop['runtime']['calculation_reused_from']==prop_id
     assert reused_prop['source']['backtest']['id']==rows[0]['run_id']
     for direction in ('ascending','descending'):
-        page.get_by_role('button',name='Historical net',exact=False).click()
+        page.locator('#optimization-results th[data-column="historical_net"] button').click()
         playwright.expect(page.locator('#optimization-results th[data-column="historical_net"]')).to_have_attribute('aria-sort',direction)
         playwright.expect(page.locator('#optimization-results tbody td[data-column="historical_net"]').first).to_contain_text('$352,880')
         playwright.expect(page.locator('#optimization-results tbody td[data-column="historical_net"]').last).to_contain_text('N/A')
@@ -172,6 +174,8 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.goto(portal['url']+'/#backtests/report/'+backtest_id)
     playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880')
     playwright.expect(page.locator('#report-prop-context')).to_contain_text('Latest completed saved analysis')
+    playwright.expect(page.locator('#report-prop-context')).to_contain_text('Apex 50K EOD')
+    assert page.locator('#report-prop-actions a').first.get_attribute('href')=='#backtests/prop/job/'+prop_id
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     assert page.locator('#report-prop-metrics strong').evaluate_all('nodes => nodes.every(n => n.getBoundingClientRect().height <= parseFloat(getComputedStyle(n).lineHeight) + 1)')
     page.locator('#report-prop-summary').screenshot(path=str(tmp_path/'inline-mobile.png'))

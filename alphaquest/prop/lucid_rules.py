@@ -1,5 +1,7 @@
 """Dated LucidFlex contract. Provider pages are evidence, never runtime inputs."""
-MODEL_VERSION='alphaquest-lucidflex50k-eod-v1'
+MODEL_VERSION='alphaquest-lucidflex50k-eod-v2-funding-continuation'
+EVALUATION_INITIAL_HORIZON=2000
+EVALUATION_MAX_HORIZON=20000
 SOURCES={
     'customization':'https://support.lucidtrading.com/en/articles/16226050-lucidflex-customization',
     'evaluation':'https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account',
@@ -24,7 +26,7 @@ CONTRACT=dict(checked_on='2026-10-29',sources=SOURCES,
     scope='Simulated evaluation and sim-funded stage only. Risk-team early live transitions and live trading returns are not modeled.',
     timing='DLL-on requests occur at the first eligible observed completed-trade mark within 18:00–15:45 America/New_York and stop that session. If no intraday request was made, eligibility is checked at session close; DLL-off always uses session close. No favorable unobserved intratrade request is invented. Gross withdrawals reduce equity; trader payouts are 90%. Reports date payouts at request/deduction, not bank settlement; the provider disbursement delay is not simulated.',
     inactivity='Activity is an observed closed result of at least USD 1 in absolute value, within 30 calendar days. Bootstrap clocks start Monday; historical replay uses actual elapsed calendar days.',
-    horizon='No provider evaluation deadline. Monte Carlo paths still open at 2,000 weekdays are censored, not failed evaluations. Censored funding chains have unavailable acquisition timing; no fallback delay is invented.',
+    horizon='No provider evaluation deadline. Open evaluation paths continue with their existing balance, trail, consistency, activity and bootstrap state beyond the initial 2,000 weekdays, up to a 20,000-weekday computational limit per attempt. Remaining open paths are censored, never counted as failures or restarted. Censored funding chains have unavailable acquisition timing; no fallback delay or survivor-only mean is substituted. Funded-account lifetime simulations retain their separate 2,000-weekday horizon.',
     renewal='Annual-per-slot and historical replacement are research renewal assumptions, not a simulation of live accounts after the fifth payout.',
     documentation_conflict='The newer customization and consistency pages specify 40% standard; the older evaluation overview still lists 50%. This version supports the 40% standard, not the 50% add-on/cushion.')
 CONTRACT['daily_loss_assumption']='DLL-on uses a fixed USD 1,200 soft daily stop in both phases. The customization page confirms the soft breach and phase coverage but does not specify an above-trail adjustment. Holding this amount fixed above the trail is an explicit modeling assumption, not verified provider parity. DLL-off has no daily stop.'

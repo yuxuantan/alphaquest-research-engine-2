@@ -22,7 +22,9 @@ def use(entries):
 
 
 def calculate(rows,settings,snapshot,progress,compute):
-    key=digest(dict(engine=engine_identity(),rows=rows,settings=settings,
+    from .native_analysis import model_version
+    expected_model=model_version(settings)
+    key=digest(dict(engine=engine_identity(),model_version=expected_model,rows=rows,settings=settings,
                     trades=snapshot['trades_sha256'],excursions=snapshot['excursion_input'],
                     timezone=snapshot['source_timezone'],sessions=snapshot['session_grid']))
     entry=_active.get().get(key)
@@ -31,7 +33,8 @@ def calculate(rows,settings,snapshot,progress,compute):
             raw=Path(entry['path']).read_bytes()
             if sha256(raw).hexdigest()==entry['sha256']:
                 result=json.loads(raw)
-                progress('Reusing verified local calculations; source checks complete')
-                return result,entry['id'],key
+                if result.get('model_version')==expected_model:
+                    progress('Reusing verified local calculations; source checks complete')
+                    return result,entry['id'],key
         except (OSError,ValueError):pass
     return compute(rows,settings,progress),None,key

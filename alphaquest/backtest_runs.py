@@ -1,6 +1,7 @@
 """Durable completed runs and indexed pages, streamed from report CSVs."""
 
 import csv
+from contextlib import contextmanager
 from dataclasses import fields
 import json
 from pathlib import Path
@@ -75,38 +76,54 @@ class RunStore:
         Optimization metrics and independent prop reports stay intact. A private
         staged folder allows a failed post-commit cleanup to be retried by ID.
         """
-        run_id=UUID(run_id).hex
-        destination=self.root/run_id
-        staged=self.root/('.deleted-'+run_id)
-        moved=False
+        with self.deletion() as (_, stage):
+            return stage(run_id)
+
+    @contextmanager
+    def deletion(self, cleanup_error=None):
+        """Stage multiple removals in one SQL transaction, restoring on rollback.
+
+        Callers may change activity rows in the same transaction. File cleanup
+        happens after commit; callers must retain IDs for retry if it fails.
+        """
+        moved=[]
+        staged_ids=[]
         with self.detail_lock:
-            if run_id in self.detail_active:
-                raise ValueError('Full detail is being generated for this backtest. Wait for it to finish before deleting.')
             try:
                 with self.connect() as conn:
                     conn.execute('BEGIN IMMEDIATE')
-                    exists=conn.execute('SELECT 1 FROM runs WHERE id=?',(run_id,)).fetchone()
-                    if destination.is_symlink() or staged.is_symlink():
-                        raise OSError('Refusing to delete a backtest directory that is a symbolic link.')
-                    if not exists and not staged.exists():return False
-                    if exists:
-                        # Recover a rename interrupted before its SQL commit.
-                        if staged.exists():
-                            if destination.exists():raise OSError('Conflicting staged deletion; no report files were removed.')
-                            staged.rename(destination)
-                        if destination.exists():
-                            destination.rename(staged);moved=True
+                    def stage(run_id):
+                        run_id=UUID(run_id).hex
+                        if run_id in self.detail_active:
+                            raise ValueError('Full detail is being generated for this backtest. Wait for it to finish before deleting.')
+                        destination=self.root/run_id
+                        staged=self.root/('.deleted-'+run_id)
+                        exists=conn.execute('SELECT 1 FROM runs WHERE id=?',(run_id,)).fetchone()
+                        if destination.is_symlink() or staged.is_symlink():
+                            raise OSError('Refusing to delete a backtest directory that is a symbolic link.')
+                        if not exists and not staged.exists():return False
+                        if exists:
+                            # Recover a rename interrupted before its SQL commit.
+                            if staged.exists():
+                                if destination.exists():raise OSError('Conflicting staged deletion; no report files were removed.')
+                                staged.rename(destination)
+                            if destination.exists():
+                                destination.rename(staged);moved.append((staged,destination))
                         if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='optimization_trial_cache'").fetchone():
                             conn.execute("DELETE FROM optimization_trial_cache WHERE json_extract(payload,'$.row.run_id')=?",(run_id,))
                         conn.execute('DELETE FROM runs WHERE id=?',(run_id,))
+                        staged_ids.append(run_id)
+                        return True
+                    yield conn,stage
             except BaseException:
-                if moved:staged.rename(destination)
+                for staged,destination in reversed(moved):staged.rename(destination)
                 raise
-            if staged.exists():
-                try:shutil.rmtree(staged)
-                except OSError as exc:
-                    raise OSError(f'Backtest removed from the library, but file cleanup failed. Retry Delete for {run_id}.') from exc
-        return True
+            for run_id in staged_ids:
+                staged=self.root/('.deleted-'+run_id)
+                if staged.exists():
+                    try:shutil.rmtree(staged)
+                    except OSError as exc:
+                        raise OSError(cleanup_error or f'Backtest removed from the library, but file cleanup failed. Retry Delete for {run_id}.') from exc
 
     def _rows(self, source: Path, kind: str):
         with source.open(encoding="utf-8", newline="") as stream:

@@ -79,6 +79,22 @@ def detail(job_id: UUID, request: Request):
     return get_job(request, job_id)
 
 
+@router.delete('/api/backtests/batches/{job_id}')
+@router.delete('/api/optimizations/{job_id}')
+def delete_activity(job_id: UUID, request: Request):
+    try:
+        result = request.app.state.optimizations.delete(job_id.hex)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    except OSError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    except sqlite3.Error as exc:
+        raise HTTPException(500, 'Could not finish deleting the backtest activity. Retry Delete activity and reports.') from exc
+    if result is None:
+        raise HTTPException(404, 'Backtest activity not found.')
+    return result
+
+
 @router.post("/api/backtests/batches/{job_id}/resume", status_code=202)
 @router.post("/api/optimizations/{job_id}/resume", status_code=202)
 def resume(job_id: UUID, request: Request):
@@ -133,21 +149,41 @@ def resume(job_id: UUID, request: Request):
 @router.get("/api/backtests/batches/{job_id}/results")
 @router.get("/api/optimizations/{job_id}/results")
 def results(job_id: UUID, request: Request, sort: str = "trial", direction: str = "asc",
-            offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=1000)):
+            offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=1000), prop_revision: int | None = Query(None, ge=0)):
     job = get_job(request, job_id)
     try:
-        return request.app.state.optimizations.page(job, sort, direction, offset, limit)
+        return request.app.state.optimizations.page(job, sort, direction, offset, limit, prop_revision)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
 
+@router.get('/api/backtests/batches/{job_id}/lucid-refresh')
+@router.get('/api/optimizations/{job_id}/lucid-refresh')
+def lucid_refresh_status(job_id: UUID, request: Request):
+    from .optimization_prop import status
+    return status(request.app.state.optimizations, get_job(request, job_id))
+
+
+@router.post('/api/backtests/batches/{job_id}/lucid-refresh', status_code=202)
+@router.post('/api/optimizations/{job_id}/lucid-refresh', status_code=202)
+def refresh_lucid(job_id: UUID, request: Request):
+    from .optimization_prop import refresh
+    try:return refresh(request.app.state.optimizations, job_id.hex)
+    except LookupError as exc:raise HTTPException(404,str(exc)) from None
+    except ValueError as exc:raise HTTPException(409,str(exc)) from None
+    except sqlite3.Error as exc:raise HTTPException(503,'Could not save Lucid refresh links. Retry; existing analysis jobs will be reused.') from exc
+
+
 @router.get("/api/backtests/batches/{job_id}/exports/results")
 @router.get("/api/optimizations/{job_id}/exports/results")
-def export(job_id: UUID, request: Request, sort: str = "trial", direction: str = "asc"):
+def export(job_id: UUID, request: Request, sort: str = "trial", direction: str = "asc", prop_revision: int | None = Query(None, ge=0)):
     job = get_job(request, job_id)
     store = request.app.state.optimizations
+    from .optimization_prop import revision
+    current_revision=revision(store.runs,job['id'])
+    prop_revision=current_revision if prop_revision is None else min(prop_revision,current_revision)
     try:
-        store.page(job, sort, direction, 0, 1)
+        store.page(job, sort, direction, 0, 1, prop_revision)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -155,14 +191,16 @@ def export(job_id: UUID, request: Request, sort: str = "trial", direction: str =
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer)
         prop_columns = ["prop_analysis_id", "prop_status", "prop_reason"] if job.get("default_prop_profile") else []
-        writer.writerow(["trial", "run_id", *job["axes"], *job["metric_columns"], *prop_columns])
+        lucid_columns = ['lucid_analysis_id','lucid_status','lucid_reason','lucid_model_version','lucid_original_analysis_id'] if 'lucid_historical_net' in job['metric_columns'] else []
+        writer.writerow(["trial", "run_id", *job["axes"], *job["metric_columns"], *prop_columns, *lucid_columns])
         yield buffer.getvalue()
         for offset in range(0, job["completed_trials"], 1000):
-            for row in store.page(job, sort, direction, offset, min(1000, job["completed_trials"] - offset))["items"]:
+            for row in store.page(job, sort, direction, offset, min(1000, job["completed_trials"] - offset), prop_revision)["items"]:
                 buffer.seek(0)
                 buffer.truncate(0)
                 writer.writerow([row["trial"], row["run_id"], *(row["parameters"][name] for name in job["axes"]),
                                  *(row["metrics"].get(name) for name in job["metric_columns"]),
-                                 *(row.get("prop_analysis", {}).get(name) for name in (("id", "status", "reason") if prop_columns else ()))])
+                                 *(row.get("prop_analysis", {}).get(name) for name in (("id", "status", "reason") if prop_columns else ())),
+                                 *((row.get('prop_companions') or [{}])[0].get(name) for name in (('id','status','reason','model_version','original_analysis_id') if lucid_columns else ()))])
                 yield buffer.getvalue()
     return StreamingResponse(stream(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="optimization-{job["id"]}.csv"'})

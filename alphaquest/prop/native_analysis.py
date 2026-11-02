@@ -105,6 +105,16 @@ def evaluation_model(days,size,sims,seed,block,settings,**kwargs):
     return evaluation(days,size,sims,seed,block,**kwargs)
 
 
+def evaluation_diagnostics(sim):
+    """Inspectable computational limits and counts, separate from provider rules."""
+    if 'longest_attempt_days' not in sim:return {}
+    longest=sim['longest_attempt_days']
+    initial=sim['initial_horizon_weekdays']
+    return dict(initial_horizon_weekdays=initial,horizon_weekdays=sim['horizon_weekdays'],
+        continued_paths=int(sum(longest>initial)),longest_attempt_weekdays=int(max(longest,default=0)),
+        censored_paths=int(sum(sim['outcomes']=='timeout')),simulations=len(sim['outcomes']))
+
+
 def prepare(runs, source_id, trade_file=None, settings=None, export_timezone='America/Chicago'):
     from .source import matching_exports, prepare_source
     resolved = resolved_settings(settings or {})
@@ -262,7 +272,9 @@ def replay_history(grid, days, micros, replacement_days, cost, slots, rules=Rule
 def _evaluation_size(value):
     days,size,block,max_micros=value[:4]
     sim=evaluation_model(days,size,3000,42,block,value[4],max_micros=max_micros) if len(value)>4 else evaluation(days,size,3000,42,block,max_micros=max_micros)
-    return dict(micros=size,passed=int(sum(sim['outcomes']=='passed')),simulations=3000)
+    result=dict(micros=size,passed=int(sum(sim['outcomes']=='passed')),simulations=3000)
+    if len(value)>4:result.update(evaluation_diagnostics(sim))
+    return result
 
 
 def _funded_size(value):
@@ -311,6 +323,7 @@ def training_economics(train, selected, settings, block, max_micros, sample):
         return result
     result.update(status='calibrated',funding_chain_simulations=20000,replacement_days=float(chain['days'].mean()),
                   replacement_days_median=float(np.median(chain['days'])))
+    if is_lucid(settings):result['funding_chain_diagnostics']=evaluation_diagnostics(chain)
     return result
 
 
@@ -359,7 +372,7 @@ def calculate(rows, settings, progress=lambda _:None):
         from .lucid_rules import CONTRACT
         result['provider_contract']=CONTRACT
         result['evaluation'].update(inactivity=float((outcomes=='inactive').mean()),censored=float((outcomes=='timeout').mean()),
-            horizon_weekdays=2000,provider_deadline=None)
+            provider_deadline=None,**evaluation_diagnostics(sim))
     if passed:
         result['evaluation'].update(cost_per_funded=float(settings['EVAL_PRICE'])/probability+float(settings['ACTIVATION_FEE']),
                                     evaluations_per_funded=1/probability)
@@ -370,6 +383,7 @@ def calculate(rows, settings, progress=lambda _:None):
             result['evaluation']['timing_unavailable']=str(exc)
         else:
             result['evaluation'].update(days_to_funded=float(chain['days'].mean()),days_to_funded_median=float(np.median(chain['days'])))
+            if is_lucid(settings):result['evaluation']['funding_chain_diagnostics']=evaluation_diagnostics(chain)
     else:
         result['evaluation']['unavailable']='No validation evaluation passed. Holdout acquisition cost and funding time are unavailable; training selection remains frozen.'
     if sweep is None:

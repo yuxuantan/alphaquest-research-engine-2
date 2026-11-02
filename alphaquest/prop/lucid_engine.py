@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import cython
 from .native_engine import risk_hit, sampled_days
+from .lucid_rules import EVALUATION_INITIAL_HORIZON, EVALUATION_MAX_HORIZON
 
 
 @dataclass(frozen=True)
@@ -122,18 +123,19 @@ class FundedAccount:
                duration=cython.longlong,day=cython.longlong,last_activity=cython.longlong,
                calendar=cython.longlong,remaining=cython.longlong,index=cython.longlong,
                cursor=cython.longlong,length=cython.longlong,starts=cython.longlong[:])
-def evaluation(days,micros,sims,seed,block=5,deadline=2000,chain=False,max_micros=40,
+def evaluation(days,micros,sims,seed,block=5,deadline=EVALUATION_MAX_HORIZON,chain=False,max_micros=40,
                daily_loss=1200.,consistency=.4):
-    """No provider deadline: unfinished paths at 2,000 sessions are censored.
+    """Continue open paths beyond 2,000 sessions without resetting their state.
 
     A successful evaluation is assessed at session close, including consistency.
     Activation adds zero extra weekdays; new funded sampling begins next session.
+    The larger computational guard still censors genuinely unresolved paths.
     """
     if not days:raise ValueError('LucidFlex requires a nonempty source sample.')
-    rng=np.random.RandomState(seed);outcomes=[];durations=[];attempts=[]
+    rng=np.random.RandomState(seed);outcomes=[];durations=[];attempts=[];longest_attempts=[]
     length=len(days);starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0
     for _ in range(sims):
-        duration=0;remaining=0;index=0
+        duration=0;remaining=0;index=0;longest_attempt=0
         for attempt in range(1,10001 if chain else 2):
             equity=high=best_day=0.;last_activity=0;result='timeout'
             size=min(micros,40,max_micros)
@@ -157,11 +159,14 @@ def evaluation(days,micros,sims,seed,block=5,deadline=2000,chain=False,max_micro
                 if equity>=3000. and best_day<=consistency*equity:result='passed';break
                 if calendar-last_activity>=30:result='inactive';break
             duration+=day
+            longest_attempt=max(longest_attempt,day)
             if not chain or result=='passed':break
-            if result=='timeout':raise ValueError('LucidFlex funding chain is censored at 2,000 sessions; acquisition time is unavailable.')
+            if result=='timeout':raise ValueError(f'LucidFlex funding chain is censored at {deadline:,} sessions; acquisition time is unavailable.')
         if chain and result!='passed':raise ValueError('No pass within the 10,000-attempt funding-time bound; acquisition time is unavailable.')
-        outcomes.append(result);durations.append(duration);attempts.append(attempt)
-    return dict(outcomes=np.array(outcomes),days=np.array(durations),attempts=np.array(attempts))
+        outcomes.append(result);durations.append(duration);attempts.append(attempt);longest_attempts.append(longest_attempt)
+    return dict(outcomes=np.array(outcomes),days=np.array(durations),attempts=np.array(attempts),
+        longest_attempt_days=np.array(longest_attempts),horizon_weekdays=deadline,
+        initial_horizon_weekdays=min(deadline,EVALUATION_INITIAL_HORIZON))
 
 
 @cython.locals(equity=cython.double,high=cython.double,opening=cython.double,floor=cython.double,

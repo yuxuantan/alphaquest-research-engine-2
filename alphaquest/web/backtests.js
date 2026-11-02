@@ -288,8 +288,11 @@
     if (flatten?.enabled) {
       const pair = element("div");
       pair.dataset.setting = "session_flattening";
+      const nextOpen = flatten.order_timing === "next_open";
+      const cutoff = String(metadata.strategy.parameters.eod_flat_time ?? 1555).padStart(4, "0");
+      const fill = nextOpen ? "submit at cutoff; fill next observed bar Open" : "cutoff Close fill (earlier execution model)";
       pair.append(element("dt", "", "Backtest lookahead · session exits"), element("dd", "",
-        `Last daytime bar minus ${flatten.minutes_before_close} minutes; cutoff Close fill, at/before 15:55 CT. ${flatten.sessions ?? 0} inferred sessions; ${flatten.sessions_using_earlier_bar ?? 0} used an earlier available bar; ${flatten.sessions_without_cutoff_bar ?? 0} had no executable cutoff. Truncated sessions count as early closes.`));
+        `Last daytime bar minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} inferred sessions; ${flatten.sessions_using_earlier_bar ?? 0} used an earlier available bar; ${flatten.sessions_without_cutoff_bar ?? 0} had no executable cutoff. Truncated sessions count as early closes.`));
       grid.append(pair);
     }
     content.append(grid);

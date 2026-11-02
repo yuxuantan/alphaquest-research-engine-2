@@ -251,3 +251,82 @@ initial balance. The two-trade no-pyramiding fixture shows exactly
 only SVG geometry and approximate axis tick labels use browser floating point.
 No metric is computed from sampled data. The full-resolution results and CSVs
 are unchanged, and earlier saved portal runs can be opened without rerunning.
+
+## Delete an activity and its saved reports
+
+Open **Strategies → Backtest activity** (`#backtests/batches`). Each activity
+has **Delete activity and reports**; the same action appears at the top of its
+batch results. Confirm to remove the activity and all its unshared saved
+backtest reports, including reports on other result pages. The confirmation
+shows the saved-trial count. Cancel leaves everything intact. The completion
+message reports the deleted count and any reports kept because another activity
+shares them through result reuse. Individual report deletion remains available
+within a report.
+
+Wait for queued/running activities to finish. If an active prop analysis or
+full-detail replay uses one of the reports, deletion is rejected for the whole
+activity; finish that work and retry. A file cleanup failure keeps the activity
+visible with **Retry Delete activity and reports**, which also works after
+reloading or restarting the app. Saved prop analyses and datasets remain
+available after deleting their source backtests.
+
+### Reproduce the 100-report browser review
+
+Use a new evidence directory to preserve earlier evidence:
+
+```bash
+.venv/bin/python -m pytest tests/test_delete_backtest_activities_browser.py -q \
+  --basetemp "artifacts/activity-delete-review-$(date +%Y%m%d-%H%M%S)"
+```
+
+This uses isolated synthetic datasets and the normal dataset/backtest/batch
+routes, owns a temporary server and Chromium instance, and shuts them down when
+finished. No workspace datasets or saved backtests are deleted. The fixture has
+seven IS bars, a separately labeled synthetic OOS date, green-bar count 99,
+hold minutes 1, and contracts 1–100. Independently expected: exactly 100 saved
+zero-trade backtest reports, displayed as two pages of 50. The 99-bar entry
+condition cannot trigger on seven bars. No future outcome is inferred.
+
+The checks exercise cancellation, active-source rejection with all 100 reports
+preserved, then successful deletion from page two: 100 report URLs and the
+activity URL return 404, the saved-report list is empty, and the dataset and
+saved prop source-check records remain accessible. Reload confirms deletion.
+Additional journeys delete an activity from the list while preserving two
+reports shared with another activity, retry failed file cleanup after reload,
+and delete the only activity on the last history page.
+
+The 2026-10-31 review is saved in
+`artifacts/activity-delete-final-review-20261031/`. Under
+`test_delete_100_reports_cancel0/`, inspect `verification.json`,
+`activity-before.json`, `results-before.json`, `catalogue-before.sqlite3`, and
+`reports-before.tar.gz`, plus the before/rejection/after screenshots. The archive
+preserves the actual pre-deletion reports. The live isolated catalogue in that
+directory records the post-deletion state. Other test folders contain the
+shared-report mobile view and cleanup-retry screenshot.
+
+Backend failure and concurrency checks can be reproduced with:
+
+```bash
+.venv/bin/python -m pytest tests/test_delete_backtest_activities.py tests/test_delete_backtests.py tests/test_backtest_batches.py -q
+```
+
+Validation for this increment passed 91 backend checks and 34 distinct Chromium
+checks, including existing single-report deletion, sweep execution/reuse/resume,
+parallel workers, compact report detail and persisted column layouts. Independent
+SQLite counts and the SHA-256 of the 100-report archive are saved in
+`artifacts/activity-delete-final-review-20261031/evidence-summary.json`.
+All temporary browser servers were stopped; no persistent server was started.
+
+## Compact batch result columns — 2026-11-01
+
+Varying parameter headers keep their green highlight and value-count hover text
+with narrower padding and no Varies box. The default table shows varied
+parameters, all metrics, Trial and report links. Fixed parameters remain
+available under **Columns → Show**. **Show all** reveals everything;
+**Reset layout** restores the new defaults and one frozen Trial column.
+Explicit custom visibility/order selections migrate from the earlier layout;
+use Reset layout to replace a custom selection with the new defaults.
+
+Any number of visible columns may be frozen. Wide groups pan horizontally;
+resizing preserves every checkbox selection. See [the column controls and
+saved read-only demonstration](optimization.md#choose-visible-columns-freezing-and-order).

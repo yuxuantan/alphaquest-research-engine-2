@@ -115,7 +115,10 @@ and requested dates remain inspectable. Each selected date range starts with fre
 strategy state and the existing end-of-data behavior. A job queued before its
 source is deleted can fail during preparation.
 
-Results show every strategy parameter and the existing performance metrics:
+Results make every strategy parameter available under **Columns**. By default,
+the table shows only parameters with multiple generated values, all performance
+metrics, Trial and the report link. Fixed parameters are hidden until selected.
+The existing performance metrics include:
 net/gross P&L, commissions, slippage cost, final equity, trade/win/loss/breakeven
 counts, win rate, maximum drawdown amount/percentage and duration in seconds.
 Money uses CU (unspecified account currency). Metrics retain normal engine
@@ -125,7 +128,8 @@ Click **any column heading** to sort ascending, then click it again to reverse.
 Headers stay visible while scrolling within the result table and while moving
 down the page through the table. Horizontal scrolling keeps headers aligned
 with their values. Parameters with more than one generated value have highlighted
-headers/cells and a **Varies** badge regardless of whether they are frozen.
+headers/cells regardless of whether they are frozen. Compact headers omit the
+former **Varies** badge; hover text gives the number of generated values.
 Highlighting uses the entire saved grid and remains consistent across sorting,
 pagination and reopening. A range generating one value is treated as fixed.
 
@@ -147,27 +151,55 @@ with keyboard and touch as well as a mouse.
 **Show all** selects all available columns while retaining the current order.
 **Hide all** clears the view so a small selection can be built quickly. An empty
 view displays a recovery message and retains the controls. **Reset layout**
-restores all columns, their default order and only Trial frozen. **Unfreeze all**
-clears freezing while retaining visibility and order. All columns are shown by
-default. A sort note remains visible even if the sorted column is hidden.
+restores the varied-parameters/all-metrics view, default order and only Trial
+frozen. **Unfreeze all** clears freezing while retaining visibility and order.
+A sort note remains visible even if the sorted column is hidden. Automatic
+defaults follow the actual grid when moving between batches of the same strategy.
 
-Frozen columns together can occupy at most **40% of the visible table viewport**,
-measured from their actual rendered widths. A box that would exceed the limit is
-disabled with a Width limit label and an explanation to unfreeze another column
-or widen the table. Checked columns remain available to uncheck. Resizing to a
-narrower screen temporarily releases saved columns that no longer fit; they
-return when sufficient width is available. Headers stay sticky independently of
-freezing. A small set of columns uses its natural width rather than stretching
-across the entire viewport.
+There is **no column-count or width limit on freezing**. Every visible column's
+Freeze control remains available. Groups that fit the viewport stay pinned on
+the left while other columns scroll underneath. When the frozen group itself is
+wider than the viewport, horizontal scrolling pans that group so every selected
+column remains reachable. Resizing never releases or unchecks selections.
+Headers stay sticky independently of freezing. A small set of columns uses its
+natural width rather than stretching across the entire viewport.
 
 Visibility, order and freezing are saved in this browser's local storage
 separately for each strategy and survive refresh, sorting, result pages and
-other batches of the same strategy. Existing freeze-only preferences migrate
-with all columns shown. Saved numerical results, full CSV contents and report
+other batches of the same strategy. The v3 layout migrates previous custom
+visibility, order and freeze choices. Prior default/all-visible layouts and
+freeze-only preferences adopt the new automatic visibility defaults; explicitly
+selected subsets are preserved. Use **Reset layout** to apply the new defaults
+to an existing custom subset. Saved numerical results, full CSV contents and report
 links are retained; no backtest is rerun. If browser storage is unavailable,
 preferences still work during the current page session. Unknown stored column
 names are ignored. Newly introduced columns appear through Show or Show all
 when using an explicitly selected subset.
+
+The live read-only review for 2026-11-01 is saved under
+`artifacts/compact-batch-columns-20261101/actual-portal/`. Its existing 16-trial
+batch has 32 parameters (four varied), 15 metrics and two identity/link columns:
+the default view shows **21** columns and hides **28** fixed parameters. The
+four varied headers measure approximately **105 / 120 / 120 / 130 px**. Recreating
+only the prior badge/padding decoration in the private review browser measured
+about **75 px** of saved width per header. All **49** columns were explicitly
+shown and frozen, including on mobile; horizontal panning reached the final
+column and reload retained every selection. Results JSON and CSV bytes matched
+before/after and no modifying request was sent.
+
+To reproduce with a fresh evidence directory, use the existing portal:
+
+```bash
+.venv/bin/python tests/review_compact_batch_columns.py \
+  --batch-id 342ceb7eee0345a4b0bb108d3f4e360c \
+  --output artifacts/compact-columns-review-NEW
+```
+
+This review only changes layout preferences in its own browser context, captures
+screenshots/measurements and closes Chromium. It starts no server and runs no
+backtest or prop analysis. Browser checks for defaults, migrations, resizing,
+unlimited freezing and ordinary sorting/export behavior use owned temporary
+servers that shut down after the tests.
 
 For a reproducible synthetic review, use green bar count **3 / 3 / 0**, hold
 minutes **20 / 25 / 5** and contracts **1 / 30 / 1** (start/end/step), with one
@@ -744,3 +776,12 @@ analysis**. Its actual source, native reports, CSVs, screenshots and saved
 catalogues are under `artifacts/automatic-apex-prop-portal-20261027/` and the final
 full-suite evidence directory. This is a synthetic software check, not a return
 forecast.
+
+Validation for the compact/default/unlimited layout passed **13 browser checks**:
+visibility/reordering, legacy/custom layout migration, per-grid automatic
+visibility, all-metric defaults, unlimited freezing, oversize-group panning,
+resize/reload persistence, keyboard focus, sticky headers, sorting, pagination,
+CSV download and ordinary report navigation. The saved-data review additionally
+verified the live 49-column table, 28 hidden fixed parameters and unchanged API/
+CSV bytes. Temporary test servers and review browsers were shut down; no
+persistent server was started.

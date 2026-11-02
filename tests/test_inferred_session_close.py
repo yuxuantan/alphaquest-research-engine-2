@@ -44,26 +44,28 @@ def session_rows(*, close=(12, 0), short=False, month=1, missing_cutoff=False, e
 @pytest.mark.parametrize("close,expected", [((16, 0), "15:55"), ((12, 0), "11:55"), ((12, 15), "12:10")])
 @pytest.mark.parametrize("short", [False, True])
 @pytest.mark.parametrize("month", [1, 7])
-def test_exact_cutoff_real_close_prices_and_reconciled_costs(close, expected, short, month):
+def test_cutoff_submits_exit_for_next_observed_open_and_reconciles_costs(close, expected, short, month):
     strategy, trades, events = replay(session_rows(close=close, short=short, month=month),
         parameters(use_eod_flat=True, trade_longs=not short, trade_shorts=short, max_trades_per_day=5))
     assert len(trades) == 1
     trade = trades[0]
     assert trade.exit_reason == "eod_flat"
-    assert trade.exit_time_utc.astimezone(CT).strftime("%H:%M") == expected
-    assert trade.exit_deadline_utc == trade.exit_time_utc
-    assert trade.exit_reference_price == (82 if short else 118)
-    assert trade.exit_fill_price == D("82.25" if short else "117.75")
-    assert (trade.gross_pnl, trade.total_commissions, trade.net_pnl) == (50, 2, 48)
-    assert events[-1].equity == 10048
+    assert trade.exit_deadline_utc.astimezone(CT).strftime("%H:%M") == expected
+    assert trade.exit_time_utc.astimezone(CT).strftime("%H:%M") == "%02d:%02d" % close
+    assert trade.exit_time_utc > trade.exit_deadline_utc
+    assert trade.exit_reference_price == (80 if short else 120)
+    assert trade.exit_fill_price == D("80.25" if short else "119.75")
+    assert (trade.gross_pnl, trade.total_commissions, trade.net_pnl) == (90, 2, 88)
+    assert events[-1].equity == 10088
     assert strategy.trades_today == 1
     assert strategy.session_flattening["sessions"] == 1
     assert strategy.session_flattening["lookahead"] is True
+    assert strategy.session_flattening["order_timing"] == "next_open"
 
 
 def test_last_evening_bars_do_not_shift_daytime_close_and_incomplete_evening_cannot_enter():
     strategy, trades, _ = replay(session_rows(evening=True), parameters(use_eod_flat=True))
-    assert len(trades) == 1 and trades[0].exit_time_utc.astimezone(CT).strftime("%H:%M") == "11:55"
+    assert len(trades) == 1 and trades[0].exit_time_utc.astimezone(CT).strftime("%H:%M") == "12:00"
     metadata = strategy.session_flattening
     assert metadata["sessions"] == 2 and metadata["sessions_without_cutoff_bar"] == 1
     assert metadata["examples"][0]["inferred_close"].endswith("12:00:00-06:00")
@@ -71,8 +73,9 @@ def test_last_evening_bars_do_not_shift_daytime_close_and_incomplete_evening_can
 
 def test_missing_cutoff_uses_previous_real_bar_without_inventing_a_price():
     strategy, trades, _ = replay(session_rows(missing_cutoff=True), parameters(use_eod_flat=True))
-    assert trades[0].exit_time_utc.astimezone(CT).strftime("%H:%M") == "11:54"
-    assert trades[0].exit_reference_price == 117 and trades[0].net_pnl == 28
+    assert trades[0].exit_deadline_utc.astimezone(CT).strftime("%H:%M") == "11:54"
+    assert trades[0].exit_time_utc.astimezone(CT).strftime("%H:%M") == "12:00"
+    assert trades[0].exit_reference_price == 120 and trades[0].net_pnl == 88
     assert strategy.session_flattening["sessions_using_earlier_bar"] == 1
 
 
@@ -86,11 +89,29 @@ def test_exits_before_cutoff_are_preserved(kind, net):
     assert trades[0].exit_bar_number == 124 and trades[0].net_pnl == net
 
 
-def test_bracket_touch_on_cutoff_bar_precedes_close_flatten():
+def test_bracket_touch_on_cutoff_bar_precedes_next_open_flatten():
     rows = session_rows()
     rows[124] = replace(rows[124], high=D(131))
     _, trades, _ = replay(rows, parameters(use_eod_flat=True))
     assert trades[0].exit_reason == "take_profit" and trades[0].net_pnl == 293
+
+
+def test_next_open_flatten_does_not_hold_exit_bar_extremes_or_keep_old_brackets():
+    from alphaquest.intratrade import IntratradeRisk
+    p = parameters(use_eod_flat=True)
+    rows = session_rows()
+    baseline = list(execute(rows, VwapPullbackRiskSizing(p, execution_config=CONFIG), CONFIG, capture_risk=True))
+    rows[-1] = replace(rows[-1], high=D(10000), low=D(1))
+    extreme = list(execute(rows, VwapPullbackRiskSizing(p, execution_config=CONFIG), CONFIG, capture_risk=True))
+    assert next(e for e in extreme if isinstance(e, IntratradeRisk)) == next(
+        e for e in baseline if isinstance(e, IntratradeRisk))
+    assert next(e for e in extreme if isinstance(e, IntratradeRisk)).exit_phase == "open"
+    # An EOD market supersedes the old target, even when the next Open gaps above it.
+    rows[-1] = replace(rows[-1], open=D(140), close=D(150))
+    _, trades, _ = replay(rows, p)
+    assert trades[0].exit_reason == "eod_flat"
+    assert trades[0].exit_reference_price == 140
+    assert trades[0].net_pnl == 488
 
 
 def test_gapped_pending_entry_at_cutoff_is_cancelled_and_cannot_reopen():
@@ -115,7 +136,7 @@ def test_no_available_bar_before_cutoff_disables_the_session():
     assert strategy.session_flattening["sessions_without_cutoff_bar"] == 1
 
 
-def test_legacy_next_open_eod_is_gone_but_explicit_eod_off_remains_available():
+def test_explicit_eod_off_remains_available_and_inference_requires_preparation():
     _, trades, _ = replay(session_rows(), parameters(use_eod_flat=False))
     assert trades[0].exit_reason == "take_profit" and trades[0].net_pnl == 293
     with pytest.raises(ValueError, match="requires execute"):
@@ -129,8 +150,8 @@ def test_multiple_sessions_remain_flat_until_next_day_and_reset_normally():
     rows = [replace(row, bar_number=i) for i, row in enumerate(rows, 1)]
     strategy, trades, events = replay(rows, parameters(use_eod_flat=True))
     assert len(trades) == 2
-    assert [t.exit_time_utc.astimezone(CT).strftime("%H:%M") for t in trades] == ["11:55", "15:55"]
-    assert [t.net_pnl for t in trades] == [48, 48] and events[-1].equity == 10096
+    assert [t.exit_time_utc.astimezone(CT).strftime("%H:%M") for t in trades] == ["12:00", "16:00"]
+    assert [t.net_pnl for t in trades] == [88, 88] and events[-1].equity == 10176
     assert strategy.session_flattening["sessions"] == 2
 
 
@@ -162,13 +183,15 @@ def test_api_durable_report_exports_and_selected_range_use_the_new_rule(tmp_path
         assert response.status_code == 201, response.text
         record = response.json()
         run_id = record["id"]
-        assert D(record["summary"]["total_net_pnl"]) == 48
+        assert D(record["summary"]["total_net_pnl"]) == 88
         assert record["execution_assumption"].endswith("inferred_session_close")
         flatten = record["run_metadata"]["strategy"]["session_flattening"]
         assert flatten["enabled"] and flatten["lookahead"] and flatten["sessions"] == 1
+        assert flatten["order_timing"] == "next_open"
+        assert "eod_next_open" in record["execution_assumption"]
         assert flatten["examples"][0]["executed_cutoff"].endswith("11:55:00-06:00")
         exports = {kind: client.get(f"/api/backtests/{run_id}/exports/{kind}").content for kind in ("trades", "equity", "report")}
-        assert b"eod_flat" in exports["trades"] and b"48.00" in exports["equity"]
+        assert b"eod_flat" in exports["trades"] and b"88.00" in exports["equity"]
         from research_fixtures import reserved_source
         assert client.get(f"/api/datasets/{dataset_id}/csv").content == reserved_source(raw)[0]
         # A separate run with EOD disabled leaves the first immutable result intact.
@@ -204,7 +227,7 @@ def test_optimization_workers_prepared_features_and_full_detail_match_inferred_e
         for job in (cached, plain):
             rows = client.get(f"/api/optimizations/{job['id']}/results").json()["items"]
             rows.sort(key=lambda row: row["parameters"]["position_size"])
-            assert [D(row["metrics"]["total_net_pnl"]) for row in rows] == [48, 96, 144]
+            assert [D(row["metrics"]["total_net_pnl"]) for row in rows] == [88, 176, 264]
             results.append(rows)
         for first, second in zip(*results):
             for kind in ("trades", "equity"):
@@ -212,4 +235,4 @@ def test_optimization_workers_prepared_features_and_full_detail_match_inferred_e
         compact_id = results[0][0]["run_id"]
         response = client.post(f"/api/backtests/{compact_id}/detailed")
         assert response.status_code == 201, response.text
-        assert D(response.json()["summary"]["total_net_pnl"]) == 48
+        assert D(response.json()["summary"]["total_net_pnl"]) == 88

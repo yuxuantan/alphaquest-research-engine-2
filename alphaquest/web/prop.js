@@ -63,10 +63,11 @@
   $('#prop-form').addEventListener('input',invalidate);
   $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});const commission=data.source.commission_simulation;p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));if(commission.applied)details(p,'Simulation commission reconciliation',commission);details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
-  async function configure(id,t) {
+  async function configure(id,t,previousId) {
     $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
     sourceId=id;checked=false;$('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-status').textContent='Loading source and matching exports…';
-    const [data,defaults]=await Promise.all([read(`/api/prop-analyses/sources/${id}`),read('/api/prop-analyses/defaults')]);if(t!==token)return;
+    const [data,defaults,previous]=await Promise.all([read(`/api/prop-analyses/sources/${id}`),read('/api/prop-analyses/defaults'),previousId?read(`/api/prop-analyses/${previousId}/downloads/report.json`):null]);if(t!==token)return;
+    if(previous&&previous.source?.backtest?.id!==id)throw Error('The saved analysis belongs to a different source backtest.');
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-overrides').value='{}';
@@ -82,6 +83,22 @@
     const automatic=data.source.run_metadata.automatic_prop_analysis,labels=new Map(automatic?[automatic,...(automatic.companions||[])].map(a=>[a.id,a.label||'Apex 50K EOD']):[]);
     $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${labels.get(a.id)||'Saved analysis'} · ${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
     $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
+    if(previous){
+      const settings=previous.settings;
+      const index=modelProfiles.findIndex(p=>p.settings.ACCOUNT_TYPE===settings.ACCOUNT_TYPE);
+      if(index<0)throw Error('The saved account model is unavailable.');
+      $('#prop-model').value=String(index);applyModel();
+      $('#prop-overrides').value=JSON.stringify(settings,null,2);
+      for(const [field,key] of Object.entries({'prop-eval-fee':'EVAL_PRICE','prop-activation':'ACTIVATION_FEE','prop-block':'BLOCK_DAYS','prop-slots':'SLOTS','prop-max-nq':'MAX_TOTAL_NQ','prop-holdout':'OUT_OF_SAMPLE_FROM','prop-dll':'DAILY_LOSS_LIMIT','prop-commission-mode':'COMMISSION_MODE','prop-source-instrument':'SOURCE_INSTRUMENT','prop-commission-broker':'COMMISSION_BROKER'})){
+        const input=$('#'+field),value=settings[key];
+        if(input.tagName==='SELECT'&&![...input.options].some(o=>o.value===value))input.add(new Option(value,value));
+        input.value=value;
+      }
+      $('#prop-commission-side').value=settings.COMMISSION_PER_SIDE||commissionDefault;
+      $('#prop-trade-file').value=previous.source.excursion_input?.path||'';
+      $('#prop-export-timezone').value=previous.source.excursion_input?.export_timezone||'America/Chicago';
+      $('#prop-status').textContent='Saved account settings copied. Check the same source, then run a new analysis with the current model. The earlier report is preserved.';
+    }
   }
   function render(r) {
     $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);
@@ -177,15 +194,15 @@
     $('#prop-status').textContent=`Saved ${Number.isNaN(created.getTime())?r.created_at_utc:created.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}`;
     const downloadNames=['Report data (JSON)','Source trades (CSV)','Download all results (ZIP)'];
     [...$('#prop-downloads').children].forEach((link,i)=>{link.textContent=downloadNames[i];if(i===2)link.className='button primary';});
-    const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}`;$('#prop-downloads').append(rerun);
+    const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}/from/${r.id}`;$('#prop-downloads').append(rerun);
     const root=$('#prop-report-content'),c=r.calculations,e=c.evaluation,f=c.funded,s=f?.selected,source=r.source;
     root.className='prop-insight-report';
     const context=el('div',undefined,'prop-report-context');
     const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
     context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
     if(source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
-    if(!['alphaquest-apex50k-eod-v4-instrument-commissions','alphaquest-lucidflex50k-eod-v1'].includes(r.model_version))root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Configure a new analysis on an IS report to use the current instrument-commission model.`, 'prop-assumption-note'));
-    if(lucid){root.append(el('p','LucidFlex standard 40% evaluation consistency; funded payouts are trader receipts after the 90/10 split. Evaluation has no provider deadline; paths still open after 2,000 trading days are censored. The sim-funded model stops after five payouts and excludes discretionary early live transitions.','prop-assumption-note'));if(r.settings.DAILY_LOSS_LIMIT==='on')root.append(el('p','DLL-on models a fixed $1,200 daily stop in both phases. Holding this amount fixed above the trail is an assumption: the official Flex help pages do not specify that adjustment. See Source & model.','prop-assumption-note'));}
+    if(!['alphaquest-apex50k-eod-v4-instrument-commissions','alphaquest-lucidflex50k-eod-v2-funding-continuation'].includes(r.model_version))root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Use Configure new analysis to copy its account settings and calculate with the current model.`, 'prop-assumption-note'));
+    if(lucid){root.append(el('p',`LucidFlex standard 40% evaluation consistency; funded payouts are trader receipts after the 90/10 split. Evaluation has no provider deadline; this report uses a ${number(e.horizon_weekdays||2000)}-session computational limit per attempt.${e.initial_horizon_weekdays<e.horizon_weekdays?` Open paths continue beyond ${number(e.initial_horizon_weekdays)} sessions with their existing account and sampling state.`:''} The sim-funded model stops after five payouts and excludes discretionary early live transitions.`,'prop-assumption-note'));if(r.settings.DAILY_LOSS_LIMIT==='on')root.append(el('p','DLL-on models a fixed $1,200 daily stop in both phases. Holding this amount fixed above the trail is an assumption: the official Flex help pages do not specify that adjustment. See Source & model.','prop-assumption-note'));}
     const commission=source.commission_simulation;
     if(commission)root.append(el('p',commission.applied?`${commission.broker} · MNQ commission $${commission.per_side} per contract per side ($${commission.round_turn} round turn), applied to evaluation and funded trades. Source commission replaced once; source slippage retained. Risk uses conservative commission-adjusted bounds.`:commission.explanation,'prop-assumption-note'));
     if(f&&e.pass_rate===0)root.append(el('p','No holdout evaluation passed. Funded outcomes are conditional on starting with a funded account; training-selected size and replay economics remain frozen.','prop-assumption-note'));
@@ -239,7 +256,11 @@
       const actions=el('div',undefined,'prop-inline-actions');p.append(actions);viewButton(actions,'Inspect evaluation & costs','evaluation');viewButton(actions,`Why ${s.micros} MNQ? Compare sizes`,'sizing');
     }else{
       const p=reportBlock(views.overview,'Funded outcomes are unavailable',c.unavailable||'The saved analysis does not contain funded-account results.');
-      p.classList.add('prop-unavailable');p.append(el('p','A failed evaluation path is a simulation outcome, not an application error. No acquisition cost or funded payout is substituted.'));
+      p.classList.add('prop-unavailable');
+      const censored=c.unavailable?.includes('funding chain is censored');
+      const earlierLimit=censored&&(e.horizon_weekdays||2000)<20000;
+      p.append(el('p',censored?'An evaluation path remained open at this report’s computational limit. Funding time was not estimated from only the completed paths.'+(earlierLimit?' Configure a new analysis to use the current model; the source backtest does not need to run again.':' The extended computational limit was reached; acquisition timing and funded sizing remain unavailable.'):'Training acquisition economics could not be calibrated. No acquisition time or funded payout is substituted.'));
+      if(earlierLimit){const retry=el('a','Configure new analysis','button primary');retry.href=rerun.href;p.append(retry);}
       facts(p,[['Evaluation pass rate',percent(e.pass_rate)],['Evaluation size',`${e.selected_micros} MNQ`],['Source net P&L',money(source.reconciliation.source_totals.net_pnl)]]);
       viewButton(p,'Inspect evaluation outcomes','evaluation');
     }
@@ -249,7 +270,8 @@
     metricCard(evalCards,'Passes evaluation',percent(e.pass_rate),`${number(e.passed)} of ${number(e.simulations)} paths.`,e.pass_rate);
     metricCard(evalCards,'Average cost to get funded',money(e.cost_per_funded),'Across repeated evaluations, including activation.',e.cost_per_funded);
     metricCard(evalCards,'Average time to get funded',days(e.days_to_funded),'Failed attempts plus the activation day.',e.days_to_funded);
-    probabilityRows(p,[['Pass',e.pass_rate,''],['Fails drawdown',e.fail_drawdown,'prop-risk'],[lucid?'Censored at 2,000 sessions':'Deadline reached',e.timeout,'prop-neutral'],...(lucid?[['Inactive',e.inactivity,'prop-neutral']]:[])]);
+    probabilityRows(p,[['Pass',e.pass_rate,''],['Fails drawdown',e.fail_drawdown,'prop-risk'],[lucid?`Still open at ${number(e.horizon_weekdays||2000)} sessions`: 'Deadline reached',e.timeout,'prop-neutral'],...(lucid?[['Inactive',e.inactivity,'prop-neutral']]:[])]);
+    if(lucid&&e.continued_paths!==undefined)facts(p,[['Paths continued beyond '+number(e.initial_horizon_weekdays)+' sessions',number(e.continued_paths)],['Longest evaluation attempt',days(e.longest_attempt_weekdays)],['Computational limit per attempt',days(e.horizon_weekdays)]]);
     p.append(el('p',`95% simulation interval for the pass rate: ${e.pass_rate_ci.map(percent).join(' – ')}. This describes sampling uncertainty within the model.`, 'prop-explainer'));
     p=reportBlock(views.evaluation,'Acquisition cost and timing','The pass-rate estimate determines the expected number of paid evaluations.');
     facts(p,[['One evaluation',money(r.settings.EVAL_PRICE)],['Activation fee',money(r.settings.ACTIVATION_FEE)],['Evaluations per funded account',number(e.evaluations_per_funded,2)],['Median time to funded',days(e.days_to_funded_median)],['Median time to pass',days(e.median_days_to_pass),'Among successful evaluation attempts.']]);
@@ -260,6 +282,7 @@
     if(c.training_economics){
       const t=c.training_economics;p=reportBlock(views.evaluation,'Training calibration used for selection','Estimated before holdout testing; the holdout figures above do not choose or rescore the funded size.');
       facts(p,[['Training evaluation size',`${t.evaluation_micros} MNQ`],['Training pass rate',percent(t.pass_rate)],['Training acquisition cost',money(t.cost_per_funded)],['Training replacement time',days(t.replacement_days)]]);
+      if(t.funding_chain_diagnostics)facts(p,[['Funding chains continued beyond '+number(t.funding_chain_diagnostics.initial_horizon_weekdays)+' sessions',number(t.funding_chain_diagnostics.continued_paths)],['Longest funding-chain attempt',days(t.funding_chain_diagnostics.longest_attempt_weekdays)]]);
       if(t.reason)p.append(el('p',t.reason,'prop-assumption-note'));
       details(p,'Training calibration and sample identity',t);fileLink(p,'training_economics.json','Download training calibration (JSON)');
     }
@@ -337,7 +360,7 @@
     selectView('overview');window.scrollTo(0,0);
   }
   async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(['error','incompatible'].includes(j.status)){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token)render(r);return;}await new Promise(resolve=>setTimeout(resolve,700));}}
-  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
+  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3]);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
 
   async function deleteProp(id,row){
     if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS execution history are kept. This cannot be undone.`))return;

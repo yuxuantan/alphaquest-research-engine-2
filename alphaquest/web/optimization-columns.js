@@ -15,11 +15,12 @@ window.OptimizationColumns = class {
       this.state = this.defaults();
       this.save();
     };
-    panel.querySelector("[data-columns=all]").onclick = () => { this.state.visible = null; this.save(); };
+    panel.querySelector("[data-columns=all]").onclick = () => { this.state.visible = "all"; this.save(); };
     panel.querySelector("[data-columns=hide]").onclick = () => { this.state.visible = []; this.state.frozen = []; this.save(); };
     panel.querySelector("[data-freeze=none]").onclick = () => this.choose([]);
     window.addEventListener("scroll", () => this.layout(), {passive: true});
     window.addEventListener("resize", () => this.layout(true));
+    region.addEventListener("scroll", () => this.panFrozen(), {passive: true});
     new ResizeObserver(() => this.layout(true)).observe(region);
     new ResizeObserver(() => this.layout(true)).observe(table);
   }
@@ -32,8 +33,12 @@ window.OptimizationColumns = class {
     if (this.preferences.has(this.identity)) return this.preferences.get(this.identity);
     try {
       const saved = JSON.parse(localStorage.getItem(this.identity));
-      if (saved && (saved.visible === null || this.keys(saved.visible)) && this.keys(saved.frozen) && this.keys(saved.order)) {
-        return {visible: saved.visible === null ? null : this.unique(saved.visible), frozen: this.unique(saved.frozen), order: this.unique(saved.order)};
+      if (saved && (saved.visible === null || saved.visible === "all" || this.keys(saved.visible)) && this.keys(saved.frozen) && this.keys(saved.order)) {
+        return {...saved, visible: Array.isArray(saved.visible) ? this.unique(saved.visible) : saved.visible, frozen: this.unique(saved.frozen), order: this.unique(saved.order)};
+      }
+      const previous = JSON.parse(localStorage.getItem(`alphaquest.optimization.column-layout.v2:${strategyId}`));
+      if (previous && (previous.visible === null || this.keys(previous.visible)) && this.keys(previous.frozen) && this.keys(previous.order)) {
+        return {visible: previous.visible, frozen: this.unique(previous.frozen), order: this.unique(previous.order)};
       }
       // Preserve the previous freeze-only preferences on first use of Columns.
       const legacy = JSON.parse(localStorage.getItem(`alphaquest.optimization.frozen-columns.v1:${strategyId}`));
@@ -42,14 +47,15 @@ window.OptimizationColumns = class {
     return this.defaults();
   }
 
-  configure(strategyId, columns) {
-    const identity = `alphaquest.optimization.column-layout.v2:${strategyId}`;
-    const changed = this.identity !== identity || JSON.stringify(this.columns) !== JSON.stringify(columns);
+  configure(strategyId, columns, defaultVisible = columns.map(([key]) => key)) {
+    const identity = `alphaquest.optimization.column-layout.v3:${strategyId}`;
+    const changed = this.identity !== identity || JSON.stringify(this.columns) !== JSON.stringify(columns) || JSON.stringify(this.defaultVisible) !== JSON.stringify(defaultVisible);
     if (this.identity !== identity) {
       this.identity = identity;
       this.state = this.load(strategyId);
     }
     this.columns = columns;
+    this.defaultVisible = defaultVisible;
     this.panel.hidden = false;
     if (changed) this.renderChoices();
     this.layout(true);
@@ -64,10 +70,6 @@ window.OptimizationColumns = class {
       const name = document.createElement("span");
       name.className = "optimization-column-name";
       name.textContent = title;
-      const hint = document.createElement("small");
-      hint.className = "optimization-column-limit";
-      hint.textContent = "Width limit";
-      name.append(hint);
       row.append(name);
       for (const control of ["show", "freeze"]) {
         const label = document.createElement("label");
@@ -92,6 +94,7 @@ window.OptimizationColumns = class {
         button.setAttribute("aria-label", `Move ${title} ${action}`);
         button.title = `Move ${title} ${action} within its frozen or scrolling group`;
         button.onclick = () => this.move(key, delta);
+        button.addEventListener("blur", () => this.layout(true));
         actions.append(button);
       }
       row.append(actions);
@@ -114,7 +117,7 @@ window.OptimizationColumns = class {
     this.layout(true);
   }
 
-  shown() { return new Set(this.state.visible ?? this.columns.map(([key]) => key)); }
+  shown() { return new Set(this.state.visible === "all" ? this.columns.map(([key]) => key) : this.state.visible ?? this.defaultVisible); }
   orderedKeys() {
     const available = new Set(this.columns.map(([key]) => key));
     return this.unique([...this.state.order, ...available]).filter((key) => available.has(key));
@@ -201,24 +204,16 @@ window.OptimizationColumns = class {
     for (const row of this.table.rows) for (const cell of row.cells) cell.hidden = !shown.has(cell.dataset.column);
     const visibleCount = this.columns.filter(([key]) => shown.has(key)).length;
     this.empty.hidden = visibleCount > 0;
-    const limit = Math.floor(this.region.clientWidth * 0.4);
-    let widths = this.widths(), used = 0;
-    const active = this.state.frozen.filter((key) => {
-      const width = widths.get(key);
-      if (!shown.has(key) || !width || used + width > limit) return false;
-      used += width;
-      return true;
-    });
-    this.order(active);
-    widths = this.widths();
-    used = active.reduce((sum, key) => sum + widths.get(key), 0);
-    while (used > limit && active.length) used -= widths.get(active.pop());
+    let widths = this.widths();
+    const active = this.unique(this.state.frozen).filter(key => shown.has(key) && widths.get(key));
     this.order(active);
     widths = this.widths();
     const positions = new Map();
     let left = 0;
     for (const key of active) { positions.set(key, left); left += widths.get(key); }
     this.active = active;
+    this.panWide = left > this.region.clientWidth;
+    this.panFrozen();
     for (const row of this.table.rows) {
       for (const cell of row.cells) {
         const frozen = positions.has(cell.dataset.column);
@@ -228,24 +223,30 @@ window.OptimizationColumns = class {
         else cell.style.removeProperty("--optimization-frozen-left");
       }
     }
-    let blocked = false;
     for (const row of this.choices.children) {
       const key = row.dataset.column;
       const show = row.querySelector('[data-control="show"]'), freeze = row.querySelector('[data-control="freeze"]');
       show.checked = shown.has(key);
       freeze.checked = active.includes(key);
-      const tooWide = !freeze.checked && left + widths.get(key) > limit;
-      freeze.disabled = !show.checked || tooWide;
-      blocked ||= show.checked && tooWide;
-      row.querySelector("small").hidden = !show.checked || !tooWide;
-      row.title = !show.checked ? "Show this column before freezing or moving it." : tooWide
-        ? "Unfreeze another column to preserve space for results. Frozen columns can use at most 40% of the table width." : "";
+      freeze.disabled = !show.checked;
+      row.title = !show.checked ? "Show this column before freezing or moving it." : "";
       const group = this.moveGroup(key), index = group.indexOf(key);
-      for (const button of row.querySelectorAll("button")) button.disabled = !show.checked || !group[index + Number(button.dataset.delta)];
+      for (const button of row.querySelectorAll("button")) {
+        const disabled = !show.checked || !group[index + Number(button.dataset.delta)];
+        // Retain keyboard focus when a move reaches the end of its group.
+        // move() already ignores an unavailable destination.
+        button.disabled = disabled && document.activeElement !== button;
+        button.setAttribute("aria-disabled", String(disabled));
+      }
     }
     this.summary.textContent = `${active.length} frozen`;
     this.shownSummary.textContent = `${visibleCount} shown ·`;
-    const paused = this.state.frozen.some((key) => shown.has(key) && widths.has(key) && !active.includes(key));
-    this.status.textContent = `${visibleCount} shown · ${active.length} frozen · ${Math.round(left / this.region.clientWidth * 100)}% of table width (40% maximum).${paused ? " Some saved selections do not fit at this width; they will return when space permits." : ""}${blocked ? " Unfreeze another column to preserve space for results, or widen the table." : ""}`;
+    this.status.textContent = `${visibleCount} shown · ${active.length} frozen.${this.panWide ? " Scroll horizontally to pan the frozen group." : ""}`;
+  }
+
+  panFrozen() {
+    // An oversized frozen group cannot all fit on screen at once. Keep every
+    // selection and pan it with the table so its columns remain reachable.
+    this.region.style.setProperty("--optimization-frozen-pan", `${this.panWide ? this.region.scrollLeft : 0}px`);
   }
 };

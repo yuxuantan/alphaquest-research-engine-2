@@ -2772,3 +2772,416 @@ the diagram and production code to remain unchanged, and prior evidence to stay
 intact. `validation.json`, `before/` and `after/` save the checks and documents.
 Automated text checks support the manual meaning review; they do not prove
 semantic completeness. No application tests or servers were started.
+
+## Lucid funding calibration continues long paths — 2026-10-31
+
+The reported message came from Lucid model v1's computational guard. One
+unresolved evaluation attempt at 2,000 sessions raised out of the whole
+20,000-chain training calibration. Funded sizing and replay were therefore
+unavailable even with a 94.76% holdout evaluation pass rate. An unresolved path
+is distinct from a drawdown failure. The previous UI explanation called this a
+failed evaluation, which was misleading.
+
+The local v2 model continues those paths, retaining equity, trailing floor,
+consistency, activity and bootstrap state, up to a documented 20,000-session
+limit per attempt. Any paths still unresolved there remain explicitly censored;
+there is no survivor-only timing average, dropped path, reset at session 2,000,
+invented pass rate or fallback delay. Standard simulation counts and training
+selection before holdout are retained. Existing model-v1 reports remain byte
+identical, carry an earlier-model notice and offer the normal reconfiguration
+flow with their saved Lucid settings copied.
+
+### Actual affected report and real product journey
+
+The user's source is backtest `af13f6ea47304ffe9ec578a9a5ea4157`, with 472 trades
+and source net P&L **42,281.44**. Its earlier Lucid analysis
+`f9a5eb5af94649ce8faad4475fde4b1c` had no funded outcomes. The containing
+16-trial activity was complete and no prop analyses were queued/running before
+source changes. An inventory of **600 existing source/report files** was saved
+before this increment.
+
+Using the ordinary report **Configure new analysis → Check source → Run
+analysis** flow published Lucid analysis **`8dbec3c4ed4340baa5ae56329ecd1f4b`**.
+No backtest POST was sent. The source snapshot and every resolved setting match
+the earlier report. Expected observations from its saved outputs:
+
+- Training evaluation size remains **1 MNQ**. With the longer evaluation
+  horizon, training pass rate is **2603 / 3000**, acquisition cost is
+  **80.50 / (2603 / 3000) = 92.77756434882828**.
+- All **20,000** training funding chains resolve. **226** include an attempt
+  beyond 2,000 sessions; the longest attempt is **4,256** sessions. Mean total
+  replacement time is **889.7503** weekdays; median is **778**. There are **zero**
+  censored training chains at the extended limit.
+- Holdout evaluation passes **18,976 / 20,000 = 94.88%**, with zero censored
+  paths. **21** single evaluations continue beyond 2,000 sessions, with a longest
+  attempt of **2,893** sessions. The separate holdout funding chains include
+  **10** continued paths, longest attempt **2,399**, and mean funding time
+  **608.0654** weekdays.
+- Funded sizing selects **1 MNQ**. Overview, Sizing and Historical replay are
+  available. Historical net is **$8,237**, using frozen training acquisition
+  economics. This is a saved research-model replay, without a future-outcome
+  guarantee or new provider-rule parity claim.
+- Reload reads the saved result. Earlier report JSON/ZIPs, source trades and
+  existing Apex results remain unchanged. Original optimization trial snapshots
+  retain their original automatic report IDs/metrics; no saved table rows are
+  rewritten by presentation or by this manual Lucid recalculation.
+
+Open the fixed report on the existing server:
+
+```text
+http://localhost:8000/#backtests/prop/job/8dbec3c4ed4340baa5ae56329ecd1f4b
+```
+
+To reproduce without running the strategy again, open the earlier report,
+select **Configure new analysis**, verify LucidFlex 50K and the copied settings,
+then **Check source** and **Run analysis**. On unchanged source/settings/current
+engine, the existing v2 analysis reopens. Evaluation shows the continuation
+counts and computational limit; its calibration JSON includes exact values.
+Source & model offers the rule snapshot, calculations, sizing CSVs and ZIP.
+The complete existing-source journey is also runnable as:
+
+```bash
+.venv/bin/python tests/review_lucid_funding_continuation.py \
+  --old-id f9a5eb5af94649ce8faad4475fde4b1c \
+  --output artifacts/lucid-funding-recheck-NEW
+```
+
+This command uses the existing local portal and deliberately requests a new
+prop calculation only if no identical current-model result exists. It starts no
+server and closes its Chromium instance. The user's existing server was used;
+no persistent server was started by this increment.
+
+Evidence is under `artifacts/lucid-funding-continuation-20261031/`:
+`actual-training-chain.json`, `affected-report-before.json`,
+`preservation-before.json`, and `actual-portal-verified/` containing source-check
+JSON, old/new reports, calibration JSON, result ZIP, verification JSON and five
+screenshots (earlier report, source check, funded outcomes, calibration,
+historical net). The earlier `actual-portal/` attempt preserved the same
+completed report but stopped at a review-script download-label mismatch; the
+verified journey reopens that report without recomputing it.
+
+### Independent numerical checks and synthetic product example
+
+The tests' standalone arithmetic supplies **10 NQ currency units / 10 = $1 per
+MNQ per session**, with no costs/adverse movement. Its $3,000 evaluation target
+requires exactly **3,000** sessions; its largest-day consistency share is 1/3000.
+At session 2,000 it is still open. The new model passes at exactly session 3,000
+without resetting, adding a fee or changing the sampling stream. Limits of
+2,999/3,000 sessions independently reject/accept the boundary. A deliberately
+short 10-session guard still rejects an unresolved funding chain.
+
+A separate scalar MT19937 block sampler and independent cash ledger checks long
+failed attempts plus long successful attempts against both Python and compiled
+kernels. The full calculation test resolves all 20,000 training and holdout
+chains at 3,000 sessions. At one MNQ, $1 daily cannot meet a $150 qualifying day;
+funded payouts correctly stay zero. Four slots cost **4 × $80.50 = $322**, so the
+short historical replay correctly reports **−$322**. A valid funded result does
+not require a positive payout or profit.
+
+The Chromium example uploads a labeled SYNTHETIC eight-day dataset through the
+normal dataset endpoint, creates a regular backtest, then selects Lucid,
+explicit source commissions, 0.1 total NQ and four slots in the real form.
+The source has a 0.5-point move at $20/point, yielding the same $10 per NQ / $1
+per MNQ arithmetic. Source check, run, downloads, reconfiguration with copied
+settings and reload are checked. Evidence is in `browser-corrected/`.
+
+Reproduce with new temporary/evidence directories:
+
+```bash
+.venv/bin/python setup.py build_ext --inplace
+.venv/bin/python -m pytest tests/test_lucid_funding_continuation.py \
+  tests/test_lucid_prop.py tests/test_lucid_prop_workflow.py \
+  tests/test_prop_training_economics.py -q
+.venv/bin/python -m pytest tests/test_lucid_funding_continuation_browser.py \
+  tests/test_lucid_prop_browser.py tests/test_prop_training_economics_browser.py \
+  -q --basetemp artifacts/lucid-funding-browser-NEW
+```
+
+The browser fixtures own temporary servers and shut them down after testing.
+Earlier browser diagnostics used an invalid NQ point value; source checking
+correctly rejected it. The delivered synthetic example uses $20/point and keeps
+that rejection evidence unchanged.
+
+Final validation: **41 backend checks and 5 browser checks passed**. The
+independent scalar reference also regenerated **every one of the 20,000 actual
+training funding chains**, matching the compiled engine's total days, attempt
+count and longest attempt exactly. It independently reproduced the 889.7503-day
+mean, 778-day median, 226 continued chains and 4,256-session longest attempt.
+Its output is `independent-actual-chains.json`; reproduce it read-only with:
+
+```bash
+.venv/bin/python tests/review_lucid_funding_reference.py \
+  --old-report artifacts/lucid-funding-continuation-20261031/affected-report-before.json \
+  --output artifacts/lucid-funding-reference-NEW.json
+```
+
+`preservation-after.json` confirms all **600** inventoried files remain byte
+identical, the original 16 optimization trial snapshots are unchanged and no
+strategy backtest was executed. Syntax/compilation and whitespace checks passed.
+All temporary test servers and review browsers were closed. The existing user
+server remains available; its process was not replaced or manually restarted.
+
+## Refresh unavailable Lucid results in the saved batch — 2026-11-01
+
+The continuation fix initially created a separate corrected Lucid report; the
+optimization table still pointed at its original automatic reports. The user's
+completed activity `342ceb7eee0345a4b0bb108d3f4e360c` therefore still showed only
+**4 of 16** Lucid values, with **12** original reports unavailable because of
+the earlier 2,000-session guard. The corrected report
+`8dbec3c4ed4340baa5ae56329ecd1f4b` existed independently and was not yet linked
+to its trial.
+
+The real batch view now has **Refresh unavailable Lucid results**. It checks
+sources using the saved Lucid settings, reuses verified current reports, and
+submits the remaining Lucid-only requests through the ordinary AnalysisStore
+worker. Pending/complete/error/source-rejection states survive reload. Each
+updated table cell links to its durable report and identifies the updated
+analysis; original model versions remain available in tooltips/CSV provenance.
+No strategy backtest is run and no automatic source/Apex report is rewritten.
+
+`optimization_prop_links` is an append-only link/index table in the existing
+backtest catalogue, keyed to the existing trial. It holds the saved analysis
+reference, checked identity and indexed historical-net value for exact sorting.
+It is not a second report store. All calculations/charts/downloads stay in the
+ordinary analysis catalogue. The original `optimization_trials.payload` JSON is
+unchanged. Effective table sorting and Results CSV use the same link revision;
+**Original results CSV** / `prop_revision=0` retrieves the original values.
+Export fixes its revision before streaming; future revision inputs clamp to the
+current revision. GET requests only read saved state.
+
+The explicit refresh action can finish a failed publication link using the
+already completed report. Startup likewise reconciles pending links with saved
+analysis statuses, without running numerical work. Duplicate clicks preserve
+queued jobs. Ordinary active-analysis source protection prevents source/activity
+deletion during calculation. Deleting an inactive activity cascades its link
+metadata while preserving independent prop reports.
+
+Both job and pure-calculation keys now include the explicit model version.
+Cached calculation JSON must declare that same model; the refresh also checks
+that its report and numerical payload versions agree. Numerical source hashes,
+exact native kernel identity, source/settings equality and artifact hashes
+qualify a pre-existing report for reuse. A fresh prior v2 report can be reused
+across storage/UI changes; an old report that reused calculations additionally
+requires a matching calculation-cache implementation. These checks prevent
+reusing an old unavailable calculation under a newer report label.
+
+### Product demonstration and independent expectations
+
+The synthetic test starts from a labeled ordinary dataset/backtest batch and a
+controlled historical-engine oracle **inside tests**. Both original trials
+show the earlier-model unavailable state. With source daily profit 3,000 per
+NQ and zero source costs, one MNQ earns 300; evaluation takes **10 sessions**.
+Funded selection at three MNQ pays all five 1,800 trader receipts in **25**
+sessions. Over 60 historical weekdays, two funded cycles separated by ten
+replacement sessions yield **2 × 9,000 × 5 − 2 × 80.50 × 5 = 89,195** net.
+Both refreshed trials must independently produce that value. Original Apex
+metrics and original result snapshots must remain unchanged.
+
+Backend checks cover verified manual-report reuse, mismatched source/settings/
+model/kernel rejection, exact current/original CSV values and report IDs,
+stable Lucid sorting, a frozen pending revision, duplicate requests, source and
+activity deletion rejection while queued, completed-link recovery without
+resimulation, missing jobs, running jobs and explicit incompatible-source
+reasons. Browser evidence checks pending work across reload, duplicate clicks,
+updated sorting/CSV, original CSV, report navigation, configuration/source check/
+run reopening the saved report, and a reload that submits no POST.
+
+Reproduce using new evidence directories:
+
+```bash
+.venv/bin/python -m pytest tests/test_lucid_batch_refresh.py -q
+.venv/bin/python -m pytest tests/test_lucid_batch_refresh_browser.py -q \
+  --basetemp artifacts/lucid-batch-refresh-browser-NEW
+```
+
+To explicitly refresh a real completed batch through the existing portal and
+save table/CSV/report-link verification:
+
+```bash
+.venv/bin/python tests/review_lucid_batch_refresh.py \
+  --batch-id 342ceb7eee0345a4b0bb108d3f4e360c \
+  --output artifacts/lucid-batch-refresh-review-NEW
+```
+
+This script uses the existing server, starts no server, and closes its owned
+Chromium instance. Its action reuses matching completed analyses or requests
+Lucid-only calculation; it never submits a backtest. The batch page itself
+provides the same action without a script. Temporary browser-test servers are
+owned and shut down by their fixtures. Provider rules, numerical transitions,
+sampling counts and provider-parity status are unchanged by this increment.
+
+### Actual saved batch delivery
+
+The action was executed against the user's existing activity through Chromium.
+It **reused one** verified previously corrected analysis and queued **11** new
+Lucid-only jobs. All completed successfully. The table now has **16 / 16** Lucid
+values, **12** updated report links, **0** pending and **0** unavailable/failed.
+The original four available values remain unchanged, labeled with their saved
+model version. The refreshed values include a genuine negative result; nothing
+was replaced with a fabricated zero or forced positive outcome.
+
+| Trial | Refreshed Lucid historical net (USD) |
+| --- | ---: |
+| 3 | 1,744 |
+| 4 | 13,899 |
+| 6 | 7,899 |
+| 7 | 1,740 |
+| 8 | 14,245 |
+| 10 | 7,911 |
+| 11 | 1,699 |
+| 12 | 8,237 |
+| 13 | -1,172 |
+| 14 | 5,781 |
+| 15 | 8,171 |
+| 16 | 12,169 |
+
+Open `http://localhost:8000/#backtests/batches/342ceb7eee0345a4b0bb108d3f4e360c`.
+Expected observations: **16 / 16 Lucid values available**, no pending/failed/
+unavailable values; Lucid column sorts using the actual linked net values;
+updated cells open the matching saved analyses. **Results CSV** matches the
+sorted table and records analysis IDs/model versions. **Original results CSV**
+retains the four original values and twelve original empty fields. Reloading
+reads saved results and does not submit a new calculation. The completed link
+state also survived the existing development server's ordinary idle reload.
+
+Evidence: `artifacts/lucid-batch-refresh-20261101/actual-portal/` contains
+before/after table screenshots, refresh-start/progress totals, original and
+updated trial JSON/CSV, and `verification.json`. Every updated table value was
+reconciled with its own saved report's history; source snapshots and settings
+were compared with the original analyses. SQL sorting was independently checked
+against Python sorting and CSV values. The earlier independently validated
+trial-12 analysis is reused unchanged at $8,237.
+
+`preservation-after.json` verifies **618** existing source/report files remain
+byte identical, including the previously corrected report. All **16** original
+trial JSON snapshots are unchanged. The normal analysis catalogue increased
+from **290 to 301** completed analyses, exactly the eleven requested new jobs;
+128 prior incompatible records remain. No strategy backtest was submitted or
+rerun. `optimization_prop_links` has 23 index entries: twelve initial links
+(including one immediately reused result) and eleven publication completions.
+Original Apex reports, backtests, source data and saved prior evidence remain
+unchanged. No new persistent server was started.
+
+Final checks: **86 focused automated checks passed** (83 backend and 3 browser),
+including the ordinary result/pure-calculation reuse suite and explicit rejection
+of valid-checksum caches carrying older or missing model versions. The prior
+minimal cache-test fixture was updated to declare its current model version,
+matching the strengthened production contract. Desktop/mobile read-only checks
+also verified 16 report links, separate updated-result labels, no page-width
+overflow, no JavaScript errors and no POST during presentation. Screenshots are
+in `presentation/`. Syntax and whitespace checks passed.
+
+Repeating the refresh on the completed real batch returned zero queued/reused/
+blocked requests and kept revision **23** unchanged. No additional calculation
+or link entry was created. The actual all-trial source/report reconciliation,
+CSV checks and 618-file preservation audit are saved alongside these results.
+
+## Compact batch table columns and unlimited freezing — 2026-11-01
+
+This presentation increment removes Varies badges, narrows highlighted columns,
+hides fixed parameters by default, shows all metrics by default and removes the
+40% frozen-width restriction. Existing Show/Freeze/reorder controls and explicit
+custom layouts are preserved. Reset layout restores the new automatic defaults.
+A frozen group wider than the viewport pans horizontally without unchecking any
+column. No report, calculation, source data, saved metric or OOS budget changes.
+
+On the existing activity `342ceb7eee0345a4b0bb108d3f4e360c`, the fresh default
+view shows 21 columns (four varied parameters, 15 metrics, Trial and report link)
+and hides 28 fixed parameters. Independent browser measurements found each
+varied header about 75 px narrower than a reconstruction of its previous badge/
+padding decoration. The actual product allowed all 49 columns to be shown and
+frozen, retained all selections on mobile/reload, reached the last column by
+horizontal panning and restored defaults on Reset layout. Data JSON and CSV
+were byte identical before/after, with zero modifying browser requests.
+
+Evidence and four screenshots: `artifacts/compact-batch-columns-20261101/actual-portal/`.
+Exact reproduction is documented in `docs/optimization.md`, using
+`tests/review_compact_batch_columns.py`. It uses the existing server, owns/closes
+its private browser and creates no numerical runs. Earlier saved evidence and
+reports are preserved. Temporary browser-check servers are owned by their
+fixtures and stopped after testing; no persistent server was started.
+
+The layout increment's **13 browser checks passed**, including frozen groups
+beyond the former width budget, all-visible-column freezing/panning, responsive
+retention, automatic visibility across different grids of the same strategy,
+legacy/custom preference migration, keyboard controls, sticky headers, sorting,
+pagination, downloads and report navigation. Node syntax and whitespace checks
+also passed. Only table presentation and local browser preferences changed.
+
+## 2026-11-02 — VWAP EOD next-open execution and requested real rerun
+
+The VWAP strategy now submits flattening at its resolved order cutoff and fills
+at the next observed bar Open, using the existing execution engine and costs.
+Entry restrictions and inferred early-close rules remain. New reports identify
+`eod_next_open_inferred_session_close` and `order_timing=next_open`; the UI labels
+older immutable cutoff-Close reports as an earlier model. The actual fill retains
+its containing bar's close-labelled timestamp, with no fabricated tick time.
+
+The normal backtest API reran all 32 requested parameters (stop 10, target 5,
+ADX threshold 0, decay on, fixed one NQ, EOD order cutoff 1545) on the original
+2021–2024 IS source, costs and declaration. New durable report:
+http://localhost:8000/#backtests/report/2685e56b3bb24f05a643bbd7fa876cb7
+
+Actual and independently expected result: **486 trades, $28,155.00 gross,
+$1,934.28 commission, $26,220.72 net**, an increase of $110. All entries and
+non-EOD trades are unchanged. Exactly 16 EOD fills match independent repricing
+from saved raw next-bar Opens; their captured held-OHLC risk records have exit
+phase `open`. The seven original report files remain byte-identical.
+
+Against the corrected MC export, the 14 ordinary EOD differences now match.
+484 complete trades match; a $35 gross difference remains across four known
+shortened-session dates, including two blocked entries. This is not full MC
+parity. No external executable or table was used as a production calculator.
+
+The actual product journey was exercised from the new report through Trade CSV
+download/reload, **Configure prop analysis → Check source → Run analysis** with
+the normal Apex defaults, and durable result reopening. The run action reused
+its already completed automatic Apex report
+`d7412aae812644639c3365adb82d04f7`; settings/source identity matched, with no
+duplicate analysis. The desktop/mobile browser checks had no JS errors.
+
+Boundary observation: switching to LucidFlex and checking this exact source
+returns HTTP 422, and Run remains disabled. Its regular next-open exits are
+labelled 16:46 New York, beyond the unchanged strict source validator's 16:45
+cutoff. The automatic Lucid companion `51f216f44446492e85aeaa0c1974c217` is
+saved as incompatible. The requested 1545 configuration was not silently
+changed, earlier exit prices were not invented, and timestamps were not
+backdated. The bar label alone does not establish the actual fill tick time.
+
+Evidence and exact reproduction:
+`artifacts/eod-next-open-20261102/README.md`, including actual reports/downloads,
+independent expected fills, source checks, old-report hashes, screenshots and
+`verification.json` / `product-review.json`. Run:
+
+```sh
+.venv/bin/python artifacts/eod-next-open-20261102/verify-rerun.py.txt
+.venv/bin/python artifacts/eod-next-open-20261102/review-product.py.txt
+```
+
+Automated validation: 96 focused checks passed, one unrelated browser case
+deselected; Node syntax and whitespace checks passed. Long/short costs, DST,
+missing bars, gap entry cancellation, bracket precedence, next-open risk
+boundaries, cached/uncached replay equivalence and durable normal API/browser
+workflows are covered. The separate existing-product synthetic review passed
+normal, noon and 12:15 closes, each with independently expected net 88 CU.
+Its outputs are at `artifacts/eod-next-open-synthetic-review-20261102/` and its
+owned temporary server stopped. No persistent server was started; the real
+report review used the existing port-8000 server. Earlier evidence/results,
+datasets and the user's VM were preserved.
+
+### Publication validation: legacy primary-summary discovery
+
+The complete automatic-prop browser journey also verifies a legacy backtest
+whose automatic-analysis metadata is absent while both Apex and newer Lucid
+reports are saved. Discovery now prefers its completed Apex report for the
+primary summary and labels any fallback using the saved account model. It
+does not display a Lucid result under an Apex heading. The observed Apex
+historical net remains $352,880 through report reopen, downloads, configuration,
+source checking, run reuse, optimization and mobile legacy discovery.
+
+The existing regression now targets the intended report ID when downloading,
+keeps the automatically saved companion when checking reuse, and scopes Apex
+sorting to its actual column. Both automatic-prop browser cases passed.
+Saved observations and screenshots are retained at
+`artifacts/push-main-validation-20261102/`; reproduce with
+`.venv/bin/python -m pytest tests/test_automatic_prop_browser.py -q`.

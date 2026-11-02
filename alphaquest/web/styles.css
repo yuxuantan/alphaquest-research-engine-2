@@ -1548,11 +1548,11 @@ dialog::backdrop {
 #optimization-results td.optimization-frozen-column { background:#fff; }
 #optimization-results td.optimization-varying-parameter { background:#edf8f4; color:#164c40; font-weight:600; border-left:1px solid #d0e8de; border-right:1px solid #d0e8de; }
 #optimization-results thead th.optimization-varying-parameter { background:#dcefe7; color:#075b49; border-left:1px solid #c3dfd2; border-right:1px solid #c3dfd2; }
-#optimization-results .optimization-frozen-column { position:sticky; left:var(--optimization-frozen-left, 0px); z-index:2; }
+#optimization-results th.optimization-varying-parameter, #optimization-results td.optimization-varying-parameter { padding-left:12px; padding-right:12px; }
+#optimization-results .optimization-frozen-column { position:sticky; left:calc(var(--optimization-frozen-left, 0px) - var(--optimization-frozen-pan, 0px)); z-index:2; }
 #optimization-results thead th.optimization-frozen-column { z-index:4; }
 #optimization-results .optimization-frozen-last { box-shadow:4px 0 5px -3px #5c8174; }
 #optimization-results thead th.optimization-frozen-last { box-shadow:4px 0 5px -3px #5c8174, 0 1px 0 var(--line); }
-.optimization-varying-badge { display:inline-block; margin-left:8px; padding:2px 5px; border:1px solid #a5cbbb; border-radius:4px; font-size:10px; font-weight:600; }
 #optimization-results th button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:8px 0; text-align:left; }
 #optimization-results th button:focus-visible { outline:2px solid var(--accent-dark); }
 #optimization-settings-used { max-height:400px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:16px; font-size:12px; }
@@ -1562,6 +1562,7 @@ dialog::backdrop {
 #optimization-context { overflow-wrap:anywhere; }
 #optimization-results td.optimization-prop-result { min-width:180px; max-width:320px; white-space:normal; }
 #optimization-results .optimization-prop-result .field-help { display:block; margin-top:6px; }
+#optimization-lucid-refresh { padding:20px 24px; margin:16px 0; }
 #optimization-results .optimization-prop-result a { font-weight:600; text-decoration:underline; text-underline-offset:3px; }
 .report-prop-content { padding:0 24px 24px; }
 #report-prop-summary .panel-heading { flex-wrap:wrap; gap:16px; }
@@ -1637,7 +1638,6 @@ dialog::backdrop {
 .optimization-column-choice label { display:flex; align-items:center; gap:5px; white-space:nowrap; }
 .optimization-column-choice input { width:16px; height:16px; flex:none; margin:0; accent-color:var(--accent-dark); }
 .optimization-column-name { overflow-wrap:anywhere; }
-.optimization-column-limit { display:block; color:var(--muted); font-size:10px; margin-top:3px; }
 .optimization-column-choice label:has(input:disabled) { color:var(--muted); }
 .optimization-column-move { display:flex; gap:4px; }
 .optimization-column-move button { width:28px; height:28px; padding:0; border:1px solid var(--line); border-radius:4px; background:#fff; font:inherit; cursor:pointer; }

@@ -15,6 +15,8 @@
   let sort = "trial", direction = "asc", offset = 0, total = 0;
   let version = 0, timer;
   let resumeBusy = false;
+  let deleteBusy = false;
+  let lucidBusy = false;
   let workerState = "idle", workerValue = "";
   const workerHelp = get("#optimization-workers-help").textContent;
   const pageSize = () => jobId ? 50 : 25;
@@ -74,6 +76,37 @@
   function errorMessage(error) {
     return typeof error.detail === "string" ? error.detail : Array.isArray(error.detail)
       ? error.detail.map((item) => `${item.loc?.join(" / ")}: ${item.msg}`).join("; ") : error.message || "Request failed. Check the server connection.";
+  }
+  function deletionButton(button, job) {
+    const active = ["queued", "running"].includes(job.status);
+    button.textContent = job.status === "deleting" ? "Retry Delete activity and reports" : "Delete activity and reports";
+    button.disabled = deleteBusy || resumeBusy || active;
+    button.title = active ? "Wait for this activity to finish before deleting." : "";
+    button.setAttribute("aria-label", `Delete activity and reports ${job.id}`);
+    button.onclick = () => deleteActivity(job);
+  }
+  async function deleteActivity(job) {
+    if (deleteBusy || resumeBusy) return;
+    if (!window.confirm(`Delete this backtest activity and all of its saved backtest reports (${job.completed_trials} saved trials)?\n\nThis includes every results page. Reports shared with other activities, datasets and saved prop analyses are kept. This cannot be undone.`)) return;
+    deleteBusy = true;
+    ++version;
+    clearTimeout(timer);
+    const notice = get("#optimization-delete-status");
+    notice.hidden = false;
+    notice.textContent = "Deleting activity and reports…";
+    get("#optimization-delete").disabled = true;
+    get("#optimization-resume").disabled = true;
+    get("#optimization-results").querySelectorAll("button[data-delete-activity]").forEach((button) => { button.disabled = true; });
+    try {
+      const result = await read(`/api/backtests/batches/${job.id}`, {method: "DELETE"});
+      notice.textContent = `Backtest activity deleted · ${result.deleted_reports} saved reports deleted.${result.shared_reports_kept ? ` ${result.shared_reports_kept} reports shared with other activities kept.` : ""}`;
+      if (jobId === job.id) location.hash = "#backtests/batches";
+    } catch (error) {
+      notice.textContent = `Could not delete activity: ${errorMessage(error)}`;
+    } finally {
+      deleteBusy = false;
+      if (!get("#optimization-panel").hidden) await refresh();
+    }
   }
   function remember() {
     if (!strategy) return;
@@ -247,8 +280,8 @@
     const legend = get("#optimization-parameter-legend");
     legend.hidden = false;
     legend.textContent = varying.size
-      ? `Highlighted columns vary across trials: ${Array.from(varying, (key) => label(key.slice(6))).join(", ")}. Headers marked “Varies” identify the optimized parameters. Use Columns to choose what is shown, frozen and in which order.`
-      : "All strategy parameters are fixed for this run.";
+      ? `Highlighted columns vary across trials: ${Array.from(varying, (key) => label(key.slice(6))).join(", ")}. The default view shows varied parameters and all metrics. Use Columns to show, freeze or reorder columns.`
+      : "All strategy parameters are fixed for this run and hidden by default. All metrics are shown; use Columns to show parameters.";
     const parameters = Object.keys(job.axes).map((name) => [`param.${name}`, label(name)]);
     const columns = [...parameters.filter(([key]) => varying.has(key)), ["trial", "Trial"],
       ...(job.metric_columns.includes("historical_net") ? [["historical_net", "Historical net · USD"]] : []),
@@ -264,7 +297,6 @@
       if (varying.has(key)) {
         th.classList.add("optimization-varying-parameter");
         th.title = `${job.axes[key.slice(6)].length} values in this optimization grid`;
-        button.append(node("span", "Varies", "optimization-varying-badge"));
       }
       button.onclick = () => { direction = sort === key && direction === "asc" ? "desc" : "asc"; sort = key; offset = 0; refresh(); };
       th.append(button);
@@ -279,10 +311,14 @@
         td.dataset.column = key;
         if (varying.has(key)) td.classList.add("optimization-varying-parameter");
         if(key==='lucid_historical_net'){
+          td.classList.add('optimization-prop-result');
           const item=row.prop_companions?.[0];
           const value=row.metrics.lucid_historical_net==null?'N/A':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(row.metrics.lucid_historical_net);
           if(item&&item.status==='complete'){const a=node('a',value);a.href=`#backtests/prop/job/${item.id}`;td.append(a);}
           else td.append(node('span',value),...(item?.status==='deleted'?[node('small','Prop report deleted','field-help')]:[]));
+          if(row.lucid_refresh){td.append(node('small',['queued','running'].includes(item?.status)?'Lucid analysis pending':item?.status==='incompatible'?'Lucid source check rejected':item?.status==='error'?'Lucid analysis failed':'Updated Lucid analysis','field-help'));}
+          if(item?.reason||item?.progress)td.append(node('small',item.reason||item.progress,'field-help'));
+          if(item?.model_version)td.title=item.model_version;
         } else if (key === "historical_net" && row.prop_report_deleted) {
           td.append(node("span", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style:"currency",currency:"USD",maximumFractionDigits:0}).format(row.metrics.historical_net)), node("small", "Prop report deleted", "field-help"));
         } else if (key === "historical_net" && row.prop_analysis) {
@@ -302,17 +338,20 @@
           if (row.execution?.reused) td.append(node("small", "Reused saved trial", "field-help"));
         } else {
           const value = key === "trial" ? row.trial : key.startsWith("param.") ? row.parameters[key.slice(6)] : row.metrics[key];
-          td.textContent = value == null ? "N/A" : String(value);
+          td.textContent = value == null ? "N/A" : key === "win_rate_pct" ? Number(value).toFixed(2) : String(value);
         }
         tr.append(td);
       }
       table.tBodies[0].append(tr);
     }
-    frozenColumns.configure(job.strategy.id, columns);
+    frozenColumns.configure(job.strategy.id, columns, columns.filter(([key]) => !key.startsWith('param.') || varying.has(key)).map(([key]) => key));
     get("#optimization-sort-note").hidden = false;
     get("#optimization-sort-note").textContent = `Sorted by ${columns.find(([key]) => key === sort)?.[1] || sort} · ${direction === "asc" ? "ascending" : "descending"}.`;
     const download = get("#optimization-download");
-    download.href = `/api/backtests/batches/${job.id}/exports/results?${new URLSearchParams({sort, direction})}`;
+    download.href = `/api/backtests/batches/${job.id}/exports/results?${new URLSearchParams({sort, direction,prop_revision:page.prop_revision||0})}`;
+    const originalDownload=get('#optimization-original-download');
+    originalDownload.href=`/api/backtests/batches/${job.id}/exports/results?${new URLSearchParams({sort,direction,prop_revision:0})}`;
+    originalDownload.hidden=!(page.prop_revision>0);
     download.hidden = false;
     total = page.total;
     pagination();
@@ -326,12 +365,17 @@
         get("#optimization-parameter-legend").hidden = true;
         const history = await read(`/api/backtests/batches?${new URLSearchParams({offset, limit: 25})}`);
         if (current !== version) return;
+        if (offset && !history.items.length && history.total) {
+          offset = Math.floor((history.total - 1) / 25) * 25;
+          return refresh();
+        }
+        if (!history.total) offset = 0;
         get("#optimization-title").textContent = "Backtest activity";
         get("#optimization-context").textContent = "Reopen running jobs and durable results.";
         get("#optimization-status").textContent = history.total ? "Select a job to inspect its grid and results." : "No backtest batches yet. Use New backtest to run a parameter sweep.";
         const table = get("#optimization-results");
         const header = node("tr");
-        for (const title of ["Created · UTC", "Strategy", "Status", "Completed trials"]) header.append(node("th", title));
+        for (const title of ["Created · UTC", "Strategy", "Status", "Completed trials", "Actions"]) header.append(node("th", title));
         table.tHead.replaceChildren(header);
         table.tBodies[0].replaceChildren();
         for (const job of history.items) {
@@ -339,6 +383,12 @@
           link.href = `#backtests/batches/${job.id}`;
           cell.append(link);
           row.append(cell, node("td", label(job.strategy.id)), node("td", job.status), node("td", `${job.completed_trials} / ${job.total_trials}`));
+          const actions = node("td"), button = node("button", "Delete activity and reports", "button danger");
+          button.type = "button";
+          button.dataset.deleteActivity = job.id;
+          deletionButton(button, job);
+          actions.append(button);
+          row.append(actions);
           table.tBodies[0].append(row);
         }
         total = history.total;
@@ -347,11 +397,20 @@
         if (history.items.some((job) => ["queued", "running"].includes(job.status))) timer = setTimeout(refresh, 1500);
         return;
       }
-      const [job, page] = await Promise.all([
+      const [job, page, lucid] = await Promise.all([
         read(`/api/backtests/batches/${jobId}`),
         read(`/api/backtests/batches/${jobId}/results?${new URLSearchParams({sort, direction, offset, limit: 50})}`),
+        read(`/api/backtests/batches/${jobId}/lucid-refresh`),
       ]);
       if (current !== version) return;
+      const deleteButton = get("#optimization-delete");
+      deleteButton.hidden = false;
+      deletionButton(deleteButton, job);
+      const hasLucid=job.default_prop_profile?.companions?.some(p=>p.settings?.ACCOUNT_TYPE==='LucidFlex');
+      get('#optimization-lucid-refresh').hidden=!hasLucid;
+      get('#optimization-lucid-run').disabled=lucidBusy||['queued','running','deleting'].includes(job.status);
+      get('#optimization-lucid-run').textContent=lucidBusy?'Checking sources and queueing Lucid…':'Refresh unavailable Lucid results';
+      get('#optimization-lucid-status').textContent=`${lucid.available} / ${lucid.total} Lucid values available · ${lucid.refreshed} updated · ${lucid.pending} pending · ${lucid.unavailable} unavailable${lucid.failed?` · ${lucid.failed} failed`:''}. Original backtests, Apex results and trial snapshots are preserved.`;
       get("#optimization-title").textContent = "Backtest batch results";
       const profile = job.default_prop_profile?.settings;
       const research=job.research;
@@ -361,13 +420,13 @@
       get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
       const resume = get("#optimization-resume");
       resume.hidden = !["failed", "interrupted"].includes(job.status);
-      resume.disabled = resumeBusy;
+      resume.disabled = resumeBusy || deleteBusy;
       resume.textContent = job.completed_trials < job.total_trials
         ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
       get("#optimization-provenance").hidden = false;
       get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, default_prop_profile: job.default_prop_profile, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
       results(job, page);
-      if (["queued", "running"].includes(job.status)) timer = setTimeout(refresh, 1000);
+      if (["queued", "running"].includes(job.status)||lucid.pending) timer = setTimeout(refresh, 1500);
     } catch (error) {
       if (current !== version) return;
       get("#optimization-status").textContent = `Could not refresh: ${errorMessage(error)}. Saved results below may be stale. Retrying…`;
@@ -382,11 +441,13 @@
     get("#optimization-panel").hidden = !active;
     frozenColumns.clear();
     get("#optimization-sort-note").hidden = true;
+    get('#optimization-lucid-refresh').hidden=true;
     if (!active) return;
     jobId = match?.[1] || null;
     offset = 0; sort = "trial"; direction = "asc";
     get("#optimization-provenance").hidden = true;
     get("#optimization-download").hidden = true;
+    get("#optimization-delete").hidden = true;
     get("#optimization-resume").hidden = true;
     get("#optimization-resume-error").hidden = true;
     get("#optimization-status").textContent = "Loading…";
@@ -398,8 +459,23 @@
   get("#optimization-previous").onclick = () => { offset = Math.max(0, offset - pageSize()); refresh(); };
   get("#optimization-next").onclick = () => { offset += pageSize(); refresh(); };
   get("#optimization-workers-retry").onclick = () => { void loadSettings(); };
+  get('#optimization-lucid-run').onclick=async()=>{
+    if(lucidBusy||!jobId)return;
+    const id=jobId;lucidBusy=true;
+    get('#optimization-lucid-run').disabled=true;
+    get('#optimization-lucid-error').hidden=true;
+    get('#optimization-lucid-status').textContent='Checking saved sources and looking for matching Lucid reports…';
+    try{
+      await read(`/api/backtests/batches/${id}/lucid-refresh`,{method:'POST'});
+    }catch(error){
+      if(jobId===id){get('#optimization-lucid-error').textContent=errorMessage(error);get('#optimization-lucid-error').hidden=false;}
+    }finally{
+      lucidBusy=false;
+      if(jobId===id&&!get('#optimization-panel').hidden)await refresh();
+    }
+  };
   get("#optimization-resume").onclick = async () => {
-    if (resumeBusy || !jobId) return;
+    if (resumeBusy || deleteBusy || !jobId) return;
     const id = jobId;
     resumeBusy = true;
     get("#optimization-resume").disabled = true;

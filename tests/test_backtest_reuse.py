@@ -50,18 +50,26 @@ def test_pure_prop_calculation_reuse_keeps_new_source_identity_and_exact_standar
 
 def test_calculation_reuse_bad_checksum_and_setting_change_force_computation(tmp_path):
     from alphaquest.prop.calculation_cache import calculate,use
+    from alphaquest.prop.native_analysis import MODEL_VERSION
     from hashlib import sha256
-    path=tmp_path/'calculations.json';raw=b'{"cash":123}';path.write_bytes(raw)
+    expected=dict(cash=123,model_version=MODEL_VERSION)
+    path=tmp_path/'calculations.json';raw=json.dumps(expected).encode();path.write_bytes(raw)
     snapshot=dict(trades_sha256='abc',excursion_input={},source_timezone='UTC',session_grid={})
     calls=[]
-    def compute(rows,settings,progress):calls.append(settings);return {'cash':123}
+    def compute(rows,settings,progress):calls.append(settings);return dict(expected)
     result,original,key=calculate([],{},snapshot,lambda _:None,compute)
     entry={key:dict(id='saved',path=str(path),sha256=sha256(raw).hexdigest())}
     with use(entry):
-        assert calculate([],{},snapshot,lambda _:None,compute)[:2]==({'cash':123},'saved')
+        assert calculate([],{},snapshot,lambda _:None,compute)[:2]==(expected,'saved')
         assert len(calls)==1
         path.write_text('{"cash":999}')
         assert calculate([],{},snapshot,lambda _:None,compute)[1] is None
         path.write_bytes(raw)
         assert calculate([],{'ACTIVATION_FEE':'130'},snapshot,lambda _:None,compute)[1] is None
     assert len(calls)==3
+    # Even a valid checksum cannot relabel older/unversioned calculations.
+    for old in (dict(cash=123,model_version='older-model'),dict(cash=123)):
+        raw=json.dumps(old).encode();path.write_bytes(raw)
+        with use({key:dict(id='saved',path=str(path),sha256=sha256(raw).hexdigest())}):
+            assert calculate([],{},snapshot,lambda _:None,compute)[1] is None
+    assert len(calls)==5

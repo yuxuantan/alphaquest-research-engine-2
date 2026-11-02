@@ -122,6 +122,8 @@ class OptimizationStore:
                     job.update(status="interrupted", stage="interrupted", error="Server restarted before completion. Saved trials remain available; this job was not resumed.")
                     conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="optimization")
+        from .optimization_prop import initialize
+        initialize(runs, prop_analyses)
 
     def close(self):
         self.executor.shutdown(wait=True)
@@ -151,7 +153,10 @@ class OptimizationStore:
         """Atomically claim an incomplete job; successful trial rows stay untouched."""
         with self.runs.connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            job = json.loads(conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()[0])
+            row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                raise ValueError('This backtest activity has been deleted.')
+            job = json.loads(row[0])
             if job["status"] not in ("failed", "interrupted"):
                 raise ValueError("Only failed or interrupted optimizations can be resumed.")
             saved = conn.execute("SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?", (job_id,)).fetchone()[0]
@@ -167,6 +172,55 @@ class OptimizationStore:
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
         return job
 
+    def delete(self, job_id):
+        """Delete an inactive activity and its exclusively referenced reports.
+
+        Keep a durable cleanup state until files and activity rows are gone, so
+        an interrupted post-commit cleanup can be retried after a restart.
+        """
+        with self.prop_analyses.lock:
+            with self.runs.deletion(
+                'Backtest reports removed from the library, but file cleanup failed. '
+                'Retry Delete activity and reports to finish cleanup.'
+            ) as (conn, stage):
+                row = conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()
+                if row is None:
+                    return None
+                job = json.loads(row[0])
+                if job['status'] in ('queued', 'running'):
+                    raise ValueError('This backtest activity is queued or running. Wait for it to finish before deleting.')
+                deletion = job.get('deletion')
+                if deletion is None:
+                    ids = {row[0] for row in conn.execute(
+                        "SELECT json_extract(payload,'$.run_id') FROM optimization_trials WHERE optimization_id=?", (job_id,))}
+                    shared = {row[0] for row in conn.execute(
+                        """SELECT DISTINCT r.id FROM optimization_trials t
+                           JOIN runs r ON r.id=json_extract(t.payload,'$.run_id')
+                           WHERE t.optimization_id<>? AND r.id IN
+                           (SELECT json_extract(payload,'$.run_id') FROM optimization_trials WHERE optimization_id=?)""",
+                        (job_id, job_id))}
+                    ids -= shared
+                    with self.prop_analyses.connect() as db:
+                        busy = {row[0] for row in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running')")}
+                    if ids & busy:
+                        raise ValueError('A prop analysis is using a backtest in this activity. Wait for it to finish before deleting.')
+                    # Check all reports before moving any files.
+                    if ids & self.runs.detail_active:
+                        raise ValueError('Full detail is being generated for a backtest in this activity. Wait for it to finish before deleting.')
+                    deletion = dict(run_ids=sorted(ids), deleted_reports=0, shared_reports_kept=len(shared))
+                    for run_id in deletion['run_ids']:
+                        if stage(run_id):deletion['deleted_reports'] += 1
+                    job.update(status='deleting', stage='deleting', deletion=deletion)
+                    conn.execute('UPDATE optimizations SET payload=? WHERE id=?', (json.dumps(job), job_id))
+                else:
+                    for run_id in deletion['run_ids']:stage(run_id)
+            # Retain the activity and retry IDs if cleanup or this commit fails.
+            with self.runs.connect() as conn:
+                conn.execute('BEGIN IMMEDIATE')
+                conn.execute('DELETE FROM optimization_trials WHERE optimization_id=?', (job_id,))
+                conn.execute('DELETE FROM optimizations WHERE id=?', (job_id,))
+        return {key: deletion[key] for key in ('deleted_reports', 'shared_reports_kept')}
+
     def get(self, job_id):
         with self.runs.connect() as conn:
             row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
@@ -178,7 +232,10 @@ class OptimizationStore:
             rows = conn.execute("SELECT payload FROM optimizations ORDER BY created_at DESC, id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
         return {"items": [json.loads(row[0]) for row in rows], "total": total, "offset": offset, "limit": limit}
 
-    def page(self, job, sort, direction, offset, limit):
+    def page(self, job, sort, direction, offset, limit, prop_revision=None):
+        from .optimization_prop import revision
+        current_revision=revision(self.runs, job['id'])
+        prop_revision = current_revision if prop_revision is None else min(prop_revision,current_revision)
         columns = {"trial": "$.trial", "run_id": "$.run_id",
                    **{f"param.{name}": f"$.parameters.{name}" for name in job["axes"]},
                    **{name: f"$.metrics.{name}" for name in job["metric_columns"]}}
@@ -186,7 +243,9 @@ class OptimizationStore:
             raise ValueError("Unknown sort column or direction.")
         # Paths are selected from server-owned names; values never become SQL.
         expression = "json_extract(t.payload, ?)"
-        order = f"({expression} IS NULL) ASC, CAST({expression} AS TEXT) COLLATE {'BINARY' if sort == 'run_id' else 'EXACT_DECIMAL'} {direction.upper()}, trial ASC"
+        if sort == 'lucid_historical_net':
+            expression = "CASE WHEN l.id IS NOT NULL THEN json_extract(l.payload,'$.historical_net') ELSE json_extract(t.payload, ?) END"
+        order = f"({expression} IS NULL) ASC, CAST({expression} AS TEXT) COLLATE {'BINARY' if sort == 'run_id' else 'EXACT_DECIMAL'} {direction.upper()}, t.trial ASC"
         with self.runs.connect() as conn:
             conn.create_collation("EXACT_DECIMAL", lambda a, b: (Decimal(a) > Decimal(b)) - (Decimal(a) < Decimal(b)))
             # New jobs snapshot by publication rowid, not trial number: parallel
@@ -194,18 +253,34 @@ class OptimizationStore:
             # retain the previous count-based boundary without a migration.
             boundary = "rowid" if "results_snapshot_rowid" in job else "trial"
             snapshot = job.get("results_snapshot_rowid", job["completed_trials"])
-            rows = conn.execute(f"SELECT t.payload, EXISTS(SELECT 1 FROM runs r WHERE r.id=json_extract(t.payload,'$.run_id')) FROM optimization_trials t WHERE optimization_id=? AND t.{boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?",
-                                (job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
+            rows = conn.execute(f"""SELECT t.payload, EXISTS(SELECT 1 FROM runs r WHERE r.id=json_extract(t.payload,'$.run_id')),l.payload
+                FROM optimization_trials t LEFT JOIN optimization_prop_links l ON l.id=
+                (SELECT MAX(id) FROM optimization_prop_links WHERE optimization_id=t.optimization_id AND trial=t.trial AND id<=?)
+                WHERE t.optimization_id=? AND t.{boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?""",
+                (prop_revision, job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
         items=[]
-        for payload,available in rows:
+        for payload,available,refresh_payload in rows:
             row=json.loads(payload)
+            if refresh_payload:
+                refreshed=json.loads(refresh_payload)
+                row['original_prop_companions']=row.get('prop_companions',[])
+                row['original_lucid_historical_net']=row['metrics'].get('lucid_historical_net')
+                row['prop_companions']=[refreshed,*row.get('prop_companions',[])[1:]]
+                row['metrics']['lucid_historical_net']=refreshed.get('historical_net')
+                row['lucid_refresh']=dict(original_analysis_id=refreshed.get('original_analysis_id'),model_version=refreshed['model_version'])
             if not available:row['backtest_deleted']=True
             if row.get('prop_analysis') and self.prop_analyses.get(row['prop_analysis']['id']) is None:
                 row['prop_report_deleted']=True
-            for item in row.get('prop_companions',[]):
-                if self.prop_analyses.get(item['id']) is None:item['status']='deleted'
+            profiles=(job.get('default_prop_profile') or {}).get('companions',[])
+            for index,item in enumerate(row.get('prop_companions',[])):
+                if index<len(profiles):item.setdefault('model_version',profiles[index].get('model_version'))
+                if item.get('id'):
+                    analysis=self.prop_analyses.get(item['id'])
+                    if analysis is None:item['status']='deleted'
+                    elif item['status'] in ('queued','running'):
+                        item['progress']=analysis['progress']
             items.append(row)
-        return {"items": items, "total": job["completed_trials"], "offset": offset, "limit": limit}
+        return {"items": items, "total": job["completed_trials"], "offset": offset, "limit": limit, "prop_revision":prop_revision}
 
     def publish(self, job_id, trial, run_id, context, result):
         """Only the coordinator publishes reports and writes the SQLite catalogue."""
@@ -262,6 +337,12 @@ class OptimizationStore:
         return current["completed_trials"]
 
     def _reuse_trial(self, job, trial, values):
+        # Reference publication and deletion must agree on whether this report
+        # is shared with another activity before any files can be removed.
+        with self.runs.detail_lock:
+            return self._reuse_trial_locked(job, trial, values)
+
+    def _reuse_trial_locked(self, job, trial, values):
         if not job.get("engine_identity") or not job["request"].get("reuse_results", True):
             return False
         with self.runs.connect() as conn:

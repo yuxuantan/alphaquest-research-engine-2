@@ -214,15 +214,17 @@ def test_exact_session_edges_weighted_vwap_zero_volume_and_no_midnight_reset():
     assert strategy.trades_today == 1  # Preserve source crossing rule, not date rollover.
 
 
-def test_eod_flat_fills_cutoff_close_without_waiting_for_next_bar():
+def test_eod_flat_submits_at_cutoff_and_fills_next_observed_open():
     rows = scenario()[:123]
     rows.append(bar(124, 15, 55, "116", "120", "100", "118"))
     rows.append(bar(125, 15, 56, "117", "150", "50", "120"))
     rows.append(bar(126, 16, 0, "120", "120", "120", "120"))
     _, trades, _ = replay(rows, parameters(use_eod_flat=True))
     assert trades[0].exit_reason == "eod_flat"
-    assert trades[0].exit_reference_price == 118
-    assert trades[0].exit_fill_price == D("117.75")
+    assert trades[0].exit_bar_number == 125
+    assert trades[0].exit_reference_price == 117
+    assert trades[0].exit_fill_price == D("116.75")
+    assert trades[0].exit_time_utc > trades[0].exit_deadline_utc
 
 
 @pytest.mark.parametrize("name,value", [("position_size", True), ("use_adx_elev", 1),

@@ -1,5 +1,79 @@
 # AlphaQuest local prop simulation
 
+## Refresh unavailable Lucid results in a saved batch — 2026-11-01
+
+Open a completed backtest batch and choose **Refresh unavailable Lucid results**.
+The action retains every saved strategy backtest and Apex result. It checks
+each unavailable trial against its original Lucid settings and source, reuses
+a verified current-model analysis when possible, and otherwise submits only
+Lucid analysis through the normal local analysis catalogue/worker. It does not
+execute strategy bars, create new backtests or consume an OOS backtest slot.
+
+The existing results table shows pending work, updated result links and the
+reason for any remaining N/A. Progress survives reload. Clicking again reuses
+pending requests; failed publication can be retried. Source incompatibility,
+missing/corrupt inputs and genuine unresolved evaluation paths remain explicit
+rejections/unavailable results, never fabricated numbers.
+
+An append-only link index in the existing backtest catalogue joins verified
+analyses to their original trial. It contains references/provenance and the
+saved historical-net value needed for exact sorting; all calculations and
+downloads remain in the existing AnalysisStore. Original trial JSON and report
+files are immutable. The table and Results CSV use the same linked values and
+analysis IDs. **Original results CSV** / `prop_revision=0` retrieves the original
+trial snapshot. CSV exports pin the link revision so background publication
+cannot change their ordering midway through a download. Ordinary GETs never
+launch calculations or repair/write link state.
+
+Both request and pure-calculation reuse keys include the explicit model version.
+Cached calculations must also declare the expected model version. A previously
+calculated report is reused only after source, settings, model, numerical source
+hashes, native kernel and artifact integrity checks. Fresh prior calculations
+can be reused across storage/UI changes without recomputing them; reports that
+used an older calculation cache additionally require the matching cache source.
+Current report/calculation version agreement is always required.
+
+See `docs/prop_simulation_review.md` for the saved-batch demonstration and
+independent cash expectations. This increment links/recalculates Lucid results;
+it does not change account rules, sampling, sizing or provider-parity status.
+
+## Lucid funding-time continuation — 2026-10-31
+
+The current Lucid model is `alphaquest-lucidflex50k-eod-v2-funding-continuation`.
+The earlier model aborted the entire repeated-funding calibration when one
+evaluation was still open at 2,000 sessions. A high evaluation pass rate could
+therefore coexist with unavailable funded sizing and historical net.
+
+Open evaluation paths now continue beyond 2,000 sessions with their existing
+balance, high-water mark, consistency, activity clock and bootstrap position.
+The computational limit is 20,000 sessions **per evaluation attempt**; it is not
+a provider deadline. Remaining open paths still prevent an unqualified funding
+time estimate. No unresolved path is discarded, counted as a failed attempt,
+restarted at session 2,000 or replaced by a fixed acquisition delay. The separate
+2,000-session funded-account lifetime horizon remains unchanged.
+
+Evaluation and funding-chain diagnostics record the initial/maximum horizons,
+continued-path counts, longest attempt and remaining censored paths. They are
+visible in the Evaluation view and durable report/calibration downloads.
+Training-only selection, standard 3,000/20,000 simulation counts, cash rules,
+source reconciliation and conservative OHLC risk semantics remain in force.
+
+To update a saved earlier Lucid analysis, open **Configure new analysis** on
+that report, **Check source**, then **Run analysis**. The form copies its account
+model and saved settings. The existing saved trades are reused; no strategy
+backtest or parameter sweep is executed. A new durable analysis is published in
+the existing catalogue. Earlier reports, source backtests, batch trial snapshots,
+datasets and OOS budgets remain unchanged. Existing batch snapshots continue to
+reference their original automatic analysis; use the explicit batch refresh
+action above to link a verified corrected report into the table. A manually
+recalculated report is also available through its source's saved prop analyses
+and its own durable URL.
+
+This corrects computational truncation, without changing the dated provider
+contract or claiming new provider-rule parity. See the corresponding journey,
+actual-source result and independent boundary arithmetic in
+`docs/prop_simulation_review.md`.
+
 ## Automatic LucidFlex 50K alongside Apex — 2026-10-29
 
 New backtests, CLI runs and optimisation trials now calculate **both** the
@@ -68,8 +142,8 @@ The dated local contract is `alphaquest/prop/lucid_rules.py`, included as
 
 Monte Carlo retains 3,000 paths per permitted sizing point and 20,000-path final
 evaluation, funding-chain, lifetime and first-year batches. Incomplete evaluation
-paths after a computational guard of 2,000 weekdays are **censored**, rather than
-provider deadline failures. Censored funding chains make replacement timing and
+paths continue past 2,000 weekdays up to a 20,000-weekday computational guard,
+where they are **censored**, rather than provider deadline failures. Censored funding chains make replacement timing and
 funded sizing unavailable; no probability or delay fallback is substituted.
 Evaluation size, acquisition cost/time and funded size are fitted on training
 only; holdout cannot choose or rescore them. Historical replay and annual-per-slot
@@ -596,6 +670,17 @@ retain that ambiguity. Prop analysis uses the conservative adverse upper bound.
 These are observed OHLC bounds, **not measured tick MAE/MFE**, and may classify a
 possible breach conservatively. Independently reconciled measured exports remain
 available explicitly; their earlier model contract is preserved.
+
+New VWAP backtests submit EOD flattening at the resolved cutoff and fill at
+the **next observed bar Open**, with configured costs. The report identifies
+`eod_next_open_inferred_session_close` and `order_timing=next_open`; older
+cutoff-Close reports retain their original labels and results. Entry blocking
+and inferred shortened-session cutoffs still apply. The source trade's
+`exit_deadline_utc` identifies the order cutoff, while `exit_time_utc` labels
+the bar containing the actual simulated Open fill. One-minute bars are
+close-labelled: that label is not a measured fill tick or evidence of
+liquidation by a provider deadline. Prop source validation remains unchanged
+and must check the saved fill/risk evidence; no time is backdated to pass it.
 
 Evaluation, funded simulations and historical replay use the first adverse
 threshold hit. A continuous segment reaches the tighter DLL/account floor first;
