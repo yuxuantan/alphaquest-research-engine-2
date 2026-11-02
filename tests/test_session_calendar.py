@@ -111,3 +111,23 @@ def test_csv_snapshot_is_immutable_and_calendar_edits_change_strategy_identity(t
  p.unlink()
  assert snapshot.plan(date(2024,1,15)).cutoff.hour==11
  with pytest.raises(ValueError,match='Invalid NQ session calendar'):load_calendar(p)
+
+
+def test_report_metadata_stays_bound_to_the_snapshot_used_for_trading(tmp_path, monkeypatch):
+    import alphaquest.strategies.vwap_pullback_risk_sizing as module
+    raw = calendar_path().read_bytes()
+    path = tmp_path / 'calendar.csv'
+    path.write_bytes(raw)
+
+    def read_then_replace_file():
+        snapshot = load_calendar(path)
+        # A concurrent manual update changes the file after this read. The
+        # running strategy must describe its original snapshot, not the new file.
+        path.write_bytes(raw.replace(b'No session ending', b'Reviewed session ending', 1))
+        return snapshot
+
+    monkeypatch.setattr(module, 'load_calendar', read_then_replace_file)
+    strategy = VwapPullbackRiskSizing(parameters(use_eod_flat=True), execution_config=CONFIG)
+    saved = strategy.session_flattening['calendar']
+    assert saved == strategy._calendar.metadata()
+    assert saved['sha256'] != load_calendar(path).sha256

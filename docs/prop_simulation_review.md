@@ -3398,3 +3398,37 @@ and from broker-side live protection. No fabricated MC results are supplied.
 Calendar/strategy updates must preserve the checks and obtain fresh actual MC
 exports before asserting platform parity. Coverage beyond 2026-11-02 remains
 unknown until manually reviewed and extended; no future outcomes are inferred.
+
+### Final validation and calendar snapshot metadata
+
+AQ's per-instance report metadata now comes from the same immutable calendar
+snapshot used for its decisions, avoiding a second read that could describe a
+concurrent file replacement. A boundary check replaces the CSV immediately
+after the initial read and verifies the report still identifies the original
+trading snapshot. The independently checked real report/trades above remain
+preserved; this follow-up changes snapshot binding, not the cutoff arithmetic.
+
+The final relevant gate passed **163 tests** across VWAP, next-bar execution,
+calendar/session boundaries, strategy registration, prepared/replay cache,
+completed-result/calculation reuse and backtest API behavior. The final report
+browser check also passed (one case, ten unrelated cases deselected). Logs are
+`artifacts/calendar-causal-real-20261102/focused-pytest.txt` and
+`browser-pytest.txt`. The compiled C# calendar, wheel and actual product
+demonstrations are recorded above; JavaScript syntax and Git whitespace passed.
+
+A broader repository run was deliberately interrupted to apply the snapshot
+fix and finish the relevant gate. It recorded **362 passed**, no failures,
+in 415.79 seconds before interruption. Its partial output is retained in
+`full-pytest.txt`. The previous whole-suite run took about 56 minutes and
+included unrelated account simulations. **No complete current whole-suite pass
+is claimed.** There is also no claim of a measured fresh MC platform result.
+
+The four original discrepancies were additionally inspected in the saved AQ
+trade export, independently of aggregate totals. No trades occur on
+2021-01-18 or 2024-09-02. On 2021-09-06 and 2024-01-15 the exit deadline is
+11:55 CT, the next-Open containing label is 11:56, and gross P&L is respectively
+10.00 and 80.00. Those exact observations are saved as
+`artifacts/calendar-causal-real-20261102/four-discrepancy-observations.json`.
+All owned review/test servers stopped; the user's existing server/VM and
+previous report files remain untouched. Source commits exclude generated data
+and evidence; no remote push was performed.

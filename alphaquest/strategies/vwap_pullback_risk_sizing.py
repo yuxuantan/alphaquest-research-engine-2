@@ -177,7 +177,7 @@ class VwapPullbackRiskSizing:
         self._pending_entry_day = None
         self._session_digest = hashlib.sha256()
         self.session_flattening = {
-            **backtest_assumptions(self.parameters), "sessions": 0,
+            **backtest_assumptions(self.parameters, calendar=self._calendar), "sessions": 0,
             "closed_sessions": 0, "early_close_sessions": 0,
             "examples": [], "plans_sha256": self._session_digest.hexdigest(),
         }
@@ -378,12 +378,12 @@ class VwapPullbackRiskSizing:
         return CloseIntent("end_of_data") if position is not None else None
 
 
-def backtest_assumptions(parameters):
+def backtest_assumptions(parameters, *, calendar=None):
     return {
         "enabled": parameters.use_eod_flat,
         "lookahead": False,
         "mode": "csv_session_calendar_v1",
-        "calendar": load_calendar().metadata() if parameters.use_eod_flat else None,
+        "calendar": (calendar or load_calendar()).metadata() if parameters.use_eod_flat else None,
         "timezone": "America/Chicago",
         "session_boundary": "17:00 to 16:00, labelled by local ending date",
         "minutes_before_close": MINUTES_BEFORE_CLOSE,
