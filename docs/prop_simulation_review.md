@@ -3203,3 +3203,22 @@ verified unchanged result JSON and CSV. Screenshots and observations are at
 `tests/review_compact_batch_columns.py` with that batch ID and a new output
 directory. Only a private browser was opened/closed; no server or numerical
 run was started by this review, and all existing reports/data were preserved.
+
+### Publication validation: asynchronous IS/OOS report checks
+
+The existing manual OOS browser checks now wait for completed backtest requests
+and the returned report URL before reading edited IS values. This prevents a
+previous hidden report heading from satisfying the same-heading assertion
+while the new automatic analyses are still running. Simulation completion uses
+the existing 180-second browser budget; counts and numerical assertions are
+unchanged. Catalog assertions retain the declared Apex and Lucid companions
+and still reject extra duplicate analyses.
+
+Both research browser journeys passed after correction: four explicit manual
+OOS executions remain in history when a new edited IS earns the independently
+expected 60 CU, and the 120-weekday IS/OOS fixture retains 60 trades / 180,000
+source net / 352,880 Apex historical net in each selected period, with normal
+configuration/check/run reuse, downloads and reopening. The saved observation
+files are `artifacts/push-main-validation-20261102/manual-oos-verification.json`
+and `percentage-oos-verification.json`. These are explicitly synthetic normal
+product workflows in isolated test libraries; their owned servers stopped.

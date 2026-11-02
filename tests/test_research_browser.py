@@ -40,14 +40,14 @@ def test_editable_dates_and_unlimited_manual_oos_in_actual_portal(page,portal,tm
     playwright.expect(page.locator('#start-backtest')).to_be_enabled()
     page.screenshot(path=str(tmp_path/'declared-date-split.png'),full_page=True)
     page.locator('#start-backtest').click()
-    playwright.expect(page.locator('#report-research-title')).to_have_text('In-sample backtest')
+    playwright.expect(page.locator('#report-research-title')).to_have_text('In-sample backtest',timeout=180000)
     playwright.expect(page.locator('#report-oos-budget')).to_contain_text('No attempt limit')
     is_id=page.url.rsplit('/',1)[1]
     playwright.expect(page.locator('#report-run-oos')).to_be_enabled()
     page.once('dialog',lambda d:d.dismiss());page.locator('#report-run-oos').click()
     assert page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json()['used']==0
     page.once('dialog',lambda d:d.accept());page.locator('#report-run-oos').click()
-    playwright.expect(page.locator('#report-research-title')).to_have_text('Out-of-sample backtest',timeout=30000)
+    playwright.expect(page.locator('#report-research-title')).to_have_text('Out-of-sample backtest',timeout=180000)
     playwright.expect(page.locator('#report-oos-budget')).to_contain_text('No attempt limit')
     oos_id=page.url.rsplit('/',1)[1]
     playwright.expect(page.locator('#report-run-oos')).to_be_hidden()
@@ -70,8 +70,11 @@ def test_editable_dates_and_unlimited_manual_oos_in_actual_portal(page,portal,tm
     page.locator('#sample-review').click()
     playwright.expect(page.locator('#start-backtest')).to_be_enabled()
     page.screenshot(path=str(tmp_path/'edited-split.png'),full_page=True)
-    page.locator('#start-backtest').click()
-    playwright.expect(page.locator('#report-research-title')).to_have_text('In-sample backtest')
+    with page.expect_response(lambda r: r.request.method=='POST' and '/api/backtests?' in r.url,timeout=180000) as completed:
+        page.locator('#start-backtest').click()
+    assert completed.value.status==201,completed.value.text()
+    playwright.expect(page).to_have_url(re.compile('/#backtests/report/'+completed.value.json()['id']+'$'))
+    playwright.expect(page.locator('#report-research-title')).to_have_text('In-sample backtest',timeout=180000)
     playwright.expect(page.locator('#report-net')).to_have_text('60.00')
     assert page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json()['used']==4,'Editing and IS execution must not run OOS'
     page.set_viewport_size(dict(width=390,height=844))
@@ -139,7 +142,9 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     # A manually executed saved OOS source can use editable prop settings.
     changed=dict(source_backtest_id=oos_id,trade_file='',settings=dict(ACTIVATION_FEE='0'))
     assert page.request.post(portal['url']+'/api/prop-analyses/check',data=changed).status==200
-    assert len(page.request.get(portal['url']+'/api/prop-analyses/sources/'+oos_id+'?discover_exports=false').json()['analyses'])==1
+    automatic=oos_record['run_metadata']['automatic_prop_analysis']
+    expected_ids={automatic['id'],*(item['id'] for item in automatic.get('companions',[]))}
+    assert {item['id'] for item in page.request.get(portal['url']+'/api/prop-analyses/sources/'+oos_id+'?discover_exports=false').json()['analyses']}==expected_ids
     page.screenshot(path=str(tmp_path/'oos-cash-summary.png'),full_page=True)
     page.locator('#report-prop-setup').click();page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('180000')
