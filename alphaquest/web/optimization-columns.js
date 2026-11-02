@@ -20,7 +20,6 @@ window.OptimizationColumns = class {
     panel.querySelector("[data-freeze=none]").onclick = () => this.choose([]);
     window.addEventListener("scroll", () => this.layout(), {passive: true});
     window.addEventListener("resize", () => this.layout(true));
-    region.addEventListener("scroll", () => this.panFrozen(), {passive: true});
     new ResizeObserver(() => this.layout(true)).observe(region);
     new ResizeObserver(() => this.layout(true)).observe(table);
   }
@@ -213,7 +212,9 @@ window.OptimizationColumns = class {
     for (const key of active) { positions.set(key, left); left += widths.get(key); }
     this.active = active;
     this.panWide = left > this.region.clientWidth;
-    this.panFrozen();
+    // Oversized groups pan with the native table scroll. Tracking scrollLeft
+    // through negative sticky offsets can desynchronize header/body cells.
+    this.region.classList.toggle("optimization-frozen-wide", this.panWide);
     for (const row of this.table.rows) {
       for (const cell of row.cells) {
         const frozen = positions.has(cell.dataset.column);
@@ -242,11 +243,5 @@ window.OptimizationColumns = class {
     this.summary.textContent = `${active.length} frozen`;
     this.shownSummary.textContent = `${visibleCount} shown ·`;
     this.status.textContent = `${visibleCount} shown · ${active.length} frozen.${this.panWide ? " Scroll horizontally to pan the frozen group." : ""}`;
-  }
-
-  panFrozen() {
-    // An oversized frozen group cannot all fit on screen at once. Keep every
-    // selection and pan it with the table so its columns remain reachable.
-    this.region.style.setProperty("--optimization-frozen-pan", `${this.panWide ? this.region.scrollLeft : 0}px`);
   }
 };

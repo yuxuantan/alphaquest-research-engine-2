@@ -160,7 +160,9 @@ There is **no column-count or width limit on freezing**. Every visible column's
 Freeze control remains available. Groups that fit the viewport stay pinned on
 the left while other columns scroll underneath. When the frozen group itself is
 wider than the viewport, horizontal scrolling pans that group so every selected
-column remains reachable. Resizing never releases or unchecks selections.
+column remains reachable. Oversized groups use native horizontal scrolling to
+keep header and body cells aligned; left pinning resumes when the group fits.
+Resizing never releases or unchecks selections.
 Headers stay sticky independently of freezing. A small set of columns uses its
 natural width rather than stretching across the entire viewport.
 

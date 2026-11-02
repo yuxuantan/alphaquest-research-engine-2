@@ -3185,3 +3185,21 @@ sorting to its actual column. Both automatic-prop browser cases passed.
 Saved observations and screenshots are retained at
 `artifacts/push-main-validation-20261102/`; reproduce with
 `.venv/bin/python -m pytest tests/test_automatic_prop_browser.py -q`.
+
+### Publication validation: oversized frozen-group alignment
+
+Repeated browser checks reproduced header/body misalignment while panning a
+frozen group wider than the viewport. Oversized groups now use native
+horizontal scrolling, while retaining every freeze selection and the vertical
+sticky header. Groups that fit resume ordinary left pinning. This avoids
+scroll-event-driven negative sticky offsets; no count or width limit is added.
+
+All 10 column-layout/default browser checks passed, and the formerly
+intermittent panning case passed eight consecutive independent runs. A real
+read-only review of batch `342ceb7eee0345a4b0bb108d3f4e360c` froze all 49
+columns, reached the final column, retained selections on mobile/reload and
+verified unchanged result JSON and CSV. Screenshots and observations are at
+`artifacts/native-wide-freeze-review-20261102/`. Reproduce using
+`tests/review_compact_batch_columns.py` with that batch ID and a new output
+directory. Only a private browser was opened/closed; no server or numerical
+run was started by this review, and all existing reports/data were preserved.

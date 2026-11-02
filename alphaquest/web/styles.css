@@ -1549,7 +1549,8 @@ dialog::backdrop {
 #optimization-results td.optimization-varying-parameter { background:#edf8f4; color:#164c40; font-weight:600; border-left:1px solid #d0e8de; border-right:1px solid #d0e8de; }
 #optimization-results thead th.optimization-varying-parameter { background:#dcefe7; color:#075b49; border-left:1px solid #c3dfd2; border-right:1px solid #c3dfd2; }
 #optimization-results th.optimization-varying-parameter, #optimization-results td.optimization-varying-parameter { padding-left:12px; padding-right:12px; }
-#optimization-results .optimization-frozen-column { position:sticky; left:calc(var(--optimization-frozen-left, 0px) - var(--optimization-frozen-pan, 0px)); z-index:2; }
+#optimization-results .optimization-frozen-column { position:sticky; left:var(--optimization-frozen-left, 0px); z-index:2; }
+.optimization-frozen-wide #optimization-results .optimization-frozen-column { left:auto; }
 #optimization-results thead th.optimization-frozen-column { z-index:4; }
 #optimization-results .optimization-frozen-last { box-shadow:4px 0 5px -3px #5c8174; }
 #optimization-results thead th.optimization-frozen-last { box-shadow:4px 0 5px -3px #5c8174, 0 1px 0 var(--line); }
