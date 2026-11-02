@@ -76,7 +76,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
     with ExitStack() as stack:
         with timings.span('source_loading'):
             selected = stack.enter_context(prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range))
-            strategy = stack.enter_context(create_strategy(definition, parameters, config, feature_paths or {}))
+            strategy = stack.enter_context(create_strategy(definition, parameters, config, feature_paths or {}, instrument_symbol=dataset.get("symbol")))
         total = selected.row_count
         metadata["selection"] = selected.metadata
         if hasattr(strategy, "session_flattening"):
@@ -111,6 +111,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
                  *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None):
     from . import backtest_cache
+    definition.validate_instrument(parameters, dataset.get("symbol"))
     market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
     if source_record:
         market_benchmark = source_record.get('market_benchmark', {}).get('settings', market_benchmark)
@@ -194,6 +195,7 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
     if dataset.get("columns") != COLUMNS:
         raise HTTPException(422, "Unsupported dataset schema. Backtests require: " + ",".join(COLUMNS))
     try:
+        definition.validate_instrument(parameters, dataset.get("symbol"))
         config = body.execution_settings.execution_config(dataset)
         plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
         await run_in_threadpool(request.app.state.research.claim, plan)

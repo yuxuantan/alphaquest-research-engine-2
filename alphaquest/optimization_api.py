@@ -46,6 +46,12 @@ async def start(body: OptimizationRequest, request: Request):
     if dataset.get("columns") != COLUMNS:
         raise HTTPException(422, "Unsupported dataset schema.")
     try:
+        # Validate before claiming research dates or queuing a mixed on/off grid.
+        for enabled in axes.get("use_eod_flat", [False]):
+            values = {name: axis[0] for name, axis in axes.items()}
+            if "use_eod_flat" in values:
+                values["use_eod_flat"] = enabled
+            definition.validate_instrument(definition.parameters(values), dataset.get("symbol"))
         config = body.execution_settings.execution_config(dataset)
         plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
         await run_in_threadpool(request.app.state.research.claim, plan)

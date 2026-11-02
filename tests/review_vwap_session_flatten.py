@@ -16,7 +16,7 @@ import httpx
 from playwright.sync_api import sync_playwright, expect
 
 from review_optimization_portal import serve_review
-from test_inferred_session_close import csv_bytes, session_rows
+from test_inferred_session_close import buffer_rows, csv_bytes, session_rows
 
 
 def review(output, url):
@@ -27,15 +27,18 @@ def review(output, url):
         page.set_default_timeout(45000)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        for name, close, cutoff, utc in (("normal", (16, 0), "15:55", "2024-01-16T22:00:00Z"),
-                                          ("noon", (12, 0), "11:55", "2024-01-15T18:00:00Z"),
-                                          ("1215", (12, 15), "12:10", "2024-11-29T18:15:00Z")):
-            raw, split = reserved_source(csv_bytes(session_rows(close=close)))
+        for name, close, cutoff, utc, buffer, net in (
+            ("normal", (16, 0), "15:55", "2024-01-16T22:00:00Z", 5, 88),
+            ("noon", (12, 0), "11:55", "2024-01-15T18:00:00Z", 5, 88),
+            ("1215", (12, 15), "12:10", "2024-11-29T18:15:00Z", 5, 88),
+            ("noon-buffer10", (12, 0), "11:50", "2024-01-15T17:51:00Z", 10, 28)):
+            raw, split = reserved_source(csv_bytes(buffer_rows() if buffer == 10 else session_rows(close=close)))
             source = output / f"SYNTHETIC-{name}.csv"
             source.write_bytes(raw)
             page.goto(url)
             page.locator("#csv-file").set_input_files(source)
             page.locator("#dataset-name").fill(f"SYNTHETIC VWAP {name} session close")
+            page.locator("#symbol").fill("NQ")
             page.locator("#source-timezone").select_option("UTC")
             page.locator("#dataset-tick-size").fill("0.25")
             page.locator("#dataset-point-value").fill("20")
@@ -53,6 +56,9 @@ def review(output, url):
             set_parameter(page, "use_adx_elev", False)
             set_parameter(page, "use_adx_decay", False)
             set_parameter(page, "use_eod_flat", True)
+            set_parameter(page, "close_buffer_minutes", str(buffer))
+            expect(page.locator("#backtest-session-calendar")).to_contain_text("Auto → NQ futures")
+            expect(page.locator("#backtest-session-calendar")).to_contain_text("cme_nq_closures.csv")
             page.locator("#backtest-slippage-ticks").fill("1")
             page.locator("#backtest-commission").fill("1")
             expect(page.locator("#backtest-fill-assumption")).to_contain_text("No future bars")
@@ -67,9 +73,12 @@ def review(output, url):
             expected_exit = utc
             assert trade["exit_time_utc"] == expected_exit and trade["exit_reason"] == "eod_flat"
             assert Decimal(trade["entry_fill_price"]) == Decimal("115.25")
-            assert Decimal(trade["exit_fill_price"]) == Decimal("119.75")
+            assert Decimal(trade["exit_fill_price"]) == Decimal("116.75" if buffer == 10 else "119.75")
             assert Decimal(trade["total_commissions"]) == 2
-            assert Decimal(record["summary"]["total_net_pnl"]) == 88
+            assert Decimal(record["summary"]["total_net_pnl"]) == net
+            flatten = record['run_metadata']['strategy']['session_flattening']
+            assert flatten['minutes_before_close'] == buffer and flatten['calendar_id'] == 'cme_nq'
+            assert flatten['examples'][0]['order_cutoff'][11:16] == cutoff
             assert client.get(f"/api/datasets/{dataset['id']}/csv").content == raw
             for kind in ("trades", "equity", "report"):
                 response = client.get(f"/api/backtests/{run_id}/exports/{kind}")
@@ -78,24 +87,26 @@ def review(output, url):
             settings = page.locator("#backtest-completion-content")
             settings.evaluate("el => { const parent=el.closest('details'); if(parent) parent.open=true; }")
             expect(settings.locator("[data-setting='session_flattening']")).to_contain_text("1 observed sessions")
+            expect(settings.locator("[data-setting='session_flattening']")).to_contain_text(f"minus {buffer} minutes")
             page.screenshot(path=str(output / f"{name}-report.png"), full_page=True)
             page.reload()
             expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("Calendar-based session exits")
             observations.append({"synthetic": True, "case": name, "dataset_id": dataset["id"], "run_id": run_id,
                 "portal_path": f"/#backtests/report/{run_id}", "scheduled_close_ct": "%02d:%02d" % close,
                 "expected_cutoff_ct": cutoff, "expected_exit_time_utc": expected_exit,
-                "expected_net_pnl": "88", "actual_trade": trade,
+                "buffer_minutes": buffer, "expected_net_pnl": str(net), "actual_trade": trade,
                 "actual_net_pnl": record["summary"]["total_net_pnl"],
                 "session_flattening": record["run_metadata"]["strategy"]["session_flattening"],
                 "source_unchanged": True, "reopened_after_reload": True})
-            print(f"PASS {name}: scheduled close {'%02d:%02d' % close} -> order {cutoff} CT, next observed Open; net88 CU; run {run_id}")
+            print(f"PASS {name}: scheduled close {'%02d:%02d' % close} -> order {cutoff} CT, next observed Open; net{net} CU; run {run_id}")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.screenshot(path=str(output / "report-mobile.png"), full_page=True)
         assert not errors, errors
         browser.close()
     (output / "verification.json").write_text(json.dumps({"synthetic": True,
-        "arithmetic": "(119.75 - 115.25) * 20 - (1 + 1) = 88 CU",
+        "arithmetic": {"buffer5": "(119.75 - 115.25) * 20 - (1 + 1) = 88 CU",
+                       "buffer10": "(116.75 - 115.25) * 20 - (1 + 1) = 28 CU"},
         "observations": observations, "browser_errors": errors}, indent=2) + "\n")
     print(f"Evidence retained: {output}")
 

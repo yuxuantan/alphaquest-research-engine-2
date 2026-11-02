@@ -14,12 +14,30 @@ from zoneinfo import ZoneInfo
 
 CT = ZoneInfo("America/Chicago")
 MINUTES_BEFORE_CLOSE = 5
+NQ_SYMBOL_PATTERN = r"@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?"
+NQ_CALENDAR = dict(id="cme_nq", file="calendars/cme_nq_closures.csv",
+                   instrument="NQ futures", timezone="America/Chicago",
+                   symbol_pattern=NQ_SYMBOL_PATTERN)
 FIELDS = ("coverage_start", "coverage_end", "session_date", "closure_type",
           "close_time_local", "timezone", "event", "source_url", "source_note", "verified_on")
 
 
 class CalendarError(ValueError):
     """Actionable source/calendar incompatibility; never publish a partial run."""
+
+
+def resolve_calendar(symbol):
+    """Resolve an explicitly saved/chart symbol; never infer from prices or names."""
+    if not re.fullmatch(NQ_SYMBOL_PATTERN, str(symbol or "").strip().upper()):
+        raise CalendarError(f"No reviewed session calendar for instrument {symbol or '(not set)'!r}. "
+                            "Calendar EOD flattening currently supports NQ only. "
+                            "Use a dataset with an explicit supported symbol, or disable Use EOD Flat.")
+    return dict(NQ_CALENDAR)
+
+
+def validate_close_buffer(minutes):
+    if type(minutes) is not int or not 1 <= minutes <= 1440:
+        raise CalendarError("Close buffer minutes must be an integer from 1 through 1440.")
 
 
 def calendar_path():
@@ -45,7 +63,7 @@ class SessionPlan:
             return False
         local = stamp.astimezone(CT)
         # Close-labelled minute bars: 17:00 itself is in the maintenance gap.
-        return local.date() == self.day or local.time() > time(17)
+        return session_date(stamp) == self.day and (local.date() == self.day or local.time() > time(17))
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +78,8 @@ class SessionCalendar:
                     coverage_start=self.start.isoformat(), coverage_end=self.end.isoformat(),
                     timezone="America/Chicago", instrument="NQ futures", rows=len(self.entries))
 
-    def plan(self, day, eod_flat_time=1555):
+    def plan(self, day, eod_flat_time=1555, close_buffer_minutes=MINUTES_BEFORE_CLOSE):
+        validate_close_buffer(close_buffer_minutes)
         if not self.start <= day <= self.end:
             raise CalendarError(f"NQ session calendar does not cover {day}; reviewed coverage is "
                              f"{self.start} through {self.end}. Update the shared CSV before running this period.")
@@ -72,7 +91,7 @@ class SessionCalendar:
             return SessionPlan(day, kind, None, None)
         close = datetime.combine(day, time.fromisoformat(row["close_time_local"]) if row else time(16), CT)
         configured = datetime.combine(day, time(eod_flat_time // 100, eod_flat_time % 100), CT)
-        return SessionPlan(day, kind, close, min(configured, close - timedelta(minutes=MINUTES_BEFORE_CLOSE)))
+        return SessionPlan(day, kind, close, min(configured, close - timedelta(minutes=close_buffer_minutes)))
 
 
 def load_calendar(path=None):

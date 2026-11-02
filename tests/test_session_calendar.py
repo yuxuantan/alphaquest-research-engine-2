@@ -6,7 +6,7 @@ import io
 from pathlib import Path
 import pytest
 
-from alphaquest.session_calendar import CT, calendar_path, load_calendar, session_date
+from alphaquest.session_calendar import CT, calendar_path, load_calendar, resolve_calendar, session_date
 from alphaquest.execution import Trade, execute
 from alphaquest.strategies.vwap_pullback_risk_sizing import VwapPullbackRiskSizing, source_fingerprint
 from test_vwap_pullback import CONFIG, bar, parameters, scenario
@@ -32,6 +32,100 @@ def test_configured_cutoff_caps_calendar_and_chicago_dst_is_not_a_fixed_offset()
   assert calendar.plan(date.fromisoformat(day),1130).cutoff.strftime('%H:%M')=='11:30'
  assert calendar.plan(date(2024,1,15)).cutoff.astimezone(timezone.utc).hour==17
  assert calendar.plan(date(2024,9,2)).cutoff.astimezone(timezone.utc).hour==16
+
+
+@pytest.mark.parametrize('symbol', ['NQ', 'nq', ' NQ ', '@NQ', 'NQ1!', 'NQ2!', 'NQZ26', 'NQH2026', 'NQ.CME', 'NQ CME'])
+def test_reviewed_calendar_resolves_only_explicit_nq_symbols(symbol):
+    assert resolve_calendar(symbol)['id'] == 'cme_nq'
+
+
+@pytest.mark.parametrize('symbol', ['', None, 'ES', 'CL', 'MNQ', 'ofb_bars_NQ', 'NQ_fake'])
+def test_unsupported_symbols_never_receive_the_nq_calendar(symbol):
+    with pytest.raises(ValueError, match='No reviewed session calendar'):
+        resolve_calendar(symbol)
+
+
+@pytest.mark.parametrize('value', [0, -1, 1441, True, 2.5])
+def test_close_buffer_rejects_invalid_values(value):
+    with pytest.raises(ValueError):
+        parameters(close_buffer_minutes=value)
+    with pytest.raises(ValueError, match='Close buffer minutes'):
+        load_calendar().plan(date(2024, 1, 15), close_buffer_minutes=value)
+
+
+def test_editable_buffer_preserves_eod_cap_and_changes_early_deadline():
+    calendar = load_calendar()
+    assert calendar.plan(date(2024, 1, 16), 1545, 10).cutoff.strftime('%H:%M') == '15:45'
+    assert calendar.plan(date(2024, 1, 15), 1545, 10).cutoff.strftime('%H:%M') == '11:50'
+    assert calendar.plan(date(2024, 1, 15), 1545, 1).cutoff.strftime('%H:%M') == '11:59'
+    assert calendar.plan(date(2024, 12, 25), 1545, 10).cutoff is None
+
+
+def test_api_saves_editable_buffer_and_auto_calendar_without_reusing_different_fills(tmp_path):
+    from research_fixtures import ResearchClient
+    from alphaquest.app import create_app
+    from test_inferred_session_close import buffer_rows, csv_bytes, request_body
+    with ResearchClient(create_app(tmp_path / 'datasets.sqlite3')) as client:
+        saved = client.post('/api/datasets', params=dict(filename='unrelated.csv', name='SYNTHETIC buffer arithmetic',
+            symbol='NQZ26', source_timezone='UTC', tick_size='.25', point_value='20'), content=csv_bytes(buffer_rows()))
+        assert saved.status_code == 201, saved.text
+        records = []
+        for minutes, net, label in [(5, '88.00', '18:00:00Z'), (10, '28.00', '17:51:00Z')]:
+            response = client.post('/api/backtests', json=request_body(saved.json()['id'], close_buffer_minutes=minutes))
+            assert response.status_code == 201, response.text
+            record = response.json(); records.append(record)
+            assert record['summary']['total_net_pnl'] == net
+            flatten = record['run_metadata']['strategy']['session_flattening']
+            assert flatten['minutes_before_close'] == minutes
+            assert flatten['calendar_id'] == 'cme_nq' and flatten['instrument_symbol'] == 'NQZ26'
+            assert record['run_metadata']['strategy']['parameters']['close_buffer_minutes'] == minutes
+            trade = client.get(f"/api/backtests/{record['id']}/trades").json()['items'][0]
+            assert trade['exit_time_utc'].endswith(label)
+        assert records[0]['id'] != records[1]['id']
+        assert client.get(f"/api/backtests/{records[0]['id']}").json() == records[0]
+        ranges = {name: dict(start=value, end=value, step='0' if type(value) is str else 0)
+                  for name, value in request_body(saved.json()['id'])['strategy_parameters'].items()}
+        ranges['close_buffer_minutes'] = dict(start=5, end=10, step=5)
+        from test_optimization import start, wait_job
+        body = request_body(saved.json()['id']); body.pop('strategy_parameters')
+        job = wait_job(client, start(client, {**body, 'method': 'exhaustive', 'workers': 2, 'parameter_ranges': ranges}))
+        assert job['status'] == 'complete', job
+        results = client.get(f"/api/optimizations/{job['id']}/results").json()['items']
+        assert {row['parameters']['close_buffer_minutes']: row['metrics']['total_net_pnl'] for row in results} == {5: '88.00', 10: '28.00'}
+
+
+@pytest.mark.parametrize('symbol', ['', 'CL', 'MNQ'])
+def test_api_rejects_unsupported_calendar_before_publishing_or_queuing(tmp_path, symbol):
+    from research_fixtures import ResearchClient
+    from alphaquest.app import create_app
+    from test_inferred_session_close import buffer_rows, csv_bytes, request_body
+    with ResearchClient(create_app(tmp_path / 'datasets.sqlite3')) as client:
+        saved = client.post('/api/datasets', params=dict(filename='NQ.csv', name='SYNTHETIC explicit instrument boundary',
+            symbol=symbol, source_timezone='UTC', tick_size='.25', point_value='20'), content=csv_bytes(buffer_rows()))
+        assert saved.status_code == 201, saved.text
+        body = request_body(saved.json()['id'])
+        failed = client.post('/api/backtests', json=body)
+        assert failed.status_code == 422 and 'No reviewed session calendar' in failed.text
+        values = body.pop('strategy_parameters')
+        ranges = {name: dict(start=value, end=value, step='0' if type(value) is str else 0) for name, value in values.items()}
+        ranges['use_eod_flat'] = dict(start=False, end=True, step=1)
+        failed = client.post('/api/optimizations', json={**body, 'method': 'exhaustive', 'parameter_ranges': ranges})
+        assert failed.status_code == 422 and 'No reviewed session calendar' in failed.text
+        assert client.get('/api/backtests').json()['total'] == 0
+        assert client.get('/api/optimizations').json()['total'] == 0
+        from alphaquest.run_backtest import run_saved_dataset
+        from alphaquest.backtest_config import RunSettings
+        from research_fixtures import declaration
+        output = tmp_path / 'unsupported-cli-report'
+        with pytest.raises(ValueError, match='No reviewed session calendar'):
+            run_saved_dataset(client.app.state.store, saved.json()['id'], output,
+                parameters(use_eod_flat=True), RunSettings(CONFIG.initial_capital, CONFIG.slippage_ticks,
+                    CONFIG.commission_per_contract_per_side), strategy_id='vwap_pullback_risk_sizing',
+                sample_split=declaration(saved.json()['id']))
+        assert not output.exists()
+        values['use_eod_flat'] = False
+        allowed = client.post('/api/backtests', json={**body, 'strategy_parameters': values})
+        assert allowed.status_code == 201, allowed.text
 
 
 def test_holiday_evening_uses_next_session_and_weekends_are_closed():

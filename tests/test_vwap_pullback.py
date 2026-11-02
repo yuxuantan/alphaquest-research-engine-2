@@ -281,8 +281,8 @@ def test_every_default_matches_retained_powerlanguage_inputs():
     source = source.split("Inputs:", 1)[1].split("Vars:", 1)[0]
     inputs = re.findall(r"^\s*(\w+)\(([^)]+)\)", source, re.MULTILINE)
     definitions = fields(Parameters)
-    assert len(inputs) == len(definitions) - 1 == 31
-    for (source_name, literal), item in zip(inputs, definitions):
+    assert len(inputs) == len(definitions) - 2 == 31
+    for (source_name, literal), item in zip(inputs, definitions[:31]):
         if item.type is bool:
             expected = literal == "true"
         elif item.type is int:
@@ -290,7 +290,8 @@ def test_every_default_matches_retained_powerlanguage_inputs():
         else:
             expected = D(literal)
         assert item.default == expected, (source_name, item.name)
-    assert definitions[-1].name == "max_bars_back" and definitions[-1].default == 42
+    assert definitions[-2].name == "max_bars_back" and definitions[-2].default == 42
+    assert definitions[-1].name == "close_buffer_minutes" and definitions[-1].default == 5
 
 
 def test_cli_writes_real_report_with_selected_strategy_parameters(tmp_path):

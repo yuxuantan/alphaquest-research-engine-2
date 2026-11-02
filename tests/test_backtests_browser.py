@@ -330,7 +330,9 @@ def test_mobile_navigation_and_layout(page, portal):
 def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(page, portal):
     prepare(page, portal)
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
-    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(32)
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(33)
+    # This generic controls fixture has no saved instrument/calendar mapping.
+    set_parameter(page, "use_eod_flat", False)
     playwright.expect(page.locator("#optimization-ranges [data-parameter=trade_longs] [data-range=start]")).to_have_value("true")
     playwright.expect(page.locator("#optimization-ranges [data-parameter=trade_shorts] [data-range=start]")).to_have_value("false")
     playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("next observed bar Open")
@@ -356,12 +358,13 @@ def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(pag
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
-def test_calendar_early_close_is_usable_from_normal_backtest_screen(page, portal):
-    from test_inferred_session_close import session_rows, csv_bytes
+@pytest.mark.parametrize('buffer,net,exit_label', [(5, '88.00', '18:00:00Z'), (10, '28.00', '17:51:00Z')])
+def test_calendar_early_close_is_usable_from_normal_backtest_screen(page, portal, buffer, net, exit_label):
+    from test_inferred_session_close import buffer_rows, csv_bytes
     prepare(page, portal)
     with ResearchHTTPClient(base_url=portal["url"]) as client:
         saved = client.post("/api/datasets", params={"filename": "synthetic-early-close.csv", "name": "SYNTHETIC early close",
-            "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=csv_bytes(session_rows()))
+            "symbol": "NQ", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=csv_bytes(buffer_rows()))
         assert saved.status_code == 201, saved.text
         dataset_id = saved.json()["id"]
     page.reload()
@@ -373,6 +376,10 @@ def test_calendar_early_close_is_usable_from_normal_backtest_screen(page, portal
     set_parameter(page, "use_adx_elev", False)
     set_parameter(page, "use_adx_decay", False)
     set_parameter(page, "use_eod_flat", True)
+    playwright.expect(page.locator("#backtest-session-calendar")).to_contain_text("Auto → NQ futures")
+    playwright.expect(page.locator("#backtest-session-calendar")).to_contain_text("cme_nq_closures.csv")
+    playwright.expect(page.locator("#optimization-ranges [data-parameter='close_buffer_minutes'] [data-range='start']")).to_have_value("5")
+    set_parameter(page, "close_buffer_minutes", str(buffer))
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
     playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("No future bars")
@@ -380,11 +387,22 @@ def test_calendar_early_close_is_usable_from_normal_backtest_screen(page, portal
         page.locator("#start-backtest").click()
     record = completed.value.json()
     assert completed.value.status == 201, record
-    assert record["summary"]["total_net_pnl"] == "88.00"
+    assert record["summary"]["total_net_pnl"] == net
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("1 observed sessions")
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("fill next observed bar Open")
     with ResearchHTTPClient(base_url=portal["url"]) as client:
         trade = client.get(f"/api/backtests/{record['id']}/trades").json()["items"][0]
-        assert trade["exit_time_utc"] == "2024-01-15T18:00:00Z" and trade["exit_reason"] == "eod_flat"
+        assert trade["exit_time_utc"].endswith(exit_label) and trade["exit_reason"] == "eod_flat"
     page.reload()
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("Calendar-based session exits")
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text(f"minus {buffer} minutes")
+
+
+def test_calendar_preflight_blocks_an_unidentified_instrument_and_can_be_disabled(page, portal):
+    prepare(page, portal)
+    page.locator('#backtest-strategy').select_option('vwap_pullback_risk_sizing')
+    playwright.expect(page.locator('#backtest-session-calendar')).to_contain_text('No reviewed session calendar')
+    playwright.expect(page.locator('#start-backtest')).to_be_disabled()
+    set_parameter(page, 'use_eod_flat', False)
+    playwright.expect(page.locator('#backtest-session-calendar')).to_contain_text('Use EOD Flat is off')
+    playwright.expect(page.locator('#start-backtest')).to_be_enabled()

@@ -6,7 +6,8 @@ calendar years plus a current-year supplement for the existing dataset. It
 contains **124 dates: 96 early closes and 28 full session closures**. The first
 2016–2025 snapshot (116 dates) is preserved in Git commit `107c533`. Times are actual scheduled matching-stop times,
 not strategy order cutoffs, cash-equity hours, settlement times or broker
-margin deadlines. The five-minute strategy buffer is deliberately not stored.
+margin deadlines. The strategy's configurable close buffer (default five
+minutes) is deliberately not stored.
 
 The [AQ Python strategy](../docs/strategies/vwap_pullback_risk_sizing.md) now
 loads this file once per run when EOD flattening is enabled. Its scheduled
@@ -14,6 +15,12 @@ cutoffs replace the earlier last-observed-bar inference. Existing saved reports
 retain their original calculations and execution-model labels. The matching
 C# strategy and its installation/qualification steps are in
 [`multicharts/README.md`](../multicharts/README.md).
+
+Calendar selection is automatic from the saved/chart instrument symbol; the
+current reviewed mapping is NQ only. Before running, AQ displays the resolved
+calendar and exposes **Close buffer minutes** (default 5). MC exposes the matching
+`CloseBufferMinutes` Input and resolves this filename inside
+`SessionCalendarDirectory`. Neither applies this table to an unknown symbol.
 
 ## Scope and date meaning
 

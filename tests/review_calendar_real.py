@@ -24,6 +24,7 @@ def review(output, database, request_file):
     output.mkdir(parents=True, exist_ok=False)
     original = Path('artifacts/eod-next-open-20261102')
     request = json.loads(request_file.read_text())
+    request['strategy_parameters'].setdefault('close_buffer_minutes', 5)
     request['reuse_results'] = False
     # Expected values are fixed before the new execution. The earlier qualified
     # raw next-Open repricing is retained; no new strategy function generates it.
@@ -66,6 +67,8 @@ def review(output, database, request_file):
             assert (output/'trades.csv').read_bytes()==old_trades
             flatten=record['run_metadata']['strategy']['session_flattening']
             assert flatten['mode']=='csv_session_calendar_v1' and flatten['lookahead'] is False
+            assert flatten['minutes_before_close']==5 and flatten['calendar_id']=='cme_nq'
+            assert flatten['instrument_symbol']=='NQ' and flatten['calendar_selection']=='instrument_symbol'
             assert flatten['calendar']['sha256']==hashlib.sha256(Path('calendars/cme_nq_closures.csv').read_bytes()).hexdigest()
             automatic=record['run_metadata']['automatic_prop_analysis']
             errors=[]
@@ -77,6 +80,8 @@ def review(output, database, request_file):
                     page.goto(url+'/#backtests/report/'+run_id)
                     label=page.locator("#backtest-completion-content [data-setting='session_flattening']")
                     expect(label).to_contain_text('Calendar-based session exits')
+                    expect(label).to_contain_text('Auto calendar cme_nq for NQ')
+                    expect(label).to_contain_text('minus 5 minutes')
                     expect(label).to_contain_text('15:45 CT')
                     label.evaluate("el=>{const d=el.closest('details');if(d)d.open=true;}")
                     page.screenshot(path=str(output/'calendar-real-report.png'),full_page=True)

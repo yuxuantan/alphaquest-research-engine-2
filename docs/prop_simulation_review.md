@@ -3432,3 +3432,81 @@ trade export, independently of aggregate totals. No trades occur on
 All owned review/test servers stopped; the user's existing server/VM and
 previous report files remain untouched. Source commits exclude generated data
 and evidence; no remote push was performed.
+
+## 2026-11-02 — Editable close buffer and automatic NQ calendar selection
+
+The existing Backtests form now exposes **Close buffer minutes**, default 5,
+as one normal strategy parameter. Set start=end for a fixed run; it also works
+as an ordinary optimization axis. Positive whole minutes 1–1440 are supported.
+`EOD Flat Time` still caps the scheduled cutoff. Calendar selection follows the
+saved instrument symbol: NQ and explicit supported NQ aliases select
+`cme_nq_closures.csv`; the resolved calendar appears before Run. Missing symbols,
+other instruments and filenames containing NQ do not receive this calendar.
+Unknown instruments block calendar-enabled API/UI/CLI runs and mixed EOD-on/off
+optimization grids before publication/queueing. EOD-off runs remain available.
+There is no calendar picker or additional report store/page/API.
+
+Implementation artifacts are the existing Python strategy, session helper,
+registry, report/API/CLI and form integration. Reports retain the buffer,
+original instrument symbol, selected calendar ID/file, checksum and coverage.
+Calculation identity includes the new parameter; optimization workers receive
+the actual dataset symbol and retain the normal prepared-feature path. Earlier
+reports, calendars, evidence and source datasets remain unchanged.
+
+User journey: select the saved **ofb_bars_NQ** dataset and **Vwap pullback risk
+sizing** in Backtests. Expect **Session calendar: Auto → NQ futures ·
+cme_nq_closures.csv**. Review **Close buffer minutes** (start 5, end 5, step 0),
+or edit both endpoints to 10. With EOD Flat Time 15:45, regular 16:00 sessions
+cap at 15:45 for either buffer; noon sessions use 11:55 or 11:50 respectively.
+Run the declared IS, inspect the saved settings/downloads, then follow the
+existing Configure prop → Check source → Run → reopen durable report path.
+
+Actual default-5 execution created IS report
+`c841a716f8f14dbe8b73b31ec0d28b08`, using the existing 2021–2024 source and
+prior qualified request with the additional explicit buffer value. Independent
+expected values were fixed before execution: **486 trades, 28,155.00 gross,
+1,934.28 commissions and 26,220.72 net**. Exported trades are byte-identical to
+the prior independent next-Open reference. The report displays automatic NQ
+selection and buffer 5. Check source passed; Run reopened/reused the completed
+Apex companion `1206136351064729a8fa6be461643ac9`; the durable prop report,
+downloads, reload and mobile checks passed without browser errors. No OOS ran.
+
+Actual outputs are in `artifacts/calendar-options-real-20261102/`, including
+the request, expected values, report/trade/equity/risk exports, screenshots,
+source check, Apex report and verification. Seven earlier inferred-model report
+files and seven prior causal-calendar report files were hash-checked unchanged.
+Open `/#backtests/report/c841a716f8f14dbe8b73b31ec0d28b08` in the usual updated
+app to inspect the saved result. To reproduce a fresh actual IS execution:
+
+```sh
+.venv/bin/python tests/review_calendar_real.py \
+  --output artifacts/calendar-options-real-NEW
+```
+
+The edited-buffer UI demonstration uses the normal upload/backtest/report
+workflow in an isolated library with **SYNTHETIC** fixtures. Actual evidence is
+`artifacts/calendar-options-synthetic-20261102/`. The three default-buffer
+normal/noon/12:15 cases retain net **88 CU**. The fourth case changes the form
+to buffer 10: cutoff **11:50 CT**, next-Open fill in the **11:51** labelled bar,
+exit reference117 / adverse fill116.75. The independently fixed arithmetic is
+`(116.75 - 115.25) * 20 - 2 commissions = 28 CU`. Its report/downloads/reload
+match, with source bytes preserved. Reproduce:
+
+```sh
+.venv/bin/python tests/review_vwap_session_flatten.py \
+  --output artifacts/calendar-options-synthetic-NEW
+```
+
+Automated validation initially completed with **237 passing cases and three
+browser failures**, caused by old 32-parameter assertions and generic fixtures
+with no instrument that implicitly enabled the NQ calendar. Those fixtures now
+expect 33 parameters and explicitly disable EOD for unrelated controls checks;
+dedicated NQ calendar tests keep it enabled. The final entire affected browser
+set passed **42 cases** (Backtests, optimization and column preferences).
+Logs are `initial-regression-pytest.txt` and `final-browser-pytest.txt` under
+the real-evidence directory. Calendar/source/CLI checks were also rerun after
+adding early CLI validation; **81 cases passed**, with their final log in
+`final-calendar-cli-pytest.txt`.
+No new whole-repository pass is claimed. JavaScript syntax and Git whitespace
+checks passed. Owned temporary servers stopped; no persistent server, VM action,
+remote push, trade submission or modification to earlier reports was performed.

@@ -7,8 +7,12 @@ brackets. Its guide defines fill prices, ambiguous-bar policy, chart history,
 fill-bar timestamp labels, and terminal handling. Reports record which
 execution assumption applies; v1 sample fixtures remain unchanged.
 
-The VWAP EOD option uses the shared NQ CSV calendar to determine scheduled
-closes without future-bar inference. It blocks late entries and closed sessions,
+The VWAP EOD option resolves the shared calendar from the saved instrument
+symbol (currently NQ only), and applies editable `close_buffer_minutes=5` before
+scheduled close, capped by `eod_flat_time`, without future-bar inference.
+The form displays the resolved calendar; reports retain its identity/version
+and the configured buffer. Unknown symbols reject calendar-enabled runs.
+It blocks late entries and closed sessions,
 submits flattening at the first observed close at/after its scheduled cutoff,
 and fills the next observed Open only within the scheduled session. Missing
 liquidation prices or unknown calendar coverage reject. Earlier lookahead

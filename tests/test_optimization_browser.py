@@ -5,7 +5,7 @@ from threading import Event
 
 import pytest
 
-from test_backtests_browser import browser, page, portal, playwright
+from test_backtests_browser import browser, page, portal, playwright, set_parameter
 from alphaquest.strategies import consecutive_green_hold as sample
 from research_fixtures import reserved_source,declare_in_form
 
@@ -151,7 +151,8 @@ def test_running_job_remains_visible_after_reload_and_duplicate_submit_is_blocke
 def test_vwap_range_controls_include_boolean_and_decimal_endpoints(page, portal):
     prepare(page, portal)
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
-    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(32)
+    playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(33)
+    set_parameter(page, "use_eod_flat", False)
     page.get_by_label("Trade shorts start", exact=True).select_option("false")
     page.get_by_label("Trade shorts end", exact=True).select_option("true")
     playwright.expect(page.get_by_label("Trade shorts step count", exact=True)).to_have_value("2")
@@ -174,6 +175,7 @@ def test_adx_boolean_endpoints_auto_count_run_and_reopen(page, portal, tmp_path)
 
     prepare(page, portal)
     page.locator("#backtest-strategy").select_option("vwap_pullback_risk_sizing")
+    set_parameter(page, "use_eod_flat", False)
     start = page.get_by_label("Use adx elev start", exact=True)
     end = page.get_by_label("Use adx elev end", exact=True)
     count = page.get_by_label("Use adx elev step count", exact=True)

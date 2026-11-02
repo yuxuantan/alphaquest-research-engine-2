@@ -8,7 +8,9 @@ SHA-256 `12047fb6956d99d58ba1662517b398b86028923575d0447fac735b2bb7066b66`.
 All source Inputs are available in snake_case with their actual defaults:
 `PositionSize` becomes `position_size`, `Max_Contracts` becomes `max_contracts`,
 `ADXDecay_LB` becomes `adx_decay_lb`, and `ORStartTime` becomes `or_start_time`.
-The extra `max_bars_back=42` models the chart history setting. The source header
+The extra `max_bars_back=42` models the chart history setting, and
+`close_buffer_minutes=5` controls calendar flattening. There are 33 parameters:
+the 31 original Inputs plus those two additions. The source header
 says four contracts, but its Inputs specify **one contract**, the port's default.
 Risk sizing and shorts default off; both ADX gates and EOD flatten default on.
 EOD orders fill at the next observed bar Open, matching the supplied strategy's
@@ -63,7 +65,7 @@ trade-volume provenance.
   not reset. Missing the crossing can miss a reset; RTH-only data is unsuitable.
 - With `use_eod_flat=true` (default), look up the scheduled close in the shared
   [NQ calendar](../../calendars/README.md). Submit an exit from the first observed
-  Close at/after five minutes before that scheduled close, bounded by
+  Close at/after `close_buffer_minutes` before that scheduled close (default 5), bounded by
   `eod_flat_time=1555`, and fill at the **next observed bar Open** with costs.
   Block entries at/after cutoff and throughout full-closure/weekend sessions.
   Reserve the next one-minute fill bar when submitting entries; its close label
@@ -81,6 +83,23 @@ fetched during a run. Outside reviewed coverage, a missing/malformed file and
 unavailable timely liquidation prices reject the run with an actionable source
 error; the engine never guesses regular hours or infers a close from gaps.
 
+Before Run, the Backtests form displays **Session calendar: Auto → NQ futures ·
+cme_nq_closures.csv**, resolved from the dataset's saved symbol. Supported
+spellings include `NQ`, `@NQ`, `NQ1!`, `NQZ26` and `NQ.CME`; arbitrary filenames,
+point values, `MNQ` and unrelated products do not establish eligibility. A missing
+or unsupported symbol blocks calendar-enabled runs in the UI and returns 422
+from the API, including optimization grids containing an enabled EOD trial.
+Set an explicit supported symbol when saving the dataset. EOD-off runs do not
+require a calendar. Direct Python strategy construction defaults to NQ for this
+NQ-specific port; supply `instrument_symbol=` explicitly when adapting sources.
+
+**Close buffer minutes** is editable in the normal strategy parameter table,
+defaults to 5, and accepts whole minutes from 1 through 1440. Set start=end
+for a fixed run or declare a range for optimization. The buffer must be positive
+because flattening uses the following observed bar's Open. Large buffers can
+exclude all entries from a session. **EOD Flat Time** remains the latest cutoff.
+No calendar picker, uploaded CSV parameter or filename inference is involved.
+
 Sessions use **America/Chicago local ending dates**, not CME clearing trade
 dates. Evening bars after 17:00 belong to the following local date; the 17:00
 close label itself is in maintenance. Friday evening and Saturday-ending dates
@@ -90,7 +109,7 @@ Regular sessions close at 16:00 CT; exception rows supply the earlier time.
 
 ```text
 scheduled_close = CSV exception time, or 16:00 within reviewed regular coverage
-order_cutoff = min(configured eod_flat_time, scheduled_close - 5 minutes)
+order_cutoff = min(configured eod_flat_time, scheduled_close - close_buffer_minutes)
 flatten_submission = first observed bar Close at/after order_cutoff
 flatten_fill = next observed bar Open, whose close label must be <= scheduled_close
 ```
@@ -104,8 +123,9 @@ flatten_fill = next observed bar Open, whose close label must be <= scheduled_cl
 | 08:30 (mourning sessions) | 08:25 |
 | Full closure | No entries |
 
-A configured 15:45 cutoff remains 15:45 on regular days; shortened days can move
-it earlier. Five minutes means elapsed time, not five observed rows. A missing
+A configured 15:45 cutoff remains 15:45 on regular days with a 5- or 10-minute
+buffer; a noon close with buffer 10 instead submits at 11:50. The configured
+minutes measure elapsed time, not an observed-row count. With buffer 5, a missing
 11:55 bar does **not** promote the 11:54 bar into an earlier decision: the next
 observed eligible close submits flattening. If the next executable Open is in
 the evening, the run rejects instead of fabricating a pre-close fill. The same
@@ -126,6 +146,9 @@ simulated decision, as explained in the calendar guide.
 New reports identify `eod_next_open_csv_session_calendar_v1`,
 `session_flattening.lookahead=false`, the calendar SHA-256 and explicit coverage,
 observed session counts, the first five resolved plans and a digest of plans.
+The selected calendar ID, original saved instrument symbol, `minutes_before_close`
+and parameter `close_buffer_minutes` are retained with each run. Changing the
+buffer changes calculation identity; saved reports/OOS parents keep their values.
 `source_sha256` now hashes the Python strategy, its calendar helper and the CSV
 as one dependency bundle. Calendar changes invalidate saved-result reuse,
 queued optimization identity and new detail/risk replays. Existing reports and
@@ -228,6 +251,9 @@ those bars' Opens at 16:00, 12:00 and 12:15. Each synthetic trade enters at
 115.25, exits at 119.75, earns 90 gross, pays 2 commissions and nets 88 CU.
 The saved report explicitly
 shows calendar-based exits without bar lookahead; source CSV bytes and earlier runs remain unchanged.
+The fourth **SYNTHETIC noon-buffer10** case edits the buffer in the same form:
+cutoff 11:50, next observed Open in the 11:51-labelled bar at117, adverse exit
+116.75, and independent net `(116.75 - 115.25) * 20 - 2 = 28 CU`.
 To reopen the isolated review library after the command ends:
 
 ```bash

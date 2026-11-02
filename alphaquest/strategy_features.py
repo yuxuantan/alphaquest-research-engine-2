@@ -114,8 +114,8 @@ def prepare_features(definition, prepared, values, root, progress=lambda *args: 
 
 
 @contextmanager
-def create_strategy(definition, parameters, config, paths):
-    strategy = definition.create(parameters, config)
+def create_strategy(definition, parameters, config, paths, *, instrument_symbol="NQ"):
+    strategy = definition.create(parameters, config, instrument_symbol=instrument_symbol)
     with ExitStack() as stack:
         readers = {}
         if definition.acceleration:

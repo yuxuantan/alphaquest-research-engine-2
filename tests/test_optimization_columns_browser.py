@@ -156,6 +156,7 @@ def test_preferences_are_separate_for_each_strategy(page, portal):
     request = optimization_body(portal["saved"]["arithmetic_5m"]["id"])
     request["strategy_id"] = definition["id"]
     request["parameter_ranges"] = {parameter["name"]: dict(start=parameter["default"], end=parameter["default"], step="0" if parameter["type"] == "Decimal" else 0) for parameter in definition["parameters"]}
+    request["parameter_ranges"]["use_eod_flat"] = dict(start=False, end=False, step=0)
     request["parameter_ranges"]["trade_shorts"]["end"] = True
     request["parameter_ranges"]["trade_shorts"]["step"] = 1
     response = page.request.post(portal["url"] + "/api/backtests", data=request)
@@ -165,8 +166,8 @@ def test_preferences_are_separate_for_each_strategy(page, portal):
     playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE", timeout=20000)
     playwright.expect(page.locator("#optimization-freeze .optimization-freeze-count")).to_have_text("1 frozen")
     assert frozen_keys(page) == ["trial"]
-    # The same controls include all 32 backend-defined VWAP parameters.
-    playwright.expect(page.locator('.optimization-column-choice[data-column^="param."]')).to_have_count(32)
+    # The same controls include all 33 backend-defined VWAP parameters.
+    playwright.expect(page.locator('.optimization-column-choice[data-column^="param."]')).to_have_count(33)
     if page.locator("#optimization-freeze").get_attribute("open") is None:
         page.locator("#optimization-freeze summary").click()
     page.get_by_label("Show Min rr", exact=True).check()

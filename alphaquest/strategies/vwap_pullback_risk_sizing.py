@@ -14,7 +14,7 @@ import hashlib
 import json
 
 from ..strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position
-from ..session_calendar import CalendarError, MINUTES_BEFORE_CLOSE, calendar_path, load_calendar, session_date
+from ..session_calendar import CalendarError, MINUTES_BEFORE_CLOSE, NQ_CALENDAR, calendar_path, load_calendar, resolve_calendar, session_date
 
 
 STRATEGY_ID = "vwap_pullback_risk_sizing"
@@ -23,8 +23,8 @@ DESCRIPTION = (
     "confirmed pivot target, pivot or pullback stop, ADX elevation/decay gates, fixed or risk sizing. "
     "Chicago time; full-session 1-minute close-labelled bars. Next-bar Open market fills; "
     "brackets start after the entry bar, stop first if both levels hit. With EOD flatten on, "
-    "the shared NQ calendar supplies the scheduled close without future bars. Submit flatten five "
-    "minutes earlier (bounded by the configured cutoff), fill next observed Open; "
+    "the instrument's reviewed calendar supplies the scheduled close without future bars. Submit flatten "
+    "the configured minutes earlier (default five, bounded by the EOD cutoff), fill next observed Open; "
     "no entries at/after the cutoff."
 )
 EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_eod_next_open_csv_session_calendar_v1"
@@ -78,10 +78,11 @@ class Parameters:
     entry_start_time: int = integer(900, "Entry start, exclusive, Chicago HHMM.", 0, 2359)
     entry_end_time: int = integer(1700, "Entry end, inclusive, Chicago HHMM.", 0, 2359)
     day_reset_time: int = integer(2300, "Reset only when Time > reset and previous Time <= reset.", 0, 2359)
-    use_eod_flat: bool = boolean(True, "Use the shared NQ calendar: flatten five minutes before scheduled close, fill next Open and block later entries; no future-bar inference.")
+    use_eod_flat: bool = boolean(True, "Auto-select the reviewed calendar from the saved instrument; flatten Close buffer minutes before scheduled close, fill next Open and block later entries. Currently NQ only; no future-bar inference.")
     eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM; fill next observed Open; scheduled early closes can move the cutoff earlier.", 0, 2359)
     plot_trade_levels: bool = boolean(True, "Log signal-bar entry details through Python logging.")
     max_bars_back: int = integer(42, "Leading history bars before PowerLanguage CurrentBar=1.")
+    close_buffer_minutes: int = integer(MINUTES_BEFORE_CLOSE, "Minutes before scheduled market close to submit flattening; 1–1440, default 5. EOD Flat Time can cap this earlier. Next observed Open fill.", 1, 1440)
 
     def __post_init__(self):
         for item in fields(self):
@@ -145,7 +146,7 @@ class _ADX:
 
 
 class VwapPullbackRiskSizing:
-    def __init__(self, parameters: Parameters | None = None, *, execution_config: ExecutionConfig):
+    def __init__(self, parameters: Parameters | None = None, *, execution_config: ExecutionConfig, instrument_symbol="NQ"):
         if parameters is not None and type(parameters) is not Parameters:
             raise TypeError("parameters must be Parameters.")
         if type(execution_config) is not ExecutionConfig:
@@ -153,6 +154,8 @@ class VwapPullbackRiskSizing:
         self.parameters = parameters or Parameters()
         self.config = execution_config
         p = self.parameters
+        validate_instrument(p, instrument_symbol)
+        self.instrument_symbol = str(instrument_symbol or "").strip().upper()
         self._history = deque(maxlen=p.max_bars_back + 1)
         self._adx = _ADX(p.adx_len)
         self._adx_history = deque(maxlen=p.adx_decay_lb + 1)
@@ -177,7 +180,7 @@ class VwapPullbackRiskSizing:
         self._pending_entry_day = None
         self._session_digest = hashlib.sha256()
         self.session_flattening = {
-            **backtest_assumptions(self.parameters, calendar=self._calendar), "sessions": 0,
+            **backtest_assumptions(self.parameters, calendar=self._calendar, instrument_symbol=self.instrument_symbol), "sessions": 0,
             "closed_sessions": 0, "early_close_sessions": 0,
             "examples": [], "plans_sha256": self._session_digest.hexdigest(),
         }
@@ -187,7 +190,7 @@ class VwapPullbackRiskSizing:
             return None
         day = session_date(bar.timestamp_utc)
         if self._session_plan is None or self._session_plan.day != day:
-            plan = self._calendar.plan(day, self.parameters.eod_flat_time)
+            plan = self._calendar.plan(day, self.parameters.eod_flat_time, self.parameters.close_buffer_minutes)
             self._session_plan = plan
             self._session_cutoff = plan.cutoff.astimezone(timezone.utc) if plan.cutoff else None
             def stamp(value):
@@ -210,7 +213,7 @@ class VwapPullbackRiskSizing:
             return
         self._set_session(bar)  # Coverage also applies to warm-up/flat bars.
         if position is not None:
-            original = self._calendar.plan(session_date(position.entry_time_utc), self.parameters.eod_flat_time)
+            original = self._calendar.plan(session_date(position.entry_time_utc), self.parameters.eod_flat_time, self.parameters.close_buffer_minutes)
             if original.close is None or bar.timestamp_utc > original.close:
                 raise CalendarError("No observed liquidation price before the scheduled NQ session close; "
                                  "the position cannot be filled in a later session. Use complete source bars.")
@@ -378,16 +381,27 @@ class VwapPullbackRiskSizing:
         return CloseIntent("end_of_data") if position is not None else None
 
 
-def backtest_assumptions(parameters, *, calendar=None):
+SESSION_CALENDAR = NQ_CALENDAR
+
+
+def validate_instrument(parameters, symbol):
+    if parameters.use_eod_flat:
+        resolve_calendar(symbol)
+
+
+def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
     return {
         "enabled": parameters.use_eod_flat,
         "lookahead": False,
         "mode": "csv_session_calendar_v1",
         "calendar": (calendar or load_calendar()).metadata() if parameters.use_eod_flat else None,
+        "calendar_selection": "instrument_symbol",
+        "calendar_id": resolve_calendar(instrument_symbol)["id"] if parameters.use_eod_flat else None,
+        "instrument_symbol": instrument_symbol,
         "timezone": "America/Chicago",
         "session_boundary": "17:00 to 16:00, labelled by local ending date",
-        "minutes_before_close": MINUTES_BEFORE_CLOSE,
-        "cutoff_rule": "min(eod_flat_time, scheduled session close minus five elapsed minutes)",
+        "minutes_before_close": parameters.close_buffer_minutes,
+        "cutoff_rule": "min(eod_flat_time, scheduled session close minus close_buffer_minutes)",
         "missing_cutoff_bar": "submit at the first observed close at/after cutoff; require a subsequent Open by scheduled close",
         "truncated_session": "never changes scheduled cutoff; ordinary end_of_data policy remains explicit",
         "outside_coverage": "reject; never infer regular hours or an early close from price bars",

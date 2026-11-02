@@ -15,6 +15,7 @@ class StrategyDefinition:
     factory: type
     acceleration: object = None
     accepts_execution_config: bool = False
+    accepts_instrument: bool = False
 
     def parameters(self, values: dict):
         names = {field.name for field in fields(self.module.Parameters)}
@@ -35,7 +36,14 @@ class StrategyDefinition:
     def execution_assumption(self):
         return getattr(self.module, "EXECUTION_ASSUMPTION", "same_close_full_fill")
 
-    def create(self, parameters, config):
+    def validate_instrument(self, parameters, symbol):
+        validate = getattr(self.module, "validate_instrument", None)
+        if validate is not None:
+            validate(parameters, symbol)
+
+    def create(self, parameters, config, *, instrument_symbol="NQ"):
+        if self.accepts_instrument:
+            return self.factory(parameters, execution_config=config, instrument_symbol=instrument_symbol)
         if self.accepts_execution_config:
             return self.factory(parameters, execution_config=config)
         return self.factory(parameters)
@@ -46,6 +54,7 @@ class StrategyDefinition:
             "source_sha256": (self.module.source_fingerprint() if hasattr(self.module, "source_fingerprint")
                               else hashlib.sha256(Path(self.module.__file__).read_bytes()).hexdigest()),
             "execution_assumption": self.execution_assumption,
+            **({"session_calendar": dict(self.module.SESSION_CALENDAR)} if hasattr(self.module, "SESSION_CALENDAR") else {}),
             "parameters": [{"name": field.name, "type": field.type.__name__, "default": str(field.default) if field.type is Decimal else field.default,
                             **field.metadata} for field in fields(self.module.Parameters)],
         }
@@ -62,7 +71,7 @@ class StrategyDefinition:
 STRATEGIES = {
     consecutive_green_hold.STRATEGY_ID: StrategyDefinition(consecutive_green_hold, consecutive_green_hold.ConsecutiveGreenHold),
     vwap_pullback_risk_sizing.STRATEGY_ID: StrategyDefinition(vwap_pullback_risk_sizing, vwap_pullback_risk_sizing.VwapPullbackRiskSizing,
-                                                          acceleration=vwap_features, accepts_execution_config=True),
+                                                          acceleration=vwap_features, accepts_execution_config=True, accepts_instrument=True),
 }
 
 

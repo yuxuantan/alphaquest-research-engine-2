@@ -33,15 +33,35 @@
   }
 
   function controls() {
+    const calendarUnavailable = renderCalendar();
     for (const fieldset of form.querySelectorAll("fieldset")) fieldset.disabled = state.busy || state.loading;
     for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = state.busy || state.loading;
     get("#optimization-workers").disabled = state.busy || state.loading || !window.optimizations.workersReady();
     get("#optimization-workers-retry").disabled = state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
-    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || !window.researchSplit.ready() || !window.optimizations.workersReady();
+    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || calendarUnavailable || !window.researchSplit.ready() || !window.optimizations.workersReady();
     start.textContent = state.busy ? "Submitting / running…" : "Start backtests →";
     form.setAttribute("aria-busy", String(state.busy));
+  }
+
+  function renderCalendar() {
+    const status = get("#backtest-session-calendar");
+    const calendar = state.strategy?.session_calendar;
+    status.hidden = !calendar;
+    if (!calendar) return false;
+    const enabled = get("#optimization-ranges [data-parameter='use_eod_flat']");
+    const usesCalendar = enabled && Array.from(enabled.querySelectorAll("select")).some((input) => input.value === "true");
+    if (!usesCalendar) {
+      status.textContent = "Session calendar: disabled · Use EOD Flat is off.";
+      return false;
+    }
+    const symbol = String(selectedDataset()?.symbol || "").trim().toUpperCase();
+    const supported = new RegExp(`^(?:${calendar.symbol_pattern})$`).test(symbol);
+    status.textContent = supported
+      ? `Session calendar: Auto → ${calendar.instrument} · ${calendar.file.split("/").pop()} · saved symbol ${symbol} · ${calendar.timezone}. Set Close buffer minutes below; default 5.`
+      : `No reviewed session calendar for saved symbol ${symbol || "(not set)"}. Calendar EOD flattening currently supports NQ only. Select a dataset with an explicit supported symbol, or turn Use EOD Flat off.`;
+    return !supported;
   }
 
   function showError(error, title = "Backtest needs attention") {
@@ -81,7 +101,7 @@
       showError({ message: "This strategy uses a parameter type this screen does not support." });
     }
     get("#backtest-fill-assumption").textContent = strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
-      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, the shared NQ calendar sets the cutoff five minutes before scheduled close, bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
+      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, the instrument's reviewed calendar sets the cutoff using Close buffer minutes (default 5), bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     window.optimizations.configure(state.strategy);
     window.researchSplit.configure(datasetSelect.value,strategySelect.value);
@@ -294,7 +314,7 @@
       if (flatten.mode === "csv_session_calendar_v1") {
         const calendar = flatten.calendar || {};
         pair.append(element("dt", "", "Calendar-based session exits · no bar lookahead"), element("dd", "",
-          `Scheduled close minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened, ${flatten.closed_sessions ?? 0} closed. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Truncation does not change the cutoff.`));
+          `${flatten.calendar_selection === "instrument_symbol" ? `Auto calendar ${flatten.calendar_id} for ${flatten.instrument_symbol} · ${calendar.file}. ` : ""}Scheduled close minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened, ${flatten.closed_sessions ?? 0} closed. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Truncation does not change the cutoff.`));
       } else {
         pair.append(element("dt", "", "Backtest lookahead · session exits (earlier model)"), element("dd", "",
           `Last daytime bar minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} inferred sessions; ${flatten.sessions_using_earlier_bar ?? 0} used an earlier available bar; ${flatten.sessions_without_cutoff_bar ?? 0} had no executable cutoff. Truncated sessions count as early closes.`));
@@ -442,7 +462,9 @@
 
   form.addEventListener("input", (event) => {
     if (!event.target.closest("#optimization-settings")) event.target.setCustomValidity?.("");
+    if (event.target.closest("#optimization-settings")) controls();
   });
+  form.addEventListener("change", controls);
   datasetSelect.addEventListener("change", () => renderDataset());
   resetInstrument.addEventListener("click", () => renderDataset());
   for (const input of [tickSize, pointValue]) input.addEventListener("input", () => {

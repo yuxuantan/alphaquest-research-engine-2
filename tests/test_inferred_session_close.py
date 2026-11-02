@@ -185,6 +185,15 @@ def csv_bytes(rows):
     return stream.getvalue().encode()
 
 
+def buffer_rows():
+    """Synthetic prices: buffer5 exits120, buffer10 exits117 before costs."""
+    rows = session_rows()
+    day = rows[0].timestamp_utc.astimezone(CT).date()
+    rows[124:124] = [retime(bar(125, 11, 50, "116", "120", "110", "116"), day),
+                     retime(bar(126, 11, 51, "117", "120", "110", "116"), day)]
+    return [replace(row, bar_number=i) for i, row in enumerate(rows, 1)]
+
+
 def request_body(dataset_id, **overrides):
     return {"dataset_id": dataset_id, "strategy_id": "vwap_pullback_risk_sizing",
         "strategy_parameters": json.loads(json.dumps(asdict(parameters(use_eod_flat=True, **overrides)), default=json_value)),
@@ -196,7 +205,7 @@ def test_api_durable_report_exports_and_selected_range_use_the_new_rule(tmp_path
     raw = csv_bytes(session_rows())
     with TestClient(create_app(database)) as client:
         saved = client.post("/api/datasets", params={"filename": "synthetic-early-close.csv", "name": "SYNTHETIC early close",
-            "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=raw)
+            "symbol": "NQ", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=raw)
         assert saved.status_code == 201, saved.text
         dataset_id = saved.json()["id"]
         body = request_body(dataset_id)
@@ -238,7 +247,7 @@ def test_calendar_source_failures_return_422_without_a_completed_report(tmp_path
         message = "No observed liquidation price"
     with TestClient(create_app(tmp_path / "datasets.sqlite3")) as client:
         saved = client.post("/api/datasets", params={"filename": "synthetic-invalid-session.csv",
-            "name": "SYNTHETIC calendar rejection", "source_timezone": "UTC", "tick_size": "0.25",
+            "name": "SYNTHETIC calendar rejection", "symbol": "NQ", "source_timezone": "UTC", "tick_size": "0.25",
             "point_value": "20"}, content=csv_bytes(rows))
         assert saved.status_code == 201, saved.text
         response = client.post("/api/backtests", json=request_body(saved.json()["id"]))
@@ -252,7 +261,7 @@ def test_optimization_workers_prepared_features_and_full_detail_match_calendar_e
     database = tmp_path / "datasets.sqlite3"
     with TestClient(create_app(database)) as client:
         saved = client.post("/api/datasets", params={"filename": "synthetic-close.csv", "name": "SYNTHETIC optimization close",
-            "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=csv_bytes(session_rows()))
+            "symbol": "NQ", "source_timezone": "UTC", "tick_size": "0.25", "point_value": "20"}, content=csv_bytes(session_rows()))
         assert saved.status_code == 201, saved.text
         body = request_body(saved.json()["id"])
         values = body.pop("strategy_parameters")
