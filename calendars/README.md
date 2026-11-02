@@ -8,9 +8,11 @@ contains **124 dates: 96 early closes and 28 full session closures**. The first
 not strategy order cutoffs, cash-equity hours, settlement times or broker
 margin deadlines. The five-minute strategy buffer is deliberately not stored.
 
-This is a reference-data deliverable. Creating it does not connect it to the
-AQ or MC strategy, recalculate any report, or replace AQ's current last-bar
-inference. Calendar-based strategy integration is a separate increment.
+The [AQ Python strategy](../docs/strategies/vwap_pullback_risk_sizing.md) now
+loads this file once per run when EOD flattening is enabled. Its scheduled
+cutoffs replace the earlier last-observed-bar inference. Existing saved reports
+retain their original calculations and execution-model labels. The matching
+C# strategy and its installation/qualification steps are in `multicharts/`.
 
 ## Scope and date meaning
 
@@ -20,7 +22,7 @@ the holiday daytime portion of Monday 2024-09-02 stops at 12:00 CT even though
 CME assigns the activity to the September 3 clearing trade date.
 
 For the normal overnight convention, bars at/after 17:00 CT belong to the
-following local session-ending date. A future consumer must also apply the
+following local session-ending date. Both strategy consumers also apply the
 normal weekly trading schedule; weekends are not rows in this exception file.
 
 - `early_close`: the session has trading before `close_time_local`; its
@@ -134,7 +136,7 @@ for later years. No dates in this file were inferred from AQ price bars.
    It checks format, ordering, duplicates, closure/time consistency, timezone,
    source fields and date bounds. A green result does not certify the notices.
 5. Review `git diff -- calendars/`, then commit the reviewed update. Preserve the
-   old CSV or Git commit with each backtest. New runs should record the CSV
+   old CSV or Git commit with each backtest. New AQ runs record the CSV
    checksum and coverage; do not rewrite historical reports.
 6. Copy the same reviewed bytes into Windows for MC .NET. Check that these match:
 
@@ -146,7 +148,7 @@ for later years. No dates in this file were inferred from AQ price bars.
    Get-FileHash 'C:\AlphaQuest\calendars\cme_nq_closures.csv' -Algorithm SHA256
    ```
 
-   File location can differ; contents must match. When connected to a strategy,
+   File location can differ; contents must match. After connecting the strategy,
    reload/recalculate deliberately after an update rather than changing the
    calendar halfway through a backtest. Use your original report, prop
    configuration, source check, run and saved-report workflow to inspect new

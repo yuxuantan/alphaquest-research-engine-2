@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 from setuptools import Extension, setup
+from setuptools.command.build_py import build_py
+import shutil
 from Cython.Build import cythonize
 
 source=Path(__file__).parent/'alphaquest/prop/native_engine.py'
@@ -16,4 +18,13 @@ lucid=Path(__file__).parent/'alphaquest/prop/lucid_engine.py'
 lucid_wrapper=generated/'_lucid_compiled.pyx'
 lucid_wrapper.write_text('include '+json.dumps(lucid.resolve().as_posix())+'\nCOMPILED_SOURCE_SHA256 = '+repr(sha256(lucid.read_bytes()).hexdigest())+'\n')
 extensions.append(Extension('alphaquest.prop._lucid_compiled',[str(lucid_wrapper)],extra_compile_args=flags,optional=True))
-setup(ext_modules=cythonize(extensions,compiler_directives=dict(language_level=3,annotation_typing=False,infer_types=False,binding=True)))
+class BuildWithCalendar(build_py):
+    def run(self):
+        super().run()
+        target = Path(self.build_lib) / 'alphaquest/reference_data'
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(Path(__file__).parent / 'calendars/cme_nq_closures.csv', target / 'cme_nq_closures.csv')
+
+
+setup(cmdclass={'build_py': BuildWithCalendar},
+      ext_modules=cythonize(extensions,compiler_directives=dict(language_level=3,annotation_typing=False,infer_types=False,binding=True)))

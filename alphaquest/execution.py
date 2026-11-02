@@ -203,9 +203,8 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
-    VWAP's EOD option deliberately looks ahead within each session to infer its
-    last bar. Strategies without prepare_replay retain the causal streaming
-    interface. Preparation never edits existing reports or source datasets.
+    Preparation is optional. The calendar-based VWAP strategy uses the causal
+    streaming interface. Saved reports and source datasets are never edited.
     """
     prepare = getattr(strategy, "prepare_replay", None)
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
@@ -240,6 +239,9 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         if pending is not None:
             yield pending
         _validate_bar(bar, previous)
+        holding_check = getattr(strategy, "validate_holding_bar", None)
+        if holding_check is not None:
+            holding_check(bar, account.position)
         if observe_bar is not None:
             observe_bar(bar)
         closed_on_bar = False

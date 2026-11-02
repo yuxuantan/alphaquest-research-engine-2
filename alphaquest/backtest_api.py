@@ -21,6 +21,7 @@ from .backtest_runs import RunStore
 from .backtest_config import RunSettings, instrument_overrides
 from .datasets import COLUMNS, InvalidDataset
 from .execution import ExecutionError, execute
+from .session_calendar import CalendarError
 from .reporting import ReportError, generate_report, json_value
 from .report_chart import equity_preview
 from .strategies.registry import get_strategy, list_strategies
@@ -231,7 +232,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))
-        if isinstance(exc, (DatasetReadError, InvalidDataset, ExecutionError, ReportError)):
+        if isinstance(exc, (DatasetReadError, InvalidDataset, ExecutionError, ReportError, CalendarError)):
             raise HTTPException(422, str(exc)) from None
         raise HTTPException(500, "Backtest failed; no completed run was saved.") from exc
 

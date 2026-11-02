@@ -43,7 +43,8 @@ class StrategyDefinition:
     def description(self) -> dict:
         return {
             "id": self.module.STRATEGY_ID, "description": self.module.DESCRIPTION,
-            "source_sha256": hashlib.sha256(Path(self.module.__file__).read_bytes()).hexdigest(),
+            "source_sha256": (self.module.source_fingerprint() if hasattr(self.module, "source_fingerprint")
+                              else hashlib.sha256(Path(self.module.__file__).read_bytes()).hexdigest()),
             "execution_assumption": self.execution_assumption,
             "parameters": [{"name": field.name, "type": field.type.__name__, "default": str(field.default) if field.type is Decimal else field.default,
                             **field.metadata} for field in fields(self.module.Parameters)],

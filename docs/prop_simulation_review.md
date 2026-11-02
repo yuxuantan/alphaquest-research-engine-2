@@ -3297,3 +3297,63 @@ end date requires reviewing the entire added interval, including regular dates.
 The validator checks consistent bounds and optional requested-bound assertions.
 Actual updated validation is `artifacts/cme-calendar-review-20261102/validation-with-2026.json`.
 The prior validation and calendar commit are preserved. No simulation changed.
+
+## 2026-11-02 — Causal AQ session calendar in the existing report workflow
+
+The Python VWAP strategy now loads the shared CSV once, derives the current
+Chicago session-ending date from each current bar, and uses the earlier of the
+configured EOD time and scheduled close minus five minutes. The production
+last-observed-session-bar inference was removed. Both entry submission and
+pending-entry fills enforce the cutoff; a pending entry cannot cross sessions.
+The executor validates a held position before applying old orders so an evening
+bracket/market fill cannot disguise missing pre-close liquidation data. Unknown
+coverage and unavailable liquidation prices return 422 without a completed run.
+The calendar SHA and coverage are saved in reports and included in calculation
+identity. The wheel bundles the same CSV bytes. Earlier reports stay immutable.
+
+Actual product journey: the normal backtest API created new IS report
+`030f3b33449b43b2b31d1b140be29267` from the existing NQ source for 2021–2024,
+using the prior qualified request and explicitly disabling result reuse. The
+independent, previously reconciled reference was fixed before execution:
+486 trades, 28,155.00 gross, 1,934.28 commissions, 26,220.72 net. Every exported
+trade byte matches that reference. This verifies AQ's calendar replacement on
+the complete source; it is not a newly measured C# MultiCharts comparison.
+
+In the existing UI the report's settings show **Calendar-based session exits ·
+no bar lookahead**, coverage and checksum. Open its Configure prop dialog,
+choose the existing default Apex companion, click Check source, then Run. Source
+checking passes and Run reuses the completed companion
+`b3df542ae0cf4dcb9cf5aa2a984cb36a`; the durable prop report reopens after reload.
+Downloads, mobile layout, and the older inferred-session report were inspected.
+Seven original report files were hash-checked unchanged. No OOS was executed.
+
+Inspectable actual outputs are in `artifacts/calendar-causal-real-20261102/`:
+`independent-expected.json`, `new-report.json`, exported trades/equity/risk,
+`apex-source-check.json`, `apex-report.json`, screenshots, preserved-file hashes,
+`verification.json` and `wheel-verification.json`. To inspect without creating
+another report, restart the usual app with the updated code and open
+`/#backtests/report/030f3b33449b43b2b31d1b140be29267`. To reproduce execution:
+
+```sh
+.venv/bin/python tests/review_calendar_real.py \
+  --output artifacts/calendar-causal-real-NEW
+```
+
+This deliberately creates a new report in the existing library; it requires the
+existing dataset and earlier reference artifacts. It owns a temporary server
+and stops it automatically. The isolated synthetic review is independently
+reproducible with `tests/review_vwap_session_flatten.py --output` as documented
+in the strategy guide. Actual synthetic outputs are in
+`artifacts/calendar-causal-synthetic-20261102/`: all three scheduled closes
+(16:00, 12:00, 12:15) produce 15:55/11:55/12:10 order cutoffs and independently
+expected net 88 CU. These sparse fixtures fill on the next observed Open at
+the session close; they are not tick-level demonstrations of liquidation time.
+
+Boundary checks cover missing cutoff bars without backdating, pending entries
+at cutoff/across sessions, full closures, DST, truncation, malformed files,
+coverage rejection and missing pre-close prices. The combined calendar/updated
+session suite passed 54 cases, and the report browser case passed. The earlier
+95-case focused strategy/execution/calendar run also passed. The full-suite
+gate is recorded separately after completion. The wheel built successfully;
+an isolated extracted install loaded a byte-identical bundled CSV. Temporary
+review servers stopped and no persistent server or VM was started.

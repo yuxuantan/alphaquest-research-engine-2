@@ -1,4 +1,4 @@
-"""PowerLanguage signal port with an explicit backtest-only EOD lookahead rule.
+"""PowerLanguage signal port with causal CSV-calendar session cutoffs.
 
 See docs/strategies/vwap_pullback_risk_sizing.md for execution and parity limits.
 """
@@ -6,14 +6,15 @@ See docs/strategies/vwap_pullback_risk_sizing.md for execution and parity limits
 from collections import deque
 from dataclasses import dataclass, field, fields
 from decimal import Decimal, localcontext
+from datetime import timedelta, timezone
 import logging
+from pathlib import Path
 from zoneinfo import ZoneInfo
-from contextlib import contextmanager
 import hashlib
 import json
 
 from ..strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position
-from .inferred_session_close import MINUTES_BEFORE_CLOSE, session_bars
+from ..session_calendar import CalendarError, MINUTES_BEFORE_CLOSE, calendar_path, load_calendar, session_date
 
 
 STRATEGY_ID = "vwap_pullback_risk_sizing"
@@ -22,11 +23,11 @@ DESCRIPTION = (
     "confirmed pivot target, pivot or pullback stop, ADX elevation/decay gates, fixed or risk sizing. "
     "Chicago time; full-session 1-minute close-labelled bars. Next-bar Open market fills; "
     "brackets start after the entry bar, stop first if both levels hit. With EOD flatten on, "
-    "BACKTEST LOOKAHEAD infers the session close from its last daytime bar and submits a flatten order five "
-    "minutes earlier (at/before 15:55 CT), then flattens at the next observed Open; "
+    "the shared NQ calendar supplies the scheduled close without future bars. Submit flatten five "
+    "minutes earlier (bounded by the configured cutoff), fill next observed Open; "
     "no entries at/after the cutoff."
 )
-EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_eod_next_open_inferred_session_close"
+EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_eod_next_open_csv_session_calendar_v1"
 CT = ZoneInfo("America/Chicago")
 LOG = logging.getLogger(__name__)
 D = Decimal
@@ -77,8 +78,8 @@ class Parameters:
     entry_start_time: int = integer(900, "Entry start, exclusive, Chicago HHMM.", 0, 2359)
     entry_end_time: int = integer(1700, "Entry end, inclusive, Chicago HHMM.", 0, 2359)
     day_reset_time: int = integer(2300, "Reset only when Time > reset and previous Time <= reset.", 0, 2359)
-    use_eod_flat: bool = boolean(True, "Backtest lookahead: submit flatten five minutes before the last daytime bar; fill next observed Open; block later entries.")
-    eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM; fill next observed Open; early-close inference can move the cutoff earlier.", 0, 2359)
+    use_eod_flat: bool = boolean(True, "Use the shared NQ calendar: flatten five minutes before scheduled close, fill next Open and block later entries; no future-bar inference.")
+    eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM; fill next observed Open; scheduled early closes can move the cutoff earlier.", 0, 2359)
     plot_trade_levels: bool = boolean(True, "Log signal-bar entry details through Python logging.")
     max_bars_back: int = integer(42, "Leading history bars before PowerLanguage CurrentBar=1.")
 
@@ -171,45 +172,55 @@ class VwapPullbackRiskSizing:
         self.active_stop = self.active_target = D(0)
         self.adx_value = D(0)
         self._session_cutoff = None
-        self._session_plan_ready = False
+        self._calendar = load_calendar() if p.use_eod_flat else None
+        self._session_plan = None
+        self._pending_entry_day = None
         self._session_digest = hashlib.sha256()
         self.session_flattening = {
             **backtest_assumptions(self.parameters), "sessions": 0,
-            "sessions_without_cutoff_bar": 0, "sessions_using_earlier_bar": 0,
+            "closed_sessions": 0, "early_close_sessions": 0,
             "examples": [], "plans_sha256": self._session_digest.hexdigest(),
         }
 
-    @contextmanager
-    def prepare_replay(self, bars):
-        """The execution engine invokes this lookahead pass for historical replay."""
+    def _set_session(self, bar):
         if not self.parameters.use_eod_flat:
-            yield bars
-            return
-        prepared = session_bars(bars, self)
-        try:
-            yield prepared
-        finally:
-            prepared.close()
+            return None
+        day = session_date(bar.timestamp_utc)
+        if self._session_plan is None or self._session_plan.day != day:
+            plan = self._calendar.plan(day, self.parameters.eod_flat_time)
+            self._session_plan = plan
+            self._session_cutoff = plan.cutoff.astimezone(timezone.utc) if plan.cutoff else None
+            def stamp(value):
+                return value.astimezone(CT).isoformat() if value is not None else None
+            record = dict(session_date=day.isoformat(), session_type=plan.kind,
+                          scheduled_close=stamp(plan.close), order_cutoff=stamp(plan.cutoff))
+            self._session_digest.update((json.dumps(record, sort_keys=True) + "\n").encode())
+            metadata = self.session_flattening
+            metadata["sessions"] += 1
+            metadata["closed_sessions"] += plan.close is None
+            metadata["early_close_sessions"] += plan.kind == "early_close"
+            if len(metadata["examples"]) < 5:
+                metadata["examples"].append(record)
+            metadata["plans_sha256"] = self._session_digest.hexdigest()
+        return self._session_plan
 
-    def _record_session_close(self, day, last, target, cutoff):
-        def stamp(value):
-            return value.astimezone(CT).isoformat() if value is not None else None
-        record = {"session_date": day.isoformat(), "inferred_close": stamp(last),
-                  "target_cutoff": stamp(target), "executed_cutoff": stamp(cutoff),
-                  "order_cutoff": stamp(cutoff)}
-        self._session_digest.update((json.dumps(record, sort_keys=True) + "\n").encode())
-        metadata = self.session_flattening
-        metadata["sessions"] += 1
-        metadata["sessions_without_cutoff_bar"] += cutoff is None
-        metadata["sessions_using_earlier_bar"] += cutoff is not None and cutoff < target
-        if len(metadata["examples"]) < 5:
-            metadata["examples"].append(record)
-        metadata["plans_sha256"] = self._session_digest.hexdigest()
+    def validate_holding_bar(self, bar, position):
+        """Reject unavailable pre-close liquidation prices before applying orders."""
+        if not self.parameters.use_eod_flat:
+            return
+        self._set_session(bar)  # Coverage also applies to warm-up/flat bars.
+        if position is not None:
+            original = self._calendar.plan(session_date(position.entry_time_utc), self.parameters.eod_flat_time)
+            if original.close is None or bar.timestamp_utc > original.close:
+                raise CalendarError("No observed liquidation price before the scheduled NQ session close; "
+                                 "the position cannot be filled in a later session. Use complete source bars.")
 
     def allow_entry_fill(self, bar):
-        """Cancel pending entries when a gap carries their fill past the cutoff."""
-        return (not self.parameters.use_eod_flat
-                or (self._session_cutoff is not None and bar.timestamp_utc < self._session_cutoff))
+        """Cancel an unfilled entry if a gap reaches cutoff or another session."""
+        if not self.parameters.use_eod_flat:
+            return True
+        plan = self._set_session(bar)
+        return plan.day == self._pending_entry_day and plan.allows(bar.timestamp_utc)
 
     def _clear_latches(self):
         self.long_orb_broken = self.short_orb_broken = False
@@ -246,8 +257,7 @@ class VwapPullbackRiskSizing:
 
     def _on_bar(self, bar, position):
         p = self.parameters
-        if p.use_eod_flat and not self._session_plan_ready:
-            raise ValueError("EOD inference requires execute() to prepare the session's future bars before on_bar().")
+        plan = self._set_session(bar)
         self._history.append(bar)
         self._seen += 1
         if self._seen <= p.max_bars_back:
@@ -322,10 +332,14 @@ class VwapPullbackRiskSizing:
         self._previous_long_latched, self._previous_short_latched = long_latched, short_latched
         self._previous_time, self._previous_orb, self._previous_vwap = time, in_orb, in_vwap
 
-        if p.use_eod_flat and not self.allow_entry_fill(bar):
+        if p.use_eod_flat and not plan.allows(bar.timestamp_utc):
             return CloseIntent("eod_flat", timing="next_open") if position is not None else None
         if position is not None:
             return BracketIntent(self.active_stop, self.active_target)
+        if p.use_eod_flat and bar.timestamp_utc + timedelta(minutes=1) >= self._session_cutoff:
+            # A close-labelled one-minute entry fill must be strictly before
+            # cutoff. MC uses this same advance submission guard.
+            return None
         if self.trades_today >= p.max_trades_per_day or not adx_ok:
             return None
         buffer = p.buffer_amount * self.config.tick_size if p.buffer_mode == 1 else p.buffer_amount
@@ -354,6 +368,7 @@ class VwapPullbackRiskSizing:
             if p.plot_trade_levels:
                 LOG.info("%s %s qty=%s close=%s stop=%s target=%s stopDist=%s adx=%s",
                          local.isoformat(), side.upper(), quantity, bar.close, stop, target, distance, self.adx_value)
+            self._pending_entry_day = plan.day if plan is not None else None
             return EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open",
                                exit_deadline_utc=self._session_cutoff if p.use_eod_flat else None)
         return None
@@ -366,15 +381,24 @@ class VwapPullbackRiskSizing:
 def backtest_assumptions(parameters):
     return {
         "enabled": parameters.use_eod_flat,
-        "lookahead": parameters.use_eod_flat,
-        "mode": "inferred_session_close",
+        "lookahead": False,
+        "mode": "csv_session_calendar_v1",
+        "calendar": load_calendar().metadata() if parameters.use_eod_flat else None,
         "timezone": "America/Chicago",
         "session_boundary": "17:00 to 16:00, labelled by local ending date",
         "minutes_before_close": MINUTES_BEFORE_CLOSE,
-        "cutoff_rule": "min(eod_flat_time, last observed daytime bar minus five elapsed minutes)",
-        "missing_cutoff_bar": "preceding observed bar; no entries if none exists",
-        "truncated_session": "treated as an early close, including the final selected day",
+        "cutoff_rule": "min(eod_flat_time, scheduled session close minus five elapsed minutes)",
+        "missing_cutoff_bar": "submit at the first observed close at/after cutoff; require a subsequent Open by scheduled close",
+        "truncated_session": "never changes scheduled cutoff; ordinary end_of_data policy remains explicit",
+        "outside_coverage": "reject; never infer regular hours or an early close from price bars",
+        "full_close": "block entries in the session; evening reopening is the following session",
         "order_timing": "next_open",
         "fill": "next observed bar Open after the cutoff with adverse slippage and commissions; brackets through the cutoff bar retain priority",
         "fill_timestamp": "containing bar close label; not a measured tick timestamp",
     }
+
+
+def source_fingerprint():
+    """Calendar and helper changes invalidate reuse and queued strategy identity."""
+    files = (Path(__file__), Path(__file__).parents[1] / "session_calendar.py", calendar_path())
+    return hashlib.sha256(b"\0".join(path.read_bytes() for path in files)).hexdigest()

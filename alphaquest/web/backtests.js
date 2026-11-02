@@ -81,7 +81,7 @@
       showError({ message: "This strategy uses a parameter type this screen does not support." });
     }
     get("#backtest-fill-assumption").textContent = strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
-      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, BACKTEST LOOKAHEAD uses the last daytime bar to infer each session close, then closes five minutes earlier (at/before 15:55 CT) and blocks later entries. A missing cutoff minute uses the preceding available bar. Truncated data is treated as an early close. Use full-session one-minute data."
+      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, the shared NQ calendar sets the cutoff five minutes before scheduled close, bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     window.optimizations.configure(state.strategy);
     window.researchSplit.configure(datasetSelect.value,strategySelect.value);
@@ -291,8 +291,14 @@
       const nextOpen = flatten.order_timing === "next_open";
       const cutoff = String(metadata.strategy.parameters.eod_flat_time ?? 1555).padStart(4, "0");
       const fill = nextOpen ? "submit at cutoff; fill next observed bar Open" : "cutoff Close fill (earlier execution model)";
-      pair.append(element("dt", "", "Backtest lookahead · session exits"), element("dd", "",
-        `Last daytime bar minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} inferred sessions; ${flatten.sessions_using_earlier_bar ?? 0} used an earlier available bar; ${flatten.sessions_without_cutoff_bar ?? 0} had no executable cutoff. Truncated sessions count as early closes.`));
+      if (flatten.mode === "csv_session_calendar_v1") {
+        const calendar = flatten.calendar || {};
+        pair.append(element("dt", "", "Calendar-based session exits · no bar lookahead"), element("dd", "",
+          `Scheduled close minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened, ${flatten.closed_sessions ?? 0} closed. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Truncation does not change the cutoff.`));
+      } else {
+        pair.append(element("dt", "", "Backtest lookahead · session exits (earlier model)"), element("dd", "",
+          `Last daytime bar minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} inferred sessions; ${flatten.sessions_using_earlier_bar ?? 0} used an earlier available bar; ${flatten.sessions_without_cutoff_bar ?? 0} had no executable cutoff. Truncated sessions count as early closes.`));
+      }
       grid.append(pair);
     }
     content.append(grid);

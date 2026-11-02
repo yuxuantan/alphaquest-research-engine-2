@@ -12,9 +12,9 @@ The extra `max_bars_back=42` models the chart history setting. The source header
 says four contracts, but its Inputs specify **one contract**, the port's default.
 Risk sizing and shorts default off; both ADX gates and EOD flatten default on.
 EOD orders fill at the next observed bar Open, matching the supplied strategy's
-`MarketNextBar` instruction. The order cutoff still uses the backtest-only
-last-bar lookahead rule below, which intentionally adds shortened-session
-handling beyond the source. The retained `.pl` is
+`MarketNextBar` instruction. The order cutoff now uses the shared CSV session calendar, which adds
+shortened-session handling beyond the original source without future-bar
+inference. The retained `.pl` is
 the original source and is not silently rewritten.
 `plot_trade_levels` emits signal details through the module's INFO logger;
 enable INFO logging in your Python host to display them.
@@ -57,75 +57,76 @@ trade-volume provenance.
 - Reset follows the exact crossing: current HHMM **> 23:00** and previous
   HHMM **<= 23:00**, plus the first evaluated bar. Date rollover alone does
   not reset. Missing the crossing can miss a reset; RTH-only data is unsuitable.
-- With `use_eod_flat=true` (default), infer each session's close from its last
-  observed daytime bar. Submit an exit at the actual bar Close at/before five
-  minutes earlier, capped by `eod_flat_time=1555`, and fill at the **next observed
-  bar Open** with costs. Block entries at/after the order cutoff.
-  Pending entries that gap past the cutoff are cancelled. `use_eod_flat=false`
-  disables this inference and entry restriction; remaining exposure closes at EOF.
+- With `use_eod_flat=true` (default), look up the scheduled close in the shared
+  [NQ calendar](../../calendars/README.md). Submit an exit from the first observed
+  Close at/after five minutes before that scheduled close, bounded by
+  `eod_flat_time=1555`, and fill at the **next observed bar Open** with costs.
+  Block entries at/after cutoff and throughout full-closure/weekend sessions.
+  Reserve the next one-minute fill bar when submitting entries; its close label
+  must be strictly before cutoff. Cancel pending entries that gap past cutoff
+  or into a different session. `use_eod_flat=false` disables these calendar EOD
+  rules; remaining exposure closes under the explicit EOF policy.
 
-## Backtest-only last-bar lookahead
+## Causal CSV session calendar
 
-This is an explicitly permitted historical simulation assumption, not a live
-early-close detector. No exchange calendar or special-date list is fetched.
-The separately maintained [NQ closure CSV](../../calendars/README.md) now
-provides sourced 2016–2025 historical exceptions for a future calendar-based
-mode. This reference file is not yet consumed by the strategy; the inference
-below still describes current execution.
-The engine buffers one session before replaying it through the same signal,
-fill, cost, equity, and reporting code. It does not edit an old trade timestamp
-while leaving its price or P&L unchanged. Existing saved reports remain intact;
-run a new backtest to get the new behavior.
+The Python implementation reads `calendars/cme_nq_closures.csv` once per strategy
+instance. The same bytes are bundled in an installed package. Read
+[the calendar guide](../../calendars/README.md) for sources, reviewed coverage,
+manual updates and source-publication limitations. No exchange calendar is
+fetched during a run. Outside reviewed coverage, a missing/malformed file and
+unavailable timely liquidation prices reject the run with an actionable source
+error; the engine never guesses regular hours or infers a close from gaps.
 
-Sessions begin at 17:00 CT on the preceding date and end on the following local
-date. The last observed bar on that ending date at/before 16:00 is the inferred
-close. Evening bars at/after 17:00 belong to the following session; bars in the
-16:00-17:00 maintenance interval cannot extend the inferred daytime close.
-This session-ending date is not an official CME clearing trade date.
+Sessions use **America/Chicago local ending dates**, not CME clearing trade
+dates. Evening bars after 17:00 belong to the following local date; the 17:00
+close label itself is in maintenance. Friday evening and Saturday-ending dates
+are closed under the weekly schedule. A full-closure row also blocks the
+preceding evening, while any holiday-night reopening belongs to the next date.
+Regular sessions close at 16:00 CT; exception rows supply the earlier time.
 
 ```text
-target_cutoff = min(eod_flat_time, last_observed_daytime_bar - 5 elapsed minutes)
-executable_cutoff = last real bar at or before target_cutoff
-flatten_fill = next observed bar Open after executable_cutoff
+scheduled_close = CSV exception time, or 16:00 within reviewed regular coverage
+order_cutoff = min(configured eod_flat_time, scheduled_close - 5 minutes)
+flatten_submission = first observed bar Close at/after order_cutoff
+flatten_fill = next observed bar Open, whose close label must be <= scheduled_close
 ```
 
-| Last daytime bar, CT | Target cutoff, CT |
+| Scheduled close, CT | Default order cutoff, CT |
 | --- | --- |
 | 16:00 | 15:55 |
 | 12:00 | 11:55 |
 | 12:15 | 12:10 |
-| 15:59 | 15:54 |
+| 08:15 (some Good Fridays) | 08:10 |
+| 08:30 (mourning sessions) | 08:25 |
+| Full closure | No entries |
 
-Five minutes means elapsed time, not five CSV rows. If the exact cutoff minute
-is absent, submit from the preceding actual bar and fill at the next observed
-Open, including adverse slippage and both-side commissions. Do not invent a
-missing minute or use its price. If no cutoff bar exists, do not enter that
-session. Earlier stop/target exits stay intact, including a bracket that fills
-inside the cutoff bar before its Close. After submission the flatten market
-replaces the bracket. No new entry may fill at/after the order cutoff.
+A configured 15:45 cutoff remains 15:45 on regular days; shortened days can move
+it earlier. Five minutes means elapsed time, not five observed rows. A missing
+11:55 bar does **not** promote the 11:54 bar into an earlier decision: the next
+observed eligible close submits flattening. If the next executable Open is in
+the evening, the run rejects instead of fabricating a pre-close fill. The same
+holding-bar guard runs **before** old pending brackets, preventing an evening
+stop/target from disguising a missed scheduled close. Prior eligible bracket
+fills retain priority, including through the cutoff bar.
 
-Timestamps label bar closes: an exit recorded on the 15:46 bar uses that bar's
-Open, normally near the 15:45 boundary, not its Close. Sparse data can delay
-the next observed bar. This does not establish an exact tick fill time or
-guarantee liquidation by a prop deadline. At EOF with no subsequent bar, the
-existing `end_of_data` policy uses the final actual Close; it does not invent
-an Open or label that fallback as a next-open EOD fill.
+Bars are close-labelled. An exit recorded on the 11:56 bar uses its Open,
+ordinarily around 11:55, not its Close. A close-labelled bar does not establish
+an actual execution tick or certify a broker/prop liquidation deadline.
+At EOF, remaining exposure closes at the last actual Close with reason
+`end_of_data`; it is never relabelled as a next-Open EOD fill. Truncating a day
+at 09:03 leaves its scheduled cutoff unchanged and does not remove earlier
+signals. This change eliminates the earlier **price-bar lookahead**; a strict
+point-in-time calendar claim still requires dated notices published before the
+simulated decision, as explained in the calendar guide.
 
-The rule uses only the selected replay slice. A truncated or sparse day,
-including the final selected day, is deliberately treated as an early close.
-For example, a selection ending at 09:03 moves that day's cutoff to 08:58 and
-can eliminate its morning entries. Choose complete data when that assumption
-is unwanted. This is the limitation accepted in place of maintaining dates.
-
-New reports label execution with `eod_next_open_inferred_session_close`; older
-saved reports retain their cutoff-Close model and results. Their strategy
-metadata records the enabled lookahead rule, session count, missing/earlier
-cutoff counts, the first five resolved examples, and a SHA-256 of all resolved
-plans. `order_timing=next_open` identifies the new model. In each example,
-`order_cutoff` identifies the signal bar; the legacy `executed_cutoff` field
-is retained as an alias for that resolved cutoff, not the later fill timestamp.
-Trades carry their order cutoff in `exit_deadline_utc`; forced
-exits use reason `eod_flat`. These values persist in normal report downloads.
+New reports identify `eod_next_open_csv_session_calendar_v1`,
+`session_flattening.lookahead=false`, the calendar SHA-256 and explicit coverage,
+observed session counts, the first five resolved plans and a digest of plans.
+`source_sha256` now hashes the Python strategy, its calendar helper and the CSV
+as one dependency bundle. Calendar changes invalidate saved-result reuse,
+queued optimization identity and new detail/risk replays. Existing reports and
+their calendar/lookahead notices remain immutable. Old cutoff-Close and
+next-Open inferred-session reports are labelled as earlier execution models.
 
 ## History and ADX
 
@@ -156,7 +157,7 @@ selected execution assumption.
 | Target gap | Open beyond the target, without adverse limit slippage |
 | Ordinary target | Target price; a touch suffices; no adverse limit slippage |
 | Both levels hit | Stop first, unless the Open has already executed one side |
-| EOD | Last-bar lookahead chooses the order cutoff; fill next observed Open with costs |
+| EOD | Calendar chooses the order cutoff; fill next observed Open by scheduled close with costs |
 | EOF pending entry | Cancel; no fabricated future bar or fill |
 | EOF exposure | Final Close liquidation with costs and `end_of_data`, an explicit repository policy additional to the source |
 
@@ -196,9 +197,9 @@ with every parameter: decimals as strings, booleans as JSON booleans, integers
 as JSON integers. The API requires every parameter explicitly; the portal
 provides all controls. Python callers construct
 `VwapPullbackRiskSizing(Parameters(), execution_config=config)` and consume
-`execute(bars, strategy, config)` inside `read_bars(...)`. With EOD inference
-enabled, use `execute()` rather than calling `on_bar()` directly: execution
-prepares the future session context required for this declared lookahead.
+`execute(bars, strategy, config)` inside `read_bars(...)`. Use `execute()` for complete replay: its holding-bar guard validates scheduled
+liquidation availability before applying pending orders. Direct `on_bar()` calls
+need no future context, but do not themselves execute or validate fills.
 
 ```bash
 .venv/bin/python -m pytest tests/test_vwap_pullback.py tests/test_next_bar_execution.py -q
@@ -222,7 +223,7 @@ fixtures have their next observed bar at the session close, so the exits fill
 those bars' Opens at 16:00, 12:00 and 12:15. Each synthetic trade enters at
 115.25, exits at 119.75, earns 90 gross, pays 2 commissions and nets 88 CU.
 The saved report explicitly
-shows backtest lookahead; source CSV bytes and earlier runs remain unchanged.
+shows calendar-based exits without bar lookahead; source CSV bytes and earlier runs remain unchanged.
 To reopen the isolated review library after the command ends:
 
 ```bash

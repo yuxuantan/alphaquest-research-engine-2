@@ -7,11 +7,13 @@ brackets. Its guide defines fill prices, ambiguous-bar policy, chart history,
 fill-bar timestamp labels, and terminal handling. Reports record which
 execution assumption applies; v1 sample fixtures remain unchanged.
 
-The VWAP EOD option now deliberately looks ahead within each Chicago session
-to infer its last daytime bar and flatten five elapsed minutes earlier at a
-real bar Close (latest15:55 CT). Reports explicitly record this exception to
-causal replay. See the strategy guide for missing bars, truncated selections,
-entry blocking, provenance, and reproducible normal/early-close examples.
+The VWAP EOD option uses the shared NQ CSV calendar to determine scheduled
+closes without future-bar inference. It blocks late entries and closed sessions,
+submits flattening at the first observed close at/after its scheduled cutoff,
+and fills the next observed Open only within the scheduled session. Missing
+liquidation prices or unknown calendar coverage reject. Earlier lookahead
+reports remain immutable. See the strategy guide for boundary details and
+reproducible product examples.
 
 This document and the fixtures define the behavior for the first backtester. The fixtures are independent review expectations, not generated execution results. The dataset reader, minimal strategy interface, strategy-agnostic execution engine, consecutive-green-bars sample strategy, report generation, APIs, portal run controls, and completed report screen now implement their respective portions.
 

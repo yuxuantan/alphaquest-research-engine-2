@@ -18,6 +18,8 @@ def engine_identity():
     root = Path(__file__).parent
     files = [(str(path.relative_to(root)), hashlib.sha256(path.read_bytes()).hexdigest())
              for path in sorted(root.rglob("*.py"))]
+    from .session_calendar import calendar_path
+    files.append(("calendars/cme_nq_closures.csv", hashlib.sha256(calendar_path().read_bytes()).hexdigest()))
     # Editable installs can appear through both cwd and site-packages. Import
     # path aliases do not change the executing package versions.
     dependencies = sorted({(item.metadata["Name"], item.version) for item in distributions()})

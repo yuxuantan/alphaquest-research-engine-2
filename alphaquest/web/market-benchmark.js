@@ -103,7 +103,7 @@
       const warnings = [];
       if (data.accounts.strategy.max_contracts !== data.settings.contracts) warnings.push("Strategy and benchmark quantities differ; this comparison is not risk matched.");
       if (data.accounts.strategy.short_trades) warnings.push("The strategy includes short trades; the benchmark remains long.");
-      if (data.source.strategy.session_flattening) warnings.push("Inspect the saved session-flattening assumption; historical lookahead may apply.");
+      if (data.source.strategy.session_flattening?.lookahead) warnings.push("Inspect the saved session-flattening assumption; historical lookahead may apply.");
       if (Object.values(data.accounts).some(account => account.nonpositive_equity)) warnings.push("An account reached nonpositive equity. Arithmetic continues without margin liquidation; this path does not establish trading feasibility.");
       get("#market-benchmark-warning").textContent = warnings.join(" ");
       const body = get("#market-benchmark-metrics"); body.replaceChildren();

@@ -356,7 +356,7 @@ def test_vwap_controls_preserve_boolean_decimal_types_and_execution_settings(pag
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
-def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal):
+def test_calendar_early_close_is_usable_from_normal_backtest_screen(page, portal):
     from test_inferred_session_close import session_rows, csv_bytes
     prepare(page, portal)
     with ResearchHTTPClient(base_url=portal["url"]) as client:
@@ -375,16 +375,16 @@ def test_inferred_early_close_is_usable_from_normal_backtest_screen(page, portal
     set_parameter(page, "use_eod_flat", True)
     page.locator("#backtest-slippage-ticks").fill("1")
     page.locator("#backtest-commission").fill("1")
-    playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("BACKTEST LOOKAHEAD")
+    playwright.expect(page.locator("#backtest-fill-assumption")).to_contain_text("No future bars")
     with page.expect_response(lambda response: "/api/backtests?" in response.url and response.request.method == "POST") as completed:
         page.locator("#start-backtest").click()
     record = completed.value.json()
     assert completed.value.status == 201, record
     assert record["summary"]["total_net_pnl"] == "88.00"
-    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("1 inferred sessions")
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("1 observed sessions")
     playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("fill next observed bar Open")
     with ResearchHTTPClient(base_url=portal["url"]) as client:
         trade = client.get(f"/api/backtests/{record['id']}/trades").json()["items"][0]
-        assert trade["exit_time_utc"] == "2026-01-05T18:00:00Z" and trade["exit_reason"] == "eod_flat"
+        assert trade["exit_time_utc"] == "2024-01-15T18:00:00Z" and trade["exit_reason"] == "eod_flat"
     page.reload()
-    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("Backtest lookahead")
+    playwright.expect(page.locator("#backtest-completion-content [data-setting='session_flattening']")).to_contain_text("Calendar-based session exits")
