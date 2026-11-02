@@ -3222,3 +3222,42 @@ configuration/check/run reuse, downloads and reopening. The saved observation
 files are `artifacts/push-main-validation-20261102/manual-oos-verification.json`
 and `percentage-oos-verification.json`. These are explicitly synthetic normal
 product workflows in isolated test libraries; their owned servers stopped.
+
+## 2026-11-02 — Historical NQ closure reference and manual maintenance
+
+Added `calendars/cme_nq_closures.csv`: 116 sourced session exceptions for the
+last ten complete calendar years, 2016–2025, with 89 early closes and 27 full
+session closures. Each row records its Chicago session-ending date, scheduled
+close (empty for full closures), event, source, review note and review date.
+CME notices, dated broker-republished CME tables and DTN notices distinguish
+Globex equity hours from stock-exchange/floor, settlement and margin deadlines.
+The README explains source limitations and point-in-time provenance explicitly.
+
+This is a reference-data/documentation increment; strategy integration follows
+separately. Existing reports, datasets, backtests, prop analyses and earlier
+saved evidence remain unchanged. There is no additional page or API. The
+existing report → configure → check → run → durable-report journey continues
+to use the existing strategy until the calendar integration is implemented.
+
+User journey: open `calendars/README.md`, inspect the linked CSV, filter to
+2021-01-18, 2021-09-06, 2024-01-15 and 2024-09-02, and follow each source URL.
+Expected: each is a 12:00 CT early halt, yielding an 11:55 order cutoff under a
+separately applied five-minute buffer. Thanksgiving Friday and Christmas Eve
+can instead close at 12:15. Good Friday 2021/2023 closes at 08:15; the 2018/2025
+mourning sessions close at 08:30 rather than being full closures. The maintenance
+guide explains that a holiday's evening reopening belongs to the next session,
+that weekends are separate, and that absent dates outside reviewed coverage
+are unknown. It contains exact editing, validation, snapshot and Windows-copy
+checksum instructions. `verified_on` is not an exchange announcement timestamp.
+
+Run `.venv/bin/python scripts/validate_market_calendar.py` from the repository
+root. Expected structural result: 116 rows, 89/27 split, no missing exception
+years. Source accuracy/completeness remains a manual notice review; the checker
+does not certify either. Actual validation is saved at
+`artifacts/cme-calendar-review-20261102/validation.json`; sampled independent
+notice expectations and boundary observations are in `checked-cases.json`.
+Eighteen dated source cases matched; seven explicitly regular dates were absent.
+Nine malformed/boundary files were rejected, including duplicate dates, invalid
+times/status/timezone, missing sources and dates outside coverage. UTF-8 BOM and
+quoted CSV fields were accepted. Syntax and whitespace checks passed. No server,
+VM operation, trade submission, source-data mutation or recalculation was run.

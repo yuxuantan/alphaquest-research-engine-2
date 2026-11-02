@@ -68,6 +68,10 @@ trade-volume provenance.
 
 This is an explicitly permitted historical simulation assumption, not a live
 early-close detector. No exchange calendar or special-date list is fetched.
+The separately maintained [NQ closure CSV](../../calendars/README.md) now
+provides sourced 2016–2025 historical exceptions for a future calendar-based
+mode. This reference file is not yet consumed by the strategy; the inference
+below still describes current execution.
 The engine buffers one session before replaying it through the same signal,
 fill, cost, equity, and reporting code. It does not edit an old trade timestamp
 while leaving its price or P&L unchanged. Existing saved reports remain intact;
