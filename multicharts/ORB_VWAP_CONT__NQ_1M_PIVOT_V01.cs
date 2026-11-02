@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using AlphaQuest.MarketCalendars;
 #if !AQ_CALENDAR_ONLY
 using PowerLanguage;
@@ -12,7 +13,7 @@ namespace PowerLanguage.Strategy
 {
     // Active calendar-based port. Chart must use America/Chicago exchange time.
     // The original supplied C# is retained under multicharts/reference/.
-    // Defaults assume Central time, NQ/MNQ 1-minute bars, full CME session.
+    // Calendar-enabled defaults require NQ, Central-time 1-minute bars, full session.
     // VWAP uses Bars.Ticks, matching the original Ticks expression.
     // Stops/targets are submitted only once a position is observed, as in source.
     [IOGMode(IOGMode.Disabled)]
@@ -77,7 +78,8 @@ namespace PowerLanguage.Strategy
             UseEODFlat = true;
             EODFlatTime = 1555;
             PlotTradeLevels = true;
-            SessionCalendarFile = @"C:\AlphaQuest\calendars\cme_nq_closures.csv";
+            SessionCalendarDirectory = @"C:\AlphaQuest\calendars";
+            CloseBufferMinutes = 5;
         }
 
         [Input] public bool UseVolSizing { get; set; }
@@ -111,7 +113,8 @@ namespace PowerLanguage.Strategy
         [Input] public bool UseEODFlat { get; set; }
         [Input] public int EODFlatTime { get; set; }
         [Input] public bool PlotTradeLevels { get; set; }
-        [Input] public string SessionCalendarFile { get; set; }
+        [Input] public string SessionCalendarDirectory { get; set; }
+        [Input] public int CloseBufferMinutes { get; set; }
 
         protected override void Create()
         {
@@ -149,12 +152,15 @@ namespace PowerLanguage.Strategy
 
             if (EODFlatTime < 0 || EODFlatTime > 2359 || EODFlatTime % 100 >= 60)
                 throw new ArgumentException("EODFlatTime must be a valid Chicago HHMM time.");
-            _calendar = UseEODFlat ? NqSessionCalendar.Load(SessionCalendarFile) : null;
+            NqSessionCalendar.ValidateCloseBuffer(CloseBufferMinutes);
+            string calendarFile = UseEODFlat ? NqSessionCalendar.ResolveCalendarFile(Bars.Info.Name, SessionCalendarDirectory) : null;
+            _calendar = UseEODFlat ? NqSessionCalendar.Load(calendarFile) : null;
             _sessionPlan = null;
             _pendingEntrySession = _holdingSession = null;
             _previousPosition = 0;
             if (_calendar != null)
-                Output.WriteLine("NQ CSV calendar: {0} through {1}; SHA256={2}; no price-bar lookahead.",
+                Output.WriteLine("Auto NQ CSV calendar for {0}: {1}; buffer={2} minutes; {3} through {4}; SHA256={5}; no price-bar lookahead.",
+                    Bars.Info.Name, calendarFile, CloseBufferMinutes,
                     _calendar.CoverageStart.ToString("yyyy-MM-dd"),
                     _calendar.CoverageEnd.ToString("yyyy-MM-dd"), _calendar.Sha256);
             _adx.Length = ADX_Len;
@@ -200,12 +206,12 @@ namespace PowerLanguage.Strategy
             double position = StrategyInfo.MarketPosition;
             if (UseEODFlat)
             {
-                _sessionPlan = _calendar.Plan(NqSessionCalendar.SessionDate(stamp), EODFlatTime);
+                _sessionPlan = _calendar.Plan(NqSessionCalendar.SessionDate(stamp), EODFlatTime, CloseBufferMinutes);
                 // MC has already processed this bar's orders before CalcBar.
                 // Reject late exits even if a pending bracket made us flat.
                 if (_previousPosition != 0 && _holdingSession.HasValue)
                 {
-                    NqSessionPlan previousPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime);
+                    NqSessionPlan previousPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime, CloseBufferMinutes);
                     if (!previousPlan.ScheduledClose.HasValue || stamp > previousPlan.ScheduledClose.Value)
                         throw new InvalidOperationException("A held position crossed the scheduled NQ close without an observed timely fill; reject this incomplete-source MC backtest.");
                 }
@@ -216,11 +222,11 @@ namespace PowerLanguage.Strategy
                         if (!_pendingEntrySession.HasValue)
                             throw new InvalidOperationException("Calendar cannot establish the origin of an assigned position; start this strategy flat.");
                         _holdingSession = _pendingEntrySession;
-                        NqSessionPlan entryPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime);
+                        NqSessionPlan entryPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime, CloseBufferMinutes);
                         if (!entryPlan.AllowsFill(stamp))
                             throw new InvalidOperationException("Entry filled at/after cutoff or in a later session. Incomplete bars are incompatible; this MC backtest is not qualified.");
                     }
-                    NqSessionPlan holdingPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime);
+                    NqSessionPlan holdingPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime, CloseBufferMinutes);
                     if (!holdingPlan.ScheduledClose.HasValue || stamp > holdingPlan.ScheduledClose.Value)
                         throw new InvalidOperationException("No observed liquidation price before scheduled NQ close. Do not accept an evening exit as timely flattening.");
                 }
@@ -555,8 +561,25 @@ namespace AlphaQuest.MarketCalendars
             return chicagoStamp.Date.AddDays(chicagoStamp.TimeOfDay >= TimeSpan.FromHours(17) ? 1 : 0);
         }
 
-        public NqSessionPlan Plan(DateTime day, int eodFlatTime)
+        public static string ResolveCalendarFile(string symbol, string directory)
         {
+            string normalized = (symbol ?? "").Trim().ToUpperInvariant();
+            if (!Regex.IsMatch(normalized, @"\A@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?\z"))
+                throw new ArgumentException("No reviewed session calendar for instrument '" + normalized + "'. Calendar EOD flattening currently supports NQ only.");
+            if (String.IsNullOrWhiteSpace(directory))
+                throw new ArgumentException("SessionCalendarDirectory is required when UseEODFlat is enabled.");
+            return Path.Combine(directory, "cme_nq_closures.csv");
+        }
+
+        public static void ValidateCloseBuffer(int minutes)
+        {
+            if (minutes < 1 || minutes > 1440)
+                throw new ArgumentException("Close buffer minutes must be an integer from 1 through 1440.");
+        }
+
+        public NqSessionPlan Plan(DateTime day, int eodFlatTime, int closeBufferMinutes = 5)
+        {
+            ValidateCloseBuffer(closeBufferMinutes);
             day = day.Date;
             if (day < CoverageStart || day > CoverageEnd)
                 throw new ArgumentException(String.Format(CultureInfo.InvariantCulture,
@@ -572,7 +595,7 @@ namespace AlphaQuest.MarketCalendars
                 return new NqSessionPlan(day, "full_close", null, null);
             DateTime close = day.Add(exception ? row.Close.Value : TimeSpan.FromHours(16));
             DateTime configured = day.AddHours(eodFlatTime / 100).AddMinutes(eodFlatTime % 100);
-            DateTime buffered = close.AddMinutes(-5);
+            DateTime buffered = close.AddMinutes(-closeBufferMinutes);
             return new NqSessionPlan(day, exception ? "early_close" : "regular", close,
                 configured < buffered ? configured : buffered);
         }
@@ -580,7 +603,7 @@ namespace AlphaQuest.MarketCalendars
         public static NqSessionCalendar Load(string path)
         {
             if (String.IsNullOrWhiteSpace(path))
-                throw new ArgumentException("SessionCalendarFile is required when UseEODFlat is enabled.");
+                throw new ArgumentException("A calendar CSV path is required when UseEODFlat is enabled.");
             byte[] bytes = File.ReadAllBytes(path);
             string text = new UTF8Encoding(false, true).GetString(bytes);
             if (text.Length > 0 && text[0] == '\uFEFF') text = text.Substring(1);

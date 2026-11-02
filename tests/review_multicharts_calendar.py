@@ -13,7 +13,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from alphaquest.session_calendar import calendar_path, load_calendar
+from alphaquest.session_calendar import calendar_path, load_calendar, resolve_calendar
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,16 +39,22 @@ def review(output, dotnet):
     lines = actual.stdout.splitlines()
     assert lines[0] == 'sha256,' + calendar.sha256
     rows = list(csv.DictReader(lines[1:]))
-    expected_count = ((calendar.end - calendar.start).days + 1) * 2
+    expected_count = ((calendar.end - calendar.start).days + 1) * 2 * 4
     assert len(rows) == expected_count
     for row in rows:
-        plan = calendar.plan(date.fromisoformat(row['session_date']), int(row['eod']))
+        plan = calendar.plan(date.fromisoformat(row['session_date']), int(row['eod']), int(row['buffer']))
         assert row['kind'] == plan.kind, row
         assert row['close'] == (plan.close.strftime('%H:%M') if plan.close else ''), row
         assert row['cutoff'] == (plan.cutoff.strftime('%H:%M') if plan.cutoff else ''), row
-        expected = ('True', 'False', 'True', 'False') if plan.cutoff else ('False',) * 4
-        assert tuple(row[k] for k in ('signal_before', 'signal_last', 'fill_before', 'fill_at')) == expected, row
+        expected = ('False',) * 4
         if plan.cutoff:
+            cutoff = plan.cutoff
+            expected = tuple(str(value) for value in (
+                plan.allows(cutoff-timedelta(minutes=2)) and plan.allows(cutoff-timedelta(minutes=1)),
+                plan.allows(cutoff-timedelta(minutes=1)) and plan.allows(cutoff),
+                plan.allows(cutoff-timedelta(minutes=1)), plan.allows(cutoff)))
+        assert tuple(row[k] for k in ('signal_before', 'signal_last', 'fill_before', 'fill_at')) == expected, row
+        if plan.cutoff and int(row['buffer']) != 1440:
             assert plan.allows(plan.cutoff - timedelta(minutes=1))
             assert not plan.allows(plan.cutoff)
 
@@ -83,6 +89,22 @@ def review(output, dotnet):
             failed = run(calendar_path(), day)
             assert failed.returncode != 0 and 'cover' in failed.stderr.lower(), failed.stderr
             rejections.append({'case': 'unknown_' + day, 'csharp_error': failed.stderr.strip()})
+        for buffer in ('0', '-1', '1441'):
+            failed = run(calendar_path(), '2024-01-15', buffer)
+            assert failed.returncode != 0 and 'buffer' in failed.stderr.lower(), failed.stderr
+            rejections.append({'case': 'buffer_' + buffer, 'csharp_error': failed.stderr.strip()})
+        symbol_checks = []
+        for symbol in ('NQ','nq',' NQ ','@NQ','NQ1!','NQ2!','NQZ26','NQH2026','NQ.CME','NQ CME',
+                       '', 'ES','CL','MNQ','ofb_bars_NQ','NQ_fake'):
+            probe = run(calendar_path(), 'symbol', symbol, temporary)
+            try:
+                resolve_calendar(symbol)
+            except ValueError:
+                assert probe.returncode != 0 and 'No reviewed session calendar' in probe.stderr, symbol
+            else:
+                assert probe.returncode == 0, (symbol, probe.stderr)
+                assert probe.stdout.splitlines()[-1] == str(Path(temporary) / 'cme_nq_closures.csv')
+            symbol_checks.append({'symbol': symbol, 'supported': probe.returncode == 0})
         source_rows[0]['source_note'] += ' CSV quoted comma, escaped "quote" and\nnewline.'
         stream = io.StringIO(newline='')
         writer = csv.DictWriter(stream, fieldnames=source_rows[0], quoting=csv.QUOTE_ALL)
@@ -95,6 +117,7 @@ def review(output, dotnet):
 
     result = dict(calendar_sha256=calendar.sha256, matching_session_cutoff_cases=len(rows),
                   cutoff_boundary_checks=len(rows) * 4, rejected_cases=rejections,
+                  symbol_selection_checks=symbol_checks, tested_buffers=[1,5,10,1440],
                   bom_quoted_commas_quotes_newlines_accepted=True,
                   compiled_source='multicharts/ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs',
                   language_version='C# 5', host='.NET 8 standalone calendar helper only',

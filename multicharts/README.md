@@ -24,14 +24,30 @@ in maintenance. Weekends and `full_close` sessions prohibit entries. Within
 reviewed coverage an absent exception means a regular 16:00 close. Beyond the
 explicit coverage, reject the calculation rather than assume regular hours.
 
+Calendar selection now follows the explicit instrument symbol: AQ uses the
+saved dataset symbol and MC uses `Bars.Info.Name`, the symbol-name API documented
+in the [official .NET FAQ](https://www.multicharts.com/discussion/viewtopic.php?p=115164&view=show).
+Only the reviewed NQ mapping is enabled, including `NQ`, `@NQ`, `NQ1!`, dated
+forms such as `NQZ26`, and `NQ.CME`. Blank/unknown symbols, other products and
+filenames containing NQ are rejected when EOD flattening is enabled. MNQ is
+not automatically mapped by this NQ-only increment.
+
+AQ displays the resolved calendar before Run and exposes **Close buffer
+minutes** (`close_buffer_minutes`, default 5). MC exposes `CloseBufferMinutes`,
+also default 5. Both accept positive whole minutes from 1 through 1440; the
+buffer reserves time for next-bar execution. A large buffer can block all
+entries in a session. Record the same buffer and EOD time on both platforms.
+
 ```text
-cutoff = min(EODFlatTime, scheduled_close - 5 minutes)
+cutoff = min(EODFlatTime, scheduled_close - CloseBufferMinutes)
 flatten = first observed bar Close at/after cutoff -> MarketNextBar
 entry signal = current label and next one-minute label strictly before cutoff
 ```
 
-The default regular cutoff is 15:55; a configured 15:45 remains 15:45 on regular
-days. A noon scheduled close gives 11:55; 12:15 gives 12:10. A missing cutoff
+With buffer 5, the default regular cutoff is 15:55; a configured 15:45 remains
+15:45 on regular days. A noon scheduled close gives 11:55; 12:15 gives 12:10.
+With buffer 10, noon gives 11:50 and regular 16:00 still caps at a configured
+15:45. A missing cutoff
 bar does not backdate submission to the previous observed bar. Both versions
 block later submissions until an eligible next session, subject to the original
 23:00 crossing reset and entry window. Those original rules are not replaced
@@ -65,8 +81,12 @@ review date, not announcement time. Read the [calendar maintenance guide](../cal
    initial capital and all signal Inputs. Keep trade volume consistent with
    the supplied C# `Bars.Ticks` series and AQ `Volume`. Do not change stop/target
    activation or fill priority while measuring the calendar change.
-5. Set `SessionCalendarFile` to the Windows path, `UseEODFlat=true`, and the same
-   `EODFlatTime` as AQ. Recalculate from a flat start. The Output log prints
+5. Set `SessionCalendarDirectory` to `C:\AlphaQuest\calendars`,
+   `UseEODFlat=true`, and match AQ's `CloseBufferMinutes` and `EODFlatTime`.
+   The NQ chart symbol automatically selects `cme_nq_closures.csv` inside that
+   directory. This directory Input replaces the earlier `SessionCalendarFile`;
+   enter the containing directory, not the full filename. Recalculate from a
+   flat start. The Output log prints symbol, selected file, buffer,
    coverage and SHA-256 even if trade-level logging is off. A missing, malformed
    or uncovered CSV stops the calculation. Preserve that log with your export.
 6. Re-run the existing **2021–2024 IS** with the actual comparison Inputs
@@ -135,10 +155,12 @@ Use `--dotnet /path/to/dotnet` if it is not on PATH. The check compiles the
 **same helper source in the active `.cs` file** with C# 5 syntax, excluding the
 MC signal through `AQ_CALENDAR_ONLY`. It needs no MC substitutes or SDK.
 It compares every covered date, including ordinary weekdays/weekends, for
-15:45 and 15:55 cutoffs: **7,918 matching plans** and **31,672 boundary checks**.
-Nine malformed/uncovered cases reject in both languages; UTF-8 BOM, quoted
+15:45 and 15:55 cutoffs, each with buffers 1, 5, 10 and 1440:
+**31,672 matching plans** and **126,688 boundary checks**.
+Twelve malformed/uncovered/invalid-buffer cases reject in both languages, and
+16 symbol-selection probes agree. UTF-8 BOM, quoted
 commas, escaped quotes and embedded newlines are accepted. Actual outputs are
-`artifacts/calendar-csharp-review-20261102/{build.txt,csharp-plans.csv,verification.json}`.
+`artifacts/calendar-options-csharp-20261102/{build.txt,csharp-plans.csv,verification.json}`.
 
 The compiled helper check does **not** compile the full PowerLanguage signal,
 execute an MC backtest or submit a live order. Those require the installed

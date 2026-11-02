@@ -3510,3 +3510,34 @@ adding early CLI validation; **81 cases passed**, with their final log in
 No new whole-repository pass is claimed. JavaScript syntax and Git whitespace
 checks passed. Owned temporary servers stopped; no persistent server, VM action,
 remote push, trade submission or modification to earlier reports was performed.
+
+### Matching MC Inputs and compiled calendar qualification
+
+The maintained C# signal now exposes **CloseBufferMinutes**, default 5, using
+the same 1–1440 validation and EOD-time cap as AQ. It selects the NQ CSV from
+`Bars.Info.Name` instead of applying that calendar to every chart. The new
+**SessionCalendarDirectory** Input (default `C:\AlphaQuest\calendars`) replaces
+the earlier full-file-path Input; it locates the automatically selected
+`cme_nq_closures.csv`, rather than selecting a different product's calendar.
+The Output log retains symbol, file, buffer, coverage and checksum. Unknown
+chart symbols reject when EOD flattening is enabled. The original attached
+source and previous Git versions are preserved.
+
+The reproducible installation/user journey remains `multicharts/README.md`:
+copy identical CSV bytes, load the full active signal in MC, match explicit NQ
+chart symbol/timezone/history/Inputs, set the containing directory and buffer,
+then recalculate the existing IS and inspect/export the four discrepancy dates.
+Default buffer 5 preserves noon cutoff11:55; buffer10 changes it to11:50.
+Match AQ's buffer and EOD time when comparing those platform exports.
+
+Actual standalone C# evidence is
+`artifacts/calendar-options-csharp-20261102/`: the real embedded helper compiled
+with C# 5 syntax, zero errors/warnings; **31,672 date/EOD/buffer plans** and
+**126,688 boundary checks** match Python, including buffers1/5/10/1440.
+**12** malformed/unknown-coverage/invalid-buffer probes reject, **16** symbol
+selection probes agree, and BOM/quoted-comma/escaped-quote/newline parsing passes.
+Reproduce with `tests/review_multicharts_calendar.py --output` as documented.
+This compiles the helper, not the full signal against MC's installed SDK.
+No fresh MC platform result or live protection is claimed. The existing
+bar-close gap guards still reject observed invalid fills after execution;
+they do not cancel or undo broker fills. The user's Windows VM was untouched.
