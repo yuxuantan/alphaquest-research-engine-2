@@ -18,14 +18,13 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 FIELDS = [
+    "coverage_start", "coverage_end",
     "session_date", "closure_type", "close_time_local", "timezone", "event",
     "source_url", "source_note", "verified_on",
 ]
 
 
-def validate(path, start, end):
-    if start > end:
-        raise ValueError("Coverage start must be on/before coverage end.")
+def validate(path, start=None, end=None):
     raw = path.read_bytes()
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream, strict=True)
@@ -34,6 +33,13 @@ def validate(path, start, end):
         rows = list(reader)
     if not rows:
         raise ValueError("The calendar has no exception rows.")
+    declared_start = date.fromisoformat(rows[0]["coverage_start"])
+    declared_end = date.fromisoformat(rows[0]["coverage_end"])
+    if start is not None and start != declared_start or end is not None and end != declared_end:
+        raise ValueError("Requested coverage must match coverage_start/coverage_end in the CSV.")
+    start, end = declared_start, declared_end
+    if start > end:
+        raise ValueError("Coverage start must be on/before coverage end.")
     previous = None
     for number, row in enumerate(rows, 2):
         prefix = f"CSV line {number}: "
@@ -43,11 +49,13 @@ def validate(path, start, end):
             raise ValueError(prefix + "leading/trailing whitespace is not allowed.")
         if any(not row[field] for field in FIELDS if field != "close_time_local"):
             raise ValueError(prefix + "a required field is empty.")
-        for field in ("session_date", "verified_on"):
+        for field in ("coverage_start", "coverage_end", "session_date", "verified_on"):
             value = row[field]
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
                 raise ValueError(prefix + field + " must use YYYY-MM-DD.")
             date.fromisoformat(value)
+        if row["coverage_start"] != start.isoformat() or row["coverage_end"] != end.isoformat():
+            raise ValueError(prefix + "all rows must declare the same coverage bounds.")
         day = date.fromisoformat(row["session_date"])
         if not start <= day <= end:
             raise ValueError(prefix + "session_date is outside declared coverage.")
@@ -92,8 +100,8 @@ def validate(path, start, end):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--file", type=Path, default=ROOT / "calendars/cme_nq_closures.csv")
-    parser.add_argument("--start-date", type=date.fromisoformat, default=date(2016, 1, 1))
-    parser.add_argument("--end-date", type=date.fromisoformat, default=date(2025, 12, 31))
+    parser.add_argument("--start-date", type=date.fromisoformat, help="Assert the declared CSV coverage start.")
+    parser.add_argument("--end-date", type=date.fromisoformat, help="Assert the declared CSV coverage end.")
     parser.add_argument("--output", type=Path, help="Save a new validation JSON; refuses to overwrite.")
     args = parser.parse_args()
     try:

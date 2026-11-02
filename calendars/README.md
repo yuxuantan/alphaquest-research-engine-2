@@ -1,9 +1,10 @@
 # NQ futures closure calendar
 
 [`cme_nq_closures.csv`](cme_nq_closures.csv) records CME Globex **NQ futures**
-holiday exceptions for **2016-01-01 through 2025-12-31**, the last ten complete
-calendar years as of 2026-11-02. It contains **116 dates: 89 early closes and
-27 full session closures**. Times are actual scheduled matching-stop times,
+holiday exceptions for **2016-01-01 through 2026-11-02**: the last ten complete
+calendar years plus a current-year supplement for the existing dataset. It
+contains **124 dates: 96 early closes and 28 full session closures**. The first
+2016–2025 snapshot (116 dates) is preserved in Git commit `107c533`. Times are actual scheduled matching-stop times,
 not strategy order cutoffs, cash-equity hours, settlement times or broker
 margin deadlines. The five-minute strategy buffer is deliberately not stored.
 
@@ -32,7 +33,8 @@ normal weekly trading schedule; weekends are not rows in this exception file.
   December 25 at 17:00 starts the December 26 session.
 - No exception row **within reviewed coverage** means use the regular session
   schedule. Absence outside reviewed coverage means **unknown**, not regular.
-  The CSV's first/last rows do not themselves declare its coverage bounds.
+  Use the explicit `coverage_start` and `coverage_end` fields; the first/last
+  exception dates do not themselves declare coverage.
 
 The scope is scheduled holiday closures and the two national days of mourning.
 It excludes routine maintenance, normal weekends, contract expiration cutoffs,
@@ -50,6 +52,7 @@ Ordinary RFC 4180 quoting is allowed; consumers should use a CSV parser.
 
 | Column | Meaning |
 | --- | --- |
+| `coverage_start` / `coverage_end` | Reviewed inclusive bounds; identical on every row |
 | `session_date` | Session-ending local date, exactly `YYYY-MM-DD` |
 | `closure_type` | `early_close` or `full_close` |
 | `close_time_local` | Scheduled close/halt, 24-hour `HH:MM`; empty for `full_close` |
@@ -81,7 +84,7 @@ Important independently checked cases:
 | 2021-01-18; 2021-09-06; 2024-01-15; 2024-09-02 | Early close 12:00 CT | The four AQ/MC discrepancy dates; five-minute buffer gives 11:55 |
 | 2016-11-24 / 2016-11-25 | 12:00 / 12:15 CT | Thanksgiving Thursday and Friday differ |
 | 2024-07-03 / 2024-07-04 | 12:15 / 12:00 CT | Pre-holiday and holiday differ |
-| 2021-04-02; 2023-04-07 | Early close 08:15 CT | Good Friday overnight session remains tradable until 08:15 |
+| 2021-04-02; 2023-04-07; 2026-04-03 | Early close 08:15 CT | Good Friday overnight session remains tradable until 08:15 |
 | 2016-03-25; 2017-04-14; 2018-03-30; 2019-04-19; 2020-04-10; 2022-04-15; 2024-03-29; 2025-04-18 | Full close | Do not impose the 08:15 exception on every Good Friday |
 | 2018-12-05; 2025-01-09 | Early close 08:30 CT | CME mourning announcements; not full futures closures |
 | 2019-09-02 | Early close 12:00 CT | AMP prose incorrectly says September 3; attached CME table correctly identifies Monday September 2 |
@@ -112,12 +115,13 @@ for later years. No dates in this file were inferred from AQ price bars.
    dated notice/PDF if available. Recheck before each upcoming holiday: CME says
    schedules can change and are usually finalized about two weeks beforehand.
 3. Edit the CSV in a text editor, or import it into Excel with the date/time
-   columns set to **Text**. Keep the header and eight columns. Add one row per
+   columns set to **Text**. Keep the header and ten columns. Add one row per
    session-ending date; set the actual close time for `early_close`, and leave
    it empty for `full_close`. Add the specific source URL, a short note and the
    date you verified it. Sort ascending and save as UTF-8 CSV. Do not save
    `12:00 AM`, change dates to locale formats, or subtract the strategy buffer.
-4. Update the reviewed coverage in this document **after** checking the entire
+4. Update `coverage_start`/`coverage_end` consistently in **every CSV row**,
+   and the reviewed coverage in this document, **after** checking the entire
    added interval, including dates with no exceptions. Run the validator from
    the repository root with explicit new bounds. For an extension through 2026:
 
@@ -154,7 +158,7 @@ for later years. No dates in this file were inferred from AQ price bars.
 .venv/bin/python scripts/validate_market_calendar.py
 ```
 
-Expected: `valid_structure`, 116 rows, 89 `early_close`, 27 `full_close`, and no
+Expected: `valid_structure`, 124 rows, 96 `early_close`, 28 `full_close`, and no
 missing exception years. The output includes the file's SHA-256. To save a new
 inspectable validation result (the command refuses to overwrite an old file):
 

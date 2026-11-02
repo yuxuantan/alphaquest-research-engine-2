@@ -3261,3 +3261,19 @@ Nine malformed/boundary files were rejected, including duplicate dates, invalid
 times/status/timezone, missing sources and dates outside coverage. UTF-8 BOM and
 quoted CSV fields were accepted. Syntax and whitespace checks passed. No server,
 VM operation, trade submission, source-data mutation or recalculation was run.
+
+### Calendar coverage prerequisite for causal strategy integration
+
+The original 2016–2025 snapshot remains in commit `107c533`. The working CSV
+now adds eight verified 2026 exceptions through 2026-11-02 so the existing
+source dataset through July 2026 is covered. Counts are 124 dates: 96 early
+closes, 28 full closures. The Good Friday 2026 CME table explicitly closes
+Equities at 08:15 CT. Future 2026 holiday outcomes are not guessed.
+
+Every row now carries identical `coverage_start`/`coverage_end` fields. This
+keeps coverage explicit inside the single CSV that AQ and C# will read; no
+additional service or metadata-file dependency is introduced. Updating the
+end date requires reviewing the entire added interval, including regular dates.
+The validator checks consistent bounds and optional requested-bound assertions.
+Actual updated validation is `artifacts/cme-calendar-review-20261102/validation-with-2026.json`.
+The prior validation and calendar commit are preserved. No simulation changed.

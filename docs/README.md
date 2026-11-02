@@ -24,7 +24,7 @@
 - [Report identity/deletion](strategy_navigation.md): pairing and preservation rules.
 - [Strategy features](strategy_features.md): preparation and reuse.
 - [VWAP strategy](strategies/vwap_pullback_risk_sizing.md): parameters, data and execution.
-- [NQ closure calendar](../calendars/README.md): 2016–2025 CSV, sources,
+- [NQ closure calendar](../calendars/README.md): 2016–2026 CSV, sources,
   date semantics, structural validation and manual maintenance.
 
 ## Planning and proposals
