@@ -77,7 +77,10 @@ def test_prop_report_delete_cancel_confirm_keeps_backtests_and_other_analysis(pa
     button=page.get_by_role('button',name='Delete prop report '+other_id,exact=True)
     playwright.expect(button).to_be_enabled();page.once('dialog',lambda d:d.accept());button.click()
     playwright.expect(page.locator('#prop-delete-status')).to_contain_text('Prop report deleted')
-    playwright.expect(page.locator('#prop-saved a')).to_have_count(0)
+    companions=other['run_metadata']['automatic_prop_analysis'].get('companions',[])
+    playwright.expect(page.locator('#prop-saved a')).to_have_count(len(companions))
+    assert set(page.locator('#prop-saved a').evaluate_all('links=>links.map(link=>link.hash)'))=={
+        '#backtests/prop/job/'+item['id'] for item in companions}
     assert page.request.get(portal['url']+'/api/backtests/'+other['id']).json()==other
     assert len(deletes)==2
     (tmp_path/'verification.json').write_text(json.dumps(dict(deleted_prop_ids=[id,other_id],backtests_preserved=[source['id'],other['id']],cancel_no_request=True,report_and_saved_list_deletion=True),indent=2))

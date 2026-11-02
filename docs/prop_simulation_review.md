@@ -3223,6 +3223,26 @@ files are `artifacts/push-main-validation-20261102/manual-oos-verification.json`
 and `percentage-oos-verification.json`. These are explicitly synthetic normal
 product workflows in isolated test libraries; their owned servers stopped.
 
+### Final publication validation scope
+
+The complete 982-test run finished with 977 passing cases, five browser
+failures and one teardown error associated with the early-read OOS failure.
+All five reported cases were corrected and passed focused reruns: automatic
+Apex/legacy discovery (two browser cases passed), oversized frozen-group
+alignment (10 column checks plus eight consecutive panning runs), both research
+browser journeys, and prop-report deletion with its independent Lucid companion
+retained. The OOS completion correction also removed its teardown error.
+
+The prop deletion check now verifies the exact remaining companion links rather
+than assuming deleting one Apex report clears every saved account analysis.
+Backtest identity and the other saved report's bytes remain protected. Actual
+workflow observations, screenshots and the original full-suite output are
+retained under `artifacts/push-main-validation-20261102/`. The full suite was
+not rerun from scratch after these corrections; the validation scope is the
+completed full run plus the focused corrected-case reruns. JavaScript syntax
+and Git whitespace checks passed. No production data or generated evidence is
+included in the source commits.
+
 ## 2026-11-02 — Historical NQ closure reference and manual maintenance
 
 Added `calendars/cme_nq_closures.csv`: 116 sourced session exceptions for the
