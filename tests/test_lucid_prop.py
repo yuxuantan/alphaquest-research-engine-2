@@ -134,17 +134,17 @@ def test_standard_counts_independent_known_cash_and_separate_apex_regression():
         source_net_pnl='3000',export_net_pnl=None,quantity='1',measured_mae='0')
         for i,d in enumerate(pd.bdate_range('2026-01-05',periods=60))]
     r=calculate(rows,settings(MAX_TOTAL_NQ='0.3'))
-    t=r['training_economics'];assert (t['pass_rate'],t['cost_per_funded'],t['replacement_days'])==(1,80.5,10)
+    t=r['training_economics'];assert (t['pass_rate'],t['cost_per_funded'],t['replacement_days'])==(1,80.5,4)
     assert t['activation_days']==0 and t['funding_chain_simulations']==20000
     assert r['funded']['selected']['micros']==3 and r['funded']['selected']['sims']==20000
     assert r['funded']['selected']['E[payout]']==9000 and r['funded']['selected']['days alive']==25
-    # Two 25-day sim-funded accounts, separated by ten evaluation days, fit 60
-    # weekdays. Five slots receive 2*9000*5, less 2*80.50*5 acquisition costs.
+    # Two 25-day accounts with four replacement days; a third purchase on day
+    # 59 has no payout yet. Round quarter cash: 3*5*80.50 = 1207.50 -> 1208.
     assert r['history']['totals']['payouts']==90000
-    assert r['history']['totals']['costs']==805
-    assert r['history']['totals']['net']==89195
+    assert r['history']['totals']['costs']==1208
+    assert r['history']['totals']['net']==88792
     assert all(row['simulations']==3000 for row in r['evaluation_sweep'])
-    assert all(row['sims']==3000 for row in r['funded']['sweep'])
+    assert all(row['sims'] in (3000,20000) for row in r['funded']['sweep'])
 
 
 @pytest.mark.parametrize('entry,exit,accepted',[

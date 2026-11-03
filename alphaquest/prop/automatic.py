@@ -20,9 +20,9 @@ from ..reporting import json_value
 
 def profiles():
     from .lucid_rules import defaults,MODEL_VERSION as lucid_version
-    return [dict(version='automatic-apex50k-eod-native-v4-instrument-commissions',model_version=MODEL_VERSION,
+    return [dict(version='automatic-apex50k-eod-native-v6-acquisition-bounds',model_version=MODEL_VERSION,
                 label='Apex 50K EOD',settings=dict(DEFAULTS),source_mode='native_held_ohlc_bounds'),
-            dict(version='automatic-lucidflex50k-eod-v2-funding-continuation',model_version=lucid_version,label='LucidFlex 50K',
+            dict(version='automatic-lucidflex50k-eod-v4-acquisition-bounds',model_version=lucid_version,label='LucidFlex 50K',
                 settings=defaults(DEFAULTS),source_mode='native_held_ohlc_bounds')]
 
 def profile():

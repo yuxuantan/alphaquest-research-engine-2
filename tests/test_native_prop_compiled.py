@@ -51,4 +51,4 @@ def test_standard_count_portal_calculations_match_reference_exactly(client,monke
         timing=client.get('/api/backtests/'+record['id']+'/performance').json()
         results.append(dict(mode=mode,run_id=record['id'],prop_id=id,performance=timing))
     assert reports[0]['calculations']==reports[1]['calculations']
-    (tmp_path/'compiled-verification.json').write_text(json.dumps(dict(all_calculations_exact=True,standard_counts_preserved=True,expected_historical_net=352880,runs=results),indent=2))
+    (tmp_path/'compiled-verification.json').write_text(json.dumps(dict(all_calculations_exact=True,standard_counts_preserved=True,expected_historical_net=452880,runs=results),indent=2))

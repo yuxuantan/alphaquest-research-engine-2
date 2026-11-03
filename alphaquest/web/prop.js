@@ -54,6 +54,7 @@
     $('#prop-dll option[value="off"]').disabled=!lucid;
     $('#prop-commission-broker').value=s.COMMISSION_BROKER;commissionDefault=p.commissions.rates.MNQ;$('#prop-commission-side').value=commissionDefault;
     $('#prop-model-help').textContent=lucid?'LucidFlex 50K · $80.50 evaluation default · no activation fee · standard 40% evaluation consistency · five sim-funded payouts, 90% trader share. DLL-on requests stop the session at the first eligible observed trade close. No live-account returns are simulated.':'Apex 50K EOD · existing model, $49 evaluation and $129 activation defaults.';
+    $('#prop-model-help').textContent+=' Evaluation and funded sizes are chosen together for the highest training annualized net per slot, including evaluation fees and waiting time.';
     $('#prop-commission-help').textContent=`${p.commissions.broker} defaults: NQ $${p.commissions.rates.NQ} per side; MNQ $${commissionDefault} per side. Source commission is replaced once when instrument identity is known; slippage is retained.`;
     $('#prop-commission-source').href=p.commissions.source_url;$('#prop-commission-source').textContent=p.commissions.broker+' commission schedule';
     invalidate();
@@ -201,14 +202,14 @@
     const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
     context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
     if(source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
-    if(!['alphaquest-apex50k-eod-v4-instrument-commissions','alphaquest-lucidflex50k-eod-v2-funding-continuation'].includes(r.model_version))root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Use Configure new analysis to copy its account settings and calculate with the current model.`, 'prop-assumption-note'));
+    if(!['alphaquest-apex50k-eod-v6-acquisition-bounds','alphaquest-lucidflex50k-eod-v4-acquisition-bounds'].includes(r.model_version))root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Use Configure new analysis to copy its account settings and calculate with the current model.`, 'prop-assumption-note'));
     if(lucid){root.append(el('p',`LucidFlex standard 40% evaluation consistency; funded payouts are trader receipts after the 90/10 split. Evaluation has no provider deadline; this report uses a ${number(e.horizon_weekdays||2000)}-session computational limit per attempt.${e.initial_horizon_weekdays<e.horizon_weekdays?` Open paths continue beyond ${number(e.initial_horizon_weekdays)} sessions with their existing account and sampling state.`:''} The sim-funded model stops after five payouts and excludes discretionary early live transitions.`,'prop-assumption-note'));if(r.settings.DAILY_LOSS_LIMIT==='on')root.append(el('p','DLL-on models a fixed $1,200 daily stop in both phases. Holding this amount fixed above the trail is an assumption: the official Flex help pages do not specify that adjustment. See Source & model.','prop-assumption-note'));}
     const commission=source.commission_simulation;
     if(commission)root.append(el('p',commission.applied?`${commission.broker} · MNQ commission $${commission.per_side} per contract per side ($${commission.round_turn} round turn), applied to evaluation and funded trades. Source commission replaced once; source slippage retained. Risk uses conservative commission-adjusted bounds.`:commission.explanation,'prop-assumption-note'));
     if(f&&e.pass_rate===0)root.append(el('p','No holdout evaluation passed. Funded outcomes are conditional on starting with a funded account; training-selected size and replay economics remain frozen.','prop-assumption-note'));
     const nav=el('div',undefined,'prop-report-tabs');nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Simulation report views');
     root.append(nav);
-    const views={},buttons={},definitions=[['overview','Overview'],['evaluation','Evaluation'],...(f?[['sizing','Sizing'],['history','Historical replay']]:[]),['model','Source & model']];
+    const views={},buttons={},definitions=[['overview','Overview'],['evaluation','Evaluation'],...(f||c.joint_sizing?[['sizing','Sizing']]:[]),...(f?[['history','Historical replay']]:[]),['model','Source & model']];
     function selectView(key,moveFocus=false){
       for(const [name] of definitions){const active=name===key;views[name].hidden=!active;buttons[name].setAttribute('aria-selected',String(active));buttons[name].tabIndex=active?0:-1;}
       if(moveFocus){buttons[key].focus({preventScroll:true});root.scrollIntoView({block:'start'});buttons[key].scrollIntoView({block:'nearest',inline:'nearest'});}
@@ -249,7 +250,8 @@
       facts(p,[['Median',days(s['T1 median'])],['75th percentile',days(s['T1 p75'])],['90th percentile',days(s['T1 p90'])]]);
       p.append(el('p','Trading days include zero-trade weekdays; they are not calendar days.','prop-explainer'));
       p=reportBlock(views.overview,'First year and account lifetime',lucid?'Trader receipts after the 90/10 split; before acquisition fees. Sim-funded stage only.':'Gross payouts per funded account, not the net profit of a slot portfolio.');
-      readableTable(p,[{horizon:'First year · 261 trading days',average:s['E[P] 12m'],median:s['median 12m'],chance:s['P(>=1) 12m']},{horizon:'Lifetime · up to 2,000 trading days',average:s['E[payout]'],median:s['median life'],chance:s['P(>=1 payout)']}],[{key:'horizon',label:'Horizon'},{key:'average',label:'Average payout',format:money,numeric:true},{key:'median',label:'Median payout',format:money,numeric:true},{key:'chance',label:'Receives a payout',format:percent,numeric:true}],{caption:'First-year and lifetime payout comparison'});
+      readableTable(p,[{horizon:'First year · 261 trading days',average:s['E[P] 12m'],median:s['median 12m'],chance:s['P(>=1) 12m']},{horizon:`Lifetime · up to ${number(s.horizon_weekdays||2000)} trading days`,average:s['E[payout]'],median:s['median life'],chance:s['P(>=1 payout)']}],[{key:'horizon',label:'Horizon'},{key:'average',label:'Average payout',format:money,numeric:true},{key:'median',label:'Median payout',format:money,numeric:true},{key:'chance',label:'Receives a payout',format:percent,numeric:true}],{caption:'First-year and lifetime payout comparison'});
+      if(s.censored_paths)p.append(el('p',`${number(s.censored_paths)} holdout accounts remain open at the computational limit. Receipts and lifetime days are observed through that limit; a complete holdout annualized rate is unavailable.`, 'prop-assumption-note'));
       explanation(p,'Why can the payout chances differ slightly?','First-year and lifetime outcomes come from independent simulation runs. Each is an estimate from its own random draws; the first-year chance can be slightly higher or lower.');
       p=reportBlock(views.overview,'Getting to this funded account','Evaluation costs and timing are shown separately from funded payouts.');
       facts(p,[['Evaluation size',`${e.selected_micros} MNQ`],['Funded size',`${s.micros} MNQ`],['Average acquisition cost',money(e.cost_per_funded),'Repeated evaluation fees plus one activation fee.']],'prop-facts-inline');
@@ -259,17 +261,17 @@
       p.classList.add('prop-unavailable');
       const censored=c.unavailable?.includes('funding chain is censored');
       const earlierLimit=censored&&(e.horizon_weekdays||2000)<20000;
-      p.append(el('p',censored?'An evaluation path remained open at this report’s computational limit. Funding time was not estimated from only the completed paths.'+(earlierLimit?' Configure a new analysis to use the current model; the source backtest does not need to run again.':' The extended computational limit was reached; acquisition timing and funded sizing remain unavailable.'):'Training acquisition economics could not be calibrated. No acquisition time or funded payout is substituted.'));
+      p.append(el('p',c.joint_sizing?.reason|| (censored?'An evaluation path remained open at this report’s computational limit. Funding time was not estimated from only the completed paths.'+(earlierLimit?' Configure a new analysis to use the current model; the source backtest does not need to run again.':' The extended computational limit was reached; acquisition timing and funded sizing remain unavailable.'):'Training acquisition economics could not be calibrated. No acquisition time or funded payout is substituted.')));
       if(earlierLimit){const retry=el('a','Configure new analysis','button primary');retry.href=rerun.href;p.append(retry);}
       facts(p,[['Evaluation pass rate',percent(e.pass_rate)],['Evaluation size',`${e.selected_micros} MNQ`],['Source net P&L',money(source.reconciliation.source_totals.net_pnl)]]);
       viewButton(p,'Inspect evaluation outcomes','evaluation');
     }
 
-    let p=reportBlock(views.evaluation,'Can the strategy reach funded status?',`${e.selected_micros} MNQ · ${number(e.simulations)} evaluation paths · holdout ${dateRange(c.samples.validation)}.`);
+    let p=reportBlock(views.evaluation,'Can the strategy reach funded status?',`${e.selected_micros} MNQ${c.joint_sizing?.status==='unavailable'?' · diagnostic size; joint selection unavailable':''} · ${number(e.simulations)} evaluation paths · holdout ${dateRange(c.samples.validation)}.`);
     const evalCards=el('div',undefined,'prop-metric-grid prop-three-metrics');p.append(evalCards);
     metricCard(evalCards,'Passes evaluation',percent(e.pass_rate),`${number(e.passed)} of ${number(e.simulations)} paths.`,e.pass_rate);
     metricCard(evalCards,'Average cost to get funded',money(e.cost_per_funded),'Across repeated evaluations, including activation.',e.cost_per_funded);
-    metricCard(evalCards,'Average time to get funded',days(e.days_to_funded),'Failed attempts plus the activation day.',e.days_to_funded);
+    metricCard(evalCards,'Average time to get funded',days(e.days_to_funded),lucid?'All evaluation attempts; no extra activation weekday.':'All evaluation attempts plus one activation weekday.',e.days_to_funded);
     probabilityRows(p,[['Pass',e.pass_rate,''],['Fails drawdown',e.fail_drawdown,'prop-risk'],[lucid?`Still open at ${number(e.horizon_weekdays||2000)} sessions`: 'Deadline reached',e.timeout,'prop-neutral'],...(lucid?[['Inactive',e.inactivity,'prop-neutral']]:[])]);
     if(lucid&&e.continued_paths!==undefined)facts(p,[['Paths continued beyond '+number(e.initial_horizon_weekdays)+' sessions',number(e.continued_paths)],['Longest evaluation attempt',days(e.longest_attempt_weekdays)],['Computational limit per attempt',days(e.horizon_weekdays)]]);
     p.append(el('p',`95% simulation interval for the pass rate: ${e.pass_rate_ci.map(percent).join(' – ')}. This describes sampling uncertainty within the model.`, 'prop-explainer'));
@@ -286,11 +288,41 @@
       if(t.reason)p.append(el('p',t.reason,'prop-assumption-note'));
       details(p,'Training calibration and sample identity',t);fileLink(p,'training_economics.json','Download training calibration (JSON)');
     }
-
+    if(c.joint_sizing){
+      const j=c.joint_sizing,chosen=j.selected;
+      p=reportBlock(views.sizing,'Evaluation and funded sizes chosen together','Maximizes long-run annualized net per slot on training days. This is not cash during the first 261 days starting unfunded.');
+      p.id='prop-joint-sizing';
+      if(chosen){
+        facts(p,[['Evaluation size',`${chosen.evaluation_micros} MNQ`],['Funded size',`${chosen.funded_micros} MNQ`],['Training annualized net / slot',money(chosen.slot_year)],['Monte Carlo standard error',money(chosen.slot_year_se)],['Pairs compared',number(j.pairs.length)],['Statistically close pairs',number(j.overlapping_pairs)]]);
+        if(j.nonpositive)p.append(el('p','The best qualified estimate is nonpositive. No positive annualized net is estimated for these candidates.','prop-assumption-note'));
+        if(j.validation)facts(p,[['Holdout annualized net / slot',money(j.validation.slot_year),'Validation of the frozen pair; never used to choose sizes.']]);
+      }else p.append(el('p',j.reason,'prop-assumption-note'));
+      p.append(el('p','261 × (expected funded trader receipts − expected acquisition cost) ÷ (expected funded lifetime + expected acquisition weekdays). Evaluation fees and failed-attempt time enter every pair. All candidates use the same saved account rules, costs and source sample.'));
+      p.append(el('p',j.uncertainty,'prop-explainer'));
+      if(j.excluded_acquisition_candidates?.length){
+        const block=reportBlock(p,'Uncompetitive evaluation sizes excluded','Unknown acquisition times remain unknown. These candidates cannot beat the complete pair even under their optimistic acquisition bounds.');block.id='prop-acquisition-exclusions';
+        readableTable(block,j.excluded_acquisition_candidates,[{key:'evaluation_micros',label:'Eval MNQ'},{key:'passed',label:'Refined passes',format:number,numeric:true},{key:'simulations',label:'Paths',format:number,numeric:true},{key:'pass_probability_upper',label:'Optimistic pass probability',format:percent,numeric:true},{key:'acquisition_cost_lower_bound',label:'Minimum acquisition cost',format:money,numeric:true},{key:'payout_cap',label:'Maximum funded receipts',format:money,numeric:true},{key:'upper_bound',label:'Annualized upper bound / slot',format:money,numeric:true}],{caption:'Acquisition candidates excluded by optimistic bounds'});
+        block.append(el('p','Probability bounds use exact one-sided binomial limits with 95% family coverage across evaluation sizes, conditional on the sampled model. All censored evaluation paths count as possible passes. These bounds do not certify future performance.','prop-explainer'));
+      }
+      if(j.blocking_acquisition_candidates?.length)details(p,'Acquisition candidates that still prevent selection',j.blocking_acquisition_candidates);
+      p.append(el('p','A size that cannot produce a qualifying payout day is bounded analytically at zero possible receipts. Its lifetime is unknown and no Monte Carlo paths are claimed; the provenance download records the bound and actual simulation counts.','prop-explainer'));
+      const control=el('label','Evaluation size to inspect'),filter=el('select');filter.id='prop-joint-eval-filter';
+      for(const size of j.evaluation_range){const option=el('option',`${size} MNQ`);option.value=String(size);filter.append(option);}
+      filter.value=String(chosen?.evaluation_micros||e.selected_micros);control.append(filter);p.append(control);
+      const target=el('div');target.id='prop-joint-pairs';p.append(target);
+      function drawPairs(){
+        target.replaceChildren();
+        const rows=j.pairs.filter(row=>row.evaluation_micros===Number(filter.value)).sort((a,b)=>(b.slot_year??-Infinity)-(a.slot_year??-Infinity));
+        readableTable(target,rows,[{key:'evaluation_micros',label:'Eval MNQ'},{key:'funded_micros',label:'Funded MNQ'},{key:'pass_rate',label:'Eval pass',format:percent,numeric:true},{key:'acquisition_cost',label:'Acquisition cost',format:money,numeric:true},{key:'acquisition_days',label:'Acquisition days',format:v=>number(v,2),numeric:true},{key:'expected_receipts',label:'Funded receipts',format:money,numeric:true},{key:'funded_days',label:'Funded days',format:v=>number(v,2),numeric:true},{key:'slot_year',label:'Annualized net / slot',format:money,numeric:true},{key:'slot_year_se',label:'MC standard error',format:money,numeric:true},{key:'upper_bound',label:'Optimistic upper / slot',format:money,numeric:true},{key:'status',label:'Estimate'}],{caption:'Training evaluation/funded pair comparison',selected:row=>chosen&&row.evaluation_micros===chosen.evaluation_micros&&row.funded_micros===chosen.funded_micros});
+      }
+      filter.addEventListener('change',drawPairs);drawPairs();
+      fileLink(p,'joint_sizing.csv','Download all evaluation/funded pairs (CSV)');fileLink(p,'joint_sizing.json','Download joint sizing and provenance (JSON)');
+      details(p,'Selection stages, censoring bounds, seeds and tie-break',j);
+    }
 
     if(f){
       p=reportBlock(views.sizing,`Why was ${s.micros} MNQ selected?`,'The highest estimated annual net per slot on training days selects the funded size. It is then tested on separate holdout days.');
-      facts(p,[['Chosen funded size',`${s.micros} MNQ`],['Training window',dateRange(c.samples.train)],['Simulations per size',number(f.sweep[0]?.sims)]],'prop-facts-inline');
+      facts(p,[['Chosen funded size',`${s.micros} MNQ`],['Training window',dateRange(c.samples.train)],['Screening paths per size',number(c.joint_sizing?.screen_simulations||f.sweep[0]?.sims)],...(c.joint_sizing?[['Refined training paths',number(c.joint_sizing.refinement_simulations)]]:[])],'prop-facts-inline');
       if(f.search_range){const g=f.search_range;p.append(el('p',`Tried every size from ${g.min_micros} to ${g.max_micros} MNQ in increments of ${g.step}. Funded scaling limits actual orders to 20, 30 or 40 MNQ from the prior closing balance. ${g.selected_at_limit ? 'The selected size is at the search limit; no size above the permitted or user cap was tested.' : ''}`,'prop-assumption-note'));}
       const assumptions=f.selection_economics;
       if(assumptions?.method==='training_simulation'){
@@ -355,7 +387,7 @@
     details(p,'Account rules',c.rules);details(p,'Resolved settings',r.settings);details(p,'Random streams and samples',{samples:c.samples,seeds:c.seeds});
     details(p,'Report identity and reproducibility',{id:r.id,created_at_utc:r.created_at_utc,model:r.model_version,application_commit:r.application_commit,implementation:r.implementation_sha256,runtime:r.runtime});
     p=reportBlock(views.model,'Downloads and full precision','Display values are rounded. The original saved values remain in the report data and exports.');
-    const names={'calculations.json':'All calculated metrics (JSON)','commission_reconciliation.json':'Trading commission reconciliation (JSON)','training_economics.json':'Training acquisition calibration (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)','inputs/intratrade_risk.csv':'Captured OHLC risk bounds (CSV)'};
+    const names={'calculations.json':'All calculated metrics (JSON)','joint_sizing.json':'Joint sizing and provenance (JSON)','joint_sizing.csv':'Evaluation/funded pair comparison (CSV)','commission_reconciliation.json':'Trading commission reconciliation (JSON)','training_economics.json':'Training acquisition calibration (JSON)','evaluation_sizing.csv':'Evaluation size sweep (CSV)','funded_sizing.csv':'Funded size sweep (CSV)','slot_accounts.csv':'Historical account trace (CSV)','slots_by_quarter.csv':'Quarterly cash (CSV)','slots_year_by_year.csv':'Yearly cash (CSV)','trades.csv':'Source trade reconciliation (CSV)','charts/data.json':'Saved chart values (JSON)','inputs/settings.json':'Run settings (JSON)','inputs/intratrade_risk.csv':'Captured OHLC risk bounds (CSV)'};
     for(const path of Object.keys(r.files).sort())fileLink(p,path,names[path]||(path.startsWith('charts/')?`Original ${path.split('/').pop().replace('.svg','')} chart (SVG)`:path.endsWith('.xlsx')?'Original measured-excursion export (XLSX)':path));
     selectView('overview');window.scrollTo(0,0);
   }

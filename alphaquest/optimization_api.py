@@ -180,6 +180,23 @@ def refresh_lucid(job_id: UUID, request: Request):
     except sqlite3.Error as exc:raise HTTPException(503,'Could not save Lucid refresh links. Retry; existing analysis jobs will be reused.') from exc
 
 
+@router.get('/api/backtests/batches/{job_id}/prop-refresh')
+@router.get('/api/optimizations/{job_id}/prop-refresh')
+def prop_refresh_status(job_id: UUID, request: Request):
+    from .optimization_prop import all_status
+    return all_status(request.app.state.optimizations,get_job(request,job_id))
+
+
+@router.post('/api/backtests/batches/{job_id}/prop-refresh',status_code=202)
+@router.post('/api/optimizations/{job_id}/prop-refresh',status_code=202)
+def refresh_prop(job_id: UUID, request: Request):
+    from .optimization_prop import refresh_all
+    try:return refresh_all(request.app.state.optimizations,job_id.hex)
+    except LookupError as exc:raise HTTPException(404,str(exc)) from None
+    except ValueError as exc:raise HTTPException(409,str(exc)) from None
+    except sqlite3.Error as exc:raise HTTPException(503,'Could not save prop refresh links. Retry; existing analysis jobs will be reused.') from exc
+
+
 @router.get("/api/backtests/batches/{job_id}/exports/results")
 @router.get("/api/optimizations/{job_id}/exports/results")
 def export(job_id: UUID, request: Request, sort: str = "trial", direction: str = "asc", prop_revision: int | None = Query(None, ge=0)):
@@ -196,7 +213,7 @@ def export(job_id: UUID, request: Request, sort: str = "trial", direction: str =
     def stream():
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer)
-        prop_columns = ["prop_analysis_id", "prop_status", "prop_reason"] if job.get("default_prop_profile") else []
+        prop_columns = ["prop_analysis_id", "prop_status", "prop_reason", "prop_model_version", "prop_original_analysis_id"] if job.get("default_prop_profile") else []
         lucid_columns = ['lucid_analysis_id','lucid_status','lucid_reason','lucid_model_version','lucid_original_analysis_id'] if 'lucid_historical_net' in job['metric_columns'] else []
         writer.writerow(["trial", "run_id", *job["axes"], *job["metric_columns"], *prop_columns, *lucid_columns])
         yield buffer.getvalue()
@@ -206,7 +223,7 @@ def export(job_id: UUID, request: Request, sort: str = "trial", direction: str =
                 buffer.truncate(0)
                 writer.writerow([row["trial"], row["run_id"], *(row["parameters"][name] for name in job["axes"]),
                                  *(row["metrics"].get(name) for name in job["metric_columns"]),
-                                 *(row.get("prop_analysis", {}).get(name) for name in (("id", "status", "reason") if prop_columns else ())),
+                                 *(row.get("prop_analysis", {}).get(name) for name in (("id", "status", "reason", "model_version", "original_analysis_id") if prop_columns else ())),
                                  *((row.get('prop_companions') or [{}])[0].get(name) for name in (('id','status','reason','model_version','original_analysis_id') if lucid_columns else ()))])
                 yield buffer.getvalue()
     return StreamingResponse(stream(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="optimization-{job["id"]}.csv"'})

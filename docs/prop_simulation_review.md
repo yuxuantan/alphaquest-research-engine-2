@@ -3541,3 +3541,774 @@ This compiles the helper, not the full signal against MC's installed SDK.
 No fresh MC platform result or live protection is claimed. The existing
 bar-close gap guards still reject observed invalid fills after execution;
 they do not cancel or undo broker fills. The user's Windows VM was untouched.
+
+## Lucid evaluation: AQ 75.1% versus Bridge 37.8% — 2026-11-02
+
+This records the v2 comparison before joint sizing. The following joint-sizing
+section specifies the current implementation and its new durable report.
+
+The discrepancy is reproducible and explained. The reports are not using the
+same evaluation policy, despite similar settings forms. AQ analysis
+`9994b7072e2e46e19f6c6c28540041ce`, from backtest
+`ca38522dd0794f6f9f49e4b7eb8b67d9`, is compared with the user's saved Bridge
+export `/Users/yx/Downloads/20261102_173028`. No Bridge executable or DLL was
+invoked. That export is a qualification oracle only; all new calculations below
+were generated locally. Production rules, UI, stored backtests and reports are
+unchanged by this investigation.
+
+### Confirmed causes
+
+1. **Different evaluation objective and size.** AQ chooses the highest training
+   pass count (`max(evaluation_sweep, key=passed)`), selecting **4 MNQ**, with
+   612/3,000 training passes. Bridge's captured settings specify
+   `EVAL_PICK = 'fastest to funded'`: minimize training acquisition time including
+   retries, with sizes within one standard error tied and higher pass rate
+   preferred. Bridge selects **20 MNQ**. AQ's evaluation search allows 1–40;
+   Bridge records a 25-MNQ evaluation search cap. The shared form choice
+   **most net per year per slot** describes funded sizing; it does not make
+   these two evaluation objectives equivalent.
+2. **40% versus 52% evaluation consistency.** AQ's dated local contract uses
+   0.40. The supplied Bridge `EVAL_ACCOUNT` explicitly uses **0.52**, also
+   printed in its run log. This compares captured model behavior; it does not
+   certify either threshold as today's provider rule. At 20 MNQ this difference
+   materially changes both pass probability and the time required to pass.
+3. **Different cost treatment.** Bridge retains costs already in the workbook.
+   AQ replaces source NQ commission with the configured MNQ commission, once:
+   $3.98 source round turn / 10 = **$0.398 per MNQ**, versus **$1.00 per MNQ**
+   in AQ's Lucid default. The source's $25,400.72 net becomes $22,475.00 per
+   NQ-equivalent when repriced for MNQ, a $2,925.72 difference over 486 trades.
+   This is a cost replacement, not a duplicate charge. AQ **source costs** mode
+   preserves the workbook cost convention for qualification.
+4. **One weekday at the split boundary.** Both use the same 1,038 weekdays.
+   AQ floors 70% into **726 training / 312 validation** days, with validation
+   starting **2023-10-18**. Bridge has **727 / 311**, starting **2023-10-19**,
+   consistent with flooring the 30% validation count instead. An explicit
+   `OUT_OF_SAMPLE_FROM='2023-10-19'` aligns the sample.
+5. **One funded-start day in the displayed time.** AQ's value is the total
+   evaluation-chain length; its Lucid activation increment is zero. Bridge's
+   report explicitly includes the next funded-start weekday. After aligning
+   all calculation inputs, AQ gives **32.67555** evaluation weekdays; adding
+   Bridge's counted start day gives exactly **33.67555**. This is a metric
+   convention, not a $0 activation fee becoming a paid activation.
+
+Both source inputs reconcile: the workbook contains the same **486 trades**,
+IDs, entry UTC timestamps, directions, quantities and net costs. The adapter
+checks every trade, not only aggregate P&L. Its MAE/MFE columns are accepted as
+the companion export's supplied excursions; the original AQ report uses held
+OHLC risk bounds. No measured excursions were fabricated. Preserving the exact
+workbook floating representation changes the aligned chain mean by just
+**0.00005 day**; this accounts for the final full-precision difference below.
+
+### Controlled local calculations
+
+Each row changes the previous row, in order. All rows use 20,000 single
+evaluations (seed 43), 20,000 repeated-funding chains (seed 44), and five-day
+blocks. These are deterministic conditional model experiments, not future
+outcomes. The day column excludes the funded-start weekday until the last row.
+
+| Local scenario | MNQ | Pass rate | Cost to funded | Mean evaluation-chain weekdays |
+| --- | ---: | ---: | ---: | ---: |
+| Saved AQ inputs | 4 | 75.145% | $107.126223 | 88.69665 |
+| Change size only | 20 | 31.170% | $258.261149 | 49.64560 |
+| Also use 52% consistency | 20 | 35.755% | $225.143337 | 33.85390 |
+| Also retain source costs | 20 | 36.975% | $217.714672 | 33.34915 |
+| Also align validation start | 20 | 37.840% | $212.737844 | 32.67550 |
+| Also retain exact workbook floats | 20 | 37.840% | $212.737844 | 32.67555 |
+| Add Bridge's counted funded-start day | 20 | 37.840% | $212.737844 | **33.67555** |
+
+The final pass count is **7,568 / 20,000**. Independent acquisition arithmetic:
+**$80.50 / (7,568 / 20,000) = $212.73784355179703**. The aligned chain median is
+25 weekdays, or **26** including Bridge's start day; median successful attempt
+is **12** weekdays. These also match the supplied Bridge export. The original
+AQ cost is independently **$80.50 / (15,029 / 20,000) = $107.12622263623662**.
+
+**Qualification status:** these evaluation pass/cost/time metrics match the
+supplied reference exactly when conditions align. This does not establish
+funded-account, historical-net, arbitrary-input or current provider-rule parity.
+For example, the saved Bridge funded contract removes its DLL above +$2,100,
+whereas AQ's current dated contract discloses a fixed-DLL assumption. That
+funded-phase difference is outside the three evaluation metrics investigated.
+Changing AQ's production objective to fastest funding, or introducing another
+consistency profile, would be a separate behavior change requiring its own
+normal-product configuration, calculation and durable-report increment.
+
+### Inspect and reproduce in the existing product
+
+1. Open `http://localhost:8000/#backtests/report/ca38522dd0794f6f9f49e4b7eb8b67d9`.
+   Its source has 486 trades and $25,400.72 net. Select **Configure prop
+   analysis**, then **LucidFlex 50K**. Leave the companion path blank to retain
+   the saved report's native risk input.
+2. Set six slots and **Check source**: expect rejection (**SLOTS must be an
+   integer from 1 to 5**) and a disabled run button. Restore five slots and
+   check again: expect 486 matched trades, 486 held-OHLC inputs, $0.50 per side
+   MNQ commission and one recorded cost replacement.
+3. With the original defaults/source, **Run analysis** reopens the existing
+   saved report `9994b7072e2e46e19f6c6c28540041ce`. The delivered browser review
+   verifies the exact request key before submitting and asserts that this same
+   ID is reused. No new backtest or report is created.
+4. In **Evaluation**, expect 4 MNQ, 75.1%, 88.7 trading days and the saved
+   full-precision $107.1262 acquisition cost (the headline currency display
+   rounds to whole dollars). Expand **Evaluation sizes tried on training
+   days** and **Training calibration used for selection** to see why 4 won.
+   Training's 20.4% / $394.61 / 429.8248 days use earlier days and must not be
+   mistaken for the displayed holdout estimates.
+5. **Source & model → Download all results (ZIP)** preserves the numerical
+   output, source identity, rules and sizing CSVs. Reload reads that saved
+   analysis. The Bridge-aligned 52%/20-MNQ cases are qualification experiments
+   in the review script, not an exposed production configuration or a second
+   product report store. Open the supplied Bridge `report.html` and compare its
+   20-MNQ Evaluation row and captured `settings_20261102_1730.txt`.
+
+Evidence: `artifacts/lucid-metric-discrepancy-20261102/` contains
+`comparison.json`, original AQ/Bridge JSON snapshots, captured Bridge settings,
+the reconciled workbook source identity, and compressed `chains-0.npz` /
+`chains-5.npz` with actual and independently regenerated per-chain days,
+attempts and longest attempt. All **40,000** independent chains match exactly.
+`preservation-before.json` and `preservation-after.json` verify **44** original
+source/report/reference files byte-for-byte. `portal/` contains three actual
+workflow screenshots, rejected/accepted source checks, the original report/ZIP
+and `verification.json` confirming reuse, reload and no backtest POST.
+
+Reproduce with a fresh output directory (existing evidence is never overwritten):
+
+```bash
+.venv/bin/python tests/review_lucid_metric_discrepancy.py \
+  --report data/prop_analyses/9994b7072e2e46e19f6c6c28540041ce/report.json \
+  --bridge /Users/yx/Downloads/20261102_173028 \
+  --workbook '/Users/yx/Downloads/Backtesting Strategy Performance Report _ NQ TIP - 1 Minute ORB_VWAP_CONT__NQ_1M_PIVOT_V01.xlsx' \
+  --output artifacts/lucid-metric-discrepancy-RECHECK
+.venv/bin/python artifacts/lucid-metric-discrepancy-20261102/review_portal.py \
+  --output artifacts/lucid-metric-discrepancy-portal-RECHECK
+.venv/bin/python -m pytest tests/test_lucid_prop.py \
+  tests/test_lucid_funding_continuation.py -q
+```
+
+Validation: **31 automated checks passed**. The review additionally asserts the
+exact supplied metrics and independent per-chain results. Independent boundary
+arithmetic checks that $1,000/MNQ/session passes the $3,000 target on session 3,
+that a two-session guard censors rather than fails, and that touching the
+−$2,000 floor breaches even when the trade later wins. No censored evaluation
+was omitted. Whitespace checks passed. The existing user server was used; no
+server or Windows process was started, stopped or changed. The review browser
+was closed.
+
+## Joint evaluation/funded sizing in the product — 2026-11-02
+
+New Apex v5 and LucidFlex v3 reports select the evaluation/funded pair with the
+highest **training long-run annualized net per slot**. Evaluation pass rate is
+an input to acquisition cost, not a separate first-stage selection objective.
+All rules, source/cost adaptation, permitted sizes, payout mechanics and the
+chronological internal split remain as configured. No Bridge executable, DLL
+or generated results enter production calculations.
+
+### Actual existing-source journey and observations
+
+The user's existing 486-trade backtest
+`ca38522dd0794f6f9f49e4b7eb8b67d9` and earlier Lucid report
+`9994b7072e2e46e19f6c6c28540041ce` were used without executing a strategy
+backtest. The ordinary report **Configure new analysis → Check source → Run
+analysis** flow published **`c04a55c2c5de476da4e328eb29c52cbc`** into the existing
+AnalysisStore. Every resolved setting and the source snapshot equal the earlier
+report. The earlier report retains its original 75.145% evaluation result and
+acquisition metrics, with the normal earlier-model notice.
+
+Open the new durable result on the existing portal:
+
+```text
+http://localhost:8000/#backtests/prop/job/c04a55c2c5de476da4e328eb29c52cbc
+```
+
+Expected observations:
+
+1. **Sizing → Evaluation and funded sizes chosen together** selects **12 MNQ
+   evaluation / 20 MNQ funded**, comparing **1,600** pairs. The training sample
+   remains 2021-01-05–2023-10-17; validation starts 2023-10-18. No comparison
+   changes Lucid's saved 40% consistency or commission treatment.
+2. The selected evaluation's refined training pass count is **3,883 / 20,000**.
+   Its expected acquisition cost is independently
+   `80.50 / (3883 / 20000) = 414.6278650527943`. All **20,000** seed-45 funding
+   chains resolve, with mean **116.8156** weekdays. A separate scalar ledger
+   regenerates every chain's days, attempts and longest attempt exactly.
+3. Training funded receipts average **$762.7549078125**, with average lifetime
+   **21.86875** weekdays. Independent arithmetic gives
+   `261 * (762.7549078125 - 414.6278650527943) / (21.86875 + 116.8156)`
+   = **$655.1651874222521 annualized net per slot**. Its conditional Monte Carlo
+   standard error is **$25.722372652924186**. These simulation errors do not
+   measure uncertainty about future strategy performance or provider rules.
+4. The later holdout **validates the frozen 12/20 pair**. Evaluation passes
+   **47.92%**, acquisition cost is **$167.98831385642737**, and acquisition time
+   is **37.09685** weekdays. Holdout annualized net is **$6,411.724664697769 per
+   slot**. These holdout values never rescore the pair or replace the training
+   acquisition inputs used for historical replay.
+5. **Historical replay** shows **$58,996 payouts − $16,584 acquisition costs =
+   $42,412 net**, across five shared-trade slots over 1,038 observed weekdays.
+   This full-history research replay includes training days, starts acquired
+   funded accounts, and uses frozen expected acquisition fees/rounded-up mean
+   delays. It is distinct from both annualized estimates and from first-year
+   cash starting unfunded.
+6. Choose another evaluation size in Sizing to inspect its funded-size rows.
+   Download **all evaluation/funded pairs (CSV)** and **joint sizing and
+   provenance (JSON)** there, or use **Source & model** / the existing ZIP.
+   Reload reopens the saved result. Reconfiguring unchanged inputs reuses this
+   new current-model analysis; it does not rewrite either report or a saved
+   optimization trial's automatic analysis reference.
+
+The two-stage screening uses 3,000 paths per size and 20,000 funding chains
+per eligible evaluation size. On this source, **14 evaluation and 30 funded
+contenders** were refined at 20,000 training paths, seed 46. Full screening and
+final matrices, refinements, seeds, counts, source identity and tie-break are
+saved. Every one of the final **1,600** scores was independently recomputed with
+Decimal arithmetic; the maximum and documented tie ordering match the selected
+pair. No funded profile in this actual-source matrix remained censored.
+
+Evidence is in `artifacts/joint-sizing-20261102/actual-portal/`: source check,
+old/new reports, submission/verification JSON, complete pair CSV/JSON, training
+economics, result ZIP, independent-chain evidence, and five screenshots covering
+the existing backtest, source check, pair selection, evaluation and replay.
+
+Reproduce from the repository root with a fresh evidence directory:
+
+```bash
+.venv/bin/python tests/review_joint_prop_sizing.py \
+  --old-id 9994b7072e2e46e19f6c6c28540041ce \
+  --output artifacts/joint-sizing-actual-RECHECK
+```
+
+This review requires an idle backtest/prop catalogue, starts its own temporary
+local server on a free port, uses the existing normal catalogue and API, closes
+Chromium and stops its server. It requests only a prop analysis, reusing the
+existing current result when source/settings/implementation match. The user's
+existing server was not manually restarted or stopped; its reload-enabled
+configuration now exposes both new model versions.
+
+### Independent expected values and rejection boundaries
+
+The synthetic product demonstration uses the normal labeled dataset/backtest
+workflow. Every weekday's source trade makes **$3,000 per NQ**, without costs or
+adverse movement; an MNQ therefore makes **$300**. Independent expectations:
+
+- Lucid evaluation **4 MNQ** makes $1,200/day: three days reach $3,600 and the
+  largest-day share is 1/3, satisfying 40%. Larger sizes cannot pass in fewer
+  than three days under that consistency requirement, so the exact tie-break
+  selects four. Funded **3 MNQ** makes $900/day, reaches all five full payout
+  caps in 25 sessions and receives **$9,000** after the split. Training score:
+  `261 * (9000 - 80.50) / (25 + 3) = 83142.48214285714`.
+- Across the 60-day synthetic history, two full Lucid accounts pay **$90,000**
+  across five slots. A third account is purchased late in the period, before
+  any payout. Three purchases cost `3 * 5 * 80.50 = 1207.50`, rounded to **$1,208**
+  by the existing quarterly convention; net is **$88,792**. This checks renewal
+  timing and charges for an unpaid late-period purchase, not only payout totals.
+- Apex selects **10 MNQ evaluation / 3 MNQ funded**: one $3,000 evaluation day
+  plus one activation weekday, then six funded caps totaling $13,000 in 30 days.
+  Its training annualized score is **$104,579.4375**. Over 60 observed days,
+  20 slots receive `(13000 + 10000) * 20 = 460000`, pay `2 * 20 * 178 = 7120`,
+  and net **$452,880**. Larger evaluation sizes tie on timing and the smaller
+  exact-tied exposure wins.
+- A separate Decimal fixture deliberately gives the highest pass probability,
+  fastest funding, largest funded payout and best joint score to different
+  candidates. The joint winner is independently **$5,481/year per slot**.
+  Negative qualified scores remain negative rather than acquiring a positive
+  fallback. Holdout changes cannot alter the saved training matrix or choice.
+- A $149 maximum possible day at one MNQ cannot meet Lucid's $150 qualifying
+  threshold. The analytical profile reports **zero paths actually simulated**,
+  zero possible receipts and unknown lifetime; it does not invent an account
+  closure. At exactly $150, this exclusion does not apply and all requested
+  paths are simulated. Censored lifetime upper bounds can only be excluded when
+  they cannot beat the qualified winner. Otherwise joint selection is unavailable.
+- The earlier $1/day / 3,000-day evaluation example still resolves its full
+  funding chains. Its funded account cannot produce a $150 qualifying day and
+  has no known terminal lifetime; the new model correctly withholds a complete
+  joint lifetime score and historical replay. The earlier v2 result and evidence
+  remain unchanged. The ordinary Sizing/Evaluation views expose the bound and
+  diagnostic evaluation result; no fabricated future outcome is substituted.
+- The actual form rejects **six Lucid slots** and disables Run. Five slots pass
+  source checking. Zero training evaluation passes and unresolved acquisition
+  paths remain explicit unavailable outcomes; profitable holdout cannot rescue
+  a failed training selection.
+
+The synthetic browser evidence is under
+`artifacts/joint-sizing-20261102/browser-final/test_joint_sizing_actual_backt0/`:
+three screenshots, accepted source check, report/ZIP, 1,600 independently checked
+CSV scores and verification JSON. Additional browser directories retain the
+slow-evaluation rejection and saved-batch refresh/download/reopening journeys.
+The boundary fixtures/oracles remain in tests; the UI shows normal source checks,
+account results and selection explanations.
+
+Reproduce the synthetic journey and independent checks with temporary fixtures:
+
+```bash
+.venv/bin/python -m pytest tests/test_joint_prop_sizing.py \
+  tests/test_prop_training_economics.py tests/test_lucid_prop.py \
+  tests/test_lucid_funding_continuation.py -q
+.venv/bin/python -m pytest tests/test_joint_prop_sizing_browser.py \
+  tests/test_lucid_prop_browser.py tests/test_prop_training_economics_browser.py \
+  tests/test_automatic_prop_browser.py tests/test_lucid_funding_continuation_browser.py \
+  tests/test_lucid_batch_refresh_browser.py \
+  -q --basetemp artifacts/joint-sizing-browser-RECHECK
+```
+
+The browser fixtures own temporary servers and stop them after each test. The
+actual-source review's `independent-verification.json` confirms its temporary
+server stopped as well. No persistent server or Windows process was started.
+The before/after inventory verifies **4,405** original report/source JSON, CSV
+and ZIP files byte-identical. Original datasets, backtests, prior evidence,
+optimization snapshots and saved Apex/Lucid reports are retained.
+
+The supplied Bridge evaluation reference was also requalified in
+`artifacts/joint-sizing-20261102/reference-recheck/`: when its fixed 20-MNQ,
+52%, source-cost, validation-date and start-day conventions are aligned, local
+calculations still match **37.84% / $212.73784355179703 / 33.67555 weekdays**
+exactly, with **40,000** independently matching chains across original AQ and
+aligned-reference scenarios. This qualifies those evaluation metrics only.
+The new joint optimizer deliberately uses AQ's saved rules and joint objective;
+no new full funded-account or provider parity is claimed.
+
+Completed validation: the **75-test backend/integration gate**, **7-test joint
+arithmetic/boundary suite** and **9-test kernel/parallel gate** passed, covering
+**85 distinct targeted backend cases** after accounting for overlap. **Nine
+browser cases** passed, including the final saved-batch refresh rerun. The
+actual-source ledger independently matched **20,000** chains; the retained
+AQ/Bridge qualification matched another **40,000**. Both actual and synthetic
+1,600-pair matrices passed independent arithmetic checks. JavaScript syntax,
+whitespace, current-report implementation/kernel compatibility, every published
+artifact hash and all **4,405** preservation checks passed. Summaries are saved
+in `artifacts/joint-sizing-20261102/validation.json`. These are targeted gates,
+not a claim that every repository test was run. All owned review/test servers
+and browser instances were closed; the existing user portal remains available.
+
+## Apex joint-sizing unavailable diagnostics — 2026-11-03
+
+Read-only inspection of the latest completed batch
+`d69045ab437942618ec2afb54728c33c` finds **71 available / 57 unavailable** Apex
+results across 128 trials. Every unavailable result is blocked by an evaluation
+acquisition calibration, **not by a censored funded lifetime**. Blocking sizes
+are 2–5 MNQ, with only 1–4 passes in 3,000 screening evaluations. At least one
+of the requested 20,000 repeated-funding chains failed to pass within the
+10,000-attempt computational guard. This is not the provider's 21-day deadline
+for one Apex evaluation; each failed evaluation can be followed by another.
+
+The new joint search's blanket veto (`joint_sizing.rank`) marks the whole search
+blocked whenever any evaluation size has positive screening passes but unavailable
+funding time. It does not first bound whether that candidate could beat a
+complete pair. This is overly conservative for positive contenders: **44** of
+the affected trials have positive complete candidate scores. The other **13**
+have nonpositive best complete scores and require separate treatment; an
+unresolved negative-return policy could still approach zero annualized loss
+over a sufficiently long cycle, so the positive-winner argument cannot simply
+be reused for those cases.
+
+Concrete example: trial **4**, saved Apex analysis
+`2f616c80f6d74bd4b01423af27eadcad`. Its 3-MNQ evaluation has **2 / 3,000**
+screening passes. Its estimated acquisition cost is
+`49 / (2 / 3000) + 129 = $73,629`, while the Apex model's entire six-payout ladder
+totals at most **$13,000**. On those estimates this candidate cannot produce a
+positive cycle net, regardless of acquisition time. The same report already has
+a complete **40-MNQ evaluation / 8-MNQ funded** candidate with training annualized
+net **$2,026.1412739755713 per slot**. Nevertheless the global veto suppresses the
+selection and acquisition-dependent historical replay. This candidate score is
+a saved training estimate, not an independently qualified replacement report or
+a future outcome.
+
+Inspect through the ordinary batch result link → **Sizing → joint sizing and
+provenance JSON**. In `evaluation_profiles`, the affected sizes have reason
+`No pass within the 10,000-attempt funding-time bound`; `funded_profiles` have no
+incomplete lifetime. `pairs` still contains the complete candidate estimates,
+but the global `selected` is null. The user-visible aggregate message does not
+currently distinguish the specific blocker.
+
+The appropriate repair is candidate-specific acquisition bounds/dominance
+checks, with adequate probability refinement, and an explicit blocker reason.
+Only candidates that cannot change the ranking may be excluded; genuinely
+ambiguous cases must remain unavailable. No production code, report, batch,
+source backtest or dataset was changed in this diagnostic turn; no calculations,
+strategy backtests or servers were started. Saved inspection evidence is
+`artifacts/apex-joint-unavailable-audit-20261103/diagnosis.json`, with original
+affected-report hashes in `report-sha256.json`.
+
+## Fix the blanket acquisition-calibration veto — 2026-11-03
+
+Apex v6 / LucidFlex v4 retain the same account rules and numerical kernels but
+replace the blanket unresolved-acquisition veto with candidate-specific economic
+bounds. No external calculator is invoked or used to generate a production
+result. This increment creates new normal prop reports; all original reports,
+source backtests and optimization trial snapshots remain unchanged.
+
+### Existing trial 4 now produces a durable result
+
+From the latest completed 128-trial batch
+`d69045ab437942618ec2afb54728c33c`, open trial 4's earlier Apex report
+`2f616c80f6d74bd4b01423af27eadcad`. **Configure new analysis → Check source → Run
+analysis** publishes new report **`74e35dc0382343fa85a56645d561f6d3`**. The
+source remains backtest `decc3d06356d4ce18828b4ea63e870d2`, with **488** trades,
+and every resolved setting/source snapshot matches the earlier report. No
+strategy backtest POST or bar execution occurs.
+
+```text
+http://localhost:8000/#backtests/prop/job/74e35dc0382343fa85a56645d561f6d3
+```
+
+Expected observations in the existing product:
+
+1. **Sizing** selects **40 MNQ evaluation / 8 MNQ funded**. Training annualized
+   net is **$2,026.1412739755713 per slot**, matching the already complete
+   candidate from the earlier withheld report. This is a conditional training
+   estimate, not a new future-outcome or full provider-parity claim.
+2. **Uncompetitive evaluation sizes excluded** lists **3 MNQ**. It originally
+   passed **2 / 3,000** screening evaluations. Its independent refined training
+   sample passes **7 / 20,000**. Across 40 evaluation sizes, the upper probability
+   limit solves `Pr[Binomial(20000, p) <= 7] = 0.05 / 40` and equals
+   **0.0009642092185256703**. This is a conditional Monte Carlo confidence bound;
+   it does not assert a bound on future market behavior.
+3. Independent cost arithmetic gives
+   `49 / 0.0009642092185256703 + 129 = 50947.84621983156` dollars as the optimistic
+   acquisition-cost floor. Even the entire **$13,000** funded payout ladder
+   cannot produce a positive cycle net at that cost. Its annualized upper bound
+   is therefore **$0**, below the complete pair's positive score.
+4. Inspect evaluation size **3** in the pair filter: all **40** funded pairings
+   are **excluded**, with upper bound zero and missing estimated acquisition
+   days/annualized score. The size's calibration still says unavailable and
+   retains the 10,000-attempt failure reason. The fix excludes that candidate;
+   it does not pretend to have calibrated its funding time.
+5. **Historical replay** is available: **$270,000 payouts − $93,362 acquisition
+   costs = $176,638 net** across the configured **20** shared-trade slots over
+   1,038 observed weekdays. The trace contains 15 starts per slot, **300** funded
+   starts in aggregate. Fees are rounded by the existing calendar-quarter
+   convention; this is not a flat round of the full-period fee sum.
+6. The selected evaluation's training calibration remains **$311.22387504648566**
+   acquisition cost and **24.47735** replacement weekdays. Funded training
+   receipts average **$856.075**, with **45.70835** lifetime weekdays. Independently:
+   `261 * (856.075 - 311.22387504648566) / (45.70835 + 24.47735)`
+   = **$2,026.1412739755713**. These training inputs stay frozen for replay;
+   holdout never chooses or rescues the pair.
+7. Download **joint sizing and provenance (JSON)** / **all evaluation/funded
+   pairs (CSV)** in Sizing, or the existing report ZIP in **Source & model**.
+   Bounds, actual counts, exclusions and original failure reasons are saved in
+   those existing AnalysisStore artifacts. Reload/reconfigure unchanged current
+   inputs reuses the new report without a strategy backtest.
+
+The batch's original rows still point to their immutable automatic analyses;
+this manual prop reanalysis does not silently rewrite saved batch metrics.
+The new report is also listed among the source backtest's saved analyses. Other
+earlier reports can use the same Configure → Check → Run path. This increment
+does not add an Apex batch-refresh action or claim that all 57 earlier N/A cells
+were replaced.
+
+### A genuinely ambiguous negative case stays unavailable
+
+The same ordinary workflow on trial 21's earlier report
+`2030900931bc4dde9dd7effaa1d919f4` publishes
+**`26a5fa02a9bf4a4a8b9b7555a797c9cd`**. Its 4-MNQ acquisition profile has
+**18 / 20,000** refined passes (originally 3/3,000), upper pass probability
+**0.001745064903058286**, optimistic acquisition-cost floor
+**$28,208.184856749922**, and annualized upper bound **$0**.
+
+Its best complete candidate scores **−$79.68279908056084** per slot/year. Zero
+is above that negative score, so the unknown acquisition duration could change the
+ranking. The new report correctly retains unavailable funded selection/replay.
+Its message identifies **evaluation size 4 MNQ**, and the Sizing provenance
+shows the optimistic bound and best complete comparison. The unknown mean is
+not filled with a fixed delay, a successful-chain-only average or a fake pass.
+
+```text
+http://localhost:8000/#backtests/prop/job/26a5fa02a9bf4a4a8b9b7555a797c9cd
+```
+
+### Independent verification, preservation and reproduction
+
+The regression tests use trial 4's earlier saved candidate values as immutable
+qualification oracles inside tests only. Separate tests verify binomial limits
+against closed forms and exact Decimal probability sums, affordable unresolved
+candidates that must block, zero/negative ties, censored evaluations counted as
+possible passes, and zero refined passes retaining their original unresolved
+status. Probability refinement cannot call/retry a funding chain or invent its
+missing timing mean. Existing no-pass and funded-censoring cases remain covered.
+
+The actual-source review independently recomputes all **2,920** rankable scores
+across the two 1,600-pair matrices. Decimal binomial CDF sums verify the recorded
+confidence limits and fee floors. It checks historical payout cash from each
+account's payout dates and ladder, and purchase costs from starts/training fees,
+rounded independently by calendar quarter. A separate scalar MT19937/first-adverse
+ledger regenerates **all 20,000** training funding chains for the selected
+40-MNQ evaluation, matching every day/attempt tuple and the **24.47735** mean.
+
+Evidence: `artifacts/acquisition-bounds-20261103/actual-portal/` contains both
+old/new reports, accepted source checks, CSV/JSON/ZIP downloads, normal workflow
+screenshots, actual submission IDs, the independent chain arrays and verification
+JSON. `preservation-before.json` / `preservation-after.json` verify **9,386**
+original report/source JSON/CSV/ZIP files byte-identical. The **128** original
+optimization-trial payloads also match `original-trials.json` exactly.
+
+Reproduce actual source checking, analysis, durable results and the independent
+checks from the repository root with a fresh output directory:
+
+```bash
+.venv/bin/python tests/review_acquisition_bounds.py \
+  --output artifacts/acquisition-bounds-actual-RECHECK
+```
+
+The review requires idle local analysis/batch catalogues, starts a temporary
+server on a free port, uses the existing normal catalogue, closes Chromium and
+stops its server. It reuses current reports when inputs/implementation match.
+The user's existing server is not manually restarted or stopped. No persistent
+server, Windows process, dataset or strategy backtest is started/changed.
+
+Automated gates:
+
+```bash
+.venv/bin/python -m pytest tests/test_joint_prop_sizing.py \
+  tests/test_prop_training_economics.py tests/test_lucid_prop.py \
+  tests/test_lucid_funding_continuation.py tests/test_lucid_batch_refresh.py -q
+.venv/bin/python -m pytest tests/test_joint_prop_sizing_browser.py \
+  tests/test_lucid_prop_browser.py tests/test_lucid_batch_refresh_browser.py \
+  -q --basetemp artifacts/acquisition-bounds-browser-RECHECK
+.venv/bin/python -m pytest tests/test_native_prop_compiled.py \
+  -k 'not standard_count' tests/test_lucid_prop_workflow.py \
+  tests/test_prop_commissions.py -q
+```
+
+Results: **55 backend checks**, **31 additional kernel/source/workflow checks**
+and **4 browser checks** passed, alongside both actual-source review cases.
+The kernel/source gate explicitly deselects its separate full standard-count
+Python/compiled portal replay; these are targeted gates, not a full repository
+suite claim. The dated earlier numerical qualification remains separate from
+this selection repair; no new Bridge/funded-provider parity is claimed.
+
+## Refresh all unavailable prop results in the saved batch — 3 November 2026
+
+The existing batch page now refreshes unavailable Apex and Lucid results together.
+The prior action refreshed Lucid only, so it could not replace the Apex N/A cells
+after the acquisition-bound repair above. Both accounts use the normal local
+AnalysisStore workers, source checks, durable reports and downloads. No strategy
+backtest is rerun. Available values are skipped, identical current reports can be
+reused, and repeated clicks do not submit duplicate pending analyses.
+
+The existing append-only refresh index now distinguishes accounts. Earlier index
+rows retain their Lucid meaning. Both account overlays, SQL sorting and CSV
+exports share one pinned revision; revision zero still exposes the original
+immutable trial values. Original reports remain directly accessible. This adds
+no separate simulation page, API for demonstrations or result store.
+
+### User journey and expected observations
+
+1. Open the existing 128-trial batch:
+   `http://localhost:8000/#backtests/batches/d69045ab437942618ec2afb54728c33c`.
+   Its original snapshot has **71 / 128 Apex** and **126 / 128 Lucid** historical
+   net values, leaving **57 Apex and 2 Lucid** unavailable analyses.
+2. In the existing prop refresh area select **Refresh all unavailable
+   prop results**. Progress identifies each account separately. Pending rows
+   survive reload. A second submission while those jobs are pending queues zero
+   duplicates. Current saved analyses that remain legitimately unavailable can
+   be reused without another calculation.
+3. Open an updated analysis from either historical-net column. Inspect its
+   source checks, settings, sizing provenance and Historical replay through the
+   ordinary saved report. Refresh retains the original source and settings;
+   it does not change evaluation/funded constraints to manufacture a value.
+   A completed analysis can still have N/A historical net when unresolved
+   acquisition bounds or funded lifetimes prevent a defensible size selection.
+4. Sort by either historical-net column and download the current results CSV.
+   Its report IDs and metric values match the same pinned table revision.
+   **Download original results CSV** retains the original 59 empty metric cells.
+   Original datasets, source backtests and automatic reports remain unchanged.
+
+The operational script uses the same API and saves a before/after manifest,
+original/current CSV exports, per-trial outcomes and verification evidence:
+
+```bash
+.venv/bin/python scripts/rerun_batch_prop.py \
+  --batch-id d69045ab437942618ec2afb54728c33c \
+  --output artifacts/prop-na-rerun-RECHECK
+```
+
+Choose a new output directory. The script targets only currently unavailable
+results; after the completed refresh, its expected outcome is reuse of current
+unavailable reports rather than another strategy run or repeated size sweep.
+
+### Independent expectations and automated checks
+
+The labelled synthetic source goes through the ordinary dataset, backtest,
+configuration, source checking and analysis routes in the isolated tests. Its
+independent expected historical cash totals are **Apex $452,880** and **Lucid
+$88,792**. Backend and actual Chromium checks verify both values, current and
+original CSVs, independent account links, report navigation, pending reload,
+duplicate submission, source-deletion protection, legacy index migration and
+revision-pinned sorting. Expected fixture calculations stay in the tests.
+
+```bash
+.venv/bin/python -m pytest tests/test_batch_prop_refresh.py -q \
+  --basetemp artifacts/prop-na-rerun-backend-RECHECK
+.venv/bin/python -m pytest tests/test_lucid_batch_refresh.py -q \
+  --basetemp artifacts/prop-na-rerun-lucid-RECHECK
+.venv/bin/python -m pytest tests/test_batch_prop_refresh_browser.py \
+  tests/test_lucid_batch_refresh_browser.py -q \
+  --basetemp artifacts/prop-na-rerun-browser-RECHECK
+```
+
+These gates passed **7 backend checks and 2 browser checks**. Isolated browser
+servers stop automatically. Evidence is under
+`artifacts/prop-na-rerun-20261103/{backend,lucid-compatibility,browser}/`.
+The numerical acquisition-bound model is unchanged by this refresh increment;
+the preceding numerical qualification and its limitations remain applicable.
+
+### Completed actual batch and saved evidence
+
+The actual request processed all **59** unavailable analyses: **57** normal jobs
+were submitted and **2** already-current verified reports were reused. All jobs
+finished. **44** earlier N/A values now have historical net; **15** remain
+unavailable. There are **zero execution errors, zero source rejections and zero
+pending jobs** in this targeted refresh.
+
+| Account | Original available | Updated available | Recovered | Still unavailable |
+| --- | ---: | ---: | ---: | ---: |
+| Apex | 71 / 128 | 115 / 128 | 44 | 13 |
+| Lucid | 126 / 128 | 126 / 128 | 0 | 2 |
+
+The remaining Apex trials are **21, 23, 41, 53, 55, 57, 65, 81, 85, 87, 89,
+117 and 119**. Lucid trials **117 and 119** remain unavailable. These are
+completed calculations with unresolved acquisition means, not source failures
+or skipped larger sizes. Their best complete annual-net scores are negative;
+the unresolved candidates' optimistic bounds can still outrank them. The saved
+reasons identify the particular evaluation sizes (Apex 3–5 MNQ; Lucid 1 MNQ).
+No unknown time is replaced with a fabricated mean or successful-path-only mean.
+
+Independent Decimal calculations reproduce **86,400** rankable annual-net
+scores across all **59** reports and verify every selected pair against the
+saved matrix maximum and tie break. For unavailable reports, the saved bounds
+are at least as high as the negative best complete score. The operational
+verification reconstructs payout/acquisition cash by calendar quarter, checks
+total net, compares every source and setting with its earlier report, and
+matches both account values and sorting to a revision-pinned CSV. Every metric
+that was already available is preserved. All **9,414** pre-existing report/source
+JSON/CSV/ZIP files and all **128** original trial payloads remain unchanged.
+All **44** restored historical replays match the independent quarterly payout,
+cost and net reconstruction exactly (maximum observed rounding difference $0).
+
+Expected actual spot check: trial **4** links to
+`74e35dc0382343fa85a56645d561f6d3`, showing **$176,638** historical net and
+the previously qualified **40-MNQ evaluation / 8-MNQ funded** selection. Trial
+**21** still links to the explicit negative/ambiguous boundary report
+`26a5fa02a9bf4a4a8b9b7555a797c9cd` described above.
+
+Evidence under `artifacts/prop-na-rerun-20261103/`:
+
+- `actual/`: original/current results, all **59** original/new analysis IDs in
+  `outcomes.csv` and `outcomes.json`, queued/reused counts, progress and final
+  `verification.json`. Its CSV snapshot uses revision **139**.
+- `repeat-check/`: a second invocation of the exact operational command reuses
+  all **15** current unavailable reports, queues **zero** calculations and
+  preserves the original/current values. This also checks rerunning a batch
+  whose report links have already been refreshed.
+- `actual-browser-final/`: actual source-backtest/configuration/source-check
+  screenshots and JSON, the real combined-refresh action, both downloaded CSVs,
+  recovered/unavailable report screenshots, a normal report JSON/ZIP download,
+  and `verification.json`. Its latest snapshot is revision **169**; values and
+  analysis IDs match revision 139. Reloads submit no analysis; a repeat refresh
+  queues zero and reuses 15. Both column sorts pass, no browser errors occur,
+  and its temporary server is stopped.
+- `independent-scores.json`, `preservation-before.json`,
+  `preservation-after.json`, `original-trials.json`, `cash-reconciliation.json`
+  and `validation.json` retain the independent score/cash checks, preservation
+  hashes and automated-gate scope.
+
+The initial optional browser probe attempted an unnecessary manual resubmission
+from a stdin-based test server; Python process workers could not import that
+temporary entrypoint. Only its newly created failed probe was removed through
+the normal API. `actual-browser/initial-probe.json` records the issue and cleanup;
+the final check above uses the requested batch refresh and creates no extra
+analysis. No original report or targeted batch job was removed or affected.
+
+The original port-8000 portal was used for the actual queue and left running.
+No persistent server was started for this increment; all temporary browser
+servers were stopped. The Windows VM, other processes, original datasets and
+source backtests were left alone. This refresh does not make a new numerical
+provider-parity claim.
+
+
+## Batch result display units — 3 November 2026
+
+The existing batch table now shows max drawdown percentage with two decimal
+places and max drawdown duration in elapsed weekday trading days. **Apex
+historical net /slot** and **Lucid historical net / slot** divide their respective
+saved totals by each account profile's immutable slot count. Existing column
+visibility, freezing, ordering and saved-report links continue to work.
+
+This is a display increment. It does not execute a backtest or prop simulation,
+change account sizing, rewrite saved reports or round stored financial values.
+Raw CSV columns retain full percentages, account-total historical net and duration
+seconds. The table status and hover text disclose these units. Prop report totals
+still cover all slots. No numerical/provider-parity claim is added.
+
+### Reproduce and inspect the actual result
+
+1. Open `http://localhost:8000/#backtests/batches/d69045ab437942618ec2afb54728c33c`
+   and reload the page. In **Columns**, show Trial, Max drawdown pct, Max drawdown
+   duration, Apex historical net /slot and Lucid historical net / slot.
+2. Trial **4** must show **11.38**, **199** trading days, **$8,832** Apex per slot
+   and **$7,490** Lucid per slot. Independently, its saved totals are
+   **176638 / 20 = 8831.9** and **37452 / 5 = 7490.4**; the table retains the
+   existing whole-dollar currency rounding.
+3. Click the duration header twice: sorting uses weekday durations across the
+   entire batch before selecting a page, with unavailable values last. Both
+   historical-net headers continue to sort and open ordinary saved reports.
+4. Open trial 4's Apex analysis, then **Historical replay**: it still shows
+   **$176,638** across **20 slots**. Return/reload the table: it remains per slot.
+   **Results CSV** still contains raw `historical_net=176638`,
+   `lucid_historical_net=37452`, `max_drawdown_duration_seconds=24096000` and the
+   original full-precision drawdown percentage.
+
+Duration is reconstructed from every saved trade-close peak/recovery and the
+saved period end, not divided from seconds. A Friday-to-Monday recovery advances
+one trading day; a same-session recovery advances zero. Zero-trade weekdays and
+holidays remain in the clock. CME NQ/ES strategies use Chicago session-ending
+dates (local timestamp plus seven hours); other strategies use source-local
+dates. The longest weekday interval can differ from the longest calendar-time
+interval. Missing/invalid equity produces N/A without inventing a duration.
+
+Independent NumPy business-day counts over the actual saved peak intervals
+match **all 128 trials**. Hand-calculated tests cover weekends, idle days,
+unrecovered tails, equal-peak resets, same-session overnight CME trades,
+different winning intervals under weekday/calendar clocks, and invalid equity.
+API tests verify global sorting before pagination, N/A-last ordering, preserved
+raw metrics and the original seconds-based API sort. Existing refresh/browser
+checks verify the new per-slot values, names, pending/N/A cases, both downloads,
+report navigation and reload without changing durable reports.
+
+Run the real read-only product review from the repository root with a fresh
+output directory (wait for any active analyses to finish first):
+
+```bash
+.venv/bin/python tests/review_batch_result_display.py \
+  --output artifacts/batch-display-RECHECK
+```
+
+It starts a temporary server, inspects the actual saved batch, changes only its
+private browser's column preferences, checks all four requested formats and
+sorting, downloads the normal CSVs, opens the existing durable analysis and
+reloads. It submits no POST/PUT/PATCH/DELETE requests and stops its browser/server.
+No separate demonstration page, simulation API or result store is introduced.
+
+Evidence is under `artifacts/batch-display-20261103/`: `actual-browser-final/`
+contains the table/report screenshots, source result snapshot, CSV downloads and
+`verification.json`; `independent-duration-check.json` contains all 128 independent
+expected/actual durations. `preservation-before.json` and
+`preservation-after.json` verify the original report/source files and original
+128 trial payloads: **10,272 files** remain byte-identical, and both current and
+original CSV downloads are byte-identical to the preceding saved versions.
+Backend and browser fixture evidence is labelled synthetic
+and retained under `backend/`, `browser/` and `final-sort-check/`.
+
+Automated gates:
+
+```bash
+mkdir -p artifacts/batch-display-check
+.venv/bin/python -m pytest tests/test_optimization_display.py \
+  tests/test_batch_prop_refresh.py tests/test_lucid_batch_refresh.py -q \
+  --basetemp artifacts/batch-display-check/backend
+.venv/bin/python -m pytest tests/test_batch_prop_refresh_browser.py \
+  tests/test_lucid_batch_refresh_browser.py tests/test_automatic_prop_browser.py \
+  -q --basetemp artifacts/batch-display-check/browser
+```
+
+The focused gates passed **14 backend checks and 4 browser checks**. The final
+trading-day sort API adjustment is independently rechecked by the seven display
+checks and the actual saved-batch browser review. The user's existing portal is
+left running; all temporary test/review servers stop automatically.

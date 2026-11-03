@@ -93,7 +93,11 @@ def test_training_and_holdout_calibration_use_all_standard_count_long_paths():
     assert training['cost_per_funded'] == 80.5
     assert result['evaluation']['days_to_funded'] == 3000
     assert result['evaluation']['continued_paths'] == 20000
-    assert result['funded']['selected']['micros'] == 1
-    assert result['funded']['selected']['E[payout]'] == 0
-    assert result['history']['totals']['payouts'] == 0
-    assert result['history']['totals']['net'] == -322
+    # Evaluation resolves, but $1/day never makes a $150 qualifying day.
+    # The funded account is still open at the lifetime guard. It must not be
+    # treated as closed to manufacture a complete annualized sizing estimate.
+    assert result['funded'] is None and result['history'] is None
+    assert result['joint_sizing']['status'] == 'unavailable'
+    assert result['joint_sizing']['funded_profiles'][0]['method'] == 'analytical_zero_payout_bound'
+    assert result['joint_sizing']['funded_profiles'][0]['sims'] == 0
+    assert 'unresolved lifetimes' in result['unavailable']

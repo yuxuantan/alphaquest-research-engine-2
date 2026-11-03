@@ -446,8 +446,10 @@
             <button id="optimization-resume" class="button primary" type="button" hidden>Resume remaining trials</button>
             <p id="optimization-resume-error" class="small" role="alert" hidden></p>
             <div id="optimization-lucid-refresh" class="panel" hidden>
+              <button id="optimization-prop-run" class="button secondary" type="button">Refresh all unavailable prop results</button>
               <button id="optimization-lucid-run" class="button secondary" type="button">Refresh unavailable Lucid results</button>
-              <p class="field-help">Uses each trial's saved Lucid settings and checks its source. Reuses verified results or runs Lucid analysis on saved trades. Updated results link to separate saved reports.</p>
+              <p class="field-help">Checks each unavailable account using its saved source and settings. Reuses verified results or runs prop analysis on saved trades. No strategy backtests run; original reports and trial snapshots are preserved.</p>
+              <p id="optimization-prop-status" class="small" role="status" aria-live="polite"></p>
               <p id="optimization-lucid-status" class="small" role="status" aria-live="polite"></p>
               <p id="optimization-lucid-error" class="small" role="alert" hidden></p>
               <a id="optimization-original-download" class="prop-file-link" hidden>Original results CSV ↓</a>

@@ -33,10 +33,10 @@ def test_actual_training_calibration_and_sweep_download_reopen(page,portal,tmp_p
     page.get_by_role('tab',name='Sizing',exact=True).click()
     sizing=page.locator('#prop-view-sizing')
     playwright.expect(sizing).to_contain_text('training-derived acquisition economics')
-    playwright.expect(sizing).to_contain_text('100.0% evaluation pass rate, 11 replacement trading days')
+    playwright.expect(sizing).to_contain_text('100.0% evaluation pass rate, 2 replacement trading days')
     playwright.expect(sizing).to_contain_text('$178.00 per funded account')
     assert 'Training selection assumes' not in sizing.inner_text()
-    playwright.expect(sizing.locator('tbody tr')).to_have_count(40)
+    playwright.expect(sizing.locator('#prop-sweep-sort').locator('..').locator('..').locator('tbody tr')).to_have_count(40)
     page.screenshot(path=str(tmp_path/'training-sizing.png'),full_page=True)
     page.get_by_role('tab',name='Historical replay',exact=True).click()
     playwright.expect(page.locator('#prop-view-history')).to_contain_text('frozen training calibration')
@@ -46,10 +46,10 @@ def test_actual_training_calibration_and_sweep_download_reopen(page,portal,tmp_p
         page.get_by_role('link',name='Download training calibration (JSON)',exact=True).click()
     download.value.save_as(tmp_path/'training_economics.json')
     economics=json.loads((tmp_path/'training_economics.json').read_text())
-    assert economics['pass_rate']==1 and economics['cost_per_funded']==178 and economics['replacement_days']==11
+    assert economics['pass_rate']==1 and economics['cost_per_funded']==178 and economics['replacement_days']==2
     assert economics['method']=='training_simulation' and economics['sample']==report['calculations']['samples']['train']
     rows=list(csv.DictReader(io.StringIO(page.request.get(portal['url']+'/api/prop-analyses/'+id+'/files/funded_sizing.csv').text())))
-    assert len(rows)==40 and all(float(row['acquisition_cost'])==178 and float(row['replacement_days'])==11 for row in rows)
+    assert len(rows)==40 and all(float(row['acquisition_cost'])==178 and float(row['replacement_days'])==2 for row in rows)
     (tmp_path/'report.json').write_text(json.dumps(report,indent=2))
     posts=[];page.on('request',lambda req:posts.append(req.url) if req.method=='POST' else None)
     page.reload();playwright.expect(page.locator('#prop-report')).to_be_visible()
@@ -79,7 +79,7 @@ def test_zero_training_passes_are_visible_even_when_holdout_passes(page,portal,t
         assert report['calculations']['funded'] is None
     open_native(page,portal,record)
     playwright.expect(page.locator('#prop-report-content')).to_contain_text('No training evaluation passed')
-    playwright.expect(page.get_by_role('tab',name='Sizing',exact=True)).to_have_count(0)
+    playwright.expect(page.get_by_role('tab',name='Sizing',exact=True)).to_have_count(1)
     page.get_by_role('tab',name='Evaluation',exact=True).click()
     panel=page.locator('#prop-view-evaluation')
     playwright.expect(panel).to_contain_text('100.0%')

@@ -745,11 +745,14 @@ captured profile is strategy-independent and appears in saved settings. Automati
 runs use native fills and disclose the existing close-only excursion fallback;
 no trade export, vendor software or VM is required.
 
-**Historical net · USD** appears immediately after Trial, before fixed parameters.
+**Apex historical net /slot** appears immediately after Trial, before fixed parameters.
 Click its heading for ascending/descending sorting; N/A remains last in either
 direction. Click its value for the ordinary durable prop report. This is the
-report's `calculations.history.totals.net`, including acquisition costs and
-activation fees across all slots over that trial's full observed trade history.
+report's `calculations.history.totals.net` divided by the saved Apex profile's
+`SLOTS`, including acquisition costs and activation fees over that trial's full
+observed trade history. **Lucid historical net / slot** similarly divides the
+saved Lucid total by its own slot count. Dollar displays retain whole-dollar
+rounding. Missing results or missing/invalid slot counts show N/A.
 It is distinct from backtest Net P&L in CU. The model normalizes native quantities
 and chooses evaluation/funded sizes using the existing calculation contract.
 All slots share one sequence, and training history influenced size selection.
@@ -778,6 +781,28 @@ analysis**. Its actual source, native reports, CSVs, screenshots and saved
 catalogues are under `artifacts/automatic-apex-prop-portal-20261027/` and the final
 full-suite evidence directory. This is a synthetic software check, not a return
 forecast.
+
+### Batch display units — 3 November 2026
+
+Max drawdown pct displays two decimal places. Max drawdown duration displays
+elapsed weekday trading days from the trade-close equity peak through recovery,
+or through the saved period end when unrecovered. Same-session drawdowns are zero;
+zero-trade weekdays and holidays are retained, and weekends do not advance this
+clock. CME NQ/ES strategies use their existing Chicago 17:00 session boundary;
+other strategies use source-local dates. The longest interval is chosen on this
+weekday clock, which can differ from the interval longest in elapsed seconds.
+Sorting uses trading-day values across all rows before pagination. Missing saved
+equity/period data produces N/A rather than an estimate from seconds.
+The table requests `sort=max_drawdown_duration_trading_days`; API clients can
+still request `sort=max_drawdown_duration_seconds` for the original raw ordering.
+
+Saved trial metrics, reports and CSV units are unchanged: `historical_net` and
+`lucid_historical_net` remain totals across slots, `max_drawdown_pct` retains its
+precision, and `max_drawdown_duration_seconds` remains seconds. Result API rows
+add `display_metrics.max_drawdown_duration_trading_days` for the table. Account
+slot counts come from the batch's immutable account profiles, independently for
+Apex and Lucid; dividing by these positive constants preserves each account's
+sort order. Column visibility/order/freeze keys and report links remain stable.
 
 Validation for the compact/default/unlimited layout passed **13 browser checks**:
 visibility/reordering, legacy/custom layout migration, per-grid automatic

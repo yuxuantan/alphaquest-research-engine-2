@@ -1,5 +1,154 @@
 # AlphaQuest local prop simulation
 
+## Refresh every unavailable prop account in a saved batch — 2026-11-03
+
+Completed batch results now offer **Refresh all unavailable prop results** for
+both Apex and Lucid. Each account is checked against its original source and
+saved settings, including the companion export/timezone. Verified current
+analyses are reused; remaining requests run through the normal AnalysisStore
+worker. Already available values are retained. No strategy bars or OOS backtests
+are run, and genuinely unavailable calculations remain N/A with their reason.
+
+The existing append-only `optimization_prop_links` index now keys links by trial
+**and account**. Its migration labels pre-existing links as Lucid without
+changing their payloads. Independent Apex/Lucid revisions cannot overwrite one
+another. The table, report links, status, exact sorting and CSV use these linked
+results. **Original results CSV** / `prop_revision=0` retains the original values;
+downloads pin one revision across both accounts. Ordinary reads never queue or
+repair work. The existing Lucid-only action/API remains available.
+
+The combined API is `GET/POST /api/backtests/batches/{id}/prop-refresh` (also
+available under `/api/optimizations/{id}/prop-refresh`). POST checks/submits only
+unavailable accounts. Duplicate requests reuse pending work, publication updates
+the account-specific link, and startup reconciles pending links without new
+calculation. Active analyses retain normal source/activity-deletion protection.
+All calculations and downloads stay in the existing report catalogue; original
+trials, source backtests and earlier reports remain immutable. Apex CSV provenance
+now includes model version and original analysis ID alongside the existing IDs,
+statuses and reasons. See `prop_simulation_review.md` for the actual rerun audit
+and reproduction steps.
+
+## Candidate-specific acquisition bounds — 2026-11-03
+
+Current models: `alphaquest-apex50k-eod-v6-acquisition-bounds` and
+`alphaquest-lucidflex50k-eod-v4-acquisition-bounds`. A failed acquisition-time
+calibration no longer vetoes the whole joint search automatically. The account
+rules, prices, source adaptation, deadlines and funding-attempt guard are unchanged.
+
+For an unresolved acquisition size with observed screening passes, refine its
+pass probability on 20,000 training evaluations at seed 46. Reuse the existing
+failed-chain diagnosis; do not restart that chain, invent a replacement delay,
+or average only chains that completed. The screening count remains separately
+recorded, including when the independent refined sample has zero passes.
+
+Bound the pass probability using a one-sided exact binomial upper limit,
+with Bonferroni allocation `0.05 / number_of_evaluation_sizes`. This supplies
+95% simultaneous coverage over those Monte Carlo pass-probability estimates,
+conditional on the source/model, not on future performance or provider rules.
+Censored individual evaluations count as possible passes in this bound.
+The lower acquisition-cost bound uses the same fee/probability formula as the
+objective. The whole funded payout ladder bounds receipts. At least one funded
+session and one evaluation session, plus the configured activation days, bound
+cycle duration below. An unknown duration with a nonpositive net numerator has
+annualized upper bound zero; no negative truncated rate is substituted.
+
+Exclude an unresolved pair only when its optimistic annualized bound is strictly
+below the best complete pair. Preserve its missing acquisition mean and record
+the bound, confidence method, refined/screening counts, original calibration
+failure and exclusion reason in the normal CSV/JSON/ZIP. Affordable unresolved
+candidates, censored individual evaluations and zero/negative comparisons that
+could change the winner still prevent selection. Existing funded-lifetime
+censoring protections remain in force.
+
+Sizing shows an **Uncompetitive evaluation sizes excluded** table for excluded
+sizes. Pair rows distinguish an excluded bound from a complete annualized
+estimate. Remaining acquisition blockers identify their evaluation sizes and
+can be inspected in the same Sizing view and provenance download. New model
+and implementation identities invalidate old result/calculation reuse.
+
+Saved batch snapshots and earlier reports remain immutable. To update an old
+result, open that prop report → **Configure new analysis → Check source → Run
+analysis**. This creates/reuses a current prop analysis on its existing source;
+it does not run strategy bars or rewrite the batch's original automatic result.
+See `prop_simulation_review.md` for the recovered trial-4 result, the genuinely
+ambiguous trial-21 boundary, independent values and exact reproduction commands.
+
+## Joint evaluation/funded sizing — 2026-11-02
+
+This increment introduced `alphaquest-apex50k-eod-v5-joint-sizing` and
+`alphaquest-lucidflex50k-eod-v3-joint-sizing`. Both choose evaluation and funded
+sizes **together**, maximizing training long-run annualized net per slot:
+
+`261 * (expected funded trader receipts - expected acquisition cost) /
+(expected funded lifetime weekdays + expected acquisition weekdays)`.
+
+Every permitted/user-capped whole-MNQ evaluation size is paired with every
+funded target size (40 × 40 by default). Funded orders retain prior-close
+scaling limits. Acquisition fees and timing include failed evaluation attempts;
+Lucid adds zero activation weekdays and Apex adds one. All candidates share the
+saved source adaptation, commissions, rules, block size and chronological split.
+The existing 40% Lucid consistency profile is unchanged; this does not switch
+to the investigated Bridge's 52% profile or claim full Bridge/provider parity.
+
+Independent stage profiles avoid a full resimulation for each pair. Screening
+uses 3,000 paths per size, with 20,000 repeated funding chains for each eligible
+evaluation size. Statistically close training contenders are refined on 20,000
+paths at seed 46; the matrix is reconsidered until no close contender has an
+unrefined component. Exact zero-standard-error ties use the documented tie-break
+without simulating identical ties solely to resolve grid order. Exact score ties
+favor lower acquisition cost, smaller funded size, then smaller evaluation size.
+Monte Carlo standard errors use the delta method, including funded receipt/
+lifetime covariance and acquisition-cost/time uncertainty. They describe
+simulation uncertainty conditional on the source sample, not future returns.
+
+Funded lifetime calculations now use a 20,000-weekday computational guard.
+Accounts still open have unknown terminal lifetime; their remaining ladder
+bounds potential receipts. Such a profile cannot receive a complete lifetime
+score. A selected pair is withheld if an unresolved acquisition or a funded
+upper bound could change the winner. A rigorous zero-receipt bound applies when
+even taking all positive source trades and skipping every loss cannot reach a
+qualifying-day profit: the profile explicitly records zero simulated paths,
+the requested count, an unknown lifetime and its analytical method. No unrun
+paths or invented terminal outcomes are reported. A fully qualified nonpositive
+winner remains nonpositive, with a notice that no positive score was found.
+
+Both sizes and training acquisition economics freeze before any holdout runs.
+Holdout evaluates the frozen pair on 20,000 evaluation, lifetime and first-year
+paths. An incomplete holdout lifetime/acquisition estimate makes its annualized
+rate unavailable without changing the training choice. The first-year funded
+receipt distribution remains a separate, conditional-on-funded metric; this
+objective is not cash in the first 261 days starting unfunded. Historical replay
+retains the existing acquired-funded-account start, shared-slot trades, expected
+acquisition fees and rounded-up mean replacement delay research assumptions.
+
+Use the existing backtest → Configure prop analysis → Check source → Run
+analysis → Sizing workflow. Sizing shows the chosen pair, training and holdout
+annualized rates, uncertainty and a comparison filter for each evaluation size.
+`joint_sizing.csv` saves every pair; `joint_sizing.json` includes stage profiles,
+screening scores, refinement rounds, actual counts, seeds, censoring bounds and
+tie-break. Both are normal AnalysisStore report files included in the existing
+ZIP; there is no second calculation/report store. New model and implementation
+identities invalidate old calculation reuse, including batch-refresh numerical
+checks. Earlier reports/backtests remain immutable and carry an earlier-model
+notice; explicitly configure a new analysis to calculate the joint model.
+
+The dated investigation and earlier increment descriptions below preserve their
+historical results. Their pass-first selection and 2,000-session funded lifetime
+descriptions are superseded by this section. Actual-source and independently
+derived synthetic demonstrations are in `docs/prop_simulation_review.md`.
+
+## Lucid evaluation discrepancy investigation — 2026-11-02
+
+The saved AQ 75.145% / $107.1262 / 88.69665-weekday result and the supplied
+Bridge 37.84% / $212.7378 / 33.67555-weekday result use different evaluation
+selection objectives, sizes, consistency thresholds, commissions, split
+boundaries and funded-start timing conventions. Local AQ calculations reproduce
+the three supplied Bridge metrics exactly when those conditions are aligned.
+This is qualification of these evaluation metrics for this source, not full
+funded-account or provider-rule parity. Production defaults and saved reports
+are unchanged. See the dated investigation in `prop_simulation_review.md` for
+the controlled comparison, independent checks and existing-product journey.
+
 ## Refresh unavailable Lucid results in a saved batch — 2026-11-01
 
 Open a completed backtest batch and choose **Refresh unavailable Lucid results**.
@@ -39,7 +188,8 @@ it does not change account rules, sampling, sizing or provider-parity status.
 
 ## Lucid funding-time continuation — 2026-10-31
 
-The current Lucid model is `alphaquest-lucidflex50k-eod-v2-funding-continuation`.
+This earlier increment introduced `alphaquest-lucidflex50k-eod-v2-funding-continuation`;
+the current joint model is specified above.
 The earlier model aborted the entire repeated-funding calibration when one
 evaluation was still open at 2,000 sessions. A high evaluation pass rate could
 therefore coexist with unavailable funded sizing and historical net.
@@ -301,8 +451,8 @@ are editable. Unsupported choices reject, without silently substituting a model.
   that day, while touching the account floor fails the account. Observed opening
   and cost jumps can overshoot both floors. Passes stop at the trade reaching
   the target. Every size from 1 through the lower of 60 MNQ and the user cap
-  is tested (1–40 by default). Highest training pass
-  count wins, with grid order resolving exact ties.
+  is tested (1–40 by default), then scored jointly with funded size using the
+  annualized objective above. Pass probability alone does not select size.
 - Funded: $2,000 EOD trail, floor locks at +$100 after a close reaches +$2,100.
   Prior-close levels: 20 MNQ/$1,000 DLL below +$1,500; 30/$1,000 from +$1,500;
   40/$2,000 from +$3,000; 40/$3,000 from +$6,000. The tighter user cap applies.
@@ -320,17 +470,19 @@ are editable. Unsupported choices reject, without silently substituting a model.
   funding chain retain the unfinished block. Training funding-chain seed 45,
   holdout funding-chain seed 44; one
   activation day is added after passing. No global RNG state is shared.
-- Counts: 3,000 per sizing point, 20,000 training funding chains,
+- Counts: 3,000 per screening point, 20,000-path close-contender refinement,
+  20,000 training funding chains per eligible evaluation size,
   20,000 final evaluations, 20,000 final funded
   lifetime accounts and 20,000 independent first-year accounts. Lifetime guard
-  is 2,000 weekdays; first year is 261. Independent horizons consume draws
+  is 20,000 weekdays; first year is 261. Analytical zero-receipt bounds explicitly
+  record zero simulated paths. Independent horizons consume draws
   differently, so first-year and lifetime probabilities need not be monotone.
-- Economics: select evaluation size on training only, then calibrate acquisition
-  cost as evaluation_price / selected_training_pass_rate + activation_fee.
-  Training pass rate is the selected 3,000-path sweep point; replacement time is
+- Economics: fit every eligible evaluation acquisition profile on training only,
+  with cost evaluation_price / training_pass_rate + activation_fee.
+  Close contenders' pass estimates are refined on 20,000 training paths; replacement time is
   the mean of 20,000 repeated training evaluation chains including failed attempts
   and one activation day. Freeze these inputs before any holdout calculation.
-  Rank funded sizes by 261 * (mean training lifetime payout - training acquisition
+  Rank all evaluation/funded pairs by 261 * (mean training lifetime payout - training acquisition
   cost) / (mean training funded lifetime + training replacement days), over every
   permitted/user-capped size. Holdout evaluation acquisition cost/time are separate
   validation estimates and cannot choose, rescore or gate a successful training

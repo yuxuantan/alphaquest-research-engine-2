@@ -66,7 +66,7 @@ def test_refresh_links_current_results_and_csv_without_mutating_originals(client
     page=client.get(base+'/results?sort=lucid_historical_net&direction=desc').json()
     assert [row['trial'] for row in page['items']]==[1,2]
     for original,row in zip(rows,page['items']):
-        assert row['metrics']['lucid_historical_net']==89195
+        assert row['metrics']['lucid_historical_net']==88792
         assert row['metrics']['historical_net']==original['metrics']['historical_net']
         item=row['prop_companions'][0]
         assert item['original_analysis_id']==original['prop_companions'][0]['id']
@@ -77,7 +77,7 @@ def test_refresh_links_current_results_and_csv_without_mutating_originals(client
         assert report['source']['backtest']['id']==row['run_id']
         assert report['calculations']['history']['totals']['net']==row['metrics']['lucid_historical_net']
     csv_rows=list(csv.DictReader(io.StringIO(client.get(base+'/exports/results').text)))
-    assert [r['lucid_historical_net'] for r in csv_rows]==['89195','89195']
+    assert [r['lucid_historical_net'] for r in csv_rows]==['88792','88792']
     assert csv_rows[0]['lucid_analysis_id']==page['items'][0]['prop_companions'][0]['id']
     assert csv_rows[0]['lucid_model_version']==lucid_rules.MODEL_VERSION
     assert client.get(base+'/results?limit=1').json()['total']==2
@@ -105,7 +105,7 @@ def test_reuse_existing_manual_analysis_and_recover_publication_without_recalcul
         if report['status']=='complete':break
         assert report['status']!='error',report
         time.sleep(.03)
-    assert report['historical_net']==89195
+    assert report['historical_net']==88792
     with client.app.state.prop_analyses.connect() as db:count=db.execute('SELECT COUNT(*) FROM analyses').fetchone()[0]
     refreshed=client.post(base+'/lucid-refresh').json()
     assert refreshed['reused']==1 and refreshed['queued']==0
@@ -146,7 +146,7 @@ def test_duplicate_refresh_and_source_deletion_are_safe_while_worker_runs(client
     finally:release.set()
     assert wait_refresh(client,base)['available']==1
     assert client.get(base+'/results',params={'prop_revision':revision}).json()['items'][0]['metrics']['lucid_historical_net'] is None
-    assert client.get(base+'/results').json()['items'][0]['metrics']['lucid_historical_net']==89195
+    assert client.get(base+'/results').json()['items'][0]['metrics']['lucid_historical_net']==88792
 
 
 def test_unknown_active_and_source_boundary_rejections_are_explicit(client):

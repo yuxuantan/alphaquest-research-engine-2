@@ -79,13 +79,13 @@ def settings():return model.resolved_settings(dict(MAX_TOTAL_NQ='0.3',OUT_OF_SAM
 
 def test_actual_standard_count_simulations_freeze_selection_before_any_holdout_changes(monkeypatch):
     original=model.evaluation;calls=[];fitted=[]
-    original_funded=model._funded_size
+    original_funded=model._funded_profile
     def fit(value):
         fitted.append(value[1])
         return original_funded(value)
-    monkeypatch.setattr(model,'_funded_size',fit)
+    monkeypatch.setattr(model,'_funded_profile',fit)
     def observe(days,size,sims,seed,block,**kwargs):
-        if seed==43:assert fitted==[1,2,3], 'Funded size must be selected before holdout runs'
+        if seed==43:assert set(fitted)=={1,2,3}, 'Funded sizes must be fitted before holdout runs'
         calls.append((seed,kwargs.get('chain',False)))
         return original(days,size,sims,seed,block,**kwargs)
     monkeypatch.setattr(model,'evaluation',observe)
@@ -93,20 +93,21 @@ def test_actual_standard_count_simulations_freeze_selection_before_any_holdout_c
     for heldout in (3000,1500,0):
         calls.clear();fitted.clear();r=model.calculate(source(holdout=heldout),settings());results.append(r)
         assert r['training_economics']['pass_rate']==1
-        assert r['training_economics']['simulations']==3000
+        assert r['training_economics']['simulations']==20000
         assert r['training_economics']['funding_chain_simulations']==20000
         assert r['training_economics']['cost_per_funded']==178
-        assert r['training_economics']['replacement_days']==11
+        assert r['training_economics']['replacement_days']==5 # 3 MNQ earns 900/day; target takes 4 days + activation.
         assert r['funded']['selected']['micros']==3 and r['funded']['selected']['sims']==20000
         assert r['funded']['selection_economics']==r['training_economics']
-        assert r['history']['acquisition_economics']==dict(source='training',cost_per_funded=178.,replacement_days=11.)
-        assert all(row['sims']==3000 and row['replacement_days']==11 for row in r['funded']['sweep'])
+        assert r['history']['acquisition_economics']==dict(source='training',cost_per_funded=178.,replacement_days=5.)
+        assert all(row['sims'] in (3000,20000) and row['replacement_days']==5 for row in r['funded']['sweep'])
         assert calls.index((45,True))<calls.index((43,False))
-    assert results[0]['evaluation']['days_to_funded']==11
-    assert results[1]['evaluation']['days_to_funded']==21
+    assert results[0]['evaluation']['days_to_funded']==5
+    assert results[1]['evaluation']['days_to_funded']==8 # 450/day takes 7 sessions + activation.
     assert results[2]['evaluation']['pass_rate']==0 and results[2]['evaluation']['cost_per_funded'] is None
     assert results[0]['training_economics']==results[1]['training_economics']==results[2]['training_economics']
     assert results[0]['funded']['sweep']==results[1]['funded']['sweep']==results[2]['funded']['sweep']
+    assert results[0]['joint_sizing']['pairs']==results[1]['joint_sizing']['pairs']==results[2]['joint_sizing']['pairs']
 
 
 def test_good_holdout_cannot_rescue_no_training_passes():
@@ -126,5 +127,5 @@ def test_holdout_funding_time_bound_does_not_undo_training_selection(monkeypatch
     r=model.calculate(source(),settings())
     assert r['funded']['selected']['micros']==3 and r['history'] is not None
     assert r['evaluation']['days_to_funded'] is None
-    assert r['training_economics']['replacement_days']==11
+    assert r['training_economics']['replacement_days']==5
     assert 'timing_unavailable' in r['evaluation']

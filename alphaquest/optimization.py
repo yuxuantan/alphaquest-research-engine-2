@@ -234,33 +234,53 @@ class OptimizationStore:
 
     def page(self, job, sort, direction, offset, limit, prop_revision=None):
         from .optimization_prop import revision
+        from .optimization_display import trading_day_duration
+        durations = {}
+        def trading_days(run_id, manifest):
+            if run_id not in durations:
+                try:
+                    durations[run_id] = trading_day_duration(self.runs.root / run_id, json.loads(manifest)) if manifest else None
+                except (OSError, ValueError, TypeError, KeyError, ArithmeticError):
+                    durations[run_id] = None
+            return durations[run_id]
         current_revision=revision(self.runs, job['id'])
         prop_revision = current_revision if prop_revision is None else min(prop_revision,current_revision)
         columns = {"trial": "$.trial", "run_id": "$.run_id",
                    **{f"param.{name}": f"$.parameters.{name}" for name in job["axes"]},
                    **{name: f"$.metrics.{name}" for name in job["metric_columns"]}}
+        if 'max_drawdown_duration_seconds' in job['metric_columns']:
+            columns['max_drawdown_duration_trading_days'] = '$.run_id'
         if sort not in columns or direction not in ("asc", "desc"):
             raise ValueError("Unknown sort column or direction.")
         # Paths are selected from server-owned names; values never become SQL.
         expression = "json_extract(t.payload, ?)"
         if sort == 'lucid_historical_net':
             expression = "CASE WHEN l.id IS NOT NULL THEN json_extract(l.payload,'$.historical_net') ELSE json_extract(t.payload, ?) END"
+        elif sort == 'historical_net':
+            expression = "CASE WHEN a.id IS NOT NULL THEN json_extract(a.payload,'$.historical_net') ELSE json_extract(t.payload, ?) END"
+        elif sort == 'max_drawdown_duration_trading_days':
+            expression = 'aq_trading_days(json_extract(t.payload, ?), r.manifest)'
         order = f"({expression} IS NULL) ASC, CAST({expression} AS TEXT) COLLATE {'BINARY' if sort == 'run_id' else 'EXACT_DECIMAL'} {direction.upper()}, t.trial ASC"
         with self.runs.connect() as conn:
+            conn.create_function('aq_trading_days', 2, trading_days)
             conn.create_collation("EXACT_DECIMAL", lambda a, b: (Decimal(a) > Decimal(b)) - (Decimal(a) < Decimal(b)))
             # New jobs snapshot by publication rowid, not trial number: parallel
             # completion can publish trial 7 before trial 1. Legacy serial jobs
             # retain the previous count-based boundary without a migration.
             boundary = "rowid" if "results_snapshot_rowid" in job else "trial"
             snapshot = job.get("results_snapshot_rowid", job["completed_trials"])
-            rows = conn.execute(f"""SELECT t.payload, EXISTS(SELECT 1 FROM runs r WHERE r.id=json_extract(t.payload,'$.run_id')),l.payload
+            rows = conn.execute(f"""SELECT t.payload, r.id IS NOT NULL,l.payload,a.payload,r.manifest
                 FROM optimization_trials t LEFT JOIN optimization_prop_links l ON l.id=
-                (SELECT MAX(id) FROM optimization_prop_links WHERE optimization_id=t.optimization_id AND trial=t.trial AND id<=?)
+                (SELECT MAX(id) FROM optimization_prop_links WHERE optimization_id=t.optimization_id AND trial=t.trial AND account='lucid' AND id<=?)
+                LEFT JOIN optimization_prop_links a ON a.id=
+                (SELECT MAX(id) FROM optimization_prop_links WHERE optimization_id=t.optimization_id AND trial=t.trial AND account='apex' AND id<=?)
+                LEFT JOIN runs r ON r.id=json_extract(t.payload,'$.run_id')
                 WHERE t.optimization_id=? AND t.{boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?""",
-                (prop_revision, job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
+                (prop_revision,prop_revision, job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
         items=[]
-        for payload,available,refresh_payload in rows:
+        for payload,available,refresh_payload,apex_payload,manifest in rows:
             row=json.loads(payload)
+            row['display_metrics'] = dict(max_drawdown_duration_trading_days=trading_days(row['run_id'], manifest))
             if refresh_payload:
                 refreshed=json.loads(refresh_payload)
                 row['original_prop_companions']=row.get('prop_companions',[])
@@ -268,9 +288,21 @@ class OptimizationStore:
                 row['prop_companions']=[refreshed,*row.get('prop_companions',[])[1:]]
                 row['metrics']['lucid_historical_net']=refreshed.get('historical_net')
                 row['lucid_refresh']=dict(original_analysis_id=refreshed.get('original_analysis_id'),model_version=refreshed['model_version'])
+            if apex_payload:
+                refreshed=json.loads(apex_payload)
+                row['original_prop_analysis']=row.get('prop_analysis')
+                row['original_historical_net']=row['metrics'].get('historical_net')
+                row['prop_analysis']=refreshed
+                row['metrics']['historical_net']=refreshed.get('historical_net')
+                row['apex_refresh']=dict(original_analysis_id=refreshed.get('original_analysis_id'),model_version=refreshed['model_version'])
             if not available:row['backtest_deleted']=True
-            if row.get('prop_analysis') and self.prop_analyses.get(row['prop_analysis']['id']) is None:
-                row['prop_report_deleted']=True
+            primary=row.get('prop_analysis')
+            if primary:
+                primary.setdefault('model_version',(job.get('default_prop_profile') or {}).get('model_version'))
+                if primary.get('id'):
+                    analysis=self.prop_analyses.get(primary['id'])
+                    if analysis is None:row['prop_report_deleted']=True
+                    elif primary['status'] in ('queued','running'):primary['progress']=analysis['progress']
             profiles=(job.get('default_prop_profile') or {}).get('companions',[])
             for index,item in enumerate(row.get('prop_companions',[])):
                 if index<len(profiles):item.setdefault('model_version',profiles[index].get('model_version'))

@@ -48,10 +48,11 @@ def test_long_evaluation_calibrates_funded_results_and_reopens_with_same_setting
     assert c['training_economics']['funding_chain_diagnostics']['continued_paths'] == 20000
     assert c['evaluation']['pass_rate'] == 1
     assert c['evaluation']['days_to_funded'] == 3000
-    assert c['funded']['selected']['micros'] == 1
-    assert c['history']['totals']['net'] == -322
+    assert c['funded'] is None and c['history'] is None
+    assert c['joint_sizing']['status'] == 'unavailable'
+    assert c['joint_sizing']['funded_profiles'][0]['method'] == 'analytical_zero_payout_bound'
     playwright.expect(page.get_by_role('tab', name='Sizing', exact=True)).to_be_visible()
-    playwright.expect(page.locator('#prop-report-content')).not_to_contain_text('Funded outcomes are unavailable')
+    playwright.expect(page.locator('#prop-report-content')).to_contain_text('Funded outcomes are unavailable')
     page.get_by_role('tab', name='Evaluation', exact=True).click()
     playwright.expect(page.locator('#prop-view-evaluation')).to_contain_text('Paths continued beyond 2,000 sessions')
     playwright.expect(page.locator('#prop-view-evaluation')).to_contain_text('3,000 trading days')
@@ -79,5 +80,5 @@ def test_long_evaluation_calibrates_funded_results_and_reopens_with_same_setting
     (tmp_path / 'report.json').write_text(json.dumps(report, indent=2))
     (tmp_path / 'verification.json').write_text(json.dumps(dict(synthetic=True, source_id=record['id'], analysis_id=id,
         expected_replacement_days=3000, observed_replacement_days=c['training_economics']['replacement_days'],
-        expected_historical_net=-322, observed_historical_net=c['history']['totals']['net'],
+        expected_joint_status='unavailable', observed_joint_status=c['joint_sizing']['status'],
         training_chains=20000, continued_chains=20000, reload_read_only=True), indent=2))

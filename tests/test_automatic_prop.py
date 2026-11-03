@@ -39,24 +39,24 @@ def expected_cash(report):
     assert report['settings']==DEFAULTS
     assert c['evaluation']['simulations']==20000
     assert all(row['simulations']==3000 for row in c['evaluation_sweep'])
-    assert c['evaluation']['pass_rate']==1 and c['evaluation']['selected_micros']==1
+    assert c['evaluation']['pass_rate']==1 and c['evaluation']['selected_micros']==10
     assert c['evaluation']['cost_per_funded']==178  # 49 / 100% + 129 activation
     assert c['training_economics']['method']=='training_simulation'
     assert c['training_economics']['pass_rate']==1
     assert c['training_economics']['cost_per_funded']==178
-    assert c['training_economics']['replacement_days']==11
+    assert c['training_economics']['replacement_days']==2
     assert c['training_economics']['funding_chain_simulations']==20000
     assert c['funded']['selection_economics']==c['training_economics']
     assert c['history']['acquisition_economics']['source']=='training'
-    assert c['evaluation']['days_to_funded']==11  # 10 x 300 + one activation day
+    assert c['evaluation']['days_to_funded']==2  # 10 MNQ x 300 reaches target in one day + activation.
     assert c['funded']['selected']['micros']==3 and c['funded']['selected']['sims']==20000
-    assert all(row['sims']==3000 for row in c['funded']['sweep'])
-    # 3 MNQ earns 900 per day. All six caps pay after 30 sessions (13,000).
-    # Replacement waits 11 sessions. Remaining 19 sessions pay 1,500+1,500+2,000.
-    # 20 slots: 18,000*20 payouts - 2 starts*20 slots*(49+129) = 352,880.
-    assert c['history']['totals']['payouts']==360000
+    assert all(row['sims'] in (3000,20000) for row in c['funded']['sweep'])
+    # 3 MNQ: six caps in 30 sessions (13,000), two replacement weekdays,
+    # then five more caps in the remaining 28 sessions (10,000).
+    # 20 slots: 23,000*20 - 2*20*(49+129) = 452,880.
+    assert c['history']['totals']['payouts']==460000
     assert c['history']['totals']['costs']==7120
-    assert c['history']['totals']['net']==352880
+    assert c['history']['totals']['net']==452880
     assert c['history']['totals']['new_funded_accounts']==40
     assert report['source']['excursion_input']['measured_mae_count']==0
     assert 'Held OHLC' in report['source']['excursion_provenance']
@@ -115,22 +115,22 @@ def test_default_full_counts_historical_net_and_each_parallel_trial(client,tmp_p
     job=wait_job(client,start(client,opt))
     assert job['status']=='complete',job
     rows=client.get(f"/api/optimizations/{job['id']}/results?sort=historical_net&direction=desc").json()['items']
-    assert [row['metrics']['historical_net'] for row in rows]==[352880,None]
+    assert [row['metrics']['historical_net'] for row in rows]==[452880,None]
     assert all(row['prop_analysis']['status']=='complete' for row in rows)
     assert all(client.get('/api/prop-analyses/'+row['prop_analysis']['id']).json()['error'] is None for row in rows)
     expected_cash(client.get('/api/prop-analyses/'+rows[0]['prop_analysis']['id']+'/downloads/report.json').json())
     for direction in ('asc','desc'):
         page=client.get(f"/api/optimizations/{job['id']}/results?sort=historical_net&direction={direction}").json()
-        assert [row['metrics']['historical_net'] for row in page['items']]==[352880,None]
+        assert [row['metrics']['historical_net'] for row in page['items']]==[452880,None]
     download=client.get(f"/api/optimizations/{job['id']}/exports/results?sort=historical_net&direction=desc")
     exported=list(csv.DictReader(io.StringIO(download.text)))
-    assert [row['historical_net'] for row in exported]==['352880','']
+    assert [row['historical_net'] for row in exported]==['452880','']
     assert all(row['prop_analysis_id'] for row in exported)
     rerun=wait_job(client,start(client,opt))
     assert rerun['reused_trials']==2
     assert client.get('/api/backtests').json()['total']==3
     assert [r['run_id'] for r in client.get(f"/api/optimizations/{rerun['id']}/results").json()['items']]==[r['run_id'] for r in sorted(rows,key=lambda r:r['trial'])]
-    (tmp_path/'default-prop-verification.json').write_text(json.dumps(dict(backtest=record,job=job,rows=rows,rerun=rerun,expected_historical_net=352880,expected_costs=7120,standard_counts_verified=True),indent=2))
+    (tmp_path/'default-prop-verification.json').write_text(json.dumps(dict(backtest=record,job=job,rows=rows,rerun=rerun,expected_historical_net=452880,expected_costs=7120,standard_counts_verified=True),indent=2))
 
 
 def test_analysis_operation_error_is_visible_and_never_a_zero_result(client,monkeypatch):

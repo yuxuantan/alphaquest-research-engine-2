@@ -26,7 +26,7 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
     page.goto(url)
     playwright.expect(page.locator('#optimization-lucid-status')).to_contain_text('0 / 1 Lucid values available')
     cell=page.locator('td[data-column="lucid_historical_net"]')
-    playwright.expect(cell).to_contain_text('2,000 sessions')
+    playwright.expect(cell).to_contain_text('Joint sizing is unavailable')
     page.screenshot(path=str(tmp_path/'01-original-na.png'),full_page=True)
     try:
         with page.expect_response(lambda r:r.url.endswith('/lucid-refresh') and r.request.method=='POST') as response:
@@ -45,7 +45,7 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
         page.screenshot(path=str(tmp_path/'02-durable-pending.png'),full_page=True)
     finally:release.set()
     playwright.expect(page.locator('#optimization-lucid-status')).to_contain_text('1 / 1 Lucid values available',timeout=180000)
-    playwright.expect(cell).to_contain_text('$89,195')
+    playwright.expect(cell).to_contain_text('$17,758')
     playwright.expect(cell).to_contain_text('Updated Lucid analysis')
     page.locator('th[data-column="lucid_historical_net"] button').click()
     page.locator('th[data-column="lucid_historical_net"] button').click()
@@ -54,7 +54,7 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
     with page.expect_download() as download:page.locator('#optimization-download').click()
     download.value.save_as(tmp_path/'updated-results.csv')
     current=list(csv.DictReader(io.StringIO((tmp_path/'updated-results.csv').read_text())))
-    assert current[0]['lucid_historical_net']=='89195'
+    assert current[0]['lucid_historical_net']=='88792'
     with page.expect_download() as download:page.locator('#optimization-original-download').click()
     download.value.save_as(tmp_path/'original-results.csv')
     assert list(csv.DictReader(io.StringIO((tmp_path/'original-results.csv').read_text())))[0]['lucid_historical_net']==''
@@ -63,7 +63,7 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
     playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=30000)
     assert page.url.endswith(id)
     page.get_by_role('tab',name='Historical replay',exact=True).click()
-    playwright.expect(page.locator('#prop-view-history')).to_contain_text('$89,195')
+    playwright.expect(page.locator('#prop-view-history')).to_contain_text('$88,792')
     page.get_by_role('link',name='Configure new analysis',exact=True).click()
     playwright.expect(page.locator('#prop-model')).to_have_value('1')
     page.locator('#prop-check').click()
@@ -72,13 +72,13 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
     playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=30000)
     assert page.url.endswith(id)
     page.goto(url)
-    playwright.expect(cell).to_contain_text('$89,195')
+    playwright.expect(cell).to_contain_text('$17,758')
     posts.clear();page.reload()
-    playwright.expect(cell).to_contain_text('$89,195')
+    playwright.expect(cell).to_contain_text('$17,758')
     assert not posts
     assert page.request.get(portal['url']+'/api/prop-analyses/'+rows[0]['prop_companions'][0]['id']+'/downloads/report.json').body()==original
     assert page.request.get(portal['url']+'/api/backtests/'+rows[0]['run_id']+'/exports/trades').body()==source_trades
     (tmp_path/'verification.json').write_text(json.dumps(dict(synthetic=True,analysis_id=id,source_id=rows[0]['run_id'],
-        expected_historical_net=89195,observed_historical_net=int(current[0]['lucid_historical_net']),
+        expected_historical_net=88792,observed_historical_net=int(current[0]['lucid_historical_net']),
         original_csv_preserved=True,old_report_preserved=True,source_trades_preserved=True,
         pending_survives_reload=True,duplicate_did_not_queue=True,reload_read_only=True),indent=2))

@@ -9,6 +9,12 @@
     return element;
   };
   const label = (name) => name.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+  const metricLabel = (name) => name === 'historical_net' ? 'Apex historical net /slot'
+    : name === 'lucid_historical_net' ? 'Lucid historical net / slot'
+    : name === 'max_drawdown_duration_seconds' ? 'Max drawdown duration · trading days' : label(name);
+  const sortKey = (name) => name === 'max_drawdown_duration_seconds' ? 'max_drawdown_duration_trading_days' : name;
+  const slotNet = (value, slots) => value == null || !Number.isInteger(slots) || slots <= 0 ? 'N/A'
+    : new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(value) / slots);
   const drafts = new Map();
   let strategy;
   let jobId = null;
@@ -274,6 +280,9 @@
     get("#optimization-next").disabled = offset + pageSize() >= total;
   }
   function results(job, page) {
+    const profile = job.default_prop_profile;
+    const apexSlots = Number(profile?.settings?.SLOTS);
+    const lucidSlots = Number(profile?.companions?.find((item) => item.settings?.ACCOUNT_TYPE === 'LucidFlex')?.settings?.SLOTS);
     const table = get("#optimization-results");
     const header = node("tr");
     const varying = new Set(Object.keys(job.axes).filter((name) => job.axes[name].length > 1).map((name) => `param.${name}`));
@@ -284,21 +293,21 @@
       : "All strategy parameters are fixed for this run and hidden by default. All metrics are shown; use Columns to show parameters.";
     const parameters = Object.keys(job.axes).map((name) => [`param.${name}`, label(name)]);
     const columns = [...parameters.filter(([key]) => varying.has(key)), ["trial", "Trial"],
-      ...(job.metric_columns.includes("historical_net") ? [["historical_net", "Historical net · USD"]] : []),
+      ...(job.metric_columns.includes("historical_net") ? [["historical_net", metricLabel('historical_net')]] : []),
       ...parameters.filter(([key]) => !varying.has(key)),
-      ...job.metric_columns.filter((name) => name !== "historical_net").map((name) => [name, name==='lucid_historical_net'?'LucidFlex historical net · USD':label(name)]), ["run_id", "Backtest report"]];
+      ...job.metric_columns.filter((name) => name !== "historical_net").map((name) => [name, metricLabel(name)]), ["run_id", "Backtest report"]];
     for (const [key, title] of columns) {
       const th = node("th");
       th.scope = "col";
       th.dataset.column = key;
-      th.setAttribute("aria-sort", sort === key ? direction === "asc" ? "ascending" : "descending" : "none");
-      const button = node("button", `${title}${sort === key ? direction === "asc" ? " ↑" : " ↓" : " ↕"}`);
+      th.setAttribute("aria-sort", sort === sortKey(key) ? direction === "asc" ? "ascending" : "descending" : "none");
+      const button = node("button", `${title}${sort === sortKey(key) ? direction === "asc" ? " ↑" : " ↓" : " ↕"}`);
       button.type = "button";
       if (varying.has(key)) {
         th.classList.add("optimization-varying-parameter");
         th.title = `${job.axes[key.slice(6)].length} values in this optimization grid`;
       }
-      button.onclick = () => { direction = sort === key && direction === "asc" ? "desc" : "asc"; sort = key; offset = 0; refresh(); };
+      button.onclick = () => { const chosen=sortKey(key);direction = sort === chosen && direction === "asc" ? "desc" : "asc"; sort = chosen; offset = 0; refresh(); };
       th.append(button);
       header.append(th);
     }
@@ -313,20 +322,24 @@
         if(key==='lucid_historical_net'){
           td.classList.add('optimization-prop-result');
           const item=row.prop_companions?.[0];
-          const value=row.metrics.lucid_historical_net==null?'N/A':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(row.metrics.lucid_historical_net);
+          const value=slotNet(row.metrics.lucid_historical_net,lucidSlots);
           if(item&&item.status==='complete'){const a=node('a',value);a.href=`#backtests/prop/job/${item.id}`;td.append(a);}
           else td.append(node('span',value),...(item?.status==='deleted'?[node('small','Prop report deleted','field-help')]:[]));
           if(row.lucid_refresh){td.append(node('small',['queued','running'].includes(item?.status)?'Lucid analysis pending':item?.status==='incompatible'?'Lucid source check rejected':item?.status==='error'?'Lucid analysis failed':'Updated Lucid analysis','field-help'));}
           if(item?.reason||item?.progress)td.append(node('small',item.reason||item.progress,'field-help'));
           if(item?.model_version)td.title=item.model_version;
         } else if (key === "historical_net" && row.prop_report_deleted) {
-          td.append(node("span", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style:"currency",currency:"USD",maximumFractionDigits:0}).format(row.metrics.historical_net)), node("small", "Prop report deleted", "field-help"));
+          td.append(node("span", slotNet(row.metrics.historical_net,apexSlots)), node("small", "Prop report deleted", "field-help"));
         } else if (key === "historical_net" && row.prop_analysis) {
           td.classList.add("optimization-prop-result");
-          const link = node("a", row.metrics.historical_net == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0}).format(row.metrics.historical_net));
-          link.href = `#backtests/prop/job/${row.prop_analysis.id}`;
-          link.setAttribute("aria-label", `Historical net ${link.textContent}; open default prop analysis`);
-          td.append(link, node("small", row.prop_analysis.reason || "Default Apex 50K EOD", "field-help"));
+          const item=row.prop_analysis,value=slotNet(row.metrics.historical_net,apexSlots);
+          if(item.id&&item.status==='complete'){
+            const link=node('a',value);link.href=`#backtests/prop/job/${item.id}`;
+            link.setAttribute('aria-label',`Apex historical net per slot ${value}; open default prop analysis`);td.append(link);
+          }else td.append(node('span',value));
+          if(row.apex_refresh)td.append(node('small',['queued','running'].includes(item.status)?'Apex analysis pending':item.status==='incompatible'?'Apex source check rejected':item.status==='error'?'Apex analysis failed':'Updated Apex analysis','field-help'));
+          td.append(node('small',item.reason||item.progress||'Default Apex 50K EOD','field-help'));
+          if(item.model_version)td.title=item.model_version;
         } else if (key === "run_id") {
           if (row.backtest_deleted) {
             td.append(node("span", "Backtest deleted", "muted"), node("small", row.run_id, "field-help"));
@@ -336,9 +349,19 @@
             td.append(link);
           }
           if (row.execution?.reused) td.append(node("small", "Reused saved trial", "field-help"));
+        } else if (key === 'historical_net') {
+          td.textContent = slotNet(row.metrics.historical_net,apexSlots);
+        } else if (key === 'max_drawdown_duration_seconds') {
+          const days=row.display_metrics?.max_drawdown_duration_trading_days;
+          td.textContent=days==null?'N/A':String(days);
+          td.title='Elapsed weekday trading days from equity peak to recovery or period end; weekends excluded, same-session drawdowns are 0 days.';
         } else {
           const value = key === "trial" ? row.trial : key.startsWith("param.") ? row.parameters[key.slice(6)] : row.metrics[key];
-          td.textContent = value == null ? "N/A" : key === "win_rate_pct" ? Number(value).toFixed(2) : String(value);
+          td.textContent = value == null ? "N/A" : ['win_rate_pct','max_drawdown_pct'].includes(key) ? Number(value).toFixed(2) : String(value);
+        }
+        if(['historical_net','lucid_historical_net'].includes(key)){
+          const slots=key==='historical_net'?apexSlots:lucidSlots;
+          td.title=[td.title,Number.isInteger(slots)&&slots>0?`USD per slot; saved analysis total divided by ${slots} slots.`:'Saved account slot count unavailable.'].filter(Boolean).join(' · ');
         }
         tr.append(td);
       }
@@ -346,7 +369,7 @@
     }
     frozenColumns.configure(job.strategy.id, columns, columns.filter(([key]) => !key.startsWith('param.') || varying.has(key)).map(([key]) => key));
     get("#optimization-sort-note").hidden = false;
-    get("#optimization-sort-note").textContent = `Sorted by ${columns.find(([key]) => key === sort)?.[1] || sort} · ${direction === "asc" ? "ascending" : "descending"}.`;
+    get("#optimization-sort-note").textContent = `Sorted by ${columns.find(([key]) => sortKey(key) === sort)?.[1] || sort} · ${direction === "asc" ? "ascending" : "descending"}.`;
     const download = get("#optimization-download");
     download.href = `/api/backtests/batches/${job.id}/exports/results?${new URLSearchParams({sort, direction,prop_revision:page.prop_revision||0})}`;
     const originalDownload=get('#optimization-original-download');
@@ -397,27 +420,32 @@
         if (history.items.some((job) => ["queued", "running"].includes(job.status))) timer = setTimeout(refresh, 1500);
         return;
       }
-      const [job, page, lucid] = await Promise.all([
+      const [job, page, lucid, prop] = await Promise.all([
         read(`/api/backtests/batches/${jobId}`),
         read(`/api/backtests/batches/${jobId}/results?${new URLSearchParams({sort, direction, offset, limit: 50})}`),
         read(`/api/backtests/batches/${jobId}/lucid-refresh`),
+        read(`/api/backtests/batches/${jobId}/prop-refresh`),
       ]);
       if (current !== version) return;
       const deleteButton = get("#optimization-delete");
       deleteButton.hidden = false;
       deletionButton(deleteButton, job);
       const hasLucid=job.default_prop_profile?.companions?.some(p=>p.settings?.ACCOUNT_TYPE==='LucidFlex');
-      get('#optimization-lucid-refresh').hidden=!hasLucid;
+      get('#optimization-lucid-refresh').hidden=!job.default_prop_profile;
+      get('#optimization-lucid-run').hidden=!hasLucid;
+      get('#optimization-prop-run').disabled=lucidBusy||['queued','running','deleting'].includes(job.status);
+      get('#optimization-prop-run').textContent=lucidBusy?'Checking sources and queueing prop analyses…':'Refresh all unavailable prop results';
+      get('#optimization-prop-status').textContent=Object.entries(prop.accounts).map(([name,s])=>`${name==='apex'?'Apex':'Lucid'}: ${s.available} / ${s.total} available · ${s.pending} pending · ${s.unavailable} unavailable${s.failed?` · ${s.failed} failed`:''}`).join(' | ');
       get('#optimization-lucid-run').disabled=lucidBusy||['queued','running','deleting'].includes(job.status);
       get('#optimization-lucid-run').textContent=lucidBusy?'Checking sources and queueing Lucid…':'Refresh unavailable Lucid results';
-      get('#optimization-lucid-status').textContent=`${lucid.available} / ${lucid.total} Lucid values available · ${lucid.refreshed} updated · ${lucid.pending} pending · ${lucid.unavailable} unavailable${lucid.failed?` · ${lucid.failed} failed`:''}. Original backtests, Apex results and trial snapshots are preserved.`;
+      get('#optimization-lucid-status').textContent=`${lucid.available} / ${lucid.total} Lucid values available · ${lucid.refreshed} updated · ${lucid.pending} pending · ${lucid.unavailable} unavailable${lucid.failed?` · ${lucid.failed} failed`:''}. Original backtests, reports and trial snapshots are preserved.`;
       get("#optimization-title").textContent = "Backtest batch results";
       const profile = job.default_prop_profile?.settings;
       const research=job.research;
       get("#optimization-context").textContent = `${research?`IS only · ${research.plan.is_start} → ${research.plan.is_end} · OOS held out: ${research.plan.oos_start} → ${research.plan.oos_end}. Open an individual IS report to select its parameters for a manual OOS test. `:'Legacy job · no declared holdout. '}${job.dataset.name} · ${label(job.strategy.id)} · ${job.id}${profile ? ` · Historical net: Apex 50K EOD, ${profile.SLOTS} slots, $${profile.EVAL_PRICE} evaluation + $${profile.ACTIVATION_FEE} activation, selected period only. Native close-only excursion fallback.` : ""}`;
       const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}${job.engine_identity ? ` · ${job.reused_trials || 0} reused · ${job.completed_trials - (job.reused_trials || 0)} computed` : ""}`;
       const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.stage?.startsWith("prop_simulation:") ? trial.stage.slice("prop_simulation: ".length) : `${trial.bars_processed}/${trial.total_bars} bars`})`).join(", ")}` : "";
-      get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
+      get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD per slot after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses weekday trading days. CSV retains raw account totals and duration seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
       const resume = get("#optimization-resume");
       resume.hidden = !["failed", "interrupted"].includes(job.status);
       resume.disabled = resumeBusy || deleteBusy;
@@ -426,7 +454,7 @@
       get("#optimization-provenance").hidden = false;
       get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, default_prop_profile: job.default_prop_profile, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
       results(job, page);
-      if (["queued", "running"].includes(job.status)||lucid.pending) timer = setTimeout(refresh, 1500);
+      if (["queued", "running"].includes(job.status)||prop.pending) timer = setTimeout(refresh, 1500);
     } catch (error) {
       if (current !== version) return;
       get("#optimization-status").textContent = `Could not refresh: ${errorMessage(error)}. Saved results below may be stale. Retrying…`;
@@ -473,6 +501,17 @@
       lucidBusy=false;
       if(jobId===id&&!get('#optimization-panel').hidden)await refresh();
     }
+  };
+  get('#optimization-prop-run').onclick=async()=>{
+    if(lucidBusy||!jobId)return;
+    const id=jobId;lucidBusy=true;
+    get('#optimization-prop-run').disabled=true;
+    get('#optimization-lucid-run').disabled=true;
+    get('#optimization-lucid-error').hidden=true;
+    get('#optimization-prop-status').textContent='Checking saved Apex and Lucid sources and looking for verified reports…';
+    try{await read(`/api/backtests/batches/${id}/prop-refresh`,{method:'POST'});}
+    catch(error){if(jobId===id){get('#optimization-lucid-error').textContent=errorMessage(error);get('#optimization-lucid-error').hidden=false;}}
+    finally{lucidBusy=false;if(jobId===id&&!get('#optimization-panel').hidden)await refresh();}
   };
   get("#optimization-resume").onclick = async () => {
     if (resumeBusy || deleteBusy || !jobId) return;

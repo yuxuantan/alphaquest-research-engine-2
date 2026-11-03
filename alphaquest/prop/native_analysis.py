@@ -14,7 +14,7 @@ from .adapter import digest
 from .native_backend import Rules, FundedAccount, evaluation, funded, compact_neutral_runs, identity as backend_identity
 from .parallel import map_sweep,diagnostics as execution_diagnostics
 
-MODEL_VERSION = 'alphaquest-apex50k-eod-v4-instrument-commissions'
+MODEL_VERSION = 'alphaquest-apex50k-eod-v6-acquisition-bounds'
 DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', DAILY_LOSS_LIMIT='on',
                 LUCID_EVAL_DAYS='no limit', SIZE_FOR='most net per year per slot', OUT_OF_SAMPLE_FROM='',
                 NET_OPPOSITE=False, EVAL_PRICE='49', ACTIVATION_FEE='129', SLOTS='20', MAX_TOTAL_NQ='4',
@@ -288,33 +288,77 @@ def _funded_size(value):
     return stats
 
 
+def _funded_profile(value):
+    """One independent training stage, reused across all evaluation sizes."""
+    from .joint_sizing import LIFETIME_HORIZON
+    days,size,block,rules,max_micros,count,seed=value
+    # Even taking every positive trade and skipping every loss cannot exceed
+    # this session-profit bound. A payout requires qualifying days in both
+    # supported models. This proves zero possible receipts without pretending
+    # an indefinitely open account has a measured terminal lifetime.
+    profit_bound=max(sum(max(0.,t[0]) for t in day) for day in days)*min(size,max_micros,max(level[1] for level in rules.levels))/10.
+    if profit_bound < rules.qualifying_profit:
+        return dict(micros=size,sims=0,requested_simulations=count,screening_simulations=3000,seed=seed,
+            method='analytical_zero_payout_bound',**{'E[payout]':0.,'days alive':None,'SE':None},
+            lifetime_complete=False,censored_paths=None,horizon_weekdays=LIFETIME_HORIZON,
+            receipts_upper_bound=0.,qualifying_day_profit_upper_bound=profit_bound,
+            reason='No sampled source session can meet the qualifying-day profit at this size; lifetime is unknown, payout potential is zero.')
+    backend=account_backend(rules);runner=backend.funded if backend else funded
+    accounts=runner(days,size,count,seed,block,horizon=LIFETIME_HORIZON,rules=rules,max_micros=max_micros)
+    stats=summary(accounts,size,len(rules.ladder))
+    receipts=np.array([sum(v for _,v in a.payouts) for a in accounts])
+    lifetimes=np.array([a.day for a in accounts])
+    censored=sum(a.outcome=='open' for a in accounts)
+    maximum=sum(rules.ladder)*getattr(rules,'payout_share',1.)
+    stats.update(method='monte_carlo',lifetime_complete=not censored,censored_paths=censored,horizon_weekdays=LIFETIME_HORIZON,seed=seed,
+        screening_simulations=3000,lifetime_se=float(lifetimes.std(ddof=1)/np.sqrt(count)),
+        receipts_lifetime_covariance=float(np.cov(receipts,lifetimes,ddof=1)[0,1]/count),
+        receipts_upper_bound=float(np.mean([maximum if a.outcome=='open' else receipts[i] for i,a in enumerate(accounts)])))
+    return stats
+
+
 def _funded_holdout(value):
     days,size,block,rules,max_micros,horizon=value
     backend=account_backend(rules)
     accounts=(backend.funded if backend else funded)(days,size,20000,43,block,horizon=horizon,rules=rules,max_micros=max_micros)
     if horizon==261:return dict(stats=annual_summary(accounts))
-    return dict(stats=summary(accounts,size,len(rules.ladder)),outcomes=dict(never_paid=sum(not a.payouts for a in accounts)/20000,
+    stats=summary(accounts,size,len(rules.ladder))
+    stats.update(horizon_weekdays=horizon,censored_paths=sum(a.outcome=='open' for a in accounts))
+    return dict(stats=stats,outcomes=dict(never_paid=sum(not a.payouts for a in accounts)/20000,
         paid_partial=sum(0<len(a.payouts)<len(rules.ladder) for a in accounts)/20000,paid_all=sum(len(a.payouts)==len(rules.ladder) for a in accounts)/20000),
         distributions=dict(lifetime_totals=[sum(v for _,v in a.payouts) for a in accounts],payout_counts=[len(a.payouts) for a in accounts],
                            lifetimes=[a.day for a in accounts],first_payout_days=[a.payouts[0][0] for a in accounts if a.payouts]))
 
 
-def training_economics(train, selected, settings, block, max_micros, sample):
+def training_economics(train, selected, settings, block, max_micros, sample, chain_stats=None):
     """Freeze acquisition inputs from training only, before holdout is touched."""
     probability=selected['passed']/selected['simulations']
     result=dict(method='training_simulation',status='unavailable',sample=sample,
                 evaluation_micros=selected['micros'],passed=selected['passed'],
+                screening_passed=selected['passed'],screening_simulations=selected['simulations'],
+                evaluation_censored_paths=int(selected.get('censored_paths',0)),
                 simulations=selected['simulations'],pass_rate=probability,
                 pass_rate_ci=wilson(selected['passed'],selected['simulations']),
-                evaluation_seed=42,funding_chain_seed=45,funding_chain_simulations=0,requested_funding_chain_simulations=20000,
+                evaluation_seed=selected.get('evaluation_seed',42),funding_chain_seed=45,funding_chain_simulations=0,requested_funding_chain_simulations=20000,
                 evaluation_price=float(settings['EVAL_PRICE']),activation_fee=float(settings['ACTIVATION_FEE']),
                 activation_days=0 if is_lucid(settings) else 1,cost_per_funded=None,replacement_days=None,
-                source='Training evaluation sweep and repeated funding chains only; frozen before all holdout simulations')
+                cost_se=None,replacement_days_se=None,
+                source='Training joint sizing and repeated funding chains only; frozen before all holdout simulations')
     if not selected['passed']:
         result['reason']='No training evaluation passed. Acquisition cost and replacement time cannot be calibrated; funded sizing is unavailable.'
         return result
+    if selected.get('censored_paths',0):
+        result['reason']='Training evaluation paths remain censored; acquisition probability and timing are unavailable.'
+        return result
     result.update(cost_per_funded=float(settings['EVAL_PRICE'])/probability+float(settings['ACTIVATION_FEE']),
-                  evaluations_per_funded=1/probability)
+                  evaluations_per_funded=1/probability,
+                  cost_se=float(settings['EVAL_PRICE'])*np.sqrt(probability*(1-probability)/selected['simulations'])/probability**2)
+    if chain_stats is not None:
+        if chain_stats['status']=='calibrated':
+            for key in ('status','funding_chain_simulations','replacement_days','replacement_days_median','replacement_days_se','funding_chain_diagnostics'):
+                if key in chain_stats:result[key]=chain_stats[key]
+        else:result['reason']=chain_stats['reason']
+        return result
     try:
         chain=evaluation_model(train,selected['micros'],20000,45,block,settings,chain=True,max_micros=max_micros)
     except ValueError as exc:
@@ -322,7 +366,8 @@ def training_economics(train, selected, settings, block, max_micros, sample):
         result['reason']='Training funding time is unavailable: '+str(exc)
         return result
     result.update(status='calibrated',funding_chain_simulations=20000,replacement_days=float(chain['days'].mean()),
-                  replacement_days_median=float(np.median(chain['days'])))
+                  replacement_days_median=float(np.median(chain['days'])),
+                  replacement_days_se=float(chain['days'].std(ddof=1)/np.sqrt(len(chain['days']))))
     if is_lucid(settings):result['funding_chain_diagnostics']=evaluation_diagnostics(chain)
     return result
 
@@ -341,19 +386,17 @@ def calculate(rows, settings, progress=lambda _:None):
     samples=dict(data=[str(grid[0].date()),str(grid[-1].date())],
                  train=[str(grid[0].date()),str(grid[split-1].date())],
                  validation=[str(grid[split].date()),str(grid[-1].date())],weekdays=[split,len(validation)])
-    progress('Local evaluation sizing on training sessions')
-    sizes=list(range(1,min(40 if is_lucid(settings) else 60,max_micros)+1))
-    work=sum(map(len,train))*3000
-    evaluation_sweep=map_sweep(_evaluation_size,[(train,size,block,max_micros,settings) if is_lucid(settings) else (train,size,block,max_micros) for size in sizes],work*len(sizes))
-    selected=max(evaluation_sweep,key=lambda r:r['passed'])
-    progress('Local training acquisition calibration: 20,000 funding chains')
-    economics=training_economics(train,selected,settings,block,max_micros,samples['train'])
+    from .joint_sizing import select as select_joint, LIFETIME_HORIZON
+    evaluation_sweep,economics,profiles,joint=select_joint(train,settings,block,max_micros,rules,samples['train'],progress)
+    selected=dict(micros=economics['evaluation_micros'])
     sweep=None;size=None;funded_sizes=None
-    if economics['status']=='calibrated':
-        progress('Local funded sizing with frozen training acquisition economics')
-        funded_sizes=list(range(1,min(max(level[1] for level in rules.levels),max_micros)+1))
-        sweep=map_sweep(_funded_size,[(train,n,block,rules,max_micros,economics) for n in funded_sizes],work*len(funded_sizes)*2*(2000 if is_lucid(settings) else 1))
-        size=max(sweep,key=lambda r:r['slot_year'])['micros']
+    if joint['status']=='selected':
+        funded_sizes=joint['funded_range'];size=joint['selected']['funded_micros']
+        sweep=[]
+        for profile in profiles:
+            pair=next(p for p in joint['pairs'] if p['evaluation_micros']==selected['micros'] and p['funded_micros']==profile['micros'])
+            sweep.append(dict(profile,acquisition_cost=economics['cost_per_funded'],replacement_days=economics['replacement_days'],
+                evaluation_pass_rate=economics['pass_rate'],slot_year=pair['slot_year'],slot_year_se=pair['slot_year_se'],status=pair['status']))
     # Evaluation size, funded size and acquisition inputs are now fixed. Holdout
     # results can neither rescore candidates nor gate a successful training fit.
     progress('Local holdout evaluation: 20,000 paths')
@@ -361,7 +404,7 @@ def calculate(rows, settings, progress=lambda _:None):
     outcomes=sim['outcomes']; passed=int(sum(outcomes=='passed')); probability=passed/20000
     result=dict(model_version=model_version(settings),rules=asdict(rules),settings=settings,samples=samples,
                 seeds=dict(training=42,holdout=43,funding_chain=44,training_funding_chain=45,generator='MT19937 / RandomState bounded integers',block_days=block),
-                training_economics=economics,
+                training_economics=economics,joint_sizing=joint,
                 evaluation=dict(selected_micros=selected['micros'],simulations=20000,passed=passed,pass_rate=probability,
                                 fail_drawdown=float((outcomes=='blown').mean()),timeout=float((outcomes=='timeout').mean()),
                                 pass_rate_ci=wilson(passed,20000),cost_per_funded=None,evaluations_per_funded=None,
@@ -387,13 +430,19 @@ def calculate(rows, settings, progress=lambda _:None):
     else:
         result['evaluation']['unavailable']='No validation evaluation passed. Holdout acquisition cost and funding time are unavailable; training selection remains frozen.'
     if sweep is None:
-        reason=economics['reason']
+        reason=joint['reason']
         if not passed:reason+=' No validation evaluation passed either.'
         result.update(funded=None,history=None,unavailable=reason)
         return result
     progress('Local funded holdout: 20,000 lifetime and 20,000 first-year accounts')
-    life,annual=map_sweep(_funded_holdout,[(validation,size,block,rules,max_micros,horizon) for horizon in (2000,261)],sum(map(len,validation))*20000*2)
+    life,annual=map_sweep(_funded_holdout,[(validation,size,block,rules,max_micros,horizon) for horizon in (LIFETIME_HORIZON,261)],sum(map(len,validation))*20000*2)
     stats={**life['stats'],**annual['stats']}
+    ev=result['evaluation']
+    joint['validation']=dict(evaluation_micros=selected['micros'],funded_micros=size,slot_year=None,
+        acquisition_cost=ev['cost_per_funded'],acquisition_days=ev['days_to_funded'],
+        expected_receipts=stats['E[payout]'],funded_days=stats['days alive'],censored_paths=stats['censored_paths'])
+    if ev['days_to_funded'] is not None and not stats['censored_paths'] and not ev.get('censored_paths',0):
+        joint['validation']['slot_year']=261*(stats['E[payout]']-ev['cost_per_funded'])/(stats['days alive']+ev['days_to_funded'])
     result['funded']=dict(selected=stats,sweep=sweep,search_range=dict(min_micros=1,max_micros=funded_sizes[-1],step=1,selected_at_limit=size==funded_sizes[-1],permitted_micros=max(level[1] for level in rules.levels),user_cap_micros=max_micros,tier_caps=[level[1] for level in rules.levels]),selection_economics=economics,
         outcomes=life['outcomes'])
     progress('Local chronological replay with frozen training acquisition economics')
@@ -404,7 +453,8 @@ def calculate(rows, settings, progress=lambda _:None):
 
 
 def csv_text(rows):
-    stream=io.StringIO();writer=csv.DictWriter(stream,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+    fields=list(dict.fromkeys(key for row in rows for key in row))
+    stream=io.StringIO();writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader();writer.writerows(rows)
     return stream.getvalue()
 
 
@@ -463,6 +513,10 @@ def run_analysis(runs,request,staged,progress):
     (staged/'commission_reconciliation.json').write_text(json.dumps(snapshot['commission_simulation'],indent=2,allow_nan=False))
     (staged/'evaluation_sizing.csv').write_text(csv_text(result['evaluation_sweep']))
     (staged/'training_economics.json').write_text(json.dumps(result['training_economics'],indent=2,allow_nan=False))
+    if result.get('joint_sizing'):
+        joint=result['joint_sizing']
+        (staged/'joint_sizing.json').write_text(json.dumps(joint,indent=2,allow_nan=False))
+        if joint['pairs']:(staged/'joint_sizing.csv').write_text(csv_text(joint['pairs']))
     if result['funded']:
         (staged/'funded_sizing.csv').write_text(csv_text(result['funded']['sweep']))
         (staged/'slot_accounts.csv').write_text(csv_text(result['history']['accounts']))

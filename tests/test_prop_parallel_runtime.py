@@ -67,7 +67,7 @@ def test_normal_backtest_runs_standard_prop_sweeps_in_parallel(client,tmp_path):
         if workers>1:assert report['runtime']['prop_execution']['worker_pids']
         runs.append(dict(workers=workers,backtest_id=record['id'],prop_id=id,performance=client.get('/api/backtests/'+record['id']+'/performance').json()))
     assert reports[0]['calculations']==reports[1]['calculations']
-    (tmp_path/'parallel-verification.json').write_text(json.dumps(dict(synthetic=True,independent_cash=360000-40*(49+129),all_calculations_exact=True,runs=runs),indent=2))
+    (tmp_path/'parallel-verification.json').write_text(json.dumps(dict(synthetic=True,independent_cash=460000-40*(49+129),all_calculations_exact=True,runs=runs),indent=2))
 
 
 def test_single_worker_optimization_never_enters_prop_pool(monkeypatch):

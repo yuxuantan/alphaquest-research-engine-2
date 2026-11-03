@@ -39,7 +39,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.locator('#backtest-slippage-ticks').fill('0')
     page.locator('#backtest-commission').fill('0')
     page.locator('#start-backtest').click()
-    playwright.expect(page.locator('#report-historical-net')).to_have_text('$352,880',timeout=180000)
+    playwright.expect(page.locator('#report-historical-net')).to_have_text('$452,880',timeout=180000)
     page.screenshot(path=str(tmp_path/'automatic-backtest.png'),full_page=True)
     backtest_id=page.url.rsplit('/',1)[1]
     record=page.request.get(f"{portal['url']}/api/backtests/{backtest_id}").json()
@@ -48,8 +48,8 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     report_bytes=page.request.get(report_url).body()
     report=json.loads(report_bytes);expected_cash(report)
     inline=page.locator('#report-prop-summary')
-    playwright.expect(inline.locator('#report-prop-historical-net')).to_have_text('$352,880')
-    playwright.expect(inline.locator('#report-prop-payouts')).to_have_text('$360,000')
+    playwright.expect(inline.locator('#report-prop-historical-net')).to_have_text('$452,880')
+    playwright.expect(inline.locator('#report-prop-payouts')).to_have_text('$460,000')
     playwright.expect(inline.locator('#report-prop-costs')).to_have_text('$7,120')
     playwright.expect(inline.locator('#report-prop-evaluation')).to_contain_text('Average acquisition cost: $178.00')
     assert float(inline.locator('#report-prop-average-payout').get_attribute('title').split(': ')[1])==report['calculations']['funded']['selected']['E[payout]']
@@ -68,7 +68,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=10000)
     page.get_by_role('tab',name='Historical replay',exact=True).click()
     history=page.get_by_role('tabpanel',name='Historical replay')
-    for text in ('$352,880','$360,000','$7,120','20 slots'):
+    for text in ('$452,880','$460,000','$7,120','20 slots'):
         playwright.expect(history).to_contain_text(text)
     page.screenshot(path=str(tmp_path/'historical-cash-and-fees.png'),full_page=True)
     with page.expect_download() as downloaded:
@@ -107,7 +107,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
         page.locator('#start-backtest').click()
     assert reused.value.status==200
     playwright.expect(page).to_have_url(re.compile('/#backtests/report/'+backtest_id+'$'))
-    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880')
+    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$452,880')
     page.screenshot(path=str(tmp_path/'verified-backtest-reopened.png'),full_page=True)
 
     def configure_optimization():
@@ -130,25 +130,25 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     optimization_url=page.url;job_id=page.url.rsplit('/',1)[1]
     job=page.request.get(f"{portal['url']}/api/optimizations/{job_id}").json()
     rows=page.request.get(f"{portal['url']}/api/optimizations/{job_id}/results").json()['items']
-    assert [r['metrics']['historical_net'] for r in rows]==[352880,None]
+    assert [r['metrics']['historical_net'] for r in rows]==[452880,None]
     reused_prop=page.request.get(portal['url']+'/api/prop-analyses/'+rows[0]['prop_analysis']['id']+'/downloads/report.json').json()
     assert reused_prop['runtime']['calculation_reused_from']==prop_id
     assert reused_prop['source']['backtest']['id']==rows[0]['run_id']
     for direction in ('ascending','descending'):
         page.locator('#optimization-results th[data-column="historical_net"] button').click()
         playwright.expect(page.locator('#optimization-results th[data-column="historical_net"]')).to_have_attribute('aria-sort',direction)
-        playwright.expect(page.locator('#optimization-results tbody td[data-column="historical_net"]').first).to_contain_text('$352,880')
+        playwright.expect(page.locator('#optimization-results tbody td[data-column="historical_net"]').first).to_contain_text('$22,644')
         playwright.expect(page.locator('#optimization-results tbody td[data-column="historical_net"]').last).to_contain_text('N/A')
     page.screenshot(path=str(tmp_path/'optimization-historical-net.png'),full_page=True)
     with page.expect_download() as downloaded:
         page.locator('#optimization-download').click()
     downloaded.value.save_as(tmp_path/'optimization-results.csv')
     exported=list(csv.DictReader(io.StringIO((tmp_path/'optimization-results.csv').read_text())))
-    assert [r['historical_net'] for r in exported]==['352880','']
+    assert [r['historical_net'] for r in exported]==['452880','']
     page.locator('#optimization-results tbody td[data-column="historical_net"] a').first.click()
     playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=10000)
     page.get_by_role('tab',name='Historical replay',exact=True).click()
-    playwright.expect(page.get_by_role('tabpanel',name='Historical replay')).to_contain_text('$352,880')
+    playwright.expect(page.get_by_role('tabpanel',name='Historical replay')).to_contain_text('$452,880')
     page.goto(optimization_url)
     page.reload()
     playwright.expect(page.locator('#optimization-results tbody tr')).to_have_count(2)
@@ -172,7 +172,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.route(f'**/api/backtests/{backtest_id}',lambda route:route.fulfill(json=legacy))
     posts=[];page.on('request',lambda req:posts.append(req.url) if req.method=='POST' else None)
     page.goto(portal['url']+'/#backtests/report/'+backtest_id)
-    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880')
+    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$452,880')
     playwright.expect(page.locator('#report-prop-context')).to_contain_text('Latest completed saved analysis')
     playwright.expect(page.locator('#report-prop-context')).to_contain_text('Apex 50K EOD')
     assert page.locator('#report-prop-actions a').first.get_attribute('href')=='#backtests/prop/job/'+prop_id
@@ -180,12 +180,12 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     assert page.locator('#report-prop-metrics strong').evaluate_all('nodes => nodes.every(n => n.getBoundingClientRect().height <= parseFloat(getComputedStyle(n).lineHeight) + 1)')
     page.locator('#report-prop-summary').screenshot(path=str(tmp_path/'inline-mobile.png'))
     page.reload()
-    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880')
+    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$452,880')
     assert not posts
     assert sha256(page.request.get(report_url).body()).hexdigest()==sha256(report_bytes).hexdigest()
     (tmp_path/'verification.json').write_text(json.dumps(dict(
         synthetic=True,backtest=record,job=job,rows=rows,expected_source_net=180000,
-        expected_historical_payouts=360000,expected_acquisition_costs=7120,expected_historical_net=352880,
+        expected_historical_payouts=460000,expected_acquisition_costs=7120,expected_historical_net=452880,
         evaluation_fee=49,activation_fee=129,slots=20,standard_counts_verified=True,
         source_check_and_rejection_verified=True,cached_configure_run_verified=True,
         sorting_and_csv_verified=True,report_reopen_and_original_hash_verified=True,

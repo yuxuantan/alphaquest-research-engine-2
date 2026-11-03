@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import numpy as np
 
 
-def ledger(days, count, seed, block, micros, dll):
+def ledger(days, count, seed, block, micros, dll, consistency=.4):
     rng = np.random.RandomState(seed)
     results = []
     for path in range(count):
@@ -62,7 +62,7 @@ def ledger(days, count, seed, block, micros, dll):
                 best_profit = max(best_profit, balance-opened)
                 peak = max(peak, balance)
                 if finished == 'blown':break
-                if balance >= 3000. and best_profit <= .4*balance:
+                if balance >= 3000. and best_profit <= consistency*balance:
                     finished = 'passed'
                     break
                 if calendar-last_active >= 30:
