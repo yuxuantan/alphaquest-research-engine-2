@@ -325,8 +325,8 @@
           const value=slotNet(row.metrics.lucid_historical_net,lucidSlots);
           if(item&&item.status==='complete'){const a=node('a',value);a.href=`#backtests/prop/job/${item.id}`;td.append(a);}
           else td.append(node('span',value),...(item?.status==='deleted'?[node('small','Prop report deleted','field-help')]:[]));
-          if(row.lucid_refresh){td.append(node('small',['queued','running'].includes(item?.status)?'Lucid analysis pending':item?.status==='incompatible'?'Lucid source check rejected':item?.status==='error'?'Lucid analysis failed':'Updated Lucid analysis','field-help'));}
-          if(item?.reason||item?.progress)td.append(node('small',item.reason||item.progress,'field-help'));
+          if(row.lucid_refresh&&['queued','running','incompatible','error'].includes(item?.status)){td.append(node('small',['queued','running'].includes(item.status)?'Lucid analysis pending':item.status==='incompatible'?'Lucid source check rejected':'Lucid analysis failed','field-help'));}
+          if(item?.reason||(['queued','running'].includes(item?.status)&&item?.progress))td.append(node('small',item.reason||item.progress,'field-help'));
           if(item?.model_version)td.title=item.model_version;
         } else if (key === "historical_net" && row.prop_report_deleted) {
           td.append(node("span", slotNet(row.metrics.historical_net,apexSlots)), node("small", "Prop report deleted", "field-help"));
@@ -337,8 +337,8 @@
             const link=node('a',value);link.href=`#backtests/prop/job/${item.id}`;
             link.setAttribute('aria-label',`Apex historical net per slot ${value}; open default prop analysis`);td.append(link);
           }else td.append(node('span',value));
-          if(row.apex_refresh)td.append(node('small',['queued','running'].includes(item.status)?'Apex analysis pending':item.status==='incompatible'?'Apex source check rejected':item.status==='error'?'Apex analysis failed':'Updated Apex analysis','field-help'));
-          td.append(node('small',item.reason||item.progress||'Default Apex 50K EOD','field-help'));
+          if(row.apex_refresh&&['queued','running','incompatible','error'].includes(item.status))td.append(node('small',['queued','running'].includes(item.status)?'Apex analysis pending':item.status==='incompatible'?'Apex source check rejected':'Apex analysis failed','field-help'));
+          if(item.reason||(['queued','running'].includes(item.status)&&item.progress))td.append(node('small',item.reason||item.progress,'field-help'));
           if(item.model_version)td.title=item.model_version;
         } else if (key === "run_id") {
           if (row.backtest_deleted) {

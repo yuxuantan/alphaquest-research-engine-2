@@ -4312,3 +4312,51 @@ The focused gates passed **14 backend checks and 4 browser checks**. The final
 trading-day sort API adjustment is independently rechecked by the seven display
 checks and the actual saved-batch browser review. The user's existing portal is
 left running; all temporary test/review servers stop automatically.
+
+
+## Remove routine batch-result subtexts — 3 November 2026
+
+Successful Apex and Lucid historical-net cells now show only their linked
+per-slot amount. The Apex fallback **Default Apex 50K EOD** and both providers'
+**Updated analysis** labels are removed. Original and refreshed successful rows
+use the same presentation. Pending, rejected, failed and deleted states retain
+their useful notices, and completed N/A results retain their calculation reason.
+Model/slot hover details, saved refresh provenance, original reports, report
+links, table units and downloads are preserved. This is a presentation change;
+no financial calculations, backtests or prop analyses are rerun.
+
+Reload the existing batch at
+`http://localhost:8000/#backtests/batches/d69045ab437942618ec2afb54728c33c`.
+Expect the first five Apex amounts (**$5,068, $13,916, $8,535, $8,832, $12,590**)
+to have no routine subtexts, including refreshed trials 4 and 5. Their Lucid
+amounts also have no routine subtexts. Trial 21's Apex N/A still explains its
+unresolved acquisition-time comparison. Click an amount to inspect the same
+saved analysis; reload and download the existing raw CSVs without resimulation.
+
+Reproduce the read-only actual-product review with a fresh output directory:
+
+```bash
+.venv/bin/python tests/review_batch_result_display.py \
+  --output artifacts/batch-result-cleanup-RECHECK
+```
+
+The review verifies successful cells have no subtexts while N/A cells retain
+reasons, and retains the previously checked values, sorting, report navigation,
+CSV units and reload checks. Evidence is saved under
+`artifacts/batch-result-cleanup-20261103/actual-final/`. The temporary server
+and browser stop automatically; no persistent server is started.
+
+The existing combined-refresh and Lucid-refresh browser checks also verify
+successful cells have no subtexts after completion while pending notices remain.
+Run them with a fresh evidence directory:
+
+```bash
+mkdir -p artifacts/batch-result-cleanup-check
+.venv/bin/python -m pytest tests/test_batch_prop_refresh_browser.py \
+  tests/test_lucid_batch_refresh_browser.py -q \
+  --basetemp artifacts/batch-result-cleanup-check/browser
+```
+
+Both focused browser checks and the actual saved-batch review passed. All
+**10,272** original report/source files and **128** original trial payloads remain
+unchanged; `preservation.json` and `validation.json` retain the verification.

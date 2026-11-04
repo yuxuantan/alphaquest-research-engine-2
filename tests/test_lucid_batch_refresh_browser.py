@@ -46,7 +46,7 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
     finally:release.set()
     playwright.expect(page.locator('#optimization-lucid-status')).to_contain_text('1 / 1 Lucid values available',timeout=180000)
     playwright.expect(cell).to_contain_text('$17,758')
-    playwright.expect(cell).to_contain_text('Updated Lucid analysis')
+    playwright.expect(cell.locator('small')).to_have_count(0)
     page.locator('th[data-column="lucid_historical_net"] button').click()
     page.locator('th[data-column="lucid_historical_net"] button').click()
     playwright.expect(page.locator('th[data-column="lucid_historical_net"]')).to_have_attribute('aria-sort','descending')

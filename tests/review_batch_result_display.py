@@ -55,6 +55,11 @@ def review(output):
                 expect(row.locator('[data-column="max_drawdown_duration_seconds"]')).to_have_text('199')
                 expect(row.locator('[data-column="historical_net"] a')).to_have_text('$8,832')
                 expect(row.locator('[data-column="lucid_historical_net"] a')).to_have_text('$7,490')
+                for key in ('historical_net','lucid_historical_net'):
+                    cells=page.locator('td[data-column="'+key+'"]')
+                    expect(cells.filter(has_not_text='N/A').locator('small')).to_have_count(0)
+                    for unavailable in cells.filter(has_text='N/A').all():
+                        assert unavailable.locator('small').count()>0
                 page.screenshot(path=str(output/'table.png'),full_page=True)
                 for metric in ('max_drawdown_duration_seconds','historical_net','lucid_historical_net'):
                     for direction in ('ascending','descending'):

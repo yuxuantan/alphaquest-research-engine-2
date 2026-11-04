@@ -46,8 +46,10 @@ def test_all_prop_refresh_pending_reload_download_and_durable_results(page,porta
     playwright.expect(status).to_contain_text('Apex: 1 / 1 available',timeout=180000)
     playwright.expect(status).to_contain_text('Lucid: 1 / 1 available',timeout=180000)
     apex=page.locator('td[data-column="historical_net"]');lucid=page.locator('td[data-column="lucid_historical_net"]')
-    playwright.expect(apex).to_contain_text('$22,644');playwright.expect(apex).to_contain_text('Updated Apex analysis')
+    playwright.expect(apex).to_contain_text('$22,644')
     playwright.expect(lucid).to_contain_text('$17,758')
+    playwright.expect(apex.locator('small')).to_have_count(0)
+    playwright.expect(lucid.locator('small')).to_have_count(0)
     for column in ['historical_net','lucid_historical_net']:
         page.locator(f'th[data-column="{column}"] button').click()
         page.locator(f'th[data-column="{column}"] button').click()
