@@ -557,6 +557,21 @@
               <h2>Configure prop analysis</h2>
               <label>Account model<select id="prop-model"><option value="0">Apex 50K EOD</option><option value="1">LucidFlex 50K</option></select></label>
               <p id="prop-model-help"></p>
+              <label>Analysis method<select id="prop-method"><option value="annualized">Annualized sizing · existing single source</option><option value="dated_lifecycle">Dated phase lifecycle · fixed sizes</option></select></label>
+              <div id="prop-phase-fields" hidden>
+                <p>The opened backtest supplies evaluation trades. Select a saved funded backtest or optimization trial, with its own strategy and parameters. Both must have compatible NQ/MNQ, declared research periods and complete intratrade risk. Phase targets stay fixed; provider scaling still limits actual orders.</p>
+                <label>Funded source backtest<select id="prop-funded-source"><option value="">Same as evaluation source</option></select></label>
+                <label>Find saved funded backtests<input id="prop-source-search" type="search" placeholder="Strategy, parameter, dataset or report ID" /></label>
+                <button id="prop-load-sources" type="button" class="button secondary">Load more saved sources</button>
+                <div class="prop-fields">
+                  <label>Evaluation fixed size · MNQ<input id="prop-evaluation-micros" type="number" value="10" min="1" max="60" step="1" /></label>
+                  <label>Funded fixed target · MNQ<input id="prop-funded-micros" type="number" value="3" min="1" max="40" step="1" /></label>
+                  <label>Activation wait · weekdays<input id="prop-activation-wait" type="number" min="0" max="261" step="1" placeholder="Provider default: Apex 1, Lucid 0" /></label>
+                  <label>Funded measured-excursion export · optional path<input id="prop-funded-file" type="text" maxlength="4096" placeholder="Blank: native risk; same source inherits evaluation export" /></label>
+                  <label>Funded export timestamps<select id="prop-funded-zone"><option value="America/Chicago">Chicago</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
+                </div>
+                <p>One evaluation followed by one funded account on their common observed timeline. Funded trading uses subsequent sessions after activation eligibility. Exact cash ledger, monthly budgets and portfolio forecasts arrive later. Annualized mode retains its existing renewal assumptions.</p>
+              </div>
               <p>Calculates locally from the saved backtest and captured risk bounds, or an explicitly selected measured-excursion export. Defaults: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, provider-specific slot count, and standard simulation counts. Results, charts and downloads are saved for reopening.</p>
               <label>Measured-excursion MultiCharts export · optional local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Leave blank for captured native OHLC risk; older sources may discover a matching export" /></label>
               <div class="prop-fields">

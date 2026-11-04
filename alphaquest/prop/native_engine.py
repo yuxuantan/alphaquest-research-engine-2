@@ -59,6 +59,9 @@ class FundedAccount:
     activity: deque = field(default_factory=deque)
     outcome: str = 'open'
     approval: bool = False
+    last_hit = 0
+    trades_consumed = 0
+    effective_micros = 0
 
     @cython.locals(opening=cython.double, floor=cython.double, cap=cython.double,
                    dll=cython.double, size=cython.double, daily_floor=cython.double,
@@ -69,6 +72,8 @@ class FundedAccount:
         if self.outcome != 'open':
             raise ValueError('Cannot advance a closed account.')
         r = self.rules
+        self.last_hit = 0
+        self.trades_consumed = 0
         self.day += 1
         opening = self.equity
         floor = r.lock_profit if self.locked else self.high - r.max_dd
@@ -80,29 +85,36 @@ class FundedAccount:
             if opening >= threshold:
                 cap, dll = level_cap, level_dll
         size = min(micros, cap, max_micros)
+        self.effective_micros = size
         daily_floor = opening - dll
         for trade in trades:
+            self.trades_consumed += 1
             net, adverse = trade[0], trade[1]
             trough = self.equity - adverse * size / 10.
             if len(trade) > 2 and trough <= max(daily_floor, floor):
                 hit, balance = risk_hit(trade[2], self.equity, size, daily_floor, floor)
                 if hit:
+                    self.last_hit = hit
                     self.equity = balance
                     if hit == 2:
                         self.outcome = 'blown'
                         return 0.
                     break
             if daily_floor > floor and trough <= daily_floor:
+                self.last_hit = 1
                 self.equity = daily_floor
                 break
             if daily_floor <= floor and trough <= floor:
+                self.last_hit = 2
                 self.outcome = 'blown'
                 return 0.
             self.equity += net * size / 10.
             if daily_floor > floor and self.equity <= daily_floor:
+                self.last_hit = 1
                 self.equity = daily_floor
                 break
             if daily_floor <= floor and self.equity <= floor:
+                self.last_hit = 2
                 self.outcome = 'blown'
                 return 0.
         profit = self.equity - opening
@@ -162,6 +174,42 @@ def compact_neutral_runs(days):
     return result
 
 
+@cython.ccall
+@cython.locals(equity=cython.double, high=cython.double, size=cython.double,
+               opening=cython.double, floor=cython.double, daily_floor=cython.double,
+               net=cython.double, adverse=cython.double, trough=cython.double,
+               balance=cython.double, hit=cython.longlong, consumed=cython.longlong)
+def evaluation_session(trades, equity, high, size):
+    """One Apex evaluation session, shared by sampled and dated replay."""
+    opening = equity
+    floor = min(high - 2000., 3000.)
+    daily_floor = opening - 1000.
+    result = 'open'
+    hit = consumed = 0
+    for trade in trades:
+        consumed += 1
+        net, adverse = trade[0], trade[1]
+        trough = equity - adverse * size / 10.
+        if len(trade) > 2 and trough <= max(daily_floor, floor):
+            hit, balance = risk_hit(trade[2], equity, size, daily_floor, floor)
+            if hit:
+                equity = balance
+                if hit == 2: result = 'blown'
+                break
+        if daily_floor > floor and trough <= daily_floor:
+            equity = daily_floor; hit = 1; break
+        if daily_floor <= floor and trough <= floor:
+            result = 'blown'; hit = 2; break
+        equity += net * size / 10.
+        if daily_floor > floor and equity <= daily_floor:
+            equity = daily_floor; hit = 1; break
+        if daily_floor <= floor and equity <= floor:
+            result = 'blown'; hit = 2; break
+        if equity >= 3000.:
+            result = 'passed'; break
+    return equity, max(high, equity), result, hit, consumed
+
+
 @cython.locals(equity=cython.double, high=cython.double, size=cython.double,
                opening=cython.double, floor=cython.double, daily_floor=cython.double,
                net=cython.double, adverse=cython.double, trough=cython.double,
@@ -178,35 +226,42 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
             result = 'timeout'
             size = min(micros, 60, max_micros)
             for day in range(1, deadline + 1):
-                opening = equity
-                floor = min(high - 2000., 3000.)
-                daily_floor = opening - 1000.
-                for trade in days[next(sequence)]:
-                    net, adverse = trade[0], trade[1]
-                    trough = equity - adverse * size / 10.
-                    if len(trade) > 2 and trough <= max(daily_floor, floor):
-                        hit, balance = risk_hit(trade[2], equity, size, daily_floor, floor)
-                        if hit:
-                            equity = balance
-                            if hit == 2:result = 'blown'
+                # Keep the compiled hot loop unboxed. The Python session
+                # reference below is also used by dated replay. Parity tests
+                # qualify every outcome and MT19937 draw across both paths.
+                if cython.compiled:
+                    opening = equity
+                    floor = min(high - 2000., 3000.)
+                    daily_floor = opening - 1000.
+                    for trade in days[next(sequence)]:
+                        net, adverse = trade[0], trade[1]
+                        trough = equity - adverse * size / 10.
+                        if len(trade) > 2 and trough <= max(daily_floor, floor):
+                            hit, balance = risk_hit(trade[2], equity, size, daily_floor, floor)
+                            if hit:
+                                equity = balance
+                                if hit == 2:result = 'blown'
+                                break
+                        if daily_floor > floor and trough <= daily_floor:
+                            equity = daily_floor
                             break
-                    if daily_floor > floor and trough <= daily_floor:
-                        equity = daily_floor
-                        break
-                    if daily_floor <= floor and trough <= floor:
-                        result = 'blown'
-                        break
-                    equity += net * size / 10.
-                    if daily_floor > floor and equity <= daily_floor:
-                        equity = daily_floor
-                        break
-                    if daily_floor <= floor and equity <= floor:
-                        result = 'blown'
-                        break
-                    if equity >= 3000.:
-                        result = 'passed'
-                        break
-                high = max(high, equity)
+                        if daily_floor <= floor and trough <= floor:
+                            result = 'blown'
+                            break
+                        equity += net * size / 10.
+                        if daily_floor > floor and equity <= daily_floor:
+                            equity = daily_floor
+                            break
+                        if daily_floor <= floor and equity <= floor:
+                            result = 'blown'
+                            break
+                        if equity >= 3000.:
+                            result = 'passed'
+                            break
+                    high = max(high, equity)
+                else:
+                    equity, high, state, _, _ = evaluation_session(days[next(sequence)], equity, high, size)
+                    result = 'timeout' if state == 'open' else state
                 if result != 'timeout':
                     break
             duration += day

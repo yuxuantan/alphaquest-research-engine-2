@@ -54,6 +54,9 @@ class AnalysisStore:
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
+            db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
+            db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
             db.execute('CREATE TABLE IF NOT EXISTS calculation_reuse (key TEXT PRIMARY KEY,engine TEXT NOT NULL,id TEXT NOT NULL,sha256 TEXT NOT NULL)')
             if recover_interrupted:
                 db.execute("UPDATE analyses SET status='error',error='Application stopped before publication; run again.',progress='Interrupted' WHERE status IN ('queued','running')")
@@ -76,8 +79,12 @@ class AnalysisStore:
 
     def list(self,source):
         with self.connect() as db:
-            db.row_factory=sqlite3.Row;rows=db.execute('SELECT * FROM analyses WHERE source_id=? ORDER BY created DESC LIMIT 100',(source,)).fetchall()
+            db.row_factory=sqlite3.Row;rows=db.execute('SELECT a.* FROM analyses a WHERE a.source_id=? OR EXISTS (SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?) ORDER BY created DESC LIMIT 100',(source,source)).fetchall()
         return [dict(row) for row in rows]
+
+    def active_sources(self):
+        with self.connect() as db:
+            return {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running')")}
 
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
@@ -101,6 +108,7 @@ class AnalysisStore:
                         if destination.exists():destination.rename(staged);moved=True
                     db.execute('DELETE FROM calculation_reuse WHERE id=?',(id,))
                     db.execute('DELETE FROM analysis_report_checks WHERE id=?',(id,))
+                    db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(id,))
                     db.execute('DELETE FROM analyses WHERE id=?',(id,))
             except BaseException:
                 if moved:staged.rename(destination)
@@ -117,9 +125,12 @@ class AnalysisStore:
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
-        from .native_analysis import prepare
-        snapshot,_,settings=prepare(runs,request['source_backtest_id'],request.get('trade_file'),request['settings'],request['export_timezone'])
-        existing=self.check_oos(snapshot,settings,runs)
+        from .phase_lifecycle import prepare_request, source_snapshots, dated
+        snapshot,_,settings=prepare_request(runs,request)
+        existing=None
+        for source in source_snapshots(snapshot):
+            saved=self.check_oos(source,settings,runs)
+            if not dated(request):existing=saved
         if existing:return existing
         request={**request,'trade_file':snapshot['excursion_input']['path'] or ''}
         key=request_key(snapshot,settings)
@@ -131,7 +142,8 @@ class AnalysisStore:
                 if valid:return self.get(row[0])
             id=uuid4().hex
             db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(id,key,request['source_backtest_id'],datetime.now(timezone.utc).isoformat(),'queued','Queued',None))
-        self.worker.submit(self._run,runs,id,request,(snapshot['trades_sha256'],snapshot['excursion_input']['sha256']))
+            db.executemany('INSERT INTO analysis_sources VALUES (?,?)',[(id,source) for source in {s['backtest']['id'] for s in source_snapshots(snapshot)}])
+        self.worker.submit(self._run,runs,id,request,snapshot)
         return self.get(id)
 
     def check_oos(self,snapshot,settings,runs):
@@ -177,6 +189,7 @@ class AnalysisStore:
                     id,prepared['request_hash'],prepared['source_id'],prepared['created_at_utc'],
                     prepared['status'],'Saved report ready' if prepared['status']=='complete' else 'Automatic prop analysis unavailable',
                     prepared.get('reason') if prepared['status']!='complete' else None))
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)',(id,prepared['source_id']))
                 if prepared['status']=='complete':
                     report=json.loads((Path(directory)/'report.json').read_text())
                     history=report['calculations'].get('history')
@@ -252,6 +265,7 @@ class AnalysisStore:
             if row!=expected:raise ValueError('Refusing to remove an unrelated prop analysis.')
             shutil.rmtree(self.root/prepared['id'],ignore_errors=True)
             db.execute('DELETE FROM analysis_report_checks WHERE id=?',(prepared['id'],))
+            db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(prepared['id'],))
             db.execute('DELETE FROM analyses WHERE id=?',(prepared['id'],))
 
     def fingerprint(self, id):
@@ -279,7 +293,7 @@ class AnalysisStore:
                 from .calculation_cache import use
                 with self.runtime.activate(),use(self.calculation_snapshot()):
                     result=run_analysis(runs,request,staged,lambda msg:self._update(id,'running',msg))
-                if (result['source']['trades_sha256'],result['source']['excursion_input']['sha256'])!=expected_source:
+                if canonical(result['source'])!=canonical(expected_source):
                     raise ValueError('Source changed after submission.')
                 self._update(id,'running','Publishing local calculation report and downloads')
                 seal_report(staged,result,id,self.get(id)['created'])

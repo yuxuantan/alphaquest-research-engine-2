@@ -24,12 +24,16 @@ DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', D
 
 
 def resolved_settings(overrides):
-    if not isinstance(overrides, dict) or set(overrides) - DEFAULTS.keys():
+    from .phase_lifecycle import PHASE_DEFAULTS
+    if not isinstance(overrides, dict) or set(overrides) - (DEFAULTS.keys() | PHASE_DEFAULTS.keys()):
         raise ValueError('Unknown prop analysis setting.')
     from .lucid_rules import defaults as lucid_defaults
     lucid=overrides.get('PROP_FIRM')=='Lucid' or overrides.get('ACCOUNT_TYPE')=='LucidFlex'
     base=lucid_defaults(DEFAULTS) if lucid else DEFAULTS
     settings = {**base, **overrides}
+    if set(overrides) & PHASE_DEFAULTS.keys():
+        from .phase_lifecycle import resolve_phase_settings
+        settings = resolve_phase_settings(settings)
     if settings['COMMISSION_MODE'] not in ('auto', 'source', 'override'):
         raise ValueError('Commission mode must be auto, source or override.')
     if settings['SOURCE_INSTRUMENT'] not in ('auto', 'NQ', 'MNQ'):
@@ -81,10 +85,11 @@ def resolved_settings(overrides):
 def is_lucid(settings):return settings.get('ACCOUNT_TYPE')=='LucidFlex'
 
 def model_version(settings):
+    suffix = '-dated-phases-v1' if settings.get('ANALYSIS_MODE')=='dated_lifecycle' else ''
     if is_lucid(settings):
         from .lucid_rules import MODEL_VERSION as lucid_version
-        return lucid_version
-    return MODEL_VERSION
+        return lucid_version + suffix
+    return MODEL_VERSION + suffix
 
 def kernel_identity(settings):
     if is_lucid(settings):
@@ -485,6 +490,9 @@ def save_charts(result, staged):
 
 
 def run_analysis(runs,request,staged,progress):
+    if request.get('settings',{}).get('ANALYSIS_MODE')=='dated_lifecycle':
+        from .phase_lifecycle import run_analysis as run_phases
+        return run_phases(runs,request,staged,progress)
     snapshot,rows,settings=prepare(runs,request['source_backtest_id'],request.get('trade_file'),request.get('settings'),request['export_timezone'])
     progress('Source checked; all simulation arithmetic runs locally in AlphaQuest')
     inputs=staged/'inputs';inputs.mkdir()

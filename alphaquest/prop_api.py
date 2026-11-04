@@ -18,6 +18,9 @@ router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
 class AnalysisRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     source_backtest_id: StrictStr = Field(pattern=r'^[0-9a-f]{32}$')
+    funded_source_backtest_id: StrictStr | None = Field(default=None, pattern=r'^[0-9a-f]{32}$')
+    funded_trade_file: StrictStr | None = Field(default=None, max_length=4096)
+    funded_export_timezone: Literal['America/Chicago', 'America/New_York', 'UTC'] | None = None
     trade_file: StrictStr | None = Field(default=None, max_length=4096)
     export_timezone: Literal['America/Chicago', 'America/New_York', 'UTC'] = 'America/Chicago'
     settings: dict = Field(default_factory=dict)
@@ -40,9 +43,11 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
 @router.post('/check')
 async def check(body: AnalysisRequest, request: Request):
     try:
-        snapshot,rows,settings=await run_in_threadpool(prepare,request.app.state.runs,body.source_backtest_id,body.trade_file,body.settings,body.export_timezone)
-        await run_in_threadpool(request.app.state.prop_analyses.check_oos,snapshot,settings,request.app.state.runs)
-        return dict(status='compatible',source=snapshot,settings=settings,matched_trades=len(rows),model_version=model_version(settings))
+        from .prop.phase_lifecycle import prepare_request, source_snapshots, dated
+        snapshot,rows,settings=await run_in_threadpool(prepare_request,request.app.state.runs,body.model_dump())
+        for source in source_snapshots(snapshot):
+            await run_in_threadpool(request.app.state.prop_analyses.check_oos,source,settings,request.app.state.runs)
+        return dict(status='compatible',source=snapshot,settings=settings,matched_trades=len(rows['evaluation']) if dated(body.model_dump()) else len(rows),model_version=model_version(settings))
     except ResearchConflict as exc:
         raise HTTPException(409,str(exc)) from exc
     except (ValueError,KeyError,OSError) as exc:

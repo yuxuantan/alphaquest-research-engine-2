@@ -4360,3 +4360,248 @@ mkdir -p artifacts/batch-result-cleanup-check
 Both focused browser checks and the actual saved-batch review passed. All
 **10,272** original report/source files and **128** original trial payloads remain
 unchanged; `preservation.json` and `validation.json` retain the verification.
+
+## Portfolio milestone 1 — separate phase sources and dated lifecycle — 2026-11-04
+
+The accepted scope and all five milestones are in
+[prop_portfolio_plan.md](prop_portfolio_plan.md). Milestone 1 adds a fixed-source,
+fixed-target dated replay to the ordinary **backtest → Configure prop analysis →
+Check source → Run → saved report** workflow. It uses the existing AnalysisStore,
+report routes and ZIP publication. There is no separate portfolio demo API/page,
+second report store, external calculator or strategy resimulation during analysis.
+Earlier datasets/backtests/reports/evidence and the Windows VM are preserved.
+
+### Saved normal-product demonstration
+
+All new demonstration sources are labelled **SYNTHETIC** and created by ordinary
+dataset/backtest APIs. The usable library is:
+
+`artifacts/prop-portfolio-m1-20261104/qualified-browser/test_phase_sources_configure_c0/`
+
+It contains the normal dataset/backtest/prop catalogues, original source CSVs,
+backtest trade/equity/risk exports, durable reports, JSON/CSV/ZIP downloads,
+source-check responses and screenshots. Its `verification.json` indexes the initial
+browser outcomes, preserved unchanged. `final-workflow/verification.json` beside
+`qualified-browser/` indexes the current-code reports listed below and preserves
+the earlier IDs. `final-presentation/` holds the final rendered reports and reuse
+journey. Earlier `presentation-lucid/` evidence remains unchanged. These are actual
+local model outputs, not predictions or manufactured future results.
+
+| Case | Saved analysis ID | Independent expected observation |
+| --- | --- | --- |
+| Same evaluation/funded source | `c40f91549fb04f0ca60ca0579ee0be26` | Fixed 10/3 MNQ; pass Jan 5, eligible Jan 6, funded starts Jan 7; six payouts total $13,000 after 30 funded sessions. |
+| Change only funded parameters/source | `7eb5e707cee240ce98a8ec625c722fd0` | Same evaluation and 10/3 sizes; first funded trade is source trade 3, not trade 1; $7,500 payouts and account still open after 33 funded sessions. |
+| Different funded strategy: VWAP | `c32408551dab4f29a8d79ceb2e091f3d` | Same evaluation, sizes and switching dates; VWAP's own parameters/trades; $0 payouts, funded account remains open. |
+| Recovering winner | `493f4f19183e4e6d8e98ebb60bed5a9e` | Source trades finish +$3,000, but the observed opening gap breaches at −$3,000 on Jan 5 before recovery; funded never starts. |
+| Lucid same source | `985be8c96a0341798f5e0cf37bab8d30` | Fixed 10/3 MNQ; pass/eligible Jan 7, funded starts Jan 8; five payouts in 25 funded sessions, $10,000 gross withdrawals / $9,000 trader payouts. |
+
+Evaluation source: `d943d010383d40828aa734a22ed0bd89`.
+Different-parameter funded source: `b0beaac48f05467e85dd500eb08e8775`.
+VWAP funded source: `80e2c8d4bb4d40d2b0aa0cbf1cad0aa0`.
+Recovering source: `92ad9052447441619f44f3d0ad19607f`.
+The one-session incompatible source is `97dcb7002d804c24ba2d8395386b4988`:
+selecting it for funded returns **Funded source incompatible**, with Run disabled.
+The source backtest itself stays available; this is not an account breach.
+
+### Reopen without recalculation
+
+Run from `/Users/yx/alphaquest-research-engine-2` in a terminal:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/prop-portfolio-m1-20261104/qualified-browser/test_phase_sources_configure_c0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011
+```
+
+Open `http://127.0.0.1:8011/#backtests/report/d943d010383d40828aa734a22ed0bd89`.
+The default automatic summaries retain their original annualized-model meaning.
+Select **Configure prop analysis → Dated phase lifecycle · fixed sizes**, retain
+10 evaluation / 3 funded MNQ, set commission treatment **Retain scaled source
+costs**, and choose Same as evaluation or either saved funded source above.
+Check both sources and the shared window, then run. The current matching request
+reopens a verified saved result; a changed implementation/settings produces a
+new durable analysis, leaving the earlier reports intact. The dated report can
+also be opened directly at:
+
+`http://127.0.0.1:8011/#backtests/prop/job/7eb5e707cee240ce98a8ec625c722fd0`
+
+Substitute any saved analysis ID from the table. Inspect separate phase metrics,
+activation dates, strategy/parameter snapshots and **Download transition trace
+(CSV/JSON)**. Expand the trace: Jan 5 is evaluation, Jan 6 activation eligibility,
+and Jan 7 starts funded using source trade 3. Download the normal ZIP; both phase
+source/risk inputs and commission reconciliations are included. Reload reads
+saved bytes without another POST/calculation. Stop this optional server with
+**Ctrl-C**. No persistent server was started by the implementation or tests;
+owned fixture/review servers stopped. The user's existing portal was left alone.
+
+To generate a fresh normal-workflow demonstration (use an unused basetemp path;
+pytest clears its basetemp), run:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_phases_browser.py \
+  --basetemp artifacts/prop-portfolio-m1-browser-NEW
+PYTHONPATH=tests:. .venv/bin/python tests/review_prop_phases.py \
+  --library artifacts/prop-portfolio-m1-20261104/qualified-browser/test_phase_sources_configure_c0 \
+  --output artifacts/prop-portfolio-m1-reopen-NEW
+```
+
+The second command owns/stops a temporary server/browser, reopens the four saved
+Apex reports without POSTs, and configures/checks/runs Lucid through the normal UI
+on the existing saved source. It reuses a current matching Lucid report, or adds
+a new normal analysis when implementation identity changed. It never runs strategy
+bars. It verifies unchanged prior library files, downloads, mobile layout, no
+JavaScript errors and no recalculation during reload.
+
+### Independent arithmetic and boundaries
+
+The 35-weekday consecutive-green source has a 150-point winning NQ trade daily:
+`150 × $20 = $3,000`. At one MNQ that is $300. Evaluation at ten micros reaches
+$3,000 on Jan 5. One Apex waiting weekday is Jan 6, so the first funded source
+observation is Jan 7, source trade 3. At three funded micros, $900/day supports
+five new $250 qualifying days per cycle and all six full caps in 30 sessions:
+`1500 + 1500 + 2000 + 2500 + 2500 + 3000 = $13,000`.
+
+Changing only funded green count from 1 to 2 enters at 250 and exits at 300:
+`50 × $20 / 10 × 3 = $300/day`. Its first full $1,500 cap requires equity
+`$2,100 + $1,500 = $3,600`, reached on funded day 12, **Jan 22**. Subsequent caps
+require 5, 7 and 8 more sessions; 32 of the available 33 sessions pay
+`1500 + 1500 + 2000 + 2500 = $7,500`. The evaluation metrics and fixed sizes
+remain identical between the two reports.
+
+The VWAP synthetic path has a fixed one-NQ next-open entry at 115, target 130,
+zero fees/slippage: `(130 − 115) × $20 = $300/NQ`, or $90 at three micros.
+It cannot create a $250 qualifying day. $0 payouts with an open account is a valid
+observed outcome, not an invented failure. Its explicit `day_reset_time=700`
+resets on the fixture's observed morning bars; source parameters are captured.
+
+Lucid's equal $3,000 evaluation days first satisfy 40% consistency on day 3
+(`1/3 <= 0.4`). Zero extra activation weekdays still starts funded in the next
+session, Jan 8. At $900/day each five-session funded cycle reaches the $2,000
+gross cap; five requests deduct $10,000 and entitle the trader to 90%, $9,000.
+The recorded payout dates do not assert bank receipt dates.
+
+The recovering source enters at 100, next bar opens −50 and closes 250:
+final source net is +$3,000, while the observed gap is −$3,000 at ten micros.
+That jump crosses both the $1,000 daily floor and $2,000 account floor, so the
+account closes before recovery. Ordered first-hit handling also checks a
+continuous $1,500 adverse move: daily stop at −$1,000 first; a subsequent session
+can breach the account floor. Later trades after a daily stop are not consumed.
+
+API/unit cases independently cover Friday pass → Monday eligibility → Tuesday
+funded start; targets constrained by mandatory 20/30/40 tiers; no history restart;
+Apex 21-weekday expiry; unresolved evaluation and activation-pending endings;
+Lucid zero wait and actual calendar activity; both-source active deletion
+protection/catalogue membership; request reuse/source changes; unsupported
+scaling, missing risk, mixed IS/OOS, invalid sizes and forbidden short activation
+waits. Instrument repricing restores source fees once: a configured $1/side MNQ
+fee changes a $1,000/NQ source to `$100 − $2 = $98/MNQ`, or **$294** at three.
+Evaluation then needs two days, making funded start Jan 8. Fixture expectations
+live in tests; product screens show only actual source checks and saved outcomes.
+
+### Scope and remaining work
+
+This is a chronological research replay of one evaluation and its subsequent
+funded account. It does not retry purchases, multiply accounts by the old SLOTS
+field, estimate annual income or optimize a portfolio. Source scaling is linear
+on supported fixed-quantity saved paths; liquidity and size-sensitive fills are
+not rerun. Weekday delays retain holidays, as the existing model specifies;
+explicit conflicting source calendar snapshots reject. OHLC adverse upper bounds
+remain conservative, not measured tick paths. Payouts are requests/deductions,
+not settled receipts, and provider approval/live transitions are outside this
+model. No additional Bridge or full provider-rule parity is claimed.
+
+The exact monthly ledger and hard spending cap, synchronized separate-account
+search, shared-account placement and frozen OOS recommendation/export remain
+milestones 2–5. Annualized mode and all earlier reports retain their labelled
+training, mean-acquisition-delay and acquired-funded-start assumptions.
+
+The normal API request for dated phases uses the existing endpoint:
+
+```json
+{"source_backtest_id":"d943d010383d40828aa734a22ed0bd89","funded_source_backtest_id":"b0beaac48f05467e85dd500eb08e8775","trade_file":"","export_timezone":"UTC","settings":{"ANALYSIS_MODE":"dated_lifecycle","EVALUATION_MICROS":"10","FUNDED_MICROS":"3","ACTIVATION_WAIT_WEEKDAYS":"","COMMISSION_MODE":"source","SLOTS":"1"}}
+```
+
+POST this to `/api/prop-analyses/check`, then `/api/prop-analyses`. The funded ID
+may be omitted for the same source. An optional `funded_trade_file` and
+`funded_export_timezone` identify an independently reconciled measured export;
+a same-source inherited export retains its original timestamp timezone. Phase
+settings require explicit `ANALYSIS_MODE`; they cannot silently run annualized
+calculations. `/sources/{id}` lists the analysis for either phase source.
+
+### Completed qualification and preservation
+
+**116 distinct targeted pytest cases passed**, with zero failures/errors/skips in
+these completed gates (one calendar boundary is intentionally exercised twice):
+
+- 61 phase/kernel/first-breach/compiled checks: `qualified-backend.xml`.
+- 39 API/store/deletion/activity/reuse checks: `qualified-regression.xml`.
+- One full-standard-count Python/compiled portal comparison: `standard-count.xml`.
+- One current-code mixed NQ/MNQ workflow: `mixed-final.xml`.
+- One complete original Chromium source/configure/check/run/download/reopen flow:
+  `qualified-browser.xml`.
+- 14 final admission/cache-identity/calendar/no-inherited-position and Lucid
+  continuation checks: `admission-continuation.xml`.
+
+The gates retain normal simulation counts; expensive unrelated legacy cases were
+explicitly deselected in focused kernels. This is not a full repository-suite
+claim. One existing dependency deprecation warning occurs per pytest process.
+The optional local kernel build succeeded; its existing generated-C unreachable
+code warning remains in `build-qualified.log`. JavaScript syntax, Python compilation
+and Git whitespace checks passed.
+
+The final-code UI journey in `final-workflow/` recreated all four Apex selections
+and Lucid through configure/check/run on the existing saved backtests. It includes
+current source checks, reports, CSV/JSON traces, ZIPs and desktop/mobile screenshots.
+`final-presentation/` then repeated the journey, **reusing every same analysis ID**
+without new calculations or report files. All **358** inventoried fixture JSON/CSV/ZIP/gzip files remained
+unchanged. Both owned servers/browsers stopped, and no JavaScript errors occurred.
+Unused annualized controls are hidden in dated configuration; their old profile
+values remain in the saved settings for compatibility, without being used as
+slot counts, cash forecasts or sampling controls in this replay.
+
+The standalone Decimal/date oracle imports no production calculation code and
+matches **every payout date and amount** for the five final reports. Run it
+read-only against the saved outputs, with a new output filename:
+
+```sh
+.venv/bin/python tests/review_prop_phase_oracles.py \
+  --library artifacts/prop-portfolio-m1-20261104/qualified-browser/test_phase_sources_configure_c0 \
+  --lucid-report artifacts/prop-portfolio-m1-20261104/final-workflow/lucid-report.json \
+  --manifest artifacts/prop-portfolio-m1-20261104/final-workflow/verification.json \
+  --output artifacts/prop-portfolio-m1-oracles-NEW.json
+```
+
+Additional fast cases reject naive timestamps, conflicting explicit calendar
+snapshots and disjoint windows. A source position already open at the common UTC
+start is excluded; replay waits for subsequent entries. The trace's
+`session_open_utc` is actually UTC, including Chicago DST conversion. Same-source
+inherited exports keep their original timezone. Both source hashes, risk/export
+identity, parameters, sizes and delay participate in the request key. Modified
+or missing inputs cannot reuse a verified current report.
+
+Repeat the completed gates in fresh evidence paths as needed:
+
+```sh
+.venv/bin/python setup.py build_ext --inplace
+.venv/bin/python -m pytest -q tests/test_prop_phases.py tests/test_prop_phase_validation.py \
+  tests/test_native_prop_engine.py tests/test_lucid_prop.py tests/test_intratrade_risk.py \
+  tests/test_native_prop_compiled.py tests/test_lucid_funding_continuation.py -k 'not standard_count' \
+  --basetemp artifacts/prop-portfolio-m1-backend-NEW
+.venv/bin/python -m pytest -q tests/test_native_prop_compiled.py -k standard_count \
+  --basetemp artifacts/prop-portfolio-m1-counts-NEW
+.venv/bin/python -m pytest -q tests/test_prop_analysis_api.py tests/test_delete_prop_reports.py \
+  tests/test_delete_backtests.py tests/test_delete_backtest_activities.py \
+  tests/test_batch_prop_refresh.py tests/test_backtest_reuse.py \
+  --basetemp artifacts/prop-portfolio-m1-regression-NEW
+```
+
+`validation.json` at the evidence root indexes the completed logs/XML, all five
+current report IDs, source implementation hashes, artifact integrity and current
+request identity checks. `independent-current.json` contains the independent
+ledger. `changed-files.txt` lists the 18 source/document/test changes.
+`preservation-before.json` / `preservation-after.json` verify **10,245** original
+source/report JSON, CSV, ZIP and gzip files unchanged across the demonstrations.
+All current captured artifact hashes and sealed report/ZIP hashes match. Older
+failed/interrupted probe logs and snapshots remain separately inspectable;
+qualification uses the completed gates listed above. No persistent test server,
+original-data financial run, source deletion, Windows action, commit or push was
+performed. The user's existing development portal process remains running.

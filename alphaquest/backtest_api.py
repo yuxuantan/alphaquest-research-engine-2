@@ -325,8 +325,7 @@ def delete_run(run_id: UUID,request: Request):
     analyses=request.app.state.prop_analyses
     try:
         with analyses.lock:
-            with analyses.connect() as db:
-                busy=db.execute("SELECT 1 FROM analyses WHERE source_id=? AND status IN ('queued','running') LIMIT 1",(run_id.hex,)).fetchone()
+            busy=run_id.hex in analyses.active_sources()
             if busy:
                 raise ValueError('A prop analysis is using this backtest. Wait for it to finish before deleting.')
             deleted=request.app.state.runs.delete(run_id.hex)

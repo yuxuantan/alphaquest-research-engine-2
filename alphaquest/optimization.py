@@ -200,8 +200,7 @@ class OptimizationStore:
                            (SELECT json_extract(payload,'$.run_id') FROM optimization_trials WHERE optimization_id=?)""",
                         (job_id, job_id))}
                     ids -= shared
-                    with self.prop_analyses.connect() as db:
-                        busy = {row[0] for row in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running')")}
+                    busy = self.prop_analyses.active_sources()
                     if ids & busy:
                         raise ValueError('A prop analysis is using a backtest in this activity. Wait for it to finish before deleting.')
                     # Check all reports before moving any files.

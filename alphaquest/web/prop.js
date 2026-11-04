@@ -3,6 +3,7 @@
   const $ = s => document.querySelector(s);
   const deletingReports=new Set();
   let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,commissionDefault='',modelProfiles=[];
+  let phaseSources=[],sourceOffset=0;
   const el = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const display = v => v === null || v === undefined ? 'Unavailable' : typeof v === 'number' ? String(v) : String(v);
   async function read(url, options) {const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));return j;}
@@ -42,9 +43,32 @@
       COMMISSION_PER_SIDE:['Rithmic','Lucid'].includes($('#prop-commission-broker').value)&&$('#prop-commission-side').value===commissionDefault?'':$('#prop-commission-side').value});
     const model=modelProfiles[Number($('#prop-model').value)];
     if(model)Object.assign(settings,{PROP_FIRM:model.settings.PROP_FIRM,ACCOUNT_TYPE:model.settings.ACCOUNT_TYPE,DAILY_LOSS_LIMIT:$('#prop-dll').value});
-    return {source_backtest_id:sourceId,trade_file:holdoutSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),
-      export_timezone:$('#prop-export-timezone').value,settings};
+    const result={source_backtest_id:sourceId,trade_file:holdoutSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),export_timezone:$('#prop-export-timezone').value,settings};
+    if($('#prop-method').value==='dated_lifecycle'){
+      Object.assign(settings,{ANALYSIS_MODE:'dated_lifecycle',EVALUATION_MICROS:$('#prop-evaluation-micros').value,FUNDED_MICROS:$('#prop-funded-micros').value,ACTIVATION_WAIT_WEEKDAYS:$('#prop-activation-wait').value});
+      Object.assign(result,{funded_source_backtest_id:$('#prop-funded-source').value||sourceId,funded_trade_file:$('#prop-funded-file').value,funded_export_timezone:$('#prop-funded-zone').value});
+    }else for(const key of ['ANALYSIS_MODE','EVALUATION_MICROS','FUNDED_MICROS','ACTIVATION_WAIT_WEEKDAYS'])delete settings[key];
+    return result;
   }
+  function drawSources(){
+    const selected=$('#prop-funded-source').value,query=$('#prop-source-search').value.toLowerCase();
+    $('#prop-funded-source').replaceChildren(new Option('Same as evaluation source',''));
+    for(const r of phaseSources){const text=`${r.run_metadata.strategy.id} · ${r.run_metadata.dataset.name} · ${r.run_metadata.research?.phase||'legacy'} · ${JSON.stringify(r.run_metadata.strategy.parameters)} · ${r.id}`;
+      if(r.id!==sourceId&&(!query||text.toLowerCase().includes(query)||r.id===selected))$('#prop-funded-source').add(new Option(text,r.id));}
+    $('#prop-funded-source').value=selected;
+  }
+  async function loadSources(){
+    const t=token,data=await read(`/api/backtests?offset=${sourceOffset}&limit=100`);if(t!==token)return;
+    sourceOffset+=data.items.length;for(const r of data.items)if(!phaseSources.some(s=>s.id===r.id))phaseSources.push(r);
+    drawSources();$('#prop-load-sources').hidden=sourceOffset>=data.total;
+  }
+  $('#prop-source-search').addEventListener('input',drawSources);
+  $('#prop-load-sources').addEventListener('click',()=>loadSources().catch(e=>$('#prop-status').textContent=e.message));
+  function showMethodFields(){
+    const dated=$('#prop-method').value==='dated_lifecycle';$('#prop-phase-fields').hidden=!dated;
+    for(const id of ['prop-block','prop-holdout','prop-slots','prop-eval-fee','prop-activation'])$('#'+id).closest('label').hidden=dated;
+  }
+  $('#prop-method').addEventListener('change',()=>{if($('#prop-method').value==='dated_lifecycle')$('#prop-holdout').value='';showMethodFields();invalidate();});
   function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);}
   function applyModel(){
     const p=modelProfiles[Number($('#prop-model').value)];if(!p)return;
@@ -54,7 +78,7 @@
     $('#prop-dll option[value="off"]').disabled=!lucid;
     $('#prop-commission-broker').value=s.COMMISSION_BROKER;commissionDefault=p.commissions.rates.MNQ;$('#prop-commission-side').value=commissionDefault;
     $('#prop-model-help').textContent=lucid?'LucidFlex 50K · $80.50 evaluation default · no activation fee · standard 40% evaluation consistency · five sim-funded payouts, 90% trader share. DLL-on requests stop the session at the first eligible observed trade close. No live-account returns are simulated.':'Apex 50K EOD · existing model, $49 evaluation and $129 activation defaults.';
-    $('#prop-model-help').textContent+=' Evaluation and funded sizes are chosen together for the highest training annualized net per slot, including evaluation fees and waiting time.';
+    $('#prop-model-help').textContent+=' Annualized mode chooses sizes together for training net per slot. Dated phase mode uses your fixed targets below.';
     $('#prop-commission-help').textContent=`${p.commissions.broker} defaults: NQ $${p.commissions.rates.NQ} per side; MNQ $${commissionDefault} per side. Source commission is replaced once when instrument identity is known; slippage is retained.`;
     $('#prop-commission-source').href=p.commissions.source_url;$('#prop-commission-source').textContent=p.commissions.broker+' commission schedule';
     invalidate();
@@ -62,7 +86,7 @@
   $('#prop-model').addEventListener('change',applyModel);
   function invalidate(){checked=false;$('#prop-check-output').replaceChildren();$('#prop-run').disabled=true;$('#prop-status').textContent='Settings changed. Check source costs and filtering before running.';}
   $('#prop-form').addEventListener('input',invalidate);
-  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});const commission=data.source.commission_simulation;p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));if(commission.applied)details(p,'Simulation commission reconciliation',commission);details(p,'Cost reconciliation, excluded trades and provenance',data.source);details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
+  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});const commission=data.source.commission_simulation;p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));if(commission.applied)details(p,'Simulation commission reconciliation',commission);details(p,'Cost reconciliation, excluded trades and provenance',data.source);if(data.source.phase_sources){p.append(el('h3','Both phase sources checked'));for(const [phase,s] of Object.entries(data.source.phase_sources)){p.append(el('h4',phase));metrics(p,{source:s.backtest.id,strategy:s.backtest.run_metadata.strategy.id,trades:s.reconciliation.source_count,net:s.reconciliation.source_totals.net_pnl,risk_covered:s.phase_suitability.risk_covered_trades});details(p,phase+' strategy, parameters, risk and costs',s);}details(p,'Common research window and activation clock',data.source.phase_checks);}details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
   async function configure(id,t,previousId) {
     $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
@@ -71,7 +95,8 @@
     if(previous&&previous.source?.backtest?.id!==id)throw Error('The saved analysis belongs to a different source backtest.');
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
-    $('#prop-form').reset();$('#prop-overrides').value='{}';
+    $('#prop-form').reset();$('#prop-overrides').value='{}';showMethodFields();
+    phaseSources=[];sourceOffset=0;await loadSources();if(t!==token)return;
     modelProfiles=defaults.profiles||[];
     $('#prop-trade-file').value=!holdoutSource&&!nativeRiskSource&&data.matched_exports?.length===1?data.matched_exports[0].path:'';
     $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
@@ -98,13 +123,22 @@
       $('#prop-commission-side').value=settings.COMMISSION_PER_SIDE||commissionDefault;
       $('#prop-trade-file').value=previous.source.excursion_input?.path||'';
       $('#prop-export-timezone').value=previous.source.excursion_input?.export_timezone||'America/Chicago';
+      if(settings.ANALYSIS_MODE==='dated_lifecycle'){
+        $('#prop-method').value='dated_lifecycle';showMethodFields();
+        const funded=previous.source.phase_sources.funded;
+        if(!phaseSources.some(s=>s.id===funded.backtest.id))phaseSources.push(funded.backtest);drawSources();
+        $('#prop-funded-source').value=funded.backtest.id===id?'':funded.backtest.id;
+        $('#prop-evaluation-micros').value=settings.EVALUATION_MICROS;$('#prop-funded-micros').value=settings.FUNDED_MICROS;
+        $('#prop-activation-wait').value=settings.ACTIVATION_WAIT_WEEKDAYS;
+        $('#prop-funded-file').value=funded.excursion_input.path||'';$('#prop-funded-zone').value=funded.excursion_input.export_timezone;
+      }
       $('#prop-status').textContent='Saved account settings copied. Check the same source, then run a new analysis with the current model. The earlier report is preserved.';
     }
   }
   function render(r) {
     $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);
     $('#prop-heading-title').textContent='Prop analysis';$('#prop-heading-note').textContent='Saved analysis report';$('#prop-report-content').className='';
-    if(r.format_version===3){renderNative(r);return;}
+    if(r.format_version===3){if(r.calculations.analysis_mode==='dated_lifecycle')renderPhases(r);else renderNative(r);return;}
     if(r.format_version===2){renderExternalHistory(r);return;}
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();$('#prop-back').href=`#backtests/report/${r.source.backtest.id}`;
     $('#prop-status').textContent=`Saved analysis ${r.id} · ${r.created_at_utc} · increment ${r.increment}. Reload reads saved results.`;
@@ -185,6 +219,32 @@
   }
   function explanation(parent,title,text) {
     const d=el('details',undefined,'prop-help');d.append(el('summary',title),el('p',text));parent.append(d);return d;
+  }
+  function renderPhases(r) {
+    nativeFrame(r);$('#prop-heading-title').textContent='Dated phase lifecycle';
+    $('#prop-heading-note').textContent=`${r.settings.ACCOUNT_TYPE} 50K · fixed evaluation and funded sources`;
+    $('#prop-status').textContent=`Saved analysis ${r.id} · ${r.calculations.outcome}`;
+    const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}/from/${r.id}`;$('#prop-downloads').append(rerun);
+    const c=r.calculations;
+    const outcomes={passed:'Passed',funded_open:'Funded account open at end of data',funded_payout_limit:'Funded payout limit reached',account_breach:'Account breached',evaluation_expired:'Evaluation expired',inactivity_expired:'Closed for inactivity',evaluation_unresolved:'Evaluation unresolved at end of data',activation_pending:'Activation pending at end of data',not_started:'Not started'};
+    [...$('#prop-downloads').children].slice(0,3).forEach((a,i)=>a.textContent=['Report data (JSON) ↓','Evaluation trades (CSV) ↓','All results (ZIP) ↓'][i]);
+    let p=section('Evaluation → activation → funded trading');
+    p.append(el('p',`Observed common window ${c.source_checks.first_session} → ${c.source_checks.last_session}. ${outcomes[c.outcome]||c.outcome}. One evaluation and its subsequent funded account.`));
+    facts(p,[['Evaluation fixed size',`${r.settings.EVALUATION_MICROS} MNQ`],['Funded fixed target',`${r.settings.FUNDED_MICROS} MNQ`],['Activation eligible session',c.activation.eligible_session||'Not reached'],['Funded starts',c.activation.funded_start_session||'Not reached']]);
+    for(const [phase,m] of Object.entries(c.phase_metrics)){
+      p=section(phase==='evaluation'?'Evaluation phase metrics':'Funded phase metrics');
+      facts(p,[['Outcome',outcomes[m.outcome]||m.outcome],['Sessions',number(m.sessions)],['Trades used',number(m.trades_consumed)],['Daily stops',number(m.daily_stops)],['Account breaches',number(m.account_breaches)],
+        ...(phase==='evaluation'?[['Passed on',m.pass_date||'Not reached']]:[['Started on',m.start_date||'Not reached'],['Modeled trader payouts',money(m.trader_payouts)],['Gross account withdrawals',money(m.gross_withdrawals)]])]);
+      const source=r.source.phase_sources[phase],link=el('a',`${source.backtest.run_metadata.strategy.id} · source backtest ${source.backtest.id}`);link.href=`#backtests/report/${source.backtest.id}`;p.append(link);
+      details(p,'Saved strategy, parameters and source checks',source);
+    }
+    p=section('Dated transition trace');
+    for(const [name,label] of [['transition_trace.csv','Download transition trace (CSV)'],['transition_trace.json','Download transition trace (JSON)']]){const a=el('a',label,'button secondary');a.href=`/api/prop-analyses/${r.id}/files/${name}`;p.append(a);}
+    const trace=el('details');trace.append(el('summary',`Inspect ${c.trace.length} dated observations`));p.append(trace);table(trace,c.trace,['date','phase','event','source_id','target_micros','effective_micros','trades_consumed','first_limit_hit','equity','trader_payout']);
+    p=section('Model assumptions and downloads');for(const note of c.assumptions)p.append(el('p',note));
+    details(p,'Common windows and calendar checks',c.source_checks);details(p,'Account rules',c.rules);details(p,'Settings and version',{settings:r.settings,model:r.model_version,implementation:r.implementation_sha256});
+    for(const name of Object.keys(r.files).sort()){const a=el('a',name+' ↓','prop-file-link');a.href=`/api/prop-analyses/${r.id}/files/${name}`;p.append(a,el('br'));}
+    window.scrollTo(0,0);
   }
   function renderNative(r) {
     const lucid=r.settings.ACCOUNT_TYPE==='LucidFlex',payoutLimit=lucid?5:6;

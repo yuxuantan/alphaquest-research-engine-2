@@ -1,5 +1,79 @@
 # AlphaQuest local prop simulation
 
+## Portfolio milestone 1: separate phase sources and dated lifecycle — 2026-11-04
+
+The accepted [five-milestone plan](prop_portfolio_plan.md) starts with a usable
+fixed-selection observed replay. From a completed saved backtest (including an
+optimization trial), open **Configure prop analysis** and choose **Dated phase
+lifecycle · fixed sizes**. That opened backtest is the evaluation selection.
+Choose **Same as evaluation source** or another saved funded backtest, whose
+strategy/parameters remain its own immutable snapshot. Search the loaded sources
+or load more. Choose separate whole-MNQ evaluation/funded targets and optionally
+extend the activation wait. **Check source → Run analysis** publishes through the
+existing AnalysisStore and report routes. Annualized sizing remains the default
+single-source mode, with its existing training/renewal assumptions.
+
+New dated models append `-dated-phases-v1` to the current Apex/Lucid model IDs.
+They replay one evaluation and its subsequent funded account, without automatic
+repurchase, simulated portfolio allocations, slot multiplication or annualization.
+Account/risk arithmetic is inherited from the existing firm models; the Python
+evaluation session reference is shared with dated replay. Compiled sampling keeps
+an equivalent unboxed hot loop, qualified against that reference. Existing funded
+account transitions supply tiers, daily stops, first account breach, qualifying
+days, inactivity, withdrawal deductions and trader payout amounts.
+
+Both sources independently reconcile identities, timestamps, fixed quantities,
+net costs and complete captured OHLC or reconciled measured adverse coverage.
+Close-only inputs and risk-budget/account-dependent source sizing reject. Supported
+fixed-quantity paths are the registered consecutive-green and VWAP strategies;
+VWAP must have `use_vol_sizing=false`. NQ/MNQ and USD 20/2 point values must be
+identified. Use automatic instrument detection for a mixed NQ/MNQ pair. Commission
+settings apply to both phases; each source's own recorded commission is replaced
+once, preserving its slippage, or explicit source-cost mode retains those costs.
+Linear exposure scaling does not re-execute size-dependent fills/liquidity.
+
+Sources must be in the same declared research phase: IS with IS, or explicitly
+executed OOS with OOS. The shared window is the intersection of saved observed UTC
+periods inside both declarations. Complete trades outside that window are excluded
+with counts; carried positions are excluded rather than inherited. Both sources
+must be intraday flat. Chicago CME session-ending dates, UTC reconciliation and
+explicit source calendar snapshots are checked; conflicting explicit calendars
+reject. The existing weekday clock retains zero-trade weekdays including holidays.
+It is a declared model clock, not a new exchange-holiday/settlement service.
+
+Evaluation starts at the shared window's first session. Apex passes at its target
+trade, fails at first account-floor breach or expires at 21 weekdays. Lucid checks
+its target/40% consistency at close, uses actual elapsed calendar days for activity
+and has no provider evaluation deadline. End-of-history open evaluations are
+**unresolved**, never failed or restarted. A daily stop ends that session without
+itself becoming an account breach. Observed adverse gaps/cost jumps can cross both
+floors and breach before a recovering profitable close.
+
+After passing, Apex's default activation wait is one additional weekday; Lucid's
+is zero. A configured wait may extend, never shorten, that model minimum. Eligibility
+is recorded at session close after that wait. Funded trading starts in the following
+session, on the funded source's subsequent observations, at initial account equity
+zero. No history is restarted, no passing-session funded trade is consumed and no
+already-open source position transfers. If observations end during the wait, the
+outcome is activation pending. Eligibility is a local model assumption, not evidence
+of actual provider approval. Funded targets stay fixed while mandatory prior-close
+provider tiers constrain actual orders.
+
+The durable report shows each phase's metrics, activation dates, source/strategy/
+parameter snapshots, daily-stop versus account-breach outcomes and a downloadable
+`transition_trace.csv` / `.json`. Per-phase adapted trades, original source/risk
+inputs, settings, commission reconciliations and calculation hashes are captured
+in the normal report ZIP. Both source IDs participate in request identity,
+catalogue membership and queued/running source/activity deletion protection.
+Reopening reads saved outputs without calculation. Earlier reports are unchanged.
+
+Payout dates represent modeled requests/account deductions and trader entitlements,
+not bank receipts. No expected cash-by-deadline or budgeted forecast is claimed:
+the exact ledger/cap, synchronized separate/shared-account optimization and frozen
+OOS recommendations are milestones 2–5. No additional Bridge/provider parity is
+claimed. See the milestone-1 review for actual saved demonstration IDs, independent
+values, source boundaries, checks and exact reopening/reproduction commands.
+
 ## Refresh every unavailable prop account in a saved batch — 2026-11-03
 
 Completed batch results now offer **Refresh all unavailable prop results** for

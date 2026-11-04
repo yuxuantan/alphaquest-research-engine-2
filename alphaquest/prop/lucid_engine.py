@@ -63,12 +63,16 @@ class FundedAccount:
     withdrawals: list = field(default_factory=list)  # Full account deductions.
     outcome: str = 'open'
     last_activity: int = 0
+    last_hit = 0
+    trades_consumed = 0
+    effective_micros = 0
 
     @cython.locals(opening=cython.double,floor=cython.double,size=cython.double,
                    daily_floor=cython.double,profit=cython.double,gross=cython.double,
                    previous=cython.double,balance=cython.double)
     def advance(self,trades,micros,max_micros=40,calendar_day=None):
         if self.outcome!='open':raise ValueError('Cannot advance a closed account.')
+        self.last_hit=0;self.trades_consumed=0
         self.day+=1
         calendar_day=((self.day-1)//5*7+(self.day-1)%5) if calendar_day is None else calendar_day
         if calendar_day-self.last_activity>self.rules.inactivity_calendar_days:
@@ -79,11 +83,14 @@ class FundedAccount:
         for threshold,level_cap,_ in r.levels:
             if opening>=threshold:cap=level_cap
         size=min(micros,cap,max_micros)
+        self.effective_micros=size
         daily_floor=opening-r.daily_loss if r.daily_loss is not None else -float('inf')
         amount=0.
         for trade in trades:
+            self.trades_consumed+=1
             previous=self.equity
             self.equity,hit=trade_result(trade,self.equity,size,daily_floor,floor)
+            self.last_hit=hit
             if abs(self.equity-previous)>=1:self.last_activity=calendar_day
             if hit==2:self.outcome='blown';return 0.
             profit=self.equity-opening
@@ -117,6 +124,32 @@ class FundedAccount:
         return receipt
 
 
+@cython.ccall
+@cython.locals(equity=cython.double, high=cython.double, best_day=cython.double,
+               size=cython.double, opening=cython.double, floor=cython.double,
+               daily_floor=cython.double, previous=cython.double, consistency=cython.double,
+               last_activity=cython.longlong, calendar=cython.longlong,
+               hit=cython.longlong, consumed=cython.longlong)
+def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4):
+    """One Lucid evaluation session on a caller-owned calendar clock."""
+    if calendar-last_activity>30:
+        return equity,high,best_day,last_activity,'inactive',0,0
+    opening=equity;floor=min(high-2000.,100.)
+    daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')
+    result='open';hit=consumed=0
+    for trade in trades:
+        consumed+=1;previous=equity
+        equity,hit=trade_result(trade,equity,size,daily_floor,floor)
+        if abs(equity-previous)>=1:last_activity=calendar
+        if hit==2:result='blown';break
+        if hit:break
+    best_day=max(best_day,equity-opening);high=max(high,equity)
+    if result!='blown':
+        if equity>=3000. and best_day<=consistency*equity:result='passed'
+        elif calendar-last_activity>=30:result='inactive'
+    return equity,high,best_day,last_activity,result,hit,consumed
+
+
 @cython.locals(equity=cython.double,high=cython.double,opening=cython.double,
                floor=cython.double,daily_floor=cython.double,size=cython.double,
                best_day=cython.double,profit=cython.double,previous=cython.double,
@@ -142,22 +175,28 @@ def evaluation(days,micros,sims,seed,block=5,deadline=EVALUATION_MAX_HORIZON,cha
             for day in range(1,deadline+1):
                 calendar=(day-1)//5*7+(day-1)%5
                 if calendar-last_activity>30:result='inactive';break
-                opening=equity;floor=min(high-2000.,100.)
-                daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')
                 if remaining==0:
                     if cursor==4096:starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0
                     index=starts[cursor];cursor+=1;remaining=block
                 trades=days[index];index=(index+1)%length;remaining-=1
-                for trade in trades:
-                    previous=equity
-                    equity,hit=trade_result(trade,equity,size,daily_floor,floor)
-                    if abs(equity-previous)>=1:last_activity=calendar
-                    if hit==2:result='blown';break
-                    if hit:break
-                best_day=max(best_day,equity-opening);high=max(high,equity)
-                if result=='blown':break
-                if equity>=3000. and best_day<=consistency*equity:result='passed';break
-                if calendar-last_activity>=30:result='inactive';break
+                # Unboxed compiled loop; the shared Python session reference
+                # powers dated replay and is qualified against this fast path.
+                if cython.compiled:
+                    opening=equity;floor=min(high-2000.,100.)
+                    daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')
+                    for trade in trades:
+                        previous=equity
+                        equity,hit=trade_result(trade,equity,size,daily_floor,floor)
+                        if abs(equity-previous)>=1:last_activity=calendar
+                        if hit==2:result='blown';break
+                        if hit:break
+                    best_day=max(best_day,equity-opening);high=max(high,equity)
+                    if result=='blown':break
+                    if equity>=3000. and best_day<=consistency*equity:result='passed';break
+                    if calendar-last_activity>=30:result='inactive';break
+                else:
+                    equity,high,best_day,last_activity,state,_,_=evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss,consistency)
+                    if state!='open':result=state;break
             duration+=day
             longest_attempt=max(longest_attempt,day)
             if not chain or result=='passed':break
