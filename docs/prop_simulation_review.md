@@ -5108,3 +5108,156 @@ portfolio, model and research-workflow edits are additive; `git diff --check`
 passes. Production tests and
 browser checks are not required for this documentation-only change and were not
 run. No persistent server, commit or GitHub push was made.
+
+## Independent phase component extraction — 2026-11-05
+
+This is the requested orchestration refactor, preceding optimizer milestone P1.
+The public Python interfaces and frozen contracts are documented in
+[the plan](phase_optimization_plan.md#implemented-precursor-independent-simulation-profiles)
+and [API example](prop_simulation.md#independent-simulation-component-apis--2026-11-05).
+Evaluation/acquisition and fresh-funded horizon simulations accept one saved
+source each and run independently. Existing kernels, commission/risk checks and
+sampling are reused. `native_analysis.training_economics` and `_funded_profile`
+delegate to the extracted routines; the joint selector and report formats stay.
+As explicitly requested, no portal controls or phase HTTP/report modes were added.
+
+Saved evidence root: `artifacts/prop-phase-components-20261105/`.
+
+- `baseline.json`, `apex-legacy-before.json`, `lucid-legacy-before.json`: complete
+  deterministic calculation payloads captured before editing. SHA-256 values are
+  `54e3c71eccb1236a31e2f2d47a3b790e4acfcb94c75f8069bbeb347c2e8e7e08` (Apex)
+  and `3ebc4d1ee7836577dbb2637b38f81278a193f1cf07b562a91b9af2fe9ceb8c83`
+  (Lucid). Tests reproduce both hashes after extraction, covering all calculation
+  fields, selection, holdout distributions and history, not just selected scores.
+- `qualified-components/test_inspectable_component_cap0/`: actual JSON component
+  captures for evaluation, funded, zero-pass evaluation, funded without passes,
+  censored evaluation/funded and recovering-price risk breach. These are development
+  captures, not a second product report store. Their sources were created through
+  normal dataset/backtest routes and labeled **SYNTHETIC**. `verification.json`
+  records source IDs and **139 unchanged saved source/report files**.
+- `final/test_joint_sizing_actual_backt0/`: the normal product demonstration,
+  including `source-check.json`, three screenshots, `report.json`,
+  `joint_sizing.csv`, `joint_sizing.json`, `analysis.zip` and `verification.json`.
+  Source `0ab00c0a25da49bcbb622844f00868e5`; Lucid report
+  `48454defc0eb4bd4a2e61a8f24fb8298`. The existing browser test now opens the
+  existing Advanced section before editing slots; product UI code is unchanged.
+
+Independent expectations are fixtures in tests, never runtime inputs. For the
+saved $3000/NQ/day source, Apex evaluation at 10 MNQ passes in one weekday,
+costs `49 + 129 = $178` and takes two replacement weekdays including activation.
+At 3 funded MNQ, $900/day pays the six existing caps on weekdays
+5/10/15/20/25/30, totaling **$13,000**. The $1000/NQ/day source at 1 evaluation
+MNQ earns only $2100 in 21 weekdays: all attempts expire and acquisition remains
+unresolved. Its independent funded run at 10 MNQ still pays **$13,000**.
+A Lucid computational guard of two weekdays keeps all eight slow evaluation
+paths censored, with pass-probability bounds `[0,1]`. Four funded weekdays at
+1 MNQ give zero payout and eight open/censored lifetimes; unrestricted lifetime
+is `null`. A gap to the drawdown floor breaches before the later profitable
+source close. Missing/corrupt risk, inconsistent costs, unsupported scaling,
+profiles/versions, sizes and mutated source manifests reject explicitly.
+
+To reproduce the component calls from the saved normal backtests:
+
+```sh
+.venv/bin/python - <<'PY'
+import json
+from pathlib import Path
+from alphaquest.backtest_runs import RunStore
+from alphaquest.prop.phase_profiles import (
+    SavedTradeSource, EvaluationProfile, FundedProfile, SimulationConfig,
+    EvaluationSamplingConfig, SourceCosts, rule_version,
+)
+from alphaquest.prop.evaluation_profiles import simulate_evaluation_profile
+from alphaquest.prop.funded_profiles import simulate_funded_profile
+
+root = Path('artifacts/prop-phase-components-20261105/qualified-components')
+saved = json.loads((root/'test_inspectable_component_cap0/verification.json').read_text())
+runs = RunStore(Path(saved['library']))
+source = SavedTradeSource(saved['source_ids']['winner'])
+version = rule_version('apex-50k-eod')
+simulation = SimulationConfig(simulations=8)
+evaluation = simulate_evaluation_profile(
+    runs, source, EvaluationProfile('apex-50k-eod', version, '49', '129'), 10,
+    simulation, sampling=EvaluationSamplingConfig(chain_simulations=8),
+    costs=SourceCosts(mode='source'),
+)
+funded = simulate_funded_profile(
+    runs, source, FundedProfile('apex-50k-eod', version), 3, 30,
+    simulation, costs=SourceCosts(mode='source'),
+)
+print(evaluation.acquisition['cost_per_funded'], evaluation.acquisition['replacement_days'])
+print(funded.payouts['mean_trader_payout'], funded.survival['lifetime_complete'])
+PY
+```
+
+Expect `178.0 2.0` and `13000.0 True`. Each call is independently usable; remove
+either call without affecting the other. Full provenance and boundary outputs
+are inspectable in the captured JSON files.
+
+To inspect the unchanged product journey, optionally start the saved browser
+library (this command is for the user; no persistent server was started):
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/prop-phase-components-20261105/final/test_joint_sizing_actual_backt0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011
+```
+
+Open `http://127.0.0.1:8011/#backtests/report/0ab00c0a25da49bcbb622844f00868e5`.
+Choose **Configure prop analysis → LucidFlex → Advanced**. Six slots must reject;
+five slots allow **Check source → Run**. Open the retained report's Sizing tab:
+expect evaluation/funded sizes **4/3 MNQ**, acquisition **3 weekdays**, funded
+lifetime **25 weekdays**, **1,600 pairs**, and
+`261 * (9000 - 80.5) / 28 = $83,142.48214285714` per slot-year. Historical replay
+shows payouts **$90,000**, costs **$1,208**, net **$88,792**. Download the CSV/JSON
+and ZIP, then reload; the report reopens without changing source trades. This
+is the retained legacy workflow, not the pending independent optimizer UI.
+Stop this optional server with **Ctrl-C**.
+
+Reproduce automated checks in a fresh directory; pytest clears its basetemp:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_phase_profiles.py \
+  tests/test_joint_prop_sizing_browser.py \
+  --basetemp artifacts/prop-phase-components-RECHECK \
+  --junitxml artifacts/prop-phase-components-RECHECK.xml
+.venv/bin/python -m pytest -q tests/test_prop_training_economics.py \
+  tests/test_joint_prop_sizing.py tests/test_native_prop_engine.py tests/test_lucid_prop.py
+```
+
+The final component suite passed **30 tests**; the component/browser run passed
+**31 tests**; the focused legacy/kernel gate passed **54 tests**. Full regression
+details and any rechecks are indexed in the evidence root's `validation.json`.
+The additional existing regression gate (`regression.xml`) finished with
+**108 passed, 3 failed** across compiled/reference parity, parallel execution,
+Lucid continuation, API/risk/commission checks, dated phases/cash, publication,
+deletion and automatic/reuse reports. It overlapped edits to production files;
+the three failures were generic backtest-publication HTTP 500 responses, whose
+inner exceptions are not retained in those responses. All three passed with
+final code held stable (`stable-recheck.xml`, **3 passed**) and on an isolated
+original HEAD (`original-head-check.xml`, **3 passed**). Live code hashes enter
+request/publication identity checks, so editing during that gate prevents using
+it as a clean baseline; the exact underlying exceptions were not recovered.
+No single fully green 111-test gate or full repository pass is claimed.
+There are **196 distinct selected tests with passing outcomes across the
+completed runs and targeted rechecks**, without counting duplicates.
+
+The three targeted rechecks can be reproduced with:
+
+```sh
+.venv/bin/python -m pytest -q \
+  tests/test_prop_parallel_runtime.py::test_normal_backtest_runs_standard_prop_sweeps_in_parallel \
+  tests/test_prop_risk_workflow.py::test_native_risk_capture_default_source_hashes_downloads_and_fail_closed \
+  tests/test_prop_risk_workflow.py::test_risk_snapshot_rejects_corrupt_costs_even_with_resigned_file
+```
+
+Browser fixture servers and browsers shut down after checking. No server remains
+running from this task. Earlier evidence and the main data library were not
+regenerated or edited. No GitHub push was made.
+
+Limits remain explicit: weekday acquisition/horizons, the legacy fee/pass-rate
+cost estimator, batch-aborted chain counts unavailable, and payout-time modeled
+receipts without settlement/pending-cash forecasts. No independent selector,
+calendar forecast, durable phase-mode report or provider parity is claimed.
+Next is P1's dated single-evaluation acquisition sampling/metrics and the minimum
+normal configure/check/run/report integration, composing these components while
+keeping the joint path compatible. Funded P3 can proceed independently.

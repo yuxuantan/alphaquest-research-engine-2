@@ -40,6 +40,7 @@ def test_joint_sizing_actual_backtest_configure_check_run_download_and_reopen(pa
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     page.goto(portal['url']+'/#backtests/report/'+record['id'])
     page.locator('#report-prop-setup').click();page.locator('#prop-model').select_option('1')
+    page.locator('#prop-advanced > summary').click()
     page.locator('#prop-slots').fill('6');page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-status')).to_contain_text('SLOTS must be an integer from 1 to 5')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()

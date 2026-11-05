@@ -4,14 +4,72 @@
 
 [The phase optimization specification](phase_optimization_plan.md) extends this
 model boundary with independent Evaluation cost/calendar-time Pareto search and
-Funded horizon-cash search conditional on starting funded. It is documentation
-only: the selectable methods below remain current. Annualized joint sizing is
+Funded horizon-cash search conditional on starting funded. The optimizers remain
+planned; independent Python simulation profiles have been extracted as described
+below. The selectable methods remain current. Annualized joint sizing is
 classified as **legacy business-level optimization**, retained with its formulas,
 regression tests and reports until separately approved retirement; it must not
 be the selection mechanism for the planned independent phases. Cross-strategy/job
 campaigns and frozen phase OOS assessment are planned, not existing controls.
 Completed dated source/cash-ledger work and all dated specifications/evidence
 below are preserved. No provider rule or numerical parity is newly verified.
+
+## Independent simulation component APIs — 2026-11-05
+
+Use `evaluation_profiles.simulate_evaluation_profile` for one saved evaluation
+source/profile/whole MNQ size and `funded_profiles.simulate_funded_profile` for
+one saved funded source/profile/size and `horizon_weekdays`. Both reuse the local
+provider kernels, reconciled costs/risk and fixed-path eligibility checks. They
+can run separately, including funded execution when no evaluation passes.
+Frozen contracts and `rule_version` are in `prop.phase_profiles`; the complete
+[interface and responsibility table](phase_optimization_plan.md#implemented-precursor-independent-simulation-profiles)
+documents arguments, outputs and limits.
+
+For example, with an existing `RunStore` named `runs` and a saved source ID:
+
+```python
+from alphaquest.prop.phase_profiles import (
+    SavedTradeSource, EvaluationProfile, FundedProfile, SimulationConfig,
+    EvaluationSamplingConfig, SourceCosts, rule_version,
+)
+from alphaquest.prop.evaluation_profiles import simulate_evaluation_profile
+from alphaquest.prop.funded_profiles import simulate_funded_profile
+
+source = SavedTradeSource(source_id)  # Optional explicit matched export path.
+version = rule_version('apex-50k-eod')
+evaluation = simulate_evaluation_profile(
+    runs, source, EvaluationProfile('apex-50k-eod', version, '49', '129'),
+    micros=10, simulation=SimulationConfig(),
+    sampling=EvaluationSamplingConfig(), costs=SourceCosts(mode='source'),
+)
+funded = simulate_funded_profile(
+    runs, source, FundedProfile('apex-50k-eod', version), micros=3,
+    horizon_weekdays=30, simulation=SimulationConfig(), costs=SourceCosts(mode='source'),
+)
+```
+
+The two calls may use entirely different saved sources and research periods;
+neither result is an input to the other. Fees in this example are saved scenario
+inputs, not a current provider quote. `ResearchPeriod` uses inclusive CME session
+dates inside the saved backtest period; omitting it uses that period without a
+new split. Sources outside existing fixed-path/risk eligibility reject.
+
+Evaluation returns the existing fee/pass-rate acquisition-cost estimator and
+repeated-chain replacement duration/SE. **Replacement duration is trading
+weekdays, not calendar days.** Zero sampled passes stays unresolved; a numerical
+chain guard leaves timing unavailable. Apex's 21-weekday provider expiry and
+Lucid computational censoring remain distinct. Funded returns payout mean/SE,
+median/P10, zero-payout/breach/inactivity/survival diagnostics and path records.
+Its horizon cap is inclusive in weekdays. Open accounts retain lifetime censoring;
+unrestricted lifetime is unavailable even with complete horizon observations.
+Trader payout and gross account deduction are distinct. Bank settlement and
+pending bank receipts are not modeled; the kernel's payout-time convention is
+explicit in provenance. These are component estimates, not independent optimizer
+reports or verified future cash outcomes.
+
+Legacy joint sizing delegates through compatibility wrappers with unchanged
+counts/seeds, formulas, field meanings and report format. No portal route or
+selector is added. See [actual saved evidence and reproduction](prop_simulation_review.md#independent-phase-component-extraction--2026-11-05).
 
 ## Selectable analysis methods — 2026-11-05
 

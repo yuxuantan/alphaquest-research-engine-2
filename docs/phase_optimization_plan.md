@@ -2,11 +2,77 @@
 
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
-Specification and incremental implementation plan, 2026-11-05. **Planned, not
-implemented.** Repository baseline inspected:
+Specification and incremental implementation plan, 2026-11-05. **Optimizers
+planned; independent simulation component extraction implemented.** Repository baseline inspected:
 `71f97a61e568b39b6bf17647078dcdb2364069cb`. This document extends the local models
 and product boundary in [prop simulation](prop_simulation.md). It does not change
-production behavior, verify provider rules, or report new numerical results.
+portal behavior or verify provider rules. The extraction described below retains
+legacy numerical semantics; it does not complete an optimization milestone.
+
+## Implemented precursor: independent simulation profiles
+
+The Python component interfaces are
+[`evaluation_profiles.simulate_evaluation_profile`](../alphaquest/prop/evaluation_profiles.py)
+and [`funded_profiles.simulate_funded_profile`](../alphaquest/prop/funded_profiles.py).
+Shared frozen input/result dataclasses live in
+[`phase_profiles.py`](../alphaquest/prop/phase_profiles.py). These expose existing
+local account kernels and sampling, not a second engine or new HTTP modes.
+
+| Interface | Inputs and responsibility | Returned contract |
+| --- | --- | --- |
+| `simulate_evaluation_profile(runs, source, profile, micros, simulation, period, sampling, costs)` | One `SavedTradeSource`, `EvaluationProfile` (local profile ID/version, purchase/activation fees, DLL), whole MNQ target, `SimulationConfig`, optional inclusive `ResearchPeriod`, `EvaluationSamplingConfig` and `SourceCosts`. Stops at acquisition. | `EvaluationProfileResult`: attempt outcomes/durations, pass estimate/Wilson interval, acquisition cost and timing/SE diagnostics, explicit unresolved/censoring status and provenance. |
+| `simulate_funded_profile(runs, source, profile, micros, horizon_weekdays, simulation, period, sampling, costs)` | One saved funded source, `FundedProfile` (local profile ID/version, funded DLL/approval policy), whole MNQ target, positive weekday horizon and phase-neutral sampling. Starts each path fresh funded; no acquisition or replacement. | `FundedProfileResult`: modeled trader payouts and gross deductions, payout mean/SE/median/P10, zero/positive payout probability, survival/breach/inactivity, per-path observations, censoring and provenance. |
+
+Supported IDs are `apex-50k-eod` and `lucidflex-50k`.
+`rule_version(id)` returns the current local implementation version; an unknown
+ID/version rejects. Rules are local snapshots, not newly verified provider policy.
+The phase-specific inputs reject opposite-phase profile/sampling contracts.
+Neither runner reads the other phase's backtest or calls the joint selector.
+Funded runs even without an evaluation source or after all evaluations expire.
+
+Single-source admission reuses `source.prepare_source`, `commissions.adapt`,
+`phase_lifecycle.validate_phase_source` and `native_analysis.day_book`. This
+preserves exact source costs, native-risk/export reconciliation, chronological
+nonoverlap, intraday-flat/fixed-quantity and NQ/MNQ scaling restrictions. The
+existing qualified strategy whitelist remains. All source trades are checked
+before the requested session period is sampled; zero-trade weekdays are retained.
+There is no new internal 70/30 split or selection. Export paths are explicit;
+these interfaces do not discover files in Downloads. Source manifest/trade/risk/
+export hashes are rechecked after computation. Provenance includes the saved
+strategy/parameters/research declaration, cost/risk identity, requested period,
+phase account projection, kernel/code hashes and seeds/counts/block configuration.
+
+Numerical compatibility is deliberate:
+
+- `native_analysis.training_economics` delegates to extracted
+  `evaluation_profiles.acquisition_economics` with its original counts/seeds,
+  formulas, strings and dictionary shape. `native_analysis._funded_profile`
+  delegates to `funded_profiles.lifetime_profile`. `joint_sizing.py`, its gating,
+  selector, score, refinements and report schemas remain intact.
+- Acquisition cost remains the legacy `fee / pass_probability + activation`
+  estimator. Replacement duration remains the repeated-chain **trading-weekday**
+  mean, including the existing activation weekday. It is not calendar time or
+  the new dated acquisition-cost estimator specified later in this plan.
+- Apex `timeout` remains provider expiry at 21 weekdays. Lucid `timeout` is
+  computational censoring; no provider deadline is invented. A chain guard
+  leaves timing unavailable. The old kernel aborts a chain batch without
+  per-path records, so `chain_censored_paths` is `null`, never a fabricated count.
+  Zero sampled passes means unresolved acquisition, not proven impossibility.
+  The pass fraction/interval describe observations through the attempt cutoff;
+  censored possible passes also appear in explicit pass-probability bounds.
+- Funded horizons retain the kernel's inclusive weekday count. Payouts retain
+  its request/deduction-time modeled receipt convention, without bank settlement
+  or pending-receipt forecasts. Open accounts are lifetime-censored; complete
+  horizon payouts remain usable, while unrestricted lifetime means are `null`.
+  No terminal equity is counted as payout. New payout quantiles use inverse CDF;
+  legacy summary fields retain their original definitions and quantile methods.
+
+The full pre-extraction deterministic calculation payloads match for Apex and
+Lucid; tests also cover phase isolation, rules, costs/risk rejections and censored
+cases. See [saved evidence and reproduction](prop_simulation_review.md#independent-phase-component-extraction--2026-11-05).
+P1–P5 below remain pending: dated schedules, actual chain cost records,
+calendar/settlement metrics, independent selection, durable phase reports and
+freeze/OOS enforcement are subsequent work. The portal workflow is unchanged.
 
 ## Objectives and non-objectives
 
@@ -36,6 +102,10 @@ separately approved retirement. Its formulas, tests and historical reports stay.
 
 ## Inspected baseline and architectural gaps
 
+This table records the inspected pre-extraction baseline. The phase-only input
+and result contracts are now available through the precursor above; dated
+sampling, campaign selection and product phase modes remain gaps.
+
 | Actual implementation | Reusable behavior | Gap for this plan |
 | --- | --- | --- |
 | [optimization.py](../alphaquest/optimization.py), [optimization_api.py](../alphaquest/optimization_api.py), [optimization_worker.py](../alphaquest/optimization_worker.py) | One strategy/dataset per exhaustive grid; ordinary durable backtest trials, bounded workers, reuse, resume and sortable results. | No cross-job candidate campaign or independent phase objectives. Sorting saved historical net is not phase optimization. |
@@ -63,7 +133,9 @@ selection package → manual assessment-only OOS. A later, optional portfolio
 optimizer may consume the phase results and retained dependence information.
 No portfolio score feeds back into either phase's selection.
 
-Proposed module names below are design targets, not existing APIs:
+Proposed optimizer module names below are design targets, not existing APIs.
+They should compose the extracted profile components above and extend their
+explicit weekday/settlement limits when dated metrics are implemented:
 
 | Module | Responsibility and boundary |
 | --- | --- |

@@ -45,6 +45,7 @@ research throughput, spending and engineering hours.
 | Annualized joint evaluation/funded sizing | Implemented and still the default. Classified as **legacy business-level optimization**, not the target independent phase selector. Preserve calculations, regression tests and historical reports until separately approved retirement. |
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |
+| Independent simulation profile components | Implemented as Python APIs in `evaluation_profiles.py` and `funded_profiles.py`, with frozen contracts in `phase_profiles.py`. Single saved source per phase; existing kernels/cost/risk checks. Weekday and modeled payout-time semantics; no new portal mode or independent selector. |
 | Independent Evaluation and Funded optimizers | Planned in [phase optimization](phase_optimization_plan.md). Evaluation cannot use funded payouts; Funded cannot use evaluation pass rates, acquisition fees/time or joint annualization. |
 | Cross-job/strategy campaigns, phase package freeze and assessment-only OOS | Planned. Existing saved IS/OOS declarations and manual OOS primitives do not yet enforce this campaign contract. |
 | Synchronized portfolio allocation/shared-account optimization | Optional, outside the initial phase implementation; later consumer of phase outputs and dependence data. See [portfolio plan](prop_portfolio_plan.md). |
@@ -98,6 +99,7 @@ flowchart TB
 | Strategies and fills | [registry](../alphaquest/strategies/registry.py), [interface](../alphaquest/strategy.py), [execution](../alphaquest/execution.py) | Strategies request orders; the shared engine applies fills/costs. New strategies reuse execution rules. |
 | Research and jobs | [splits/OOS](../alphaquest/research.py), [grids](../alphaquest/optimization.py), [workers](../alphaquest/optimization_worker.py) | Trials share the backtest path; workers calculate, the coordinator publishes. |
 | Prop calculations | [source checks](../alphaquest/prop/source.py), [analysis](../alphaquest/prop/native_analysis.py), [Apex](../alphaquest/prop/native_engine.py), [Lucid](../alphaquest/prop/lucid_engine.py), [costs](../alphaquest/prop/commissions.py) | Adapt/check trades before account simulation. Firm rules and sizing remain separate from strategy backtests. |
+| Independent phase profiles | [contracts/source admission](../alphaquest/prop/phase_profiles.py), [evaluation profiles](../alphaquest/prop/evaluation_profiles.py), [funded profiles](../alphaquest/prop/funded_profiles.py) | Expose single-source evaluation/acquisition and conditional-funded simulations independently. Evaluation has no funded input; Funded has no evaluation fees/pass-rate input or replacement. Reuse existing provider backends; no service, database or result store. |
 | Legacy business sizing | [joint sizing](../alphaquest/prop/joint_sizing.py), [account refresh links](../alphaquest/optimization_prop.py) | Joint annualized cost/payout selection and immutable refresh history remain supported; new independent optimizers must not use their score as a phase objective. |
 | Dated phase and cash replay | [phase lifecycle](../alphaquest/prop/phase_lifecycle.py), [cash ledger](../alphaquest/prop/cash_ledger.py) | Share local account transitions; distinguish paid acquisition fees, requests, deductions and modeled receipts under a hard monthly cap. |
 | Default prop reports | [automatic](../alphaquest/prop/automatic.py), [backend](../alphaquest/prop/native_backend.py), [build](../setup.py) | Automatic/manual runs share local models. Optional compiled kernels use the same model source. |
@@ -110,6 +112,15 @@ server would add operations; reconsider for remote/multi-user use. See
 [execution assumptions](backtest_contract.md) for strategy-specific behavior, and
 [tests/review records](prop_simulation_review.md) for dated evidence. Code links
 show implementation, not a new test pass or proof of MultiCharts trade parity.
+
+The profile components are callable from Python and retain the current kernels'
+weekday sampling and payout-time modeled receipt convention. They are not the
+planned dated optimizers. `native_analysis.training_economics` and
+`_funded_profile` are compatibility wrappers over the extracted acquisition and
+lifetime routines. Joint selection, historical report shapes and calculations
+remain supported; complete deterministic Apex/Lucid payloads match the captured
+pre-refactor baseline. See [component contracts and limits](phase_optimization_plan.md#implemented-precursor-independent-simulation-profiles)
+and [review evidence](prop_simulation_review.md#independent-phase-component-extraction--2026-11-05).
 
 Planned modules are `prop/phase_optimization.py` (contracts/selection),
 `prop/evaluation_optimization.py`, `prop/funded_optimization.py`,

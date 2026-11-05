@@ -297,32 +297,9 @@ def _funded_size(value):
 
 
 def _funded_profile(value):
-    """One independent training stage, reused across all evaluation sizes."""
-    from .joint_sizing import LIFETIME_HORIZON
-    days,size,block,rules,max_micros,count,seed=value
-    # Even taking every positive trade and skipping every loss cannot exceed
-    # this session-profit bound. A payout requires qualifying days in both
-    # supported models. This proves zero possible receipts without pretending
-    # an indefinitely open account has a measured terminal lifetime.
-    profit_bound=max(sum(max(0.,t[0]) for t in day) for day in days)*min(size,max_micros,max(level[1] for level in rules.levels))/10.
-    if profit_bound < rules.qualifying_profit:
-        return dict(micros=size,sims=0,requested_simulations=count,screening_simulations=3000,seed=seed,
-            method='analytical_zero_payout_bound',**{'E[payout]':0.,'days alive':None,'SE':None},
-            lifetime_complete=False,censored_paths=None,horizon_weekdays=LIFETIME_HORIZON,
-            receipts_upper_bound=0.,qualifying_day_profit_upper_bound=profit_bound,
-            reason='No sampled source session can meet the qualifying-day profit at this size; lifetime is unknown, payout potential is zero.')
-    backend=account_backend(rules);runner=backend.funded if backend else funded
-    accounts=runner(days,size,count,seed,block,horizon=LIFETIME_HORIZON,rules=rules,max_micros=max_micros)
-    stats=summary(accounts,size,len(rules.ladder))
-    receipts=np.array([sum(v for _,v in a.payouts) for a in accounts])
-    lifetimes=np.array([a.day for a in accounts])
-    censored=sum(a.outcome=='open' for a in accounts)
-    maximum=sum(rules.ladder)*getattr(rules,'payout_share',1.)
-    stats.update(method='monte_carlo',lifetime_complete=not censored,censored_paths=censored,horizon_weekdays=LIFETIME_HORIZON,seed=seed,
-        screening_simulations=3000,lifetime_se=float(lifetimes.std(ddof=1)/np.sqrt(count)),
-        receipts_lifetime_covariance=float(np.cov(receipts,lifetimes,ddof=1)[0,1]/count),
-        receipts_upper_bound=float(np.mean([maximum if a.outcome=='open' else receipts[i] for i,a in enumerate(accounts)])))
-    return stats
+    """Compatibility entry point for the unchanged legacy lifetime profile."""
+    from .funded_profiles import lifetime_profile
+    return lifetime_profile(value)
 
 
 def _funded_holdout(value):
@@ -339,45 +316,9 @@ def _funded_holdout(value):
 
 
 def training_economics(train, selected, settings, block, max_micros, sample, chain_stats=None):
-    """Freeze acquisition inputs from training only, before holdout is touched."""
-    probability=selected['passed']/selected['simulations']
-    result=dict(method='training_simulation',status='unavailable',sample=sample,
-                evaluation_micros=selected['micros'],passed=selected['passed'],
-                screening_passed=selected['passed'],screening_simulations=selected['simulations'],
-                evaluation_censored_paths=int(selected.get('censored_paths',0)),
-                simulations=selected['simulations'],pass_rate=probability,
-                pass_rate_ci=wilson(selected['passed'],selected['simulations']),
-                evaluation_seed=selected.get('evaluation_seed',42),funding_chain_seed=45,funding_chain_simulations=0,requested_funding_chain_simulations=20000,
-                evaluation_price=float(settings['EVAL_PRICE']),activation_fee=float(settings['ACTIVATION_FEE']),
-                activation_days=0 if is_lucid(settings) else 1,cost_per_funded=None,replacement_days=None,
-                cost_se=None,replacement_days_se=None,
-                source='Training joint sizing and repeated funding chains only; frozen before all holdout simulations')
-    if not selected['passed']:
-        result['reason']='No training evaluation passed. Acquisition cost and replacement time cannot be calibrated; funded sizing is unavailable.'
-        return result
-    if selected.get('censored_paths',0):
-        result['reason']='Training evaluation paths remain censored; acquisition probability and timing are unavailable.'
-        return result
-    result.update(cost_per_funded=float(settings['EVAL_PRICE'])/probability+float(settings['ACTIVATION_FEE']),
-                  evaluations_per_funded=1/probability,
-                  cost_se=float(settings['EVAL_PRICE'])*np.sqrt(probability*(1-probability)/selected['simulations'])/probability**2)
-    if chain_stats is not None:
-        if chain_stats['status']=='calibrated':
-            for key in ('status','funding_chain_simulations','replacement_days','replacement_days_median','replacement_days_se','funding_chain_diagnostics'):
-                if key in chain_stats:result[key]=chain_stats[key]
-        else:result['reason']=chain_stats['reason']
-        return result
-    try:
-        chain=evaluation_model(train,selected['micros'],20000,45,block,settings,chain=True,max_micros=max_micros)
-    except ValueError as exc:
-        if not str(exc).startswith(('No pass within the 10,000-attempt funding-time bound','LucidFlex funding chain is censored')):raise
-        result['reason']='Training funding time is unavailable: '+str(exc)
-        return result
-    result.update(status='calibrated',funding_chain_simulations=20000,replacement_days=float(chain['days'].mean()),
-                  replacement_days_median=float(np.median(chain['days'])),
-                  replacement_days_se=float(chain['days'].std(ddof=1)/np.sqrt(len(chain['days']))))
-    if is_lucid(settings):result['funding_chain_diagnostics']=evaluation_diagnostics(chain)
-    return result
+    """Compatibility entry point; legacy keys, counts and arithmetic are retained."""
+    from .evaluation_profiles import acquisition_economics
+    return acquisition_economics(train, selected, settings, block, max_micros, sample, chain_stats)
 
 
 def calculate(rows, settings, progress=lambda _:None):
