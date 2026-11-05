@@ -4,6 +4,8 @@
   const deletingReports=new Set();
   let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,commissionDefault='',modelProfiles=[];
   let phaseSources=[],sourceOffset=0;
+  let sourceRecord=null,observedWindow=null;
+  const cashFields={'prop-monthly-cap':'MONTHLY_CAP','prop-budget-timezone':'BUDGET_TIMEZONE','prop-start-date':'START_DATE','prop-horizon-end':'HORIZON_END','prop-receipt-days':'PAYOUT_RECEIPT_DAYS','prop-payout-assumption':'PAYOUT_TIMING_ASSUMPTION','prop-deadline-days':'ACTIVATION_DEADLINE_DAYS','prop-payment-days':'ACTIVATION_PAYMENT_DELAY_DAYS','prop-activation-assumption':'ACTIVATION_TIMING_ASSUMPTION','prop-fee-note':'FEE_OVERRIDE_NOTE'};
   const el = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const display = v => v === null || v === undefined ? 'Unavailable' : typeof v === 'number' ? String(v) : String(v);
   async function read(url, options) {const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));return j;}
@@ -35,7 +37,12 @@
   }
   function histogram(parent,title,h) {if(!h)return;chart(parent,title,[{name:'frequency',values:h.counts}],h.edges.map(String));details(parent,`${title}: inspect bins`,h);}
   function payload() {
-    const settings=JSON.parse($('#prop-overrides').value||'{}');
+    const method=$('#prop-method').value;
+    if(!['annualized','budgeted_lifecycle'].includes(method))throw formError('prop-method','Choose an available analysis method.');
+    let settings;
+    try{settings=JSON.parse($('#prop-overrides').value||'{}');if(!settings||Array.isArray(settings)||typeof settings!=='object')throw Error();}
+    catch{throw formError('prop-overrides','Additional model overrides must be a valid JSON object.');}
+    if($('#prop-method').value==='budgeted_lifecycle')validateCashForm();
     Object.assign(settings,{EVAL_PRICE:$('#prop-eval-fee').value,ACTIVATION_FEE:$('#prop-activation').value,
       BLOCK_DAYS:$('#prop-block').value,SLOTS:$('#prop-slots').value,MAX_TOTAL_NQ:$('#prop-max-nq').value,
       OUT_OF_SAMPLE_FROM:$('#prop-holdout').value,COMMISSION_MODE:$('#prop-commission-mode').value,
@@ -44,10 +51,12 @@
     const model=modelProfiles[Number($('#prop-model').value)];
     if(model)Object.assign(settings,{PROP_FIRM:model.settings.PROP_FIRM,ACCOUNT_TYPE:model.settings.ACCOUNT_TYPE,DAILY_LOSS_LIMIT:$('#prop-dll').value});
     const result={source_backtest_id:sourceId,trade_file:holdoutSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),export_timezone:$('#prop-export-timezone').value,settings};
-    if($('#prop-method').value==='dated_lifecycle'){
-      Object.assign(settings,{ANALYSIS_MODE:'dated_lifecycle',EVALUATION_MICROS:$('#prop-evaluation-micros').value,FUNDED_MICROS:$('#prop-funded-micros').value,ACTIVATION_WAIT_WEEKDAYS:$('#prop-activation-wait').value});
+    if($('#prop-method').value!=='annualized'){
+      Object.assign(settings,{ANALYSIS_MODE:$('#prop-method').value,EVALUATION_MICROS:$('#prop-evaluation-micros').value,FUNDED_MICROS:$('#prop-funded-micros').value,ACTIVATION_WAIT_WEEKDAYS:$('#prop-activation-wait').value});
       Object.assign(result,{funded_source_backtest_id:$('#prop-funded-source').value||sourceId,funded_trade_file:$('#prop-funded-file').value,funded_export_timezone:$('#prop-funded-zone').value});
     }else for(const key of ['ANALYSIS_MODE','EVALUATION_MICROS','FUNDED_MICROS','ACTIVATION_WAIT_WEEKDAYS'])delete settings[key];
+    for(const [field,key] of Object.entries(cashFields)){if(settings.ANALYSIS_MODE==='budgeted_lifecycle')settings[key]=$('#'+field).value;else delete settings[key];}
+    if(settings.ANALYSIS_MODE==='budgeted_lifecycle'){settings.SLOTS='1';settings.OUT_OF_SAMPLE_FROM='';}
     return result;
   }
   function drawSources(){
@@ -64,12 +73,80 @@
   }
   $('#prop-source-search').addEventListener('input',drawSources);
   $('#prop-load-sources').addEventListener('click',()=>loadSources().catch(e=>$('#prop-status').textContent=e.message));
-  function showMethodFields(){
-    const dated=$('#prop-method').value==='dated_lifecycle';$('#prop-phase-fields').hidden=!dated;
-    for(const id of ['prop-block','prop-holdout','prop-slots','prop-eval-fee','prop-activation'])$('#'+id).closest('label').hidden=dated;
+  function formError(field,message){const error=Error(message);error.field=field;return error;}
+  function validateCashForm(){
+    for(const [field,label] of [['prop-monthly-cap','Enter your monthly fee cap.'],['prop-start-date','Choose a start date or use the shared observed period.'],['prop-horizon-end','Choose an inclusive horizon end or use the shared observed period.'],['prop-payout-preset','Choose a payout receipt modeling assumption.'],['prop-activation-preset','Choose an activation timing modeling assumption.']]){
+      if(!$('#'+field).value.trim())throw formError(field,label);
+    }
+    for(const [field,label] of [['prop-receipt-days','Enter the calendar-day receipt delay.'],['prop-payout-assumption','Describe when trader cash is received; label unverified timing as a modeling assumption.'],['prop-deadline-days','Enter the activation deadline in calendar days.'],['prop-payment-days','Enter the activation payment delay in calendar days.'],['prop-activation-assumption','Describe the modeled activation deadline and payment timing.']]){
+      if(!$('#'+field).value.trim())throw formError(field,label);
+    }
   }
-  $('#prop-method').addEventListener('change',()=>{if($('#prop-method').value==='dated_lifecycle')$('#prop-holdout').value='';showMethodFields();invalidate();});
-  function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);}
+  function showFormError(error){
+    $('#prop-status').textContent=error.message;
+    const notice=el('p',error.message,'prop-form-error');notice.setAttribute('role','alert');$('#prop-check-output').replaceChildren(notice);
+    const field=error.field||Object.entries(cashFields).find(([,key])=>error.message.includes(key))?.[0];
+    if(field){const input=$('#'+field);for(let p=input.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;input.setAttribute('aria-invalid','true');input.focus();}
+  }
+  function timingChoices(){
+    $('#prop-payout-custom').hidden=$('#prop-payout-preset').value!=='custom';
+    $('#prop-activation-custom').hidden=$('#prop-activation-preset').value!=='custom';
+    $('#prop-payout-preset-help').textContent=['','custom'].includes($('#prop-payout-preset').value)?'':$('#prop-payout-assumption').value;
+    $('#prop-activation-preset-help').textContent=$('#prop-activation-preset').value==='immediate7'?$('#prop-activation-assumption').value:'';
+  }
+  $('#prop-payout-preset').addEventListener('change',()=>{
+    const days=$('#prop-payout-preset').value;
+    if(['0','5','30'].includes(days)){
+      $('#prop-receipt-days').value=days;
+      $('#prop-payout-assumption').value=`Unverified modeling assumption: trader receipt ${days} calendar days after request at the same budget-local wall time, including payment after account closure. No bank settlement is confirmed.`;
+    }
+    timingChoices();invalidate();
+  });
+  $('#prop-activation-preset').addEventListener('change',()=>{
+    if($('#prop-activation-preset').value==='immediate7'){
+      $('#prop-deadline-days').value='7';$('#prop-payment-days').value='0';
+      $('#prop-activation-assumption').value='Unverified modeling assumption: pay at modeled eligibility; unpaid activation expires at the inclusive deadline 7 calendar days later. This is not verified provider approval or deadline policy.';
+    }
+    timingChoices();invalidate();
+  });
+  function sourceSession(value,first){
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));
+    const date=new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00Z`);
+    if(Number(parts.hour)>=17)date.setUTCDate(date.getUTCDate()+1);
+    while([0,6].includes(date.getUTCDay()))date.setUTCDate(date.getUTCDate()+(first?1:-1));
+    return date.toISOString().slice(0,10);
+  }
+  function updateObservedWindow(){
+    const funded=phaseSources.find(s=>s.id===$('#prop-funded-source').value)||sourceRecord;
+    observedWindow=null;
+    if(sourceRecord&&funded){
+      const start=[sourceRecord.period_start_utc,funded.period_start_utc].sort((a,b)=>new Date(a)-new Date(b)).at(-1),end=[sourceRecord.period_end_utc,funded.period_end_utc].sort((a,b)=>new Date(a)-new Date(b))[0];
+      if(start&&end&&new Date(start)<new Date(end)){
+        const first=sourceSession(start,true),last=sourceSession(end,false);
+        if(first<=last&&(new Date(last)-new Date(first))/86400000<=7300)observedWindow={first,last};
+      }
+    }
+    $('#prop-observed-window').textContent=observedWindow?`Shared observed session dates: ${observedWindow.first} → ${observedWindow.last}. Use the full period below, or choose dates within it.`:'Select compatible saved sources, then choose a horizon of at most 7,300 days within their shared observed window.';
+    $('#prop-use-observed').disabled=busy||!observedWindow;
+  }
+  $('#prop-funded-source').addEventListener('change',updateObservedWindow);
+  $('#prop-use-observed').addEventListener('click',()=>{
+    if(!observedWindow)return;
+    $('#prop-start-date').value=observedWindow.first;$('#prop-horizon-end').value=observedWindow.last;invalidate();
+  });
+  function purchaseHelp(){
+    const evaluation=Number($('#prop-eval-fee').value),activation=Number($('#prop-activation').value),cap=$('#prop-monthly-cap').value;
+    $('#prop-purchase-help').textContent=$('#prop-method').value==='budgeted_lifecycle'?`Each purchase needs $${(evaluation+activation).toFixed(2)} of allowance: $${evaluation.toFixed(2)} paid for evaluation and $${activation.toFixed(2)} reserved for activation.${cap!==''&&Number(cap)<evaluation+activation?' This monthly cap will block new purchases.':''}`:'These prices are saved with the analysis; they are not a live provider-price quote.';
+  }
+  function showMethodFields(){
+    const cash=$('#prop-method').value==='budgeted_lifecycle';$('#prop-phase-fields').hidden=!cash;$('#prop-cash-fields').hidden=!cash;
+    for(const id of ['prop-block','prop-holdout','prop-slots'])$('#'+id).closest('label').hidden=cash;
+    $('#prop-fee-fields').hidden=false;$('#prop-activation-wait').closest('label').hidden=!cash;$('#prop-fee-note-label').hidden=!cash;
+    $('#prop-method-help').textContent=cash?'Replay one initially unfunded slot with exact monthly fee spending and separately dated trader receipts.':'Choose evaluation and funded sizes using the existing annualized model, with the last 30% of source history held out internally.';
+    timingChoices();updateObservedWindow();purchaseHelp();
+  }
+  $('#prop-method').addEventListener('change',()=>{if($('#prop-method').value!=='annualized')$('#prop-holdout').value='';showMethodFields();invalidate();});
+  function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);$('#prop-use-observed').disabled=v||!observedWindow;}
   function applyModel(){
     const p=modelProfiles[Number($('#prop-model').value)];if(!p)return;
     const s=p.settings,lucid=s.PROP_FIRM==='Lucid';
@@ -78,15 +155,41 @@
     $('#prop-dll option[value="off"]').disabled=!lucid;
     $('#prop-commission-broker').value=s.COMMISSION_BROKER;commissionDefault=p.commissions.rates.MNQ;$('#prop-commission-side').value=commissionDefault;
     $('#prop-model-help').textContent=lucid?'LucidFlex 50K · $80.50 evaluation default · no activation fee · standard 40% evaluation consistency · five sim-funded payouts, 90% trader share. DLL-on requests stop the session at the first eligible observed trade close. No live-account returns are simulated.':'Apex 50K EOD · existing model, $49 evaluation and $129 activation defaults.';
-    $('#prop-model-help').textContent+=' Annualized mode chooses sizes together for training net per slot. Dated phase mode uses your fixed targets below.';
+    $('#prop-model-help').textContent+=' Annualized mode chooses sizes together for training net per slot. Budgeted cash mode uses your fixed phase targets below.';
     $('#prop-commission-help').textContent=`${p.commissions.broker} defaults: NQ $${p.commissions.rates.NQ} per side; MNQ $${commissionDefault} per side. Source commission is replaced once when instrument identity is known; slippage is retained.`;
     $('#prop-commission-source').href=p.commissions.source_url;$('#prop-commission-source').textContent=p.commissions.broker+' commission schedule';
-    invalidate();
+    purchaseHelp();invalidate();
   }
   $('#prop-model').addEventListener('change',applyModel);
-  function invalidate(){checked=false;$('#prop-check-output').replaceChildren();$('#prop-run').disabled=true;$('#prop-status').textContent='Settings changed. Check source costs and filtering before running.';}
-  $('#prop-form').addEventListener('input',invalidate);
-  $('#prop-check').addEventListener('click',async()=>{try{setBusy(true);const data=await post('/api/prop-analyses/check',payload());checked=true;const p=$('#prop-check-output');p.replaceChildren(el('h3','Source check passed'));metrics(p,{matched_trades:data.matched_trades,measured_MAE:data.source.excursion_input.measured_mae_count,measured_MFE:data.source.excursion_input.measured_mfe_count,held_OHLC_trades:data.source.excursion_input.native_ohlc_count||0,ambiguous_adverse_bounds:data.source.excursion_input.ambiguous_mae_count||0,source_net_PnL:data.source.reconciliation.source_totals.net_pnl,engine:'AlphaQuest local calculations'});const commission=data.source.commission_simulation;p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));if(commission.applied)details(p,'Simulation commission reconciliation',commission);details(p,'Cost reconciliation, excluded trades and provenance',data.source);if(data.source.phase_sources){p.append(el('h3','Both phase sources checked'));for(const [phase,s] of Object.entries(data.source.phase_sources)){p.append(el('h4',phase));metrics(p,{source:s.backtest.id,strategy:s.backtest.run_metadata.strategy.id,trades:s.reconciliation.source_count,net:s.reconciliation.source_totals.net_pnl,risk_covered:s.phase_suitability.risk_covered_trades});details(p,phase+' strategy, parameters, risk and costs',s);}details(p,'Common research window and activation clock',data.source.phase_checks);}details(p,'Every resolved setting and override origin',data);$('#prop-status').textContent='Trade IDs, UTC times, quantities and net costs match. Ready to run locally.';}catch(e){checked=false;$('#prop-status').textContent=e.message;}finally{setBusy(false);}});
+  function invalidate(){checked=false;$('#prop-check-output').replaceChildren();$('#prop-run').disabled=true;$('#prop-form').querySelectorAll('[aria-invalid]').forEach(n=>n.removeAttribute('aria-invalid'));$('#prop-status').textContent='Settings changed. Check source costs and filtering before running.';}
+  $('#prop-form').addEventListener('input',()=>{purchaseHelp();invalidate();});
+  function renderSourceCheck(data){
+    const p=$('#prop-check-output'),source=data.source,risk=source.excursion_input;
+    p.replaceChildren(el('h3','Source check passed'));
+    p.append(el('p',`${data.matched_trades} trades checked · source net P&L $${source.reconciliation.source_totals.net_pnl}. Captured OHLC risk: ${risk.native_ohlc_count||0} trades; measured MAE: ${risk.measured_mae_count}.`));
+    const commission=source.commission_simulation;
+    p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));
+    if(source.phase_sources){
+      p.append(el('h3','Both phase sources checked'));
+      for(const [phase,snap] of Object.entries(source.phase_sources)){
+        p.append(el('p',`${phase==='evaluation'?'Evaluation':'Funded'}: ${snap.backtest.run_metadata.strategy.id} · ${snap.reconciliation.source_count} trades · risk coverage checked for ${snap.phase_suitability.risk_covered_trades} trades.`));
+        details(p,phase+' saved source, strategy, risk and costs',snap);
+      }
+      p.append(el('p',`Shared observed session dates: ${source.phase_checks.first_session} → ${source.phase_checks.last_session}.`));
+      details(p,'Common research window and activation clock',source.phase_checks);
+    }
+    details(p,'Cost reconciliation, excluded trades and provenance',source);
+    details(p,'Every resolved setting and override origin',data);
+    p.append(el('p','Ready to run. Results and downloads will be saved with these settings.'));
+  }
+  $('#prop-check').addEventListener('click',async()=>{
+    try{
+      setBusy(true);const request=payload();$('#prop-status').textContent='Checking saved source identity, trading risk and costs…';
+      const data=await post('/api/prop-analyses/check',request);checked=true;renderSourceCheck(data);
+      $('#prop-status').textContent='Source check passed. Ready to run locally.';
+    }catch(e){checked=false;setBusy(false);showFormError(e);}
+    finally{setBusy(false);}
+  });
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
   async function configure(id,t,previousId) {
     $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
@@ -94,9 +197,10 @@
     const [data,defaults,previous]=await Promise.all([read(`/api/prop-analyses/sources/${id}`),read('/api/prop-analyses/defaults'),previousId?read(`/api/prop-analyses/${previousId}/downloads/report.json`):null]);if(t!==token)return;
     if(previous&&previous.source?.backtest?.id!==id)throw Error('The saved analysis belongs to a different source backtest.');
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;
+    sourceRecord=data.source;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
-    $('#prop-form').reset();$('#prop-overrides').value='{}';showMethodFields();
-    phaseSources=[];sourceOffset=0;await loadSources();if(t!==token)return;
+    $('#prop-form').reset();$('#prop-form').querySelectorAll('.prop-advanced').forEach(d=>d.open=false);$('#prop-overrides').value='{}';showMethodFields();
+    phaseSources=[];sourceOffset=0;await loadSources();if(t!==token)return;updateObservedWindow();
     modelProfiles=defaults.profiles||[];
     $('#prop-trade-file').value=!holdoutSource&&!nativeRiskSource&&data.matched_exports?.length===1?data.matched_exports[0].path:'';
     $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
@@ -110,7 +214,8 @@
     $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${labels.get(a.id)||'Saved analysis'} · ${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
     $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
     if(previous){
-      const settings=previous.settings;
+      const settings={...previous.settings},retiredLifecycle=settings.ANALYSIS_MODE==='dated_lifecycle';
+      if(retiredLifecycle)settings.ANALYSIS_MODE='budgeted_lifecycle';
       const index=modelProfiles.findIndex(p=>p.settings.ACCOUNT_TYPE===settings.ACCOUNT_TYPE);
       if(index<0)throw Error('The saved account model is unavailable.');
       $('#prop-model').value=String(index);applyModel();
@@ -123,22 +228,29 @@
       $('#prop-commission-side').value=settings.COMMISSION_PER_SIDE||commissionDefault;
       $('#prop-trade-file').value=previous.source.excursion_input?.path||'';
       $('#prop-export-timezone').value=previous.source.excursion_input?.export_timezone||'America/Chicago';
-      if(settings.ANALYSIS_MODE==='dated_lifecycle'){
-        $('#prop-method').value='dated_lifecycle';showMethodFields();
+      if(settings.ANALYSIS_MODE==='budgeted_lifecycle'){
+        $('#prop-method').value=settings.ANALYSIS_MODE;showMethodFields();
+        for(const [field,key] of Object.entries(cashFields)){
+          const input=$('#'+field),value=settings[key]||(field==='prop-budget-timezone'?'America/Chicago':'');
+          if(input.tagName==='SELECT'&&![...input.options].some(o=>o.value===value))input.add(new Option(value,value));
+          input.value=value;
+        }
         const funded=previous.source.phase_sources.funded;
         if(!phaseSources.some(s=>s.id===funded.backtest.id))phaseSources.push(funded.backtest);drawSources();
         $('#prop-funded-source').value=funded.backtest.id===id?'':funded.backtest.id;
         $('#prop-evaluation-micros').value=settings.EVALUATION_MICROS;$('#prop-funded-micros').value=settings.FUNDED_MICROS;
         $('#prop-activation-wait').value=settings.ACTIVATION_WAIT_WEEKDAYS;
         $('#prop-funded-file').value=funded.excursion_input.path||'';$('#prop-funded-zone').value=funded.excursion_input.export_timezone;
+        if(!retiredLifecycle){$('#prop-payout-preset').value='custom';$('#prop-activation-preset').value='custom';}
+        timingChoices();updateObservedWindow();purchaseHelp();
       }
-      $('#prop-status').textContent='Saved account settings copied. Check the same source, then run a new analysis with the current model. The earlier report is preserved.';
+      $('#prop-status').textContent=retiredLifecycle?'Saved phase sources and sizes copied to Budgeted cash ledger. Set the monthly fee cap, dates and timing assumptions, then check source.':'Saved account settings copied. Check the same source, then run a new analysis with the current model. The earlier report is preserved.';
     }
   }
   function render(r) {
     $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);
     $('#prop-heading-title').textContent='Prop analysis';$('#prop-heading-note').textContent='Saved analysis report';$('#prop-report-content').className='';
-    if(r.format_version===3){if(r.calculations.analysis_mode==='dated_lifecycle')renderPhases(r);else renderNative(r);return;}
+    if(r.format_version===3){if(r.calculations.analysis_mode==='budgeted_lifecycle')renderCash(r);else if(r.calculations.analysis_mode==='dated_lifecycle')renderPhases(r);else renderNative(r);return;}
     if(r.format_version===2){renderExternalHistory(r);return;}
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-report-content').replaceChildren();$('#prop-back').href=`#backtests/report/${r.source.backtest.id}`;
     $('#prop-status').textContent=`Saved analysis ${r.id} · ${r.created_at_utc} · increment ${r.increment}. Reload reads saved results.`;
@@ -220,11 +332,31 @@
   function explanation(parent,title,text) {
     const d=el('details',undefined,'prop-help');d.append(el('summary',title),el('p',text));parent.append(d);return d;
   }
+  function renderCash(r) {
+    nativeFrame(r);$('#prop-heading-title').textContent='Budgeted cash ledger';
+    $('#prop-heading-note').textContent=`${r.settings.ACCOUNT_TYPE} 50K · one initially unfunded slot · ${r.settings.START_DATE} → ${r.settings.HORIZON_END} · ${r.settings.BUDGET_TIMEZONE}`;
+    $('#prop-status').textContent=`Saved analysis ${r.id} · ${r.calculations.outcome}`;
+    const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}/from/${r.id}`;$('#prop-downloads').append(rerun);
+    const c=r.calculations;
+    let p=section('Trader cash within the horizon');const t=c.cash_totals;
+    facts(p,[['Net cash within horizon',money(t.net_cash_within_horizon)],['Received trader payouts',money(t.received_trader_payouts)],['Paid evaluation fees',money(t.paid_evaluation_fees)],['Paid activation fees',money(t.paid_activation_fees)],['Total paid fees',money(t.total_paid_fees)],['Payout / evaluation-fee multiple',t.payout_evaluation_fee_multiple===null?'Unavailable':number(t.payout_evaluation_fee_multiple,4)+'×'],['Pending modeled trader receipts',money(t.pending_trader_receipts)],['Current month remaining allowance',money(t.remaining_allowance)],['Reserved activation allowance',money(t.reserved_allowance)],['Pending passed-account activation fees',money(t.pending_activation_obligations)],['Potential evaluation activation fees',money(t.potential_evaluation_activation)]]);
+    p.append(el('p','Net cash = received trader payouts − paid evaluation fees − paid activation fees. Payout/evaluation-fee multiple divides aggregate received payouts by aggregate paid evaluation fees; zero paid evaluation fees is unavailable. Pending receipts and reservations are shown separately.'));
+    p=section('Monthly spending and expiring allowance');table(p,c.monthly_ledger);
+    p=section('Dated cash and acquisition ledger');
+    for(const [name,label] of [['cash_ledger.csv','Download cash ledger (CSV)'],['monthly_ledger.csv','Download monthly ledger (CSV)'],['cash_ledger.json','Download cash ledger (JSON)'],['monthly_ledger.json','Download monthly ledger (JSON)']]){const a=el('a',label,'button secondary');a.href=`/api/prop-analyses/${r.id}/files/${name}`;p.append(a);}
+    const d=el('details');d.append(el('summary',`Inspect ${c.cash_ledger.length} ledger rows`));p.append(d);table(d,c.cash_ledger,['timestamp_budget','account','event','paid_fee','trader_receipt','cash_delta','reservation_delta','paid_this_month','remaining_allowance','reserved_allowance','reason']);
+    p=section('Accounts and pending obligations');table(p,c.accounts,['account','purchased_at','passed_on','eligible_at','activation_deadline','activated_at','funded_start','outcome','closed_at']);table(p,c.pending_receipts);details(p,'All modeled payout requests, deductions and receipts',c.payout_settlements);
+    p=section('Fixed phase sources and trading trace');
+    for(const [phase,source] of Object.entries(r.source.phase_sources)){const a=el('a',`${phase}: ${source.backtest.run_metadata.strategy.id} · ${source.backtest.id}`);a.href=`#backtests/report/${source.backtest.id}`;p.append(a);details(p,phase+' saved parameters, identity, risk and costs',source);}
+    details(p,'Phase metrics',c.phase_metrics);details(p,'Dated trading transitions',c.trace);
+    p=section('Saved assumptions and downloads');for(const note of c.assumptions)p.append(el('p',note));details(p,'Budget boundaries and policy',c.budget_contract);details(p,'Firm trading rules',c.rules);details(p,'Settings and model identity',{settings:r.settings,model:r.model_version,implementation:r.implementation_sha256});
+    for(const name of Object.keys(r.files).sort()){const a=el('a',name+' ↓','prop-file-link');a.href=`/api/prop-analyses/${r.id}/files/${name}`;p.append(a,el('br'));}window.scrollTo(0,0);
+  }
   function renderPhases(r) {
     nativeFrame(r);$('#prop-heading-title').textContent='Dated phase lifecycle';
     $('#prop-heading-note').textContent=`${r.settings.ACCOUNT_TYPE} 50K · fixed evaluation and funded sources`;
     $('#prop-status').textContent=`Saved analysis ${r.id} · ${r.calculations.outcome}`;
-    const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}/from/${r.id}`;$('#prop-downloads').append(rerun);
+    const rerun=el('a','Configure budgeted analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}/from/${r.id}`;$('#prop-downloads').append(rerun);
     const c=r.calculations;
     const outcomes={passed:'Passed',funded_open:'Funded account open at end of data',funded_payout_limit:'Funded payout limit reached',account_breach:'Account breached',evaluation_expired:'Evaluation expired',inactivity_expired:'Closed for inactivity',evaluation_unresolved:'Evaluation unresolved at end of data',activation_pending:'Activation pending at end of data',not_started:'Not started'};
     [...$('#prop-downloads').children].slice(0,3).forEach((a,i)=>a.textContent=['Report data (JSON) ↓','Evaluation trades (CSV) ↓','All results (ZIP) ↓'][i]);

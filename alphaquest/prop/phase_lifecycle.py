@@ -23,7 +23,7 @@ CHICAGO = ZoneInfo('America/Chicago')
 
 
 def resolve_phase_settings(settings):
-    if settings.get('ANALYSIS_MODE') != 'dated_lifecycle':
+    if settings.get('ANALYSIS_MODE') not in ('dated_lifecycle', 'budgeted_lifecycle'):
         raise ValueError('Phase settings require ANALYSIS_MODE=dated_lifecycle; omit phase settings for annualized analysis.')
     result = {**PHASE_DEFAULTS, **settings}
     lucid = result.get('ACCOUNT_TYPE') == 'LucidFlex'
@@ -43,7 +43,7 @@ def resolve_phase_settings(settings):
 
 
 def dated(request):
-    return request.get('settings', {}).get('ANALYSIS_MODE') == 'dated_lifecycle'
+    return request.get('settings', {}).get('ANALYSIS_MODE') in ('dated_lifecycle', 'budgeted_lifecycle')
 
 
 def source_snapshots(snapshot):
@@ -109,6 +109,10 @@ def prepare_request(runs, request):
         checks[phase+'_excluded_trades'] = len(rows[phase])-len(selected)
     # Keep the established primary source shape for existing report routing.
     snapshot = {**snapshots['evaluation'], 'phase_sources': snapshots, 'phase_checks': checks}
+    if resolved['ANALYSIS_MODE'] == 'budgeted_lifecycle':
+        from .cash_ledger import check_window
+        check_window(checks, resolved)
+        checks['cash_policy'] = 'One unfunded slot; activation-priority reservation; exact monthly cap independent of receipts. Saved settlement/deadline assumptions apply.'
     return snapshot, rows, resolved
 
 
@@ -240,7 +244,7 @@ def replay(snapshot, rows, settings):
 def run_analysis(runs, request, staged, progress):
     from .native_analysis import csv_text, model_version
     snapshot, rows, settings = prepare_request(runs,request)
-    progress('Local dated evaluation → activation eligibility → subsequent funded observations')
+    progress('Local budgeted purchases → evaluation → paid activation → funded trading → modeled receipts' if settings['ANALYSIS_MODE']=='budgeted_lifecycle' else 'Local dated evaluation → activation eligibility → subsequent funded observations')
     for phase, snap in snapshot['phase_sources'].items():
         directory=staged/'inputs'/phase;directory.mkdir(parents=True)
         source_id=snap['backtest']['id']
@@ -255,7 +259,14 @@ def run_analysis(runs, request, staged, progress):
             if digest(directory/export['filename'])!=export['sha256']:raise ValueError(f'{phase} export changed before capture.')
         (staged/(phase+'_trades.csv')).write_text(csv_text(rows[phase]))
         (directory/'source.json').write_text(canonical(snap))
-    result=replay(snapshot,rows,settings)
+    if settings['ANALYSIS_MODE'] == 'budgeted_lifecycle':
+        from .cash_ledger import replay as cash_replay
+        result = cash_replay(snapshot, rows, settings)
+        for name in ('cash_ledger', 'monthly_ledger', 'accounts', 'pending_receipts'):
+            (staged/(name+'.json')).write_text(canonical(result[name]))
+            (staged/(name+'.csv')).write_text(csv_text(result[name]))
+    else:
+        result=replay(snapshot,rows,settings)
     after,_,_=prepare_request(runs,request)
     if canonical(after)!=canonical(snapshot):raise ValueError('A phase source changed during calculation.')
     (staged/'trades.csv').write_text(csv_text(rows['evaluation']))

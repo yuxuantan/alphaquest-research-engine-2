@@ -25,7 +25,8 @@ DEFAULTS = dict(PROP_FIRM='Apex', ACCOUNT_TYPE='Apex EOD', ACCOUNT_SIZE='50K', D
 
 def resolved_settings(overrides):
     from .phase_lifecycle import PHASE_DEFAULTS
-    if not isinstance(overrides, dict) or set(overrides) - (DEFAULTS.keys() | PHASE_DEFAULTS.keys()):
+    from .cash_ledger import CASH_DEFAULTS, resolve_cash_settings
+    if not isinstance(overrides, dict) or set(overrides) - (DEFAULTS.keys() | PHASE_DEFAULTS.keys() | CASH_DEFAULTS.keys()):
         raise ValueError('Unknown prop analysis setting.')
     from .lucid_rules import defaults as lucid_defaults
     lucid=overrides.get('PROP_FIRM')=='Lucid' or overrides.get('ACCOUNT_TYPE')=='LucidFlex'
@@ -34,6 +35,8 @@ def resolved_settings(overrides):
     if set(overrides) & PHASE_DEFAULTS.keys():
         from .phase_lifecycle import resolve_phase_settings
         settings = resolve_phase_settings(settings)
+    if set(overrides) & CASH_DEFAULTS.keys() or settings.get('ANALYSIS_MODE') == 'budgeted_lifecycle':
+        settings = resolve_cash_settings(settings)
     if settings['COMMISSION_MODE'] not in ('auto', 'source', 'override'):
         raise ValueError('Commission mode must be auto, source or override.')
     if settings['SOURCE_INSTRUMENT'] not in ('auto', 'NQ', 'MNQ'):
@@ -55,7 +58,7 @@ def resolved_settings(overrides):
     if lucid:fixed=tuple(k for k in fixed if k!='DAILY_LOSS_LIMIT')
     if any(settings[k] != base[k] for k in fixed):
         raise ValueError('Supported model: one strategy, Apex 50K EOD, DLL on, standard counts, slot-year selection and full-cap payouts.')
-    if lucid and (settings['DAILY_LOSS_LIMIT'] not in ('on','off') or settings['ACTIVATION_FEE']!='0'):
+    if lucid and (settings['DAILY_LOSS_LIMIT'] not in ('on','off') or settings['ACTIVATION_FEE'] not in ('0','0.00')):
         raise ValueError('LucidFlex supports DLL on/off, standard 40% evaluation consistency and zero activation fee.')
     if type(settings['APPROVAL_DAY_COUNTS']) is not bool:
         raise ValueError('APPROVAL_DAY_COUNTS must be boolean.')
@@ -85,7 +88,7 @@ def resolved_settings(overrides):
 def is_lucid(settings):return settings.get('ACCOUNT_TYPE')=='LucidFlex'
 
 def model_version(settings):
-    suffix = '-dated-phases-v1' if settings.get('ANALYSIS_MODE')=='dated_lifecycle' else ''
+    suffix = {'dated_lifecycle':'-dated-phases-v1', 'budgeted_lifecycle':'-cash-ledger-v1'}.get(settings.get('ANALYSIS_MODE'), '')
     if is_lucid(settings):
         from .lucid_rules import MODEL_VERSION as lucid_version
         return lucid_version + suffix
@@ -490,7 +493,7 @@ def save_charts(result, staged):
 
 
 def run_analysis(runs,request,staged,progress):
-    if request.get('settings',{}).get('ANALYSIS_MODE')=='dated_lifecycle':
+    if request.get('settings',{}).get('ANALYSIS_MODE') in ('dated_lifecycle', 'budgeted_lifecycle'):
         from .phase_lifecycle import run_analysis as run_phases
         return run_phases(runs,request,staged,progress)
     snapshot,rows,settings=prepare(runs,request['source_backtest_id'],request.get('trade_file'),request.get('settings'),request['export_timezone'])

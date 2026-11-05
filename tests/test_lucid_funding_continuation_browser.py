@@ -31,6 +31,7 @@ def test_long_evaluation_calibrates_funded_results_and_reopens_with_same_setting
     page.goto(portal['url'] + '/#backtests/report/' + record['id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    page.locator('#prop-advanced > summary').click()
     page.locator('#prop-model').select_option('1')
     page.locator('#prop-commission-mode').select_option('source')
     page.locator('#prop-max-nq').fill('0.1')

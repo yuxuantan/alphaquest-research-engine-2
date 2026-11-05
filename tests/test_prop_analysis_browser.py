@@ -12,16 +12,24 @@ def test_local_report_reload_reopen_and_download(page,portal,tmp_path):
     path=export_for(adapter,r,tmp_path)
     page.goto(portal['url']+f"/#backtests/report/{r['id']}");page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    page.locator('#prop-advanced > summary').click()
     page.locator('#prop-trade-file').fill(str(path));page.locator('#prop-export-timezone').select_option('UTC')
     page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('52.00')
     page.locator('#prop-run').click();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=20000)
     playwright.expect(page.locator('#prop-heading-note')).to_contain_text('AlphaQuest local model')
     playwright.expect(page.get_by_role('heading',name='Funded outcomes are unavailable')).to_be_visible()
-    playwright.expect(page.get_by_role('tab',name='Sizing',exact=True)).to_have_count(0)
+    # The existing joint-sizing view retains its unavailable diagnostics even
+    # when this source cannot pass evaluation; it must not invent a selection.
+    page.get_by_role('tab',name='Sizing',exact=True).click()
+    playwright.expect(page.locator('#prop-joint-sizing')).to_contain_text('No training evaluation passed. Joint sizing is unavailable.')
+    playwright.expect(page.get_by_role('tab',name='Historical replay',exact=True)).to_have_count(0)
+    page.get_by_role('tab',name='Overview',exact=True).click()
     playwright.expect(page.locator('#prop-report-content')).to_contain_text('52.00')
     with page.expect_download() as result:page.get_by_role('link',name='Report data (JSON)',exact=True).click()
     destination=tmp_path/'download.json';result.value.save_as(destination);data=json.loads(destination.read_text());assert data['format_version']==3
+    assert data['calculations']['funded'] is None
+    assert data['calculations']['joint_sizing']['selected'] is None
     posts=[];page.on('request',lambda req:posts.append(req.url) if req.method=='POST' else None)
     page.reload();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=10000);assert not posts
     page.locator('#prop-back').click();page.locator('#report-prop-setup').click();page.locator('#prop-saved a').first.click()

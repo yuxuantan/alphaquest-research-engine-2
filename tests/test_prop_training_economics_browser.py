@@ -13,6 +13,7 @@ def open_native(page,portal,record):
     page.goto(portal['url']+'/#backtests/report/'+record['id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    page.locator('#prop-advanced > summary').click()
     page.locator('#prop-trade-file').fill('')
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()

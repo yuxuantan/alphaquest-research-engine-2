@@ -552,53 +552,92 @@
           <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1><span id="prop-heading-title">Prop analysis</span><span class="heading-dot">.</span></h1><p id="prop-heading-note">AlphaQuest · Apex 50K EOD analysis</p></div></div>
           <p id="prop-status" role="status" aria-live="polite"></p><button id="prop-delete" type="button" class="button danger" hidden>Delete prop report</button><p id="prop-delete-status" class="small" role="status" hidden></p>
           <div id="prop-config" hidden>
-            <section class="panel prop-panel"><h2>Completed source backtest</h2><p id="prop-source"></p><p>The native backtest remains the source of trade identity, quantities, UTC times and net P&amp;L. New backtests supply risk bounds from the OHLC bars actually held, with opening gaps and cost jumps. An optional matching export can supply measured MAE/MFE instead. OHLC bounds are not tick measurements. Checking reconciles source costs first. Instrument commission replaces the saved commission once; source slippage is retained.</p></section>
+            <section class="panel prop-panel"><h2>Source backtest</h2><p id="prop-source"></p><p>Uses this saved backtest and its captured trading risk. Checking the source does not rerun the strategy.</p></section>
             <form id="prop-form" class="panel prop-panel">
               <h2>Configure prop analysis</h2>
-              <label>Account model<select id="prop-model"><option value="0">Apex 50K EOD</option><option value="1">LucidFlex 50K</option></select></label>
-              <p id="prop-model-help"></p>
-              <label>Analysis method<select id="prop-method"><option value="annualized">Annualized sizing · existing single source</option><option value="dated_lifecycle">Dated phase lifecycle · fixed sizes</option></select></label>
+              <div class="prop-fields">
+                <label>Account model<select id="prop-model"><option value="0">Apex 50K EOD</option><option value="1">LucidFlex 50K</option></select></label>
+                <label>Analysis method<select id="prop-method"><option value="annualized">Annualized sizing · existing single source</option><option value="budgeted_lifecycle">Budgeted cash ledger · one unfunded slot</option></select></label>
+              </div>
+              <p id="prop-model-help"></p><p id="prop-method-help"></p>
               <div id="prop-phase-fields" hidden>
-                <p>The opened backtest supplies evaluation trades. Select a saved funded backtest or optimization trial, with its own strategy and parameters. Both must have compatible NQ/MNQ, declared research periods and complete intratrade risk. Phase targets stay fixed; provider scaling still limits actual orders.</p>
                 <label>Funded source backtest<select id="prop-funded-source"><option value="">Same as evaluation source</option></select></label>
-                <label>Find saved funded backtests<input id="prop-source-search" type="search" placeholder="Strategy, parameter, dataset or report ID" /></label>
-                <button id="prop-load-sources" type="button" class="button secondary">Load more saved sources</button>
                 <div class="prop-fields">
                   <label>Evaluation fixed size · MNQ<input id="prop-evaluation-micros" type="number" value="10" min="1" max="60" step="1" /></label>
                   <label>Funded fixed target · MNQ<input id="prop-funded-micros" type="number" value="3" min="1" max="40" step="1" /></label>
-                  <label>Activation wait · weekdays<input id="prop-activation-wait" type="number" min="0" max="261" step="1" placeholder="Provider default: Apex 1, Lucid 0" /></label>
-                  <label>Funded measured-excursion export · optional path<input id="prop-funded-file" type="text" maxlength="4096" placeholder="Blank: native risk; same source inherits evaluation export" /></label>
-                  <label>Funded export timestamps<select id="prop-funded-zone"><option value="America/Chicago">Chicago</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
                 </div>
-                <p>One evaluation followed by one funded account on their common observed timeline. Funded trading uses subsequent sessions after activation eligibility. Exact cash ledger, monthly budgets and portfolio forecasts arrive later. Annualized mode retains its existing renewal assumptions.</p>
+                <details id="prop-source-options" class="prop-advanced"><summary>Find another funded source or use a measured-risk export</summary>
+                  <label>Find saved funded backtests<input id="prop-source-search" type="search" placeholder="Strategy, parameter, dataset or report ID" /></label>
+                  <button id="prop-load-sources" type="button" class="button secondary">Load more saved sources</button>
+                  <p>Each phase keeps its saved strategy and parameters. Both sources must have compatible research periods and complete trading-risk coverage.</p>
+                  <label>Funded measured-excursion export · optional path<input id="prop-funded-file" type="text" maxlength="4096" placeholder="Blank: captured risk; same source inherits evaluation export" /></label>
+                  <label>Funded export timestamps<select id="prop-funded-zone"><option value="America/Chicago">Chicago</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
+                </details>
               </div>
-              <p>Calculates locally from the saved backtest and captured risk bounds, or an explicitly selected measured-excursion export. Defaults: full history, last 30% held out, block 5, most net per year per slot, full payout cap requests, provider-specific slot count, and standard simulation counts. Results, charts and downloads are saved for reopening.</p>
-              <label>Measured-excursion MultiCharts export · optional local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Leave blank for captured native OHLC risk; older sources may discover a matching export" /></label>
-              <div class="prop-fields">
+              <div id="prop-cash-fields" hidden>
+                <h3>Budget and observed period</h3>
+                <p>One slot starts unfunded. Purchases reserve the activation fee. Unused monthly allowance expires; payouts never increase the cap.</p>
+                <div class="prop-fields">
+                  <label>Monthly fee cap · USD<input id="prop-monthly-cap" type="number" min="0" max="100000" step="0.01" /></label>
+                  <label>Budget timezone<select id="prop-budget-timezone"><option value="America/Chicago" selected>Chicago · America/Chicago</option><option value="America/New_York">New York · America/New_York</option><option value="Asia/Singapore">Singapore · Asia/Singapore</option><option value="UTC">UTC</option></select></label>
+                  <label>Start date · budget timezone<input id="prop-start-date" type="date" /></label>
+                  <label>Horizon end · inclusive budget date<input id="prop-horizon-end" type="date" /></label>
+                </div>
+                <p id="prop-observed-window"></p><button id="prop-use-observed" type="button" class="button secondary">Use full shared observed period</button>
+                <p>The selected timezone sets calendar-month boundaries. Dates must stay within the checked history; future trading is not projected.</p>
+                <h3>Timing assumptions</h3>
+                <p>Choose modeled timing explicitly. These choices are saved with the report and do not claim verified bank settlement or provider approval.</p>
+                <label>When is a requested payout received?<select id="prop-payout-preset"><option value="">Choose a receipt assumption</option><option value="0">Same day · modeled</option><option value="5">5 calendar days later · modeled</option><option value="30">30 calendar days later · modeled</option><option value="custom">Custom timing and description</option></select></label>
+                <div id="prop-payout-custom" hidden>
+                  <label>Request to trader receipt · calendar days<input id="prop-receipt-days" type="number" min="0" max="366" /></label>
+                  <label>Payout timing assumption<textarea id="prop-payout-assumption" rows="2" placeholder="Describe the unverified settlement assumption"></textarea></label>
+                </div>
+                <p id="prop-payout-preset-help"></p>
+                <label>When is activation paid?<select id="prop-activation-preset"><option value="">Choose an activation assumption</option><option value="immediate7">Pay when eligible; expire after 7 calendar days · modeled</option><option value="custom">Custom deadline, payment delay and description</option></select></label>
+                <div id="prop-activation-custom" hidden>
+                  <div class="prop-fields">
+                    <label>Activation deadline after eligibility · calendar days<input id="prop-deadline-days" type="number" min="1" max="366" /></label>
+                    <label>Activation payment delay after eligibility · calendar days<input id="prop-payment-days" type="number" min="0" max="366" value="0" /></label>
+                  </div>
+                  <label>Activation timing assumption<textarea id="prop-activation-assumption" rows="2" placeholder="Describe the unverified deadline and payment-delay assumption"></textarea></label>
+                </div>
+                <p id="prop-activation-preset-help"></p>
+              </div>
+              <div id="prop-fee-fields">
+                <h3>Saved fee assumptions</h3>
+                <div class="prop-fields">
+                  <label>Evaluation price · USD<input id="prop-eval-fee" value="49" type="number" min="0" max="100000" step="any" required /></label>
+                  <label>Funded activation · USD<input id="prop-activation" value="129" type="number" min="0" max="100000" step="any" required /></label>
+                </div>
+                <p id="prop-purchase-help"></p>
+              </div>
+              <details id="prop-advanced" class="prop-advanced"><summary>Trading costs, source files and advanced settings</summary>
+                <h3>Trading costs</h3><p>The default commission profile is ready to use. Repricing replaces the source commission once and retains source slippage; retaining source costs uses the saved net trading results.</p>
+                <div class="prop-fields">
+                  <label>Commission treatment<select id="prop-commission-mode"><option value="auto">Instrument commission · auto-detect source</option><option value="override">Instrument commission · explicit source required</option><option value="source">Retain scaled source costs</option></select></label>
+                  <label>Source instrument<select id="prop-source-instrument"><option value="auto">Auto-detect saved symbol</option><option value="NQ">NQ · $20 per point</option><option value="MNQ">MNQ · $2 per point</option></select></label>
+                  <label>Commission broker<input id="prop-commission-broker" value="Rithmic" maxlength="80" required /></label>
+                  <label>MNQ commission · USD per contract per side<input id="prop-commission-side" type="number" min="0" max="100000" step="any" placeholder="0.51" /></label>
+                </div>
+                <p id="prop-commission-help"></p><p><a id="prop-commission-source" href="https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/" target="_blank" rel="noopener">Apex Rithmic commission schedule</a> · defaults checked 29 October 2026.</p>
+                <h3>Optional source export</h3>
+                <label>Measured-excursion MultiCharts export · optional local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Blank: captured native OHLC risk, or discovery for an older source" /></label>
                 <label>Export timestamps<select id="prop-export-timezone"><option value="America/Chicago">Chicago (exchange)</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
-                <label>Bootstrap block · days<select id="prop-block"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option></select></label>
-                <label>Daily loss limit<select id="prop-dll"><option value="on">On</option><option value="off">Off · LucidFlex only</option></select></label>
-                <label>Evaluation price · USD<input id="prop-eval-fee" value="49" type="number" min="0" max="100000" step="any" required /></label>
-                <label>Funded activation · USD<input id="prop-activation" value="129" type="number" min="0" max="100000" step="any" required /></label>
-                <label>Funded slots<input id="prop-slots" value="20" type="number" min="1" max="20" step="1" required /></label>
-                <label>Total NQ limit<input id="prop-max-nq" value="4" type="number" min="0.1" max="100000" step="any" required /></label>
-                <label>Explicit holdout start · optional<input id="prop-holdout" type="date" /></label>
-              </div>
-              <h3>Trading commissions</h3>
-              <p>This model orders MNQ for both evaluation and funded accounts. Ten MNQ contracts pay ten MNQ commissions. The saved backtest is unchanged.</p>
-              <div class="prop-fields">
-                <label>Commission treatment<select id="prop-commission-mode"><option value="auto">Instrument commission · auto-detect source</option><option value="override">Instrument commission · explicit source required</option><option value="source">Retain scaled source costs</option></select></label>
-                <label>Source instrument<select id="prop-source-instrument"><option value="auto">Auto-detect saved symbol</option><option value="NQ">NQ · $20 per point</option><option value="MNQ">MNQ · $2 per point</option></select></label>
-                <label>Commission broker<input id="prop-commission-broker" value="Rithmic" maxlength="80" required /></label>
-                <label>MNQ commission · USD per contract per side<input id="prop-commission-side" type="number" min="0" max="100000" step="any" placeholder="0.51" /></label>
-              </div>
-              <p id="prop-commission-help"></p>
-              <p><a id="prop-commission-source" href="https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/" target="_blank" rel="noopener">Apex Rithmic commission schedule</a> · defaults checked 29 October 2026. Rates can be changed for another broker. Source slippage is retained; repriced risk uses conservative commission-adjusted bounds, not new measured MAE/MFE.</p>
-              <p>Leave holdout start blank to use the final 30% of the full history. Set prices to 109 and 0 for the alternative pricing choice. AlphaQuest selects evaluation and funded sizes; these can differ.</p>
-              <label>Additional model overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
-              <details><summary>Resolved-form defaults</summary><pre id="prop-defaults"></pre></details>
+                <h3>Risk and analysis settings</h3>
+                <div class="prop-fields">
+                  <label>Daily loss limit<select id="prop-dll"><option value="on">On</option><option value="off">Off · LucidFlex only</option></select></label>
+                  <label>Total NQ limit<input id="prop-max-nq" value="4" type="number" min="0.1" max="100000" step="any" required /></label>
+                  <label>Activation wait · weekdays<input id="prop-activation-wait" type="number" min="0" max="261" step="1" placeholder="Provider default: Apex 1, Lucid 0" /></label>
+                  <label>Bootstrap block · days<select id="prop-block"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option></select></label>
+                  <label>Funded slots<input id="prop-slots" value="20" type="number" min="1" max="20" step="1" required /></label>
+                  <label>Explicit holdout start · optional<input id="prop-holdout" type="date" /></label>
+                </div>
+                <label id="prop-fee-note-label">Saved price / fee override note<textarea id="prop-fee-note" rows="2" placeholder="Label synthetic overrides explicitly; prices are saved assumptions"></textarea></label>
+                <label>Additional model overrides · JSON object<textarea id="prop-overrides" rows="5" spellcheck="false">{}</textarea></label>
+                <details><summary>Resolved-form defaults</summary><pre id="prop-defaults"></pre></details>
+              </details>
               <div class="prop-actions"><button id="prop-check" type="button" class="button secondary">Check source</button><button id="prop-run" type="submit" class="button primary" disabled>Run analysis</button></div>
-              <div id="prop-check-output"></div>
+              <div id="prop-check-output" aria-live="polite"></div>
             </form>
             <section class="panel prop-panel"><h2>Saved analyses for this backtest</h2><div id="prop-saved"></div></section>
           </div>

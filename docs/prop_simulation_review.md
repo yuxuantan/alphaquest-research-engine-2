@@ -4605,3 +4605,452 @@ failed/interrupted probe logs and snapshots remain separately inspectable;
 qualification uses the completed gates listed above. No persistent test server,
 original-data financial run, source deletion, Windows action, commit or push was
 performed. The user's existing development portal process remains running.
+
+## Portfolio milestone 2 — cash ledger and budget — 2026-11-04
+
+This increment adds **Budgeted cash ledger · one unfunded slot** to the existing
+backtest → Configure prop analysis → Check source → Run → durable report flow.
+It uses the existing AnalysisStore, file endpoints and ZIP, both independently
+checked milestone-1 sources, and existing Apex/Lucid trading kernels. No separate
+page/API/store, external runtime, provider price lookup or strategy resimulation
+is used to calculate cash. Prices in this demonstration are explicitly labeled
+**SYNTHETIC $30 evaluation / $40 activation overrides**, not provider prices.
+
+Before extending milestone 1, its independent standard-library Decimal/date
+oracle matched all five saved reports and every payout date/amount. Its full
+focused admission/API/lifecycle gate also completed **13 passed**. Its first test
+invocation hit a missing parent evidence directory; that setup probe was corrected
+before the completed gate (`m1-qualified.xml`). Original reports stayed intact.
+
+### Independent expected cash and trading observations
+
+The synthetic evaluation source uses the actual registered consecutive-green
+strategy with fixed one NQ, zero source commission/slippage, then normal fixed
+10-MNQ evaluation / 3-MNQ funded adaptation. It contains a recovering $3,000 source
+winner on January 5 whose observed opening adverse jump is −$3,000 at evaluation
+size. This fails before recovery under the existing rules. All later evaluation
+sessions earn $3,000 at ten micros and can pass. A separate funded source earns
+$900/session at three micros and has an observed adverse opening gap on January
+15 that closes the account. Source net wins are never substituted for intratrade
+risk. Both source datasets/backtests are labeled SYNTHETIC, created by normal
+product APIs, with declared IS and separately reserved synthetic OOS dates.
+
+Cap $100; budget zone America/Chicago; January 5 start; January 31 inclusive end;
+activation minimum wait one weekday, modeled payment delay zero, modeled
+inclusive deadline seven calendar days after eligibility; modeled trader receipt
+30 calendar days after request. Required text descriptions and fee overrides are
+saved with the result. The receipt/approval/deadline assumptions are unverified.
+
+| Budget-local date/time | Independently expected ledger event | Paid fee | Trader receipt | Reservation change | Paid January to date |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Jan 5 00:00 | Evaluation purchase, attempt 1 | $30 | $0 | $0 | $30 |
+| Jan 5 00:00 | Reserve potential activation | $0 | $0 | +$40 | $30 |
+| Jan 5 16:00 | Failed attempt; release reservation | $0 | $0 | −$40 | $30 |
+| Jan 6 00:00 | Replacement evaluation purchase, attempt 2 | $30 | $0 | $0 | $60 |
+| Jan 6 00:00 | Reserve potential activation | $0 | $0 | +$40 | $60 |
+| Jan 6 16:00 | Evaluation passed; deadline Jan 14 16:00 | $0 | $0 | $0 | $60 |
+| Jan 7 16:00 | Eligibility; release reservation, pay activation | $40 | $0 | −$40 | $100 |
+| Jan 14 16:00 | Request $1,500 trader payout; separate $1,500 account deduction | $0 | $0 | $0 | $100 |
+| Jan 15 16:00 | Funded account breach/closure | $0 | $0 | $0 | $100 |
+| Jan 16–31 00:00 | Further evaluation purchase blocked/deferred | $0 | $0 | $0 | $100 |
+
+Actual paid spending must be **$30 + $30 + $40 = exactly $100**. Reservations
+contribute zero expense; failed attempts receive no refund. Five new funded
+sessions January 8, 9, 12, 13, 14 earn `5 × $900 = $4,500`; this meets the existing
+$2,100 safety net, five qualifying days, consistency and first $1,500 cap. January
+14's request/account deduction is not received trader cash. Its conditional modeled
+receipt is **February 13 16:00 Chicago (22:00 UTC)**, outside January's horizon.
+January received cash is $0, paid evaluations $60, activation $40, net cash −$100,
+multiple `0 / 60 = 0`, pending modeled receipts $1,500 and remaining allowance $0.
+The receipt remains pending despite the modeled January 15 account closure;
+this assumes no cancellation/reversal and is not verified provider settlement.
+
+The saved boundary scenarios use the same normal source selections and fees:
+
+- **Month reset:** extend the horizon to February 10. January paid $100. On
+  February 1 00:00 Chicago (06:00 UTC), allowance resets to $100; buy evaluation 3
+  for $30 and reserve $40. Pass February 2, activate February 3 for $40, funded
+  starts February 4. February paid $70, remaining $30, total paid $170, received
+  $0, net −$170. The funded account stays open at the horizon, with no invented
+  terminal value. Another $1,500 request on February 10 remains a modeled pending
+  receipt due March 12; no trading after the horizon is simulated to derive it.
+- **Activation expiry:** retain January's horizon but delay payment eight
+  calendar days after eligibility. Attempt 2 is eligible January 7; its unchanged
+  seven-day deadline is January 14 16:00. The unpaid activation expires then and
+  releases $40. The January 15 scheduled payment cannot pay an expired obligation.
+  Evaluations paid $60; activation paid $0; remaining allowance $40, net −$60.
+  A new purchase needs $30 + $40 reserved and remains blocked despite $40 unspent.
+- **Pending obligation across reset:** start January 30, end February 5, payment
+  delay eight days. Buy for $30 and reserve $40; pass January 30. Eligibility is
+  February 2 and deadline February 9, unchanged by reset. January's **$70 unspent
+  allowance expires**, including the $40 reservation. February 1 logs release
+  −$40, reset spending to zero, then re-reservation +$40 against the new $100.
+  February paid $0, remaining $100, reserved $40, available for purchases $60;
+  slot remains occupied, so no extra account is bought. Pending obligation and
+  original February 9 deadline remain at the horizon; total net −$30.
+- **Receipt within horizon:** extend the main case to February 13. That day's
+  $1,500 modeled receipt is now in the horizon. Total paid remains $170, net is
+  **$1,500 − $90 − $80 = $1,330**; multiple is **$1,500 / $90 = 16.666666…**.
+  Activation costs are reported separately and do not enter that denominator.
+  The account remains open and its February 10 request stays pending.
+- Missing required receipt description disables Run after source checking and
+  returns its meaningful admission reason. Automated boundaries also reject
+  missing/invalid dates/timezone/deadline, non-cent fees, multi-slot requests,
+  cash controls in annualized mode and horizons outside observed coverage.
+  Zero paid evaluation fees yield unavailable multiple, not infinity or zero.
+  Payment exactly on the inclusive deadline succeeds; one day later expires.
+
+### Reproduction and saved evidence
+
+Run all commands from `/Users/yx/alphaquest-research-engine-2`. Use a fresh output
+or basetemp path: pytest clears its basetemp; the independent verifier/reopening
+script refuse to overwrite their output. The primary saved library is:
+
+`artifacts/prop-portfolio-m2-20261104/qualified-browser/test_budget_configuration_cash0/`
+
+It contains normal dataset/backtest/catalogue files plus source checks, submitted
+requests, reports, CSV/JSON ledgers, original source/risk captures, ZIPs and desktop/
+mobile screenshots. `final-workflow/` at the evidence root records the final-code
+configure/check/run/reopen pass against these same saved backtests. Fixture oracles
+remain in tests; the product only displays source checks, actual modeled ledger
+results and their assumptions. No future receipt is presented as confirmed cash.
+
+Create new synthetic sources and all five reports through the actual workflow:
+
+```sh
+mkdir -p artifacts/prop-cash-NEW
+.venv/bin/python -m pytest -q tests/test_prop_cash_browser.py \
+  --basetemp artifacts/prop-cash-NEW/browser
+```
+
+Reopen/recheck/re-run the saved selections through the real UI, without strategy
+bars or new datasets, then run the independent verifier against downloaded files:
+
+```sh
+PYTHONPATH=tests:. .venv/bin/python tests/review_prop_cash.py \
+  --library artifacts/prop-portfolio-m2-20261104/qualified-browser/test_budget_configuration_cash0 \
+  --output artifacts/prop-cash-reopen-NEW
+.venv/bin/python tests/review_prop_cash_oracles.py \
+  --directory artifacts/prop-cash-reopen-NEW \
+  --output artifacts/prop-cash-independent-NEW.json
+```
+
+The reopener owns/stops its temporary server/browser, checks saved settings copy,
+source checks, execution, downloads, reload without POST, mobile overflow and no
+JavaScript errors, and verifies prior library files unchanged. With identical
+current implementation/settings, execution reuses the existing verified analysis
+ID. Changed implementation produces a new durable report. The standard-library
+verifier imports no production calculation code: it independently checks every
+cash/reservation delta, chronological budget-zone month, each month's cap,
+aggregate ratio, exact expected fee rows, late receipt, expiry/reset/open states,
+CSV/JSON agreement and all captured ZIP hashes.
+
+Start an optional inspection server on this library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/prop-portfolio-m2-20261104/qualified-browser/test_budget_configuration_cash0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8012
+```
+
+Open the saved evaluation backtest, click **Configure prop analysis**, select
+**Budgeted cash ledger · one unfunded slot**, select the saved funded source, use
+10 / 3 MNQ, source-cost mode, $30 / $40 prices, cap $100, America/Chicago, January 5
+to January 31 2026, receipt lag 30 days, activation deadline 7 and payment delay 0.
+Enter explicit unverified modeling descriptions and the synthetic fee override
+note. **Check source** must show both phase sources checked. **Run** opens the
+normal durable ledger report. Inspect trader cash, monthly spending, reservations,
+account deadlines and pending receipts. Download the cash/monthly CSV/JSON or ZIP;
+reload without calculation. Stop this optional server with **Ctrl-C**.
+
+Exact API request bodies are saved as `<case>-request.json` under final-workflow.
+With the optional server running, check and execute the same normal request:
+
+```sh
+curl --fail-with-body -sS -H 'Content-Type: application/json' \
+  --data-binary @artifacts/prop-portfolio-m2-20261104/final-workflow/exact_100-request.json \
+  http://127.0.0.1:8012/api/prop-analyses/check
+curl --fail-with-body -sS -H 'Content-Type: application/json' \
+  --data-binary @artifacts/prop-portfolio-m2-20261104/final-workflow/exact_100-request.json \
+  http://127.0.0.1:8012/api/prop-analyses
+```
+
+The returned ID identifies `/api/prop-analyses/{id}`, durable report download
+`/api/prop-analyses/{id}/downloads/report.json`, and cash/monthly exports under
+`/api/prop-analyses/{id}/files/cash_ledger.csv` and `monthly_ledger.csv`.
+
+This is one observed path and one slot, not a probabilistic expected-income
+forecast or portfolio recommendation. No multi-account/shared-account optimization,
+settlement feed, refund/reversal model, provider approval confirmation or new
+external/provider numerical parity is claimed. Holiday handling and conservative
+OHLC versus measured intratrade-risk limits remain those of milestone 1. Saved
+prices/deadlines/delays are assumptions; fee overrides do not change firm trading
+rules. All open evaluations/accounts/pending obligations are preserved at the
+horizon. Milestones 3–5 remain pending.
+
+### Final saved report IDs and URLs
+
+Evaluation source: `3d8aa5a8e5894bb6af25d91b613f812b`. Funded source: `a13ebd29071b4da6aebe458c18eec8b3`.
+Open the evaluation backtest at `http://127.0.0.1:8012/#backtests/report/3d8aa5a8e5894bb6af25d91b613f812b` after starting the optional library server above.
+
+| Case | Exact saved analysis ID | Durable report URL |
+| --- | --- | --- |
+| Exact $100 / late receipt | `41d6209c3a4d48bd97ab8681589f7112` | `http://127.0.0.1:8012/#backtests/prop/job/41d6209c3a4d48bd97ab8681589f7112` |
+| Month reset / open account | `05755ccb7a544524b05dceb82a0e063d` | `http://127.0.0.1:8012/#backtests/prop/job/05755ccb7a544524b05dceb82a0e063d` |
+| Activation expiry | `4be1e716223a48de8bb67f97196d10f5` | `http://127.0.0.1:8012/#backtests/prop/job/4be1e716223a48de8bb67f97196d10f5` |
+| Pending obligation across reset | `1bd912b189814bf880bf6fdf8d449af5` | `http://127.0.0.1:8012/#backtests/prop/job/1bd912b189814bf880bf6fdf8d449af5` |
+| Receipt inside horizon | `ca7d306a76ef45fbb4294c77cc90308f` | `http://127.0.0.1:8012/#backtests/prop/job/ca7d306a76ef45fbb4294c77cc90308f` |
+
+All five final-workflow requests **reused these same saved IDs**, without a new calculation or report file. All **258** inventoried library JSON/CSV/ZIP/gzip files stayed byte-identical; no JavaScript errors or page overflow occurred. The owned server/browser stopped. The independent final verifier conserved **154 ledger rows**, confirmed all months within the cap, and verified **115 captured ZIP hashes**. Results are in `final-workflow/verification.json` and `independent-final.json`.
+
+### Completed checks and preservation
+
+**75 distinct focused pytest cases passed**, with zero failures/errors/skips:
+
+- `qualified-backend.xml`: **71 passed** across cash, both phase sources,
+  admission/identity, the normal API, prop/backtest/activity deletion and rollback.
+- `cash-final.xml`: **27 passed**, including the two additional cost-preservation
+  and all-budget-settings identity/admission cases; 25 overlap the broader gate.
+- `qualified-browser.xml`: **2 passed**: all five budgeted scenarios plus the
+  original milestone-1 source/strategy/configure/check/run/download/reopen journey.
+
+Additional completed verification includes the pre-extension milestone-1 gate
+(13 passed), independent milestone-1 payout/date oracle, final-code UI reuse of
+all five cash IDs, and standalone independent checks on every cash/reservation
+row, monthly cap, ratio, CSV and ZIP. Python compilation, JavaScript syntax and
+Git whitespace checks passed. One existing Starlette/httpx deprecation warning
+occurs per API/browser pytest process. This is a focused qualification, not a
+full repository-suite or new provider-rule-parity claim. Standard automatic
+simulation counts were retained; the cash mode itself is chronological replay.
+
+Re-run the completed automated gates with a fresh evidence directory:
+
+```sh
+mkdir -p artifacts/prop-cash-check-NEW
+.venv/bin/python -m pytest -q tests/test_prop_cash.py tests/test_prop_phases.py \
+  tests/test_prop_phase_validation.py tests/test_prop_analysis_api.py \
+  tests/test_delete_prop_reports.py tests/test_delete_backtests.py \
+  tests/test_delete_backtest_activities.py \
+  --basetemp artifacts/prop-cash-check-NEW/backend
+.venv/bin/python -m pytest -q tests/test_prop_cash_browser.py \
+  tests/test_prop_phases_browser.py --basetemp artifacts/prop-cash-check-NEW/browser
+```
+
+The current combined backend invocation collects 73 cases because it includes
+the final two cash cases added after the original 71-case gate was collected.
+Those two independently completed in the 27-case final cash gate. Automated
+cash boundaries also include 32 independently generated deterministic paths,
+full-cap enforcement despite immediate receipts, calendar-month timezone/DST
+boundaries, inclusive deadline equality, unresolved evaluation/activation state,
+zero evaluation-fee denominator, and fractional Lucid entitlement rounding while
+preserving its raw account deduction and 90% share.
+
+`artifacts/prop-portfolio-m2-20261104/validation.json` indexes the completed gates,
+current implementation hashes, final IDs and independent/preservation results.
+All **42,664** inventoried original source/report/evidence JSON/CSV/ZIP/gzip files
+remain byte-identical, as recorded by `preservation-before.json` and
+`preservation-after.json`. Earlier probe outputs remain inspectable separately;
+the final evidence is in `qualified-browser/`, `final-workflow/` and
+`independent-final.json`. All owned temporary servers and browsers stopped;
+**no persistent server was started**. The user's existing portal, Windows VM,
+other processes, datasets, backtests and earlier results were left intact.
+No commit or remote push was performed.
+
+## Simpler prop configuration and budget timezone dropdown — 2026-11-05
+
+The reported 422 came from an empty free-text budget timezone: its grey
+`America/Chicago` example was a placeholder. The form now has a real dropdown,
+visibly defaulting to **Chicago · America/Chicago**, with New York, Singapore and
+UTC choices. Copying a saved report with another valid IANA timezone adds and
+selects that exact value, preserving its monthly boundaries. Backend timezone
+validation and saved calculation semantics remain unchanged.
+
+The prop form also reduces routine entry:
+
+- Keep the account/method, fixed source sizes, budget, dates and saved fee choices
+  visible. Collapse source search/optional exports and trading-cost/advanced
+  controls, including commission overrides and JSON, until requested.
+- **Use full shared observed period** fills both dates from the selected saved
+  sources. The visible range follows source selection; date values only change
+  when the user clicks that button. Custom dates remain editable.
+- Receipt dropdown choices are same-day, five-day, thirty-day or Custom. An
+  activation dropdown offers modeled payment at eligibility with a seven-calendar-
+  day inclusive deadline, or Custom. Choosing a preset saves its explicit
+  unverified assumption text. Neither timing choice is silently accepted by
+  default. Copied reports open as Custom with their exact saved text/values.
+- Missing routine values show an inline error beside Check source and focus the
+  relevant field, rather than requiring the user to interpret FastAPI's 422 log.
+  The fee summary explains the paid evaluation plus activation reservation needed
+  for a purchase and warns when the selected cap blocks acquisitions. That cap
+  remains valid as a deliberate zero-purchase baseline.
+- Source checking shows a short identity/risk/cost summary and both phase checks;
+  full snapshots and resolved settings remain expandable. Saved reports and their
+  calculation, ledger and download contracts are unchanged.
+
+### Main-library validation
+
+Your existing real-data IS backtest remains available at:
+
+`http://127.0.0.1:8000/#backtests/report/603138d438cc488bbe649c2fb1ac9798`
+
+It uses `ofb_bars_NQ` and fixed-size VWAP observations within 2021–2024. The
+read-only product review opened that backtest → Configure prop analysis →
+Budgeted cash ledger, used the default Chicago dropdown, entered a $200 cap,
+clicked **Use full shared observed period**, selected modeled five-day receipts
+and immediate/seven-day activation, and clicked **Check source**. It retained
+normal saved fee defaults and commission settings; no advanced section was opened.
+
+Expected and observed: missing budget first produced a focused inline message
+without a POST; choosing the above settings then produced **HTTP 200**, **771
+trades checked**, both sources checked, dates **2021-01-04 → 2024-12-31**, and
+**Run analysis enabled**. This review submitted **zero analyses and zero
+backtests**; the user can now execute the saved-trade analysis normally. No
+provider purchase, actual settlement or future performance is implied.
+
+Evidence is under `artifacts/prop-form-ux-20261105/main-library/`:
+`verification.json`, `request.json`, `source-check.json`, missing-budget inline
+error, desktop-ready and mobile screenshots. The existing main server was left
+running. To repeat this read-only review against your own running main server,
+use a fresh output directory:
+
+```sh
+PYTHONPATH=tests:. .venv/bin/python tests/review_prop_config.py \
+  --url http://127.0.0.1:8000 \
+  --source 603138d438cc488bbe649c2fb1ac9798 \
+  --output artifacts/prop-form-main-RECHECK
+```
+
+The script owns/closes only its private browser; it never starts/stops your server
+or submits analysis/backtest creation. For the full normal product demonstration,
+run the updated browser checks with a fresh basetemp:
+
+```sh
+mkdir -p artifacts/prop-form-RECHECK
+.venv/bin/python -m pytest -q tests/test_prop_cash_browser.py \
+  tests/test_prop_phases_browser.py tests/test_prop_analysis_browser.py \
+  tests/test_prop_commissions_browser.py tests/test_lucid_prop_browser.py \
+  --basetemp artifacts/prop-form-RECHECK/browser
+```
+
+These checks use normal saved synthetic sources/reports and owned temporary
+servers, covering the five original $100/reset/expiry/late-receipt cases, the
+preset-based path, saved-settings reuse, arbitrary saved timezone preservation,
+check invalidation on timezone change, inline errors/focus, desktop/mobile layout,
+and existing annualized/commission/Lucid workflows. Fixture expectations remain
+in tests; there is no separate validation page, API or report store.
+
+Completed UX checks: **34 backend boundary/admission checks passed**. The broader
+browser run passed seven cases and found one pre-existing stale assertion that
+expected no Sizing tab when funded outcomes were unavailable. The native report
+renderer is byte-identical to HEAD and already retains joint-sizing rejection
+diagnostics. The corrected focused annualized case passed, explicitly checking
+“No training evaluation passed,” no selected pair and no historical replay.
+Thus **eight distinct browser cases passed across the suite and focused rerun**;
+this is not a full repository-suite claim. The initial failure remains in the
+XML rather than being hidden. Evidence: `backend-boundaries.xml`,
+`qualified-browser.xml`, `qualified-annual.xml`, and
+`annual-diagnostics-baseline.json` under `artifacts/prop-form-ux-20261105/`.
+
+The standalone Decimal/date oracle also rechecked the five durable cash scenarios:
+all **154 ledger rows**, monthly caps, independent fee totals and **115 captured
+ZIP hashes** still match. `independent-cash.json` retains those results. The normal
+product library is `qualified-browser/test_budget_configuration_cash0/` under
+that root; its verification manifest also records the new preset and saved-custom-
+timezone report IDs. Earlier November 4 reports/evidence remain unchanged.
+`validation.json` indexes the completed evidence and preservation results.
+
+All **42,664** previously inventoried original source/report/evidence files remain
+byte-identical. The original NQ dataset's **201,905,490 stored bytes** still match
+its saved SHA-256. No production Python calculation/API contract changed, and the
+main-library review created no analysis or backtest. Owned temporary servers and
+private browsers stopped; the user's main port-8000 server was left running.
+Refresh the main portal configuration page to load the updated static form.
+
+## Retire the standalone lifecycle selector — 2026-11-05
+
+The **Analysis method** selector now contains only **Annualized sizing · existing
+single source** and **Budgeted cash ledger · one unfunded slot**. Annualized stays
+the fresh-form default. Lifecycle calculations and earlier reports are retained;
+this change does not modify financial calculations or the legacy API contract.
+
+Earlier lifecycle reports expose **Configure budgeted analysis**. It copies both
+saved sources, their fixed targets and other saved account settings. The monthly
+cap, dates and timing choices remain empty until entered. Clicking **Check
+source** before completing them shows a focused inline error and submits no POST.
+No new method is selected through hidden JSON overrides: the visible method owns
+the outgoing analysis mode.
+
+### Saved product demonstration
+
+Evidence is in `artifacts/prop-method-selector-20261105/`. The normal synthetic
+product library is `browser/test_phase_sources_configure_c0/`, with:
+
+- Evaluation source `3801164a791f4af59bf78aa10b1f7c3c`.
+- Different-parameter funded source `d794f53dd6014380b66bc7f1cbb71e99`.
+- Retained lifecycle report `901ef9a6cdbb4b35a6078138d44cd377`.
+- New budgeted report `4d130e549fab453d98e5dd4f28cbe24b`.
+
+Reopen this library without rerunning strategy bars or calculations:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/prop-method-selector-20261105/browser/test_phase_sources_configure_c0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8013
+```
+
+1. Open `http://127.0.0.1:8013/#backtests/report/3801164a791f4af59bf78aa10b1f7c3c`
+   and choose **Configure prop analysis**. Expect exactly the two methods above.
+2. Open `http://127.0.0.1:8013/#backtests/prop/job/901ef9a6cdbb4b35a6078138d44cd377`.
+   Its saved dated lifecycle still shows $7,500 in modeled trader entitlements,
+   an evaluation pass on January 5 and funded start on January 7. These are the
+   previously independently derived synthetic outcomes, not a cash forecast.
+3. Choose **Configure budgeted analysis**. Expect the same two sources, evaluation
+   target 10 MNQ and funded target 3 MNQ, with empty cap/dates/timing choices.
+   Click **Check source**: the missing monthly cap is identified and Run stays
+   disabled. No request is submitted with inferred budget assumptions.
+4. Set cap $100, evaluation price $30, activation price $40, and both observed
+   dates to `2026-01-05`. Explicitly select same-day modeled receipts and modeled
+   immediate activation payment/seven-day deadline. Check and run. Expect the
+   saved budgeted report above to be reused. Independently: one evaluation costs
+   $30, its $40 activation is only reserved, and eligibility is after the chosen
+   horizon. Receipts and paid activation fees are $0; net cash is **-$30**,
+   remaining allowance $70, reserved allowance $40. Reservations are not expenses.
+5. Download the cash ledger/ZIP and reopen/reload the report. Expect unchanged
+   saved outputs without recalculation. A one-session incompatible funded source
+   is also exercised by the browser check and keeps Run disabled.
+6. Stop the manually started server with Ctrl+C.
+
+The browser check captures desktop/mobile screenshots, source checks, all four
+retained lifecycle outcomes, budgeted downloads and `verification.json`. It
+verifies all 16 retained report/trace/ZIP downloads remain byte-identical after
+configuration and publication of the new budgeted result. Fixture expectations
+remain in the test, not in a product validation screen.
+
+The read-only `legacy-reopen/verification.json` additionally records four actual
+November 4 lifecycle reports reopened against the current UI, both-source/size
+copying, zero submitted POSTs, 358 unchanged original fixture files and shutdown
+of its owned temporary server. Earlier evidence was not regenerated or rewritten.
+
+To repeat checks, use a fresh output directory (pytest clears its basetemp):
+
+```sh
+mkdir -p artifacts/prop-method-selector-RECHECK
+.venv/bin/python -m pytest -q tests/test_prop_phases_browser.py \
+  tests/test_prop_cash_browser.py tests/test_prop_analysis_browser.py \
+  --basetemp artifacts/prop-method-selector-RECHECK/browser \
+  --junitxml artifacts/prop-method-selector-RECHECK/browser.xml
+PYTHONPATH=tests:. .venv/bin/python tests/review_prop_phases.py \
+  --library artifacts/prop-portfolio-m1-20261104/qualified-browser/test_phase_sources_configure_c0 \
+  --output artifacts/prop-method-selector-RECHECK/legacy-reopen
+```
+
+Completed validation: **five focused browser checks passed** (241.39 seconds),
+covering the retired-selector successor journey, the existing budgeted cash
+demonstrations, and annualized report/configuration behavior. `browser.xml`
+records the full run. JavaScript syntax and `git diff --check` passed. This is
+not a full repository suite or a new numerical/provider qualification.
+`preservation-after.json` confirms all 361 protected files are unchanged,
+including the three existing calculation modules and 358 earlier fixture
+artifacts. `validation.json` indexes the evidence; `task.patch` isolates this
+change from the pre-existing uncommitted work. All owned temporary test servers
+and browsers stopped; no persistent server was started, and the user's existing
+server/processes were left alone. Refresh the portal to load the two-option form.

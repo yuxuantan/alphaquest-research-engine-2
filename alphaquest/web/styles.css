@@ -1417,6 +1417,10 @@ dialog::backdrop {
 .prop-panel pre { max-height:450px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:#f5f7f8; padding:16px; font-size:12px; }
 .prop-panel details { margin:20px 0; }
 .prop-panel summary { cursor:pointer; }
+.prop-advanced { border:1px solid var(--line); border-radius:8px; padding:16px; }
+.prop-advanced > summary { font-weight:600; line-height:1.5; }
+.prop-form-error { color:#ad2929; border-left:3px solid #ad2929; padding:12px; background:#fff6f4; }
+#prop-form [aria-invalid="true"] { border-color:#ad2929; outline:2px solid #ad2929; outline-offset:2px; }
 .prop-chart { width:100%; height:280px; background:#fafcfc; }
 @media(max-width:600px) { .prop-fields { grid-template-columns:1fr; } }
 

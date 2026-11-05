@@ -121,6 +121,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     page.goto(compact_url)
     page.locator("#report-prop-setup").click()
     playwright.expect(page.locator("#prop-config")).to_be_visible()
+    page.locator("#prop-advanced > summary").click()
     # Reject an unsupported configuration in the real flow before a valid check.
     page.locator("#prop-overrides").fill('{"unsupported_storage_test":1}')
     page.locator("#prop-check").click()

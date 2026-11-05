@@ -79,6 +79,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.locator('#prop-back').click()
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-activation')).to_have_value('129')
+    page.locator('#prop-advanced > summary').click()
     page.locator('#prop-overrides').fill('{"unsupported_automatic_test":1}')
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-status')).to_contain_text('Unknown prop analysis setting')

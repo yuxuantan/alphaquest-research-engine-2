@@ -61,6 +61,7 @@ def test_actual_instrument_commission_workflow_downloads_and_reopen(page,portal,
     page.goto(portal['url']+'/#backtests/report/'+source_id)
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    page.locator('#prop-advanced > summary').click()
     playwright.expect(page.locator('#prop-commission-side')).to_have_value('0.51')
     playwright.expect(page.locator('#prop-commission-help')).to_contain_text('Detected source: NQ')
     page.locator('#prop-trade-file').fill('')

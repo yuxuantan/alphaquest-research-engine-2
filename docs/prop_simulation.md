@@ -1,5 +1,149 @@
 # AlphaQuest local prop simulation
 
+## Selectable analysis methods — 2026-11-05
+
+New portal configurations offer **Annualized sizing · existing single source**
+and **Budgeted cash ledger · one unfunded slot**. Standalone **Dated phase
+lifecycle · fixed sizes** is no longer selectable. Its transition calculations
+remain available to the budgeted method, and earlier lifecycle reports and
+downloads remain readable without recalculation or mutation.
+
+An earlier lifecycle report offers **Configure budgeted analysis**. This copies
+its account, phase sources, fixed targets and other saved settings into a new
+budgeted configuration. Enter the monthly cap, observed dates and explicit timing
+assumptions before checking/running; these inputs are not inferred from the old
+report. No new analysis is submitted just by opening the form. Annualized remains
+the default for fresh configurations. Legacy dated API support remains for
+compatibility and development qualification.
+
+The milestone-1 section below describes the earlier standalone workflow and its
+saved evidence; use the budgeted method for new fixed-phase portal analyses.
+
+
+## Portfolio milestone 2: exact cash ledger and monthly acquisition budget — 2026-11-04
+
+From a saved backtest choose **Configure prop analysis → Budgeted cash ledger ·
+one unfunded slot**. Keep the milestone-1 evaluation/funded source selections and
+fixed MNQ targets. Set the monthly evaluation-plus-activation fee cap, saved prices,
+budget timezone, start date and inclusive horizon end. The timezone dropdown
+starts with Chicago (`America/Chicago`) and offers New York, Singapore and UTC.
+A different valid timezone copied from a saved report remains selected. The visible
+selection is saved explicitly and sets calendar-month boundaries.
+
+The routine form keeps the account, method, fixed sizes, budget, dates and saved
+fees visible. **Use full shared observed period** fills both dates from the
+selected sources without overwriting them when a source changes later. Choose
+receipt timing (same day, 5 or 30 calendar days) and the immediate-payment/seven-day
+activation assumption from dropdowns; choosing a preset saves its explicit
+unverified modeling description. No timing assumption is silently preselected.
+Choose **Custom** to enter other timing or retain a copied report's exact values.
+Optional source exports/search, commissions, risk overrides and JSON settings are
+in expandable sections. Missing routine inputs are highlighted beside **Check
+source** and focus the affected field before an API request. Fee help shows the
+evaluation-plus-activation allowance needed, including when the cap blocks buying.
+Source-check summaries keep detailed cost/risk/settings snapshots expandable.
+
+Source checks require
+the entire horizon inside the common observed session-date window. This is a
+chronological observed scenario, without invented future trading or resampling.
+Then **Check source → Run analysis** saves the ordinary AnalysisStore report.
+New model IDs append `-cash-ledger-v1`; annualized and dated-phase reports retain
+their earlier meanings. Saved reports/evidence are never rewritten.
+
+The slot starts empty, without prior spending. At budget-local midnight the
+scheduler attempts a purchase if the slot is empty. Its first partial month has
+the full monthly cap. Subsequent months run from local calendar-month midnight to
+the next local calendar-month midnight, converted to UTC with IANA/DST rules.
+Purchase transactions pay the saved evaluation fee immediately. Replacements
+wait until the next daily scheduler tick after a failed/expired evaluation,
+activation expiry or funded-account closure. There is no same-session restart,
+expected-cost purchase, assumed funding probability, renewal charge or refund.
+
+The initial **activation-priority** policy requires enough available allowance
+for **evaluation fee + full activation fee** before purchase. It immediately
+reserves the activation fee, including while evaluation is unresolved. Reservations
+reduce purchasing availability but are not expenses. Failed attempts release their
+reservation. Passing creates a dated activation obligation and saved inclusive
+deadline. Eligibility uses milestone-1 minimum/extended weekday wait. Payment occurs
+at eligibility plus the saved calendar-day payment delay. It releases the
+reservation and pays the activation fee from that month's remaining cap. Payment
+at the deadline is accepted; an unpaid obligation expires at the deadline, releases
+its reservation, and closes without a refund. Delays/deadlines must be explicitly
+described as **unverified saved modeling assumptions**, not provider-rule claims.
+Lucid retains its zero activation fee and existing trading rules.
+
+At month reset, close the old month's paid-fee and unused-allowance totals.
+Release the old reservation; the unspent allowance, including any unspent earmark,
+expires in full. Start the new cap at zero spending, then re-reserve any outstanding
+evaluation's potential activation fee or passed account's unpaid activation fee
+**against the new cap before purchases**. Do not extend its original eligibility,
+payment date or deadline. This preserves the obligation, never the old allowance.
+The cap is fixed across months in this milestone, so every admitted obligation
+fits the new cap. A new purchase that cannot cover its fee and reservation is
+logged blocked/deferred; retry at subsequent daily scheduler ticks. Payouts never
+change this test or expand spending permission. Every ledger row enforces
+`0 <= paid_fees <= cap` and `0 <= reservations <= cap - paid_fees` with Decimal
+USD-cent fee arithmetic; violated invariants prevent publication.
+
+The existing firm kernels still own evaluation targets/consistency, intratrade
+breaches versus daily stops, funded tiers/inactivity, requests and account
+deductions. The financial timeline dates their daily transitions at modeled
+16:00 Chicago session close. Funded observations must be in subsequent sessions
+after eligibility and must open after actual activation payment. No carried
+source position is inherited. Source net trading costs are adapted once by the
+existing commission reconciliation and never charged again as cash fees.
+
+A payout creates separate **request** and **gross account deduction** rows with
+zero trader-cash delta. The funded kernel already deducted the gross amount;
+the cash ledger does not deduct it again. Trader receipt is a distinct row at
+request time plus saved calendar days at the same budget-local wall time (DST
+aware). Require a nonempty saved payout-timing assumption even for zero-day
+receipt. Modeled receipts round trader entitlement to USD cents with Decimal
+`ROUND_HALF_UP`; raw entitlement and gross account deduction retain kernel
+precision. No bank settlement is verified. Pending requests are assumed payable
+under this scenario even after the account closes; cancellation/reversal and
+provider approval workflows are not modeled. Dates/amounts after the horizon are
+conditional obligations under that assumption, never claimed actual receipts.
+
+The horizon is `[start-local-midnight, midnight-after-inclusive-end)`. Received
+cash within it minus **actual paid evaluation and activation fees** is net cash.
+The payout/evaluation-fee multiple is **aggregate received trader cash / aggregate
+paid evaluation fees**, never the mean of account/path ratios; a zero denominator
+is unavailable (`null`). Activation fees, monthly paid spending, remaining and
+reserved allowance, pending passed-account fees, potential evaluation activation
+fees and pending trader receipts remain separate. Evaluation profit, nominal
+account equity and unused budget are not trader cash. Open accounts and pending
+obligations stay open at the horizon; there is no terminal value or liquidation.
+
+The durable report includes readable cash totals, monthly spending, account
+states/deadlines, pending settlements, fixed source snapshots and the trading
+trace. Download `cash_ledger.csv/.json`, `monthly_ledger.csv/.json`, `accounts.csv/
+.json`, `pending_receipts.csv/.json`, transition traces and the ordinary report
+ZIP. Settings, both original source/risk inputs and commission reconciliations
+remain in that ZIP. Reopening reads saved bytes without submitting a calculation.
+The implementation is `alphaquest/prop/cash_ledger.py`, dispatched through the
+existing phase source checks and report publication; no separate API/page/store.
+
+The configuration API uses the existing `/api/prop-analyses/check` and
+`/api/prop-analyses` endpoints. In settings, use `ANALYSIS_MODE=budgeted_lifecycle`,
+`SLOTS=1`, existing phase/source/price/commission choices, and the explicit fields
+`MONTHLY_CAP`, `BUDGET_TIMEZONE`, `START_DATE`, `HORIZON_END`,
+`PAYOUT_RECEIPT_DAYS`, `PAYOUT_TIMING_ASSUMPTION`, `ACTIVATION_DEADLINE_DAYS`,
+`ACTIVATION_PAYMENT_DELAY_DAYS`, `ACTIVATION_TIMING_ASSUMPTION`, plus optional
+`FEE_OVERRIDE_NOTE`. Money inputs must be nonnegative USD-cent strings; cap and
+prices are at most $100,000. Receipt/payment delays accept 0–366 calendar days,
+deadline 1–366; horizon at most 7,300 days inside observed coverage. Blank receipt,
+deadline, timezone, dates or required descriptions reject. Cash fields cannot
+silently select an annualized calculation; multiple slots reject.
+
+The [milestone-2 review](prop_simulation_review.md#portfolio-milestone-2--cash-ledger-and-budget--2026-11-04)
+contains actual saved synthetic report IDs, independent $100 ledger rows, expiry,
+reset and late-receipt observations, commands and validation evidence. Synthetic
+$30/$40 prices are explicit fee overrides, not current provider prices. This
+milestone makes no new external/provider numerical parity claim. Synchronized
+sampling/search, multiple separate/shared accounts and frozen OOS allocation
+recommendations remain milestones 3–5.
+
 ## Portfolio milestone 1: separate phase sources and dated lifecycle — 2026-11-04
 
 The accepted [five-milestone plan](prop_portfolio_plan.md) starts with a usable

@@ -71,3 +71,32 @@ the later cash/budget model is delivered.
   in prop_simulation_review.md. Evidence: artifacts/prop-portfolio-m1-20261104/.
   All 10,245 inventoried original source/report files remained unchanged; all
   owned servers stopped. No persistent server, commit or remote push was made.
+
+- 2026-11-04: Milestone 2 implementation adds optional budgeted dated mode to the
+  normal configure/check/run/report workflow: exact purchase/activation fees,
+  activation-priority reservations and reset policy, modeled settlement timing,
+  dated cash/monthly downloads, fixed sources and one initially unfunded slot.
+  Original milestone-1 gate: 13 passed; independent saved payout/date oracle
+  matched all five prior demonstrations before extension. Final qualification,
+  preservation audit and review documentation are in progress.
+- 2026-11-04: **Milestone 2 complete; milestones 3–5 pending.** Budgeted dated
+  mode demonstrates exact $30 + $30 + $40 = $100 paid spending, failed-attempt
+  release, blocked replacement, reset/re-reservation, activation expiry, pending
+  obligations and an after-horizon modeled receipt through the normal UI/API and
+  durable report/downloads. 75 distinct focused checks passed; the independent
+  standard-library oracle conserved all 154 saved ledger rows and verified 115
+  ZIP hashes. Final UI reopening reused every report ID and preserved all 258
+  fixture files. All 42,664 inventoried original source/report/evidence files
+  stayed unchanged. IDs, independent expected rows, commands and limitations
+  are in prop_simulation_review.md; evidence is
+  artifacts/prop-portfolio-m2-20261104/. All owned temporary servers stopped;
+  no persistent server, commit or push. One observed path/slot is supported;
+  future projections, synchronized portfolios and allocation search remain later
+  milestones. Receipt/activation timing and post-closure payment remain explicitly
+  unverified scenario assumptions, without new provider/Bridge parity claims.
+
+- 2026-11-05: Standalone dated lifecycle is removed from the portal method
+  selector. Its calculation code and saved reports remain supported. Earlier
+  reports offer **Configure budgeted analysis**, retaining their phase sources
+  and sizes while requiring budget, dates and timing assumptions. This is a
+  presentation/workflow change; portfolio comparison and selection remain pending.

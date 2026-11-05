@@ -1,7 +1,7 @@
-"""Reopen milestone-1 saved product evidence and qualify Lucid via real UI.
+"""Reopen saved lifecycle evidence and check its budgeted configuration successor.
 
-Uses the normal fixture library, existing API and report store. Owns/stops its
-server/browser; never touches the user's normal data or another process.
+Read-only against the normal fixture library; no backtests or analyses are
+submitted. Owns/stops its server/browser without touching another process.
 """
 import argparse
 from hashlib import sha256
@@ -27,7 +27,7 @@ def main():
     sock=socket.socket();sock.bind(('127.0.0.1',0));url=f'http://127.0.0.1:{sock.getsockname()[1]}'
     server=uvicorn.Server(uvicorn.Config(create_app(library/'datasets.sqlite3'),log_level='error',loop='asyncio'))
     thread=Thread(target=server.run,kwargs=dict(sockets=[sock]),daemon=True);thread.start()
-    result=dict(original_outcomes=verification['outcomes'])
+    result=dict(original_outcomes=verification['outcomes'],configurations={})
     try:
         deadline=time.monotonic()+15
         while not server.started:
@@ -43,71 +43,30 @@ def main():
                     page.goto(url+case['url']);expect(page.locator('#prop-report')).to_be_visible()
                     expect(page.locator('#prop-heading-title')).to_have_text('Dated phase lifecycle')
                     report=page.request.get(url+f"/api/prop-analyses/{case['analysis_id']}/downloads/report.json").json()
-                    if label!='recovering':assert report['calculations']['phase_metrics']['funded']['trader_payouts']==case['payouts']
+                    if 'payouts' in case:
+                        assert report['calculations']['phase_metrics']['funded']['trader_payouts']==case['payouts']
                     page.screenshot(path=str(output/(label+'-report.png')),full_page=True)
                     page.reload();expect(page.locator('#prop-report')).to_be_visible()
-                assert not posts
-                # Final-code configure/check/run for each saved source choice.
-                # Existing backtests are reused; every report is published by
-                # the real worker into this same ordinary AnalysisStore.
-                current={}
-                for label,case in verification['outcomes'].items():
-                    evaluation=case['source_id'] if label=='recovering' else verification['evaluation_source']
-                    page.goto(url+'/#backtests/prop/new/'+evaluation)
+                    page.get_by_role('link',name='Configure budgeted analysis',exact=True).click()
                     expect(page.locator('#prop-config')).to_be_visible()
-                    page.locator('#prop-method').select_option('dated_lifecycle')
-                    page.locator('#prop-commission-mode').select_option('source')
-                    page.locator('#prop-funded-source').select_option('' if case['source_id']==evaluation else case['source_id'])
-                    with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as checked:page.locator('#prop-check').click()
-                    assert checked.value.status==200,checked.value.text()
-                    (output/(label+'-check.json')).write_text(json.dumps(checked.value.json(),indent=2))
-                    page.locator('#prop-run').click();expect(page.locator('#prop-report')).to_be_visible(timeout=30000)
-                    id=page.url.rsplit('/',1)[-1]
-                    report=page.request.get(url+f'/api/prop-analyses/{id}/downloads/report.json').json();c=report['calculations']
-                    if label=='recovering':assert c['outcome']=='account_breach' and c['trace'][0]['equity']==-3000
-                    else:
-                        assert c['phase_metrics']['funded']['trader_payouts']==case['payouts']
-                        assert c['activation']['funded_start_session']=='2026-01-07'
-                        assert c['trace'][2]['source_trade_ids']==[3]
-                    (output/(label+'-report.json')).write_text(json.dumps(report,indent=2))
-                    for name,kind in [('analysis.zip','downloads'),('transition_trace.csv','files'),('transition_trace.json','files')]:
-                        response=page.request.get(url+f'/api/prop-analyses/{id}/{kind}/{name}');assert response.status==200
-                        (output/(label+'-'+name)).write_bytes(response.body())
-                    page.screenshot(path=str(output/(label+'-report.png')),full_page=True)
-                    before_reload=len(posts);page.reload();expect(page.locator('#prop-report')).to_be_visible();assert len(posts)==before_reload
-                    current[label]={**case,'analysis_id':id,'url':f'/#backtests/prop/job/{id}'}
-                result['current_outcomes']=current
-                # A new Lucid dated report on an existing saved backtest. No
-                # dataset upload, backtest, reduced counts or external calculator.
-                page.goto(url+'/#backtests/prop/new/'+verification['evaluation_source'])
-                expect(page.locator('#prop-config')).to_be_visible()
-                page.locator('#prop-model').select_option('1')
-                page.locator('#prop-method').select_option('dated_lifecycle')
-                page.locator('#prop-commission-mode').select_option('source')
-                page.locator('#prop-evaluation-micros').fill('10');page.locator('#prop-funded-micros').fill('3')
-                with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as checked:page.locator('#prop-check').click()
-                assert checked.value.status==200,checked.value.text()
-                (output/'lucid-check.json').write_text(json.dumps(checked.value.json(),indent=2))
-                page.locator('#prop-run').click();expect(page.locator('#prop-report')).to_be_visible(timeout=30000)
-                id=page.url.rsplit('/',1)[-1]
-                report=page.request.get(url+f'/api/prop-analyses/{id}/downloads/report.json').json();c=report['calculations']
-                assert c['phase_metrics']['evaluation']['pass_date']=='2026-01-07'
-                assert c['activation']['eligible_session']=='2026-01-07'
-                assert c['activation']['funded_start_session']=='2026-01-08'
-                assert c['phase_metrics']['funded']['trader_payouts']==9000
-                assert c['phase_metrics']['funded']['gross_withdrawals']==10000
-                assert c['phase_metrics']['funded']['sessions']==25
-                (output/'lucid-report.json').write_text(json.dumps(report,indent=2))
-                for name,kind in [('analysis.zip','downloads'),('transition_trace.csv','files'),('transition_trace.json','files')]:
-                    response=page.request.get(url+f'/api/prop-analyses/{id}/{kind}/{name}');assert response.status==200
-                    (output/('lucid-'+name)).write_bytes(response.body())
-                page.screenshot(path=str(output/'lucid-report.png'),full_page=True)
-                before_reload=len(posts);page.reload();expect(page.locator('#prop-report')).to_be_visible();assert len(posts)==before_reload
-                page.set_viewport_size(dict(width=390,height=900));page.screenshot(path=str(output/'mobile.png'),full_page=True)
+                    expect(page.locator('#prop-method')).to_have_value('budgeted_lifecycle')
+                    methods=page.locator('#prop-method option').evaluate_all('(nodes)=>nodes.map(n=>n.value)')
+                    assert methods==['annualized','budgeted_lifecycle']
+                    expect(page.locator('#prop-evaluation-micros')).to_have_value(report['settings']['EVALUATION_MICROS'])
+                    expect(page.locator('#prop-funded-micros')).to_have_value(report['settings']['FUNDED_MICROS'])
+                    for field in ['prop-monthly-cap','prop-start-date','prop-horizon-end','prop-payout-preset','prop-activation-preset']:
+                        expect(page.locator('#'+field)).to_have_value('')
+                    result['configurations'][label]=dict(methods=methods,selected='budgeted_lifecycle',
+                        evaluation_size=page.locator('#prop-evaluation-micros').input_value(),
+                        funded_size=page.locator('#prop-funded-micros').input_value(),
+                        funded_source=page.locator('#prop-funded-source').input_value())
+                    page.screenshot(path=str(output/(label+'-budgeted-config.png')),full_page=True)
+                page.set_viewport_size(dict(width=390,height=900))
+                page.screenshot(path=str(output/'mobile.png'),full_page=True)
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
-                assert all('/api/prop-analyses' in p for p in posts)
-                result['lucid']=dict(id=id,url=f'/#backtests/prop/job/{id}',evaluation_pass='2026-01-07',funded_start='2026-01-08',gross_withdrawals=10000,trader_payouts=9000)
+                assert not posts,posts
+                result['submitted_posts']=len(posts)
             finally:browser.close()
     finally:
         server.should_exit=True;thread.join(15);sock.close()
