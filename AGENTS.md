@@ -38,3 +38,47 @@ or deduct costs twice. Keep numerical parity status explicit and do not claim
 completion before independently generated results match the supplied reference.
 Use the existing backtest -> configure -> check -> run -> durable report workflow.
 Preserve the user's Windows VM, other processes and all datasets/backtests/results.
+
+# Independent phase optimizer work
+
+Follow `docs/phase_optimization_plan.md` for the target architecture and milestones;
+it extends `docs/prop_simulation.md`. The plan is not evidence of implementation.
+Keep current/planned status explicit and retain all delivery requirements above.
+
+- Evaluation independently searches eligible strategies, parameters, whole-MNQ
+  sizes and supported account profiles. Minimize expected acquisition cost and
+  calendar time using a Pareto frontier. No arbitrary lambda, funded strategy,
+  funded payout data or joint annualized score may select an evaluation candidate.
+- Funded independently maximizes expected trader cash received over the saved
+  horizon, conditional on a fresh funded account. Do not use evaluation pass
+  probability, evaluation/acquisition fees, acquisition time or joint annualized
+  slot economics in its inputs or selection. No implicit replacement account.
+- Treat `prop/joint_sizing.py` as legacy business-level optimization. Preserve its
+  calculations, regression tests, request meanings and historical reports until
+  separately approved retirement. New phase selection must not call its selector
+  or relabel legacy historical-net outputs as independent phase results.
+- Reuse normal backtests, local account transitions, API/UI, workers, catalogues
+  and AnalysisStore. Support saved IS candidates across strategies/jobs; no new
+  service, database, execution engine, demo-only surface or duplicate result store.
+- Save source/risk/cost identity, strategy parameters, sizes, account rules and
+  assumptions, research windows/prior access, seeds/schedules and model/code hashes.
+  Prove phase independence, full candidate membership and cache/deletion safety.
+  Reject unsupported source scaling/profiles rather than inventing behavior.
+- Select on IS only. Freeze the chosen phase package before manual final OOS;
+  assessment applies frozen choices without reselection. Preserve editable splits
+  and unlimited manual OOS history; do not relabel accessed data as untouched.
+- Distinguish calendar from session time, model censoring from provider failure,
+  conditional from unconditional estimates, and Monte Carlo error from future
+  uncertainty. Never average only completed paths to fabricate an acquisition
+  mean. Separate payout requests, account deductions and modeled trader receipts;
+  disclose pending amounts and unverified settlement assumptions.
+- Independent phase work does not undo completed portfolio phase-source or
+  cash-ledger milestones. Portfolio optimization is optional downstream work and
+  outside the initial implementation scope. Payouts cannot expand its hard monthly
+  fee cap; unused allowance does not roll over.
+- Each implementation milestone needs independent expected values, relevant
+  boundary/rejection checks and a saved normal-product demonstration/downloads
+  in `docs/prop_simulation_review.md`. Keep analytical fixture oracles in tests;
+  label synthetic product sources. Documentation-only tasks need no artificial
+  screen or simulation result. Do not claim numerical/provider parity without
+  independently generated matching evidence.

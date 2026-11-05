@@ -5054,3 +5054,57 @@ artifacts. `validation.json` indexes the evidence; `task.patch` isolates this
 change from the pre-existing uncommitted work. All owned temporary test servers
 and browsers stopped; no persistent server was started, and the user's existing
 server/processes were left alone. Refresh the portal to load the two-option form.
+
+## Independent phase optimization specification — 2026-11-05
+
+Documentation-only increment at inspected code baseline
+`71f97a61e568b39b6bf17647078dcdb2364069cb`:
+[phase optimization plan](phase_optimization_plan.md). No optimizer was implemented
+or simulation run. No new numerical result, provider verification or parity claim
+is made. Earlier product evidence and the completed portfolio milestones 1–2
+remain unchanged; no server was started.
+
+The specification defines independent Evaluation cost/calendar-time Pareto
+selection and Funded horizon cash selection conditional on starting funded. It
+maps the inspected source/API/UI/storage, defines candidate/result contracts,
+calendar/settlement/censoring and uncertainty semantics, cross-job IS campaigns,
+frozen manual OOS assessment and five implementation milestones. Annualized joint
+sizing is classified as retained legacy business-level optimization. Its current
+runtime behavior and reports are unchanged.
+
+To review and reproduce this documentation increment from the repository root:
+
+1. Follow **README → Independent phase optimization plan**, or **Docs → Planning
+   and proposals → Independent phase optimization**. Expect a clear planned
+   status, current-code gap table and links to the existing implementation.
+2. Read the metric definitions and test-only examples. Independently check the
+   IID example: `30 / 0.5 + 40 = 100`, `2 / 0.5 = 4` calendar days, median 2,
+   P90 8, throughput 0.25/day. Check the two frontier points' marginal cost:
+   `(140 - 100) / (10 - 6) = 10` USD/day. These are analytical fixture designs,
+   not actual strategy results or verified provider rules.
+3. Follow the architecture status table and portfolio prerequisite section.
+   Expect completed source/ledger work to stay implemented, independent search
+   to stay planned, and portfolio optimization to be optional downstream work.
+4. Inspect `git diff -- AGENTS.md README.md docs/README.md docs/architecture.md
+   docs/prop_portfolio_plan.md docs/prop_simulation.md docs/research_workflow.md
+   docs/prop_simulation_review.md` and open the new
+   `docs/phase_optimization_plan.md` (untracked new files do not appear in ordinary
+   `git diff` before staging). Run `git diff --check`. Expect documentation-only
+   changes with earlier evidence retained and no whitespace errors.
+
+For future implementation, the required product journey is **saved IS backtest
+report → Configure phase/candidates → Check source → Run → durable phase report
+and downloads → Freeze → manual OOS assessment**. P1 first delivers a single
+Evaluation candidate; P2 adds Pareto search; P3 independently adds Funded search;
+P4 generates cross-strategy candidate grids; P5 enforces package freeze/assessment.
+Each milestone must save real source checks, report IDs, expected/actual values,
+rejection/censoring boundaries, ZIPs and exact user reproduction steps here.
+This planning entry does not stand in for those future demonstrations.
+
+Documentation validation passed: all 38 added local links/anchors resolve,
+analytical example arithmetic/quantiles match, changes are limited to nine
+documentation files, and previous AGENTS/review text is preserved. Navigation,
+portfolio, model and research-workflow edits are additive; `git diff --check`
+passes. Production tests and
+browser checks are not required for this documentation-only change and were not
+run. No persistent server, commit or GitHub push was made.

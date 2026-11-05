@@ -1,5 +1,18 @@
 # AlphaQuest local prop simulation
 
+## Planned independent phase optimization — 2026-11-05
+
+[The phase optimization specification](phase_optimization_plan.md) extends this
+model boundary with independent Evaluation cost/calendar-time Pareto search and
+Funded horizon-cash search conditional on starting funded. It is documentation
+only: the selectable methods below remain current. Annualized joint sizing is
+classified as **legacy business-level optimization**, retained with its formulas,
+regression tests and reports until separately approved retirement; it must not
+be the selection mechanism for the planned independent phases. Cross-strategy/job
+campaigns and frozen phase OOS assessment are planned, not existing controls.
+Completed dated source/cash-ledger work and all dated specifications/evidence
+below are preserved. No provider rule or numerical parity is newly verified.
+
 ## Selectable analysis methods — 2026-11-05
 
 New portal configurations offer **Annualized sizing · existing single source**

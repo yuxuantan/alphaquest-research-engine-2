@@ -1,5 +1,15 @@
 # Editable IS / OOS research workflow
 
+Planning update, 2026-11-05: [independent phase optimization](phase_optimization_plan.md)
+will add cross-strategy/job IS candidate sets and a frozen phase package before
+manual final OOS assessment. These campaign controls are **not implemented**;
+the existing editable splits and unlimited manual OOS behavior below remain.
+Annualized joint sizing is retained legacy business-level optimization. The
+dated exact cash ledger is now implemented for one observed path/slot (portfolio
+milestone 2), while sampled phase/portfolio selection remains planned. The later
+cash-horizon discussion and historical qualification sections retain their dated
+context; they are not claims that the completed ledger is still missing.
+
 Every new portal/API/CLI backtest or optimisation requires a chronological split.
 Choose explicit inclusive dates in the saved source timezone, or an IS percentage
 strictly between 0 and 100. Percentage mode assigns complete chronological trading

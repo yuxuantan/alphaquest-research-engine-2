@@ -3,6 +3,33 @@
 Accepted 2026-11-04. This plan extends [prop simulation](prop_simulation.md)
 through its existing backtest → configure → check → run → durable report journey.
 
+## Prerequisite research workstream — 2026-11-05
+
+[Independent phase optimization](phase_optimization_plan.md) is the prerequisite
+research workstream for future optimizer-driven portfolio recommendations.
+Evaluation will minimize acquisition cost and calendar time through a Pareto
+frontier; Funded will maximize horizon cash payouts conditional on already being
+funded. They can search saved trials across strategies/jobs independently, then
+freeze selections before manual final OOS assessment. Neither uses the other's
+objective inputs. The existing annualized joint-sizing calculation is classified
+as legacy business-level optimization and remains preserved.
+
+This is **not a replacement or restart of completed milestones 1–2** below.
+Separate phase sources, dated transitions and the exact cash ledger/monthly-cap
+scheduler remain implemented capabilities with their existing evidence. They
+currently replay fixed choices on one observed path; they do not yet optimize
+either phase independently. The phase work adds research selection above these
+primitives and retains the cash accounting and hard-cap contract unchanged.
+
+The original five-milestone roadmap and progress entries below are retained.
+Milestones 3–5 remain pending portfolio work; portfolio optimization is optional
+and outside the initial independent-phase implementation. A future portfolio
+optimizer may consume frozen phase outputs and synchronized source paths to
+maximize finite-horizon trader cash under the spending cap. It must model
+dependence and timing rather than combine marginal summaries or feed joint
+annualized scores back into phase selection. Phase-level OOS freeze is delivered
+by the new plan; portfolio-level allocation/OOS validation remains separate.
+
 ## Accepted scope
 
 Optimize expected net cash over a configured horizon under a hard monthly
@@ -100,3 +127,7 @@ the later cash/budget model is delivered.
   reports offer **Configure budgeted analysis**, retaining their phase sources
   and sizes while requiring budget, dates and timing assumptions. This is a
   presentation/workflow change; portfolio comparison and selection remain pending.
+
+- 2026-11-05: Added the independent-phase prerequisite specification and migration
+  boundary. Documentation only; no new optimizer, forecast, test qualification
+  or portfolio milestone is claimed. Existing milestone-1/2 evidence is preserved.

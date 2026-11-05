@@ -29,6 +29,10 @@
 
 ## Planning and proposals
 
+- [Independent phase optimization](phase_optimization_plan.md): planned Evaluation
+  cost/time Pareto search, conditional Funded payout search, campaigns and frozen OOS.
+- [Prop portfolio plan](prop_portfolio_plan.md): completed phase/cash-ledger
+  milestones and optional downstream portfolio work.
 - [Planning costs](planning.md): dated estimates and missing quotes.
 - [Trade export v1](designs/trade_export_v1.md): proposed format, not implemented.
 

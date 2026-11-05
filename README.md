@@ -32,6 +32,11 @@ extension described in its guide. MultiCharts export parity remains unverified.
 - [Architecture guide](docs/architecture.md): requirements, workflow, code components and design trade-offs.
 - [Documentation index](docs/README.md): product guides, contracts, strategy
   references and reproducible evidence.
+- [Independent phase optimization plan](docs/phase_optimization_plan.md): planned
+  Evaluation cost/time Pareto optimization, independent Funded payout optimization,
+  cross-job research campaigns and frozen OOS assessment; not implemented yet.
+- [Prop portfolio plan](docs/prop_portfolio_plan.md): completed dated phase and
+  cash-ledger increments, with optional portfolio optimization still planned.
 
 ## Run
 

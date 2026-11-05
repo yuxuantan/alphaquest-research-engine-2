@@ -7,6 +7,10 @@
 
 Code reviewed 31 October 2026: [6d290c5](https://github.com/yuxuantan/alphaquest-research-engine-2/tree/6d290c5e429c745a4af600e4da7218c680f9a77a).
 
+Phase-optimization architecture review, 5 November 2026:
+`71f97a61e568b39b6bf17647078dcdb2364069cb`. The status below supplements the
+earlier review; it does not claim a new numerical or provider qualification.
+
 ## Requirements and scope
 
 AlphaQuest is a local, single-user futures research app. It must:
@@ -17,9 +21,14 @@ AlphaQuest is a local, single-user futures research app. It must:
 - Calculate supported Apex/LucidFlex prop outcomes locally; check source trades/costs and disclose missing or bar-based risk data.
 - Save reports and downloads so reopening never reruns or changes them. External generated results are comparison references only.
 
-The goal is to maximize expected cash received minus added costs within a set period and
-loss/spending limits. Current sizing uses annual slot economics, not a full
-cash-by-deadline forecast. The proof of concept lasts six months; set the trading
+The business goal is to maximize expected cash received minus added costs within
+a set period and loss/spending limits. Current default sizing uses annual slot
+economics. The implemented budgeted method replays dated cash for one initially
+unfunded slot on observed history; it is not a sampled forecast or optimizer.
+The planned research layer independently minimizes evaluation acquisition
+cost/calendar time using a Pareto frontier and maximizes funded-stage horizon
+cash conditional on already being funded. A portfolio optimizer is optional
+downstream work. The proof of concept lasts six months; set the trading
 period separately. Order-book depth (L2), a tested MultiCharts .NET live route,
 standalone external-backtest imports and multi-strategy allocation remain proposed.
 The long-term depth goal covers historical research and live execution; define
@@ -28,6 +37,18 @@ MultiCharts feature parity and commercialization are outside the initial scope.
 Judge the POC by mechanics, repeatability, prop accuracy, execution reliability,
 research throughput, spending and engineering hours.
 
+### Implemented versus planned
+
+| Capability | Status at this review |
+| --- | --- |
+| Saved IS backtests, single-strategy parameter grids, manual OOS and local prop reports | Implemented. Each trial uses the existing engine; OOS remains manual and unlimited with recorded history. |
+| Annualized joint evaluation/funded sizing | Implemented and still the default. Classified as **legacy business-level optimization**, not the target independent phase selector. Preserve calculations, regression tests and historical reports until separately approved retirement. |
+| Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
+| Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |
+| Independent Evaluation and Funded optimizers | Planned in [phase optimization](phase_optimization_plan.md). Evaluation cannot use funded payouts; Funded cannot use evaluation pass rates, acquisition fees/time or joint annualization. |
+| Cross-job/strategy campaigns, phase package freeze and assessment-only OOS | Planned. Existing saved IS/OOS declarations and manual OOS primitives do not yet enforce this campaign contract. |
+| Synchronized portfolio allocation/shared-account optimization | Optional, outside the initial phase implementation; later consumer of phase outputs and dependence data. See [portfolio plan](prop_portfolio_plan.md). |
+
 ## End-to-end workflow
 
 Start with the [setup instructions](../README.md#run), then use the existing portal:
@@ -35,7 +56,7 @@ Start with the [setup instructions](../README.md#run), then use the existing por
 1. **Datasets:** validate/save a CSV with its source timezone, tick size and point value.
 2. **Strategies → New backtest:** choose strategy, costs and IS/OOS split. Equal parameter bounds run one combination; wider ranges run a grid through the same engine. Initial runs use IS only.
 3. **Open the saved report:** inspect trades, metrics and the holding comparison. New runs attempt default Apex/LucidFlex prop analyses; incompatible sources show a reason.
-4. **Configure prop analysis → Check source → Run analysis:** inspect native risk data or a matching optional MultiCharts export, set supported account/cost settings, then simulate account passes, failures and payouts. Save/reopen the normal report and downloads. The prop model's internal training/holdout stays within the chosen research period.
+4. **Configure prop analysis → Check source → Run analysis:** inspect native risk data or a matching optional MultiCharts export. Choose existing annualized sizing, or budgeted cash replay with separate fixed phase sources/sizes, observed dates, monthly cap and explicit timing assumptions. Save/reopen the normal report and downloads. Annualized internal training/holdout stays within the chosen research period; budgeted replay uses the declared common observed window.
 5. **Run OOS with these parameters:** manually launch from a completed IS report using its saved window/settings. Splits remain editable and attempts unlimited; record prior data access before treating OOS as untouched final evidence.
 
 Before a final research decision, set limits and freeze the selected package
@@ -43,6 +64,13 @@ Before a final research decision, set limits and freeze the selected package
 needs real permissions, routing, protection and recovery tests; this workflow
 does not place live orders. See [product steps](strategies_navigation.md) and
 [prop model details](prop_simulation.md).
+
+The proposed phase workflow extends step 4 with a phase-specific candidate set,
+source checks and durable frontier/payout report. Freeze its selected package
+before manual OOS assessment, which applies the frozen choices without a new
+search. These controls are not available yet; the
+[implementation milestones](phase_optimization_plan.md#incremental-implementation-milestones)
+define the usable increments and evidence required.
 
 ## Code architecture
 
@@ -70,6 +98,8 @@ flowchart TB
 | Strategies and fills | [registry](../alphaquest/strategies/registry.py), [interface](../alphaquest/strategy.py), [execution](../alphaquest/execution.py) | Strategies request orders; the shared engine applies fills/costs. New strategies reuse execution rules. |
 | Research and jobs | [splits/OOS](../alphaquest/research.py), [grids](../alphaquest/optimization.py), [workers](../alphaquest/optimization_worker.py) | Trials share the backtest path; workers calculate, the coordinator publishes. |
 | Prop calculations | [source checks](../alphaquest/prop/source.py), [analysis](../alphaquest/prop/native_analysis.py), [Apex](../alphaquest/prop/native_engine.py), [Lucid](../alphaquest/prop/lucid_engine.py), [costs](../alphaquest/prop/commissions.py) | Adapt/check trades before account simulation. Firm rules and sizing remain separate from strategy backtests. |
+| Legacy business sizing | [joint sizing](../alphaquest/prop/joint_sizing.py), [account refresh links](../alphaquest/optimization_prop.py) | Joint annualized cost/payout selection and immutable refresh history remain supported; new independent optimizers must not use their score as a phase objective. |
+| Dated phase and cash replay | [phase lifecycle](../alphaquest/prop/phase_lifecycle.py), [cash ledger](../alphaquest/prop/cash_ledger.py) | Share local account transitions; distinguish paid acquisition fees, requests, deductions and modeled receipts under a hard monthly cap. |
 | Default prop reports | [automatic](../alphaquest/prop/automatic.py), [backend](../alphaquest/prop/native_backend.py), [build](../setup.py) | Automatic/manual runs share local models. Optional compiled kernels use the same model source. |
 | Reports and storage | [reporting](../alphaquest/reporting.py), [benchmark](../alphaquest/market_benchmark.py), [backtest store](../alphaquest/backtest_runs.py), [analysis store](../alphaquest/prop/store.py) | Stage calculations, publish completed results, reopen without replay. SQLite indexes files and job state. |
 | Reuse | [replay cache](../alphaquest/replay_cache.py), [features](../alphaquest/strategy_features.py), [calculation cache](../alphaquest/prop/calculation_cache.py) | Reuse matching data/calculations by identity; never share mutable strategy positions between trials. |
@@ -80,6 +110,14 @@ server would add operations; reconsider for remote/multi-user use. See
 [execution assumptions](backtest_contract.md) for strategy-specific behavior, and
 [tests/review records](prop_simulation_review.md) for dated evidence. Code links
 show implementation, not a new test pass or proof of MultiCharts trade parity.
+
+Planned modules are `prop/phase_optimization.py` (contracts/selection),
+`prop/evaluation_optimization.py`, `prop/funded_optimization.py`,
+`prop/phase_sampling.py` (dated schedules/uncertainty), and
+`research_campaigns.py` (cross-job candidates/freeze). Extend existing routes,
+workers, backtest catalogue and AnalysisStore. No new service, database or
+backtesting engine is proposed. See the
+[responsibility and contract map](phase_optimization_plan.md#target-architecture-and-module-responsibilities).
 
 ## Decisions
 
