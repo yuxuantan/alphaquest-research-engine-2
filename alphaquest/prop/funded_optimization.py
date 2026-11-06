@@ -190,7 +190,7 @@ def funded_metrics(paths, search):
         distribution=dict(values=cash.tolist(), quantiles='inverse empirical CDF', includes_zero_paths=True))
 
 
-def rank_candidates(rows, search):
+def apply_constraints(rows, search):
     c = search.constraints
     for row in rows:
         m = row['metrics']; violations = []
@@ -202,6 +202,10 @@ def rank_candidates(rows, search):
             if limit is not None and (observed is None or (observed > limit if maximum else observed < limit)):
                 violations.append(name)
         row.update(constraint_violations=violations, feasible=not violations and row['status']=='estimated', rank=None)
+
+
+def rank_candidates(rows, search):
+    apply_constraints(rows, search)
     ranked = sorted([r for r in rows if r['feasible']], key=lambda r:(-r['metrics'][OBJECTIVE],r['candidate_id']))
     for rank,row in enumerate(ranked,1): row['rank'] = rank
     unresolved = [r['candidate_id'] for r in rows if r['status']!='estimated']
@@ -220,13 +224,13 @@ def rank_candidates(rows, search):
         near_tie_definition='Within declared cash tolerance or overlapping family mean intervals; missing intervals also mark uncertainty')
 
 
-def optimize_funded(runs, search, checks=None, progress=lambda message: None):
+def optimize_funded(runs, search, checks=None, progress=lambda message: None, *, assessment=False):
     checks = checks if checks is not None else check_search(runs,search)
     configurations = {canonical(asdict(c)):c for c in search.candidates}
     rows = []
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
-        progress('Simulating funded candidate '+check['candidate_id'][:12])
+        progress(f'Completed {len(rows)} / {len(checks)} candidates · Simulating funded candidate '+check['candidate_id'][:12])
         component = simulate_dated_funded_profile(runs,c.source,c.profile,c.micros,search.horizon_calendar_days,
             search.calendar,search.receipt_delay_calendar_days,c.simulation,c.period,c.sampling,c.costs)
         if canonical(component['provenance']['source']) != canonical(check['manifest']['source']):
@@ -237,6 +241,13 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None):
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
         verify_phase_source(runs,c.source,check['manifest']['source'])
+    if assessment:
+        # Compute individual constraint status, never compare or choose OOS rows.
+        apply_constraints(rows, search)
+        return dict(model_version=MODEL_VERSION, phase='funded', candidates=rows,
+            ranking=[], winner=None, near_ties=[], certified_optimum=False,
+            selection_status='assessment_only_no_reselection', objective=OBJECTIVE,
+            unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
     return dict(model_version=MODEL_VERSION,phase='funded',**rank_candidates(rows,search))
 
 

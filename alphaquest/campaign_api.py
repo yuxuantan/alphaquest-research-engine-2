@@ -1,11 +1,11 @@
 """Phase campaigns use normal phase calculations, reports, security and workers."""
-from uuid import UUID
+from uuid import UUID, uuid5
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 from .research import ResearchConflict
-from .research_campaigns import CampaignRequest, FreezeRequest
+from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest
 from .prop.adapter import canonical
 
 router = APIRouter(prefix='/api/research-campaigns', tags=['Research campaigns'])
@@ -81,6 +81,37 @@ async def selection(id: UUID, request: Request):
 @router.post('/{id}/freeze')
 async def freeze(id: UUID, body: FreezeRequest, request: Request):
     return await call(request, 'freeze', id.hex, body)
+
+
+@router.get('/{id}/assessments')
+async def assessments(id: UUID, request: Request):
+    return dict(items=await call(request, 'assessments', id.hex))
+
+
+@router.post('/{id}/assessments', status_code=202)
+async def assess(id: UUID, body: AssessmentRequest, request: Request):
+    from .research_api import run_oos, OOSRequest
+    attempt, fresh = await call(request, 'begin_assessment', id.hex, body.request_id)
+    if not fresh:
+        return attempt
+    sources = {}
+    try:
+        for parent in attempt['parent_source_ids']:
+            # The existing manual OOS path enforces dataset/strategy/parameter/
+            # execution identity and records unlimited prior-access attempts.
+            result = await run_oos(UUID(parent), OOSRequest(request_id=uuid5(UUID(body.request_id), parent)), request)
+            if not isinstance(result, dict):
+                import json
+                result = json.loads(result.body)
+            if not result.get('id'):
+                raise ResearchConflict('The ordinary OOS backtest did not complete; inspect saved OOS attempts.')
+            sources[parent] = result['id']
+            attempt['oos_sources'] = dict(sources)
+            await call(request, 'save_assessment', attempt)
+        return await call(request, 'finish_assessment', id.hex, attempt, sources)
+    except Exception as exc:
+        await call(request, 'save_assessment', dict(attempt, status='error', error=str(exc)))
+        raise
 
 
 @router.get('/{id}/exports/{kind}')

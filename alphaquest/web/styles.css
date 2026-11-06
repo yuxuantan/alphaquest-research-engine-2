@@ -1413,6 +1413,19 @@ dialog::backdrop {
 #prop-screen textarea { padding:12px; border:1px solid #ccd3d6; border-radius:6px; font:inherit; }
 .prop-scroll { overflow:auto; max-height:600px; }
 .prop-table { width:100%; border-collapse:collapse; font-size:13px; }
+.campaign-table-scroll { overflow:auto; max-width:100%; margin:16px 0; }
+#campaign-candidates td { white-space:normal; min-width:130px; vertical-align:top; }
+#campaign-candidates td:nth-child(2), #campaign-candidates td:nth-child(3) { min-width:250px; }
+#campaign-candidates pre { white-space:pre-wrap; overflow-wrap:anywhere; max-width:460px; }
+#campaign-candidates input[type=checkbox] { width:20px; height:20px; }
+#campaign-candidates label { display:block; }
+#campaign-chart svg { width:100%; max-height:380px; display:block; font-size:12px; }
+#campaign-assessments { border-top:1px solid #ddd; margin:24px 0; padding-top:16px; }
+.campaign-metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:16px 0 28px; }
+.campaign-metric-grid > div { padding:16px; background:#f5f9f8; border-radius:6px; }
+.campaign-metric-grid span { display:block; font-size:12px; color:#52636d; margin-bottom:8px; }
+.campaign-metric-grid strong { display:block; font-size:20px; overflow-wrap:anywhere; }
+.campaign-downloads { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
 .prop-table th,.prop-table td { text-align:left; padding:12px; border-bottom:1px solid #ddd; white-space:nowrap; }
 .prop-panel pre { max-height:450px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:#f5f7f8; padding:16px; font-size:12px; }
 .prop-panel details { margin:20px 0; }

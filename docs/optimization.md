@@ -812,3 +812,17 @@ CSV download and ordinary report navigation. The saved-data review additionally
 verified the live 49-column table, 28 hidden fixed parameters and unchanged API/
 CSV bytes. Temporary test servers and review browsers were shut down; no
 persistent server was started.
+
+## Independent phase research from saved trials
+
+After an IS grid completes, open an individual report → **Configure prop
+analysis** → **Create Evaluation campaign** or **Create Funded campaign**. Use
+**Add saved source** to include saved trials or complete optimization jobs from
+other strategies. Trial numbers refer to saved trial IDs, not sorted row
+positions. Explicit whole-MNQ size lists and a maximum of 128 candidates bound
+the search; compatibility checks precede simulations. No trials are silently
+pruned using legacy Historical net, annualized economics or OOS outcomes.
+Inspect frontier/cash ranking, metrics and source links; name/freeze the chosen
+IS family before **Launch OOS with frozen settings**. Assessment never reranks.
+New parameter searches still use the ordinary grid; campaigns do not launch new
+grids automatically. See [both campaign workflows](research_campaign_api.md).

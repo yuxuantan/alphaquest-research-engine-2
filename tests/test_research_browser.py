@@ -84,7 +84,8 @@ def test_editable_dates_and_unlimited_manual_oos_in_actual_portal(page,portal,tm
 
 def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(page,portal,tmp_path):
     # 120 weekdays: first 60 IS, next 60 OOS. Each period independently earns
-    # 60 * (103-100) * 1000 = 180,000; the known cash fixture gives 352,880 net.
+    # 60 * (103-100) * 1000 = 180,000; 3 MNQ pays six caps ($13,000), then five ($10,000) after two
+    # replacement weekdays. 20 slots: 23,000*20 - 40*178 = 452,880 net.
     raw=history(120);source=tmp_path/'SYNTHETIC-120-weekday-holdout.csv';source.write_bytes(raw)
     page.goto(portal['url'])
     page.locator('#csv-file').set_input_files(source);page.locator('#dataset-name').fill('SYNTHETIC 120 weekday holdout')
@@ -97,7 +98,7 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     playwright.expect(page.locator('#sample-oos-percent')).to_have_value('50')
     page.locator('#sample-review').click();playwright.expect(page.locator('#sample-status')).to_contain_text('(180 bars)')
     page.locator('#start-backtest').click()
-    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880',timeout=180000)
+    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$452,880',timeout=180000)
     is_id=page.url.rsplit('/',1)[1];is_record=page.request.get(portal['url']+'/api/backtests/'+is_id).json()
     assert is_record['summary']['trades_taken']==60 and float(is_record['summary']['total_net_pnl'])==180000
     is_prop_id=is_record['run_metadata']['automatic_prop_analysis']['id']
@@ -122,13 +123,13 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     playwright.expect(page.locator('#optimization-context')).to_contain_text('IS only')
     batch=page.url.rsplit('/',1)[1]
     rows=page.request.get(portal['url']+'/api/backtests/batches/'+batch+'/results').json()['items']
-    assert len(rows)==2 and rows[0]['metrics']['historical_net']==352880 and rows[1]['metrics']['historical_net'] is None
+    assert len(rows)==2 and rows[0]['metrics']['historical_net']==452880 and rows[1]['metrics']['historical_net'] is None
     assert page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json()['used']==0
     page.goto(portal['url']+'/#backtests/report/'+rows[0]['run_id'])
     playwright.expect(page.locator('#report-run-oos')).to_be_enabled()
     page.once('dialog',lambda d:d.accept());page.locator('#report-run-oos').click()
     playwright.expect(page.locator('#report-research-title')).to_have_text('Out-of-sample backtest',timeout=180000)
-    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$352,880',timeout=180000)
+    playwright.expect(page.locator('#report-prop-historical-net')).to_have_text('$452,880',timeout=180000)
     oos_id=page.url.rsplit('/',1)[1];oos_record=page.request.get(portal['url']+'/api/backtests/'+oos_id).json()
     assert oos_record['summary']['trades_taken']==60 and float(oos_record['summary']['total_net_pnl'])==180000
     assert oos_record['run_metadata']['research']['parent_run_id']==rows[0]['run_id']
@@ -157,4 +158,4 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     assert page.request.get(portal['url']+'/api/prop-analyses/'+oos_prop_id+'/downloads/report.json').body()==oos_bytes
     (tmp_path/'is-prop-report.json').write_text(json.dumps(is_prop,indent=2))
     (tmp_path/'is-backtest.json').write_text(json.dumps(is_record,indent=2));(tmp_path/'oos-backtest.json').write_text(json.dumps(oos_record,indent=2))
-    (tmp_path/'verification.json').write_text(json.dumps(dict(synthetic=True,dataset=dataset,is_id=is_id,batch_id=batch,batch_rows=rows,oos_id=oos_id,expected_net_pnl_each=180000,expected_trades_each=60,expected_historical_net_each=352880,expected_payouts_each=360000,expected_fees_each=7120,oos_report_sha256=sha256(oos_bytes).hexdigest(),budget=page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json(),configure_check_run_reopen_download=True),indent=2))
+    (tmp_path/'verification.json').write_text(json.dumps(dict(synthetic=True,dataset=dataset,is_id=is_id,batch_id=batch,batch_rows=rows,oos_id=oos_id,expected_net_pnl_each=180000,expected_trades_each=60,expected_historical_net_each=452880,expected_payouts_each=460000,expected_fees_each=7120,oos_report_sha256=sha256(oos_bytes).hexdigest(),budget=page.request.get(portal['url']+'/api/backtests/'+is_id+'/oos').json(),configure_check_run_reopen_download=True),indent=2))

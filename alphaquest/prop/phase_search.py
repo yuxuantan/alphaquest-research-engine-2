@@ -35,7 +35,7 @@ class PhaseCalendar:
                 raise ValueError('Closure is outside declared calendar coverage.')
 
 
-def check_candidates(runs, search):
+def check_candidates(runs, search, assessment=None):
     """Reconcile every source before queueing; admit only comparable saved IS."""
     rows = []
     common = None
@@ -43,7 +43,24 @@ def check_candidates(runs, search):
         record = source_record(runs, candidate.source.source_backtest_id)
         metadata = record['run_metadata']
         research = metadata.get('research') or {}
-        if research.get('phase') != 'is':
+        if assessment:
+            selected = next((r for r in assessment['sources'] if r['source_id'] == record['id']
+                and r['frozen_manifest']['configuration']['micros'] == candidate.micros), None)
+            if selected is None:
+                raise ValueError('Assessment source is outside the frozen family.')
+            saved = selected['frozen_manifest']['source']['backtest']
+            if (research.get('phase') != 'oos' or research.get('parent_run_id') != saved['id']
+                    or metadata['strategy'] != saved['run_metadata']['strategy']
+                    or metadata['dataset'] != saved['run_metadata']['dataset']
+                    or record['execution_settings'] != saved['execution_settings']
+                    or research['plan'] != saved['run_metadata']['research']['plan']):
+                raise ValueError('OOS source must retain its frozen IS parent, strategy, split and execution costs.')
+            expected = dict(selected['frozen_manifest']['configuration'])
+            expected['source'] = dict(expected['source'], source_backtest_id=record['id'])
+            expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+            if canonical(asdict(candidate)) != canonical(expected):
+                raise ValueError('Assessment parameters, size, profile, costs, sampling and window are frozen.')
+        elif research.get('phase') != 'is':
             raise ValueError('Phase selection requires a declared IS backtest/trial; OOS and undeclared sources reject.')
         snapshot, _, _ = prepare_phase_source(runs, candidate.source, candidate.profile,
             candidate.micros, candidate.simulation, candidate.period, candidate.costs)

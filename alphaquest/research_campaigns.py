@@ -52,6 +52,11 @@ class CampaignRequest(StrictModel):
 class FreezeRequest(StrictModel):
     candidate_ids: list[str] = Field(min_length=1, max_length=128)
     rationale: str = Field(min_length=1, max_length=4000)
+    names: dict[str, str] = Field(default_factory=dict)
+
+
+class AssessmentRequest(StrictModel):
+    request_id: str = Field(pattern=r'^[0-9a-f]{32}$')
 
 
 def initialize(db):
@@ -69,6 +74,8 @@ def initialize(db):
         CREATE TABLE IF NOT EXISTS campaign_jobs (
             campaign_id TEXT NOT NULL, optimization_id TEXT NOT NULL,
             PRIMARY KEY(campaign_id,optimization_id));
+        CREATE TABLE IF NOT EXISTS campaign_assessments (
+            id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, payload TEXT NOT NULL);
     ''')
 
 
@@ -302,8 +309,11 @@ class CampaignStore:
             selection = sorted(body.candidate_ids)
             if len(set(selection)) != len(selection):
                 raise ValueError('Duplicate selected candidates.')
+            if set(body.names) - set(selection) or any(not name.strip() or len(name) > 120 for name in body.names.values()):
+                raise ValueError('Names must label selected candidates with 1–120 characters.')
             if row['frozen']:
-                if row['frozen']['candidate_ids'] != selection or row['frozen']['rationale'] != body.rationale:
+                if (row['frozen']['candidate_ids'] != selection or row['frozen']['rationale'] != body.rationale
+                        or any(row['frozen'].get('names', {}).get(k) != v for k,v in body.names.items())):
                     raise ResearchConflict('Frozen selection is immutable; create a new campaign for a new decision.')
                 return row['frozen']
             report = self.report(id)
@@ -313,13 +323,127 @@ class CampaignStore:
                 raise ValueError('Freeze requires resolved frontier points or feasible funded candidates.')
             # Refresh access metadata only. No OOS bars or outcomes are read.
             access = self.validate(id)
+            from pathlib import Path
+            from .prop.adapter import digest
+            profiles = {r['manifest']['configuration']['profile']['profile_id'] for r in calc['candidates']
+                        if r['candidate_id'] in selection}
+            rule_names = ['native_engine.py'] if 'apex-50k-eod' in profiles else []
+            if 'lucidflex-50k' in profiles:
+                rule_names += ['lucid_engine.py', 'lucid_rules.py']
+            rule_sources = {}
+            for name in rule_names:
+                path = Path(__file__).parent/'prop'/name
+                if digest(path) != report['implementation']['files'][name]:
+                    raise ResearchConflict('Rule source changed before freeze; create a new campaign.')
+                rule_sources[name] = dict(sha256=digest(path), source=path.read_text())
             package = dict(schema_version='phase-freeze-v1', campaign_id=id, phase=row['manifest']['phase'],
                 created_at_utc=datetime.now(timezone.utc).isoformat(), candidate_ids=selection, rationale=body.rationale,
                 analysis_id=row['analysis_id'], report_sha256=self.analyses.fingerprint(row['analysis_id'])['files']['report.json'],
                 campaign_manifest_sha256=fingerprint(row['manifest']),
                 prior_access=[dict(candidate_id=c['candidate_id'], prior_access=c['prior_access']) for c in access['candidates']],
+                names={c['candidate_id']:body.names.get(c['candidate_id'],
+                    f"{c['manifest']['strategy']['id']} · {c['manifest']['configuration']['micros']} MNQ · {c['candidate_id'][:8]}")
+                    for c in calc['candidates'] if c['candidate_id'] in selection},
+                selected_candidates=[c for c in report['request']['candidates']
+                    if any(r['candidate_id'] in selection and r['manifest']['configuration'] == c for r in calc['candidates'])],
+                candidate_definitions=[dict(candidate_id=r['candidate_id'], manifest=r['manifest'],
+                    account_rules=r.get('provenance', {}).get('rules')) for r in calc['candidates'] if r['candidate_id'] in selection],
+                rule_sources=rule_sources,
+                search_settings={k:v for k,v in report['request'].items() if k != 'candidates'},
+                model_version=report['model_version'], implementation=report['implementation'],
+                selection_criteria=row['manifest']['selection_objective'],
+                search_history=row['declaration'],
                 assessment_status='not_run', interpretation='IS selection frozen; no OOS executed. Estimated results, not certified future outcomes.')
             package['package_sha256'] = fingerprint(package)
             with self.analyses.connect() as db:
                 db.execute('UPDATE research_campaigns SET frozen=? WHERE id=?', (canonical(package), id))
             return package
+
+    def assessments(self, id):
+        self.get(id)
+        with self.analyses.connect() as db:
+            rows = db.execute('SELECT payload FROM campaign_assessments WHERE campaign_id=? ORDER BY rowid', (id,)).fetchall()
+        result = []
+        for (payload,) in rows:
+            row = json.loads(payload)
+            if row.get('analysis_id'):
+                row['analysis'] = self.analyses.get(row['analysis_id'])
+                row['status'] = row['analysis']['status']
+            result.append(row)
+        return result
+
+    def save_assessment(self, row):
+        with self.analyses.lock:
+            with self.analyses.connect() as db:
+                db.execute('INSERT OR REPLACE INTO campaign_assessments VALUES (?,?,?)',
+                    (row['request_id'], row['campaign_id'], canonical(row)))
+                db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)',
+                    [(row['campaign_id'],source) for source in row.get('oos_sources', {}).values()])
+        return row
+
+    def begin_assessment(self, id, request_id):
+        """Reserve one manual attempt before accessing any OOS prices."""
+        with self.analyses.lock:
+            with self.analyses.connect() as db:
+                previous = db.execute('SELECT campaign_id,payload FROM campaign_assessments WHERE id=?', (request_id,)).fetchone()
+            if previous:
+                if previous[0] != id:
+                    raise ResearchConflict('Assessment request ID already belongs to another campaign.')
+                return json.loads(previous[1]), False
+            campaign = self.get(id)
+            package = campaign['frozen']
+            if not package:
+                raise ResearchConflict('Freeze IS candidates before manually launching OOS.')
+            report = self.report(id)
+            module = module_for(campaign['manifest']['phase'])
+            if module.implementation_identity() != report['implementation']:
+                raise ResearchConflict('Frozen numerical implementation changed; preserve this package and create a new campaign.')
+            access = self.validate(id)
+            parents = sorted({r['manifest']['configuration']['source']['source_backtest_id']
+                for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
+            if any(r['manifest']['configuration']['source']['trade_file'] for r in report['calculations']['candidates']
+                   if r['candidate_id'] in package['candidate_ids']):
+                raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
+            row = dict(request_id=request_id, campaign_id=id, created_at_utc=datetime.now(timezone.utc).isoformat(),
+                status='launching', package_sha256=package['package_sha256'], parent_source_ids=parents,
+                prior_access=[dict(candidate_id=c['candidate_id'], prior_access=c['prior_access']) for c in access['candidates']],
+                oos_sources={}, analysis_id=None,
+                interpretation='Manual OOS assessment of the predeclared frozen family. No reranking or reselection. Prior access is retained; no untouched-OOS claim.')
+            return self.save_assessment(row), True
+
+    def finish_assessment(self, id, attempt, oos_sources):
+        from copy import deepcopy
+        with self.analyses.lock:
+            campaign = self.get(id)
+            package = campaign['frozen']
+            report = self.report(id)
+            module = module_for(campaign['manifest']['phase'])
+            if module.implementation_identity() != report['implementation']:
+                raise ResearchConflict('Frozen numerical implementation changed during OOS launch.')
+            raw = deepcopy(report['request'])
+            selected, mappings = [], []
+            for row in report['calculations']['candidates']:
+                if row['candidate_id'] not in package['candidate_ids']:
+                    continue
+                manifest = row['manifest']
+                config = deepcopy(manifest['configuration'])
+                parent = config['source']['source_backtest_id']
+                source_id = oos_sources[parent]
+                if config['source']['trade_file']:
+                    raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
+                config['source']['source_backtest_id'] = source_id
+                plan = manifest['source']['backtest']['run_metadata']['research']['plan']
+                config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
+                selected.append(config)
+                mappings.append(dict(source_id=source_id, frozen_candidate_id=row['candidate_id'], frozen_manifest=manifest,
+                    name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))
+            raw.update(candidates=selected, source_backtest_id=min(oos_sources.values()))
+            context = dict(campaign_id=id, request_id=attempt['request_id'], frozen_package=package,
+                sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'])
+            # Protect sources before queueing and keep every report in AnalysisStore.
+            with self.analyses.connect() as db:
+                db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
+            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context)
+            with self.analyses.connect() as db:
+                db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
+            return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))

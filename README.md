@@ -32,8 +32,8 @@ extension described in its guide. MultiCharts export parity remains unverified.
 - [Architecture guide](docs/architecture.md): requirements, workflow, code components and design trade-offs.
 - [Documentation index](docs/README.md): product guides, contracts, strategy
   references and reproducible evidence.
-- [Phase research campaigns](docs/research_campaign_api.md): compare saved IS trials across strategies/jobs, bound size searches, run independent Evaluation/Funded objectives, and freeze/export results in the prop workflow.
-- [Independent phase optimization plan](docs/phase_optimization_plan.md): implemented phase backends/campaigns and remaining adaptive refinement and frozen OOS assessment work.
+- [Phase research campaigns](docs/research_campaign_api.md): compare saved IS trials across strategies/jobs, bound size searches, run independent Evaluation/Funded objectives, and freeze/export results with manual frozen OOS assessments in the prop workflow.
+- [Independent phase optimization plan](docs/phase_optimization_plan.md): implemented phase backends, portal campaigns and frozen OOS assessment; adaptive refinement and new-grid generation remain planned.
 - [Prop portfolio plan](docs/prop_portfolio_plan.md): completed dated phase and
   cash-ledger increments, with optional portfolio optimization still planned.
 
@@ -303,7 +303,32 @@ The original [AlphaQuest repository](https://github.com/yuxuantan/alphaquest-res
 Before a new backtest or parameter sweep, declare IS/OOS dates or an IS percentage
 and review the resolved split. Initial backtests and prop analyses use only IS.
 Open one saved IS result and explicitly select its parameters to run OOS later.
-Each strategy/source has a hardcoded lifetime budget of three OOS attempts; the
-portal warns and the API blocks further attempts after exhaustion. Splits lock
-at first IS submission, and failed/interrupted OOS attempts count. See
+Splits remain editable for new IS runs; each saved report retains its own split.
+Manual OOS attempts are unlimited, with failed/interrupted attempts retained in
+access history. Frozen phase campaigns apply saved parameters/sizes without OOS
+reselection. Previously accessed data is never relabelled untouched. See
 [the workflow, API, CLI and reproducible evidence](docs/research_workflow.md).
+
+## Independent phase campaigns in the portal
+
+1. **Datasets → Strategies → New backtest**: declare IS/OOS and save IS trials.
+2. Open a completed backtest/trial → **Configure prop analysis** → **Create
+   Evaluation campaign** or **Create Funded campaign**. Add saved trials/jobs
+   from other strategies with matching source/split/cost protocols.
+3. Choose the profile, explicit MNQ size lists, candidate budget, IS window and
+   simulation/calendar settings. Evaluation compares acquisition cost/time;
+   Funded compares received cash over its declared horizon with risk limits.
+4. **Save and check candidates → Run campaign**. Inspect progress, all candidate
+   metrics, source links, filters and charts. Evaluation shows a Pareto frontier
+   and marginal acceleration costs without a single automatic winner.
+5. Name/check the chosen resolved frontier point(s) or feasible funded
+   configuration(s), enter a rationale, and **Freeze selected candidates**.
+6. **Launch OOS with frozen settings** manually. Open the appended assessment:
+   Evaluation validates acquisition cost/time; Funded validates payouts/risk.
+   OOS cannot change the frozen IS family or rank a new winner. Download CSV,
+   JSON, the frozen package and report ZIPs; reloading never recalculates.
+
+Legacy business-level joint sizing remains accessible below campaign creation,
+with its original annualized calculations and saved download links. See the
+[complete controls/API and limits](docs/research_campaign_api.md) and
+[reproducible portal evidence](docs/prop_simulation_review.md#phase-campaign-portal-and-frozen-oos--2026-11-06).

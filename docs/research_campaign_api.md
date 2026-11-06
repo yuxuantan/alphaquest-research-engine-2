@@ -12,8 +12,8 @@ constraints. The two declarations, source sets and calculations are independent.
 
 1. Run an ordinary IS backtest or exhaustive optimization grid. Open a saved
    backtest/trial report and choose **Configure prop analysis**.
-2. Expand **Independent phase research campaigns → Configure a phase campaign**.
-   Choose Evaluation or Funded and the local account profile. The current saved
+2. Under **Independent phase research campaigns**, select **Create Evaluation
+   campaign** or **Create Funded campaign** and the local account profile. The current saved
    backtest is preselected. Use **Add saved source**, choose Backtest or
    Optimization job, then select a saved item from its dropdown. Search by
    strategy, parameters, dataset, date or ID; **Load more sources** retrieves
@@ -29,11 +29,22 @@ constraints. The two declarations, source sets and calculations are independent.
    and enables **Run campaign** only on success. Changing inputs requires a new
    check and immutable declaration. No final OOS is scheduled or inspected.
 5. The same prop report screen displays all candidates, strategy parameters,
-   original source links, frontier/marginal acceleration costs or funded ranking,
-   uncertainty, source provenance and downloads. Select resolved frontier points
+   account/rule versions, research windows, original source links and downloads.
+   Evaluation shows acquisition cost, calendar mean/median/P90, pass and 30/60-day
+   funding probabilities, throughput, MC error and censoring, plus a cost/time
+   scatter with Pareto markers and marginal acceleration table. Funded shows
+   mean/median/P10/P90 cash, first receipt probability/conditional time, breach,
+   horizon survival, pending cash and empirical constraint status, plus ranking
+   and an all-start receipt histogram. Strategy/size/profile filters change only
+   presentation; zero, unresolved and infeasible candidates remain saved. Select resolved frontier points
    or feasible funded candidates, enter a rationale, and **Freeze selected
    candidates**. Reopen from the saved campaign links in prop configuration or
    its durable URL `/#backtests/prop/campaign/<campaign_id>`.
+6. After freeze, select **Launch OOS with frozen settings**. This manually runs
+   ordinary OOS backtests from the selected IS parents, then appends a linked
+   assessment report. Open **Open frozen OOS assessment** and download its ZIP.
+   No settings are editable on this launch, and no OOS ranking/winner is returned.
+   Repeated manual launches append and display prior access; they never update IS.
 
 Campaign reports are independent phase results. Existing annualized joint sizing
 and budgeted cash-ledger workflows retain their request meanings and reports.
@@ -105,7 +116,9 @@ queue saturation return 409. Source files disappearing during a new check reject
 | `GET /api/research-campaigns/{id}/candidates` | All completed candidate results, including unresolved/infeasible/dominated members. |
 | `GET /api/research-campaigns/{id}/selection` | Evaluation frontier/acceleration or funded ranking/constraints/near-ties. |
 | `GET /api/research-campaigns/{id}/exports/{kind}` | `campaign.json`, `results.json`, `results.csv`, `report.json`, `source_checks.json`, `analysis.zip`, `frozen_package.json`. |
-| `POST /api/research-campaigns/{id}/freeze` | Immutable explicit candidate selection and rationale, linked to report and campaign hashes. Exact retry reopens it. |
+| `POST /api/research-campaigns/{id}/freeze` | Immutable explicit candidate selection, optional names and rationale, linked to report and campaign hashes. Exact retry reopens it. |
+| `POST /api/research-campaigns/{id}/assessments` | Manual frozen OOS launch; body only `request_id` (new UUID hex). Reuses the ordinary OOS backtest path, queues an assessment-only phase report, and returns 202. |
+| `GET /api/research-campaigns/{id}/assessments` | Append-only attempts, pre-launch access history, OOS source IDs, calculation progress/errors and saved report links. |
 
 `campaign.json` is a saved-declaration/status export; status can evolve during
 execution. `results.*` and ZIP come directly from the sealed AnalysisStore report.
@@ -210,7 +223,7 @@ curl -sS http://127.0.0.1:8000/api/research-campaigns/CAMPAIGN_ID/selection
 Freeze after completion with the exact IDs returned by selection:
 
 ```json
-{"candidate_ids":["<candidate SHA-256>"],"rationale":"Chosen IS cost/time trade-off under the declared constraints."}
+{"candidate_ids":["<candidate SHA-256>"],"rationale":"Chosen IS cost/time trade-off under the declared constraints.","names":{"<candidate SHA-256>":"Conservative IS choice"}}
 ```
 
 Multiple evaluation frontier points may be frozen as an explicit family. Funded
@@ -221,7 +234,8 @@ campaign; no frozen record is overwritten.
 
 ## Storage, reuse and recovery
 
-`research_campaigns`, `campaign_sources`, `campaign_jobs` and `campaign_analyses`
+`research_campaigns`, `campaign_sources`, `campaign_jobs`, `campaign_analyses` and
+`campaign_assessments`
 are additive tables in the **existing** `prop_analyses/catalog.sqlite3`. They hold
 small manifests/references. Original strategies/parameters, source/risk/cost hashes,
 IS declaration/access metadata, profile/fees, sampling/seeds, calendar, objective,
@@ -254,12 +268,30 @@ previous evidence remain unchanged.
 
 ## Scope and reproducible evidence
 
-This delivers campaigns over **already saved** grids/trials, minimal portal
-integration and IS selection freeze. It does not launch new parameter grids,
-implement adaptive screening/refinement, or add frozen-package OOS assessment
-dispatch/enforcement. Existing manual OOS remains editable/unlimited and separate;
-a manual OOS report is not automatically a frozen-package assessment. Portfolio
+This delivers campaigns over **already saved** grids/trials, portal comparisons,
+IS selection freeze and manual frozen-package OOS assessment. It does not launch
+new parameter grids or implement adaptive screening/refinement. Portfolio
 optimization is not implemented. Provider/external-engine parity is not claimed.
+
+The frozen package captures candidate names/strategy/parameters, source identity,
+account declarations, actual rule source snapshots, model/code hashes, costs,
+seeds, scenario calendar/horizon, search history/criteria and prior access.
+Assessment uses the same calendar/start cohort and horizon on resampled OOS
+observations, rather than changing the declared experiment. No size search or
+selector runs. Funded empirical risk limits are checked per frozen candidate;
+Evaluation re-estimates acquisition metrics without an OOS frontier. Assessment
+reports have `selection_status: assessment_only_no_reselection`, `winner: null`
+and empty frontier/ranking. They never mutate the frozen package or IS report.
+Ordinary automatic joint reports on OOS sources retain their legacy meaning.
+
+The manual launch currently supports captured native-risk sources. A frozen
+candidate using a separate measured export rejects before OOS execution because
+an independently reconciled OOS export is required. Changed calculation/rule code
+also rejects; no new engine silently substitutes for the frozen implementation.
+Failed or interrupted launches remain in history. Use a new manual request ID to
+append a fresh attempt; exact network retries return the saved attempt. Restart
+marks interrupted launches as errors. Reads/reloads/downloads never launch OOS.
+Previously accessed OOS remains labelled, with unlimited manual history.
 
 See [the review log](prop_simulation_review.md#phase-research-campaigns--2026-11-06)
 for actual saved campaign IDs, independent expected outputs, downloads and exact

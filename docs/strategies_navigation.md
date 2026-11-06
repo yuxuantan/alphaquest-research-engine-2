@@ -113,3 +113,16 @@ Combined validation: **775 checks passed**, including browser navigation, shared
 execution, preparation progress, compiled/reference prop parity, reuse, parallel
 worker recovery and normal durable prop reports. Exact results are in
 `full-suite.log` and `junit-verified.xml` in that integration evidence directory.
+
+## Phase campaign navigation
+
+From a saved IS backtest or grid-trial report, choose **Configure prop analysis**.
+**Create Evaluation campaign** and **Create Funded campaign** lead the new research
+workflow. Add saved sources across strategies/jobs, set sizes/budget/profile and
+check compatibility, then run. Source links return to each original report/job.
+Saved campaign links reopen durable filtered comparisons and downloads; after
+freezing, **Launch OOS with frozen settings** appends a linked phase assessment.
+No read/filter/reload starts a simulation. Previously accessed OOS is labelled;
+OOS results do not change IS selection. **Legacy business-level joint sizing**
+remains available in the same configuration, with historical reports/downloads
+preserved. See [step-by-step instructions](research_campaign_api.md).

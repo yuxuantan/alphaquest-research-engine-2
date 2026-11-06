@@ -22,7 +22,7 @@ def verify(root):
         raw=(directory/'report.json').read_bytes();report=json.loads(raw)
         assert sha256(raw).hexdigest()==campaign['frozen']['report_sha256']
         package=dict(campaign['frozen']);digest=package.pop('package_sha256')
-        assert sha256(json.dumps(package,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()==digest
+        assert sha256(json.dumps(package,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode()).hexdigest()==digest
         points={}
         for row in report['calculations']['candidates']:
             config=row['manifest']['configuration'];id=config['source']['source_backtest_id']

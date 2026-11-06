@@ -325,13 +325,13 @@ def pareto_sort(rows):
         acceleration_interpretation='USD per calendar day saved between adjacent points, not a lambda or recommendation; nonconvex Pareto points are retained')
 
 
-def optimize_evaluation(runs, search, checks=None, progress=lambda message: None):
+def optimize_evaluation(runs, search, checks=None, progress=lambda message: None, *, assessment=False):
     checks = checks if checks is not None else check_search(runs, search)
     configurations = {canonical(asdict(c)): c for c in search.candidates}
     rows = []
     for check in checks:
         candidate = configurations[canonical(check['manifest']['configuration'])]
-        progress('Evaluating '+check['candidate_id'][:12])
+        progress(f'Completed {len(rows)} / {len(checks)} candidates · Evaluating '+check['candidate_id'][:12])
         component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
             candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs)
         if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
@@ -343,6 +343,13 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
         verify_phase_source(runs, c.source, check['manifest']['source'])
+    if assessment:
+        for row in rows:
+            row.update(pareto_member=False, dominated=None, pareto_rank=None)
+        return dict(model_version=MODEL_VERSION, phase='evaluation', candidates=rows,
+            frontier=[], marginal_acceleration_cost=[], winner=None, certified_frontier=False,
+            selection_status='assessment_only_no_reselection',
+            unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
     return dict(model_version=MODEL_VERSION, phase='evaluation', **pareto_sort(rows))
 
 

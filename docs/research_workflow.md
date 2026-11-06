@@ -8,10 +8,21 @@ analysis → Independent phase research campaigns → Save and check → Run →
 results/downloads → Freeze. Original source links, access metadata and selection
 provenance are retained in the existing catalogues/AnalysisStore.
 
-Campaign selection never launches or inspects final OOS. Automatic new-grid
-launch, adaptive refinement and frozen-package OOS assessment dispatch/enforcement
-remain planned; an ordinary manually run OOS backtest is not relabelled as such an
-assessment. Existing editable splits and unlimited manual OOS remain unchanged.
+Campaign selection never launches or inspects final OOS. After freezing, use
+**Launch OOS with frozen settings** to invoke the existing ordinary OOS backtest
+path from each selected IS parent and append an assessment-only phase report.
+The server accepts only an idempotent request ID: parameters, sources, size,
+profile/rules, costs, seeds, horizon and calendar cannot be overridden. Only the
+source period moves to that parent's saved OOS window. Assessment uses OOS
+observations to estimate the frozen model's acquisition cost/time or payouts/risk
+under the same scenario calendar; it is not a chronological live-trading forecast.
+No OOS ranking/frontier search or IS-package update occurs. Frozen named families
+remain explicit; assessing several candidates does not permit choosing a new
+winner while calling those observations untouched. Access metadata appears at
+freeze and before each launch, including prior failed/interrupted attempts.
+Ordinary automatic joint reports attached to OOS backtests are legacy outputs,
+not independent phase assessments. Existing editable splits and unlimited manual
+OOS remain unchanged. Automatic new-grid launch and adaptive refinement are planned.
 Annualized joint sizing remains legacy business-level optimization. The dated
 exact cash ledger remains implemented for one observed path/slot; portfolio
 optimization remains optional later work. Historical sections below retain their

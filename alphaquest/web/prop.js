@@ -383,7 +383,7 @@
     const lucid=r.settings.ACCOUNT_TYPE==='LucidFlex',payoutLimit=lucid?5:6;
     nativeFrame(r);
     $('#prop-heading-title').textContent='Funded simulation';document.title='Funded simulation · AlphaQuest';
-    $('#prop-heading-note').textContent=(lucid?'LucidFlex 50K':'Apex 50K EOD')+' · AlphaQuest local model';
+    $('#prop-heading-note').textContent=(lucid?'LucidFlex 50K':'Apex 50K EOD')+' · Legacy business-level joint sizing · AlphaQuest local model';
     const created=new Date(r.created_at_utc);
     $('#prop-status').textContent=`Saved ${Number.isNaN(created.getTime())?r.created_at_utc:created.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}`;
     const downloadNames=['Report data (JSON)','Source trades (CSV)','Download all results (ZIP)'];

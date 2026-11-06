@@ -62,6 +62,9 @@ class AnalysisStore:
             initialize(db)
             if recover_interrupted:
                 db.execute("UPDATE analyses SET status='error',error='Application stopped before publication; run again.',progress='Interrupted' WHERE status IN ('queued','running')")
+                db.execute("UPDATE campaign_assessments SET payload=json_set(payload,'$.status','error',"
+                           "'$.error','Application stopped during OOS launch. Inspect retained ordinary OOS attempts; launch a new manual assessment.') "
+                           "WHERE json_extract(payload,'$.status')='launching'")
 
     @contextmanager
     def connect(self):
@@ -133,14 +136,18 @@ class AnalysisStore:
     def submit_funded(self, runs, search):
         return self.submit_phase(runs, search)
 
-    def submit_phase(self, runs, search, *, campaign_checks=None):
+    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None):
         """Additive phase-only dispatch using the existing worker and catalogue."""
         from . import evaluation_optimization, funded_optimization
         module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
         check_search, search_key = module.check_search, module.search_key
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         with self.lock:
-            checks = check_search(runs, search)
+            if assessment:
+                from .phase_search import check_candidates
+                checks = check_candidates(runs, search, assessment)
+            else:
+                checks = check_search(runs, search)
             if campaign_checks is not None:
                 if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
                     raise ValueError('Campaign source identity changed before queueing.')
@@ -153,6 +160,8 @@ class AnalysisStore:
             if phase == 'Funded' and sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days > 50_000_000:
                 raise ValueError('Declared funded search exceeds 50 million path calendar days; narrow the explicit search.')
             key = search_key(search, checks)
+            if assessment:
+                key = sha256(canonical(dict(search=key, assessment=assessment)).encode()).hexdigest()
             with self.connect() as db:
                 row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
                 if row:
@@ -164,10 +173,10 @@ class AnalysisStore:
                     (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
                 db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
                     [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
-            self.worker.submit(self._run_phase, runs, id, search, checks)
+            self.worker.submit(self._run_phase, runs, id, search, checks, assessment)
             return self.get(id)
 
-    def _run_phase(self, runs, id, search, checks):
+    def _run_phase(self, runs, id, search, checks, assessment=None):
         from . import evaluation_optimization, funded_optimization
         module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
         optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
@@ -178,9 +187,16 @@ class AnalysisStore:
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
                 with self.runtime.activate():
+                    options = dict(assessment=True) if assessment else {}
                     calculations = optimize(runs, search, checks,
-                        lambda msg: self._update(id, 'running', msg))
+                        lambda msg: self._update(id, 'running', msg), **options)
+                if assessment:
+                    calculations['assessment'] = assessment
                 result = write_report(runs, staged, search, checks, calculations)
+                if assessment:
+                    result['assessment'] = assessment
+                    result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
+                    (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
                 seal_report(staged, result, id, self.get(id)['created'])
                 staged.rename(self.root/id)
             with self.connect() as db:

@@ -5945,3 +5945,257 @@ for this increment. To rerun automated checks, use a new artifact path:
   --library artifacts/campaign-dropdown-NEW/campaign-library1 \
   --output artifacts/campaign-dropdown-NEW/independent-review.json
 ```
+
+## Phase campaign portal and frozen OOS — 2026-11-06
+
+The existing saved backtest → prop configuration → source checks → local worker
+→ durable report workflow now has primary **Create Evaluation campaign** and
+**Create Funded campaign** actions. Saved-trial/job selection and AnalysisStore
+are reused. No second application, calculation engine, database or report store
+was introduced. Legacy annualized joint sizing remains accessible and labelled;
+its historical results and download meanings are preserved.
+
+The phase screen displays the requested acquisition or payout/risk metrics,
+conditional Monte Carlo error and censoring, strategy/size/profile filters,
+original source links and CSV/JSON/ZIP. Evaluation plots all resolved points,
+marks the saved Pareto frontier and shows marginal acceleration costs without
+choosing a winner. Funded provides the saved ranking and all-start payout
+histograms, including zero receipts. Filtering/inspection does not select/freeze.
+Candidate names and IS decisions persist. Frozen OOS uses the ordinary manual OOS
+backtest path, then runs phase metrics with both selectors bypassed. It cannot
+change the immutable IS package or return a new OOS winner.
+
+### Actual saved product outputs and independent expected values
+
+Evidence root: `artifacts/phase-portal-20261106/`. These are labelled **SYNTHETIC**
+normal datasets/backtests, not provider or future-performance observations.
+`portal-release/` is the final UI capture; `browser-final/` also preserves the
+cross-strategy/job, source-picker and constraint demonstrations. Earlier evidence
+roots and the initial unsuccessful run are retained.
+
+| Final portal library | Campaign | IS phase report | OOS assessment report |
+| --- | --- | --- | --- |
+| `portal-release/test_campaign_portal_frozen_oo0` | `447c08eeb4ae44f88a32a8fb0f8a43bc` (Evaluation) | `76ee8682d1bb46fe975074e0ed7da97f` | `421d64d7c8b94af59f0e7aaf4bfeabc6` |
+| `portal-release/test_campaign_portal_frozen_oo1` | `71c461e3389c4798bb5f6eb8cff6f369` (Funded) | `567453cb16054cf28bb39e99fb3a9d11` | `9ff3053e07a3494a9711be944b4b7486` |
+
+Both sources come from the same 24-session synthetic dataset and cost protocol:
+IS January 5–14, OOS January 15–February 5, 2026. Green Hold parameters differ
+only by green-bar count 1/2, producing constant $300/$100 per MNQ per session,
+respectively. Captured source commissions/slippage are zero. Source A/B IDs:
+
+- Evaluation: `ef384cadc0c84bef9e93de98b6f1e928` /
+  `b8e7e0668a794d3f8b1e9e990f9d09f7`.
+- Funded: `dfd5152d2dec47a8b27da3318855e5e0` /
+  `42883bbb6765461aab330f541eecc789`.
+
+Independent expectations, derived from the captured trades and local account
+scenario rather than importing production functions:
+
+- Evaluation A/B × sizes 3/10 gives acquisition pairs `(USD, calendar days)`
+  `(70,7)`, `(70,2)`, `(70,15)`, `(70,4)`. Each attempt passes; $30 purchase +
+  $40 activation = $70. Sessions required are `ceil(3000 / daily scaled net)`;
+  the Monday start, one activation session and next-session readiness give the
+  stated calendar days. Mean/median/P90 agree, pass and day-30/day-60 funding
+  probabilities are 1, throughput is `30/days`, and no chain is censored.
+  The IS frontier contains only A at 10 MNQ; there is no automatic winner.
+  Freeze **evaluation frozen choice 1**; OOS uses 10 MNQ and gives $70/2 days,
+  with no OOS frontier or winner.
+- Funded A/B × sizes 1/3 gives expected received cash `[0,1500,0,0]` over the
+  14-calendar-day scenario `[2026-01-05,2026-01-19)`, with four-day modeled receipt
+  delay. Only A at 3 MNQ earns $900/session and reaches payout availability.
+  Requests/deductions on January 9/16 are $1,500 each; modeled receipts are
+  January 13/20. Exactly $1,500 is received in-horizon, $1,500 remains pending,
+  and $3,000 was deducted from the account. Median/P10/P90 cash all equal $1,500,
+  first-receipt probability is 1 and conditional first-receipt time is eight
+  calendar days. Other rows receive zero. Breach probability is zero and horizon
+  survival is 1. Freeze the explicitly named A size-1/size-3 family; OOS retains
+  those sizes and returns `[0,1500]`, pending `[0,1500]`, and no ranking/winner.
+  Open lifetimes are censored while these horizon receipts are complete.
+
+`independent-release.json` is produced by `tests/review_campaign_portal.py`, which
+imports only the standard library. It rederives these observations from captured
+trades, checks all 50 report/ZIP artifacts across both IS/OOS pairs, CSV row counts,
+rule-source/package hashes and zero POSTs on reload. `portal-evidence.json` in
+each library records exact source/report IDs and frozen download hashes. Actual
+JSON/CSV/ZIP downloads and screenshots are beside it; the complete reports stay
+in that library's normal `prop_analyses/<id>/` directories.
+
+A second normal-product four-point Evaluation report is captured under
+`portal-release/test_pareto_plot_table_and_mar0/`. Its source-based scenario gives
+`(70,4)`, `(90,9)`, `(100,3)`, `(140,2)`: three frontier points, one dominated
+point, and adjacent acceleration costs $30/day and $40/day. The browser checks
+that chart marker IDs exactly equal saved frontier membership, marginal table
+values agree, and size filtering hides points without recomputing membership.
+`pareto-and-marginal.png`, `mobile-pareto.png` and `chart-verification.json` retain
+that evidence. Different per-candidate fee scenarios are declared through the
+existing phase API; the campaign form uses one common profile/fee scenario.
+
+### Reopen and reproduce Evaluation through the portal
+
+Run from the repository root (port 8017 must be free):
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/phase-portal-20261106/portal-release/test_campaign_portal_frozen_oo0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8017
+```
+
+1. Open `http://127.0.0.1:8017/#backtests/prop/campaign/447c08eeb4ae44f88a32a8fb0f8a43bc`.
+   Expect **Frozen IS selection**, four candidates, all costs $70, funding means
+   2/4/7/15 days, one orange frontier ring and the persisted candidate name.
+   Inspect metric cards, source/rule details and filter to size 3: two rows and
+   two plotted points remain; the hidden 10-MNQ frontier does not get recomputed.
+2. Open the saved OOS link. Expect **Frozen OOS assessment**, the chosen 10 MNQ,
+   $70/2 days, no freeze control and no ranking/frontier winner. Reload both
+   screens: saved files and frozen choices remain unchanged; no POST is sent.
+3. To create a new campaign, open
+   `http://127.0.0.1:8017/#backtests/report/ef384cadc0c84bef9e93de98b6f1e928` →
+   **Configure prop analysis → Create Evaluation campaign**. Set sizes `3,10`;
+   **Add saved source**, leave type **Backtest**, search/select source B above
+   and give it sizes `3,10`. Use Apex EOD, $30/$40 fees, 8 paths, 8 acquisition
+   chains, block 1, seeds 42/45, scenario start January 5, 2026, and the saved IS
+   window. Counts of 8 are demonstration inputs, not precision qualification.
+4. Set candidate budget 3 and **Save and check candidates**: expect rejection,
+   with **Run campaign** disabled. Set budget 4 and recheck: four compatible
+   definitions with strategy parameters, rules/version, sources and windows.
+   **Run campaign** shows worker progress and completed counts, then the same
+   independently expected acquisition results.
+5. Check a resolved frontier point, name it and give a rationale; **Freeze
+   selected candidates**. **Launch OOS with frozen settings** explicitly runs
+   the existing OOS path and appends an assessment link. Parameters, size,
+   account profile, costs, sampling, seeds and scenario calendar cannot be
+   edited on this launch. Repeated manual launches append prior-access history;
+   they never rerank IS or make accessed OOS untouched again.
+6. Download campaign, source checks, CSV/JSON, analysis ZIP and frozen package.
+   Stop this server with **Ctrl+C** before opening the Funded library below.
+
+### Reopen and reproduce Funded through the portal
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/phase-portal-20261106/portal-release/test_campaign_portal_frozen_oo1" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8017
+```
+
+1. Open `http://127.0.0.1:8017/#backtests/prop/campaign/71c461e3389c4798bb5f6eb8cff6f369`.
+   Expect four candidates, A at 3 MNQ ranked first with $1,500 received and
+   $1,500 pending, three zero-cash rows, risk status and open-lifetime disclosure.
+   Inspect distributions for both zero and positive receipt paths and filter
+   by size; filtering never changes saved rank or frozen family membership.
+2. Open the saved assessment link. Expect named size-1/size-3 configurations,
+   `[0,1500]` received/pending cash and no OOS ranking or winner. The ordinary
+   OOS backtest and its legacy automatic prop links remain separately available.
+3. For a new run, open source A's normal report
+   `http://127.0.0.1:8017/#backtests/report/dfd5152d2dec47a8b27da3318855e5e0` →
+   **Configure prop analysis → Create Funded campaign**. Add source B above,
+   both at sizes `1,3`; use budget 4, 8 paths, seed 42, block 1, horizon 14 days,
+   receipt delay 4, start January 5, 2026, and the saved IS window. Check → Run
+   → inspect cash/risk ranking → name/freeze the desired feasible configuration
+   or predeclared family → manually launch frozen OOS → download both reports.
+   No evaluation price, pass probability, acquisition time or annualized joint
+   score is an input to this funded selection.
+4. Stop the server with **Ctrl+C**. Test fixtures use temporary servers and
+   enforce shutdown; no persistent server is required for this delivery.
+
+### Boundaries, error states and limits
+
+- `test_campaign_censored_error_a0/` captures zero-observed-pass/unresolved
+  Evaluation (no finite acquisition mean/plot and freeze disabled), a deliberately
+  failed worker, retained failure/retry and live/completed candidate counts.
+  Resource/candidate caps reject instead of silently reducing the requested work.
+- `browser-final/test_campaign_optimization_job0/` captures two completed saved
+  jobs from VWAP and Green Hold in one campaign: all four source/size combinations
+  remain present, both job origins are retained, and expected receipts are all
+  zero for that scenario. The source-picker demonstration includes empty and
+  no-match states, wrong-type/incomplete jobs, budget rejection and explicit
+  infeasible rows without dropping them from the report.
+- Backend checks reject OOS as an IS candidate, changed numerical implementations,
+  and overrides to frozen size/profile/horizon/strategy/settings. Both selectors
+  are poisoned during OOS tests; assessments still complete. Repeated requests
+  reuse IDs; fresh manual requests append. IS/frozen bytes remain unchanged and
+  referenced sources/reports are deletion protected.
+- Launch supports captured native risk. A separate measured-excursion source
+  needs an independently reconciled OOS export and currently rejects this launch
+  before OOS execution. No measured MAE/MFE or cost settlement is fabricated.
+- Evaluation currently admits Apex EOD; Funded admits local Apex EOD/LucidFlex.
+  One campaign uses one common profile. The target weekday/closure calendar,
+  prices, receipt delay and stationary resampling are declared local assumptions,
+  not newly verified provider/exchange/settlement forecasts. OOS estimates use the
+  frozen scenario cohort/calendar on OOS observations, not retrospective bank cash.
+- New parameter grids still run through normal backtests first. Automatic grid
+  generation, adaptive refinement and simultaneous/precision-certified frontier
+  or optimum claims remain outside this increment. Conditional Monte Carlo error
+  does not establish future uncertainty or provider/numerical parity.
+
+### Automated reproduction
+
+Use fresh, unused `NEW` paths; pytest resets its `--basetemp`. Preserve all saved
+evidence roots above. From the repository root:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_campaign_assessments.py \
+  tests/test_research_campaigns.py tests/test_campaign_source_picker.py \
+  tests/test_evaluation_optimization.py tests/test_funded_optimization.py \
+  --basetemp /tmp/aq-phase-backend-NEW
+.venv/bin/python -m pytest -q tests/test_campaign_portal_browser.py \
+  tests/test_research_campaigns_browser.py --basetemp /tmp/aq-phase-browser-NEW
+.venv/bin/python tests/review_campaign_portal.py \
+  --browser-root artifacts/phase-portal-20261106/portal-release \
+  --output /tmp/aq-phase-independent-NEW.json
+```
+
+Expected: both campaign types complete the normal saved-report journey and manual
+OOS, all source/job membership is visible, rejected/empty/censored/failed states
+remain explicit, and the independent audit reproduces both IS/OOS metric sets
+and verifies 50 captured artifacts. The actual broader regression commands,
+counts, failure reconciliation and preservation result are recorded below and in
+this evidence root's validation summary.
+
+### Final validation and preservation
+
+- `regression-final.log`: **207 passed**, covering campaign/assessment/source
+  picker APIs, both phase optimizers/components, legacy joint sizing, dated
+  phases/cash, prop APIs, research, strategies and optimization.
+- `kernel-source-regression.log`: **50 passed**, covering phase admission,
+  native/compiled kernels, commissions and source/risk workflows.
+- `browser-final.log`: **6 passed** (both campaign types, cross-strategy saved
+  jobs, Pareto relationships, constraints, failure/retry and censoring).
+  `portal-release.log`: **4 passed** after the candidate-name/download layout
+  correction, with final IS/OOS screenshots and exact downloaded files.
+  `rule-display.log`: **1 passed**, independently checking pre-run Evaluation,
+  Apex funded and Lucid funded rule disclosures. Together these cover seven
+  distinct campaign browser cases; repeated runs are not counted twice.
+- `portal-regression.log`: **62 passed, 1 failed**. The existing percentage-split
+  manual-OOS browser test still expected $352,880. The unchanged, pre-existing
+  `test_automatic_prop.expected_cash` oracle already expects $452,880. Independent
+  ledger arithmetic gives `(13,000 + 10,000) * 20 - 40 * (49+129) = 452,880`.
+  `legacy-oracle-reconciliation.json` records that reconciliation and unchanged
+  HEAD hashes of the legacy calculator, selector, account kernels and component
+  wrappers. Only the stale browser literals/evidence expectations were corrected.
+  `manual-oos-regression.log`: **2 passed** on the complete ordinary IS/grid/OOS
+  workflows after that correction. Thus all 63 distinct existing browser cases
+  are covered by passing results across the broad run and targeted rerun; the
+  original broad run is not represented as wholly green.
+- `browser-1.log` retains the earlier two ordinary-backtest publication failures
+  encountered during live Python edits. Stable campaign runs above passed. The
+  full repository suite was not run. The existing Starlette/httpx deprecation
+  warning remains; no dependency migration was included.
+- Independent standard-library reviews passed: `independent-release.json`
+  verifies 50 IS/OOS artifacts, and `independent-campaign-regression.json`
+  verifies the two campaign reports and 92 unchanged pre-existing fixture files.
+  The reviewer now uses the runtime's ASCII-escaped canonical JSON convention,
+  which matters for Unicode candidate names and captured rule source text.
+- `preservation-before.json` / `preservation-after.json`: **70,083 existing data
+  and prior-artifact files unchanged** across stable final validation. SQLite
+  catalogues and this new evidence root are excluded from that global file
+  comparison; isolated workflow checks separately verify source/report/freeze
+  bytes. Original user datasets/backtests/results were not used as test fixtures.
+- JavaScript syntax checks, `git diff --check`, and 174 local documentation
+  links/anchors passed. All owned temporary servers stopped. No persistent
+  server was started, no Windows VM/other application was controlled, and no
+  changes were pushed to GitHub.
+
+`artifacts/phase-portal-20261106/validation_summary.json` records the exact scope,
+counts, reconciliation, limits and evidence filenames. This is 257 backend cases
+and 70 distinct browser cases, with the rerun qualification stated above; it is
+not a claim of full P1–P5 certification, provider parity or a green full baseline.

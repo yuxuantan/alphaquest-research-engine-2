@@ -27,6 +27,11 @@
     form.append(node('p','Compare saved IS strategies and optimization trials. Every source × MNQ size counts toward the budget. Sources must share the dataset, research split and execution costs.'));
     const phase=select(form,'Phase','campaign-phase',[['evaluation','Evaluation · acquisition cost/time'],['funded','Funded · trader cash received']]);
     const profile=select(form,'Account profile','campaign-profile',[['apex-50k-eod','Apex 50K EOD'],['lucidflex-50k','LucidFlex 50K · funded only']]);
+    const entry=node('div');panel.insertBefore(entry,d);
+    for(const [value,title]of [['evaluation','Create Evaluation campaign'],['funded','Create Funded campaign']])button(entry,title,'campaign-new-'+value).onclick=()=>{d.open=true;phase.value=value;phase.dispatchEvent(new Event('change',{bubbles:true}));phase.focus();};
+    const ruleNote=node('p');form.append(ruleNote);
+    const ruleSummary=()=>phase.value==='evaluation'?'Evaluation: $3,000 profit target; $2,000 EOD trailing drawdown; $1,000 daily loss limit; 21-session expiry.':profile.value==='apex-50k-eod'?'Fresh funded account: $2,000 trailing drawdown; $2,100 safety net; five qualifying days at $250; 50% payout consistency; six modeled payout caps ($1,500/$1,500/$2,000/$2,500/$2,500/$3,000). Size tiers and daily stops still apply.':'Fresh LucidFlex funded account: $2,000 drawdown; five winning days at $150; no funded consistency requirement; 50% withdrawal limit, $500 minimum/$2,000 maximum gross request; 90% trader share; five modeled payouts; $1,200 daily stop and 20/30/40-MNQ tiers.';
+    const showRule=()=>{ruleNote.textContent=`Local rule snapshot: ${profile.value} · ${defaults.profiles[profile.value]}. ${ruleSummary()} These are local model rules, not newly verified provider terms. Source parameters, costs, sizes and the research window are saved by the compatibility check.`;};profile.addEventListener('change',showRule);showRule();
     const sources=node('div');sources.id='campaign-sources';form.append(sources);
     const anchor={id:source.id,created_at:source.created_at_utc,status:source.status,
       strategy_id:source.run_metadata.strategy.id,parameters:source.run_metadata.strategy.parameters,
@@ -97,7 +102,8 @@
     field(fundedFields,'Receipt horizon · calendar days','campaign-horizon','90','number');field(fundedFields,'Receipt delay · calendar days','campaign-delay','0','number');
     field(fundedFields,'Maximum breach probability (0–1)','campaign-breach','1','number').step='any';
     const note=node('p','Uses captured source costs and fixed-quantity linear MNQ scenarios. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts. Advanced calendars, costs and constraints are available through the campaign API.');form.append(note);
-    const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';};phase.onchange=changePhase;changePhase();
+    const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';profile.options[1].disabled=phase.value==='evaluation';if(phase.value==='evaluation')profile.value='apex-50k-eod';showRule();};phase.onchange=changePhase;changePhase();
+    for(const [id,min,max]of [['campaign-budget',1,128],['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1]]){const input=$('#'+id);input.min=min;input.max=max;}
     const check=button(form,'Save and check candidates','campaign-check'),run=button(form,'Run campaign','campaign-run');run.disabled=true;
     const status=node('p');status.id='campaign-status';status.setAttribute('role','status');form.append(status);
     let campaignId=null,revision=0;
@@ -123,43 +129,131 @@
     };
     run.onclick=async()=>{if(!campaignId)return;run.disabled=true;try{await api(`/api/research-campaigns/${campaignId}/run`,{});location.hash=`#backtests/prop/campaign/${campaignId}`;}catch(e){status.textContent=e.message;run.disabled=false;}};
   }
+  const format = value => value===null||value===undefined?'Unresolved / unavailable':typeof value==='number'?value.toLocaleString(undefined,{maximumFractionDigits:3}):String(value);
+  const pct = value => value==null?'Unresolved / unavailable':format(value*100)+'%';
+  function dataTable(parent,labels,rows,id=''){
+    const wrap=node('div');wrap.className='campaign-table-scroll';wrap.tabIndex=0;
+    const table=node('table');table.className='prop-table';table.id=id;const head=node('thead'),tr=node('tr');
+    for(const label of labels){const th=node('th',label);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
+    const body=node('tbody');for(const values of rows){const row=node('tr');for(const value of values){const cell=node('td');cell.append(value instanceof Node?value:node('span',format(value)));row.append(cell);}body.append(row);}table.append(body);wrap.append(table);parent.append(wrap);return table;
+  }
+  function svgNode(tag,attrs={},text){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,String(v));if(text!==undefined)n.textContent=text;return n;}
+  function chart(parent,rows,phase,frontier,assessment=false){
+    const box=node('div');box.id='campaign-chart';parent.append(box);
+    if(phase==='evaluation'){
+      box.append(node('h3','Acquisition cost vs calendar time'),node('p',assessment?'Frozen OOS family only; no OOS frontier or selection is computed.':'Orange rings mark the saved IS Pareto frontier. Filters hide points without recomputing dominance. Unresolved points remain in the table.'));
+      const points=rows.filter(r=>r.metrics.cost_per_funded!=null&&r.metrics.expected_calendar_days_to_funded!=null);
+      if(!points.length){box.append(node('p','No resolved cost/time points to plot.'));return;}
+      const svg=svgNode('svg',{viewBox:'0 0 820 340',role:'img','aria-label':'Acquisition cost versus calendar time with Pareto frontier'});
+      const maxC=Math.max(1,...points.map(r=>r.metrics.cost_per_funded))*1.1,maxT=Math.max(1,...points.map(r=>r.metrics.expected_calendar_days_to_funded))*1.1;
+      const x=r=>80+r.metrics.expected_calendar_days_to_funded/maxT*710,y=r=>285-r.metrics.cost_per_funded/maxC*250;
+      svg.append(svgNode('path',{d:'M80 25 V285 H795',fill:'none',stroke:'#657783'}),svgNode('text',{x:350,y:330},'Expected calendar days to funding'),svgNode('text',{x:5,y:18},'Cost · USD'));
+      for(let i=0;i<=4;i++){const t=i/4;svg.append(svgNode('text',{x:75,y:289-t*250,'text-anchor':'end'},format(t*maxC)),svgNode('text',{x:80+t*710,y:306,'text-anchor':'middle'},format(t*maxT)));}
+      const edge=points.filter(r=>frontier.includes(r.candidate_id)).sort((a,b)=>x(a)-x(b));
+      if(edge.length>1)svg.append(svgNode('polyline',{points:edge.map(r=>`${x(r)},${y(r)}`).join(' '),fill:'none',stroke:'#c75a08','stroke-width':2}));
+      for(const r of points){const isFrontier=frontier.includes(r.candidate_id),c=svgNode('circle',{cx:x(r),cy:y(r),r:isFrontier?8:5,fill:isFrontier?'#fff4e8':'#367781',stroke:isFrontier?'#c75a08':'#367781','stroke-width':3,'data-candidate-id':r.candidate_id,'data-frontier':isFrontier});c.append(svgNode('title',{},`${r.manifest.strategy.id} · ${r.manifest.configuration.micros} MNQ · $${format(r.metrics.cost_per_funded)} · ${format(r.metrics.expected_calendar_days_to_funded)} days${isFrontier?' · Pareto frontier':''}`));svg.append(c);}box.append(svg);
+    }else{
+      box.append(node('h3','Funded payout distribution'),node('p','All-start received cash, including zero-payout paths. Choose a visible strategy/size; selection here only changes this chart.'));
+      if(!rows.length){box.append(node('p','No matching candidates.'));return;}
+      const choose=select(box,'Distribution candidate','campaign-distribution',rows.map(r=>[r.candidate_id,`${r.manifest.strategy.id} · ${r.manifest.configuration.micros} MNQ · ${r.candidate_id.slice(0,8)}`]));
+      const plot=node('div');box.append(plot);
+      function draw(){plot.replaceChildren();const r=rows.find(r=>r.candidate_id===choose.value),values=r.distribution?.values;
+        if(r.status!=='estimated')plot.append(node('p','Incomplete horizon: plotted values are accrued cash lower bounds, not completed payout estimates.'));if(!values?.length){plot.append(node('p','Distribution unavailable for this saved report.'));return;}
+        const max=Math.max(1,...values),bins=Array(10).fill(0);for(const value of values)bins[Math.min(9,Math.floor(value/max*10))]++;
+        const svg=svgNode('svg',{viewBox:'0 0 820 280',role:'img','aria-label':'Funded cash receipt histogram including zero paths'}),peak=Math.max(...bins);
+        bins.forEach((count,i)=>{const bar=svgNode('rect',{x:70+i*72,y:220-count/peak*185,width:64,height:count/peak*185,fill:'#367781','data-count':count});bar.append(svgNode('title',{},`$${format(i*max/10)}–$${format((i+1)*max/10)}: ${count} paths`));svg.append(bar,svgNode('text',{x:70+i*72,y:242},format(i*max/10)));});svg.append(svgNode('text',{x:290,y:275},'Trader cash received · USD'));plot.append(svg,node('p',`${values.length} paths · Median $${format(r.metrics.median_payouts)} · P10 $${format(r.metrics.p10_payouts)} · P90 $${format(r.metrics.p90_payouts)}`));
+      }choose.onchange=draw;draw();
+    }
+  }
+  function metricOverview(parent,rows,phase){
+    if(!rows.length)return;
+    const choose=select(parent,'Inspect candidate metrics · presentation only','campaign-inspect',rows.map(r=>[r.candidate_id,`${r.manifest.strategy.id} · ${r.manifest.configuration.micros} MNQ · ${r.candidate_id.slice(0,8)}`]));
+    const text=node('p'),cards=node('div');cards.className='campaign-metric-grid';parent.append(text,cards);
+    function show(){const r=rows.find(r=>r.candidate_id===choose.value),m=r.metrics,u=r.uncertainty||{};cards.replaceChildren();
+      text.textContent=Object.entries(r.manifest.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ')+` · ${r.manifest.configuration.profile.profile_id} · ${r.status}. Inspection does not choose or freeze a winner.`;
+      const values=phase==='evaluation'?[['Cost per funded account · USD',m.cost_per_funded],['Expected calendar days',m.expected_calendar_days_to_funded],['Pass probability',pct(m.pass_probability)],['Median funding days',m.median_calendar_days_to_funded],['P90 funding days',m.p90_calendar_days_to_funded],['Funded within 30 days',pct(m.probability_funded_by_day_30)],['Funded within 60 days',pct(m.probability_funded_by_day_60)],['Acquisition throughput · accounts/30d',m.funded_accounts_per_30_calendar_days],['MC cost SE · USD',u.cost_se],['MC mean time SE · days',u.calendar_mean_se],['Censoring status',r.reason||r.status]]:[['Expected payout cash · USD',m.expected_payouts],['Median / P10 / P90 · USD',`${format(m.median_payouts)} / ${format(m.p10_payouts)} / ${format(m.p90_payouts)}`],['Probability of first payout',pct(m.probability_first_payout)],['First payout days · conditional on payout',(m.probability_first_payout===0?'No payout observed':m.expected_days_to_first_payout_conditional_on_payout)],['Breach probability',pct(m.account_breach_probability)],['Survival to horizon',pct(m.probability_surviving_to_horizon)],['Risk constraint status',r.feasible?'Meets empirical limits':(r.constraint_violations||[]).join(', ')||'Unresolved'],['Pending cash · USD',m.expected_pending_cash],['MC mean cash SE · USD',u.mean_monte_carlo_se],['Unresolved horizon paths',r.censoring?.unresolved_horizon_paths],['Open lifetimes · censored',r.censoring?.lifetime_censored_paths]];
+      for(const [label,value]of values){const card=node('div');card.append(node('span',label),node('strong',format(value)));cards.append(card);}
+    }choose.onchange=show;show();
+  }
   function renderAnalysis(report,campaign=null){
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-delete').hidden=true;$('#prop-downloads').replaceChildren();
-    $('#prop-heading-title').textContent=campaign?'Research campaign':'Independent phase analysis';
-    $('#prop-heading-note').textContent=report.phase==='evaluation'?'Evaluation · minimize acquisition cost and calendar time':'Funded · maximize expected trader cash received';
+    const assessment=report.assessment,isEval=report.phase==='evaluation';
+    $('#prop-heading-title').textContent=assessment?'Frozen OOS assessment':campaign?'Research campaign':'Independent phase analysis';
+    $('#prop-heading-note').textContent=isEval?'Evaluation · minimize acquisition cost and calendar time':'Funded · maximize expected trader cash received';
     $('#prop-back').href=`#backtests/report/${report.source.backtest.id}`;
-    const target=$('#prop-report-content');target.replaceChildren();target.className='';
-    const calc=report.calculations;
+    const target=$('#prop-report-content');target.replaceChildren();target.className='';const calc=report.calculations;
     const panel=node('section');panel.className='panel prop-panel';target.append(panel);
-    panel.append(node('h2',campaign?.frozen?'Frozen IS selection':'IS candidate results'),node('p',`${calc.candidates.length} candidates · ${report.model_version}. Estimated results; no provider parity or certified optimum. OOS has not been run by this campaign.`));
-    const table=node('table');table.className='prop-table';const head=node('tr');
-    for(const label of ['Freeze','Saved strategy / source','MNQ','Status',...(report.phase==='evaluation'?['Cost · USD','Calendar days','Frontier']:['Expected receipts · USD','Pending · USD','Rank'])])head.append(node('th',label));table.append(head);panel.append(table);
-    const allowed=report.phase==='evaluation'?calc.frontier:calc.ranking;
-    const displayed=[...calc.candidates].sort((a,b)=>report.phase==='funded'?(a.rank??Infinity)-(b.rank??Infinity):Number(b.pareto_member)-Number(a.pareto_member));
-    for(const r of displayed){const row=node('tr'),cell=node('td'),box=node('input');box.type='checkbox';box.value=r.candidate_id;box.className='campaign-pick';box.disabled=!campaign||!!campaign.frozen||!allowed.includes(r.candidate_id);box.checked=!!campaign?.frozen?.candidate_ids.includes(r.candidate_id);cell.append(box);row.append(cell);
-      const s=node('td');s.append(link(r.manifest.strategy.id,`#backtests/report/${r.manifest.configuration.source.source_backtest_id}`));s.append(node('p',Object.entries(r.manifest.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ')));details(s,'Source identity and provenance',r.manifest);row.append(s);
-      const m=r.metrics;for(const value of [r.manifest.configuration.micros,report.phase==='funded'&&r.status==='estimated'&&!r.feasible?'infeasible':r.status,...(report.phase==='evaluation'?[m.cost_per_funded,m.expected_calendar_days_to_funded,r.pareto_member]:[m.expected_payouts,m.expected_pending_cash,r.rank??'Not ranked'])])row.append(node('td',value===null?'Unresolved':String(value)));table.append(row);
+    panel.append(node('h2',assessment?'OOS assessment · frozen settings':campaign?.frozen?'Frozen IS selection':'IS candidate results'));
+    panel.append(node('p',`${calc.candidates.length} completed candidates · ${report.model_version}. ${assessment?'Assessment only; no OOS ranking, frontier selection or replacement of IS choices.':'Selection uses IS only. Evaluation has no automatic winner.'} Estimated results; no provider parity or certified optimum.`));
+    if(assessment){panel.append(link('Return to frozen IS campaign',`#backtests/prop/campaign/${assessment.campaign_id}`),node('p',assessment.interpretation));details(panel,'Pre-launch OOS access history',assessment.prior_access);}
+    const filters=node('div');filters.className='prop-fields';panel.append(filters);
+    const opts=(key,label)=>[['',label],...[...new Set(calc.candidates.map(key))].sort().map(v=>[String(v),String(v)])];
+    const strategy=select(filters,'Filter by strategy','campaign-filter-strategy',opts(r=>r.manifest.strategy.id,'All strategies'));
+    const size=select(filters,'Filter by size','campaign-filter-size',opts(r=>r.manifest.configuration.micros,'All sizes'));
+    const profile=select(filters,'Filter by account profile','campaign-filter-profile',opts(r=>r.manifest.configuration.profile.profile_id,'All profiles'));
+    const count=node('p');count.id='campaign-visible-count';panel.append(count);
+    const graph=node('div'),comparison=node('div');panel.append(graph,comparison);
+    const allowed=assessment?[]:isEval?calc.frontier:calc.ranking;
+    const picked=new Set(campaign?.frozen?.candidate_ids||[]),names=new Map(Object.entries(campaign?.frozen?.names||{}));
+    const displayed=[...calc.candidates].sort((a,b)=>isEval?Number(b.pareto_member)-Number(a.pareto_member):(a.rank??Infinity)-(b.rank??Infinity));
+    function draw(){
+      const rows=displayed.filter(r=>(!strategy.value||r.manifest.strategy.id===strategy.value)&&(!size.value||String(r.manifest.configuration.micros)===size.value)&&(!profile.value||r.manifest.configuration.profile.profile_id===profile.value));
+      graph.replaceChildren();comparison.replaceChildren();count.textContent=`${rows.length} of ${calc.candidates.length} candidates shown. Saved frontier/ranks stay fixed.`;
+      metricOverview(graph,rows,report.phase);chart(graph,rows,report.phase,assessment?[]:calc.frontier,!!assessment);
+      const labels=['Freeze / name','Saved strategy / source',`Account / rules / ${assessment?'OOS':'IS'} window`,'MNQ','Status',...(isEval?['Cost per funded · USD','Expected calendar days','Pass probability','Median days','P90 days','Funded by 30d','Funded by 60d','Accounts / 30d','Pareto frontier','MC cost SE / days SE','Censoring']:['Expected cash · USD','Median cash','P10 cash','P90 cash','First payout probability','Days to first payout · conditional','Breach probability','Survival to horizon','Risk constraints','Pending cash · USD','Rank','MC mean SE','Censoring'])];
+      const values=rows.map(r=>{
+        const config=r.manifest.configuration,m=r.metrics,u=r.uncertainty||{},pick=node('div'),box=node('input');box.type='checkbox';box.value=r.candidate_id;box.className='campaign-pick';box.setAttribute('aria-label','Freeze '+r.candidate_id.slice(0,12));box.disabled=!campaign||!!campaign.frozen||!allowed.includes(r.candidate_id);box.checked=picked.has(r.candidate_id);box.onchange=()=>box.checked?picked.add(r.candidate_id):picked.delete(r.candidate_id);pick.append(box);
+        const name=field(pick,'Candidate name','',names.get(r.candidate_id)||assessment?.sources.find(s=>s.source_id===config.source.source_backtest_id&&s.frozen_manifest.configuration.micros===config.micros)?.name||`${r.manifest.strategy.id} · ${config.micros} MNQ · ${r.candidate_id.slice(0,8)}`);names.set(r.candidate_id,name.value);name.className='campaign-candidate-name';name.maxLength=120;name.disabled=box.disabled;name.oninput=()=>names.set(r.candidate_id,name.value);
+        const s=node('div');s.append(link(r.manifest.strategy.id,`#backtests/report/${config.source.source_backtest_id}`),node('p',Object.entries(r.manifest.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ')));details(s,'Source identity and provenance',r.manifest);
+        const rules=node('div',`${config.profile.profile_id} · ${config.profile.rule_version}`);rules.append(node('p',`${assessment?'OOS':'IS'} ${config.period?.first_session} → ${config.period?.last_session}`));details(rules,'Saved rules, costs and search settings',{profile:config.profile,account_rules:r.provenance?.rules,costs:config.costs,sampling:config.sampling,simulation:config.simulation,calendar:report.request?.calendar,horizon:report.request?.horizon_calendar_days});
+        const status=report.phase==='funded'&&r.status==='estimated'&&!r.feasible?'infeasible':r.status;
+        const cells=isEval?[m.cost_per_funded,m.expected_calendar_days_to_funded,pct(m.pass_probability),m.median_calendar_days_to_funded,m.p90_calendar_days_to_funded,pct(m.probability_funded_by_day_30),pct(m.probability_funded_by_day_60),m.funded_accounts_per_30_calendar_days,assessment?'Assessment only':r.pareto_member? 'Frontier':'Outside frontier',`${format(u.cost_se)} / ${format(u.calendar_mean_se)}`,`${r.censoring?.chain_paths??'Unknown'} unresolved chains · ${r.reason||r.status}`]:[m.expected_payouts,m.median_payouts,m.p10_payouts,m.p90_payouts,pct(m.probability_first_payout),(m.probability_first_payout===0?'No payout observed':m.expected_days_to_first_payout_conditional_on_payout),pct(m.account_breach_probability),pct(m.probability_surviving_to_horizon),r.feasible?'Meets empirical limits':(r.constraint_violations||[]).join(', ')||'Unresolved',m.expected_pending_cash,r.rank??(assessment?'Assessment only':'Not ranked'),u.mean_monte_carlo_se,`${r.censoring?.unresolved_horizon_paths??0} incomplete horizons; ${r.censoring?.lifetime_censored_paths??0} open lifetimes`];
+        return [pick,s,rules,config.micros,status,...cells];
+      });dataTable(comparison,labels,values,'campaign-candidates');
+      if(!rows.length)comparison.append(node('p','No candidates match these filters.'));
     }
-    details(panel,report.phase==='evaluation'?'Frontier and marginal acceleration costs':'Ranking, constraints and uncertainty',{...calc,candidates:undefined});
-    details(panel,'Candidate metrics, risk, uncertainty and assumptions',calc.candidates.map(r=>({candidate_id:r.candidate_id,metrics:r.metrics,status:r.status,feasible:r.feasible,constraint_violations:r.constraint_violations,rank:r.rank,pareto_member:r.pareto_member,dominated:r.dominated,censoring:r.censoring,uncertainty:r.uncertainty,assumptions:r.assumptions})));
-    panel.append(node('p','Full path observations are retained in the JSON and ZIP downloads.'));
+    for(const filter of [strategy,size,profile])filter.onchange=draw;draw();
+    if(isEval&&!assessment){panel.append(node('h3','Marginal acceleration costs'));
+      dataTable(panel,['Slower frontier candidate','Faster frontier candidate','USD / calendar day saved'],(calc.marginal_acceleration_cost||[]).map(r=>[r.slow_candidate_id.slice(0,12),r.fast_candidate_id.slice(0,12),r.usd_per_calendar_day_saved??r.reason]),'campaign-marginal');
+      if(!calc.marginal_acceleration_cost?.length)panel.append(node('p','No adjacent distinct frontier trade-offs to compare.'));
+    }
+    details(panel,isEval?'Frontier and marginal acceleration costs':'Ranking, constraints and uncertainty',{...calc,candidates:undefined});
+    details(panel,'Candidate metrics, risk, uncertainty and assumptions',calc.candidates.map(r=>({candidate_id:r.candidate_id,metrics:r.metrics,status:r.status,feasible:r.feasible,constraint_violations:r.constraint_violations,rank:r.rank,pareto_member:r.pareto_member,censoring:r.censoring,uncertainty:r.uncertainty,assumptions:r.assumptions})));
+    panel.append(node('p','Monte Carlo uncertainty is conditional on the saved source/model; it does not measure future market or provider-rule uncertainty. Open funded lifetimes can be censored while horizon cash is complete. Full observations and intervals are in JSON/ZIP.'));
     if(campaign){
       const actions=node('div');panel.append(actions);
       if(!campaign.frozen){const rationale=field(actions,'Selection rationale','campaign-rationale','');const freeze=button(actions,'Freeze selected candidates','campaign-freeze');const status=node('p');actions.append(status);
-        freeze.onclick=async()=>{try{if(!rationale.reportValidity())return;freeze.disabled=true;await api(`/api/research-campaigns/${campaign.campaign_id}/freeze`,{candidate_ids:[...table.querySelectorAll('.campaign-pick:checked')].map(i=>i.value),rationale:rationale.value});await watch(campaign.campaign_id,()=>location.hash===`#backtests/prop/campaign/${campaign.campaign_id}`);}catch(e){status.textContent=e.message;freeze.disabled=false;}};
-      }else details(actions,'Frozen package',campaign.frozen);
+        freeze.onclick=async()=>{try{if(!rationale.reportValidity())return;freeze.disabled=true;await api(`/api/research-campaigns/${campaign.campaign_id}/freeze`,{candidate_ids:[...picked],names:Object.fromEntries([...picked].map(id=>[id,names.get(id)||`${id.slice(0,12)}`])),rationale:rationale.value});await watch(campaign.campaign_id,()=>location.hash===`#backtests/prop/campaign/${campaign.campaign_id}`);}catch(e){status.textContent=e.message;freeze.disabled=false;}};
+      }else {details(actions,'Frozen package',campaign.frozen);assessmentControls(actions,campaign);}
       for(const kind of ['campaign.json','results.csv','results.json','source_checks.json','analysis.zip',...(campaign.frozen?['frozen_package.json']:[])])actions.append(link('Download '+kind,`/api/research-campaigns/${campaign.campaign_id}/exports/${kind}`),node('br'));
       details(panel,'Campaign declaration and numerical identity',campaign.manifest);
-    }else panel.append(link('Download analysis ZIP',`/api/prop-analyses/${report.id}/downloads/analysis.zip`));
+    }else {const downloads=node('div');downloads.className='campaign-downloads';for(const [label,path]of [['Download analysis ZIP','downloads/analysis.zip'],['Download metrics CSV','files/phase_metrics.csv'],['Download metrics JSON','files/phase_metrics.json']]){const a=link(label,`/api/prop-analyses/${report.id}/${path}`);a.className='button secondary';downloads.append(a);}panel.append(downloads);}
+  }
+  async function assessmentControls(parent,campaign){
+    const section=node('section');section.id='campaign-assessments';parent.append(section);section.append(node('h3','Manual final OOS assessment'),node('p','Runs ordinary OOS backtests from the frozen IS parents, then assesses this named family at its frozen sizes, profiles, costs, horizon, seeds and scenario calendar. Results append without ranking or changing IS selections. Previously accessed data is not untouched final OOS.'));
+    details(section,'OOS access recorded at freeze',campaign.frozen.prior_access);
+    const launch=button(section,'Launch OOS with frozen settings','campaign-launch-oos'),status=node('p'),history=node('div');status.id='campaign-oos-status';status.setAttribute('role','status');section.append(status,history);
+    let requestId=null;
+    async function refresh(){try{const data=await api(`/api/research-campaigns/${campaign.campaign_id}/assessments`);if(!section.isConnected)return;history.replaceChildren();
+      for(const a of data.items){const row=node('div');row.append(node('p',`${a.created_at_utc} · ${a.status} · ${a.analysis?.progress||a.error||a.interpretation}`));
+        for(const [parent,id]of Object.entries(a.oos_sources||{}))row.append(link(`OOS backtest · ${parent.slice(0,8)}`,`#backtests/report/${id}`),node('br'));
+        if(a.analysis_id&&a.status==='complete')row.append(link('Open frozen OOS assessment',`#backtests/prop/job/${a.analysis_id}`),node('br'),link('Download assessment ZIP',`/api/prop-analyses/${a.analysis_id}/downloads/analysis.zip`));
+        details(row,'Pre-launch access history',a.prior_access);history.append(row);}
+      if(data.items.some(a=>['queued','running','launching'].includes(a.status)))setTimeout(refresh,700);
+    }catch(e){status.textContent=e.message;}}
+    launch.onclick=async()=>{launch.disabled=true;requestId??=crypto.randomUUID().replaceAll('-','');status.textContent='Launching ordinary OOS backtests with frozen parameters…';
+      try{const a=await api(`/api/research-campaigns/${campaign.campaign_id}/assessments`,{request_id:requestId});requestId=null;status.textContent=`Assessment ${a.status}. IS selection remains frozen.`;await refresh();}catch(e){status.textContent=e.message;}finally{launch.disabled=false;}};
+    await refresh();
   }
   async function watch(id,current){
     $('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-downloads').replaceChildren();
     while(current()){
       const c=await api('/api/research-campaigns/'+id);if(!current())return;
-      $('#prop-status').textContent=`${c.manifest.phase} campaign · ${c.status} · ${c.campaign_id}`;
+      $('#prop-status').textContent=`${c.manifest.phase} campaign · ${c.status} · ${c.analysis?.progress||'Sources checked'} · ${c.status==='complete'?c.manifest.candidate_search_count+' / '+c.manifest.candidate_search_count+' completed candidates':c.manifest.candidate_search_count+' declared candidates'} · ${c.campaign_id}`;
       if(c.status==='complete'){const r=await api(`/api/prop-analyses/${c.analysis_id}/downloads/report.json`);if(current())renderAnalysis(r,c);return;}
       if(['validated','error'].includes(c.status)){
         $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();p.append(node('p',c.analysis?.error||'Sources validated. Run the saved campaign to calculate results.'));
+        details(p,'Retained calculation attempts',await api(`/api/research-campaigns/${id}/attempts`));
         button(p,c.status==='error'?'Retry interrupted or failed calculation':'Run saved campaign','campaign-resume').onclick=async()=>{try{await api(`/api/research-campaigns/${id}/run`,{});await watch(id,current);}catch(e){$('#prop-status').textContent=e.message;}};return;
       }
       await new Promise(resolve=>setTimeout(resolve,700));

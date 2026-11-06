@@ -12,7 +12,10 @@ classified as **legacy business-level optimization**, retained with its formulas
 regression tests and reports until separately approved retirement; it must not
 be the selection mechanism for independent phases. Explicit comparable saved
 IS candidates across jobs/strategies are supported by both phase backends;
-campaign generation and frozen phase OOS assessment remain planned.
+saved-trial campaign creation, portal comparisons and frozen phase OOS assessment
+are implemented. Automatic generation of new grids and adaptive refinement remain
+planned. The historical standalone sections below describe their original scope;
+the [campaign guide](research_campaign_api.md) gives the current product workflow.
 Completed dated source/cash-ledger work and all dated specifications/evidence
 below are preserved. No provider rule or numerical parity is newly verified.
 
@@ -23,7 +26,9 @@ below are preserved. No provider rule or numerical parity is newly verified.
 interfaces; serialized searches use the existing `POST /api/prop-analyses/check`
 and `POST /api/prop-analyses` with `mode: "funded_optimization"`. The existing
 AnalysisStore worker/catalogue publishes format-5 reports, file downloads and
-`analysis.zip`. **No UI or portfolio optimizer is added.** Existing annualized,
+`analysis.zip`. The original standalone increment added no UI; the subsequent
+[campaign portal](research_campaign_api.md) now exposes it. No portfolio optimizer
+is added. Existing annualized,
 Evaluation, dated and budgeted requests/reports retain their meanings.
 
 The sole objective is `expected_funded_cash_payouts_within_horizon`: the arithmetic
@@ -157,9 +162,10 @@ is registered before queueing for deletion protection. Reopen/download never
 resimulates; source, timing, horizon, constraints, seeds or local implementation
 changes invalidate numerical reuse. No separate result store is created.
 
-This is the standalone P3 backend increment. UI, generated campaigns,
-screening/confirmation, frozen final-OOS assessment, verified settlement calendars
-and provider/external numerical qualification remain deferred. See the
+This section describes the original standalone P3 backend increment. The
+subsequent campaign portal implements saved-trial UI and frozen OOS assessment.
+New-grid generation, adaptive screening/confirmation, verified settlement
+calendars and provider/external numerical qualification remain deferred. See the
 [reproducible saved-product evidence](prop_simulation_review.md#standalone-funded-optimizer--2026-11-06).
 
 ## Standalone Evaluation optimizer — 2026-11-06

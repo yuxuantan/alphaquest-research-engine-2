@@ -49,7 +49,8 @@ research throughput, spending and engineering hours.
 | Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. Campaign UI is now available; Lucid dated attempts and robust simultaneous dominance remain deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
 | Independent Funded optimizer | Implemented backend/API, 6 November 2026: saved IS candidate ranking by received cash over a declared calendar horizon, fresh funded accounts, native Apex/Lucid transitions, explicit settlement lag, hard empirical constraints and censored lifetime. No evaluation inputs or joint score. Campaign UI and IS freeze are implemented by the subsequent campaign increment. [Contract](prop_simulation.md#standalone-funded-optimizer--2026-11-06). |
 | Cross-job/strategy campaigns and phase package freeze | Implemented, 6 November 2026: saved grid/trial expansion, size budgets, IS compatibility, independent phase execution, immutable source/report references, browser controls and freeze. [Campaign API](research_campaign_api.md). |
-| Automatic new campaign grids, adaptive refinement and assessment-only frozen OOS | Planned. Campaigns consume already saved trials; the existing unlimited manual OOS workflow remains separate. |
+| Frozen OOS phase assessment | Implemented: manual ordinary OOS backtests from frozen IS parents, fixed phase settings, append-only assessment reports in AnalysisStore; no OOS ranking/reselection. |
+| Automatic new campaign grids and adaptive refinement | Planned. Campaigns consume already saved trials. |
 | Synchronized portfolio allocation/shared-account optimization | Optional, outside the initial phase implementation; later consumer of phase outputs and dependence data. See [portfolio plan](prop_portfolio_plan.md). |
 
 ## End-to-end workflow
@@ -178,9 +179,9 @@ operations under the existing FastAPI security middleware. `web/campaigns.js`
 adds controls to the existing saved report → prop configuration → durable report
 journey. There is no second web application or execution engine.
 
-Four small additive tables in the existing AnalysisStore SQLite catalogue index
-campaign declarations, source dependencies, optimization job dependencies and
-calculation attempts. The backtest catalogue continues to own grids/trials;
+Five small additive tables in the existing AnalysisStore SQLite catalogue index
+campaign declarations, source dependencies, optimization job dependencies,
+calculation attempts and manual OOS assessment references/history. The backtest catalogue continues to own grids/trials;
 AnalysisStore continues to own numerical outputs, captured inputs and downloads.
 Identical campaign calculations reuse a sealed phase report. No source trades or
 reports are copied into campaign storage. The shared reentrant analysis lock
@@ -192,3 +193,21 @@ Phase implementation and kernel hashes identify calculations independently of
 UI/docs. Read/reopen never dispatches workers or reads dataset/OOS prices.
 The complete API, exact one-stage screening/refinement semantics, bounds and
 remaining assessment limitations are in the [campaign guide](research_campaign_api.md).
+
+
+### Portal result and assessment extension — 6 November 2026
+
+`web/campaigns.js` renders saved comparison metrics, filters, the Evaluation
+cost/time scatter/frontier and marginal table, and Funded all-path receipt
+histograms. Filters change presentation only. Worker status reports completed
+candidate counts; interrupted/failed attempts remain inspectable.
+`campaign_api.py` composes `research_api.run_oos` for the frozen IS source family.
+`CampaignStore` validates the frozen numerical identity and constructs OOS
+requests from sealed candidate settings, accepting no overrides. Assessment-only
+admission validates each OOS parent, strategy, split and execution/cost identity;
+ordinary public phase searches still reject OOS. The existing worker runs local
+phase metrics with selectors bypassed, then publishes ordinary sealed reports,
+CSV/JSON and ZIP with package/access links. No separate engine, service, database
+or report directory is introduced. Every source and assessment report remains
+dependency protected. Launch interruption is recorded on restart; a new explicit
+manual attempt appends, rather than replacing any prior attempt or IS selection.
