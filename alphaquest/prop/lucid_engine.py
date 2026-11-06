@@ -75,8 +75,7 @@ class FundedAccount:
         self.last_hit=0;self.trades_consumed=0
         self.day+=1
         calendar_day=((self.day-1)//5*7+(self.day-1)%5) if calendar_day is None else calendar_day
-        if calendar_day-self.last_activity>self.rules.inactivity_calendar_days:
-            self.outcome='inactive';return 0.
+        if self.expire_inactive(calendar_day, before_session=True):return 0.
         opening=self.equity;r=self.rules
         floor=r.lock_profit if self.locked else min(self.high-r.max_dd,r.lock_profit)
         cap=20
@@ -104,9 +103,17 @@ class FundedAccount:
         if not amount:self.qualifying+=profit>=r.qualifying_profit
         self.high=max(self.high,self.equity+(self.withdrawals[-1][1] if amount else 0.))
         if self.high-r.max_dd>=r.lock_profit:self.locked=True
-        if calendar_day-self.last_activity>=r.inactivity_calendar_days and self.last_activity!=calendar_day:
-            self.outcome='inactive'
+        self.expire_inactive(calendar_day)
         return amount
+
+    def expire_inactive(self, calendar_day, before_session=False):
+        """Native calendar clock, also callable on dates without a session."""
+        elapsed = calendar_day-self.last_activity
+        expired = (elapsed > self.rules.inactivity_calendar_days if before_session
+                   else elapsed >= self.rules.inactivity_calendar_days and elapsed != 0)
+        if expired:
+            self.outcome = 'inactive'
+        return self.outcome == 'inactive'
 
     def _eligible(self,profit):
         r=self.rules

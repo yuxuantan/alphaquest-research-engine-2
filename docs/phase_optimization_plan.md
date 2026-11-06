@@ -3,12 +3,39 @@
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
 Specification and incremental implementation plan, updated 2026-11-06.
-**Standalone Evaluation backend implemented with the bounded scope below;
-Funded optimizer, UI, campaign generation and freeze/assessment remain planned.** Repository baseline inspected:
+**Standalone Evaluation and Funded backends implemented with the bounded scope
+below; UI, campaign generation and freeze/assessment remain planned.** Repository baseline inspected:
 `71f97a61e568b39b6bf17647078dcdb2364069cb`. This document extends the local models
 and product boundary in [prop simulation](prop_simulation.md). It does not change
 portal behavior or verify provider rules. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
+
+## Implemented standalone Funded backend — 2026-11-06
+
+[`funded_optimization.py`](../alphaquest/prop/funded_optimization.py) implements
+explicit saved-IS candidate search maximizing expected trader cash received
+before an exclusive calendar horizon, starting fresh funded with no evaluation
+source or acquisition inputs. It supports both local Apex EOD and LucidFlex
+profiles, whole-MNQ targets, saved strategies/parameters across jobs, configurable
+90/180/365-day horizons, declared calendars and fixed civil-day receipt delays.
+The existing funded component gains a dated runner around native account
+transitions; `phase_search.py` shares calendar/admission/input capture with
+Evaluation. The existing APIs/AnalysisStore publish full candidate tables,
+feasibility, deterministic ranking, near-ties, uncertainty and path events.
+
+The [implemented objective, payout clock, constraints, qualification rules,
+metrics and limits](prop_simulation.md#standalone-funded-optimizer--2026-11-06)
+are the exact contract for this backend version. Normal-product API evidence and
+independent arithmetic are in the [review log](prop_simulation_review.md#standalone-funded-optimizer--2026-11-06).
+Hard constraints filter empirical estimates, not confidence-certified risk.
+Whole-path bootstrap and family mean intervals do not establish a certified
+optimum or future/provider uncertainty. Open-at-horizon lifetimes are censored;
+complete horizon receipts remain usable. Incomplete horizons prevent a winner.
+
+This implements standalone **P3 backend scope**, not the full original P3 UI or
+campaign/precision exit criteria. No UI or portfolio optimizer is added, per the
+current task. Legacy joint sizing and previous reports remain preserved. No
+external executable, generated reference table or provider verification is used.
 
 ## Implemented standalone Evaluation backend — 2026-11-06
 
@@ -113,9 +140,9 @@ Numerical compatibility is deliberate:
 The full pre-extraction deterministic calculation payloads match for Apex and
 Lucid; tests also cover phase isolation, rules, costs/risk rejections and censored
 cases. See [saved evidence and reproduction](prop_simulation_review.md#independent-phase-component-extraction--2026-11-05).
-P1–P5 below remain pending: dated schedules, actual chain cost records,
-calendar/settlement metrics, independent selection, durable phase reports and
-freeze/OOS enforcement are subsequent work. The portal workflow is unchanged.
+This precursor alone did not implement P1–P5. The standalone backend sections
+above now add dated acquisition and funded receipt selection with durable reports;
+UI, broader campaign controls and freeze/OOS enforcement remain future work.
 
 ## Objectives and non-objectives
 
@@ -145,9 +172,9 @@ separately approved retirement. Its formulas, tests and historical reports stay.
 
 ## Inspected baseline and architectural gaps
 
-This table records the inspected pre-extraction baseline. The phase-only input
-and result contracts are now available through the precursor above; dated
-sampling, campaign selection and product phase modes remain gaps.
+This table records the inspected pre-extraction baseline. The precursor and
+standalone backend sections above supersede its input, dated-sampling and API
+gaps. Broader campaign controls, UI and frozen final-OOS assessment remain gaps.
 
 | Actual implementation | Reusable behavior | Gap for this plan |
 | --- | --- | --- |
@@ -555,7 +582,7 @@ saved IDs/URLs/downloads, boundary cases and owned temporary-server shutdown.
 
 ## Incremental implementation milestones
 
-P1/P2 have the standalone backend increment described above; the full milestone
+P1/P2/P3 have the standalone backend increments described above; the full milestone
 exit criteria below remain **pending**. UI is explicitly deferred for the current
 task. Each subsequent milestone pairs backend work with the minimum real API/UI
 needed to use it. Prefixes separate this work from portfolio M1/M2.

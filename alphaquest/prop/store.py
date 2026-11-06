@@ -124,14 +124,26 @@ class AnalysisStore:
         with self.lock:return self._submit(runs,request)
 
     def submit_evaluation(self, runs, search):
+        return self.submit_phase(runs, search)
+
+    def submit_funded(self, runs, search):
+        return self.submit_phase(runs, search)
+
+    def submit_phase(self, runs, search):
         """Additive phase-only dispatch using the existing worker and catalogue."""
-        from .evaluation_optimization import check_search, search_key
+        from . import evaluation_optimization, funded_optimization
+        module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
+        check_search, search_key = module.check_search, module.search_key
+        phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         with self.lock:
             checks = check_search(runs, search)
             # Conservative preflight; sealing still enforces the exact output cap.
-            estimate = sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates)
+            estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if phase == 'Funded'
+                        else sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates))
             if estimate > 100*1024*1024:
                 raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
+            if phase == 'Funded' and sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days > 50_000_000:
+                raise ValueError('Declared funded search exceeds 50 million path calendar days; narrow the explicit search.')
             key = search_key(search, checks)
             with self.connect() as db:
                 row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
@@ -141,29 +153,33 @@ class AnalysisStore:
                     if valid: return self.get(row[0])
                 id = uuid4().hex
                 db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
-                    (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued Evaluation search', None))
+                    (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
                 db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
                     [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
-            self.worker.submit(self._run_evaluation, runs, id, search, checks)
+            self.worker.submit(self._run_phase, runs, id, search, checks)
             return self.get(id)
 
-    def _run_evaluation(self, runs, id, search, checks):
-        from .evaluation_optimization import optimize_evaluation, write_report
+    def _run_phase(self, runs, id, search, checks):
+        from . import evaluation_optimization, funded_optimization
+        module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
+        optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
+        phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
+        write_report = module.write_report
         try:
-            self._update(id, 'running', 'Running independent Evaluation search')
+            self._update(id, 'running', 'Running independent '+phase+' search')
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
                 with self.runtime.activate():
-                    calculations = optimize_evaluation(runs, search, checks,
+                    calculations = optimize(runs, search, checks,
                         lambda msg: self._update(id, 'running', msg))
                 result = write_report(runs, staged, search, checks, calculations)
                 seal_report(staged, result, id, self.get(id)['created'])
                 staged.rename(self.root/id)
             with self.connect() as db:
                 db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
-                db.execute("UPDATE analyses SET status='complete',progress='Saved Evaluation frontier ready' WHERE id=?", (id,))
+                db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
         except Exception as exc:
-            self._update(id, 'error', 'Evaluation search failed', f'{type(exc).__name__}: {exc}')
+            self._update(id, 'error', phase+' search failed', f'{type(exc).__name__}: {exc}')
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.

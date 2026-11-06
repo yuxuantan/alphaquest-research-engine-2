@@ -102,3 +102,99 @@ def lifetime_profile(value):
         receipts_upper_bound=float(np.mean([maximum if a.outcome=='open' else receipts[i] for i,a in enumerate(accounts)])))
     return stats
 
+
+
+def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calendar_days,
+        calendar, receipt_delay_calendar_days, simulation=SimulationConfig(),
+        period=None, sampling=SamplingConfig(), costs=SourceCosts()):
+    """Dated fresh-account paths using the same native funded transitions.
+
+    The legacy weekday interface above remains unchanged. Dates are civil session
+    labels, not inferred intraday execution/settlement timestamps. Each path has
+    its own addressed RNG; termination never changes another path's schedule.
+    """
+    from dataclasses import asdict, replace
+    from datetime import date, timedelta
+    from hashlib import sha256
+    from . import native_engine, lucid_engine
+    if not isinstance(profile, FundedProfile) or type(sampling) is not SamplingConfig:
+        raise ValueError('Dated funded simulation requires funded-only inputs.')
+    positive_integer('horizon_calendar_days', horizon_calendar_days, 3650)
+    if type(receipt_delay_calendar_days) is not int or not 0 <= receipt_delay_calendar_days <= 365:
+        raise ValueError('Receipt delay must be 0–365 calendar days.')
+    if simulation.simulations % len(calendar.start_dates):
+        raise ValueError('Simulation count must be divisible by start cohort size.')
+    if any(date.fromisoformat(s)+timedelta(days=horizon_calendar_days) > date.fromisoformat(calendar.coverage_end)
+           for s in calendar.start_dates):
+        raise ValueError('Calendar must cover every horizon cutoff.')
+    snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation, period, costs)
+    lucid = profile.profile_id == 'lucidflex-50k'
+    rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
+             else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts))
+    account_class = lucid_engine.FundedAccount if lucid else native_engine.FundedAccount
+    paths = []
+    schedule = sha256()
+    closed = set(calendar.closures)
+    starts = sorted(calendar.start_dates)
+    for i in range(simulation.simulations):
+        start = date.fromisoformat(starts[i % len(starts)])
+        cutoff = start + timedelta(days=horizon_calendar_days)
+        rng = np.random.RandomState(np.random.SeedSequence([simulation.seed, i]).generate_state(1)[0])
+        stream = native_engine.sampled_days(rng, len(days), sampling.block_weekdays)
+        account = account_class(rules)
+        events = []
+        terminal_date = None
+        for offset in range(horizon_calendar_days):
+            day = start + timedelta(days=offset)
+            is_session = day.weekday() < 5 and day.isoformat() not in closed
+            if not is_session:
+                # Reuse the native calendar expiry check even across weekends or
+                # declared closures; never increment the account's session count.
+                if lucid:
+                    account.expire_inactive(offset)
+            else:
+                index = next(stream)
+                schedule.update(f'{i}:{day.isoformat()}:{index};'.encode())
+                before = len(account.payouts)
+                if lucid:
+                    account.advance(days[index], micros, simulation.max_micros, calendar_day=offset)
+                else:
+                    account.advance(days[index], micros, simulation.max_micros)
+                if len(account.payouts) > before:
+                    entitlement = account.payouts[-1][1]
+                    gross = account.withdrawals[-1][1] if lucid else entitlement
+                    due = day + timedelta(days=receipt_delay_calendar_days)
+                    events.append(dict(eligibility_date=day.isoformat(), request_date=day.isoformat(),
+                        deduction_date=day.isoformat(), receipt_date=due.isoformat(),
+                        gross_account_deduction=gross, trader_cash_entitlement=entitlement,
+                        received_within_horizon=due < cutoff,
+                        trader_cash_received=entitlement if due < cutoff else 0.))
+            if account.outcome != 'open':
+                terminal_date = day
+                break
+        receipts = [e for e in events if e['received_within_horizon']]
+        paths.append(dict(path=i, start_date=start.isoformat(), cutoff_exclusive=cutoff.isoformat(),
+            outcome=account.outcome, observed_sessions=account.day,
+            terminal_date=terminal_date.isoformat() if terminal_date else None,
+            observed_calendar_days=(terminal_date-start).days if terminal_date else horizon_calendar_days,
+            lifetime_censored=terminal_date is None, horizon_observations_complete=True,
+            unresolved=False, payout_events=events, equity=account.equity,
+            trading_profit=account.equity+sum(e['gross_account_deduction'] for e in events),
+            gross_account_deductions=sum(e['gross_account_deduction'] for e in events),
+            cash_received=sum(e['trader_cash_received'] for e in events),
+            pending_cash=sum(e['trader_cash_entitlement'] for e in events if not e['received_within_horizon']),
+            number_of_payouts=len(receipts),
+            days_to_first_payout=(date.fromisoformat(receipts[0]['receipt_date'])-start).days if receipts else None))
+    verify_phase_source(runs, source, snapshot)
+    result = dict(paths=paths, schedule_sha256=schedule.hexdigest(),
+        provenance=provenance('funded', snapshot, profile, micros, simulation, sampling,
+            rules=asdict(rules), horizon_calendar_days=horizon_calendar_days,
+            calendar=asdict(calendar), receipt_delay_calendar_days=receipt_delay_calendar_days,
+            dated_kernel='Python reference FundedAccount.advance; identical native qualification/tier/drawdown/payout policy',
+            dated_clock='Chicago civil session dates; daily resolution, event age is date minus start date; exclusive cutoff',
+            dated_rng='MT19937 seeded by SeedSequence([seed,path_index]); circular source-session blocks; no paired inference claim',
+            settlement='Automatic request/deduction on native eligibility date; entitlement paid after declared civil-day lag, including weekends and after account closure; unverified scenario',
+            initial_state='Fresh funded account at t=0; no evaluation, acquisition or replacement'))
+    result['provenance']['time_unit'] = 'Chicago civil calendar days, not session counts'
+    result['provenance']['kernel'] = dict(name='python-reference', source='lucid_engine.py' if lucid else 'native_engine.py')
+    return result

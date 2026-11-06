@@ -6,7 +6,6 @@ It deliberately does not reuse the legacy retained-block chain's timing as an
 IID/calendar estimate. See docs/prop_simulation.md for the exact estimands.
 """
 from bisect import bisect_left
-from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -16,44 +15,17 @@ from uuid import UUID
 
 import numpy as np
 
-from .adapter import canonical, digest, source_record
+from .adapter import canonical, digest
 from .evaluation_profiles import simulate_evaluation_profile
 from .phase_profiles import (
     EvaluationProfile, EvaluationSamplingConfig, ResearchPeriod, SavedTradeSource,
-    SimulationConfig, SourceCosts, positive_integer, prepare_phase_source,
+    SimulationConfig, SourceCosts, positive_integer,
     verify_phase_source,
 )
 
+from .phase_search import PhaseCalendar as AcquisitionCalendar
+
 MODEL_VERSION = 'evaluation-optimization-empirical-iid-v1'
-
-
-@dataclass(frozen=True)
-class AcquisitionCalendar:
-    start_dates: tuple[str, ...]
-    coverage_end: str
-    closures: tuple[str, ...] = ()
-    timezone: str = 'America/Chicago'
-    version: str = 'user-declared-weekdays-v1'
-
-    def __post_init__(self):
-        if not isinstance(self.start_dates, tuple) or not isinstance(self.closures, tuple):
-            raise ValueError('Calendar dates must be immutable tuples.')
-        for value in (*self.start_dates, self.coverage_end, *self.closures):
-            if not isinstance(value, str) or date.fromisoformat(value).isoformat() != value:
-                raise ValueError('Calendar dates must use canonical YYYY-MM-DD format.')
-        if not 1 <= len(self.start_dates) <= 366 or len(set(self.start_dates)) != len(self.start_dates):
-            raise ValueError('Use 1–366 distinct target start dates.')
-        starts = [date.fromisoformat(s) for s in self.start_dates]
-        end = date.fromisoformat(self.coverage_end)
-        if not max(starts) <= end or (end - min(starts)).days > 40000:
-            raise ValueError('Calendar coverage must contain the start cohort and span at most 40,000 days.')
-        if self.timezone != 'America/Chicago':
-            raise ValueError('Only the CME America/Chicago session-date convention is supported.')
-        if not isinstance(self.version, str) or not self.version or len(set(self.closures)) != len(self.closures):
-            raise ValueError('A calendar version and unique full-session closures are required.')
-        for closure in self.closures:
-            if not min(starts) <= date.fromisoformat(closure) <= end:
-                raise ValueError('Closure is outside declared calendar coverage.')
 
 
 @dataclass(frozen=True)
@@ -153,58 +125,15 @@ def parse_request(raw):
 
 
 def check_search(runs, search):
-    """Reconcile every source before queueing; admit only comparable saved IS."""
-    rows = []
-    common = None
-    for candidate in search.candidates:
-        record = source_record(runs, candidate.source.source_backtest_id)
-        metadata = record['run_metadata']
-        research = metadata.get('research') or {}
-        if research.get('phase') != 'is':
-            raise ValueError('Evaluation selection requires a declared IS backtest/trial; OOS and undeclared sources reject.')
-        snapshot, _, _ = prepare_phase_source(runs, candidate.source, candidate.profile,
-            candidate.micros, candidate.simulation, candidate.period, candidate.costs)
-        protocol = dict(dataset=metadata['dataset'], period=snapshot['profile_research_period'],
-            execution=record['execution_settings'], costs=asdict(candidate.costs))
-        # Research IDs/strategy IDs may differ; the actual split must not.
-        protocol['research_windows'] = {k: research['plan'][k] for k in ('is_start', 'is_end', 'oos_start', 'oos_end')}
-        if common is not None and canonical(protocol) != canonical(common):
-            raise ValueError('Candidates require identical dataset, research windows, source costs and execution protocol.')
-        common = protocol
-        manifest = dict(configuration=asdict(candidate), strategy=metadata['strategy'],
-                        source=snapshot)
-        # Retain the full source for audit, but administrative automatic funded
-        # reports must not influence phase candidate keys or tie presentation.
-        numerical = deepcopy(manifest)
-        numerical['source'].pop('manifest_sha256')
-        numerical['source']['backtest']['run_metadata'].pop('automatic_prop_analysis', None)
-        key = sha256(canonical(numerical).encode()).hexdigest()
-        access = dict(status='unavailable', attempts=None)
-        origins = []
-        if hasattr(runs, 'connect'):
-            with runs.connect() as db:
-                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='optimization_trials'").fetchone():
-                    origins = [dict(optimization_id=id, trial=trial) for id,trial in db.execute(
-                        "SELECT optimization_id,trial FROM optimization_trials WHERE json_extract(payload,'$.run_id')=? ORDER BY optimization_id,trial",
-                        (record['id'],)).fetchall()]
-                exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='oos_attempts'").fetchone()
-                if exists:
-                    history = db.execute('SELECT id,parent_run_id,run_id,status,created_at FROM oos_attempts WHERE strategy_id=? AND source_sha256=? ORDER BY created_at,id',
-                        (metadata['strategy']['id'], metadata['dataset']['sha256'])).fetchall()
-                    access = dict(status='recorded', attempts=[dict(zip(('id','parent_run_id','run_id','status','created_at'), r)) for r in history],
-                        interpretation='Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.')
-        rows.append(dict(candidate_id=key, manifest=manifest, status='compatible', prior_access=access, origin_trials=origins))
-    keys = [r['candidate_id'] for r in rows]
-    if len(set(keys)) != len(keys):
-        raise ValueError('Duplicate candidate definitions; remove duplicates explicitly.')
-    return sorted(rows, key=lambda r: r['candidate_id'])
+    from .phase_search import check_candidates
+    return check_candidates(runs, search)
 
 
 def implementation_identity():
     # Include local source changes, including adapters and numerical kernels.
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
              'native_analysis.py', 'native_engine.py', 'source.py', 'commissions.py',
-             'phase_lifecycle.py', 'adapter.py')
+             'phase_lifecycle.py', 'adapter.py', 'phase_search.py')
     from .native_analysis import kernel_identity
     return dict(files={name: digest(Path(__file__).with_name(name)) for name in names},
                 kernel=kernel_identity({'ACCOUNT_TYPE': 'Apex EOD'}), numpy=np.__version__)
@@ -420,35 +349,11 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
 def write_report(runs, staged, search, checks, calculations):
     """Capture inputs once and publish through the normal AnalysisStore files."""
     import csv
-    import shutil
     staged = Path(staged)
     def save(name, data):
         (staged/name).write_text(canonical(data), encoding='utf-8')
-    captured = set()
-    for candidate in search.candidates:
-        id = candidate.source.source_backtest_id
-        if id in captured:
-            continue
-        captured.add(id)
-        folder = staged/'inputs'/id
-        folder.mkdir(parents=True)
-        for name in ('trades.csv', 'intratrade_risk.csv'):
-            path = runs.root/id/name
-            if path.is_file(): shutil.copyfile(path, folder/name)
-    for row in calculations['candidates']:
-        c = next(c for c in search.candidates if canonical(asdict(c)) == canonical(row['manifest']['configuration']))
-        snapshot = row['manifest']['source']
-        verify_phase_source(runs, c.source, snapshot)
-        folder = staged/'inputs'/c.source.source_backtest_id
-        if digest(folder/'trades.csv') != snapshot['trades_sha256']:
-            raise ValueError('Captured source changed during publication.')
-        if snapshot.get('native_risk') and digest(folder/'intratrade_risk.csv') != snapshot['native_risk']['sha256']:
-            raise ValueError('Captured risk changed during publication.')
-        export = snapshot['excursion_input']
-        if export['path']:
-            target = staged/('input-export-'+export['sha256']+Path(export['path']).suffix)
-            if not target.exists(): shutil.copyfile(export['path'], target)
-            if digest(target) != export['sha256']: raise ValueError('Captured export changed during publication.')
+    from .phase_search import capture_inputs
+    capture_inputs(runs, staged, search, calculations)
     save('source_checks.json', checks)
     save('phase_candidates.json', [dict(candidate_id=r['candidate_id'], origin_trials=r['origin_trials'],
         **r['manifest']) for r in calculations['candidates']])

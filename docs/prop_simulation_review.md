@@ -5464,3 +5464,199 @@ Earlier development/qualified artifact directories and saved reports remain
 unchanged; the `release` paths above identify the final implementation evidence.
 Documentation links and `git diff --check` also pass. All started test processes
 finished; no server, browser or background test process was left running.
+
+## Standalone Funded optimizer — 2026-11-06
+
+Implemented the standalone **P3 backend** scope with normal saved IS sources,
+funded-only API check/run, existing AnalysisStore publication and durable
+reports/downloads. No UI or portfolio optimizer was added, as requested. This is
+not completion of the original P3 UI/campaign/precision exit criteria and does
+not claim provider or external-engine numerical parity. All production account
+calculations remain local. No persistent or temporary HTTP server was started;
+checks used the normal FastAPI application in-process and closed its workers.
+
+The new `funded_optimization.py` ranks complete, feasible candidates by expected
+received cash over a common calendar horizon. `funded_profiles.py` adds dated
+orchestration around existing funded account transitions; `lucid_engine.py`
+extracts its existing inactivity predicate for use on non-session dates.
+`phase_search.py` shares source admission, calendars and captured inputs with
+Evaluation. API/store dispatch and the three specification documents are updated;
+legacy joint selection and UI files are unchanged.
+
+### Saved normal-product journey and independently expected observations
+
+Evidence root: `artifacts/funded-optimizer-20261106/`. The demonstration library is
+`regression-final/funded-search-library0/` below that root. Two **SYNTHETIC**
+datasets/backtests are generated through normal dataset import and declared IS
+backtest APIs, using the real `consecutive_green_hold` strategy with saved
+`green_bar_count` parameters 1 and 2. No trade/results tables are injected.
+
+1. Open the ordinary saved backtest/report for source
+   `1c8ec1298e524d03b76fc063b2d61492` (A), or
+   `5889b3ed7c574cb3bdd5368598408739` (B). A earns $3,000 per NQ session;
+   B earns $1,000; both have zero configured commissions/slippage and no adverse
+   movement. These values are independently read from captured actual trades.
+2. Configuration is saved as `funded-search-request.json`. It contains A and B
+   at 1 and 3 MNQ, local Apex EOD rules, eight paths each, a Jan 5, 2026 target
+   start, 14 **calendar** days, and four calendar days of modeled settlement.
+   It has no evaluation source/probability/fee/size. Configuration is via the
+   existing API in this backend-only increment; there is no new UI control.
+3. `POST /api/prop-analyses/check` accepts all four candidates. Reconciled source,
+   native risk, net costs, strategy/parameters and IS identity are saved in
+   `source_checks.json`. `POST /api/prop-analyses` queues the normal worker.
+4. Completed analysis **`5894c4928f8a44f786065e3ae93b30e4`** retains all four
+   candidates. A at 3 MNQ wins with **$1,500 received**, **$1,500 pending**, and
+   **$3,000 gross account deductions**. Other candidates receive zero. A3 earns
+   $900/session: five qualifying days trigger a $1,500 request on Jan 9, received
+   Jan 13; the Jan 16 request settles Jan 20, outside the Jan 19 exclusive cutoff.
+   A1/B3 earn $300/day and need 12 sessions to reach $3,600 safety-plus-request
+   equity; this horizon contains only ten sessions. B1's $100/day never qualifies.
+5. Expect first receipt age **8 calendar days**, receipt count **1**, and
+   survival **1** for the winner. It remains open: unrestricted expected lifetime
+   is `null`, restricted lifetime is **14 calendar days**, and there are ten
+   observed sessions. Equity and unpaid requests never enter the cash objective.
+6. Fetch the normal `/{id}/downloads/report.json`, `/{id}/downloads/analysis.zip`
+   and `/{id}/files/phase_metrics.csv` beneath `/api/prop-analyses`. The ZIP includes
+   all candidates, metrics/ranking, sampling, event paths, source checks and
+   captured trades/risk. Both source listings contain the analysis. Reversing
+   candidate order reuses the same report; reopening with the optimizer poisoned
+   performs no calculation. Reopened AnalysisStore integrity checks pass.
+
+`independent-oracle.json` records the standard-library-only verifier's results:
+receipts `[0, 0, 0, 1500]`, expected winner/pending/deductions, exact date events,
+all **13** ZIP/file entries matching, and **92** original source/report files
+unchanged by the demonstration. Earlier reports and qualification folders were
+not overwritten. The oracle imports no production calculator, sampler, ranker
+or storage module. It lives in tests, not in the product.
+
+### Reproduce and inspect
+
+From the repository root, inspect the existing evidence without recalculation:
+
+```bash
+.venv/bin/python tests/review_funded_optimizer.py \
+  --library artifacts/funded-optimizer-20261106/regression-final/funded-search-library0 \
+  --output /tmp/funded-independent-review-new.json
+```
+
+The output path must not already exist. To regenerate via normal product APIs,
+use a **new** evidence directory; pytest clears its `--basetemp` directory:
+
+```bash
+mkdir -p artifacts/funded-optimizer-RECHECK
+.venv/bin/python -m pytest -q tests/test_funded_optimization.py \
+  --basetemp artifacts/funded-optimizer-RECHECK/product
+.venv/bin/python tests/review_funded_optimizer.py \
+  --library artifacts/funded-optimizer-RECHECK/product/funded-search-library0 \
+  --output artifacts/funded-optimizer-RECHECK/oracle.json
+```
+
+To inspect the saved library through an HTTP client and the ordinary backtest
+portal, optionally run the existing app yourself:
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/funded-optimizer-20261106/regression-final/funded-search-library0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011
+```
+
+Stop that optional foreground server with Ctrl-C. Download
+`http://127.0.0.1:8011/api/prop-analyses/5894c4928f8a44f786065e3ae93b30e4/downloads/analysis.zip`.
+The saved request can be submitted with `curl --json @<funded-search-request.json>`
+to `/api/prop-analyses/check` then `/api/prop-analyses`; inspect the returned ID
+until `status: complete`. The existing UI does not yet render independent funded
+ranking; inspect the saved JSON/CSV/ZIP. This procedure adds no alternate page or
+API and requires no external engine.
+
+### Boundary and regression scope
+
+Automated funded checks exercise:
+
+- No evaluation source, poisoned evaluation/joint dependencies, and a source with
+  zero evaluation passes; irrelevant automatic evaluation metadata cannot change
+  candidate/cache identity.
+- Higher cash despite lower source win rate using real native sampled transitions;
+  a hard breach cap excludes that candidate. Size, first-payout and P10 hard
+  filters, exact ties, uncertainty ties, and no-feasible/unresolved winner states.
+- A request at the cutoff never occurs; Jan 13 receipt with an eight-day cutoff
+  is excluded/pending, while a nine-day cutoff includes it. Post-closure receipts,
+  weekends, DST-date cohorts and declared closures retain the disclosed clock.
+- 90/180/365-day horizons; full Apex ladder yields $13,000, six received payouts,
+  terminal age 39 calendar days and zero breach probability on the monotone source.
+- Matching-horizon Apex/Lucid payouts, deductions and equity equal the legacy
+  component under matching assumptions; source and override commissions are
+  charged exactly once. Lucid gross deductions differ from its 90% trader share.
+- Open lifetimes remain censored; incomplete cash horizons are unresolved.
+  Candidate order, stratified means, complete candidate membership across two
+  strategies/two saved jobs, cache changes, damaged-artifact invalidation and
+  all-source deletion protection are checked.
+
+The saved boundary/API run and final regression totals are recorded below after
+completion. Intervals remain conditional Monte Carlo approximations; real
+settlement, future profitability, provider-rule currency, campaign freeze and
+untouched final OOS are not qualified by these synthetic checks.
+
+
+Additional saved boundary/API evidence is
+`artifacts/funded-optimizer-20261106/funded-final/funded-search-library0/funded-boundary-verification.json`.
+Each case includes its complete replayable request and normal analysis ID:
+
+| Case | Analysis ID | Expected received / pending |
+| --- | --- | --- |
+| Receipt exactly at exclusive eight-day cutoff | `36e8818b4543428c9bc78da6c4319e94` | $0 / $1,500 |
+| Same receipt before nine-day cutoff | `98544fd84d3d4d20a1fdb9e99320999e` | $1,500 / $0 |
+| Maximum requested size 1 MNQ excludes highest-cash row | `943cd0e7cf3c4647bf8df5b7ea550831` | Winner $0 / $0; excluded 3-MNQ row still shows $1,500 received |
+
+That file also captures the HTTP 422 rejection for an evaluation probability
+field in a funded request. The separate final funded suite's main report is
+`aa1c03a2c2be4bbca15a3d0048411d35`; its independent oracle is
+`independent-oracle-final.json` at the evidence root. Both demonstration libraries
+and their original reports are retained.
+
+The final funded suite passed **21 tests** in 54.32 seconds
+(`funded-final.log/.xml`). An earlier stochastic fixture incorrectly assumed
+$300 losses would breach the native account; the fixed seed produced no breaches.
+The fixture now supplies an explicit $3,000 adverse gap to test a genuine hard
+breach exclusion. Production behavior was unchanged by that test correction.
+
+The multi-strategy/multi-job funded report is
+`5192a2fea49149028df9dce663c448b0`, in
+`regression-final/test_two_strategies_two_saved_1/prop_analyses/`.
+Its `cross-job-verification.json` records both originating job IDs and all four
+candidate memberships. All 12 saved funded implementation-file hashes match the
+current code. The cash-ledger, report-deletion and Lucid funding-continuation
+regressions passed **41 tests** in 482.90 seconds (`cash-regression.log/.xml`).
+
+Reproduce the relevant checks after building the matching optional kernels:
+
+```bash
+.venv/bin/python setup.py build_ext --inplace
+.venv/bin/python -m pytest -q \
+  tests/test_funded_optimization.py tests/test_evaluation_optimization.py \
+  tests/test_prop_phase_profiles.py tests/test_native_prop_engine.py \
+  tests/test_native_prop_compiled.py tests/test_lucid_prop.py \
+  tests/test_joint_prop_sizing.py tests/test_prop_training_economics.py \
+  tests/test_prop_phases.py tests/test_prop_phase_validation.py \
+  tests/test_prop_analysis_api.py tests/test_prop_cash.py \
+  tests/test_delete_prop_reports.py tests/test_lucid_funding_continuation.py
+```
+
+Changed implementation files: `alphaquest/prop/funded_optimization.py`,
+`funded_profiles.py`, `phase_search.py`, `evaluation_optimization.py`,
+`lucid_engine.py`, `store.py`, and `alphaquest/prop_api.py`. Checks/oracles:
+`tests/test_funded_optimization.py`, `tests/review_funded_optimizer.py`, and
+`tests/test_evaluation_optimization.py` (cross-job coverage for both phases).
+Documentation: `docs/phase_optimization_plan.md`, `docs/architecture.md`,
+`docs/prop_simulation.md`, and this review log.
+
+Final relevant regression accounting: **124 non-funded tests** in
+`regression-final.log/.xml` passed (Evaluation, phase components, native/compiled
+kernels, Lucid rules, joint sizing, training economics, dated sources and APIs).
+That 144-case run also included 20 funded tests and retained the single old
+stochastic-fixture failure described above; its process exit was nonzero. The
+subsequent complete funded run passed all **21** current tests, including the
+corrected fixture and the added saved API boundaries. Together with the 41
+cash/deletion/continuation checks, the final applicable evidence covers **186
+distinct passing cases**, not a claim that the initial mixed command was green
+or that the repository's full suite was run. `validation.json` records this
+accounting, changed files and artifact links. Matching optional kernels built
+successfully; `git diff --check` and local documentation link checks passed.

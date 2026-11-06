@@ -5,16 +5,162 @@
 [The phase optimization specification](phase_optimization_plan.md) extends this
 model boundary with independent Evaluation cost/calendar-time Pareto search and
 Funded horizon-cash search conditional on starting funded. The standalone
-Evaluation backend below is implemented; Funded search remains planned.
+Evaluation and Funded backends below are implemented.
 Independent Python simulation profiles have been extracted as described below.
 The selectable UI methods remain current. Annualized joint sizing is
 classified as **legacy business-level optimization**, retained with its formulas,
 regression tests and reports until separately approved retirement; it must not
 be the selection mechanism for independent phases. Explicit comparable saved
-IS candidates across jobs/strategies are supported by the Evaluation backend;
+IS candidates across jobs/strategies are supported by both phase backends;
 campaign generation and frozen phase OOS assessment remain planned.
 Completed dated source/cash-ledger work and all dated specifications/evidence
 below are preserved. No provider rule or numerical parity is newly verified.
+
+## Standalone Funded optimizer — 2026-11-06
+
+`prop.funded_optimization` implements `funded-optimization-calendar-receipts-v1`.
+`FundedCandidate`, `FundedSearch`, `check_search` and `optimize_funded` are Python
+interfaces; serialized searches use the existing `POST /api/prop-analyses/check`
+and `POST /api/prop-analyses` with `mode: "funded_optimization"`. The existing
+AnalysisStore worker/catalogue publishes format-5 reports, file downloads and
+`analysis.zip`. **No UI or portfolio optimizer is added.** Existing annualized,
+Evaluation, dated and budgeted requests/reports retain their meanings.
+
+The sole objective is `expected_funded_cash_payouts_within_horizon`: the arithmetic
+mean, over **all** simulated starts including zero payouts, of trader cash
+entitlements whose modeled receipt date precedes the cutoff. Each path starts
+with a fresh funded account at t=0, without acquisition or replacement. Evaluation
+sources, pass probability, fees, acquisition time, strategy/size and joint
+slot-year scores are absent from the contract and selector. Opposite-phase and
+unknown fields reject. A zero evaluation pass estimate cannot block funded work.
+
+### Search and source contract
+
+Declare 1–128 explicit `FundedCandidate` entries, each with a saved IS backtest or
+optimization trial (`source`), `FundedProfile`, whole-MNQ `micros`, `simulation`,
+`sampling`, `costs` and optional inclusive session `period`. Strategy identity
+and parameters come from the saved source; arbitrary parameter overrides are
+not accepted. Candidates can span strategies and jobs, sizes and both supported
+local profiles. Every candidate remains in the table, including infeasible ones.
+Duplicate definitions, OOS/undeclared sources, unsupported profiles/scaling and
+incompatible dataset/research-window/execution/cost protocols reject the whole
+request before simulation. No implicit candidate truncation or new job generation.
+
+Use one common `horizon_calendar_days` per comparison: **90, 180 and 365** are
+supported research horizons, and any whole value 1–3650 is accepted. Run a
+separate comparison for each horizon; cash over different horizons is not a
+comparable ranking objective. The common `calendar` contains explicit
+`start_dates`, `coverage_end`, optional full-session `closures`,
+`timezone: "America/Chicago"` and a version label. Count Monday–Friday dates
+excluding declared closures, retaining sampled zero-trade source sessions.
+These are declared scenarios, not verified exchange calendars. Calendar coverage
+must include each cutoff. Date cohorts are equally weighted; each candidate's
+simulation count must be divisible by cohort size.
+
+Sampling reuses circular source-session blocks of 1, 5 or 10 days. Each path has
+an addressed MT19937 stream seeded from `SeedSequence([seed, path_index])`;
+termination cannot shift later paths' draws. Candidate order never changes the
+result. Save path schedule hashes, source/risk/cost hashes, strategy/parameters,
+research/access history and job origins, rule snapshots, local code hashes,
+calendar, seeds, counts and assumptions. No paired-inference claim is made.
+
+### Payout clock and native qualification
+
+The reusable `funded_profiles.simulate_dated_funded_profile` calls the native
+Python `FundedAccount.advance` transitions. Its existing weekday component and
+legacy batch/annualized calculations are retained. No second funded rules
+engine is introduced. Local Apex EOD and LucidFlex 50K models preserve provider
+tiers/exposure caps, qualifying profit/days, consistency, withdrawal limits,
+drawdown, daily loss pauses and termination. Apex retains five $250 qualifying
+days, 50% cycle consistency, $2,100 safety buffer and its six-cap ladder;
+Lucid retains five $150 qualifying days, no funded consistency, its minimum
+request, 50%-of-equity cap, five-request limit and 90% trader share. Complete
+versioned rules are saved in each candidate's provenance; these are local rule
+snapshots, not newly verified provider terms. Apex inactivity uses its existing
+21-session window. Lucid's native calendar inactivity check is also evaluated
+on non-session dates without advancing its trading-session counter.
+
+Events use **Chicago civil-date labels at daily resolution**. The horizon is
+`[start_date, start_date + H)`. Age/day metrics are date differences, including
+weekends, closures and DST dates; they are not precise intraday elapsed hours.
+For example, an event on the start date has age zero. The supported payout policy
+requests automatically when the native kernel qualifies; the same native event
+makes the gross account deduction. Save separately:
+
+1. Trading net profit and remaining account equity (never counted as cash).
+2. Eligibility date under the native qualification rules.
+3. Automatic payout request date.
+4. Gross account deduction date/amount.
+5. Trader entitlement, modeled receipt date and received cash.
+
+`receipt_delay_calendar_days` is mandatory, even when zero, and supports 0–365.
+Receipt date = request date + this fixed civil-day delay, including weekends.
+The saved scenario assumes entitlements remain payable after breach, inactivity
+or payout-limit closure. It does not model refusal, bank business days, payout
+fees, forfeiture, tax or discretionary withdrawals. Eligibility/request/deduction
+are simultaneous under this policy; delayed bank receipt does not block subsequent
+native payout cycles. This timing is an **unverified settlement assumption**.
+A receipt exactly on or after the exclusive cutoff remains pending and contributes
+zero cash. Requests at/after cutoff are not simulated. Source commission/slippage
+is adapted once into native net trading outcomes; never subtract it again from
+trader receipts, and never charge acquisition/activation costs to this objective.
+
+### Metrics, risk constraints and uncertainty
+
+Reports include `expected_payouts` (alias of the objective), median/P10/P90 cash,
+first/zero payout probabilities, conditional mean calendar days to first receipt,
+breach probability, expected number of **received** payouts, pending entitlement,
+gross deductions, inactivity and payout-limit probabilities, survival and full
+path payout distributions/events. Quantiles use the inverse empirical CDF.
+Successful payout-limit completion is termination, not breach.
+
+`expected_account_lifetime` is the unrestricted mean only when every observed
+account terminates. Otherwise it is `null`, with
+`restricted_mean_account_lifetime_calendar_days = mean(min(T,H))` and explicit
+lifetime-censored path counts. An open account at H is not falsely terminated;
+its finite-horizon cash is complete. A stopped/incomplete horizon instead makes
+cash estimates unresolved, exposes accrued cash lower bounds, and prevents a
+winner. Exceptions abort publication rather than publish a partial optimum.
+No-payout conditional first-time mean is `null`.
+
+Optional `constraints` are `maximum_account_breach_probability`,
+`minimum_probability_first_payout`, `minimum_p10_payouts` and
+`maximum_position_size` (the requested target size, before native tier caps).
+They are hard filters on empirical estimates; equality satisfies a boundary.
+A violating candidate cannot win. These filters are not confidence-certified
+risk limits. Rank feasible rows by descending mean receipts, then ascending
+candidate SHA-256 for exact ties; evaluation metrics never break ties. If no row
+is feasible or any horizon is unresolved, return no winner with explicit status.
+
+Uncertainty includes within-start-stratum mean Monte Carlo SE, normal 95%
+Bonferroni intervals across the **entire declared candidate family**, nominal
+whole-path stratified bootstrap intervals for means/quantiles, and nominal Wilson
+probability intervals for a single start stratum. Multi-start Wilson intervals
+are withheld because strata are not identically distributed. Declare
+`bootstrap_replicates` (100–2000; default 400), `bootstrap_seed` (default 137)
+and `near_tie_cash` (default zero). Report near-ties within that cash tolerance
+or with overlapping family mean intervals; missing intervals also flag a tie
+uncertainty. Normal/bootstrap intervals can understate rare/unobserved tails.
+They measure conditional simulation error, not future uncertainty, model/rule
+accuracy, historical selection bias or simultaneous risk certification.
+`certified_optimum` remains false; no precision-qualified recommendation is made.
+
+Full captures are bounded: submission rejects an estimated capture above
+100 MiB (5,000 bytes per funded path), or over 50 million path-calendar-day
+iterations. The existing exact 128 MiB artifact cap still applies at sealing.
+Requested counts are never silently reduced. The default 20,000 simulations is
+supported for one candidate; larger searches must explicitly budget their counts.
+`source_checks.json`, `phase_candidates.json`, `phase_metrics.csv/.json`,
+`ranking.json`, `sampling.json`, `request.json`, `calculations.json`, captured
+inputs and `report.json` are published in the normal ZIP. Every candidate source
+is registered before queueing for deletion protection. Reopen/download never
+resimulates; source, timing, horizon, constraints, seeds or local implementation
+changes invalidate numerical reuse. No separate result store is created.
+
+This is the standalone P3 backend increment. UI, generated campaigns,
+screening/confirmation, frozen final-OOS assessment, verified settlement calendars
+and provider/external numerical qualification remain deferred. See the
+[reproducible saved-product evidence](prop_simulation_review.md#standalone-funded-optimizer--2026-11-06).
 
 ## Standalone Evaluation optimizer — 2026-11-06
 

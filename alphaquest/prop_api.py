@@ -32,6 +32,19 @@ class EvaluationSearchRequest(BaseModel):
     candidates: list[dict] = Field(min_length=1, max_length=128)
     calendar: dict
 
+class FundedSearchRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    mode: Literal['funded_optimization']
+    source_backtest_id: StrictStr = Field(pattern=r'^[0-9a-f]{32}$')
+    candidates: list[dict] = Field(min_length=1, max_length=128)
+    calendar: dict
+    horizon_calendar_days: int = Field(strict=True)
+    receipt_delay_calendar_days: int = Field(strict=True)
+    constraints: dict = Field(default_factory=dict)
+    bootstrap_replicates: int = Field(default=400, strict=True)
+    bootstrap_seed: int = Field(default=137, strict=True)
+    near_tie_cash: float = Field(default=0, strict=True)
+
 @router.get('/defaults')
 def defaults():
     from .prop.automatic import profiles
@@ -48,8 +61,13 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
         raise HTTPException(404,str(exc)) from exc
 
 @router.post('/check')
-async def check(body: AnalysisRequest | EvaluationSearchRequest, request: Request):
+async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
     try:
+        if isinstance(body, FundedSearchRequest):
+            from .prop.funded_optimization import parse_request, check_search, MODEL_VERSION as FUNDED_VERSION
+            search = parse_request(body.model_dump())
+            checks = await run_in_threadpool(check_search, request.app.state.runs, search)
+            return dict(status='compatible', mode=search.mode, candidates=checks, model_version=FUNDED_VERSION)
         if isinstance(body, EvaluationSearchRequest):
             from .prop.evaluation_optimization import parse_request, check_search, MODEL_VERSION as EVALUATION_VERSION
             search = parse_request(body.model_dump())
@@ -66,8 +84,12 @@ async def check(body: AnalysisRequest | EvaluationSearchRequest, request: Reques
         raise HTTPException(422,str(exc)) from exc
 
 @router.post('',status_code=202)
-async def submit(body: AnalysisRequest | EvaluationSearchRequest, request: Request):
+async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
     try:
+        if isinstance(body, FundedSearchRequest):
+            from .prop.funded_optimization import parse_request
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_funded,
+                request.app.state.runs, parse_request(body.model_dump()))
         if isinstance(body, EvaluationSearchRequest):
             from .prop.evaluation_optimization import parse_request
             return await run_in_threadpool(request.app.state.prop_analyses.submit_evaluation,

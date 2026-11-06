@@ -286,7 +286,8 @@ def test_all_sources_protected_while_search_runs(library,monkeypatch):
     assert wait(client,response.json()['id'])['status']=='complete'
 
 
-def test_two_strategies_two_saved_jobs_have_complete_membership(tmp_path):
+@pytest.mark.parametrize('phase', ['evaluation', 'funded'])
+def test_two_strategies_two_saved_jobs_have_complete_membership(tmp_path, phase):
     from test_vwap_pullback import scenario, parameters
     from alphaquest.reporting import json_value
     from test_optimization import wait_job
@@ -325,6 +326,9 @@ def test_two_strategies_two_saved_jobs_have_complete_membership(tmp_path):
             assert len(items)==1
             trials.append(source_record(client.app.state.runs,items[0]['run_id']))
         body=request_for(*trials)
+        if phase == 'funded':
+            from test_funded_optimization import search_for, body as funded_body
+            body=funded_body(search_for(*trials))
         checked=client.post('/api/prop-analyses/check',json=body)
         assert checked.status_code==200,checked.text
         result=client.post('/api/prop-analyses',json=body)
