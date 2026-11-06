@@ -5261,3 +5261,206 @@ calendar forecast, durable phase-mode report or provider parity is claimed.
 Next is P1's dated single-evaluation acquisition sampling/metrics and the minimum
 normal configure/check/run/report integration, composing these components while
 keeping the joint path compatible. Funded P3 can proceed independently.
+
+## Standalone Evaluation optimizer — 2026-11-06
+
+Implemented `evaluation-optimization-empirical-iid-v1` in
+`alphaquest/prop/evaluation_optimization.py`, with additive dispatch in the
+existing prop check/run API and AnalysisStore. The current task explicitly
+defers UI: the usable journey is an ordinary saved IS backtest/trial → an
+Evaluation request → existing source check → existing analysis worker → durable
+report/CSV/ZIP. No demo endpoint, second result database or legacy selector
+change was added. The complete [metric and assumption contract](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06)
+and [milestone boundaries](phase_optimization_plan.md#implemented-standalone-evaluation-backend--2026-11-06)
+distinguish the implemented backend from the remaining UI/campaign work.
+
+### Saved normal-product demonstration
+
+Evidence root: `artifacts/evaluation-optimizer-20261106-release/`.
+All datasets and backtests were created through the ordinary API and labeled
+**SYNTHETIC**. No existing user dataset/backtest/result or older evidence was
+changed. These small deterministic examples use eight original attempts and
+eight acquisition chains per candidate; they qualify arithmetic, not forecast
+precision.
+
+The main library is `evaluation-search-library0/`, with saved sources
+`1d2434d6e38443a2b6a1d7e188ad7fff` and
+`8008e0a8a3694bbc857e34be2803a82d`. Both use the registered
+`consecutive_green_hold` strategy with different saved parameters, native risk,
+explicit source costs and the same declared IS dataset/window. The source CSVs
+independently earn 300 and 100 USD per MNQ per session respectively, with zero
+costs/adverse price moves. The local evaluation target is 3,000 USD; therefore
+the chosen sizes take exactly 1, 2, 3 and 6 sessions to pass.
+
+The completed analysis is **`0ff87be07cd44da7899d2df9b7876d30`**, saved at
+`evaluation-search-library0/prop_analyses/0ff87be07cd44da7899d2df9b7876d30/`.
+With purchase Monday 2026-01-05, one activation-delay session, next-open-session
+readiness and activation fee 40, actual and independently expected results are:
+
+| Source daily USD/MNQ | MNQ | Evaluation fee | Acquisition cost | Calendar days to usable funded account | Pareto |
+| --- | --- | --- | --- | --- | --- |
+| 100 | 10 | 30 | 70 | 4 | Yes |
+| 100 | 5 | 50 | 90 | 9 | No, dominated |
+| 300 | 5 | 60 | 100 | 3 | Yes |
+| 300 | 10 | 100 | 140 | 2 | Yes |
+
+Every pass probability is 1, expected attempts is 1, and median/P90 equal the
+listed duration. Both 30/60-day funding probabilities are 1. Inverse-duration
+30-day rates are `30/4`, `30/9`, `30/3`, `30/2`; these are not finite-month counts.
+The returned frontier is cost-sorted `(70,4),(100,3),(140,2)` with marginal
+acceleration costs **30** and **40 USD/calendar day saved**. There is no winner.
+The main demonstration checks poisoned funded/joint-selection dependencies,
+input-order-invariant reuse, both-source catalogue membership, report/ZIP
+downloads and reopening through a fresh AnalysisStore without calculation.
+**92 pre-existing saved source/report files in that library remained byte-identical.**
+
+`evaluation-search-request.json` is the exact submitted configuration;
+`evaluation-search-verification.json` records source checks, expected/actual
+points and preservation/reopen results. The saved report includes candidate
+manifests, source/risk/cost identity, original attempt arrays, dated chain records,
+uncertainty/censoring assumptions, raw source inputs and local code/kernel hashes.
+`artifacts/evaluation-optimizer-20261106-release-code.json` captures qualified implementation
+hashes. `artifacts/evaluation-optimizer-20261106-release-independent.json` records the
+standard-library-only verifier's independent trade/fee/date/frontier calculations
+and **13 ZIP member checks**, importing no production calculator or sampler.
+
+The second library, `test_two_strategies_two_saved_0/`, creates ordinary saved
+optimization jobs **`70d9e21576814d2ab2d263699808768c`** and
+**`babb57ba8bcc4182963def7a5d2d6f8f`** for
+`vwap_pullback_risk_sizing` and `consecutive_green_hold` on one synthetic dataset.
+Their saved trials are `46f27729a4db45f78e70e2bf710be881` and
+`abe7307b9d634f16af8f3a24486284bb`.
+Analysis **`4963765a6f8242db92410f10becc04a4`** retains all four requested
+source/size configurations. Deliberately huge held-bar adverse moves produce
+zero evaluation passes despite positive source trades. Expect four unresolved
+candidates, no finite cost/time means and an empty estimated frontier; none is
+marked definitely dominated. `cross-job-verification.json` records complete
+membership. The synthetic bars include closing observations so both actual
+strategy paths remain intraday flat; saved trades were never rewritten.
+
+### Exact reproduction and expected observations
+
+Reproduce the whole dataset/backtest/check/run/download journey and rejection
+checks with a **new** evidence directory (pytest clears its `--basetemp`):
+
+```sh
+.venv/bin/python -m pytest tests/test_evaluation_optimization.py -q \
+  --basetemp artifacts/evaluation-optimizer-RECHECK \
+  --junitxml artifacts/evaluation-optimizer-RECHECK.xml
+
+.venv/bin/python tests/review_evaluation_optimizer.py \
+  --library artifacts/evaluation-optimizer-RECHECK/evaluation-search-library0 \
+  --output artifacts/evaluation-optimizer-RECHECK-independent.json
+```
+
+Expect **16 optimizer tests passing**, the three-point frontier above, all four
+cross-job candidates preserved, and a verifier result with
+`production_imports: false`, `checked_zip_files: 13`. New backtest/job/report IDs
+will differ. The verifier refuses to overwrite its output and never writes into
+the library.
+
+To inspect/reuse the already saved request through the same APIs without opening
+a network server, from the repository root:
+
+```python
+import json, time
+from pathlib import Path
+from fastapi.testclient import TestClient
+from alphaquest.app import create_app
+
+library = Path('artifacts/evaluation-optimizer-20261106-release/evaluation-search-library0')
+body = json.loads((library/'evaluation-search-request.json').read_text())
+with TestClient(create_app(library/'datasets.sqlite3')) as client:
+    check = client.post('/api/prop-analyses/check', json=body)
+    check.raise_for_status()
+    assert len(check.json()['candidates']) == 4
+    response = client.post('/api/prop-analyses', json=body)
+    response.raise_for_status()
+    analysis_id = response.json()['id']
+    for _ in range(1800):
+        state = client.get('/api/prop-analyses/'+analysis_id).json()
+        if state['status'] not in ('queued', 'running'):
+            break
+        time.sleep(.1)
+    assert state['status'] == 'complete', state
+    report = client.get(f'/api/prop-analyses/{analysis_id}/downloads/report.json').json()
+    print(analysis_id, report['calculations']['frontier'])
+    print([(r['metrics']['cost_per_funded'], r['metrics']['expected_calendar_days_to_funded'],
+            r['pareto_member']) for r in report['calculations']['candidates']])
+```
+
+With unchanged code/source/access identity, expect reuse of
+`0ff87be07cd44da7899d2df9b7876d30`. A changed numerical identity creates a new
+report; earlier saved files remain readable. Normal download paths are
+`/api/prop-analyses/{id}/downloads/analysis.zip` and
+`/api/prop-analyses/{id}/files/phase_metrics.csv`.
+No persistent server or browser was started; TestClient workers close on exit.
+
+### Boundary evidence and limitations
+
+Independent tests cover nonconvex Pareto points, a dominated fourth point, exact
+ties, equal-time/equal-cost cases and all 120 input permutations; geometric retry
+fees with different failed durations and retry overhead; zero/full observed pass
+probability; Friday/holiday and weekend/DST dates; inclusive day-30/day-60 events;
+activation unpaid until eligibility; pending readiness after a paid activation;
+censored chains without successful-only means; fixed start-cohort variance;
+opposite-phase fields, bad IDs/sizes/versions, Lucid dated admission, OOS and
+incompatible windows; canonical calendar-date rejection; cache dimensions,
+funded administrative metadata independence, missing-artifact recovery and
+active-job protection of every source.
+The normal API demonstration fails immediately if funded profiles, payout
+simulation, legacy joint selection or unrelated export discovery are called.
+
+The initial model is empirical IID retries, not retained-block correlation or
+finite-budget scheduling. It supports local Apex EOD and declared Chicago
+weekday/closure scenarios; dated Lucid inactivity, verified exchange/settlement
+calendars, early closes and more approval/reset policies remain unsupported.
+Nominal pass/cost intervals and conditional calendar mean SE/CI do not establish
+robust simultaneous dominance; every frontier remains explicitly estimated.
+The UI, automated candidate generation, confirmation/refinement, frozen choice
+packages and final-OOS assessment remain deferred. This backend increment does
+not claim the full original P1/P2 exit criteria or provider/external numerical
+parity. The legacy annualized workflow and prior phase-source/cash-ledger work
+are preserved.
+
+Files changed: `alphaquest/prop/evaluation_optimization.py`,
+`alphaquest/prop/store.py`, `alphaquest/prop_api.py`,
+`tests/test_evaluation_optimization.py`, `tests/review_evaluation_optimizer.py`,
+`docs/phase_optimization_plan.md`, `docs/architecture.md`,
+`docs/prop_simulation.md`, and this review log. No legacy account kernel,
+joint-sizing implementation or UI file changed.
+
+### Final validation scope
+
+`artifacts/evaluation-optimizer-20261106-release.xml`: **17 passed in 85.61 s**,
+comprising all **16** new optimizer tests and the final rerun of
+`test_prop_analysis_api.py::test_duplicate_and_failed_operations_remain_errors`.
+The independent verifier then passed against the final release report. The
+preceding broad regression gate (`evaluation-optimizer-20261106-regression.xml`)
+covered **131 cases: 130 passed, one failed** during backtest publication while
+production source files were being edited. The failed case passed after edits
+stopped in the final 17-case run. This is a broad gate plus targeted recovery,
+not a claim that the entire repository suite or a fresh complete 131-case gate
+ran green after the final edits. The only emitted warning in the final run is
+the existing Starlette TestClient/httpx deprecation.
+
+The broad gate includes independent phase components and frozen full legacy
+Apex/Lucid calculation payloads, training economics, legacy joint sizing,
+existing analysis API/deletion behavior, dated phases/source admission, cash
+ledger, compiled/reference parity and research policy:
+
+```sh
+.venv/bin/python -m pytest \
+  tests/test_prop_phase_profiles.py tests/test_prop_training_economics.py \
+  tests/test_joint_prop_sizing.py tests/test_prop_analysis_api.py \
+  tests/test_delete_prop_reports.py tests/test_prop_phases.py \
+  tests/test_prop_phase_validation.py tests/test_prop_cash.py \
+  tests/test_native_prop_compiled.py tests/test_research_workflow.py -q \
+  --basetemp artifacts/evaluation-regression-RECHECK \
+  --junitxml artifacts/evaluation-regression-RECHECK.xml
+```
+
+Earlier development/qualified artifact directories and saved reports remain
+unchanged; the `release` paths above identify the final implementation evidence.
+Documentation links and `git diff --check` also pass. All started test processes
+finished; no server, browser or background test process was left running.

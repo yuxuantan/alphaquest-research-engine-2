@@ -2,12 +2,55 @@
 
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
-Specification and incremental implementation plan, 2026-11-05. **Optimizers
-planned; independent simulation component extraction implemented.** Repository baseline inspected:
+Specification and incremental implementation plan, updated 2026-11-06.
+**Standalone Evaluation backend implemented with the bounded scope below;
+Funded optimizer, UI, campaign generation and freeze/assessment remain planned.** Repository baseline inspected:
 `71f97a61e568b39b6bf17647078dcdb2364069cb`. This document extends the local models
 and product boundary in [prop simulation](prop_simulation.md). It does not change
 portal behavior or verify provider rules. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
+
+## Implemented standalone Evaluation backend — 2026-11-06
+
+[`evaluation_optimization.py`](../alphaquest/prop/evaluation_optimization.py)
+composes the independent Evaluation component into an explicit saved-IS candidate
+search and strict two-objective Pareto frontier. It accepts candidates across
+eligible strategies/jobs, with saved parameters, whole-MNQ size, profile/version,
+evaluation/activation fees, retry policy and sampling configuration. It uses the
+normal check/run APIs, existing AnalysisStore worker/catalogue, all-source
+membership and durable report/downloads. No UI is added, per this task's scope;
+legacy annualized and portfolio workflows remain unchanged.
+
+The exact implemented [metric formulas, calendar, assumptions, Pareto rules and
+independent examples](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06)
+supersede planned choices for this backend version. In particular:
+
+- The initial model is an **empirical IID sequential retry** renewal model over
+  the extracted component's joint outcome/duration distribution. It keeps failed
+  attempt durations and stops at usable-account readiness. The old retained-block
+  funding-chain output is preserved as diagnostics, not silently treated as IID
+  calendar timing. Calendar means condition on the fitted attempt law.
+- Initial dated optimizer admission supports local Apex EOD only. LucidFlex's
+  existing weekday inactivity clock requires a dated attempt implementation
+  before inclusion; it rejects rather than silently ignores closure effects.
+- Start-date cohorts, Chicago civil-date clock, explicit full-session closures,
+  activation/retry overhead, all-start chain censoring and threshold bounds are
+  implemented. Calendars are declared scenarios, not verified exchange calendars.
+- All Pareto ties and nonconvex frontier points remain. Unresolved competitors
+  are not definitely excluded. No winner/lambda is returned. Dominance is estimated
+  only; simultaneous/paired comparisons and robust certification remain future
+  work. Nominal first-stage pass/cost intervals and conditional second-stage time
+  SE/CI are retained with their different estimands disclosed.
+- Requests contain an explicit candidate set (1–128); no automated generation,
+  screening/refinement, frozen-package decision or final-OOS assessment is added.
+  All source windows/cost protocols must match and sources must be declared IS.
+
+This implements the standalone backend portion of P1/P2, **not all original
+P1/P2 exit criteria** (UI, simultaneous inference and campaign controls remain).
+See the [review evidence](prop_simulation_review.md#standalone-evaluation-optimizer--2026-11-06)
+for actual normal-backtest → API check/run → saved results/downloads, independent
+arithmetic and limitations. No numerical/provider parity beyond those checks is
+asserted; no external engine was invoked.
 
 ## Implemented precursor: independent simulation profiles
 
@@ -133,14 +176,15 @@ selection package → manual assessment-only OOS. A later, optional portfolio
 optimizer may consume the phase results and retained dependence information.
 No portfolio score feeds back into either phase's selection.
 
-Proposed optimizer module names below are design targets, not existing APIs.
+Except for the implemented Evaluation backend above, optimizer module names
+below remain design targets, not existing APIs.
 They should compose the extracted profile components above and extend their
 explicit weekday/settlement limits when dated metrics are implemented:
 
 | Module | Responsibility and boundary |
 | --- | --- |
 | New `alphaquest/prop/phase_optimization.py` | Discriminated phase request/result contracts, profile/size eligibility, stable candidate keys, Pareto/ranking logic and dispatch. Never construct an evaluation/funded Cartesian product. |
-| New `alphaquest/prop/evaluation_optimization.py` | Evaluation attempts, repeated acquisition chains, activation boundary, acquisition metrics and censoring. Accept only evaluation rules, fees, timing and checked evaluation source. No funded account transitions or payout rules. |
+| Implemented `alphaquest/prop/evaluation_optimization.py` | Explicit Evaluation contracts, candidate checks, empirical IID acquisition/calendar metrics, strict Pareto frontier and saved artifacts. Broader dated profiles/uncertainty remain planned. No funded account transitions or payout rules. |
 | New `alphaquest/prop/funded_optimization.py` | Fresh-funded initial state, bounded-horizon account paths, settlement and payout/survival metrics. No evaluation simulator, fees, retry scheduler or acquisition economics. |
 | New `alphaquest/prop/phase_sampling.py` | Versioned dated block schedules, deterministic path streams, calendar mapping and uncertainty summaries shared by both phase runners. Reuse existing numerical primitives; preserve legacy draw streams. |
 | New `alphaquest/research_campaigns.py` | Candidate references across jobs/strategies, split compatibility, bounded search expansion, immutable revisions and freeze/assessment links. Persist through existing catalogues and AnalysisStore; no separate campaign result store. |
@@ -511,8 +555,10 @@ saved IDs/URLs/downloads, boundary cases and owned temporary-server shutdown.
 
 ## Incremental implementation milestones
 
-All milestones below are **pending**; each pairs backend work with the minimum
-real API/UI needed to use it. Prefixes separate this work from portfolio M1/M2.
+P1/P2 have the standalone backend increment described above; the full milestone
+exit criteria below remain **pending**. UI is explicitly deferred for the current
+task. Each subsequent milestone pairs backend work with the minimum real API/UI
+needed to use it. Prefixes separate this work from portfolio M1/M2.
 
 | Milestone | Concrete artifact and normal user journey | Exit criteria |
 | --- | --- | --- |

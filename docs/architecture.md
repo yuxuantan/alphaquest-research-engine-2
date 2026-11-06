@@ -25,9 +25,9 @@ The business goal is to maximize expected cash received minus added costs within
 a set period and loss/spending limits. Current default sizing uses annual slot
 economics. The implemented budgeted method replays dated cash for one initially
 unfunded slot on observed history; it is not a sampled forecast or optimizer.
-The planned research layer independently minimizes evaluation acquisition
-cost/calendar time using a Pareto frontier and maximizes funded-stage horizon
-cash conditional on already being funded. A portfolio optimizer is optional
+The standalone Evaluation backend minimizes acquisition cost/calendar time using
+a Pareto frontier. Independent funded-stage horizon cash optimization conditional
+on already being funded remains planned. A portfolio optimizer is optional
 downstream work. The proof of concept lasts six months; set the trading
 period separately. Order-book depth (L2), a tested MultiCharts .NET live route,
 standalone external-backtest imports and multi-strategy allocation remain proposed.
@@ -46,8 +46,9 @@ research throughput, spending and engineering hours.
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |
 | Independent simulation profile components | Implemented as Python APIs in `evaluation_profiles.py` and `funded_profiles.py`, with frozen contracts in `phase_profiles.py`. Single saved source per phase; existing kernels/cost/risk checks. Weekday and modeled payout-time semantics; no new portal mode or independent selector. |
-| Independent Evaluation and Funded optimizers | Planned in [phase optimization](phase_optimization_plan.md). Evaluation cannot use funded payouts; Funded cannot use evaluation pass rates, acquisition fees/time or joint annualization. |
-| Cross-job/strategy campaigns, phase package freeze and assessment-only OOS | Planned. Existing saved IS/OOS declarations and manual OOS primitives do not yet enforce this campaign contract. |
+| Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. UI, Lucid dated attempts and robust simultaneous dominance remain deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
+| Independent Funded optimizer | Planned in [phase optimization](phase_optimization_plan.md). Cannot use evaluation pass rates, acquisition fees/time or joint annualization. |
+| Cross-job/strategy campaigns, phase package freeze and assessment-only OOS | Evaluation accepts explicit saved candidates across jobs/strategies now; automated campaign generation, freeze and assessment controls remain planned. |
 | Synchronized portfolio allocation/shared-account optimization | Optional, outside the initial phase implementation; later consumer of phase outputs and dependence data. See [portfolio plan](prop_portfolio_plan.md). |
 
 ## End-to-end workflow
@@ -66,10 +67,10 @@ needs real permissions, routing, protection and recovery tests; this workflow
 does not place live orders. See [product steps](strategies_navigation.md) and
 [prop model details](prop_simulation.md).
 
-The proposed phase workflow extends step 4 with a phase-specific candidate set,
-source checks and durable frontier/payout report. Freeze its selected package
-before manual OOS assessment, which applies the frozen choices without a new
-search. These controls are not available yet; the
+The Evaluation backend extends step 4 through its existing check/run APIs and
+durable frontier downloads. A phase-specific UI and Funded optimization report
+remain planned. The planned freeze/manual assessment applies chosen packages
+without a new search; those controls are not available yet. The
 [implementation milestones](phase_optimization_plan.md#incremental-implementation-milestones)
 define the usable increments and evidence required.
 
@@ -100,6 +101,7 @@ flowchart TB
 | Research and jobs | [splits/OOS](../alphaquest/research.py), [grids](../alphaquest/optimization.py), [workers](../alphaquest/optimization_worker.py) | Trials share the backtest path; workers calculate, the coordinator publishes. |
 | Prop calculations | [source checks](../alphaquest/prop/source.py), [analysis](../alphaquest/prop/native_analysis.py), [Apex](../alphaquest/prop/native_engine.py), [Lucid](../alphaquest/prop/lucid_engine.py), [costs](../alphaquest/prop/commissions.py) | Adapt/check trades before account simulation. Firm rules and sizing remain separate from strategy backtests. |
 | Independent phase profiles | [contracts/source admission](../alphaquest/prop/phase_profiles.py), [evaluation profiles](../alphaquest/prop/evaluation_profiles.py), [funded profiles](../alphaquest/prop/funded_profiles.py) | Expose single-source evaluation/acquisition and conditional-funded simulations independently. Evaluation has no funded input; Funded has no evaluation fees/pass-rate input or replacement. Reuse existing provider backends; no service, database or result store. |
+| Standalone Evaluation search | [Evaluation optimizer](../alphaquest/prop/evaluation_optimization.py), [normal API](../alphaquest/prop_api.py), [AnalysisStore](../alphaquest/prop/store.py) | Check every saved IS candidate; compose component outcome/duration laws into dated independent retries; retain the full strict cost/time Pareto set, ties and unresolved candidates. Capture format-4 phase artifacts through the existing worker/catalogue and download paths. No new UI or annualized selector change. |
 | Legacy business sizing | [joint sizing](../alphaquest/prop/joint_sizing.py), [account refresh links](../alphaquest/optimization_prop.py) | Joint annualized cost/payout selection and immutable refresh history remain supported; new independent optimizers must not use their score as a phase objective. |
 | Dated phase and cash replay | [phase lifecycle](../alphaquest/prop/phase_lifecycle.py), [cash ledger](../alphaquest/prop/cash_ledger.py) | Share local account transitions; distinguish paid acquisition fees, requests, deductions and modeled receipts under a hard monthly cap. |
 | Default prop reports | [automatic](../alphaquest/prop/automatic.py), [backend](../alphaquest/prop/native_backend.py), [build](../setup.py) | Automatic/manual runs share local models. Optional compiled kernels use the same model source. |
@@ -122,8 +124,10 @@ remain supported; complete deterministic Apex/Lucid payloads match the captured
 pre-refactor baseline. See [component contracts and limits](phase_optimization_plan.md#implemented-precursor-independent-simulation-profiles)
 and [review evidence](prop_simulation_review.md#independent-phase-component-extraction--2026-11-05).
 
-Planned modules are `prop/phase_optimization.py` (contracts/selection),
-`prop/evaluation_optimization.py`, `prop/funded_optimization.py`,
+The Evaluation backend now includes its contracts, dated retry adapter and Pareto
+selection in `prop/evaluation_optimization.py`. Remaining planned modules include
+`prop/phase_optimization.py` (shared contracts/selection),
+`prop/funded_optimization.py`,
 `prop/phase_sampling.py` (dated schedules/uncertainty), and
 `research_campaigns.py` (cross-job candidates/freeze). Extend existing routes,
 workers, backtest catalogue and AnalysisStore. No new service, database or

@@ -123,6 +123,48 @@ class AnalysisStore:
         # Deletion takes this same lock through the pending-job check and removal.
         with self.lock:return self._submit(runs,request)
 
+    def submit_evaluation(self, runs, search):
+        """Additive phase-only dispatch using the existing worker and catalogue."""
+        from .evaluation_optimization import check_search, search_key
+        with self.lock:
+            checks = check_search(runs, search)
+            # Conservative preflight; sealing still enforces the exact output cap.
+            estimate = sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates)
+            if estimate > 100*1024*1024:
+                raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
+            key = search_key(search, checks)
+            with self.connect() as db:
+                row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
+                if row:
+                    try: valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
+                    except (OSError, ValueError, KeyError): valid = False
+                    if valid: return self.get(row[0])
+                id = uuid4().hex
+                db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
+                    (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued Evaluation search', None))
+                db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
+                    [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
+            self.worker.submit(self._run_evaluation, runs, id, search, checks)
+            return self.get(id)
+
+    def _run_evaluation(self, runs, id, search, checks):
+        from .evaluation_optimization import optimize_evaluation, write_report
+        try:
+            self._update(id, 'running', 'Running independent Evaluation search')
+            with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
+                staged = Path(temp)/'report'; staged.mkdir()
+                with self.runtime.activate():
+                    calculations = optimize_evaluation(runs, search, checks,
+                        lambda msg: self._update(id, 'running', msg))
+                result = write_report(runs, staged, search, checks, calculations)
+                seal_report(staged, result, id, self.get(id)['created'])
+                staged.rename(self.root/id)
+            with self.connect() as db:
+                db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
+                db.execute("UPDATE analyses SET status='complete',progress='Saved Evaluation frontier ready' WHERE id=?", (id,))
+        except Exception as exc:
+            self._update(id, 'error', 'Evaluation search failed', f'{type(exc).__name__}: {exc}')
+
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
         from .phase_lifecycle import prepare_request, source_snapshots, dated

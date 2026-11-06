@@ -25,6 +25,13 @@ class AnalysisRequest(BaseModel):
     export_timezone: Literal['America/Chicago', 'America/New_York', 'UTC'] = 'America/Chicago'
     settings: dict = Field(default_factory=dict)
 
+class EvaluationSearchRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    mode: Literal['evaluation_optimization']
+    source_backtest_id: StrictStr = Field(pattern=r'^[0-9a-f]{32}$')
+    candidates: list[dict] = Field(min_length=1, max_length=128)
+    calendar: dict
+
 @router.get('/defaults')
 def defaults():
     from .prop.automatic import profiles
@@ -41,8 +48,13 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
         raise HTTPException(404,str(exc)) from exc
 
 @router.post('/check')
-async def check(body: AnalysisRequest, request: Request):
+async def check(body: AnalysisRequest | EvaluationSearchRequest, request: Request):
     try:
+        if isinstance(body, EvaluationSearchRequest):
+            from .prop.evaluation_optimization import parse_request, check_search, MODEL_VERSION as EVALUATION_VERSION
+            search = parse_request(body.model_dump())
+            checks = await run_in_threadpool(check_search, request.app.state.runs, search)
+            return dict(status='compatible', mode=search.mode, candidates=checks, model_version=EVALUATION_VERSION)
         from .prop.phase_lifecycle import prepare_request, source_snapshots, dated
         snapshot,rows,settings=await run_in_threadpool(prepare_request,request.app.state.runs,body.model_dump())
         for source in source_snapshots(snapshot):
@@ -54,8 +66,12 @@ async def check(body: AnalysisRequest, request: Request):
         raise HTTPException(422,str(exc)) from exc
 
 @router.post('',status_code=202)
-async def submit(body: AnalysisRequest, request: Request):
+async def submit(body: AnalysisRequest | EvaluationSearchRequest, request: Request):
     try:
+        if isinstance(body, EvaluationSearchRequest):
+            from .prop.evaluation_optimization import parse_request
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_evaluation,
+                request.app.state.runs, parse_request(body.model_dump()))
         return await run_in_threadpool(request.app.state.prop_analyses.submit,request.app.state.runs,body.model_dump())
     except ResearchConflict as exc:
         raise HTTPException(409,str(exc)) from exc

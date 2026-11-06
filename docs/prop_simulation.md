@@ -1,18 +1,185 @@
 # AlphaQuest local prop simulation
 
-## Planned independent phase optimization — 2026-11-05
+## Independent phase optimization — updated 2026-11-06
 
 [The phase optimization specification](phase_optimization_plan.md) extends this
 model boundary with independent Evaluation cost/calendar-time Pareto search and
-Funded horizon-cash search conditional on starting funded. The optimizers remain
-planned; independent Python simulation profiles have been extracted as described
-below. The selectable methods remain current. Annualized joint sizing is
+Funded horizon-cash search conditional on starting funded. The standalone
+Evaluation backend below is implemented; Funded search remains planned.
+Independent Python simulation profiles have been extracted as described below.
+The selectable UI methods remain current. Annualized joint sizing is
 classified as **legacy business-level optimization**, retained with its formulas,
 regression tests and reports until separately approved retirement; it must not
-be the selection mechanism for the planned independent phases. Cross-strategy/job
-campaigns and frozen phase OOS assessment are planned, not existing controls.
+be the selection mechanism for independent phases. Explicit comparable saved
+IS candidates across jobs/strategies are supported by the Evaluation backend;
+campaign generation and frozen phase OOS assessment remain planned.
 Completed dated source/cash-ledger work and all dated specifications/evidence
 below are preserved. No provider rule or numerical parity is newly verified.
+
+## Standalone Evaluation optimizer — 2026-11-06
+
+`prop.evaluation_optimization` implements `evaluation-optimization-empirical-iid-v1`.
+Use `EvaluationCandidate`, `EvaluationSearch`, `check_search` and
+`optimize_evaluation`, or send the serialized search to the **existing**
+`POST /api/prop-analyses/check` and `POST /api/prop-analyses` endpoints with
+`mode: "evaluation_optimization"`. No Evaluation UI is built in this increment.
+The existing AnalysisStore worker, source membership, integrity checks, report
+JSON/file routes and ZIP downloads persist the results. There is no second
+database, funded simulation, scalar winner or annualized selection call.
+
+Each explicit candidate contains a saved backtest/trial source, whole MNQ size,
+versioned Evaluation profile/fees, source cost treatment, optional inclusive
+research period, simulation/sample counts/seeds/block size and retry policy.
+The strategy ID, full parameters, research declaration and source/risk hashes
+come from the saved source, not unverified client overrides. Exact duplicate
+candidates reject. All submitted candidates are checked and retained; an invalid
+candidate rejects the whole request before queueing. Admission requires declared
+IS, identical dataset/version, IS/OOS windows, sampled period and execution/cost
+protocol. Different supported strategy IDs and optimization jobs are allowed.
+The source navigation anchor has no scoring privilege. This does not generate
+new strategy trials or freeze an OOS package.
+
+**Supported initial model:** the local Apex 50K EOD rule version, automatic
+activation eligibility after a declared delay, independent fresh-account retries,
+unlimited available acquisition capital. LucidFlex is rejected in this dated
+optimizer: its component inactivity clock assumes synthetic weekdays and cannot
+yet be safely remapped to target calendar closures. The existing standalone
+Lucid profile component and legacy calculations retain their earlier behavior.
+Unsupported profile versions, scaling, variable-risk sizing, timezones, reset
+discounts, approval conditions, budgets and finite retry policies reject rather
+than receive invented behavior. Every retry buys a full new evaluation at the
+same declared fee. Fees are scenario inputs, not current provider quotes.
+
+### Attempt law and calendar
+
+The extracted `simulate_evaluation_profile` supplies the existing local attempt
+outcomes and their complete session durations. Its existing repeated-chain output
+is saved as **legacy retained-block diagnostics only**. The new objective model
+fits the uniform empirical joint law of `(outcome, duration)` from the independent
+attempts, then draws IID pairs for each fresh retry. This preserves the dependence
+between failure/success and duration; it does not carry an unfinished block into
+the next retry. Within each original attempt, the component's circular session
+block bootstrap remains unchanged. This fitted empirical renewal model is an
+explicit approximation to the underlying bootstrap attempt distribution, not an
+additional provider/account kernel. Increasing first-stage attempts and retry
+chains addresses different Monte Carlo errors.
+
+Declare an equal-weight `start_dates` cohort, `coverage_end`, full-session
+`closures`, `timezone="America/Chicago"` and a calendar `version`. Open sessions
+are Monday–Friday except declared closures. A missing-trade day never creates a
+closure. All dates require canonical `YYYY-MM-DD` strings; compact/ISO-week
+spellings reject so a closure cannot be silently missed. Calendar coverage must extend through every requested computational
+guard date; incomplete coverage rejects. These are user-declared scenario
+calendars, not verified exchange/settlement calendars; early closes are unsupported.
+The cohort size must divide the chain count. Session dates follow the existing
+CME Chicago source convention; calendar durations are **civil date differences**,
+not UTC hours divided by 24, so DST does not remove a civil day.
+
+For purchase date `s`, take the first open session on/after `s`. An attempt lasting
+`d` sessions consumes that session and the following `d-1` open sessions. After
+failure on session `f`, purchase the retry at `f + 1 + retry_delay_calendar_days`
+and roll its first trading session forward to an opening. On a pass at `f`,
+eligibility is `activation_delay_sessions` open sessions after `f`; pay the
+activation fee there. The account is usable on the **next open session**.
+`T = usable_session_date - original_purchase_date` includes all failed attempts,
+initial weekend/closure waits, retry overhead, activation delay and the final
+readiness wait. No funded trades or payouts enter this calculation.
+
+For example, purchase Friday 2026-01-09, pass in one session, declare Monday
+2026-01-12 closed and one activation-delay session: eligibility Tuesday,
+readiness Wednesday 2026-01-14, `T=5` days. With fees 30 and 40 and full pass
+probability, acquisition costs exactly 70. These are scenario assumptions.
+
+### Metrics, censoring and uncertainty
+
+Let `n` be original attempts, `k` passes, `p=k/n`, `e` the evaluation fee and
+`a` activation fee. With no unresolved attempts, `p>0`, IID stationarity, identical
+full-price retries, automatic eventual activation and unlimited capital:
+
+- `pass_probability=p`; `pass_probability_ci` is the existing nominal 95% Wilson
+  interval. Computationally censored attempts produce separate eventual-probability
+  bounds `[k/n, (k+censored)/n]`; the Wilson interval then refers only to observed
+  passes through the cutoff, not eventual success.
+- `expected_attempts_per_funded=1/p` and `cost_per_funded=e/p+a`. The activation
+  fee occurs exactly once, on successful eligibility. This formula is **not** a
+  finite-budget, finite-horizon or correlated retained-block estimate.
+- `expected_calendar_days_to_funded = sum(T_i)/N` over **all** requested chains,
+  only when all resolve. Median and P90 use inverse empirical CDF, rank
+  `ceil(q*N)`; never average only completed chains. Identified quantiles can be
+  returned under censoring only when every unresolved lower bound is strictly
+  beyond that quantile.
+- `probability_funded_by_day_30/60 = count(T_i <= day)/N`, including equality.
+  With unresolved possibilities return `null` plus `[known/N, (known+possible)/N]`.
+  A censor time beyond a checkpoint rules out funding before that checkpoint.
+- `funded_accounts_per_30_calendar_days=30/E[T]` is an inverse-duration renewal
+  rate for the saved start mixture, **not** the expected count in a finite month
+  or a simulation of repeatedly rolling that cohort forward.
+
+`max_attempts` and `max_calendar_days` are computational guards on the unlimited
+model, never economic stopping rules. A stopped chain retains observed days,
+attempt purchases, exact accrued Decimal fee amounts, whether activation was
+paid, pending activation/readiness and its termination reason. If any chain is
+unresolved, both acquisition means and expected attempts are unavailable in this
+report, even though the fitted-law fee identity may otherwise be computable.
+Zero observed passes is unresolved, not proof of a zero future probability; all
+acquisition means stay null. Apex provider expiry remains a failed attempt,
+distinct from computational censoring. Mean accrued cost/observed time are sample
+lower bounds. The restricted mean at the common calendar guard is available only
+when no chain stopped at the attempt-count guard.
+
+Pass SE is `sqrt(p*(1-p)/n)`. Cost delta-method SE is
+`e*sqrt(p*(1-p)/n)/p^2`; its nominal CI reverses the Wilson bounds:
+`[e/p_upper+a, e/p_lower+a]`. Calendar mean SE uses within-start sample variance:
+`sqrt(sum(s_j^2/n_j))/m` for `m` equal-weight start strata; the reported normal CI
+is `mean ± 1.96*SE`, clipped below at zero. A stratum with fewer than two paths
+has unavailable SE. Checkpoint Wilson intervals are supplied for a single start
+date only. Quantile and marginal-cost CIs are explicitly unavailable.
+Calendar intervals condition on the fitted empirical attempt law and omit
+first-stage fitting error. No paired/simultaneous uncertainty or statistically
+robust dominance is claimed. Source sampling error, regime changes and rule
+uncertainty are separate from Monte Carlo error. Small synthetic demonstrations
+are arithmetic qualification, not precision-qualified forecasts.
+
+### Pareto contract and saved artifacts
+
+A strictly dominates B iff `C_A <= C_B` and `T_A <= T_B` with at least one strict
+inequality. No tolerances, rounding or weighted scalar decide membership. All
+finite resolved nondominated points return, including exact ties. Frontier order
+is ascending cost, then time, then candidate SHA-256. Tied candidate hashes affect
+presentation only. All rows report membership, estimated dominated-by IDs and
+status and zero-based nondomination layer `pareto_rank`; unresolved rows have
+`dominated=null` and `pareto_rank=null`, remain in `unresolved_candidates`
+and are never ruled out by a fabricated successful-only mean. `winner=null`,
+`certified_frontier=false` and `robust_dominated=null` distinguish estimated
+dominance from statistical certification that this version does not establish.
+
+For adjacent slow/fast points with `T_slow>T_fast`, report
+`(C_fast-C_slow)/(T_slow-T_fast)` USD/day saved. Ties have a null ratio with a reason.
+This exchange rate is not a mandatory lambda or recommendation. In particular,
+points `(100,10),(160,8),(180,4)` all belong to the frontier even though the middle
+point is not a unique optimum of a linear weighted objective; `(190,12)` is
+dominated. Their adjacent exchange rates are 30 and 5 USD/day. Exact duplicate
+objective values from distinct candidate configurations all remain frontier ties.
+
+Format-4 phase reports capture `request.json`, `source_checks.json`,
+`phase_candidates.json`, `phase_metrics.json/.csv`, `frontier.json`, `sampling.json`,
+`calculations.json`, raw source trades/risk/explicit exports, `report.json` and the
+normal `analysis.zip`. Calculations retain the full original attempt arrays,
+component provenance and all dated chain observations. Candidate, calendar,
+source/cost/risk, seed/count, profile and local implementation/kernel identities
+participate in request reuse. Automatic funded-report administrative metadata
+is captured for audit but excluded from candidate and numerical cache identity;
+changing it cannot affect Evaluation tie ordering or reuse. Origin job/trial
+references and OOS access history are captured without consulting their outcome
+metrics. Missing or corrupt cached artifacts trigger a new analysis instead of
+satisfying reuse. Every source is registered before queueing and
+protected by the normal active-job deletion lock; all source hashes are checked
+again before publication. Reordering inputs reuses the same result. Reads do not
+run simulation. Maximum 128 declared candidates and existing report size bounds
+apply; resource preflight rejects excessive requested path capture without
+silently lowering counts. Existing formats and annualized reports are preserved.
+
+See [saved evidence and exact reproduction](prop_simulation_review.md#standalone-evaluation-optimizer--2026-11-06).
 
 ## Independent simulation component APIs — 2026-11-05
 
