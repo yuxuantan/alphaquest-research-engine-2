@@ -317,3 +317,11 @@ hash. GETs do not calculate or mutate reports/links. Completed analyses are
 linked by the publication hook; startup repairs completed/interrupted link
 publication without resimulating. A refresh retry can finish a failed link
 publication while reusing the already saved analysis.
+
+
+## Phase research campaigns
+
+Saved IS backtests and optimization trials can be referenced by independent
+Evaluation/Funded campaigns without rerunning the strategy. See the
+[campaign API](research_campaign_api.md) for create/check/run/status, candidate
+budgets, frontier/ranking, exports and immutable IS selection freeze.

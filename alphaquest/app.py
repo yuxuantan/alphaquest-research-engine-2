@@ -90,6 +90,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.research = ResearchStore(app.state.runs)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
         app.state.optimizations = OptimizationStore(app.state.runs, app.state.prop_analyses)
+        from .research_campaigns import CampaignStore
+        app.state.campaigns = CampaignStore(app.state.runs, app.state.prop_analyses, app.state.optimizations)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
         app.state.progress = ProgressTracker()
         yield
@@ -101,6 +103,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(optimization_router)
     app.include_router(backtest_router)
     app.include_router(prop_router)
+    from .campaign_api import router as campaign_router
+    app.include_router(campaign_router)
     app.include_router(strategy_library_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 

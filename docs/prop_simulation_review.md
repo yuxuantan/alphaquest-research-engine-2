@@ -5660,3 +5660,288 @@ distinct passing cases**, not a claim that the initial mixed command was green
 or that the repository's full suite was run. `validation.json` records this
 accounting, changed files and artifact links. Matching optional kernels built
 successfully; `git diff --check` and local documentation link checks passed.
+
+## Phase research campaigns — 2026-11-06
+
+Implemented saved-backtest/optimization-trial campaigns in `research_campaigns.py`
+and `campaign_api.py`, with controls in the existing prop configuration/report
+screen. Both phases expand multiple saved strategies/jobs and per-source MNQ
+sizes under a hard declared candidate count. Existing local phase optimizers,
+source admission, worker and AnalysisStore publish the results. Campaign/freeze
+records are small catalogue references; no campaign trade/report copy or external
+engine is involved. [API, examples and exact scope](research_campaign_api.md).
+
+### Saved actual product outputs
+
+Evidence root: `artifacts/phase-campaigns-20261106/`. Each library below is isolated
+from the user's existing data. All input datasets are explicitly labelled
+**SYNTHETIC** and created through the normal dataset/backtest/optimization APIs.
+Source reports, normal prop reports, source checks, CSV/JSON and ZIP remain in
+those libraries. The production product contains no test oracle table.
+
+| Library under `qualification/` | Campaign | Analysis | Actual independent observation |
+| --- | --- | --- | --- |
+| `campaign-library0` | `541bd0fd7b584d8391704d850d71263c` | `ffa04e49ae884f7fa011bb1565e14b67` | Evaluation: four points `(70 USD, 2 days)`, `(70, 4)`, `(70, 7)`, `(70, 15)`; only `(70,2)` is on the frontier. |
+| `campaign-library0` | `ffd731ccbcc34ab0821c51cf62fff4b8` | `130cba36338a441587191b5879eb0cbf` | Funded: received cash `[0,0,0,1500]`; winning path has $3,000 deductions and $1,500 pending, with no acquisition inputs. |
+| `test_campaign_multiple_strateg0` | `ecaee7921d374e1ba2987156f5610ba9` | `0f1cdad1ba914481927e6a7bb3e8e663` | Evaluation: VWAP + Consecutive Green Hold from two ordinary optimization jobs, sizes 1/3, exactly four candidates. Huge adverse synthetic swings leave acquisition unresolved; no fabricated finite winner. |
+| `test_campaign_multiple_strateg1` | `85a28c88ad064a248e22ef394ce6ea8b` | `2da9cb6aabc947689d88015d40590ce3` | Funded: same two strategy/job types, independent four-candidate declaration; actual zero-cash paths remain in the full result table. |
+| `test_campaign_configuration_re0` | `b3be4242f9c64e57b69011554577eb92` | `e35a53f3dad342bc8a5908e46fb02b95` | Real Chromium journey: budget 3 rejects four source × size candidates; budget 4 passes; received cash `[0,0,0,1500]`; freeze/download/reload succeeds with zero POSTs on reopen. |
+
+The arithmetic fixture has eight IS weekdays with one monotone NQ trade per day.
+Parameter A earns $3,000 per NQ day; B earns $1,000. Scaling to MNQ divides by ten
+and multiplies by the declared whole-MNQ size. Costs are zero in these explicitly
+synthetic sources, so there is no second deduction.
+
+Evaluation compares A/B at 3 and 10 MNQ. The $3,000 target takes respectively
+4/1 and 10/3 sessions. Starting Monday 5 January, one activation weekday and the
+next usable session give 7/2 and 15/4 elapsed calendar days (weekends matter).
+Every attempt passes, so one $30 purchase plus $40 activation gives $70. This
+constant-price example has a single fastest frontier point; the existing
+independent Pareto tests additionally check trade-offs, ties, nonconvex points
+and marginal acceleration cost arithmetic.
+
+Funded compares A/B at 1 and 3 MNQ over `[2026-01-05,2026-01-19)`, with four
+calendar days between request and modeled receipt. Only A3 earns $900/session
+and qualifies within ten sessions: $1,500 requests on January 9/16, modeled
+receipts on January 13/20. The first receipt counts; the second remains pending.
+The report keeps gross deductions, received cash and pending cash separate.
+Unpaid account equity never enters the ranking. These are scenario calculations,
+not future payouts or verified settlement/provider rules.
+
+`independent-review.json` was produced by
+`tests/review_research_campaigns.py`, which imports only the standard library.
+It derives target sessions/readiness dates from the actual saved trades, checks
+all candidate metrics and frontier/ranking membership, verifies freeze/report
+hashes and checks 13 artifacts per phase including ZIP contents. The campaign
+integration also preserved **92 earlier fixture report/input files** byte for
+byte. This preservation count applies to the isolated evidence library, not an
+unmeasured claim about every file in the user's working data directory.
+
+### Reopen and reproduce manually
+
+From the repository root, use an isolated saved library:
+
+```bash
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/phase-campaigns-20261106/final-browser/test_campaign_configuration_re0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8011
+```
+
+Open:
+
+- `http://127.0.0.1:8011/#backtests/prop/campaign/39185f9cde014aab81874c89613cd837`
+- Original source report:
+  `http://127.0.0.1:8011/#backtests/report/879af08b216044789f8054e6d559f4d1`
+- Full download:
+  `http://127.0.0.1:8011/api/research-campaigns/39185f9cde014aab81874c89613cd837/exports/analysis.zip`
+
+Expect **Frozen IS selection**, four candidates with their parameters and source
+links, the rank-1 A/3-MNQ row showing $1,500 received and $1,500 pending, the frozen
+rationale, and CSV/JSON/ZIP downloads. Reload must issue only GETs and preserve
+result bytes. `browser-verification.json` records export SHA-256 values;
+`frozen-campaign.png`, `checked-campaign.png` and `budget-rejection.png` capture the
+actual workflow. Stop this manually started server with **Ctrl-C**.
+
+To reproduce the create/check/run journey, open the original source, configure
+prop analysis, expand the campaign section and choose Funded. Keep first source
+`879af08b216044789f8054e6d559f4d1`, add
+`b5c358f702a6432fa09350b4e345992f`, and set sizes `1,3` for both. Set IS January
+5–14, 8 paths, seed 42, block 1, scenario start January 5, coverage end January 1
+2037, horizon 14 days, delay 4 days and breach cap 0. Budget 3 must reject and
+leave Run disabled. Budget 4 must show four compatible candidates. Run, inspect
+the expected cash rows, select rank 1, enter a rationale and freeze. A new campaign
+with identical inputs may reuse the original immutable analysis.
+
+For direct API reproduction, `campaign-library0/campaign-verification.json`
+contains exact requests for both phases. Start a server with that library instead
+and POST the saved request to `/api/research-campaigns`; its campaign ID is
+idempotent. GET status/candidates/selection/exports; POST `/run` must return the
+same analysis. Use a new campaign UUID for a deliberate changed declaration.
+A funded evaluation-fee field, OOS source, duplicate source/size, incompatible
+window/cost/risk, or candidate budget below the expanded total must reject.
+Referenced sources, optimization jobs and analysis reports must return 409 on
+normal deletion attempts. No final OOS is launched.
+
+Automated reproduction uses a **new** artifact path (never reuse an earlier
+`--basetemp`, which pytest clears):
+
+```bash
+.venv/bin/python -m pytest -q tests/test_research_campaigns.py \
+  tests/test_research_campaigns_browser.py --basetemp artifacts/campaign-review-NEW
+.venv/bin/python tests/review_research_campaigns.py \
+  --library artifacts/campaign-review-NEW/campaign-library0 \
+  --output artifacts/campaign-review-NEW/independent-review.json
+```
+
+The owned browser fixtures start temporary loopback servers and shut them down.
+No persistent server was started for this delivery. Saved reports keep their own
+implementation hashes; current UI/docs do not enter calculation identity.
+
+Remaining scope: automatic new-grid launch, adaptive refinement/simultaneous
+precision qualification and frozen-package OOS assessment dispatch/enforcement
+are not implemented. Freeze is an immutable IS decision/provenance record;
+existing manual OOS remains available and separate. Portfolio optimization and
+provider/external numerical parity are not claimed.
+
+
+Validation scope: the broader stable regression run passed **238 tests** with one
+existing Starlette/httpx deprecation warning, in 1,184.61 seconds. Its exact output
+and JUnit record are `qualification.log` and `qualification.xml`. It includes
+campaign/API/browser, both phase optimizers/components, legacy joint sizing,
+phase/cash replay, prop APIs, editable/manual OOS research, optimization and
+source/report/activity deletion. This is the listed regression scope, not the
+entire repository suite. Subsequent campaign-only hardening rejects equivalent
+saved-report aliases and mixed measured/OHLC risk conventions, exposes attempt
+history, and disables unrelated export discovery during initial portal
+configuration. The first affected-surface run (`final-campaigns.log` / `.xml`) had 59 passes
+and one fixture failure: an intended fresh backtest correctly returned a cached
+HTTP 200, while the helper expected 201. The test now explicitly sets
+`reuse_results=false`; no product workaround was added. The stable rerun passed
+**60 tests** in 307.50 seconds (`verified.log` / `verified.xml`). Earlier evidence,
+including the failure, is preserved.
+
+
+Final browser verification passed **1 end-to-end test** in 52.82 seconds
+(`final-browser.log` / `final-browser.xml`). It executes both campaign forms,
+checks/freezes both phase results, verifies zero recalculation on reopen, and
+checks a binding funded position constraint. The two 3-MNQ candidates remain
+visible as **infeasible / Not ranked**, including the otherwise highest $1,500
+cash estimate; the 1-MNQ candidates alone are ranked. No unrelated companion
+export discovery is permitted by the browser check. Both temporary servers
+(the affected-suite browser checks and final browser check) shut down normally.
+
+The final browser library is
+`final-browser/test_campaign_configuration_re0` under the evidence root. Its
+funded campaign is `39185f9cde014aab81874c89613cd837`, evaluation campaign is
+`f4da99241b70423794ebbf6bf519d676`, and constrained funded campaign is
+`1349693c29774d9e8d42e13eea8c286b`. Use the same server command above and substitute
+these IDs in `/#backtests/prop/campaign/<id>` to inspect each. Screenshots and
+`browser-verification.json`, `evaluation-browser-verification.json` and
+`constraint-browser-verification.json` record the final observed outputs.
+
+`verified-independent-review.json` independently rechecks the final numerical
+campaign library (`verified/campaign-library0`): evaluation campaign
+`b65233cf640b477483232ef032ba3915`, analysis `f9f2f0cbd157474d86a99baa3edfcf25`;
+funded campaign `197de62fea2643d6b624ad6e5eb5b1c2`, analysis
+`54bc64bd31884316a72408cd2cfa7618`. All expected values above match again, 13
+artifacts per phase verify, and the 92 original fixture files remain unchanged.
+`delivery.json` records final changed-file hashes and the verification logs.
+
+
+## Campaign source-type error correction — 2026-11-06
+
+Submitting a demo backtest ID with **Optimization job** selected reproduced
+the reported error. The original admission error conflated a missing job with an incomplete job.
+`research_campaigns.py` now distinguishes a backtest ID used as a job, an unknown
+job ID, and an existing incomplete job (including its actual saved status).
+Source labels/help in the ordinary campaign form now change with the selected
+type. Numerical calculations, candidate eligibility and existing reports are
+unchanged. Completed individual trial reports remain usable as Backtest sources.
+
+Reproduce from a saved IS report → Configure prop analysis → campaign form:
+enter two valid backtest IDs and choose Optimization job for one of them. Save
+and check must return 422 with **Set Saved source type to Backtest**, leaving Run
+disabled. An unknown job ID must instead say **Optimization job not found in this
+library**. Change the row back to Backtest and check/run normally; the existing
+synthetic funded receipt values remain `[0,0,0,1500]`, and the evaluation durations
+remain `[2,4,7,15]` at $70 each. Freeze/download/reopen and binding funded risk
+constraints are exercised in the same normal-product browser journey.
+
+Evidence is saved separately under `artifacts/campaign-source-type-20261106/`;
+prior evidence is untouched. The browser fixture uses its own temporary server
+and isolated dataset/report library, and stops that server on exit. The user's
+existing server on port 8011 was read only and left running.
+
+Validation: **1 browser end-to-end check passed** in 40.40 seconds (one existing
+Starlette/httpx deprecation warning). `browser.log` and `browser.xml` retain the
+result; `browser/test_campaign_configuration_re0/source-type-rejection.json`
+and `.png` retain the actual 422 message, followed by successful saved results,
+freezes and downloads in the same library. JavaScript syntax and diff checks pass.
+
+## Campaign saved-source dropdown — 2026-11-06
+
+The existing campaign configuration now selects saved reports/jobs through a
+search field and dropdown. The opened backtest is preselected; added rows require
+an explicit selection. Each choice shows strategy, parameters, dataset, date,
+status and ID; full parameters, IS dates and a source link appear underneath.
+Switching source type clears the selection. Search preserves an existing choice
+and supports natural strategy names, parameter names, dataset, date and ID.
+Pagination uses 50 matches and **Load more sources**.
+
+The metadata-only endpoint `/api/research-campaigns/sources` queries the existing
+catalogue. OOS/undeclared reports are excluded; incomplete IS jobs appear disabled.
+The earlier manually typed wrong-type error can no longer be produced through
+this UI, but direct API admission checks remain. Numerical calculation identity,
+source compatibility checks and durable report storage retain their behavior.
+
+New evidence root: `artifacts/campaign-source-dropdown-20261106/`. The stable run
+passed **23 tests in 124.80 seconds**, with the existing Starlette/httpx deprecation
+warning; `verified.log` and `verified.xml` contain actual output. This scope covers
+the picker API, campaign regressions and two normal-product browser journeys.
+An earlier run (`check-01.log`) had two passes and one failure in a test helper
+that assumed an in-process client; it now reads the ordinary saved report API.
+Both runs and all earlier campaign evidence are preserved.
+
+- `verified/test_campaign_configuration_re0/` contains selected-backtest and
+  empty-job screenshots, budget rejection, both phase reports, freezes and CSV,
+  JSON and ZIP downloads. Source IDs are `1492b45ad3ec43b4901a9be7fbe54506` and
+  `c15764b0fced467f8bbc7aead4c735ac`; funded campaign
+  `06d6cd0968724de3a69658275e499bf5` has receipts `[0,0,0,1500]` and $1,500 pending
+  for the winner. Reopen performs no POST or recalculation.
+- `verified/test_campaign_optimization_job0/` contains the selected-job screenshot
+  and normal downloads for campaign `177c7b26215b4e679254507a26964026`. Saved jobs
+  `b227c3b60fab4ac9bbae76950d5e8b79` and `6d95c826f0a448bea94a91cec4cd7932`
+  contribute VWAP and Consecutive Green Hold trials at 1/3 MNQ: four candidates.
+  This separate labelled synthetic adverse-risk example pays zero for all four.
+- The picker API test verifies 54 matches as pages of 50 and 4, search and stable
+  membership, disabled incomplete jobs, excluded OOS/undeclared records and no
+  outcome fields. Report readers, calculation expansion and prop summary access
+  are forbidden during this test. Test-only catalogue rows are removed afterward.
+- `independent-review.json` uses only the standard library to verify actual saved
+  reports from `verified/campaign-library1`: evaluation costs $70 for durations
+  `[2,4,7,15]` calendar days, funded receipts `[0,0,0,1500]`, frontier/ranking,
+  freeze hashes and 13 artifacts per phase. All 92 prior fixture files are unchanged.
+
+To inspect/reproduce using the saved backtest browser library, start a temporary
+server on an unused port (restart an existing application server before expecting
+the new endpoint):
+
+```bash
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/campaign-source-dropdown-20261106/verified/test_campaign_configuration_re0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8012
+```
+
+1. Open `http://127.0.0.1:8012/#backtests/report/1492b45ad3ec43b4901a9be7fbe54506`,
+   then **Configure prop analysis → Configure a phase campaign**. The first
+   Backtest dropdown must already select this report.
+2. **Add saved source**, search `consecutive green` and select the other report.
+   Its full parameters include `green_bar_count=2`. Search an unmatched string:
+   the message says no matches, while the selected report remains selected.
+3. Leave sizes `1,3` on both sources. Maximum count **3** must reject four
+   candidates; **4** must pass. One backtest with two sizes counts as two, so a
+   budget of three correctly passes that smaller declaration.
+4. Choose Funded / Apex 50K EOD, 8 paths, seed 42, block 1, start 2026-01-05,
+   coverage end 2037-01-01, horizon 14, receipt delay 4 and breach maximum 1.
+   Save/check, run, inspect all four receipt values above, freeze a feasible
+   candidate, download results and reopen its campaign URL without recalculation.
+5. In a fresh configuration, switching a source to Optimization job shows the
+   empty-job message in this backtest-only library. Selection is required before
+   checking. To inspect real job choices, stop with **Ctrl-C** and restart the
+   same command using `verified/test_campaign_optimization_job0` as the data
+   directory. Open report `1c79bc372367492080451b947bc548a7`, configure a campaign,
+   add a source, and choose the two jobs above from Optimization job dropdowns.
+   Repeat the funded settings with the saved source's IS start 2026-01-05 and
+   end 2026-01-07; expect four candidates and zero receipts.
+
+Stop the inspection server with **Ctrl-C**. Automated browser fixtures stopped
+their own servers; no persistent server was started or existing server stopped
+for this increment. To rerun automated checks, use a new artifact path:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_campaign_source_picker.py \
+  tests/test_research_campaigns.py tests/test_research_campaigns_browser.py \
+  --basetemp artifacts/campaign-dropdown-NEW
+.venv/bin/python tests/review_research_campaigns.py \
+  --library artifacts/campaign-dropdown-NEW/campaign-library1 \
+  --output artifacts/campaign-dropdown-NEW/independent-review.json
+```

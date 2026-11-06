@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
-from threading import Lock
+from threading import RLock
 from uuid import UUID, uuid4
 import zipfile
 from .adapter import canonical
@@ -48,7 +48,7 @@ def sealed_checks(directory):
 class AnalysisStore:
     def __init__(self,directory,*,recover_interrupted=True):
         self.root=Path(directory)/'prop_analyses';self.root.mkdir(parents=True,exist_ok=True)
-        self.path=self.root/'catalog.sqlite3';self.lock=Lock()
+        self.path=self.root/'catalog.sqlite3';self.lock=RLock()
         self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='prop-analysis')
         self.runtime=Runtime()
         with self.connect() as db:
@@ -58,6 +58,8 @@ class AnalysisStore:
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
             db.execute('CREATE TABLE IF NOT EXISTS calculation_reuse (key TEXT PRIMARY KEY,engine TEXT NOT NULL,id TEXT NOT NULL,sha256 TEXT NOT NULL)')
+            from ..research_campaigns import initialize
+            initialize(db)
             if recover_interrupted:
                 db.execute("UPDATE analyses SET status='error',error='Application stopped before publication; run again.',progress='Interrupted' WHERE status IN ('queued','running')")
 
@@ -84,7 +86,7 @@ class AnalysisStore:
 
     def active_sources(self):
         with self.connect() as db:
-            return {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running')")}
+            return {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') UNION SELECT source_id FROM campaign_sources")}
 
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
@@ -96,6 +98,8 @@ class AnalysisStore:
                 with self.connect() as db:
                     db.execute('BEGIN IMMEDIATE')
                     record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
+                    if db.execute('SELECT 1 FROM campaign_analyses WHERE analysis_id=?', (id,)).fetchone():
+                        raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
                     if record and record[0] in ('queued','running'):
                         raise ValueError('This prop analysis is queued or running. Wait for it to finish before deleting.')
                     if destination.is_symlink() or staged.is_symlink():
@@ -129,7 +133,7 @@ class AnalysisStore:
     def submit_funded(self, runs, search):
         return self.submit_phase(runs, search)
 
-    def submit_phase(self, runs, search):
+    def submit_phase(self, runs, search, *, campaign_checks=None):
         """Additive phase-only dispatch using the existing worker and catalogue."""
         from . import evaluation_optimization, funded_optimization
         module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
@@ -137,6 +141,10 @@ class AnalysisStore:
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         with self.lock:
             checks = check_search(runs, search)
+            if campaign_checks is not None:
+                if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
+                    raise ValueError('Campaign source identity changed before queueing.')
+                checks = campaign_checks
             # Conservative preflight; sealing still enforces the exact output cap.
             estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if phase == 'Funded'
                         else sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates))

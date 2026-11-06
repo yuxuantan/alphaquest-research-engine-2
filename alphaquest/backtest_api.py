@@ -327,7 +327,7 @@ def delete_run(run_id: UUID,request: Request):
         with analyses.lock:
             busy=run_id.hex in analyses.active_sources()
             if busy:
-                raise ValueError('A prop analysis is using this backtest. Wait for it to finish before deleting.')
+                raise ValueError('This backtest is referenced by a research campaign or a running prop analysis; it cannot be deleted.')
             deleted=request.app.state.runs.delete(run_id.hex)
     except ValueError as exc:
         raise HTTPException(409,str(exc)) from None

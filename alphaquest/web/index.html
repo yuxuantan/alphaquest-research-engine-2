@@ -17,6 +17,7 @@
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
     <script src="/static/market-benchmark.js?v=ASSET_VERSION" defer></script>
     <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/campaigns.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
   <body>
@@ -553,6 +554,7 @@
           <p id="prop-status" role="status" aria-live="polite"></p><button id="prop-delete" type="button" class="button danger" hidden>Delete prop report</button><p id="prop-delete-status" class="small" role="status" hidden></p>
           <div id="prop-config" hidden>
             <section class="panel prop-panel"><h2>Source backtest</h2><p id="prop-source"></p><p>Uses this saved backtest and its captured trading risk. Checking the source does not rerun the strategy.</p></section>
+            <section id="prop-campaigns" class="panel prop-panel"></section>
             <form id="prop-form" class="panel prop-panel">
               <h2>Configure prop analysis</h2>
               <div class="prop-fields">

@@ -1,0 +1,267 @@
+# Phase research campaigns
+
+[Home](../README.md) / [Docs](README.md) / [Research workflow](research_workflow.md)
+
+Implemented 6 November 2026. One campaign compares saved IS backtests and saved
+optimization trials across strategies/jobs at declared whole-MNQ sizes. Evaluation
+minimizes acquisition cost and calendar time with a Pareto frontier. Funded ranks
+expected trader receipts within a saved horizon after applying hard empirical risk
+constraints. The two declarations, source sets and calculations are independent.
+
+## Normal product workflow
+
+1. Run an ordinary IS backtest or exhaustive optimization grid. Open a saved
+   backtest/trial report and choose **Configure prop analysis**.
+2. Expand **Independent phase research campaigns → Configure a phase campaign**.
+   Choose Evaluation or Funded and the local account profile. The current saved
+   backtest is preselected. Use **Add saved source**, choose Backtest or
+   Optimization job, then select a saved item from its dropdown. Search by
+   strategy, parameters, dataset, date or ID; **Load more sources** retrieves
+   older matches. Full parameters and IS dates appear below the selection.
+   For jobs, enter selected trial numbers or leave blank for the complete saved
+   grid. Give each source its own MNQ size list.
+3. Declare the maximum candidate count, IS window, simulation count/seeds and
+   target calendar. Evaluation also declares purchase/activation prices and
+   chain counts/seeds. Funded declares receipt horizon, settlement delay and
+   maximum breach probability. The UI uses captured source costs; the API exposes
+   the full supported phase configuration.
+4. **Save and check candidates** reconciles every source, records full membership,
+   and enables **Run campaign** only on success. Changing inputs requires a new
+   check and immutable declaration. No final OOS is scheduled or inspected.
+5. The same prop report screen displays all candidates, strategy parameters,
+   original source links, frontier/marginal acceleration costs or funded ranking,
+   uncertainty, source provenance and downloads. Select resolved frontier points
+   or feasible funded candidates, enter a rationale, and **Freeze selected
+   candidates**. Reopen from the saved campaign links in prop configuration or
+   its durable URL `/#backtests/prop/campaign/<campaign_id>`.
+
+Campaign reports are independent phase results. Existing annualized joint sizing
+and budgeted cash-ledger workflows retain their request meanings and reports.
+
+## Choosing the source type
+
+Use **Backtest** for a completed IS report, including an individual trial report.
+Use **Optimization job** for the parent IS grid. The dropdown shows its saved
+status and disables incomplete jobs; resume those grids before selecting them.
+You may select an already completed trial directly as a Backtest without selecting
+or resuming its parent grid. Switching source type clears the previous selection.
+OOS and undeclared reports are excluded. Listing a source does not certify its
+compatibility: **Save and check candidates** still validates the selected sources.
+
+The arithmetic demo IDs in the review log are backtest IDs; leave both source
+rows set to Backtest and search for those IDs. Direct API requests still use IDs
+and retain explicit errors for wrong-type, missing and incomplete sources.
+
+## Admission, budget and scaling
+
+- `maximum_candidates` is required, between 1 and 128. Count selected saved
+  trials × declared sizes **before** calculation. No hidden top-N, ranking-based
+  pruning, default winner or silent budget truncation. Different parameters are
+  ordinary grid trials; campaigns never manufacture parameters without backtesting.
+- A referenced optimization must be complete. An omitted trial list expands the
+  entire grid and verifies its saved membership. Missing, failed, interrupted or
+  incomplete members reject; resume the ordinary optimization first. Explicit
+  trial lists preserve the original grid definition, full grid count, selected
+  indices and failed-trial metadata. The campaign budget counts the selected
+  source × size search, not the earlier grid's total work; both counts remain
+  visible. Repeated sizes, repeated trial indices and duplicate candidates,
+  including the same backtest reached through a job alias or an equivalent
+  strategy/parameter/size saved under another report ID, reject.
+- All candidates share the declared IS window, dataset identity, research split,
+  execution/cost protocol and one supported account profile/version. OOS and
+  undeclared sources reject. Prior-access *metadata* is captured at declaration
+  and refreshed at freeze; no OOS prices, metrics or automatic joint results enter
+  selection. A prior-access record never implies untouched final evidence.
+- Admission reuses `prepare_phase_source`: NQ/MNQ identity, quantities, net costs,
+  captured intratrade risk, a common risk convention (measured excursions and
+  held-OHLC bounds cannot be mixed), intraday-flat trades and qualified fixed-quantity
+  strategies. Linear MNQ scenarios preserve entry/exit behavior and proportional
+  costs only. Volatility/account-dependent sizing rejects. A different sizing or
+  execution policy requires a fresh ordinary backtest; unsupported dynamic
+  sources are not made scalable by supplying a size list. No liquidity/market
+  impact or measured MAE/MFE is invented.
+- Evaluation currently supports local Apex EOD. Funded supports local Apex EOD and
+  LucidFlex. Rule versions come from `GET /api/research-campaigns/defaults`.
+  These are implemented local snapshots, not live provider verification.
+
+## API
+
+All routes use the existing FastAPI host/origin checks and local worker. UUID path
+parameters accept normal UUID strings; request/source IDs use lowercase 32-digit
+hex. Unknown fields reject. Invalid inputs return 422, missing campaigns 404, and
+immutable-ID conflicts, changed numerical identities, premature reads/freezes or
+queue saturation return 409. Source files disappearing during a new check reject.
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /api/research-campaigns/defaults` | Current local profile versions. |
+| `GET /api/research-campaigns/sources?kind=backtest_id&q=&offset=0&limit=50` | Search saved IS source metadata. Kind is `backtest_id` or `optimization_id`; limit 1–100, offset ≥0, query ≤200 characters. Returns `items`, `total`, `offset`, `limit`; each item includes `selectable`. |
+| `POST /api/research-campaigns` | Validate and save immutable declaration; 201. Identical campaign-ID retry returns its saved record. Different declaration with the same ID returns 409. |
+| `GET /api/research-campaigns?source_id=...&limit=50&offset=0` | Saved campaign navigation, optionally filtered to a member backtest. Limit 1–100. |
+| `GET /api/research-campaigns/{id}` | Saved declaration, manifest, current calculation status and frozen package. Reopens without calculation. |
+| `POST /api/research-campaigns/{id}/check` | Recheck source identity and numerical implementation; return all candidate checks. |
+| `POST /api/research-campaigns/{id}/run` | Idempotently queue/reuse the ordinary phase analysis; 202. No overrides. |
+| `GET /api/research-campaigns/{id}/attempts` | All retained calculation attempts and their statuses/errors, including interrupted attempts. |
+| `GET /api/research-campaigns/{id}/candidates` | All completed candidate results, including unresolved/infeasible/dominated members. |
+| `GET /api/research-campaigns/{id}/selection` | Evaluation frontier/acceleration or funded ranking/constraints/near-ties. |
+| `GET /api/research-campaigns/{id}/exports/{kind}` | `campaign.json`, `results.json`, `results.csv`, `report.json`, `source_checks.json`, `analysis.zip`, `frozen_package.json`. |
+| `POST /api/research-campaigns/{id}/freeze` | Immutable explicit candidate selection and rationale, linked to report and campaign hashes. Exact retry reopens it. |
+
+`campaign.json` is a saved-declaration/status export; status can evolve during
+execution. `results.*` and ZIP come directly from the sealed AnalysisStore report.
+The frozen package contains immutable references, selected candidate IDs, hashes
+and access metadata. It does not duplicate trade files or the calculation report.
+Download both campaign/freeze records and the analysis ZIP for offline review.
+
+The source picker projects metadata from the existing catalogue: ID, strategy,
+parameters/grid ranges, dataset name, creation date, IS dates, status and trial
+count. It does not return performance outcomes or read trade/report files. Results
+are ordered newest first, with ID as a stable tie-breaker. Search ignores case
+and treats strategy underscores as spaces. For example:
+
+```bash
+curl -sS --get http://127.0.0.1:8000/api/research-campaigns/sources \
+  --data-urlencode 'kind=optimization_id' \
+  --data-urlencode 'q=consecutive green' --data-urlencode 'limit=50'
+```
+
+### Example Evaluation declaration
+
+Use real saved IDs from the normal backtest/optimization endpoints. This example
+is a request template, not a claim that the example IDs or provider prices exist.
+Retrieve `profile.rule_version` from `/api/research-campaigns/defaults` and replace
+all angle-bracket values before submission:
+
+```json
+{
+  "campaign_id": "<new UUID hex>",
+  "phase": "evaluation",
+  "profile": {
+    "profile_id": "apex-50k-eod",
+    "rule_version": "<saved local version>",
+    "evaluation_price": "30",
+    "activation_fee": "40"
+  },
+  "sources": [
+    {"optimization_id": "<VWAP job ID>", "trials": [1, 2, 3], "sizes": [10, 20, 30]},
+    {"optimization_id": "<Green Hold job ID>", "trials": [1, 2], "sizes": [10, 20]}
+  ],
+  "maximum_candidates": 13,
+  "is_window": {"first_session": "2026-01-05", "last_session": "2026-01-14"},
+  "simulation": {"simulations": 1000, "seed": 42, "max_micros": 40},
+  "sampling": {"block_weekdays": 5, "chain_simulations": 1000, "chain_seed": 45},
+  "costs": {"mode": "source"},
+  "retry": {"activation_delay_sessions": 1, "retry_delay_calendar_days": 0},
+  "search_settings": {
+    "calendar": {"start_dates": ["2026-01-05"], "coverage_end": "2037-01-01"}
+  }
+}
+```
+
+The expansion is `3 × 3 + 2 × 2 = 13`. Trial numbers are the saved job's `trial`
+values, not positions in a sorted display. A direct saved source uses
+`{"backtest_id":"<ID>","sizes":[10,20]}`. Optional `trade_file` and
+`export_timezone` live on each source entry for an explicit reconciled companion
+export; no automatic export discovery occurs during campaign selection. Initial portal
+prop configuration also requests `discover_exports=false`; supply an explicit
+companion path when needed instead of scanning unrelated Downloads files.
+
+### Independent Funded declaration
+
+Use a **new campaign ID** and independently chosen `sources` and `sizes`. Set
+`phase` to `funded`; the profile contains only `profile_id`, `rule_version` and
+optional funded `daily_loss_limit`/`approval_day_counts`. Remove evaluation price,
+activation fee and `retry`. Sampling accepts only `block_weekdays`.
+
+```json
+{
+  "calendar": {"start_dates": ["2026-01-05"], "coverage_end": "2037-01-01"},
+  "horizon_calendar_days": 90,
+  "receipt_delay_calendar_days": 4,
+  "constraints": {
+    "maximum_account_breach_probability": 0.1,
+    "minimum_probability_first_payout": 0.5,
+    "minimum_p10_payouts": 0,
+    "maximum_position_size": 20
+  },
+  "bootstrap_replicates": 400,
+  "bootstrap_seed": 137,
+  "near_tie_cash": 0
+}
+```
+
+This is the funded `search_settings` object. Acquisition fees/probabilities/time
+are forbidden. Receipt delay is explicit, including zero; requests due exactly
+at the exclusive horizon remain pending. Hard constraints filter empirical
+estimates, not confidence-certified future risk. The saved horizon is one fresh
+funded account with no implicit replacement.
+
+Submit and inspect using the existing local server:
+
+```bash
+curl -sS -H 'Content-Type: application/json' --data-binary @campaign-request.json \
+  http://127.0.0.1:8000/api/research-campaigns
+curl -sS -X POST http://127.0.0.1:8000/api/research-campaigns/CAMPAIGN_ID/check
+curl -sS -X POST http://127.0.0.1:8000/api/research-campaigns/CAMPAIGN_ID/run
+curl -sS http://127.0.0.1:8000/api/research-campaigns/CAMPAIGN_ID
+curl -sS http://127.0.0.1:8000/api/research-campaigns/CAMPAIGN_ID/selection
+```
+
+Freeze after completion with the exact IDs returned by selection:
+
+```json
+{"candidate_ids":["<candidate SHA-256>"],"rationale":"Chosen IS cost/time trade-off under the declared constraints."}
+```
+
+Multiple evaluation frontier points may be frozen as an explicit family. Funded
+selection may freeze any feasible ranked candidate(s); the rationale preserves
+the manual decision rather than silently overriding it with the displayed winner.
+Unresolved competitors block freeze. A different frozen choice requires a new
+campaign; no frozen record is overwritten.
+
+## Storage, reuse and recovery
+
+`research_campaigns`, `campaign_sources`, `campaign_jobs` and `campaign_analyses`
+are additive tables in the **existing** `prop_analyses/catalog.sqlite3`. They hold
+small manifests/references. Original strategies/parameters, source/risk/cost hashes,
+IS declaration/access metadata, profile/fees, sampling/seeds, calendar, objective,
+constraints, budget, screening/refinement state and numerical identity are saved.
+Original optimization grids/trials stay in the backtest catalogue. Calculations,
+source captures, CSV/JSON and ZIP are published once in normal AnalysisStore.
+Equivalent campaigns reuse the same valid immutable analysis, including when
+source declaration order differs. No campaign directory copies trades/reports.
+
+One exhaustive declared sampling stage is implemented: screening is validated,
+queued/running, error or complete; refinement is explicitly `not_requested`.
+There is no adaptive pruning or automatic precision refinement. The numerical
+identity uses the phase implementation/kernel/source-admission hashes separately
+from presentation. Web styling and documentation changes do not invalidate it;
+changed calculation code or inputs require a new campaign. Saved completed
+reports still reopen without the current calculator or dataset reader.
+
+The normal single analysis worker and exact 128 MiB report cap apply, plus existing
+phase path/day preflight bounds. Campaign submission rejects when eight analyses
+are pending. An interrupted worker becomes an error on startup. Explicit Run
+retries the immutable declaration, preserves the failed attempt and reuses any
+valid completed calculation; partial output is never a completed selection.
+Concurrent identical Run calls share the same lock/idempotency key. A damaged
+completed report fails closed rather than mutating a frozen result.
+
+All campaign source backtests, explicitly referenced jobs and calculation attempts
+are dependency protected, including after completion/freeze. There is no campaign
+retirement/deletion API in this increment. Other datasets/backtests/results and
+previous evidence remain unchanged.
+
+## Scope and reproducible evidence
+
+This delivers campaigns over **already saved** grids/trials, minimal portal
+integration and IS selection freeze. It does not launch new parameter grids,
+implement adaptive screening/refinement, or add frozen-package OOS assessment
+dispatch/enforcement. Existing manual OOS remains editable/unlimited and separate;
+a manual OOS report is not automatically a frozen-package assessment. Portfolio
+optimization is not implemented. Provider/external-engine parity is not claimed.
+
+See [the review log](prop_simulation_review.md#phase-research-campaigns--2026-11-06)
+for actual saved campaign IDs, independent expected outputs, downloads and exact
+reproduction commands. The independent reviewer imports only the Python standard
+library; test-only analytical expectations never enter product calculations.

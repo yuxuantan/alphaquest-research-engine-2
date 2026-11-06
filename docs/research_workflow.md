@@ -1,14 +1,21 @@
 # Editable IS / OOS research workflow
 
-Planning update, 2026-11-05: [independent phase optimization](phase_optimization_plan.md)
-will add cross-strategy/job IS candidate sets and a frozen phase package before
-manual final OOS assessment. These campaign controls are **not implemented**;
-the existing editable splits and unlimited manual OOS behavior below remain.
-Annualized joint sizing is retained legacy business-level optimization. The
-dated exact cash ledger is now implemented for one observed path/slot (portfolio
-milestone 2), while sampled phase/portfolio selection remains planned. The later
-cash-horizon discussion and historical qualification sections retain their dated
-context; they are not claims that the completed ledger is still missing.
+Implementation update, 2026-11-06: [phase research campaigns](research_campaign_api.md)
+compare saved IS backtests/trials across strategies and optimization jobs, expand
+whole-MNQ sizes under a declared budget, run independent Evaluation/Funded
+objectives, and freeze explicit IS choices. Open a saved report → Configure prop
+analysis → Independent phase research campaigns → Save and check → Run → durable
+results/downloads → Freeze. Original source links, access metadata and selection
+provenance are retained in the existing catalogues/AnalysisStore.
+
+Campaign selection never launches or inspects final OOS. Automatic new-grid
+launch, adaptive refinement and frozen-package OOS assessment dispatch/enforcement
+remain planned; an ordinary manually run OOS backtest is not relabelled as such an
+assessment. Existing editable splits and unlimited manual OOS remain unchanged.
+Annualized joint sizing remains legacy business-level optimization. The dated
+exact cash ledger remains implemented for one observed path/slot; portfolio
+optimization remains optional later work. Historical sections below retain their
+dated scope and are not claims that the completed ledger/phase backends are absent.
 
 Every new portal/API/CLI backtest or optimisation requires a chronological split.
 Choose explicit inclusive dates in the saved source timezone, or an IS percentage
@@ -121,7 +128,7 @@ Before search, save the following. Values remain **unset** until supplied.
 
 | Gate | PASS requires | Gap |
 | --- | --- | --- |
-| Plan | All required values set/versioned/frozen before assessment; spending, hours and trials within limits. | Campaign values are unset. |
+| Plan | All required values set/versioned/frozen before assessment; spending, hours and trials within limits. | Phase calculation inputs are now saved by campaigns; owner/resource/operations acceptance values still require a declaration. |
 | Data | Zero unexplained invalid rows, duplicates, time-order or identity errors; required fields/sessions/history, rights and feature-availability times checked; exclusions recorded. | CSV checks exist; campaign coverage/rights need evidence. |
 | Mechanics/exports | 100% of deterministic cases match; zero unexplained signal/order differences; IDs, quantities and UTC instants match. Native money exact; companion net within USD 1e-8. | Current worksheet limits apply; v1 remains proposed. |
 | Prop/reports | All independent lifecycle/first-breach cases match, including recovering winners, gaps and cost boundaries. Random simulations meet preset tolerances; reopen keeps hashes unchanged without recalculation. | Past evidence applies only to the tested model/version; no live approval. |

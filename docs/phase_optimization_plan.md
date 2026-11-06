@@ -4,11 +4,35 @@
 
 Specification and incremental implementation plan, updated 2026-11-06.
 **Standalone Evaluation and Funded backends implemented with the bounded scope
-below; UI, campaign generation and freeze/assessment remain planned.** Repository baseline inspected:
+below; saved-trial campaigns and IS freeze are now implemented; automatic grid
+launch and frozen OOS assessment remain planned.** Repository baseline inspected:
 `71f97a61e568b39b6bf17647078dcdb2364069cb`. This document extends the local models
 and product boundary in [prop simulation](prop_simulation.md). It does not change
 portal behavior or verify provider rules. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
+
+## Implemented saved-trial research campaigns — 2026-11-06
+
+[`research_campaigns.py`](../alphaquest/research_campaigns.py) now expands declared
+saved backtest/job/trial references and per-source whole-MNQ sizes into independent
+Evaluation or Funded searches. It enforces a total candidate budget, common IS
+protocol and source-risk/cost compatibility, rejects duplicates and incomplete
+jobs/trials, and captures every candidate's strategy parameters and provenance.
+The existing prop configuration/report screen exposes check, run, frontier/ranking,
+exports, reopen and immutable candidate/frontier freeze. Calculations use the
+existing phase worker/AnalysisStore; campaign records reference sealed reports.
+Numerical identity excludes UI/docs, interrupted runs retry explicitly, and
+campaign dependencies are protected from deletion.
+
+See the [campaign API and product guide](research_campaign_api.md) and
+[actual review evidence](prop_simulation_review.md#phase-research-campaigns--2026-11-06).
+This closes the saved-candidate campaign portion of P2/P3/P4 and the IS package
+freeze portion of P5. It does **not** claim the full milestone exits: automatic new
+grid generation, adaptive refinement/simultaneous certification and frozen-package
+manual OOS assessment dispatch/enforcement remain planned. Screening is exhaustive
+at the declared sampling schedule; refinement is explicitly not requested. The
+standalone implementation sections below retain their original delivery scope;
+references there to deferred campaign UI/freeze are superseded by this section.
 
 ## Implemented standalone Funded backend — 2026-11-06
 
@@ -583,8 +607,8 @@ saved IDs/URLs/downloads, boundary cases and owned temporary-server shutdown.
 ## Incremental implementation milestones
 
 P1/P2/P3 have the standalone backend increments described above; the full milestone
-exit criteria below remain **pending**. UI is explicitly deferred for the current
-task. Each subsequent milestone pairs backend work with the minimum real API/UI
+exit criteria below remain **pending**. The standalone tasks deferred UI; the saved-campaign increment above now
+adds the minimum normal-product controls. Each subsequent milestone pairs backend work with the minimum real API/UI
 needed to use it. Prefixes separate this work from portfolio M1/M2.
 
 | Milestone | Concrete artifact and normal user journey | Exit criteria |

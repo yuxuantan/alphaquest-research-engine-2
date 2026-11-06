@@ -14,6 +14,7 @@
 - [Backtests](backtests_portal.md): configure runs and read reports.
 - [Optimizations](optimization.md): parameter searches and downloads.
 - [Prop simulation](prop_simulation.md): model, source checks and saved results.
+- [Phase research campaigns](research_campaign_api.md): cross-job IS candidates, budgets, independent objectives, freeze and exports.
 - [Prop review](prop_simulation_review.md): reproduction steps and dated evidence.
 - [Market benchmark](market_benchmark.md): holding comparisons and assumptions.
 
@@ -29,8 +30,8 @@
 
 ## Planning and proposals
 
-- [Independent phase optimization](phase_optimization_plan.md): planned Evaluation
-  cost/time Pareto search, conditional Funded payout search, campaigns and frozen OOS.
+- [Independent phase optimization](phase_optimization_plan.md): implemented phase optimizers/campaigns
+  and the remaining generation, refinement and frozen OOS plan.
 - [Prop portfolio plan](prop_portfolio_plan.md): completed phase/cash-ledger
   milestones and optional downstream portfolio work.
 - [Planning costs](planning.md): dated estimates and missing quotes.

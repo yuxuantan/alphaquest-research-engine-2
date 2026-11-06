@@ -27,7 +27,7 @@ economics. The implemented budgeted method replays dated cash for one initially
 unfunded slot on observed history; it is not a sampled forecast or optimizer.
 The standalone Evaluation backend minimizes acquisition cost/calendar time using
 a Pareto frontier. Independent funded-stage horizon cash optimization conditional
-on already being funded remains planned. A portfolio optimizer is optional
+on already being funded is also implemented through the same phase-report workflow. A portfolio optimizer is optional
 downstream work. The proof of concept lasts six months; set the trading
 period separately. Order-book depth (L2), a tested MultiCharts .NET live route,
 standalone external-backtest imports and multi-strategy allocation remain proposed.
@@ -46,9 +46,10 @@ research throughput, spending and engineering hours.
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |
 | Independent simulation profile components | Implemented as Python APIs in `evaluation_profiles.py` and `funded_profiles.py`, with frozen contracts in `phase_profiles.py`. Single saved source per phase; existing kernels/cost/risk checks. Weekday and modeled payout-time semantics; no new portal mode or independent selector. |
-| Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. UI, Lucid dated attempts and robust simultaneous dominance remain deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
-| Independent Funded optimizer | Implemented backend/API, 6 November 2026: saved IS candidate ranking by received cash over a declared calendar horizon, fresh funded accounts, native Apex/Lucid transitions, explicit settlement lag, hard empirical constraints and censored lifetime. No evaluation inputs or joint score. UI and campaign freeze remain deferred. [Contract](prop_simulation.md#standalone-funded-optimizer--2026-11-06). |
-| Cross-job/strategy campaigns, phase package freeze and assessment-only OOS | Evaluation accepts explicit saved candidates across jobs/strategies now; automated campaign generation, freeze and assessment controls remain planned. |
+| Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. Campaign UI is now available; Lucid dated attempts and robust simultaneous dominance remain deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
+| Independent Funded optimizer | Implemented backend/API, 6 November 2026: saved IS candidate ranking by received cash over a declared calendar horizon, fresh funded accounts, native Apex/Lucid transitions, explicit settlement lag, hard empirical constraints and censored lifetime. No evaluation inputs or joint score. Campaign UI and IS freeze are implemented by the subsequent campaign increment. [Contract](prop_simulation.md#standalone-funded-optimizer--2026-11-06). |
+| Cross-job/strategy campaigns and phase package freeze | Implemented, 6 November 2026: saved grid/trial expansion, size budgets, IS compatibility, independent phase execution, immutable source/report references, browser controls and freeze. [Campaign API](research_campaign_api.md). |
+| Automatic new campaign grids, adaptive refinement and assessment-only frozen OOS | Planned. Campaigns consume already saved trials; the existing unlimited manual OOS workflow remains separate. |
 | Synchronized portfolio allocation/shared-account optimization | Optional, outside the initial phase implementation; later consumer of phase outputs and dependence data. See [portfolio plan](prop_portfolio_plan.md). |
 
 ## End-to-end workflow
@@ -167,3 +168,27 @@ See [checked access sources and assumptions](planning.md#market-data-access).
 
 Cost reasons remain above; [dated planning figures](planning.md) are optional.
 The [future export format](designs/trade_export_v1.md) is a proposal, not a supported input.
+
+
+## Saved-trial campaign integration — 6 November 2026
+
+`research_campaigns.py` owns immutable declarations, saved trial expansion,
+compatibility/budget checks, status and freeze. `campaign_api.py` exposes those
+operations under the existing FastAPI security middleware. `web/campaigns.js`
+adds controls to the existing saved report → prop configuration → durable report
+journey. There is no second web application or execution engine.
+
+Four small additive tables in the existing AnalysisStore SQLite catalogue index
+campaign declarations, source dependencies, optimization job dependencies and
+calculation attempts. The backtest catalogue continues to own grids/trials;
+AnalysisStore continues to own numerical outputs, captured inputs and downloads.
+Identical campaign calculations reuse a sealed phase report. No source trades or
+reports are copied into campaign storage. The shared reentrant analysis lock
+serializes declaration/run/freeze with source/job/report deletion. Every referenced
+source and report is protected, including when frozen; partial/failed attempts
+cannot become a completed optimum and remain recorded after explicit retry.
+
+Phase implementation and kernel hashes identify calculations independently of
+UI/docs. Read/reopen never dispatches workers or reads dataset/OOS prices.
+The complete API, exact one-stage screening/refinement semantics, bounds and
+remaining assessment limitations are in the [campaign guide](research_campaign_api.md).

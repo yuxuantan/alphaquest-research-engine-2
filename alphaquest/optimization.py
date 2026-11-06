@@ -179,6 +179,9 @@ class OptimizationStore:
         an interrupted post-commit cleanup can be retried after a restart.
         """
         with self.prop_analyses.lock:
+            with self.prop_analyses.connect() as campaign_db:
+                if campaign_db.execute('SELECT 1 FROM campaign_jobs WHERE optimization_id=?', (job_id,)).fetchone():
+                    raise ValueError('This optimization job is referenced by an immutable research campaign and cannot be deleted.')
             with self.runs.deletion(
                 'Backtest reports removed from the library, but file cleanup failed. '
                 'Retry Delete activity and reports to finish cleanup.'
@@ -202,7 +205,7 @@ class OptimizationStore:
                     ids -= shared
                     busy = self.prop_analyses.active_sources()
                     if ids & busy:
-                        raise ValueError('A prop analysis is using a backtest in this activity. Wait for it to finish before deleting.')
+                        raise ValueError('This activity contains a backtest referenced by a research campaign or running prop analysis; it cannot be deleted.')
                     # Check all reports before moving any files.
                     if ids & self.runs.detail_active:
                         raise ValueError('Full detail is being generated for a backtest in this activity. Wait for it to finish before deleting.')
