@@ -51,8 +51,12 @@ conditions. Signal neighborhoods exclude quantity/display settings. Optional
 **Economic validation** hands every qualified configuration to independent phase
 searches, freezes the selected family before outer evaluation, and saves modeled
 cash on the actual chronological outer sequence. Forecasts, pending receipts and
-provider-rule gaps remain separate. Consolidated reliability, final recommendations,
-native risk-policy reruns and forward monitoring remain pending.
+provider-rule gaps remain separate. Predeclared references now run through the
+same phase reports, and consolidated reliability retains every fold, family,
+missing outcome and acquisition censoring. Funded studies may explicitly select
+a historical lower estimate of mean received cash, with history and Monte Carlo
+precision requirements. Final recommendations, native risk-policy reruns and
+forward monitoring remain pending.
 See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 

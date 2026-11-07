@@ -424,6 +424,10 @@ def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs
     package_hash = payload.pop('package_sha256', None)
     if package_hash != fingerprint(payload) or binding.get('phase') != phase:
         raise ValueError('Frozen replay package hash or phase differs.')
+    package_role = binding.get('package_role', 'selected_policy')
+    if package_role not in ('selected_policy', 'predeclared_reference'):
+        raise ValueError('Unknown frozen replay package role.')
+    reference = package_role == 'predeclared_reference'
     if type(window) is not ReplayWindow:
         raise ValueError('Chronological replay requires a ReplayWindow.')
     expected_window = binding['outer_window']
@@ -446,6 +450,15 @@ def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs
             or report['implementation'] != binding['implementation']
             or module_for(phase).implementation_identity() != binding['implementation']):
         raise ValueError('Frozen training context or numerical implementation changed.')
+    context = report['training_context']
+    if reference:
+        if (context.get('version') != 'nested-phase-reference-v1'
+                or binding.get('baseline_id') not in context.get('reference_ids', [])
+                or binding.get('reference_declaration_sha256') != context.get('reference_declaration_sha256')
+                or binding.get('recommendation_eligible') is not False):
+            raise ValueError('Frozen reference is outside its explicit predeclared measurement context.')
+    elif context.get('version') != 'nested-phase-training-v1':
+        raise ValueError('A predeclared reference cannot masquerade as a selected qualified policy.')
     selected = [row for row in report['calculations']['candidates'] if row['candidate_id'] == binding['candidate_id']]
     if len(selected) != 1:
         raise ValueError('Frozen candidate is absent or ambiguous in its actual training report.')
@@ -474,9 +487,11 @@ def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs
     if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
         raise ValueError('Nested native outer replay cannot invent an external OOS mapping; a separately verified external frozen-source binding is required.')
     research = record['run_metadata'].get('research', {})
-    required = dict(phase='outer', role='outer_test', campaign_id=binding['campaign_id'],
+    required = dict(phase='outer', role='baseline_outer_test' if reference else 'outer_test', campaign_id=binding['campaign_id'],
         outer_fold=binding['outer_fold_index'], frozen_package_sha256=package_hash,
         training_source_id=config['source']['source_backtest_id'], selected_candidate_id=binding['candidate_id'])
+    if reference:
+        required.update(baseline_id=binding['baseline_id'], reference_declaration_sha256=binding['reference_declaration_sha256'])
     if any(research.get(key) != value for key, value in required.items()):
         raise ValueError('Outer source is outside the sealed campaign/fold/policy mapping.')
     stable_strategy = lambda value: {key:item for key,item in value.items() if key != 'session_flattening'}

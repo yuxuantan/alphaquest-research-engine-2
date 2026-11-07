@@ -8,7 +8,8 @@ import pytest
 from alphaquest.prop.phase_profiles import EvaluationProfile, FundedProfile, rule_version
 from alphaquest.prop.phase_dispatch import module_for
 from alphaquest.research_phase_selection import (
-    EvaluationSelector, FundedSelector, PhaseStudy, Policy, build_search,
+    BaselineDeclaration, EvaluationSelector, FundedSelector, PhaseStudy, Policy, baseline_study, build_search,
+    build_reference_context, reference_training_metadata,
     build_training_context, complete_qualified_membership, policy_training_metadata,
     select_evaluation, select_funded, validate_native_policies,
     FUNDED_OBJECTIVE, digest, SESSION_CONVENTION,
@@ -175,3 +176,68 @@ def test_tie_preference_is_phase_independent_of_context_and_generated_ids(phase)
         row['manifest']['configuration']['source']['source_backtest_id']='unrelated-new-run-'+row['candidate_id']
         row['manifest']['training_context_sha256']='opposite phase settings changed'
     assert selected(list(reversed(changed)))==original
+
+
+def reference_fixture():
+    plan,outer,_=setup();candidate=deepcopy(plan['candidates'][-1]);candidate['id']='c'*64
+    plan['candidates'][-1]=candidate;s=study('funded')
+    reference=BaselineDeclaration(id='One MNQ reference',phase='funded',source_configuration_id=candidate['id'],
+        profile=s.profiles[0],policy={'micros':1})
+    metadata=reference_training_metadata(plan['campaign_id'],outer,reference,plan['input_identity'])
+    saved=record(candidate,metadata)
+    return plan,outer,s,reference,candidate,saved
+
+
+def test_reference_has_separate_authority_and_one_predeclared_policy():
+    plan,outer,s,reference,candidate,saved=reference_fixture()
+    # This source would fail edge admission in setup(); reference admission
+    # deliberately receives no qualification result and cannot fabricate PASS.
+    narrowed,chosen=baseline_study(reference,[s],plan['candidates'])
+    assert chosen==candidate and len(narrowed.policies)==1
+    ctx=build_reference_context(plan,outer,reference,candidate,saved,{'trades.csv':'t'*64})
+    assert ctx['version']=='nested-phase-reference-v1'
+    assert ctx['admission_scope']=='predeclared_reference'
+    assert ctx['recommendation_eligible'] is False
+    assert ctx['reference_ids']==[reference.id]
+    assert ctx['source_configuration_ids']==[candidate['id']]
+    assert not {'qualified_configuration_ids','qualification_sha256'} & set(ctx)
+    request=build_search(narrowed,ctx)
+    assert len(request['candidates'])==1 and request['candidates'][0]['micros']==1
+    assert ctx['reference_declaration_sha256']==digest(ctx['reference_declarations'])
+
+
+@pytest.mark.parametrize('change',['role','declaration','authority','recommendable','source','profile'])
+def test_reference_identity_and_authority_are_fail_closed(change):
+    plan,outer,s,reference,candidate,saved=reference_fixture()
+    meta=saved['run_metadata']['research']
+    if change=='role':meta['role']='policy_train'
+    elif change=='declaration':meta['reference_declaration_sha256']='changed'
+    elif change=='authority':meta['admission_scope']='qualified'
+    elif change=='recommendable':meta['recommendation_eligible']=True
+    elif change=='source':
+        with pytest.raises(ValueError,match='absent or stale'):baseline_study(reference,[s],[])
+        return
+    else:
+        value=reference.model_dump();value['profile']=dict(reference.profile,daily_loss_limit=not reference.profile['daily_loss_limit'])
+        with pytest.raises(ValueError,match='declared profile'):baseline_study(BaselineDeclaration(**value),[s],plan['candidates'])
+        return
+    with pytest.raises(ValueError):build_reference_context(plan,outer,reference,candidate,saved,{'trades.csv':'t'*64})
+
+
+def test_conservative_selector_uses_historical_mean_metric_and_explicit_configuration():
+    from alphaquest.prop.funded_optimization import FundedHistoricalMean, CONSERVATIVE_OBJECTIVE
+    value=study('funded').model_dump()
+    value['selector']={'mode':'conservative_expected_received_cash'}
+    with pytest.raises(ValueError,match='explicit historical'):PhaseStudy.model_validate(value)
+    value['search_settings']['conservative_objective']=asdict(FundedHistoricalMean())
+    PhaseStudy.model_validate(value)
+    value['selector']={}
+    with pytest.raises(ValueError,match='maximum mean'):PhaseStudy.model_validate(value)
+    rows=[funded('high_mean',1000),funded('lower_mean',500)]
+    rows[0]['metrics'][CONSERVATIVE_OBJECTIVE]=50
+    rows[1]['metrics'][CONSERVATIVE_OBJECTIVE]=100
+    calc=dict(objective=CONSERVATIVE_OBJECTIVE,candidates=rows)
+    result=select_funded(calc,{'mode':'conservative_expected_received_cash'},dict(horizon_calendar_days=2,receipt_delay_calendar_days=0))
+    assert result['selected_ids']==['lower_mean']
+    assert result['objective']==CONSERVATIVE_OBJECTIVE
+    with pytest.raises(ValueError,match='differs'):select_funded(calc,{},dict(horizon_calendar_days=2,receipt_delay_calendar_days=0))

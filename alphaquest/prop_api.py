@@ -49,6 +49,7 @@ class FundedSearchRequest(BaseModel):
     bootstrap_replicates: int = Field(default=400, strict=True)
     bootstrap_seed: int = Field(default=137, strict=True)
     near_tie_cash: float = Field(default=0, strict=True)
+    conservative_objective: dict | None = None
 
 def phase_request(body):
     require_candidate_confirmation(len(body.candidates), body.confirmed_candidate_count)

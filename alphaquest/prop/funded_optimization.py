@@ -16,6 +16,7 @@ from .phase_search import PhaseCalendar, check_candidates
 
 MODEL_VERSION = 'funded-optimization-calendar-receipts-v1'
 OBJECTIVE = 'expected_funded_cash_payouts_within_horizon'
+CONSERVATIVE_OBJECTIVE = 'historical_lower_mean_cash'
 DEFAULT_RESEARCH_HORIZONS = (90, 180, 365)
 
 
@@ -65,6 +66,39 @@ class FundedConstraints:
 
 
 @dataclass(frozen=True)
+class FundedHistoricalMean:
+    """Declared historical resampling of the estimated mean, not account p10."""
+    method: str = 'historical_block_bootstrap_lower_mean'
+    confidence_level: float = .90
+    replicates: int = 200
+    block_sessions: int = 5
+    minimum_history_sessions: int = 60
+    minimum_history_blocks: int = 12
+    simulations_per_replicate: int = 64
+    history_seed: int = 8419
+    simulation_seed: int = 8423
+    maximum_mc_standard_error: float = 25.
+
+    def __post_init__(self):
+        if self.method != 'historical_block_bootstrap_lower_mean':
+            raise ValueError('Unknown conservative funded objective.')
+        if (type(self.confidence_level) not in (int, float) or not np.isfinite(self.confidence_level)
+                or not .5 <= self.confidence_level < 1):
+            raise ValueError('Historical confidence_level must be finite and at least .5 but below 1.')
+        for name, maximum in (('replicates', 2000), ('block_sessions', 20000),
+                ('minimum_history_sessions', 20000), ('minimum_history_blocks', 20000),
+                ('simulations_per_replicate', 20000)):
+            positive_integer(name, getattr(self, name), maximum)
+        if min(self.minimum_history_sessions, self.minimum_history_blocks, self.simulations_per_replicate) < 2:
+            raise ValueError('Historical mean estimation requires at least two sessions, blocks and inner paths.')
+        SimulationConfig(seed=self.history_seed)
+        SimulationConfig(seed=self.simulation_seed)
+        if (type(self.maximum_mc_standard_error) not in (float, int)
+                or not np.isfinite(self.maximum_mc_standard_error) or self.maximum_mc_standard_error < 0):
+            raise ValueError('maximum_mc_standard_error must be finite and nonnegative.')
+
+
+@dataclass(frozen=True)
 class FundedSearch:
     source_backtest_id: str
     candidates: tuple[FundedCandidate, ...]
@@ -76,10 +110,13 @@ class FundedSearch:
     bootstrap_seed: int = 137
     near_tie_cash: float = 0.
     mode: str = 'funded_optimization'
+    conservative_objective: FundedHistoricalMean | None = None
 
     def __post_init__(self):
         if self.mode != 'funded_optimization' or type(self.calendar) is not PhaseCalendar or type(self.constraints) is not FundedConstraints:
             raise ValueError('Invalid funded-only search contract.')
+        if self.conservative_objective is not None and type(self.conservative_objective) is not FundedHistoricalMean:
+            raise ValueError('Conservative funded selection requires a FundedHistoricalMean contract.')
         if type(self.candidates) is not tuple or not self.candidates or any(type(c) is not FundedCandidate for c in self.candidates):
             raise ValueError('Declare a nonempty immutable set of funded candidates.')
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
@@ -115,6 +152,8 @@ def parse_request(raw):
         for name in ('start_dates', 'closures'):
             if name in calendar: calendar[name] = tuple(sorted(calendar[name]))
         if 'constraints' in value: value['constraints'] = FundedConstraints(**value['constraints'])
+        if value.get('conservative_objective') is not None:
+            value['conservative_objective'] = FundedHistoricalMean(**value['conservative_objective'])
         return FundedSearch(candidates=tuple(candidates), calendar=PhaseCalendar(**calendar), **value)
     except (TypeError, KeyError, AttributeError) as exc:
         raise ValueError(f'Invalid funded-only search contract: {exc}') from exc
@@ -208,26 +247,38 @@ def apply_constraints(rows, search):
         row.update(constraint_violations=violations, feasible=not violations and row['status']=='estimated', rank=None)
 
 
+def objective_metric(search):
+    return CONSERVATIVE_OBJECTIVE if getattr(search, 'conservative_objective', None) is not None else OBJECTIVE
+
+
 def rank_candidates(rows, search, *, tie_key=None):
     apply_constraints(rows, search)
+    objective = objective_metric(search)
+    conservative = objective == CONSERVATIVE_OBJECTIVE
     ranked = sorted([r for r in rows if r['feasible']],
-        key=lambda r:(-r['metrics'][OBJECTIVE], tie_key(r) if tie_key else r['candidate_id'], r['candidate_id']))
+        key=lambda r:(-r['metrics'][objective], tie_key(r) if tie_key else r['candidate_id'], r['candidate_id']))
     for rank,row in enumerate(ranked,1): row['rank'] = rank
     unresolved = [r['candidate_id'] for r in rows if r['status']!='estimated']
     winner = ranked[0] if ranked and not unresolved else None
     near = []
     if winner:
         for row in ranked[1:]:
+            if conservative:
+                if winner['metrics'][objective]-row['metrics'][objective] <= search.near_tie_cash:
+                    near.append(row['candidate_id'])
+                continue
             a,b = winner['uncertainty']['mean_family_interval'],row['uncertainty']['mean_family_interval']
             if winner['metrics'][OBJECTIVE]-row['metrics'][OBJECTIVE] <= search.near_tie_cash or a is None or b is None or b[1]>=a[0]:
                 near.append(row['candidate_id'])
     return dict(candidates=sorted(rows,key=lambda r:r['candidate_id']), ranking=[r['candidate_id'] for r in ranked],
         winner=winner['candidate_id'] if winner else None, near_ties=near, unresolved_candidates=unresolved,
-        objective=OBJECTIVE, certified_optimum=False,
+        objective=objective, certified_optimum=False,
         selection_status='estimated_only' if winner else ('unresolved' if unresolved else 'no_feasible_candidate'),
-        tie_breaking=('Descending expected received cash, then phase-only configuration SHA-256; generated IDs break identical-configuration presentation ties only'
+        tie_breaking=('Descending declared historical lower mean cash, then stable phase configuration identity; no single-account percentile or evaluation inputs'
+            if conservative else 'Descending expected received cash, then phase-only configuration SHA-256; generated IDs break identical-configuration presentation ties only'
             if tie_key else 'Descending expected received cash, then ascending candidate SHA-256; no evaluation inputs'),
-        near_tie_definition='Within declared cash tolerance or overlapping family mean intervals; missing intervals also mark uncertainty')
+        near_tie_definition=('Within declared historical-mean score tolerance only; no paired difference or statistically certified superiority'
+            if conservative else 'Within declared cash tolerance or overlapping family mean intervals; missing intervals also mark uncertainty'))
 
 
 def optimize_funded(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None):
@@ -250,9 +301,23 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
             **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
         if canonical(component['provenance']['source']) != canonical(check['manifest']['source']):
             raise ValueError('Candidate source changed after source checking.')
-        rows.append(dict(candidate_id=check['candidate_id'], **funded_metrics(component['paths'],search),
+        row = dict(candidate_id=check['candidate_id'], **funded_metrics(component['paths'],search),
             paths=component['paths'], schedule_sha256=component['schedule_sha256'], provenance=component['provenance'],
-            manifest=check['manifest'], origin_trials=check['origin_trials']))
+            manifest=check['manifest'], origin_trials=check['origin_trials'])
+        if search.conservative_objective is not None:
+            from .funded_profiles import historical_funded_mean
+            historical = historical_funded_mean(runs, c.source, c.profile, c.micros, search.horizon_calendar_days,
+                search.calendar, search.receipt_delay_calendar_days, c.simulation, c.period, c.sampling, c.costs,
+                configuration=search.conservative_objective, family_size=len(search.candidates), sizing=c.sizing,
+                observed_sessions=training_context['train_window']['sessions'] if training_context is not None else None,
+                progress=progress)
+            row['conservative_expected_cash'] = historical
+            row['uncertainty']['historical_mean'] = {key:value for key,value in historical.items()
+                if key not in ('replicates', 'history_session_labels')}
+            row['metrics'][CONSERVATIVE_OBJECTIVE] = historical['lower_mean_cash']
+            if historical['status'] != 'estimated':
+                row.update(status='unresolved', reason='insufficient_historical_mean_evidence')
+        rows.append(row)
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
         verify_phase_source(runs,c.source,check['manifest']['source'])
@@ -261,7 +326,7 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
         apply_constraints(rows, search)
         return dict(model_version=MODEL_VERSION, phase='funded', candidates=rows,
             ranking=[], winner=None, near_ties=[], certified_optimum=False,
-            selection_status='assessment_only_no_reselection', objective=OBJECTIVE,
+            selection_status='assessment_only_no_reselection', objective=objective_metric(search),
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
     from .phase_search import stable_phase_policy_identity
     tie_key = (lambda row: stable_phase_policy_identity(row, 'funded')) if training_context is not None else None
@@ -283,6 +348,9 @@ def write_report(runs, staged, search, checks, calculations):
     save('phase_metrics.json',[{k:r[k] for k in ('candidate_id','metrics','status','censoring','uncertainty','feasible','constraint_violations','rank')} for r in calculations['candidates']])
     save('ranking.json',{k:v for k,v in calculations.items() if k!='candidates'})
     save('calculations.json',calculations)
+    if search.conservative_objective is not None:
+        save('historical_mean_cash.json', [dict(candidate_id=row['candidate_id'],
+            **row['conservative_expected_cash']) for row in calculations['candidates']])
     save('request.json',asdict(search))
     save('sampling.json',[dict(candidate_id=r['candidate_id'],configuration=r['manifest']['configuration']['sampling'],
         simulation=r['manifest']['configuration']['simulation'],schedule_sha256=r['schedule_sha256'],

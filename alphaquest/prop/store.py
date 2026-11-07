@@ -138,11 +138,12 @@ class AnalysisStore:
                        training_context=None, inline=False):
         """Shared checked reservation; callers hold the catalogue mutation lock."""
         from .phase_dispatch import module_for_mode
-        from .phase_search import check_candidates
+        from .phase_search import check_candidates, validate_phase_work
         if assessment is not None and training_context is not None:
             raise ValueError('A phase source cannot be both nested training and manual assessment.')
         module = module_for_mode(search.mode)
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
+        validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
         if assessment or training_context:
             checks = check_candidates(runs, search, assessment, training_context=training_context)
         else:
@@ -151,12 +152,6 @@ class AnalysisStore:
             if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
                 raise ValueError('Campaign source identity changed before queueing.')
             checks = campaign_checks
-        estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if phase == 'Funded'
-                    else sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates))
-        if estimate > 100*1024*1024:
-            raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
-        if phase == 'Funded' and sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days > 50_000_000:
-            raise ValueError('Declared funded search exceeds 50 million path calendar days; narrow the explicit search.')
         key = module.search_key(search, checks)
         if assessment:
             key = sha256(canonical(dict(search=key, assessment=assessment)).encode()).hexdigest()

@@ -30,7 +30,18 @@ their respective `*_profiles.py` owners, sharing calendar and receipt helpers in
 `cash_ledger.py`. `rule_provenance.py` captures dated primary-document reviews and
 unverified model gaps in normal phase reports; it never patches account rules.
 No new engine, service, database or production evidence store is introduced.
-Consolidated reliability, final verification and forward monitoring remain pending.
+The subsequent reliability extension adds predeclared reference contexts and a
+reference seal before any outer access. References use the same source checks,
+phase reports and replay owners; failed edge qualification remains visible and
+cannot become recommendation authority. `research_reliability.py` consolidates
+saved outputs without simulating accounts or choosing a new winner. It preserves
+fold denominators, family alternatives and censored observations, and separates
+actual economics from forecast comparability. Conservative Funded selection
+re-estimates the fitted mean using historical session blocks inside
+`funded_profiles.py`; `funded_optimization.py` owns its objective and constraints.
+Shared preflight limits count all declared historical refits and captured indices.
+Final procedure verification, native state-aware reruns and forward monitoring
+remain pending.
 
 8 November 2026 canonical-source increment: `canonical_trades.py` validates
 complete versioned external exports and projects existing native sources without

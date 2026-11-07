@@ -18,8 +18,14 @@ The [workflow](research_workflow.md#nested-economic-validation) describes the
 current controls. [Provider rule review](provider_rule_review.md) records dated
 source evidence and known discrepancies without changing historical kernels.
 Fixed-signal-path scenarios, sampled forecasts and provider/live qualification
-remain distinct. Consolidated reliability, final recommendation and native
-state-aware strategy reruns remain incomplete.
+remain distinct. The following reliability increment adds predeclared reference
+forecasts/replays and fold-based comparison, calibration, coverage and stability
+reports in this same workflow. Families have no implicit aggregate; missing
+forecasts do not erase observed cash, and censored acquisition fees remain paid.
+Optional conservative Funded selection resamples historical sessions and
+re-estimates mean cash, preserving separate numerical-error requirements. It
+does not optimize a single-account payout percentile or claim future confidence.
+Final recommendation and native state-aware strategy reruns remain incomplete.
 
 ## Canonical external sources — 2026-11-08
 

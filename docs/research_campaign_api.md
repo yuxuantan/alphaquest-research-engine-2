@@ -491,3 +491,53 @@ outer path. Child report rule evidence uses
 `/api/prop-analyses/{id}/files/provider_rules.json`; it is also in the normal ZIP.
 Readiness remains `INCOMPLETE`, `production_qualified: false` until later workflow
 and qualification requirements are satisfied.
+
+## Nested references and reliability extension — 8 November 2026
+
+Optional `baselines` declares at most sixteen unique references, each with `id`,
+`phase`, `source_configuration_id` (from preview's complete signal membership),
+`profile`, `policy: {micros, sizing?}`, and strict boolean `required` (default
+true). The source and normalized same-phase profile must belong to the declared
+study. Duplicate definitions, unavailable native dynamic policies and unsupported
+sources reject before execution. References may fail edge qualification and
+still be measured, with `recommendation_eligible: false`. They never enter the
+optimizer's qualified candidate set.
+
+Server-only `nested-phase-reference-v1` context binds reference declarations,
+training sources, observed sessions, code and artifacts. It carries reference
+IDs rather than qualified configuration IDs. Typed baseline seals precede every
+selected/reference outer access and survive cancellation/resumption. Public
+phase endpoints reject reference/inner/outer sources as ordinary IS inputs.
+
+Optional `reliability` accepts the strict `ReliabilitySettings` contract:
+`minimum_outer_blocks` (5), `minimum_complete_fold_fraction` (1),
+`confidence_level` (.95), `bootstrap_block_folds` (1),
+`historical_bootstrap_replicates` (1000), `historical_bootstrap_seed` (137),
+`minimum_calibration_blocks` (20), `minimum_baseline_mean_improvement` ("0"),
+`require_baseline_for_recommendation` (true), and `abstention_action`
+(`unmeasured` or explicit `no_account_no_fee`). GET defaults returns the complete
+template. Values are saved before outer execution. Insufficient coverage,
+families, censored acquisition means and unresolved reference thresholds remain
+explicit; they are not silently converted into zero returns or selected winners.
+
+Funded selectors additionally support `conservative_expected_received_cash`,
+which must be paired with `search_settings.conservative_objective`:
+`method: historical_block_bootstrap_lower_mean`, `confidence_level`, `replicates`,
+`block_sessions`, `minimum_history_sessions`, `minimum_history_blocks`,
+`simulations_per_replicate`, `history_seed`, `simulation_seed`, and
+`maximum_mc_standard_error`. The ordinary maximum-mean selector must omit this
+configuration. The public Funded phase request also accepts this optional
+contract. Default null preserves the existing objective. Unsupported history or
+insufficient tail resolution returns unresolved candidates and no winner.
+Preview and admission share resource bounds across all candidate refits:
+50 million path calendar days, one million captured historical indices, and the
+existing report-capture bound. No silent candidate or replicate truncation occurs.
+
+Completed format-6 `nested-research-v3` reports include `calculations.reliability`
+and each fold's `baseline_results`. Additional normal exports are
+`baseline_results.json`, `reliability.json`, `reliability_folds.csv`, and
+`baseline_comparison.csv`. Conservative child reports capture
+`historical_mean_cash.json` through their existing file/ZIP routes. Reopening
+uses immutable saved artifacts. `INSUFFICIENT_EVIDENCE` and
+`ASSESSABLE_WITH_LIMITATIONS` describe research evidence only; neither makes
+`production_qualified` true or supplies the unfinished final deployment package.

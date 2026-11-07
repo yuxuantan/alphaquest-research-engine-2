@@ -67,7 +67,8 @@
   const selectionLabel = selector => ({pareto_family: 'Keep the complete cost / time Pareto family',
     min_cost_under_time_cap: 'Lowest expected cost within the declared time limit',
     min_time_under_cost_cap: 'Shortest expected time within the declared cost limit',
-    maximum_expected_received_cash: 'Highest expected trader cash received'}[selector?.mode] || 'Selection rule unavailable');
+    maximum_expected_received_cash: 'Highest expected trader cash received',
+    conservative_expected_received_cash: 'Highest historical lower bound on expected trader cash'}[selector?.mode] || 'Selection rule unavailable');
   function retainedTable(parent, title, rows, columns, className) {
     if (!rows?.length) return;
     const detail = node('details'); detail.append(node('summary', `${title} · ${rows.length} retained rows`));
@@ -93,7 +94,7 @@
         ...(study.phase === 'evaluation' ? [profile.evaluation_price, profile.activation_fee] : [])]));
     const labels = {maximum_cost_per_funded: 'Maximum expected acquisition cost · USD',
       maximum_expected_calendar_days: 'Maximum expected acquisition time · calendar days',
-      minimum_pass_probability: 'Minimum pass probability · 0–1', minimum_expected_cash: 'Minimum expected received cash · USD',
+      minimum_pass_probability: 'Minimum pass probability · 0–1', minimum_expected_cash: 'Minimum selected expected-cash objective · USD',
       maximum_account_breach_probability: 'Maximum account breach probability · 0–1',
       minimum_probability_first_payout: 'Minimum first payout probability · 0–1', minimum_p10_payouts: 'Minimum P10 received cash · USD',
       maximum_position_size: 'Maximum position size · MNQ'};
@@ -110,6 +111,10 @@
     else settings.push(['Forecast horizon · calendar days', study.search_settings?.horizon_calendar_days ?? 'Derived from each outer interval; see the chronological plan'],
       ['Receipt delay · calendar days', study.search_settings?.receipt_delay_calendar_days]);
     table(section, ['Saved forecast assumption', 'Value'], settings.map(([label, value]) => [label, valueText(value)]));
+    if (study.search_settings?.conservative_objective) {
+      section.append(node('p', 'The conservative objective resamples historical session blocks and re-estimates expected cash. Its lower empirical percentile concerns the mean estimate, not the payout of one account. It is neither a Monte Carlo-only confidence interval nor a future guarantee.'));
+      table(section, ['Historical mean requirement', 'Saved value'], Object.entries(study.search_settings.conservative_objective).map(([key, value]) => [words(key), value]));
+    }
     if (study.phase === 'funded') section.append(node('p', 'Forecast and chronological replay both use unrounded modeled trader entitlement. This fixed receipt amount convention preserves comparability; it is not a statement of bank settlement or cent rounding.'));
     parent.append(section);
   }
@@ -185,9 +190,12 @@
       const quantities = field(fields, 'Fixed MNQ quantities to compare · comma-separated whole numbers', prefix + 'quantities', template.policies.map(policy => policy.micros).join(', '), 'text');
       fields.append(node('p', 'Requested quantities remain subject to the saved account size ceiling, phase size tiers and daily account rules.'));
       const selector = node('div', undefined, 'prop-fields'); fields.append(selector);
+      let historical = null; const historicalInputs = {};
       const mode = select(selector, 'Predeclared selection rule', prefix + 'selector', phase === 'evaluation' ? [
         ['pareto_family', 'Keep the complete cost / time Pareto family'], ['min_cost_under_time_cap', 'Lowest expected cost within a time limit'],
-        ['min_time_under_cost_cap', 'Shortest expected time within a cost limit']] : [['maximum_expected_received_cash', 'Highest expected trader cash received']]);
+        ['min_time_under_cost_cap', 'Shortest expected time within a cost limit']] : [
+        ['maximum_expected_received_cash', 'Highest expected trader cash received'],
+        ['conservative_expected_received_cash', 'Highest historical lower bound on expected trader cash']]);
       mode.value = template.selector.mode;
       const constraints = node('details'); constraints.append(node('summary', 'Selection limits and exact ties')); fields.append(constraints);
       const limits = node('div', undefined, 'prop-fields'); constraints.append(limits);
@@ -207,7 +215,7 @@
         addLimit('selector', 'maximum_expected_calendar_days', 'Maximum expected acquisition time · calendar days');
         addLimit('selector', 'minimum_pass_probability', 'Minimum pass probability · 0–1', 1);
       } else {
-        addLimit('selector', 'minimum_expected_cash', 'Minimum expected received cash · USD');
+        addLimit('selector', 'minimum_expected_cash', 'Minimum selected expected-cash objective · USD');
         for (const [key, title, maximum] of [
           ['maximum_account_breach_probability', 'Maximum account breach probability · 0–1', 1],
           ['minimum_probability_first_payout', 'Minimum first payout probability · 0–1', 1],
@@ -217,6 +225,7 @@
       ties.value = template.selector.tie_policy;
       const syncSelector = () => {
         const pareto = mode.value === 'pareto_family'; ties.disabled = pareto; if (pareto) ties.value = 'keep_all_exact_ties';
+        if (historical) { historical.disabled = mode.value !== 'conservative_expected_received_cash'; historical.hidden = historical.disabled; }
         const required = {min_cost_under_time_cap: 'maximum_expected_calendar_days', min_time_under_cost_cap: 'maximum_cost_per_funded'}[mode.value];
         for (const [key, setting] of optional) {
           setting.toggle.disabled = key === required;
@@ -248,6 +257,19 @@
         addInput(sampling, 'search_settings', 'bootstrap_replicates', 'Forecast uncertainty bootstrap repetitions', 100);
         addInput(sampling, 'search_settings', 'bootstrap_seed', 'Forecast uncertainty seed');
         fields.append(node('p', 'Receipt timing is a declared settlement assumption. Both the forecast and replay use unrounded modeled trader entitlement; no bank cent-rounding convention is inferred. Payout requests, account deductions, pending receipts and received cash remain separate.'));
+        historical = node('fieldset'); historical.id = prefix + 'historical-mean'; historical.append(node('legend', 'Historical uncertainty of the expected cash mean'));
+        historical.append(node('p', 'Resample historical session blocks, then estimate expected cash again. The lower empirical percentile is family-adjusted across the declared candidates. This is different from one-account payout P10 and from Monte Carlo standard error. Insufficient history, tail resolution or excessive simulation noise leaves the candidate unresolved.'));
+        const historyFields = node('div', undefined, 'prop-fields'); historical.append(historyFields); fields.append(historical);
+        const historicalLabels = {confidence_level: 'Nominal historical family confidence · 0.5–1', replicates: 'Historical resampling repetitions', block_sessions: 'Historical block · observed sessions',
+          minimum_history_sessions: 'Minimum observed history sessions', minimum_history_blocks: 'Minimum historical blocks', simulations_per_replicate: 'Account paths per historical repetition',
+          history_seed: 'Historical resampling seed', simulation_seed: 'Account simulation seed', maximum_mc_standard_error: 'Maximum Monte Carlo standard error · USD'};
+        for (const [key, title] of Object.entries(historicalLabels)) {
+          if (defaults.conservative_objective?.[key] === undefined) continue;
+          const input = field(historyFields, title, prefix + 'historical-' + key, defaults.conservative_objective[key]);
+          input.step = ['confidence_level', 'maximum_mc_standard_error'].includes(key) ? 'any' : '1'; input.min = 0;
+          historicalInputs[key] = input;
+        }
+        syncSelector();
       }
       const calendar = node('details'); calendar.append(node('summary', 'Declared calendar and coverage'));
       const calendarFields = node('div', undefined, 'prop-fields'); calendar.append(calendarFields); fields.append(calendar);
@@ -274,6 +296,8 @@
           target[key] = setting.toggle.checked ? setting.group === 'selector' ? setting.input.value : Number(setting.input.value) : null;
         }
         for (const {group, key, input} of inputs) study[group][key] = Number(input.value);
+        if (phase === 'funded') study.search_settings.conservative_objective = mode.value === 'conservative_expected_received_cash'
+          ? {...defaults.conservative_objective, ...Object.fromEntries(Object.entries(historicalInputs).map(([key, input]) => [key, Number(input.value)]))} : null;
         const closedDates = closures.value.split(',').map(value => value.trim()).filter(Boolean);
         if (closedDates.some(value => !/^\d{4}-\d{2}-\d{2}$/.test(value))) throw Error('Use YYYY-MM-DD for each declared closed session date.');
         study.search_settings.calendar = {...calendarTemplate, version: calendarVersion.value.trim(), timezone: calendarTimezone.value.trim(), closures: closedDates};
@@ -313,6 +337,18 @@
               : [metrics.expected_payouts, metrics.p10_payouts, metrics.account_breach_probability, uncertainty.mean_monte_carlo_se])];
         })); forecastTable.classList.add('robust-training-forecasts');
         study.append(node('p', 'These are training forecasts. Monte Carlo standard error measures simulation precision conditional on the saved observations and model; it does not measure future uncertainty.'));
+        const historical = forecasts.filter(item => item.uncertainty?.historical_mean);
+        if (historical.length) {
+          study.append(node('h4', 'Historical uncertainty of expected cash'));
+          table(study, ['Frozen candidate', 'Historical evidence', 'Lower mean cash · USD', 'Observed history sessions / blocks', 'Declared family / lower tail rank', 'Maximum inner MC standard error · USD', 'Evidence limits'], historical.map(item => {
+            const evidence = item.uncertainty.historical_mean;
+            return [item.candidate_id.slice(0, 12), evidence.status, evidence.lower_mean_cash,
+              `${valueText(evidence.history_session_count)} / ${valueText(evidence.history_block_count)}`, `${valueText(evidence.family_size)} / ${valueText(evidence.tail_rank)}`,
+              evidence.mc_noise?.maximum_observed_standard_error, (evidence.reasons || []).map(reason).join('; ') || 'Saved evidence gates resolved'];
+          }));
+          study.append(node('p', 'The lower empirical percentile concerns the re-estimated expected-cash mean after historical block resampling. It is separate from account P10, conditional Monte Carlo error and future/model uncertainty. The declared family tail and evidence gates are retained in the complete phase report.'));
+          if (phase.analysis_id) study.append(link('Download historical mean re-estimations', `/api/prop-analyses/${phase.analysis_id}/files/historical_mean_cash.json`), node('br'));
+        }
       }
       if (phase.analysis_id) study.append(link('Open complete earlier phase forecast and candidate family', `#backtests/prop/job/${phase.analysis_id}`));
       if (phase.provider_rules) window.phaseCampaigns?.renderRuleReview(study, phase.provider_rules, phase.deployment_readiness, phase.analysis_id);
@@ -333,6 +369,191 @@
       section.append(study);
     }
     list(section, selection.limitations); parent.append(section);
+  }
+  function showBaselines(parent, fold) {
+    if (!fold.baseline_results?.length) return;
+    const section = node('section', undefined, 'robust-baseline-results');
+    section.append(node('h3', 'Predeclared reference observations'));
+    section.append(node('p', 'These simple references were declared before execution. Their original edge qualification is retained; a measured reference is not an admitted or recommended strategy.'));
+    for (const reference of fold.baseline_results) {
+      const detail = node('details'); detail.append(node('summary', `${reference.baseline_id} · ${words(reference.phase)} · ${reference.status}`));
+      const package_ = reference.frozen_package, forecast = reference.training_forecast, metrics = forecast?.metrics || {};
+      table(detail, ['Reference declaration', 'Saved value'], [
+        ['Required reference', valueText(reference.required)], ['Original edge qualification', reference.edge_qualification?.status],
+        ['Signal configuration', package_ ? candidateLabel({strategy_id: package_.strategy.id, parameters: package_.strategy.parameters}) : 'Unavailable'],
+        ['Account profile / fixed MNQ', package_ ? `${package_.configuration.profile.profile_id} / ${package_.configuration.micros}` : 'Unavailable'],
+        ['Recommendation eligible', 'No'], ['Reference seal SHA-256', reference.reference_seal_sha256], ['Frozen reference SHA-256', package_?.package_sha256]]);
+      list(detail, (reference.edge_qualification?.reasons || []).map(reason));
+      if (forecast) table(detail, ['Earlier reference forecast', 'Value'], reference.phase === 'funded'
+        ? [['Expected received cash · USD', metrics.expected_payouts], ['P10 received cash · USD', metrics.p10_payouts], ['MC mean standard error · USD', forecast.uncertainty?.mean_monte_carlo_se]]
+        : [['Expected acquisition cost · USD', metrics.cost_per_funded], ['Expected acquisition time · calendar days', metrics.expected_calendar_days_to_funded], ['Pass probability · 0–1', metrics.pass_probability]]);
+      if (reference.analysis_id) detail.append(link('Open complete earlier reference forecast', `#backtests/prop/job/${reference.analysis_id}`), node('br'));
+      if (reference.outer_run_id) detail.append(link('Open ordinary reference outer backtest', `#backtests/report/${reference.outer_run_id}`));
+      if (reference.chronological_replay) showChronologicalReplay(detail, reference.chronological_replay);
+      section.append(detail);
+    }
+    parent.append(section);
+  }
+  function showReliability(parent, reliability) {
+    if (!reliability) return;
+    const section = node('section', undefined, 'robust-reliability-result'); section.id = 'robust-reliability-result';
+    section.append(node('h3', 'Consolidated outer evidence'), node('p', `Historical evidence status: ${reliability.status}. Production qualified: no.`));
+    section.append(node('p', 'The changing selection procedure is evaluated across the declared outer folds. Each fold counts once. Complete selected families remain alternative policies; no implicit allocation or best outer winner is created.'));
+    const declared = node('details'); declared.append(node('summary', 'Saved reliability requirements'));
+    table(declared, ['Declared requirement', 'Saved value'], Object.entries(reliability.settings || {}).map(([key, value]) => [words(key), valueText(value)])); section.append(declared);
+    for (const [phaseName, phase] of Object.entries(reliability.phases || {})) {
+      const study = node('section', undefined, 'robust-reliability-phase'); study.dataset.phase = phaseName;
+      const funded = phaseName === 'funded', coverage = phase.coverage || {}, scalar = phase.scalar_metrics || {};
+      study.append(node('h4', phaseLabel(phaseName)), node('p', `Evidence: ${phase.status}. ${coverage.declared_outer_folds} declared outer folds; ${reliability.settings.minimum_outer_blocks} required by the saved evidence threshold.`));
+      list(study, (phase.reasons || []).map(reason));
+      table(study, ['Coverage', 'Observed'], [
+        ['Completed folds / declared folds', `${coverage.completed_outer_folds} / ${coverage.declared_outer_folds}`],
+        ['Folds with a unique measurable action', coverage.scalar_eligible_folds], ['Folds retaining policy families', coverage.selected_family_folds],
+        ['Abstained folds', coverage.abstained_folds], ['Folds without a unique measured procedure action', coverage.unmeasured_folds],
+        ['Complete-action fraction', coverage.complete_fold_fraction], ['Historical outer blocks with selected replay', coverage.historical_outer_blocks],
+        ['Unique outer sessions', coverage.unique_outer_sessions], ['Independently established block count', valueText(coverage.independent_block_count)]]);
+      table(study, ['Outer fold / observed sessions', 'Declared procedure action', 'Frozen alternatives', 'Scalar eligible', 'Earlier expected cash / acquisition cost · USD', 'Observed received cash / paid fees · USD'], (phase.folds || []).map(row => {
+        const range = key => row.members.length ? row.members.map(member => valueText(member[key])).join(' / ') : row.action === 'no_account_no_fee' ? '0 · declared no account' : 'Unmeasured';
+        const forecast = row.members.length ? row.members.map(member => valueText(funded ? member.expected_cash_received : member.forecast_metrics.cost_per_funded)).join(' / ') : 'No forecast';
+        return [`${row.outer_fold} · ${period(row.window)}`, words(row.action), row.family_size, valueText(row.scalar_eligible), forecast,
+          range(funded ? 'cash_received' : 'paid_fees')];
+      }), `robust-reliability-folds-${phaseName}`);
+      if (coverage.selected_family_folds) study.append(node('p', 'Family ambiguity: multiple frozen alternatives have no predeclared unique action. Scalar averages, calibration and paired superiority are unavailable; alternatives are not additional folds.'));
+      const details = node('details'); details.append(node('summary', 'All retained fold members and comparability'));
+      table(details, ['Fold', 'Frozen candidate', 'Strategy / profile / MNQ', 'Earlier forecast · USD', 'Historical observation · USD', 'Forecast error · USD', 'Comparability'], (phase.folds || []).flatMap(row => row.members.map(member => {
+        const definition = member.logical_policy.definition, policy = definition.sizing;
+        return [row.outer_fold, member.candidate_id.slice(0, 12), `${candidateLabel({strategy_id: definition.strategy.id, parameters: definition.strategy.parameters})} / ${member.profile.profile_id} / ${policy.micros}`,
+          funded ? member.expected_cash_received : member.forecast_metrics.cost_per_funded,
+          funded ? member.cash_received : member.paid_fees, member.forecast_error,
+          (member.comparability_reasons || []).map(reason).join('; ') || (funded ? 'Same saved receipt estimand' : member.acquisition_comparability)];
+      }))); study.append(details);
+      table(study, ['Whole-procedure scalar measure', 'Value'], [
+        ['Scalar availability', scalar.status], ['Declared denominator · outer folds', scalar.denominator_outer_folds],
+        ...(funded ? [['Mean received cash · USD / declared fold', scalar.mean_cash_received], ['Total observed received cash · USD', scalar.total_observed_cash_received], ['Observed pending cash · USD', scalar.observed_pending_cash]]
+          : [['Mean completed acquisition cost · USD', scalar.mean_acquisition_cost], ['Mean completed acquisition time · calendar days', scalar.mean_calendar_days_to_funded], ['All observed paid fees · USD', scalar.total_observed_paid_fees], ['Completed acquisitions', scalar.completed_acquisitions], ['Censored acquisitions', scalar.censored_acquisitions]])]);
+      if (scalar.interpretation) study.append(node('p', scalar.interpretation));
+      if (scalar.historical_interval) intervalEvidence(study, 'Historical fold-output interval for mean received cash', scalar.historical_interval);
+      const errors = phase.forecast_errors || {}, calibration = phase.calibration || {};
+      const forecastDetail = node('details'); forecastDetail.append(node('summary', 'Forecast versus actual and payout calibration'));
+      table(forecastDetail, ['Diagnostic', 'Saved observation'], [
+        ['Error availability', errors.status], ['Comparable unique-policy folds', errors.paired_fold_count], ['Mean actual minus forecast · USD', errors.mean_error],
+        ['Mean absolute error · USD', errors.mean_absolute_error], ['Root mean squared error · USD', errors.root_mean_squared_error],
+        ['Payout calibration evidence', calibration.status], ['Observed probability pairs / required blocks', `${calibration.historical_block_count} / ${calibration.minimum_blocks}`],
+        ['Brier score · descriptive', calibration.brier_score], ['Observed receipt frequency · descriptive', calibration.observed_rate], ['Mean predicted receipt probability · descriptive', calibration.predicted_rate]]);
+      forecastDetail.append(node('p', calibration.reason));
+      if (errors.historical_interval) intervalEvidence(forecastDetail, 'Historical interval for forecast errors', errors.historical_interval);
+      study.append(forecastDetail);
+      const stability = phase.stability || {}, changes = node('details'); changes.append(node('summary', `Policy stability · ${stability.distinct_policies ?? 'unknown'} distinct logical policies`));
+      table(changes, ['Fold transition', 'Family overlap · Jaccard', 'Signal changed', 'Sizing changed', 'Profile changed'], (stability.transitions || []).map(row => [
+        `${row.from_fold} → ${row.to_fold}`, row.family_jaccard, valueText(row.signal_changed), valueText(row.sizing_changed), valueText(row.profile_changed)]));
+      changes.append(node('p', stability.interpretation)); study.append(changes);
+      const comparisons = node('section', undefined, 'robust-baseline-comparisons'); comparisons.append(node('h4', 'Paired simple-reference comparisons'));
+      if (!phase.baseline_comparisons?.length) comparisons.append(node('p', 'No baseline was predeclared for this phase. There is no saved baseline comparison or evidence of improvement over a simple alternative.'));
+      for (const comparison of phase.baseline_comparisons || []) {
+        comparisons.append(node('h5', comparison.baseline_id), node('p', `${comparison.decision} · ${comparison.paired_outer_folds} paired of ${comparison.declared_outer_folds} declared folds · ${comparison.required ? 'required' : 'optional'} reference.`));
+        table(comparisons, ['Paired comparison', 'Value'], [['Mean improvement · USD', comparison.paired_mean_improvement], ['Declared minimum mean improvement · USD', comparison.minimum_mean_improvement], ['Metric', words(comparison.metric)]]);
+        table(comparisons, ['Outer fold', funded ? 'Selected received cash · USD' : 'Selected paid fees · USD', funded ? 'Reference received cash · USD' : 'Reference paid fees · USD', 'Improvement · USD', ...(funded ? [] : ['Calendar days saved'])], comparison.pairs.map(row => [row.outer_fold, row.selected, row.baseline, row.improvement, ...(funded ? [] : [row.calendar_days_improvement])]), `robust-baseline-pairs-${phaseName}-${comparison.baseline_id.replace(/[^a-z0-9]+/gi, '-')}`);
+        list(comparisons, comparison.exclusions.map(row => `Fold ${row.outer_fold}: ${reason(row.reason)}`));
+        intervalEvidence(comparisons, 'Paired historical fold interval', comparison.historical_interval);
+        comparisons.append(node('p', comparison.interpretation));
+      }
+      study.append(comparisons); section.append(study);
+    }
+    table(section, ['Uncertainty component', 'Interpretation'], Object.entries(reliability.uncertainty_components || {}).map(([key, value]) => [words(key), value]));
+    list(section, reliability.limitations); parent.append(section);
+  }
+  function intervalEvidence(parent, title, evidence) {
+    if (!evidence) return;
+    parent.append(node('p', `${title}: ${evidence.status}. ${evidence.interval ? `${evidence.interval[0]} to ${evidence.interval[1]} USD` : 'Interval unavailable'}. ${evidence.observed_outer_blocks ?? 0} observed outer blocks.`));
+    if (evidence.reason || evidence.interpretation) parent.append(node('p', evidence.reason || evidence.interpretation));
+  }
+  function baselineControls(parent, defaults, changed) {
+    const section = node('details'); section.id = 'robust-baselines-configure';
+    section.append(node('summary', '7. Predeclared simple baselines'));
+    section.append(node('p', 'Preview the saved strategy configurations, then choose reference policies before running. References use a declared configuration and the matching phase study’s profile, costs, calendar and receipt assumptions. A reference may fail edge qualification; it remains a comparison, never an admitted optimized policy.'));
+    const notice = node('p', 'Preview source configurations to add a reference.'), rows = node('div'), actions = node('div', undefined, 'robust-actions');
+    const add = button(actions, 'Add simple baseline', 'robust-baseline-add'), refresh = button(actions, 'Refresh reference choices', 'robust-baseline-refresh'); add.disabled = true;
+    section.append(notice, rows, actions); parent.append(section);
+    let plan = null, serial = 0;
+    const references = new Map(), encodedProfile = profile => JSON.stringify(profile, Object.keys(profile).sort());
+    function options(input, choices, initial = false) {
+      const previous = input.value; input.replaceChildren();
+      for (const [value, title] of choices) { const option = node('option', title); option.value = value; input.append(option); }
+      if (choices.some(([value]) => value === previous)) { input.value = previous; input.dataset.unavailable = 'false'; }
+      else if (!initial && (previous || input.dataset.unavailable === 'true')) { const missing = node('option', 'Previous selection is unavailable; choose again'); missing.value = ''; input.prepend(missing); input.value = ''; input.dataset.unavailable = 'true'; }
+      else if (!choices.length) { const empty = node('option', 'Enable a phase study and refresh choices'); empty.value = ''; input.append(empty); }
+    }
+    function profiles(row, initial = false) {
+      const study = plan?.economic_studies?.find(study => study.phase === row.phase.value);
+      options(row.profile, (study?.profiles || []).map(profile => [encodedProfile(profile), `${profile.profile_id} · ${profile.rule_version}${row.phase.value === 'evaluation' ? ` · fees $${profile.evaluation_price} + $${profile.activation_fee}` : ''}`]), initial);
+    }
+    function updateRow(row, initial = false) {
+      options(row.source, (plan?.candidates || []).map(candidate => [candidate.id, candidateLabel(candidate)]), initial);
+      options(row.phase, (plan?.economic_studies || []).map(study => [study.phase, phaseLabel(study.phase)]), initial);
+      profiles(row, initial);
+    }
+    add.onclick = () => {
+      if (!plan) return;
+      const number = ++serial, entry = node('fieldset'); entry.append(node('legend', `Reference ${number}`));
+      const grid = node('div', undefined, 'prop-fields'); entry.append(grid); rows.append(entry);
+      const prefix = `robust-baseline-${number}-`;
+      const id = field(grid, 'Readable reference ID · unique within this research', prefix + 'id', `${defaults.baseline?.id || 'One MNQ reference'}${number > 1 ? ` ${number}` : ''}`, 'text'); id.maxLength = 120; id.required = false;
+      const phase = select(grid, 'Independent phase', prefix + 'phase', []), source = select(grid, 'Declared signal configuration', prefix + 'source', []);
+      const profile = select(grid, 'Declared phase profile', prefix + 'profile', []), quantity = field(grid, 'Fixed MNQ quantity', prefix + 'micros', defaults.baseline?.policy?.micros || 1); quantity.min = 1; quantity.max = 60; quantity.step = 1;
+      const label = node('label', undefined, 'robust-source-choice'), required = node('input'); required.type = 'checkbox'; required.id = prefix + 'required'; required.checked = defaults.baseline?.required !== false;
+      label.append(required, node('span', 'Required reference · missing evidence blocks a supported comparison')); entry.append(label);
+      entry.append(node('p', 'Fixed quantities may be outside the optimizer quantity grid. Native dollar-risk or state-dependent references require a strategy rerun and are currently unavailable.'));
+      const row = {id, phase, source, profile, quantity, required}; references.set(number, row); updateRow(row, true);
+      phase.onchange = () => { profiles(row, true); changed(); }; required.onchange = changed;
+      button(entry, 'Remove reference', prefix + 'remove').onclick = () => { references.delete(number); entry.remove(); changed(); };
+      changed();
+    };
+    return {
+      refresh,
+      update(next) {
+        plan = next; add.disabled = !plan.candidates?.length || !plan.economic_studies?.length;
+        notice.textContent = add.disabled ? 'Enable an independent economic study and preview its source configurations to add a reference.'
+          : `${plan.candidates.length} declared signal configurations are available. Reference edits require a new full preview before saving.`;
+        for (const row of references.values()) updateRow(row);
+      },
+      read() {
+        const result = [];
+        for (const row of references.values()) {
+          const id = row.id.value.trim(), micros = Number(row.quantity.value);
+          if (!id || !row.source.value || !row.phase.value || !row.profile.value) throw Error('Complete each baseline ID, signal configuration, phase and profile. Refresh reference choices after changing sources or studies.');
+          if (!Number.isInteger(micros) || micros < 1 || micros > (row.phase.value === 'evaluation' ? 60 : 40)) throw Error('Baseline quantities must be supported whole MNQ counts.');
+          result.push({id, phase: row.phase.value, source_configuration_id: row.source.value, profile: JSON.parse(row.profile.value), policy: {micros}, required: row.required.checked});
+        }
+        if (new Set(result.map(row => row.id)).size !== result.length) throw Error('Each baseline needs a unique readable reference ID.');
+        return result;
+      },
+    };
+  }
+  function reliabilityControls(parent, defaults) {
+    const section = node('details'); section.id = 'robust-reliability-configure';
+    section.append(node('summary', '8. Outer reliability · declared evidence requirements'));
+    section.append(node('p', 'These requirements apply when economic studies are enabled. They are user-declared evidence limits, not universal statistical certification. Each outer fold is one unit; tied policies are alternatives and do not create additional independent observations.'));
+    const grid = node('div', undefined, 'prop-fields'); section.append(grid); parent.append(section);
+    const inputs = {}, labels = {
+      minimum_outer_blocks: 'Minimum outer blocks', minimum_complete_fold_fraction: 'Required complete fold fraction · 0–1', confidence_level: 'Historical confidence level · 0–1',
+      bootstrap_block_folds: 'Historical resampling block · outer folds', historical_bootstrap_replicates: 'Historical bootstrap repetitions', historical_bootstrap_seed: 'Historical bootstrap seed',
+      minimum_calibration_blocks: 'Minimum blocks for payout-probability calibration', minimum_baseline_mean_improvement: 'Required mean improvement over a baseline · USD',
+    };
+    for (const [key, label] of Object.entries(labels)) {
+      if (defaults.reliability?.[key] === undefined) continue;
+      const input = field(grid, label, `robust-reliability-${key}`, defaults.reliability[key]); input.step = ['minimum_complete_fold_fraction', 'confidence_level', 'minimum_baseline_mean_improvement'].includes(key) ? 'any' : '1';
+      if (key !== 'minimum_baseline_mean_improvement') input.min = 0;
+      if (['minimum_complete_fold_fraction', 'confidence_level'].includes(key)) input.max = 1;
+      inputs[key] = input;
+    }
+    const action = select(section, 'Predeclared action when no policy is selected', 'robust-reliability-abstention_action', [
+      ['unmeasured', 'Unmeasured · do not assign a cash outcome'], ['no_account_no_fee', 'No account and no fee · explicitly zero cash']]);
+    action.value = defaults.reliability?.abstention_action || 'unmeasured';
+    const label = node('label', undefined, 'robust-source-choice'), required = node('input'); required.type = 'checkbox'; required.id = 'robust-reliability-require_baseline_for_recommendation'; required.checked = defaults.reliability?.require_baseline_for_recommendation !== false;
+    label.append(required, node('span', 'Require baseline evidence before a future recommendation can be supported')); section.append(label);
+    section.append(node('p', 'This increment assesses historical evidence only. Final holdout and deployment recommendation controls are not available. Monte Carlo precision, historical sampling uncertainty, and model/rule/execution uncertainty remain separate.'));
+    return () => ({...defaults.reliability, ...Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, key === 'minimum_baseline_mean_improvement' ? input.value : Number(input.value)])),
+      abstention_action: action.value, require_baseline_for_recommendation: required.checked});
   }
   function showChronologicalFamily(parent, fold) {
     const chronological = fold.chronological_replay;
@@ -380,14 +601,26 @@
     if (plan.economic_plan?.enabled) {
       const economic = plan.economic_plan;
       parent.append(node('h4', 'Predeclared independent economic studies'));
-      parent.append(node('p', `Work before qualification is known: up to ${economic.estimated_training_backtests} training backtests and ${economic.estimated_outer_backtests} outer backtests, included in the total. Up to ${economic.maximum_phase_candidates} phase candidates enter the saved forecast procedure; actual membership uses all qualified configurations.`));
+      parent.append(node('p', `Work before qualification is known: up to ${economic.estimated_training_backtests} training backtests and ${economic.estimated_outer_backtests} outer backtests, included in the total. Up to ${economic.maximum_phase_candidates} phase forecasts, including any declared references, enter the saved procedure; optimized membership uses all qualified configurations.`));
       table(parent, ['Independent phase', 'Profiles', 'Fixed policies', 'Maximum candidates per fold', 'Saved selection rule'], economic.studies.map(study => [
         phaseLabel(study.phase), study.profile_count, study.policy_count, study.max_candidates_per_fold, selectionLabel(study.selector)]), 'robust-economic-plan');
       if (economic.resolved_folds?.length) table(parent, ['Outer fold / phase', 'Forecast start', 'Outer cutoff · exclusive', 'Forecast horizon · calendar days', 'Calendar version / timezone', 'Declared closures'], economic.resolved_folds.map(item => [
         `${item.outer_fold_index} / ${words(item.phase)}`, valueText(item.calendar.start_dates), item.cutoff_date_exclusive,
         item.horizon_calendar_days ?? 'Evaluation acquisition guard', `${item.calendar.version} / ${item.calendar.timezone}`, valueText(item.calendar.closures)]), 'robust-economic-dates');
       for (const study of plan.economic_studies || []) showStudy(parent, study);
+      if (economic.baseline_count) parent.append(node('p', `${economic.baseline_count} predeclared simple references add up to ${economic.estimated_baseline_training_backtests} training and ${economic.estimated_baseline_outer_backtests} outer backtests, already included in the work total. They are evaluated separately from optimized policy membership.`));
+      if (economic.maximum_historical_refits) parent.append(node('p', `Conservative expected-cash work: up to ${economic.maximum_historical_refits} historical re-estimations, ${economic.maximum_historical_inner_paths} account paths and ${economic.maximum_historical_path_calendar_days} path calendar-days. These computational repetitions do not add independent historical evidence.`));
       list(parent, economic.limitations);
+    }
+    if (plan.baselines?.length) {
+      const candidates = new Map(plan.candidates.map(candidate => [candidate.id, candidate]));
+      table(parent, ['Predeclared reference', 'Phase', 'Signal configuration', 'Profile / fixed MNQ', 'Required'], plan.baselines.map(reference => [
+        reference.id, words(reference.phase), candidateLabel(candidates.get(reference.source_configuration_id) || {}),
+        `${reference.profile.profile_id} / ${reference.policy.micros}`, reference.required ? 'Yes' : 'No']), 'robust-baseline-plan');
+    }
+    if (plan.reliability) {
+      const settings = node('details'); settings.append(node('summary', 'Saved outer reliability requirements'));
+      table(settings, ['Requirement', 'Declared value'], Object.entries(plan.reliability).map(([key, value]) => [words(key), valueText(value)])); parent.append(settings);
     }
     if (plan.execution_scenarios?.length) {
       parent.append(node('p', `${plan.execution_scenarios.length} execution scenarios are included in this work count. Every declared scenario gates qualification.`));
@@ -421,12 +654,14 @@
     table(requirements, ['Requirement', 'Saved value'], Object.entries(record.declaration.qualification).map(([key, value]) => [words(key), Array.isArray(value) ? value.join(', ') || 'None declared' : value === null ? 'Not imposed' : value]));
     parent.append(requirements);
     for (const study of record.declaration.economic_studies || []) showStudy(parent, study);
+    showReliability(parent, result.reliability);
     if (economic && result.event_journal?.length) {
       const journal = node('details'); journal.id = 'robust-research-journal'; journal.append(node('summary', 'Ordered evidence: frozen selection before outer strategy execution'));
       journal.append(node('p', 'The saved sequence records the selection seal before the corresponding outer-access reservation and strategy execution. Inventory inspection and previous source access may already have occurred; this does not certify untouched data.'));
-      table(journal, ['Saved sequence', 'Event', 'Step', 'Recorded time · UTC', 'Selection seal SHA-256', 'Frozen policy SHA-256'], result.event_journal.map(event => [
-        event.sequence, event.kind === 'selection_seal' ? 'Frozen selection sealed' : 'Outer access reserved before strategy execution', event.step_key,
-        valueText(event.created_at), event.selection_seal_sha256, valueText(event.frozen_package_sha256)]), 'robust-event-journal');
+      if (record.declaration.baselines?.length) journal.append(node('p', 'Both the complete selected-family seal and the predeclared reference seal must precede every selected or reference outer execution.'));
+      table(journal, ['Saved sequence', 'Event', 'Step', 'Recorded time · UTC', 'Selection / reference seal SHA-256', 'Frozen policy SHA-256'], result.event_journal.map(event => [
+        event.sequence, event.kind === 'selection_seal' ? 'Frozen selection sealed' : event.kind === 'baseline_seal' ? 'Predeclared references sealed' : event.access_role === 'baseline_outer_test' ? 'Reference outer access reserved' : 'Outer access reserved before strategy execution', event.step_key,
+        valueText(event.created_at), event.selection_seal_sha256 || event.reference_seal_sha256, valueText(event.frozen_package_sha256)]), 'robust-event-journal');
       parent.append(journal);
     }
     const candidates = new Map(record.plan.candidates.map(item => [item.id, item]));
@@ -502,6 +737,7 @@
       }
       showEconomicSelection(section, fold);
       showChronologicalFamily(section, fold);
+      showBaselines(section, fold);
       parent.append(section);
     }
     parent.append(node('h3', 'Next decision'));
@@ -509,7 +745,7 @@
     parent.append(node('p', `Readiness: ${result.readiness?.status || 'INCOMPLETE'}. No deployment policy is recommended by this increment.`));
     if (includeDownloads) {
       const downloads = node('div', undefined, 'robust-actions');
-      for (const file of ['report.json', 'analysis.zip', 'qualification.csv', ...(economic ? ['economic_selection.json', 'chronological_replay.json', 'research_journal.json'] : [])]) downloads.append(link(`Download ${file}`, `${base}/${record.campaign_id}/exports/${file}`));
+      for (const file of ['report.json', 'analysis.zip', 'qualification.csv', ...(economic ? ['economic_selection.json', 'chronological_replay.json', 'research_journal.json'] : []), ...(result.reliability ? ['baseline_results.json', 'reliability.json', 'reliability_folds.csv', 'baseline_comparison.csv'] : [])]) downloads.append(link(`Download ${file}`, `${base}/${record.campaign_id}/exports/${file}`));
       parent.append(downloads);
     }
     if (record.analysis_id) parent.append(link('Open the saved analysis report', `#backtests/prop/job/${record.analysis_id}`));
@@ -529,6 +765,7 @@
     const downloads = node('div', undefined, 'robust-actions');
     for (const [name, path] of [['Report JSON', 'downloads/report.json'], ['Analysis ZIP', 'downloads/analysis.zip'], ['Qualification CSV', 'files/qualification.csv']]) downloads.append(link(name, `/api/prop-analyses/${report.id}/${path}`));
     if (economic) for (const file of ['economic_selection.json', 'chronological_replay.json', 'research_journal.json']) downloads.append(link(`Download ${file}`, `/api/prop-analyses/${report.id}/files/${file}`));
+    if (report.calculations.reliability) for (const file of ['baseline_results.json', 'reliability.json', 'reliability_folds.csv', 'baseline_comparison.csv']) downloads.append(link(`Download ${file}`, `/api/prop-analyses/${report.id}/files/${file}`));
     results.append(downloads);
   }
   async function configure(source) {
@@ -697,6 +934,8 @@
     }
     regimesSection.append(node('p', 'Missing calibration observations and unavailable warm-up features stay visible as unknown evidence. Required conditions with insufficient evidence block qualification.'));
     const readEconomicStudies = economicControls(form, defaults, invalidate);
+    const baselines = baselineControls(form, defaults, invalidate);
+    const readReliability = reliabilityControls(form, defaults);
     const actions = node('div', undefined, 'robust-actions'); form.append(actions);
     const preview = button(actions, 'Preview dates and source checks', 'robust-preview');
     const run = button(actions, 'Save and run inner qualification', 'robust-run'); run.disabled = true;
@@ -707,7 +946,7 @@
     function invalidate() { revision++; checked = null; run.disabled = true; status.textContent = 'Settings changed. Preview the plan before running.'; planView.replaceChildren(); }
     form.addEventListener('input', event => { if (event.target !== query) invalidate(); });
     form.addEventListener('change', event => { if (event.target !== kind && event.target.type !== 'checkbox') invalidate(); });
-    function body() {
+    function body(includeBaselines = true) {
       if (!selected.size) throw Error('Choose at least one saved source.');
       const qualification = {...defaults.qualification};
       for (const [key, input] of Object.entries(qualificationInputs)) qualification[key] = moneyFields.has(key) ? input.value : Array.isArray(defaults.qualification[key])
@@ -720,10 +959,12 @@
       qualification.required_regimes = [...regimeInputs].filter(([, inputs]) => inputs.required.checked).map(([key]) => key);
       const regimes = {...defaults.regimes, enabled_names: [...regimeInputs].filter(([, inputs]) => inputs.enabled.checked).map(([key]) => key)};
       for (const [key, input] of Object.entries(calibrationInputs)) regimes[key] = typeof defaults.regimes[key] === 'number' ? Number(input.value) : input.value;
+      const economic_studies = readEconomicStudies();
       return {campaign_id: crypto.randomUUID().replaceAll('-', ''), name: name.value.trim(), source_backtest_id: source.id,
         sources: [...selected.values()].map(entry => ({[entry.kind]: entry.id, sizes: [1]})),
         folds: {...Object.fromEntries(Object.entries(foldInputs).map(([key, input]) => [key, Number(input.value)])), mode: mode.value}, qualification,
-        execution_scenarios, regimes, economic_studies: readEconomicStudies()};
+        execution_scenarios, regimes, economic_studies, baselines: includeBaselines ? baselines.read() : [],
+        reliability: economic_studies.length ? readReliability() : null};
     }
     async function refreshHistory() {
       try {
@@ -755,20 +996,26 @@
         await new Promise(resolve => setTimeout(resolve, 750));
       }
     }
-    preview.onclick = async () => {
-      if (busy || !form.reportValidity()) return;
+    async function inspect(includeBaselines = true) {
+      if (busy || (includeBaselines && !form.reportValidity())) return;
       busy = true; preview.disabled = true; run.disabled = true; const versionAtCheck = revision;
       status.textContent = 'Checking sources and deriving session boundaries…';
       try {
-        const request = body(), plan = await api(`${base}/preview`, request);
+        const request = body(includeBaselines), plan = await api(`${base}/preview`, request);
         if (!current() || revision !== versionAtCheck) return;
+        baselines.update(plan); showPlan(planView, plan);
+        if (!includeBaselines) {
+          checked = null; status.textContent = 'Reference choices refreshed. Complete the baseline definitions, then preview the full research plan before saving.'; return;
+        }
         checked = {...request, confirmed_backtest_count: plan.estimated_backtests,
-          confirmed_economic_candidate_count: plan.economic_plan?.maximum_phase_candidates || null}; showPlan(planView, plan); run.disabled = false;
+          confirmed_economic_candidate_count: plan.economic_plan?.maximum_phase_candidates || null}; run.disabled = false;
         run.textContent = request.economic_studies.length ? `Save and run research · up to ${plan.estimated_backtests} backtests` : `Save and run ${plan.estimated_backtests} inner backtests`;
         status.textContent = request.economic_studies.length ? 'Source checks passed. Review the dates, phase membership and frozen selection procedure, then run.' : 'Source checks passed. Review the dates and qualification requirements, then run.';
       } catch (error) { if (current()) status.textContent = `Plan needs attention: ${error.message}`; }
       finally { busy = false; if (current()) preview.disabled = false; }
-    };
+    }
+    preview.onclick = () => inspect();
+    baselines.refresh.onclick = () => inspect(false);
     run.onclick = async () => {
       if (busy || !checked) return;
       if (checked.confirmed_economic_candidate_count > 128 && !window.confirm(`Run all ${checked.confirmed_economic_candidate_count} predeclared phase candidates across the folds? This includes up to ${checked.confirmed_backtest_count} native backtest tasks. Qualification may reduce subsequent work; no candidates will be silently removed.`)) {

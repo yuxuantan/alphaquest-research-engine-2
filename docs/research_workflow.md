@@ -107,8 +107,8 @@ reject. Previously accessed development data is disclosed, not called untouched.
 
 With Economic validation disabled, the run stops at inner qualification and no
 outer test is launched. With it enabled, the following stage runs from the same
-saved declaration. Overall readiness remains **INCOMPLETE** while consolidated
-reliability, final procedure/holdout and forward monitoring are pending on the
+saved declaration. Overall readiness remains **INCOMPLETE** while final
+procedure/holdout verification, native account-state reruns and forward monitoring are pending on the
 [active checklist](robust_research_plan.md). No winner is forced.
 
 ### Nested economic validation
@@ -163,7 +163,65 @@ Download `economic_selection.json`, `chronological_replay.json`,
 `research_journal.json` and the normal ZIP. Child phase reports include
 `provider_rules.json`, full candidate membership, source captures and sizing
 traces. Reopening uses saved artifacts. If qualification admits nothing, the
-report saves an abstention seal and creates no outer outcomes.
+report saves an abstention seal and creates no selected-policy outer outcomes.
+Separately declared references remain measurable as described below.
+
+### Reliability and predeclared references
+
+Declare reference policies before starting the nested campaign. Each names a
+signal configuration from the declared candidate set, a same-phase account
+profile and a fixed quantity/policy. Its normal training forecast and frozen
+package are sealed before any selected or reference outer execution. A reference
+is still measured if it fails edge qualification; it remains explicitly
+ineligible for recommendation. References do not enter the optimizer's selection
+set. Native dynamic references require a real strategy rerun and currently reject.
+
+The report's reliability section follows the changing selection procedure across
+all declared outer folds. It shows coverage, matched forecast errors, actual
+receipts or acquisition fees, censoring, reference differences and changes in
+signal/sizing/profile choice. A retained family is one historical fold with
+several alternatives. Its members remain inspectable without implicit weights,
+an aggregate return or an outcome-selected winner. Missing forecasts do not erase
+valid observed economics. Missing outer outcomes stay missing. By default an
+abstention has unmeasured economics; the optional predeclared **No account, no
+fee** action explicitly assigns zero cash and fees to such a decision.
+
+Funded comparisons pair the same profile, costs, receipt convention, horizon and
+historical fold. Pending cash and equity are not receipts. Evaluation expected
+eventual acquisition cost/time is not compared as though it were the same
+estimand as a censored finite-horizon attempt. Paid fees remain in totals, but
+acquisition means require every action to finish. Completed-only reference pairs
+are descriptive; incomplete pairings cannot establish a threshold result.
+
+Reliability defaults require five outer blocks and complete fold coverage;
+payout calibration requires twenty comparable unique-action blocks. These are
+declared research assumptions, not universal certification. The circular
+fold-output bootstrap requires at least two blocks and five expected draws in
+each tail at the declared confidence. It does not refit the procedure and cannot
+establish independent historical blocks. Increasing Monte Carlo paths does not
+increase historical evidence. Shared regimes and overlapping training windows
+remain limitations even when descriptive thresholds are met.
+
+Funded selection additionally offers **Highest historical lower bound on expected
+trader cash**. This explicit objective resamples verified historical session
+blocks, re-estimates mean cash using the existing funded account owner, and
+selects a nominal lower percentile of those means. It retains every declared
+candidate in its family-tail adjustment. Session/block counts, tail resolution,
+inner paths per start cohort and a declared Monte Carlo standard-error ceiling
+must pass; otherwise selection is insufficient. Defaults require 60 observed
+sessions and 12 blocks, 200 history replicates, 64 paths per replicate and a $25
+standard-error ceiling. This estimates historical mean sensitivity, not a single
+account's payout p10, a guaranteed future lower bound, or mean minus a nominal
+Monte Carlo error bar. Ordinary public native phase searches without a verified
+observed-session inventory report insufficient history; exporter coverage remains
+a disclosed exporter assumption.
+
+Download `reliability.json`, `reliability_folds.csv`, `baseline_comparison.csv`
+and `baseline_results.json` from the same durable report. Conservative child
+reports also capture `historical_mean_cash.json`, including exact historical
+indices, seeds and schedule hashes. All reports remain research evidence;
+`production_qualified` stays false. Final procedure freeze, feasible holdout,
+current development selection and monitoring remain separate unfinished work.
 
 Execution scenarios change the existing execution engine's actual fills and
 strategy callbacks. Additional commission is per contract per side; market

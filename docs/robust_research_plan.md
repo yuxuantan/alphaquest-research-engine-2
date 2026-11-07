@@ -68,7 +68,8 @@ are split into coherent commits and pushed at least every one or two commits.
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | implemented for supported native fixed-path policies; normal API/browser evidence and focused regression qualified; no provider/live parity claim |
 | Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | pending; current native risk policies reject rather than substitute a fixed source path |
-| M3b: reliability and final procedure | M3a; predeclared baseline/rules/scenarios/access history | Outer aggregate, uncertainty, baseline, complete procedure freeze/holdout/final rerun; permit no qualified candidate | Future poisoning, holdout access guards, limited calibration, uncertainty semantics, source/code identity | pending |
+| M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
+| M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
 | M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | pending |
 | M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | pending |
@@ -288,3 +289,41 @@ M3b reliability, conservative historical-mean/baseline evidence, full-procedure
 freeze/final holdout/development rerun, native state-aware execution, optional
 finite-horizon lifecycle comparison, forward monitoring and M6 remain pending.
 The whole requested goal remains **incomplete**.
+
+### M3b1 references, historical mean and consolidated reliability
+
+8 November 2026: predeclared references now use normal full-training backtests,
+independent phase reports and chronological outer replay. Their separate sealed
+authority permits measurement after failed edge qualification without granting
+recommendation eligibility. All selected/reference packages are sealed before
+any outer execution. Reference identity, source/code drift, cancellation/resume,
+public context injection, native dynamic-source rejection and deletion protection
+are covered by the normal API journey.
+
+`research_reliability.py` retains every declared fold and family member, separates
+known actual economics from missing forecasts, preserves censored fees and
+discloses missing observations. It reports matched errors, calibration, stable
+logical policy identities and predeclared paired references without choosing a
+new winner. Historical output intervals use explicit block assumptions, tail
+resolution and exact integer inverse-CDF ranks; they do not refit the procedure
+or establish independent historical blocks. Optional conservative Funded
+selection uses historical session-block resampling of the fitted expected cash
+mean inside the existing owner, with complete-family tail adjustment and separate
+inner Monte Carlo precision requirements.
+
+The [saved normal-product evidence](prop_simulation_review.md#predeclared-references-and-consolidated-reliability--2026-11-08)
+includes positive $1,500-versus-$0 reference comparisons, unresolved/censored
+references, a conservative exact family and both explicit abstention conventions.
+Final evidence matches engine
+`1f3f48e652be0fe1e4cd06eb0977850c02fddce93b4381d8c4a9e2c626baed27`:
+90 API captures and 49 browser downloads independently rehashed; original source
+artifacts unchanged; no persistent servers. Final pure/contract checks: 116 pass.
+Final affected API: four pass; preceding full integration API: twenty pass.
+Final browser: four pass; preceding browser regression: nine pass. Existing
+phase/campaign/profile/replay regression: 107 pass. The review records exact
+scope, earlier failures, commands, IDs, expected values and immutable snapshots.
+These overlapping gates do not constitute full-suite or provider qualification.
+
+M3b2 full-procedure verification/current development selection, native controlled
+execution and forecasting, M4/M5/M6 remain **incomplete**. The native primitive
+and execution-hook designs staged outside the repository are not implementation.

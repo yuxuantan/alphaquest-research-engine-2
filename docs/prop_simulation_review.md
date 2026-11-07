@@ -7661,3 +7661,202 @@ Exact regression commands (use fresh temporary data roots for reruns):
 .venv/bin/python -m pytest -q tests/test_robust_research_browser.py \
   tests/test_research_campaigns_browser.py
 ```
+
+
+## Predeclared references and consolidated reliability — 2026-11-08
+
+### M3b1 normal API evidence: predeclared references and outer reliability (2026-11-08)
+
+This increment extends the existing IS report → robust configuration → source/plan check → normal AnalysisStore child reports → frozen outer backtests → durable research report workflow. References have explicit `baseline_train` and `baseline_outer_test` roles. They never acquire qualified membership or recommendation eligibility merely because they are measured. The coordinator saves the complete selected-family seal and all reference packages/seal before reserving any selected or reference outer strategy execution.
+
+The final immutable normal-product library is `artifacts/reliability-baselines-m3b1-20261108/api-final/state`. Its `evidence.json` records 90 captured outputs and SHA-256 values. Before/after engine identity is `1f3f48e652be0fe1e4cd06eb0977850c02fddce93b4381d8c4a9e2c626baed27`. The two original IS sources' 16 artifacts remained byte-identical. Manual OOS history remained at zero. This history was already accessed; this demonstration makes no untouched-holdout claim.
+
+To inspect the saved normal product (a temporary server; Ctrl-C shuts it down):
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/reliability-baselines-m3b1-20261108/api-final/state" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8042
+```
+
+Open `http://127.0.0.1:8042/#backtests/report/3dec009470f94cca89dc79a8d8aec9cc`. Expand the existing robust research panel and open either named saved research, or open the ordinary analysis links directly:
+
+- Funded reference report: `http://127.0.0.1:8042/#backtests/prop/job/21e364d2587c4a1493638f0769c1dd8e`; campaign `9213a3c8711c4003bc52b4b54d5f9aaf`.
+- Evaluation abstention/reference report: `http://127.0.0.1:8042/#backtests/prop/job/e0fe21002292495f914f13ee630e6609`; campaign `32f6cd32b3324666a4c42fd6535db66b`.
+
+The inputs are explicitly synthetic ordinary uploaded OHLCV (`SYNTHETIC-observed-session-source.csv`). Four bars on each observed session give the one-MNQ consecutive-green strategies independently expected $300/session (one-green entry) and $100/session (two-green entry). The example has rolling eight-session training, two-session outer windows, two-session inner training/validation, and one-session purge plus one-session embargo. All calendar evidence comes from actual source sessions. This arithmetic API example explicitly lowers the required outer and calibration blocks to two and uses 400 historical replicates; those are demonstration assumptions, not recommended evidence thresholds. The browser example below retains the default five/twenty block requirements.
+
+For Funded, the declared minimum inner mean is $200 and the neighbor gate is explicitly disabled for this narrow arithmetic example. Only the $300 configuration qualifies. Its declared optimizer sizes are 10/20 MNQ with a saved stable configuration tie policy. The predeclared reference is the failed-edge $100 configuration at one MNQ, outside that optimizer quantity grid. Both two-session outer paths yield $0 trader cash under the modeled payout rules. Expected observations: two historical outer blocks, four distinct outer sessions, one unique selected policy per fold, reference edge `FAIL`, two paired improvements of $0, paired mean $0, descriptive historical interval `[0,0]`, and `THRESHOLD_NOT_MET`. Overall reliability remains `INSUFFICIENT_EVIDENCE`; no future or live qualification is implied by a degenerate historical interval.
+
+For Evaluation, the $1,000 minimum inner mean makes both configurations fail. Expected observations: `NO_QUALIFIED_CONFIGURATION`, no selected policy or selected outer execution, and two unmeasured abstentions. The separately predeclared one-MNQ reference is still saved and measured. Its training acquisition forecast is unresolved; its actual two-session outer replay pays exactly one $30 evaluation fee, does not activate a funded account, and remains censored. Each reference retains `recommendation_eligible:false`. No winner is forced and no acquisition mean is computed from completed-only paths.
+
+Within each fold, inspect the selected/reference normal child links, reference edge status, frozen package and journal sequence, and ordinary outer backtest links. Download `baseline_results.json`, `reliability.json`, `reliability_folds.csv`, `baseline_comparison.csv`, `research_journal.json`, `report.json` or the analysis ZIP using the existing report links. For example:
+
+```sh
+curl -f 'http://127.0.0.1:8042/api/research-campaigns/robust/9213a3c8711c4003bc52b4b54d5f9aaf/exports/reliability.json'
+curl -f 'http://127.0.0.1:8042/api/research-campaigns/robust/32f6cd32b3324666a4c42fd6535db66b/exports/baseline_results.json'
+```
+
+To reproduce a new run through the normal API, copy the saved `funded-reference/declaration.json` (or the Evaluation declaration), replace only `campaign_id` with a new `uuid4().hex`, POST it to `/api/research-campaigns/robust/preview`, review the complete profiles, policies, constraints, costs, calendar and work counts, POST it to `/api/research-campaigns/robust`, then POST `/api/research-campaigns/robust/{campaign_id}/check` and `/run`. The saved source/grid IDs remain valid in this library. Changed numerical engine identities correctly require a new declaration/review rather than launching an incompatible frozen package.
+
+Saved rejection evidence is under each campaign example's `rejections/`: a public caller cannot inject the private reference context, a stale signal configuration ID and malformed reliability threshold reject, and an account-dependent native fixed-dollar reference rejects as unavailable instead of being silently converted to fixed size. The focused suite additionally checks duplicate definitions, bool quantities, workload bounds, altered reference package role/ID/hash/recommendation flags, source/child deletion protection, cancellation after a completed reference child with zero outer access, immutable resume, and report reopening with calculations forbidden.
+
+The prior `api/` and `api-release/` snapshots remain unchanged. The final source uses exact integer inverse-CDF ranks for historical interval bounds, rejects malformed thresholds with HTTP422, and verifies explicit reference non-recommendation authority. `api-gate-final.txt` records four baseline API tests passed in 12.35 seconds on final source, including interval comparison, admission/role boundaries, cancel/resume and durable reopen. The broader unchanged integration paths were checked immediately before the rank repair: `api-gate-release.txt` records 20 tests passed in 45.21 seconds (`test_robust_research_api.py`, `test_robust_economic_api.py`, `test_robust_baselines_api.py`). Independent rank-boundary tests are in the final root pure gate. Separate helper tests cover conservative metric selection and explicit reference authority. The browser evidence covers positive $1,500-versus-$0 comparisons and conservative historical-mean behavior. Final full-procedure freeze/holdout access and native account-state strategy reruns remain subsequent work. No persistent server was started for API publication; TestClient lifespan shut down both normal app instances.
+
+### Browser user journey and expected observations
+
+The four-case final browser gate passed in 98.88 seconds after the malformed-input, reference-admission and exact percentile-rank boundary repairs. The preceding release gate passed in 98.99 seconds and remains preserved in `browser-release`. The earlier four-case gate passed in 97.32 seconds and remains preserved in `browser-final`. The first run (one fixture assertion failure, three passes in 102.47 seconds) remains preserved; its erroneous `summary.total_trades` test assertion was corrected to the native `summary.trades_taken` field. That first fixture correction required no production Python change. The browser tests use actual native DatasetStore / RunStore sources, existing prop configuration and ordinary AnalysisStore results. The calculations and journals are product outputs; independent arithmetic expectations remain in the test module.
+
+#### Reference comparison through the existing report
+
+1. Open the saved **SYNTHETIC dated phase arithmetic** IS backtest. Choose **Configure prop analysis → Nested research → Configure nested research**.
+2. Include the saved native VWAP source on the same dataset. The anchor is `consecutive_green_hold`, green count 1 / hold 1 minute / one original NQ, with zero source commission and slippage. Four synthetic bars per weekday produce $3,000 per original NQ trade, or $300/MNQ. The VWAP source has no opening-range setup on these noon-Chicago bars, hence zero trades; it supplies meaningful multi-strategy insufficient-evidence admission, not a fabricated competing edge.
+3. Set rolling outer train/test **10/7 sessions**, inner train/validation **2/2**, purge 1, embargo 0, minimum inner/outer folds 2/2. Qualification: minimum six validation sessions and trades, minimum one trade per inner fold, one-session bootstrap blocks, **zero required numeric parameter neighbors** (different strategies are not parameter neighbors).
+4. Enable only **Funded**, Apex 50K EOD, fixed quantity **3 MNQ**, mean received-cash selector, receipt delay 2 calendar days. Advanced: 64 forecast paths and one-weekday sampling blocks. Keep the full captured calendar, rules, costs and seeds visible in preview.
+5. Expand **Predeclared simple baselines**. Add is disabled until **Preview dates and source checks** expands the declared sources. After that first preview, add `One MNQ same-signal reference`, choose the green-count-1 signal configuration, Funded profile, fixed **1 MNQ**, required. Adding/editing the reference disables Save until a fresh complete preview. The baseline may be outside the optimizer quantity list; it remains an explicitly declared comparison.
+6. Keep **Outer reliability** defaults: five required outer blocks, complete fold fraction 1, confidence .95, historical fold block 1, 1,000 bootstrap repetitions/seed 137, 20 calibration blocks, improvement threshold 0, required baseline evidence, unmeasured abstention. These are research assumptions, not universal certification.
+7. Preview the full final declaration, reference membership and work totals: 36 worst-case backtests (24 inner + 6 training + 6 outer) and 6 phase forecasts including 2 references. Actual qualification can reduce that work. **Save and run research** retains the full selected-family seal and all-reference seal before each selected/reference outer-access reservation. Source inventory access has already occurred; the journal does not certify previously untouched data.
+
+Expected observations:
+
+- Two outer folds: Jan 20–28 and Jan 29–Feb 6, exclusive cutoffs Jan 29 and Feb 7. Green strategy PASS; native VWAP INSUFFICIENT_EVIDENCE with zero validation trades. Only the qualified signal enters the optimized study.
+- At 3 MNQ, $900 per eligible day reaches the funded safety-net and first payout conditions by the fifth outer session. Gross deduction/request $1,500; lag 2 receipt dates Jan 28 / Feb 6; **received cash 1,500 per fold**, pending 0.
+- At 1 MNQ, seven sessions earn 2,100, below the saved first-payout threshold; **received cash 0 per fold**. This reference is measured separately and never relabeled recommended.
+- Paired received-cash improvement **1,500 per fold and mean $1,500**. Coverage is **2/5 required historical blocks**, so paired historical interval unavailable and decision **INSUFFICIENT_EVIDENCE**. Point arithmetic does not establish superiority or future cash.
+- Earlier expected received cash and actual received cash are separately labeled; with this constant source their descriptive errors are 0. Payout calibration remains insufficient at 2/20 blocks, even if its displayed descriptive Brier score is 0. Independent block count is not claimed.
+- Consolidated results count each outer fold once, show logical signal/size/profile stability, and distinguish conditional Monte Carlo precision, historical output variability and unquantified model/rule/execution/future uncertainty.
+
+#### Conservative objective and exact-family boundary
+
+Use one source and the same folds. Choose Funded fixed quantities **3, 10**, selector **Highest historical lower bound on expected trader cash**. Predeclare historical minimum 10 sessions, block 1, minimum 10 blocks, 200 historical repetitions, 8 account paths per repetition, maximum inner Monte Carlo SE 0. Default nominal confidence .90 and saved seeds remain explicit. This smaller historical requirement is a synthetic demonstration assumption, not a recommended production threshold.
+
+Both quantities have constant earlier expected cash 1,500 in this fixture. Every resampled history therefore yields the same mean; the historical lower mean equals $1,500, account P10 happens also to equal $1,500, and inner Monte Carlo SE 0. The report explains these are distinct quantities even where numerical values coincide. Both exact policies remain frozen; no post-hoc winner or allocation is invented. Two alternatives in each of two folds still mean **two folds**, not four independent observations. Scalar aggregate, calibration and paired superiority are unavailable because the procedure retains a family with no unique action. No baseline was declared in this example, and that gap is visible.
+
+Open the ordinary child phase report: its heading/rank criterion identifies the historical lower expected-cash mean; the same report retains point means/account distributions and the saved historical evidence requirements. Download `historical_mean_cash.json` to inspect all 200 re-estimations per candidate, source indices, seeds, addressed schedule identities, means and conditional Monte Carlo errors.
+
+#### Insufficient history and abstention boundaries
+
+Use the default conservative history requirement 60 sessions and 12 five-session blocks against the 10-session training window. The strategy passes edge criteria, but the economic objective cannot resolve. Both folds report **INSUFFICIENT_EVIDENCE**, no frozen policy and no outer-account execution.
+
+- With predeclared **Unmeasured**, both fold actions remain `unmeasured_abstention`; scalar cash is unavailable.
+- With explicitly predeclared **No account and no fee**, both actions are `no_account_no_fee` and procedure cash is 0. This is an explicit action convention, not an observed account performance result. No account/fees/payout/outer access is fabricated. Payout-probability calibration has zero historical pairs.
+
+Both preserve the declared two-fold denominator, missing-baseline gap and deployment-not-qualified status. Additional Monte Carlo paths cannot manufacture historical information.
+
+#### Downloads, preservation and inspection
+
+Each ordinary saved research report links report JSON/ZIP, qualification CSV, full plan, economic selection, chronological replay and journal. This increment adds `baseline_results.json`, `reliability.json`, `reliability_folds.csv` and `baseline_comparison.csv`. References retain normal child phase reports and native outer backtest IDs. Reopening/reloading the saved report issues no calculation POST and preserves every downloaded byte. Desktop and 390 px evidence screenshots accompany the saved libraries.
+
+Final holdout, deployment recommendation and native account-state strategy rerun controls are not delivered here. Provider/model parity and future performance remain unverified. Native dynamic risk policies continue to reject explicitly.
+
+#### Saved final browser libraries and reproducible commands
+
+All paths below are under `artifacts/research-reliability-m3b1-20261108/browser-final-exact/data/`.
+
+| Example | Library | Source IDs | Campaign | Analysis |
+| --- | --- | --- | --- | --- |
+| Two-strategy/reference arithmetic | `test_predeclared_reference_com0` | `1db6796590224c46bdfc7c760535554c`, `9f7477212e164972af527658e176d95c` | `1f67421d2b55405cb28fb761aa1d5928` | `0d4e0c1c11e54fe9bc78cbaf805e60a1` |
+| Conservative exact family | `test_conservative_mean_retains0` | `da6dbee78be64649975b27e0c9525819` | `281f6f9c313f4c3fb8d4216ac7bbb49c` | `587d8f7f238b46068e20c7875991e523` |
+| Unresolved/unmeasured | `test_insufficient_historical_m0` | `85a06afdd3bf45059138030ec988d598` | `2fc63dbc17354ded86264c7830fac949` | `f6e752d3613343a49dc84f182105c45a` |
+| Unresolved/no-account/no-fee | `test_insufficient_historical_m1` | `b147f8a732a3444d9887415dd8c6cd60` | `959e4efd30e04fddabd9612977ad8a8f` | `8fc0e56323274e279edca31c6cf1a89e` |
+
+Each library has 12 downloaded artifacts and `browser-evidence.json` recording IDs, independent expected observations and SHA-256 values. All 48 root downloads and the additional historical-mean download were rehashed; every saved report matches the frozen engine identity `1f3f48e652be0fe1e4cd06eb0977850c02fddce93b4381d8c4a9e2c626baed27`.
+
+| Example | Report JSON SHA-256 | Analysis ZIP SHA-256 |
+| --- | --- | --- |
+| Reference | `8b0492435718c9ccb49734792d8026985ff0e97787e1792c6c3156f122891bd8` | `3ac40d76a457bf0d8427d70760e22bed6155aa2f47b9164b91cc36662996b163` |
+| Conservative family | `cc574a6ffa0d57db3870348d3befb09d952fd900d2c21e406942741a8ce259e7` | `dd29324d3548c47a005db46c08ac39a48afc2f8c5773db6c86da63f60f8dcd28` |
+| Unmeasured | `357328e112bb5c483c2b48a7abf42f110c48578e6e0b2cf1f24a7704cabfd415` | `d839283cbb529be2554f8ba79abb7cc49781a66ac17444572e4324fed14b9832` |
+| No account | `f53cb4db57f67e1f9e20a05479b6dd0722fbfbf372482309bfdd33d2c621faa2` | `ee86056ec6817628bd1e2608bb6117269e5278a6111538757ef5b450282fdfa3` |
+
+Final run command (choose a new artifact directory to reproduce without overwriting evidence):
+
+```sh
+(
+  set -e
+  RELIABILITY_RUN_DIR="artifacts/reliability-recheck-$(date +%Y%m%d-%H%M%S)"
+  mkdir "$RELIABILITY_RUN_DIR"
+.venv/bin/python -m pytest -q tests/test_research_reliability_browser.py \
+  --basetemp "$RELIABILITY_RUN_DIR/data" \
+  --junitxml "$RELIABILITY_RUN_DIR/junit.xml" \
+  > "$RELIABILITY_RUN_DIR/pytest.log" 2>&1
+)
+```
+
+Inspect the saved reference case without recomputing:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/research-reliability-m3b1-20261108/browser-final-exact/data/test_predeclared_reference_com0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8012
+```
+
+Open `http://127.0.0.1:8012/#backtests/report/1db6796590224c46bdfc7c760535554c` and follow Configure prop → Nested research saved history, or directly reopen `http://127.0.0.1:8012/#backtests/prop/job/0d4e0c1c11e54fe9bc78cbaf805e60a1`. Stop this optional inspection server with **Ctrl-C**. The automated gate's owned temporary servers stopped; the product agent did not start a persistent server.
+
+Screenshots include `predeclared-reference-preview.png`, `reference-forecast-and-observation.png`, `consolidated-outer-evidence.png`, `historical-mean-family.png`, `normal-conservative-phase-report.png`, narrow reliability/reference viewports and full-page reports. Reopen/reload generated no calculation POST and every downloaded byte stayed unchanged.
+
+Nine existing/targeted browser checks passed in 263.69 seconds in `browser-regression`: two unresolved-history child report checks, three nested-economic cases, two inner-research cases and two phase-campaign cases. The child report correctly says historical mean evidence is unresolved, while its 64 account-path horizons are complete. It no longer confuses the new historical-evidence gate with an incomplete payout horizon. All owned temporary servers stopped. JS syntax, new test syntax and scoped whitespace checks passed. Only the existing Starlette/httpx deprecation warning appeared.
+
+```sh
+(
+  set -e
+  RELIABILITY_REGRESSION_DIR="artifacts/reliability-regression-$(date +%Y%m%d-%H%M%S)"
+  mkdir "$RELIABILITY_REGRESSION_DIR"
+.venv/bin/python -m pytest -q \
+  tests/test_research_reliability_browser.py::test_insufficient_historical_mean_uses_only_predeclared_abstention \
+  tests/test_nested_economics_browser.py tests/test_robust_research_browser.py tests/test_research_campaigns_browser.py \
+  --basetemp "$RELIABILITY_REGRESSION_DIR/data" \
+  --junitxml "$RELIABILITY_REGRESSION_DIR/junit.xml" \
+  > "$RELIABILITY_REGRESSION_DIR/pytest.log" 2>&1
+)
+```
+
+Release note: the nine regression cases passed before the final malformed-input/reference-admission/exact-rank boundary repairs. The four new release cases, including both unresolved child-report checks, passed against the final source after those repairs. Previous `browser-first`, `browser-final`, `browser-release` and `browser-regression` outputs remain unchanged. No broad full-suite or provider-parity claim is implied.
+
+The extra conservative child artifact `historical_mean_cash.json` has SHA-256 `449034d4b7c3a2e08f8b81b018cdb30444f7927ecaa59bb4783afed8959f9dab`. Final screenshot review covered the reference mobile summary/comparison, reference forecast/outer observation, historical-mean family, and unresolved child report.
+
+### Independent arithmetic and validation scope
+
+The final pure/contract gate passes **116 tests in 5.64 seconds**. Its log and
+JUnit are under `artifacts/reliability-m3b1-20261108/root-final/`. Independent
+oracles include predicted cash `[100,200,300]` versus observed `[80,260,210]`
+(mean error −50/3, MAE 170/3, RMSE √(12100/3)); reference cash `[60,220,200]`
+(improvements `[20,40,10]`, mean 70/3, below a declared 30 threshold); and
+probabilities `[.2,.7,.9]` with outcomes `[0,1,1]` (Brier .14/3, three historical
+blocks, still insufficient). A completed 70-fee acquisition and censored 90-fee
+attempt retain 160 total fees and no survivor-only acquisition mean. Missing
+forecasts retain known cash. Selected families do not create implicit portfolios.
+
+Exact inverse-CDF rank tests independently cover 200/1,000/10,000 repetitions:
+at 95% with 1,000 ordered values `0…999`, the bounds are observations 25/975,
+values 24/974. Integer ranks avoid moving the lower bound one observation because
+of floating subtraction. High confidence without at least five expected draws
+per tail yields insufficient evidence. The conservative Funded estimator uses
+its own exact family-adjusted rank, recorded history indices and Monte Carlo
+precision checks; its analytical example separates a positive lower estimated
+mean from a zero single-account p10.
+
+The stable existing Evaluation/Funded optimizer, campaign, frozen assessment,
+profile and chronological-replay gate passes **107 tests in 314.84 seconds**:
+`artifacts/reliability-m3b1-20261108/legacy-release/`. It preceded only the final
+malformed-threshold/reference-authority and descriptive interval-rank repairs.
+Final affected API/browser/pure gates above cover those changes. Thirty-six
+default dated Funded cases independently compare every path value and schedule
+hash with immutable commit `50df431`; all match
+(`artifacts/reliability-m3b1-20261108/funded/default-parity.json`). Python
+compilation, both changed JavaScript syntax checks and whitespace checks pass.
+These overlapping targeted gates are not a full-suite or provider-parity claim.
+
+Root independently rehashed all 90 final API captures and 49 final browser
+downloads against the current engine identity; verification records are in
+`root-final/`. Earlier failed/probe evidence remains: the initial mixed pure gate
+had 42 passes and one optional-attribute compatibility failure (fixed, then
+rechecked); the initial legacy command named a nonexistent test module and ran
+no tests; the first browser gate had one test-fixture key error and three passes.
+The first API probe also crossed a pre-freeze source edit during cancellation;
+stable integration and final affected gates passed afterward. None of these
+earlier runs is relabeled clean. All owned temporary servers stopped.
+
+The whole requested goal remains incomplete. Native account-state strategy
+execution/forecasting, full-procedure freeze/holdout/current development selection,
+optional lifecycle comparison, forward monitoring and final full qualification
+are separate remaining increments. No last-fold policy, reference comparison or
+confidence label is a deployment recommendation.

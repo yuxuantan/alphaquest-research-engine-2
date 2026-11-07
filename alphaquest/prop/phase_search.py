@@ -48,6 +48,41 @@ def require_candidate_confirmation(count, confirmed_count):
         raise CandidateConfirmationRequired(count)
 
 
+def validate_phase_work(search, observed_session_count=None):
+    """One preflight bound shared by preview, source checks and reservation.
+
+    Counts describe captured history units, never certify historical evidence.
+    A scalar count applies to every candidate; per-candidate counts are accepted
+    after ordinary source admission (for external exporter-declared coverage).
+    """
+    from .phase_dispatch import module_for_mode
+    module_for_mode(search.mode)  # Unknown modes fail closed.
+    funded = search.mode == 'funded_optimization'
+    count = len(search.candidates)
+    estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if funded else
+                sum(c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
+    work = sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days if funded else 0
+    cfg = getattr(search, 'conservative_objective', None)
+    indices = 0
+    if cfg is not None:
+        work += count*cfg.replicates*cfg.simulations_per_replicate*search.horizon_calendar_days
+        estimate += count*cfg.replicates*512
+        if observed_session_count is not None:
+            counts = ([observed_session_count]*count if type(observed_session_count) is int else list(observed_session_count))
+            if len(counts) != count or any(type(n) is not int or n < 0 for n in counts):
+                raise ValueError('History capture requires one nonnegative observed-session count per candidate.')
+            indices = cfg.replicates*sum(counts)
+            estimate += indices*8
+            if indices > 1_000_000:
+                raise ValueError('Historical resampling capture exceeds one million session indices; narrow the declared search.')
+    if estimate > 100*1024*1024:
+        raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
+    if work > 50_000_000:
+        raise ValueError('Declared funded search exceeds 50 million path calendar days including historical refits; narrow the explicit search.')
+    return dict(estimated_capture_bytes=estimate, funded_path_calendar_days=work,
+                historical_session_indices=indices if observed_session_count is not None else None)
+
+
 @dataclass(frozen=True)
 class PhaseCalendar:
     start_dates: tuple[str, ...]
@@ -88,13 +123,31 @@ def verify_training_context(runs, search, context):
         if not condition:
             raise ValueError('Invalid nested phase training context: ' + message)
     require(isinstance(context, dict), 'expected an internal context object.')
-    required = {'version', 'campaign_id', 'outer_fold_index', 'qualification_sha256',
+    reference = context.get('version') == 'nested-phase-reference-v1'
+    membership_key = 'source_configuration_ids' if reference else 'qualified_configuration_ids'
+    admission_key = 'reference_declaration_sha256' if reference else 'qualification_sha256'
+    role = 'baseline_train' if reference else 'policy_train'
+    required = {'version', 'campaign_id', 'outer_fold_index', admission_key,
         'input_identity', 'engine_identity', 'train_window', 'information_cutoff_session',
-        'qualified_configuration_ids', 'training_sources', 'session_inventory', 'context_sha256'}
+        membership_key, 'training_sources', 'session_inventory', 'context_sha256'}
     require(required <= context.keys(), 'missing provenance fields.')
     unsigned = {k:v for k,v in context.items() if k != 'context_sha256'}
-    require(context['version'] == 'nested-phase-training-v1' and
+    require(context['version'] in ('nested-phase-training-v1', 'nested-phase-reference-v1') and
         sha256(canonical(unsigned).encode()).hexdigest() == context['context_sha256'], 'identity differs.')
+    if reference:
+        declarations = context.get('reference_declarations')
+        require(context.get('admission_scope') == 'predeclared_reference' and
+            isinstance(declarations, list) and declarations, 'missing explicit reference declaration.')
+        require(context.get('recommendation_eligible') is False,
+            'a reference context cannot grant recommendation authority.')
+        require('qualified_configuration_ids' not in context and 'qualification_sha256' not in context,
+            'a measured reference must not masquerade as qualified membership.')
+        require(sha256(canonical(declarations).encode()).hexdigest() == context[admission_key],
+            'reference declaration changed.')
+        require(context.get('reference_ids') == sorted({d['id'] for d in declarations})
+            and len(context['reference_ids']) == len(declarations), 'reference identifiers differ.')
+        require(context.get(membership_key) == sorted({d['source_configuration_id'] for d in declarations}),
+            'reference signal membership differs.')
     require(context['engine_identity'] == engine_identity(), 'implementation changed.')
     window = context['train_window']; sessions = window.get('sessions', [])
     require(isinstance(sessions, list) and sessions and sessions == sorted(set(sessions)), 'invalid ordered session inventory.')
@@ -104,7 +157,7 @@ def verify_training_context(runs, search, context):
     inventory = context['session_inventory']
     require(isinstance(inventory, dict) and set(inventory) == set(sessions) and
         all(type(n) is int and n > 0 for n in inventory.values()), 'each included session needs observed bars.')
-    sources = context['training_sources']; ids = context['qualified_configuration_ids']
+    sources = context['training_sources']; ids = context[membership_key]
     require(isinstance(sources, dict) and sources and isinstance(ids, list) and ids == sorted(set(ids)), 'invalid qualified membership.')
     require(sorted(s['configuration_id'] for s in sources.values()) == ids, 'training sources omit or duplicate qualified configurations.')
     require({c.source.source_backtest_id for c in search.candidates} == set(sources), 'candidate sources differ from the complete qualified set.')
@@ -114,23 +167,49 @@ def verify_training_context(runs, search, context):
     for id, expected in sources.items():
         record = source_record(runs, id); meta = record['run_metadata']; research = meta.get('research') or {}
         require(record['status'] == 'complete' and meta.get('source', {}).get('kind') != 'external_trade_export', 'expected a complete native training report.')
-        require(research.get('phase') == 'inner' and research.get('role') == 'policy_train', 'source is not a nested policy training run.')
+        require(research.get('phase') == 'inner' and research.get('role') == role, 'source has the wrong nested training role.')
         require(research.get('campaign_id') == context['campaign_id'] and research.get('outer_fold') == context['outer_fold_index'], 'source campaign/fold differs.')
         require(canonical(research.get('window')) == canonical(window) and
             research.get('information_cutoff_session') == sessions[-1], 'source information boundary differs.')
-        require(research.get('qualification_sha256') == context['qualification_sha256'] and
+        require(research.get(admission_key) == context[admission_key] and
             research.get('input_identity') == context['input_identity'] and research.get('cold_start') is True,
             'source qualification/protocol differs.')
+        if reference:
+            require(research.get('reference_ids') == context['reference_ids'] and
+                research.get('admission_scope') == 'predeclared_reference' and
+                research.get('recommendation_eligible') is False, 'source reference authority differs.')
         strategy = meta['strategy']
         require(strategy['id'] == expected['strategy_id'] and canonical(strategy['parameters']) == canonical(expected['parameters'])
             and sha256(canonical(strategy).encode()).hexdigest() == expected['strategy_provenance_sha256'], 'strategy parameters or implementation changed.')
         require(sha256(canonical(record).encode()).hexdigest() == expected['manifest_sha256'], 'source manifest changed.')
         require(artifacts(runs.root, record) == expected['artifact_sha256'], 'source artifact changed.')
+    if reference:
+        from .phase_profiles import EvaluationProfile, FundedProfile, SizingConfiguration
+        from .phase_dispatch import module_for_mode
+        module_for_mode(search.mode)  # Reject unknown phases before resolving the profile type.
+        phase = search.mode.removesuffix('_optimization')
+        profile_type = EvaluationProfile if phase == 'evaluation' else FundedProfile
+        matched = []
+        for candidate in search.candidates:
+            configuration_id = sources[candidate.source.source_backtest_id]['configuration_id']
+            options = []
+            for declaration in declarations:
+                if declaration['phase'] != phase or declaration['source_configuration_id'] != configuration_id:
+                    continue
+                policy = declaration['policy']
+                sizing = SizingConfiguration(**policy['sizing']) if policy.get('sizing') is not None else None
+                if (candidate.profile == profile_type(**declaration['profile']) and candidate.micros == policy['micros']
+                        and candidate.sizing == sizing):
+                    options.append(declaration['id'])
+            require(len(options) == 1, 'reference quantity/profile/policy is outside its declaration.')
+            matched.extend(options)
+        require(sorted(matched) == context['reference_ids'], 'reference candidates omit or duplicate a declared reference.')
     return sessions
 
 
 def check_candidates(runs, search, assessment=None, *, training_context=None):
     """Reconcile every source before queueing; admit only comparable saved IS."""
+    validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
     rows = []
     common = None
     if assessment is not None and training_context is not None:
@@ -221,6 +300,13 @@ def check_candidates(runs, search, assessment=None, *, training_context=None):
     keys = [r['candidate_id'] for r in rows]
     if len(set(keys)) != len(keys):
         raise ValueError('Duplicate candidate definitions; remove duplicates explicitly.')
+    if getattr(search, 'conservative_objective', None) is not None and training_context is None:
+        counts = []
+        for row in rows:
+            source = row['manifest']['source']; bounds = source['profile_research_period']
+            labels = source.get('canonical_manifest', {}).get('coverage', {}).get('sessions', [])
+            counts.append(sum(bounds['first_session'] <= day <= bounds['last_session'] for day in labels))
+        validate_phase_work(search, counts)
     return sorted(rows, key=lambda r: r['candidate_id'])
 
 

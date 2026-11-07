@@ -11,6 +11,7 @@ from .prop.adapter import canonical
 from .research import ResearchConflict
 from .research_folds import FoldSettings
 from .research_regimes import RegimeSettings
+from .research_reliability import ReliabilitySettings
 from .robust_research import RobustResearchRequest
 from .research_phase_selection import study_defaults
 
@@ -30,7 +31,7 @@ async def call(request, method, *args):
 
 @router.get('/defaults')
 def defaults():
-    return dict(**study_defaults(), folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
+    return dict(**study_defaults(), reliability=ReliabilitySettings().model_dump(mode='json'), folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
         execution_scenario=ExecutionScenario(name='cost_stress').model_dump(mode='json'),
         regimes=RegimeSettings().model_dump(mode='json'), regime_names={
             'trend':'Trending prior prices', 'range':'Ranging prior prices',
@@ -81,7 +82,7 @@ async def export(id: UUID, kind: str, request: Request):
         return Response(canonical(value), media_type='application/json',
                         headers={'Content-Disposition':f'attachment; filename="{id.hex}-{kind}"'})
     report = await call(request, 'report', id.hex)
-    if kind not in ('report.json', 'analysis.zip', 'qualification.csv', 'research_plan.json', 'calculations.json', 'economic_selection.json', 'chronological_replay.json', 'research_journal.json'):
+    if kind not in ('report.json', 'analysis.zip', 'qualification.csv', 'research_plan.json', 'calculations.json', 'economic_selection.json', 'chronological_replay.json', 'research_journal.json', 'baseline_results.json', 'reliability.json', 'reliability_folds.csv', 'baseline_comparison.csv'):
         raise HTTPException(404, 'Unknown research download.')
     path=request.app.state.prop_analyses.root/report['id']/kind
     if not path.is_file():

@@ -1,7 +1,7 @@
 """Nested research orchestration using ordinary backtests and AnalysisStore.
 
-This first increment executes inner research only. Outer tests stay reserved;
-economic selection/replay must be added before a research-complete verdict.
+Inner qualification feeds independent phase selection and predeclared references.
+Durable freezes precede chronological outer replay; reliability remains descriptive.
 """
 import csv
 from copy import deepcopy
@@ -26,9 +26,12 @@ from .research_campaigns import CandidateSource, StrictModel, fingerprint
 from .research_folds import FoldSettings, SessionDateRange, generate_folds, inventory_sessions
 from .research_complexity import describe_complexity
 from .research_regimes import RegimeSettings, build_regime_evidence
-from .research_phase_selection import (PhaseStudy, build_search, build_training_context, complete_qualified_membership,
+from .research_reliability import ReliabilitySettings
+from .research_phase_selection import (BaselineDeclaration, PhaseStudy, baseline_study, build_reference_context,
+    freeze_reference, reference_training_metadata, build_search, build_training_context, complete_qualified_membership,
     freeze_policy, policy_training_metadata, resolved_study, select_evaluation, select_funded, validate_native_policies)
 from .prop.phase_dispatch import module_for
+from .prop.phase_search import validate_phase_work
 from .reporting import json_value
 from .session_calendar import session_date
 from .strategies.registry import get_strategy
@@ -44,6 +47,8 @@ class RobustResearchRequest(StrictModel):
     execution_scenarios: list[ExecutionScenario] = Field(default_factory=list, max_length=12)
     regimes: RegimeSettings = Field(default_factory=RegimeSettings)
     economic_studies: list[PhaseStudy] = Field(default_factory=list, max_length=2)
+    baselines: list[BaselineDeclaration] = Field(default_factory=list,max_length=16)
+    reliability: ReliabilitySettings | None = None
     confirmed_economic_candidate_count: StrictInt | None = Field(default=None, ge=1)
     confirmed_backtest_count: int | None = Field(default=None, ge=1)
 
@@ -54,6 +59,13 @@ class RobustResearchRequest(StrictModel):
         if len({study.phase for study in self.economic_studies}) != len(self.economic_studies):
             raise ValueError('Declare each independent economic phase at most once.')
         validate_native_policies(self.economic_studies)
+        if self.baselines and not self.economic_studies:
+            raise ValueError('Predeclared references require an independent economic phase study.')
+        if len({b.id for b in self.baselines})!=len(self.baselines):
+            raise ValueError('Reference IDs must be unique.')
+        identities=[fingerprint({k:v for k,v in b.model_dump(mode='json').items() if k not in ('id','required')}) for b in self.baselines]
+        if len(set(identities))!=len(identities):
+            raise ValueError('Duplicate reference definitions do not create additional evidence.')
         names = [s.name for s in self.execution_scenarios]
         if len(set(names)) != len(names) or 'baseline' in names:
             raise ValueError('Scenario names must be unique and cannot use the reserved name baseline.')
@@ -164,7 +176,7 @@ class RobustResearchStore:
             and datetime.fromisoformat(inventory['bounds'][s]['last_utc'].replace('Z', '+00:00')) <= last_utc]
         folds = generate_folds(sessions, body.folds)
         count = len(candidates) * sum((2 + len(body.execution_scenarios)) * len(f['inner']) for f in folds)
-        economic_plan = self._economic_preview(body.economic_studies,candidates,folds)
+        economic_plan = self._economic_preview(body.economic_studies,candidates,folds,body.baselines)
         count += economic_plan['estimated_training_backtests'] + economic_plan['estimated_outer_backtests']
         if body.confirmed_economic_candidate_count is not None and body.confirmed_economic_candidate_count != economic_plan['maximum_phase_candidates']:
             raise ValueError('Economic candidate count changed; review and confirm the new preview.')
@@ -184,7 +196,8 @@ class RobustResearchStore:
             convention=inventory['convention'], session_inventory=inventory,
             estimated_backtests=count, optimization_grids=origins, engine_identity=engine_identity(),
             qualification=qualification,
-            economic_studies=[study.model_dump(mode='json') for study in body.economic_studies], economic_plan=economic_plan,
+            economic_studies=[study.model_dump(mode='json') for study in body.economic_studies], economic_plan=economic_plan, baselines=[reference.model_dump(mode='json') for reference in body.baselines],
+            reliability=((body.reliability or ReliabilitySettings()).model_dump(mode='json') if body.economic_studies else None),
             execution_scenarios=[s.model_dump(mode='json') for s in body.execution_scenarios],
             regimes=body.regimes.model_dump(mode='json'),
             prior_access=dict(status='previously_accessed_development', reports=access,
@@ -201,8 +214,9 @@ class RobustResearchStore:
         result['input_identity'] = fingerprint({k:v for k,v in result.items() if k != 'prior_access'})
         return result
 
-    def _economic_preview(self, studies, candidates, folds):
+    def _economic_preview(self, studies, candidates, folds, baselines=()):
         counts=[];resolved=[]
+        historical_refits=historical_paths=historical_path_days=0
         for study in studies:
             per_fold=len(candidates)*len(study.profiles)*len(study.policies)
             counts.append(dict(phase=study.phase,profile_count=len(study.profiles),policy_count=len(study.policies),
@@ -211,6 +225,13 @@ class RobustResearchStore:
                 effective=resolved_study(study,outer)
                 context=dict(training_sources={c['source_backtest_id']:{} for c in candidates},train_window=outer['train'])
                 request=build_search(effective,context)
+                validate_phase_work(module_for(study.phase).parse_request(request),len(outer['train']['sessions']))
+                history=request.get('conservative_objective')
+                if history:
+                    applicable=per_fold+sum(reference.phase==study.phase for reference in baselines)
+                    fits=applicable*history['replicates'];paths=fits*history['simulations_per_replicate']
+                    historical_refits+=fits;historical_paths+=paths
+                    historical_path_days+=paths*request['horizon_calendar_days']
                 # Calendar closures are declared metadata, never inferred from
                 # source gaps. An observed market session must have real bars.
                 calendar=request['calendar'];closed=set(calendar['closures'])
@@ -226,10 +247,21 @@ class RobustResearchStore:
                     candidate_count=per_fold,calendar=calendar,
                     horizon_calendar_days=request.get('horizon_calendar_days'),
                     cutoff_date_exclusive=(end+timedelta(days=1)).isoformat()))
+        for reference in baselines:
+            reference_study,candidate=baseline_study(reference,studies,candidates)
+            for outer in folds:
+                request=build_search(resolved_study(reference_study,outer),dict(
+                    training_sources={candidate['source_backtest_id']:{}},train_window=outer['train']))
+                validate_phase_work(module_for(reference.phase).parse_request(request),len(outer['train']['sessions']))
+        reference_count=len(baselines)*len(folds)
         return dict(enabled=bool(studies),studies=counts,resolved_folds=resolved,
-            estimated_training_backtests=len(candidates)*len(folds) if studies else 0,
-            estimated_outer_backtests=sum(row['max_candidates_per_fold'] for row in counts)*len(folds),
-            maximum_phase_candidates=sum(row['max_candidates_per_fold'] for row in counts)*len(folds),
+            baseline_count=len(baselines),estimated_baseline_training_backtests=reference_count,
+            maximum_historical_refits=historical_refits,maximum_historical_inner_paths=historical_paths,
+            maximum_historical_path_calendar_days=historical_path_days,
+            estimated_baseline_outer_backtests=reference_count,
+            estimated_training_backtests=(len(candidates)*len(folds) if studies else 0)+reference_count,
+            estimated_outer_backtests=sum(row['max_candidates_per_fold'] for row in counts)*len(folds)+reference_count,
+            maximum_phase_candidates=sum(row['max_candidates_per_fold'] for row in counts)*len(folds)+reference_count,
             limitations=[
                 'Counts are full-family upper bounds before inner qualification, including every possible frozen outer policy.',
                 'Native recorded signal paths support fixed quantities. Account-dependent risk sizing and fixed-dollar baselines require a strategy rerun.',
@@ -353,19 +385,29 @@ class RobustResearchStore:
         self._checkpoint(id)
         # Reserve access before loading bars, even when the attempt fails.
         with self.analyses.lock, self.analyses.connect() as db:
-            if role=='outer_test':
+            if role in ('outer_test','baseline_outer_test'):
                 seal=self._step(id,f"{outer['index']}:economic_selection")
                 if not seal or seal['result']['selection_seal_sha256']!=research_extra.get('selection_seal_sha256'):
                     raise ResearchConflict('Outer access requires its durable immutable selection seal.')
-                allowed={package['package_sha256'] for phase in seal['result']['phases'] for package in phase['frozen_packages']}
+                references=None
+                if plan.get('baselines'):
+                    references=self._step(id,f"{outer['index']}:baseline_selection")
+                    if not references or references['result']['reference_seal_sha256']!=research_extra.get('reference_seal_sha256'):
+                        raise ResearchConflict('Every predeclared reference must be frozen before any outer access.')
+                allowed=({reference['frozen_package']['package_sha256'] for reference in references['result']['baseline_results']}
+                    if role=='baseline_outer_test' and references else
+                    {package['package_sha256'] for phase in seal['result']['phases'] for package in phase['frozen_packages']})
                 if research_extra.get('frozen_package_sha256') not in allowed:
                     raise ResearchConflict('Outer policy is outside the sealed selection family.')
             access_id=uuid4().hex
             accessed_at=datetime.now(timezone.utc).isoformat()
-            if role=='outer_test':
-                access=dict(kind='outer_access',outer_fold_index=outer['index'],window=window,
+            if role in ('outer_test','baseline_outer_test'):
+                access=dict(kind='outer_access',access_role=role,outer_fold_index=outer['index'],window=window,
                     frozen_package_sha256=research_extra['frozen_package_sha256'],
                     selection_seal_sha256=research_extra['selection_seal_sha256'],access_id=access_id,created_at=accessed_at)
+                if research_extra.get('reference_seal_sha256'):
+                    access['reference_seal_sha256']=research_extra['reference_seal_sha256']
+                if role=='baseline_outer_test':access['baseline_id']=research_extra['baseline_id']
                 access['access_sha256']=fingerprint(access)
                 db.execute('INSERT INTO robust_research_steps VALUES (?,?,?)',(id,'outer_access:'+access_id,canonical(access)))
             db.execute('INSERT INTO research_access_intervals VALUES (?,?,?,?,?,?,?,?,?)',
@@ -464,13 +506,15 @@ class RobustResearchStore:
         elif kind=='outer_access':
             if fingerprint({k:v for k,v in saved.items() if k!='access_sha256'})!=saved['access_sha256']:
                 raise ResearchConflict('Outer access journal changed.')
-        elif kind in ('selection_seal','chronological_replay'):
+        elif kind in ('selection_seal','baseline_seal','chronological_replay'):
             if fingerprint(saved['result'])!=saved['result_sha256']:
                 raise ResearchConflict('Saved nested selection/replay identity changed.')
             if kind=='chronological_replay':
                 self._verify_step(saved['outer_source'])
-            if kind=='selection_seal':
-                for phase in saved['result'].get('phases',[]):
+            if kind in ('selection_seal','baseline_seal'):
+                rows=(saved['result'].get('phases',[]) if kind=='selection_seal' else
+                      [dict(reference,frozen_packages=[reference['frozen_package']]) for reference in saved['result']['baseline_results']])
+                for phase in rows:
                     check=self.analyses.fingerprint(phase['analysis_id'])
                     if not check or check['files']['report.json']!=phase['training_report_sha256']:
                         raise ResearchConflict('Frozen training report changed after selection.')
@@ -490,6 +534,11 @@ class RobustResearchStore:
                 result.append(dict(sequence=sequence,kind=kind,step_key=key,selection_seal_sha256=value['result']['selection_seal_sha256'],
                     frozen_package_sha256=[p['package_sha256'] for phase in value['result']['phases'] for p in phase['frozen_packages']],
                     status=value['result']['status'],created_at=value['result'].get('sealed_at_utc')))
+            elif kind=='baseline_seal':
+                result.append(dict(sequence=sequence,kind=kind,step_key=key,reference_seal_sha256=value['result']['reference_seal_sha256'],
+                    frozen_package_sha256=[reference['frozen_package']['package_sha256'] for reference in value['result']['baseline_results']],
+                    baseline_ids=[reference['baseline_id'] for reference in value['result']['baseline_results']],
+                    status=value['result']['status'],created_at=value['result'].get('sealed_at_utc')))
             elif kind=='outer_access':
                 result.append(dict(value,sequence=sequence,step_key=key))
         return result
@@ -498,13 +547,83 @@ class RobustResearchStore:
         with self.analyses.connect() as db:
             steps=db.execute('SELECT payload FROM robust_research_steps WHERE campaign_id=? ORDER BY rowid',(id,)).fetchall()
         for (payload,) in steps:self._verify_step(json.loads(payload))
-        seals={}
+        with self.analyses.connect() as db:
+            plan=json.loads(db.execute('SELECT plan FROM robust_research WHERE id=?',(id,)).fetchone()[0])
+        seals={};reference_seals={}
         for event in self._journal(id):
             if event['kind']=='selection_seal':seals[event['selection_seal_sha256']]=event
+            elif event['kind']=='baseline_seal':reference_seals[event['reference_seal_sha256']]=event
             else:
                 seal=seals.get(event['selection_seal_sha256'])
-                if not seal or seal['sequence']>=event['sequence'] or event['frozen_package_sha256'] not in seal['frozen_package_sha256']:
+                reference=reference_seals.get(event.get('reference_seal_sha256'))
+                if not seal or seal['sequence']>=event['sequence']:
                     raise ResearchConflict('Outer access did not follow its immutable selection journal seal.')
+                if plan.get('baselines') and (not reference or reference['sequence']>=event['sequence']):
+                    raise ResearchConflict('Outer access occurred before all predeclared references were frozen.')
+                permitted=reference if event.get('access_role')=='baseline_outer_test' else seal
+                if not permitted or event['frozen_package_sha256'] not in permitted['frozen_package_sha256']:
+                    raise ResearchConflict('Outer access is outside its frozen selected/reference family.')
+
+    def _phase_report(self,campaign,analysis_id,outer,study,context,key):
+        id=campaign['campaign_id'];request=build_search(study,context)
+        input_sha=fingerprint(dict(request=request,training_context=context))
+        step=self._step(id,key)
+        if step:
+            if step['input_sha256']!=input_sha:
+                raise ResearchConflict('Nested phase request differs from its completed checkpoint.')
+            child=self.analyses.get(step['analysis_id'])
+        else:
+            child=self.analyses.run_phase_inline(self.runs,module_for(study.phase).parse_request(request),
+                training_context=context,checkpoint=lambda:self._checkpoint(id),
+                progress=lambda message:self.analyses._update(analysis_id,'running',
+                    f"Outer {outer['index']} {study.phase}: {message}"))
+            step=dict(kind='phase_analysis',analysis_id=child['id'],input_sha256=input_sha,
+                      fingerprint=self.analyses.fingerprint(child['id']))
+            self._save_step(id,key,step)
+        report=json.loads((self.analyses.root/child['id']/'report.json').read_text())
+        if report['request']!=request or report.get('training_context')!=context:
+            raise ResearchConflict('Nested phase report source membership or context changed.')
+        calculated=report['calculations']['candidates']
+        if (len(calculated)!=len(request['candidates']) or len({r['candidate_id'] for r in calculated})!=len(calculated)
+                or sorted(canonical(r['manifest']['configuration']) for r in calculated)!=sorted(canonical(c) for c in request['candidates'])):
+            raise ResearchConflict('Phase calculation omitted or duplicated a declared candidate configuration.')
+        return report,step
+
+    def _prepare_baselines(self,campaign,analysis_id,outer,qualification):
+        id=campaign['campaign_id'];plan=dict(campaign['plan'],campaign_id=id)
+        declarations=[BaselineDeclaration.model_validate(value) for value in plan.get('baselines',[])]
+        if not declarations:return None
+        key=f"{outer['index']}:baseline_selection"
+        identity=fingerprint(dict(declarations=plan['baselines'],qualification=qualification,outer=outer,input_identity=plan['input_identity']))
+        saved=self._step(id,key)
+        if saved:
+            if saved['input_sha256']!=identity:raise ResearchConflict('Predeclared reference inputs changed after freeze.')
+            return saved['result']
+        studies=[PhaseStudy.model_validate(value) for value in plan['economic_studies']]
+        edge={row['candidate_id']:row for row in qualification['candidates']};results=[]
+        for reference in declarations:
+            self._checkpoint(id)
+            study,candidate=baseline_study(reference,studies,plan['candidates'])
+            research=reference_training_metadata(id,outer,reference,plan['input_identity'])
+            record=self._backtest(campaign,analysis_id,candidate,outer,dict(index=-3),'baseline_train',
+                window_override=outer['train'],research_extra=research,step_suffix=fingerprint(reference.model_dump(mode='json')))
+            context=build_reference_context(plan,outer,reference,candidate,record,artifacts(self.runs.root,record))
+            study=resolved_study(study,outer)
+            report,step=self._phase_report(campaign,analysis_id,outer,study,context,
+                f"{outer['index']}:baseline_phase:{fingerprint(reference.model_dump(mode='json'))}")
+            forecast=report['calculations']['candidates'][0]
+            package=freeze_reference(id,outer,study,context,report,step['fingerprint']['files']['report.json'],forecast,reference)
+            results.append(dict(baseline_id=reference.id,phase=reference.phase,required=reference.required,
+                source_configuration_id=candidate['id'],recommendation_eligible=False,
+                edge_qualification={k:edge[candidate['id']][k] for k in ('candidate_id','status','reasons')},
+                analysis_id=report['id'],training_report_sha256=step['fingerprint']['files']['report.json'],
+                training_context_sha256=context['context_sha256'],training_forecast={k:v for k,v in forecast.items() if k not in ('paths','component','provenance')},
+                frozen_package=package,provider_rules=report.get('provider_rules'),deployment_readiness=report.get('deployment_readiness'),
+                status='REFERENCE_FROZEN',interpretation='Measured predeclared reference; edge/forecast status does not authorize recommendation.'))
+        result=dict(status='REFERENCES_FROZEN',baseline_results=results,sealed_at_utc=datetime.now(timezone.utc).isoformat())
+        result['reference_seal_sha256']=fingerprint(result)
+        self._save_step(id,key,dict(kind='baseline_seal',input_sha256=identity,result=result,result_sha256=fingerprint(result)))
+        return result
 
     def _select_economic(self,campaign,analysis_id,outer,qualification):
         id=campaign['campaign_id'];plan=dict(campaign['plan'],campaign_id=id)
@@ -532,36 +651,15 @@ class RobustResearchStore:
             for original in studies:
                 self._checkpoint(id)
                 study=resolved_study(original,outer)
-                request=build_search(study,context)
-                phase_key=f"{outer['index']}:phase:{study.phase}"
-                input_sha=fingerprint(dict(request=request,training_context=context))
-                step=self._step(id,phase_key)
-                if step:
-                    if step['input_sha256']!=input_sha:
-                        raise ResearchConflict('Nested phase request differs from its completed checkpoint.')
-                    child=self.analyses.get(step['analysis_id'])
-                else:
-                    child=self.analyses.run_phase_inline(self.runs,module_for(study.phase).parse_request(request),
-                        training_context=context,checkpoint=lambda:self._checkpoint(id),
-                        progress=lambda message:self.analyses._update(analysis_id,'running',
-                            f"Outer {outer['index']} {study.phase}: {message}"))
-                    step=dict(kind='phase_analysis',analysis_id=child['id'],input_sha256=input_sha,
-                              fingerprint=self.analyses.fingerprint(child['id']))
-                    self._save_step(id,phase_key,step)
-                report=json.loads((self.analyses.root/child['id']/'report.json').read_text())
-                if report['request']!=request or report.get('training_context')!=context:
-                    raise ResearchConflict('Nested phase report source membership or context changed.')
-                calculated=report['calculations']['candidates']
-                if (len(calculated)!=len(request['candidates']) or len({r['candidate_id'] for r in calculated})!=len(calculated)
-                        or sorted(canonical(r['manifest']['configuration']) for r in calculated)!=sorted(canonical(c) for c in request['candidates'])):
-                    raise ResearchConflict('Phase calculation omitted or duplicated a declared candidate configuration.')
+                report,step=self._phase_report(campaign,analysis_id,outer,study,context,f"{outer['index']}:phase:{study.phase}")
+                request=report['request'];child=dict(id=report['id'])
                 decision=(select_evaluation(report['calculations'],study.selector) if study.phase=='evaluation' else
                           select_funded(report['calculations'],study.selector,request))
                 chosen=[row for row in report['calculations']['candidates'] if row['candidate_id'] in decision['selected_ids']]
                 report_sha=step['fingerprint']['files']['report.json']
                 packages=[freeze_policy(id,outer,study,context,report,report_sha,row) for row in chosen]
                 phases.append(dict(phase=study.phase,analysis_id=child['id'],decision=decision,frozen_packages=packages,
-                    training_forecasts=[{k:row[k] for k in ('candidate_id','status','manifest','metrics','uncertainty','feasible','constraint_failures','constraint_violations') if k in row} for row in chosen],
+                    training_forecasts=[{k:row[k] for k in ('candidate_id','status','manifest','metrics','uncertainty','feasible','constraint_failures','constraint_violations','conservative_expected_cash') if k in row} for row in chosen],
                     complete_search_candidate_count=len(report['calculations']['candidates']),
                     provider_rules=report.get('provider_rules'),deployment_readiness=report.get('deployment_readiness'),
                     training_context_sha256=context['context_sha256'],training_report_sha256=report_sha))
@@ -580,56 +678,96 @@ class RobustResearchStore:
         self._save_step(id,key,dict(kind='selection_seal',input_sha256=selection_input,result=result,result_sha256=fingerprint(result)))
         return result
 
-    def _replay_economic(self,campaign,analysis_id,outer,selection):
-        if selection is None:return None
+    def _replay_package(self,campaign,analysis_id,outer,selection,package,references=None):
         from .prop.phase_profiles import (SavedTradeSource, EvaluationProfile, FundedProfile,
             SourceCosts, SizingConfiguration, ReplayWindow)
         from .prop.phase_search import PhaseCalendar
         from .prop.evaluation_optimization import SequentialRetry
         from .prop.evaluation_profiles import replay_evaluation_profile
         from .prop.funded_profiles import replay_funded_profile
-        id=campaign['campaign_id'];items=[]
-        for phase in selection['phases']:
-            report=json.loads((self.analyses.root/phase['analysis_id']/'report.json').read_text())
-            for package in phase['frozen_packages']:
-                self._checkpoint(id)
-                key=f"{outer['index']}:chronological:{phase['phase']}:{package['candidate_id']}"
-                saved=self._step(id,key)
-                if saved:
-                    if saved['package_sha256']!=package['package_sha256'] or saved['selection_seal_sha256']!=selection['selection_seal_sha256']:
-                        raise ResearchConflict('Chronological checkpoint differs from its frozen choice.')
-                    items.append(saved['result']);continue
-                config=package['configuration'];strategy=package['strategy']
-                candidate=dict(id=package['candidate_id'],strategy_id=strategy['id'],parameters=strategy['parameters'])
-                research=dict(phase='outer',role='outer_test',frozen_package_sha256=package['package_sha256'],
-                    selection_seal_sha256=selection['selection_seal_sha256'],training_source_id=config['source']['source_backtest_id'],
-                    selected_candidate_id=package['candidate_id'])
-                record=self._backtest(campaign,analysis_id,candidate,outer,dict(index=-2),'outer_test',
-                    window_override=outer['test'],research_extra=research,step_suffix=phase['phase'])
-                calendar=deepcopy(package['calendar'])
-                calendar['start_dates']=tuple(calendar['start_dates']);calendar['closures']=tuple(calendar.get('closures',[]))
-                common=dict(runs=self.runs,source=SavedTradeSource(**dict(config['source'],source_backtest_id=record['id'])),
-                    micros=config['micros'],window=ReplayWindow(package['outer_window']['first_session'],package['outer_window']['cutoff_date_exclusive']),
-                    calendar=PhaseCalendar(**calendar),max_micros=config['simulation']['max_micros'],
-                    costs=SourceCosts(**config['costs']),sizing=SizingConfiguration(**config['sizing']) if config.get('sizing') else None,
-                    frozen_binding=package,checkpoint=lambda:self._checkpoint(id))
-                # The seal is verified again immediately before account replay.
-                self._step(id,f"{outer['index']}:economic_selection")
-                if phase['phase']=='evaluation':
-                    output=replay_evaluation_profile(profile=EvaluationProfile(**config['profile']),retry=SequentialRetry(**config['retry']),**common)
-                else:
-                    output=replay_funded_profile(profile=FundedProfile(**config['profile']),
-                        receipt_delay_calendar_days=report['request']['receipt_delay_calendar_days'],
-                        receipt_amount_convention='kernel_entitlement_unrounded',**common)
-                result=dict(phase=phase['phase'],candidate_id=package['candidate_id'],outer_run_id=record['id'],
-                    frozen_package_sha256=package['package_sha256'],result=output)
-                step=dict(kind='chronological_replay',package_sha256=package['package_sha256'],
-                    selection_seal_sha256=selection['selection_seal_sha256'],result=result,result_sha256=fingerprint(result),
-                    outer_source=dict(kind='backtest',run_id=record['id'],manifest_sha256=fingerprint(record),artifacts=artifacts(self.runs.root,record)))
-                self._save_step(id,key,step);items.append(result)
+        id=campaign['campaign_id'];phase=package['phase']
+        reference=package.get('package_role')=='predeclared_reference'
+        role='baseline_outer_test' if reference else 'outer_test'
+        reference_seal=references['reference_seal_sha256'] if references else None
+        self._checkpoint(id)
+        key=f"{outer['index']}:chronological:{phase}:{package['candidate_id']}"
+        saved=self._step(id,key)
+        if saved:
+            if (saved['package_sha256']!=package['package_sha256'] or saved['selection_seal_sha256']!=selection['selection_seal_sha256']
+                    or saved.get('reference_seal_sha256')!=reference_seal):
+                raise ResearchConflict('Chronological checkpoint differs from its frozen selected/reference choice.')
+            return saved['result']
+        config=package['configuration'];strategy=package['strategy']
+        candidate=dict(id=package['candidate_id'],strategy_id=strategy['id'],parameters=strategy['parameters'])
+        research=dict(phase='outer',role=role,frozen_package_sha256=package['package_sha256'],
+            selection_seal_sha256=selection['selection_seal_sha256'],training_source_id=config['source']['source_backtest_id'],
+            selected_candidate_id=package['candidate_id'])
+        if reference_seal:research['reference_seal_sha256']=reference_seal
+        if reference:
+            research.update(baseline_id=package['baseline_id'],reference_declaration_sha256=package['reference_declaration_sha256'],
+                recommendation_eligible=False)
+        record=self._backtest(campaign,analysis_id,candidate,outer,dict(index=-2),role,
+            window_override=outer['test'],research_extra=research,step_suffix=phase)
+        calendar=deepcopy(package['calendar'])
+        calendar['start_dates']=tuple(calendar['start_dates']);calendar['closures']=tuple(calendar.get('closures',[]))
+        common=dict(runs=self.runs,source=SavedTradeSource(**dict(config['source'],source_backtest_id=record['id'])),
+            micros=config['micros'],window=ReplayWindow(package['outer_window']['first_session'],package['outer_window']['cutoff_date_exclusive']),
+            calendar=PhaseCalendar(**calendar),max_micros=config['simulation']['max_micros'],
+            costs=SourceCosts(**config['costs']),sizing=SizingConfiguration(**config['sizing']) if config.get('sizing') else None,
+            frozen_binding=package,checkpoint=lambda:self._checkpoint(id))
+        self._step(id,f"{outer['index']}:economic_selection")
+        if reference_seal:self._step(id,f"{outer['index']}:baseline_selection")
+        if phase=='evaluation':
+            output=replay_evaluation_profile(profile=EvaluationProfile(**config['profile']),retry=SequentialRetry(**config['retry']),**common)
+        else:
+            output=replay_funded_profile(profile=FundedProfile(**config['profile']),
+                receipt_delay_calendar_days=package['receipt_delay_calendar_days'],
+                receipt_amount_convention=package['receipt_amount_convention'],**common)
+        result=dict(phase=phase,candidate_id=package['candidate_id'],outer_run_id=record['id'],
+            frozen_package_sha256=package['package_sha256'],result=output)
+        if reference:result['baseline_id']=package['baseline_id']
+        step=dict(kind='chronological_replay',package_sha256=package['package_sha256'],
+            selection_seal_sha256=selection['selection_seal_sha256'],reference_seal_sha256=reference_seal,
+            result=result,result_sha256=fingerprint(result),
+            outer_source=dict(kind='backtest',run_id=record['id'],manifest_sha256=fingerprint(record),artifacts=artifacts(self.runs.root,record)))
+        self._save_step(id,key,step)
+        return result
+
+    def _replay_economic(self,campaign,analysis_id,outer,selection,references=None):
+        if selection is None:return None
+        items=[self._replay_package(campaign,analysis_id,outer,selection,package,references)
+               for phase in selection['phases'] for package in phase['frozen_packages']]
         return dict(mode='historical_chronological',status='complete' if items else 'selection_abstained',
             selection_seal_sha256=selection['selection_seal_sha256'],items=items,
             interpretation='Actual ordered outer-window source path under frozen model rules; no resampling, no reselection, no deployment qualification.')
+
+    def _replay_baselines(self,campaign,analysis_id,outer,selection,references):
+        if references is None:return []
+        results=[]
+        for reference in references['baseline_results']:
+            replay=self._replay_package(campaign,analysis_id,outer,selection,reference['frozen_package'],references)
+            results.append(dict(reference,outer_run_id=replay['outer_run_id'],chronological_replay=replay['result'],
+                reference_seal_sha256=references['reference_seal_sha256'],status='REFERENCE_MEASURED'))
+        return results
+
+    def _write_reliability_csv(self,staged,reliability):
+        """Export owner-supplied observations without recomputing statistics."""
+        members=[];comparisons=[]
+        for phase,value in (reliability or {}).get('phases',{}).items():
+            for fold in value.get('folds',[]):
+                prefix={key:fold.get(key) for key in ('outer_fold','selection_status','action','family_size','scalar_eligible')}
+                for member in fold.get('members',[]) or [{}]:
+                    identity=member.get('logical_policy',{})
+                    members.append(dict(phase=phase,**prefix,policy_sha256=identity.get('policy_sha256'),
+                        **{key:item for key,item in member.items() if key!='logical_policy'}))
+            for comparison in value.get('baseline_comparisons',[]):
+                prefix={key:item for key,item in comparison.items() if key not in ('pairs',)}
+                for pair in comparison.get('pairs',[]) or [{}]:comparisons.append(dict(phase=phase,**prefix,**pair))
+        for name,rows in [('reliability_folds.csv',members),('baseline_comparison.csv',comparisons)]:
+            fields=sorted({key for row in rows for key in row}) or ['phase','outer_fold','status']
+            with (staged/name).open('w',newline='') as stream:
+                writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader()
+                for row in rows:writer.writerow({key:canonical(value) if isinstance(value,(dict,list,tuple)) else value for key,value in row.items()})
 
     def _run(self, id, analysis_id):
         try:
@@ -667,18 +805,25 @@ class RobustResearchStore:
                           non_signal_parameters=c['non_signal_parameters'], complexity=c['complexity']) for c in plan['candidates']],
                     evidence, QualificationSettings.model_validate(plan['qualification']))
                 selection=self._select_economic(campaign,analysis_id,outer,qualification)
-                replay=self._replay_economic(campaign,analysis_id,outer,selection)
+                references=self._prepare_baselines(campaign,analysis_id,outer,qualification)
+                replay=self._replay_economic(campaign,analysis_id,outer,selection,references)
+                baseline_results=self._replay_baselines(campaign,analysis_id,outer,selection,references)
                 folds.append(dict(index=outer['index'], qualification=qualification, backtests=backtests,
-                    inner_evidence=evidence, regime_evidence=regime_evidence,economic_selection=selection,chronological_replay=replay,
+                    inner_evidence=evidence, regime_evidence=regime_evidence,economic_selection=selection,chronological_replay=replay,baseline_results=baseline_results,
                     outer_test_status=replay['status'] if replay else 'not_run',
                     policy_selection_status=selection['status'] if selection else 'not_run'))
             self._checkpoint(id)
             self.check(id)
             self._verify_steps(id)
-            provider_blockers=sorted({reason for fold in folds for phase in (fold.get('economic_selection') or {}).get('phases',[])
-                for reason in (phase.get('deployment_readiness') or {}).get('reasons',[])})
-            result = dict(folds=folds,event_journal=self._journal(id), readiness=dict(status='INCOMPLETE',production_qualified=False,provider_rule_blockers=provider_blockers, reasons=[
-                ('Inner qualification, independent economic selection and frozen chronological outer replay are saved. Consolidated reliability, baseline superiority and final verification remain pending.' if plan.get('economic_studies') else 'Inner qualification is complete. Economic selection, frozen outer replay, reliability and final recommendation remain pending.'),
+            reviews=[phase for fold in folds for phase in (fold.get('economic_selection') or {}).get('phases',[])]
+            reviews.extend(reference for fold in folds for reference in fold['baseline_results'])
+            provider_blockers=sorted({reason for review in reviews for reason in (review.get('deployment_readiness') or {}).get('reasons',[])})
+            reliability=None
+            if plan.get('economic_studies'):
+                from .research_reliability import consolidate_reliability
+                reliability=consolidate_reliability(plan,folds,ReliabilitySettings.model_validate(plan['reliability']))
+            result = dict(folds=folds,reliability=reliability,event_journal=self._journal(id), readiness=dict(status='INCOMPLETE',production_qualified=False,provider_rule_blockers=provider_blockers, reasons=[
+                ('Inner qualification, independent selection, predeclared references and chronological outer reliability are saved. Evidence sufficiency and comparisons are reported explicitly; final procedure verification and deployment remain pending.' if plan.get('economic_studies') else 'Inner qualification is complete. Economic selection, frozen outer replay, reliability and final recommendation remain pending.'),
                 'No deployment recommendation or live qualification is produced.']), limitations=plan['limitations'])
             with TemporaryDirectory(prefix='.pending-', dir=self.analyses.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
@@ -686,13 +831,16 @@ class RobustResearchStore:
                 (staged/'calculations.json').write_text(canonical(result))
                 (staged/'economic_selection.json').write_text(canonical([dict(outer_fold=f['index'],selection=f['economic_selection']) for f in folds]))
                 (staged/'research_journal.json').write_text(canonical(result['event_journal']))
+                (staged/'baseline_results.json').write_text(canonical([dict(outer_fold=f['index'],baseline_results=f['baseline_results']) for f in folds]))
+                (staged/'reliability.json').write_text(canonical(reliability))
+                self._write_reliability_csv(staged,reliability)
                 (staged/'chronological_replay.json').write_text(canonical([dict(outer_fold=f['index'],replay=f['chronological_replay']) for f in folds]))
                 with (staged/'qualification.csv').open('w', newline='') as stream:
                     writer = csv.writer(stream); writer.writerow(['outer_fold','candidate_id','status','reasons'])
                     for fold in folds:
                         for c in fold['qualification']['candidates']:
                             writer.writerow([fold['index'], c['candidate_id'], c['status'], canonical(c['reasons'])])
-                report = dict(format_version=6, phase='research_integrity', model_version='nested-research-v2',
+                report = dict(format_version=6, phase='research_integrity', model_version='nested-research-v3',
                     settings=dict(ANALYSIS_MODE='nested_research'), request=campaign['declaration'],
                     plan=plan, calculations=result, implementation=dict(engine_identity=plan['engine_identity']))
                 seal_report(staged, report, analysis_id, self.analyses.get(analysis_id)['created'])
@@ -701,6 +849,6 @@ class RobustResearchStore:
                 db.execute('INSERT INTO analysis_report_checks VALUES (?,?)',
                     (analysis_id, canonical(sealed_checks(self.analyses.root/analysis_id))))
                 db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?",
-                    ('Nested economic validation saved; reliability and final verification pending' if plan.get('economic_studies') else 'Inner qualification saved; outer economic validation pending', analysis_id))
+                    ('Nested reliability and references saved; final procedure verification pending' if plan.get('economic_studies') else 'Inner qualification saved; outer economic validation pending', analysis_id))
         except Exception as exc:
             self.analyses._update(analysis_id, 'error', 'Research stopped; completed backtests retained', f'{type(exc).__name__}: {exc}')

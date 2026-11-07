@@ -11,7 +11,7 @@ from hashlib import sha256
 import json
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
 from .research_folds import SESSION_CONVENTION
 from .prop.evaluation_optimization import pareto_sort
 from .prop.funded_optimization import OBJECTIVE as FUNDED_OBJECTIVE
@@ -59,7 +59,7 @@ class EvaluationSelector(Contract):
 
 
 class FundedSelector(Contract):
-    mode: Literal['maximum_expected_received_cash']='maximum_expected_received_cash'
+    mode: Literal['maximum_expected_received_cash','conservative_expected_received_cash']='maximum_expected_received_cash'
     tie_policy: Literal['keep_all_exact_ties','configuration_id']='keep_all_exact_ties'
     minimum_expected_cash: Decimal | None=None
 
@@ -105,8 +105,44 @@ class PhaseStudy(Contract):
         if len({canonical(profile) for profile in self.profiles})!=len(self.profiles):raise ValueError('Duplicate profile.')
         if len({canonical(policy.model_dump(mode='json')) for policy in self.policies})!=len(self.policies):raise ValueError('Duplicate sizing policy.')
         if self.phase=='funded' and self.retry is not None:raise ValueError('Funded selection cannot use evaluation retry economics.')
+        if self.phase=='funded':
+            mode=FundedSelector.model_validate(self.selector).mode
+            if (mode=='conservative_expected_received_cash') != (self.search_settings.get('conservative_objective') is not None):
+                raise ValueError('Conservative funded selection requires its explicit historical-mean objective configuration; maximum mean selection must omit it.')
         require(not set(self.search_settings)&{'candidates','source_backtest_id','mode'},'Coordinator owns source membership and phase.')
         return self
+
+
+class BaselineDeclaration(Contract):
+    """A predeclared measured reference, never an automatically qualified policy."""
+    id: str = Field(min_length=1,max_length=120)
+    phase: Literal['evaluation','funded']
+    source_configuration_id: str = Field(pattern=r'^[0-9a-f]{64}$')
+    profile: dict
+    policy: Policy
+    required: StrictBool=True
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if not self.id.strip() or self.id!=self.id.strip():
+            raise ValueError('Reference ID must be a nonempty readable name without surrounding whitespace.')
+        if self.policy.sizing is not None and SizingConfiguration(**self.policy.sizing).needs_stop:
+            raise ValueError('required_baseline_unavailable: native account-state risk references require a strategy rerun; a fixed quantity cannot substitute for them.')
+        return self
+
+
+def baseline_study(reference,studies,candidates):
+    """Resolve only declared signal/profile membership; no performance input."""
+    matches=[c for c in candidates if c['id']==reference.source_configuration_id]
+    require(len(matches)==1,'Reference source configuration is absent or stale; preview the current declared sources.')
+    phase=[study for study in studies if study.phase==reference.phase]
+    require(len(phase)==1,'Each reference requires its declared independent phase study.')
+    study=phase[0]
+    require(any(canonical(reference.profile)==canonical(profile) for profile in study.profiles),
+            'Reference profile must match a declared profile in the same phase study.')
+    value=study.model_dump(mode='json')
+    value['profiles']=[reference.profile];value['policies']=[reference.policy.model_dump(mode='json')]
+    return PhaseStudy.model_validate(value),matches[0]
 
 
 def validate_native_policies(studies,required_baselines=()):
@@ -146,18 +182,18 @@ def policy_training_metadata(campaign_id,outer,membership,input_identity):
                 selection_scope='approved configurations only; copied signal parameters, no signal reoptimization')
 
 
-def build_training_context(plan,outer,membership,records,artifact_hashes):
+def _training_context_sources(plan,outer,candidates,records,artifact_hashes,role,evidence):
     require(all(type(plan['session_inventory']['counts'][day]) is int and plan['session_inventory']['counts'][day]>0 for day in outer['train']['sessions']),'Every native training session requires actual observed bars.')
-    expected=set(membership['configuration_ids'])
-    require(set(records)==expected and set(artifact_hashes)==expected,'Every qualified configuration needs one complete outer-training report.')
-    by_id={c['id']:c for c in membership['configurations']};sources={}
+    by_id={c['id']:c for c in candidates};expected=set(by_id)
+    require(set(records)==expected and set(artifact_hashes)==expected,'Every admitted configuration needs one complete outer-training report.')
+    sources={}
     for id in sorted(expected):
         record=records[id];meta=record['run_metadata'];research=meta.get('research',{})
         require(record['status']=='complete','Training report is incomplete.')
-        require(research.get('phase')=='inner' and research.get('role')=='policy_train','Training source has wrong research role.')
+        require(research.get('phase')=='inner' and research.get('role')==role,'Training source has wrong research role.')
         require(research.get('campaign_id')==plan['campaign_id'] and research.get('outer_fold')==outer['index'],'Training source belongs to another campaign/fold.')
         require(canonical(research.get('window'))==canonical(outer['train']) and research.get('information_cutoff_session')==outer['train']['last_session'],'Training source crosses the fold information boundary.')
-        require(research.get('qualification_sha256')==membership['qualification_sha256'],'Training source qualification identity differs.')
+        require(all(canonical(research.get(key))==canonical(value) for key,value in evidence.items()),'Training source admission evidence differs.')
         strategy=meta['strategy']
         require(strategy['id']==by_id[id]['strategy_id'] and canonical(strategy['parameters'])==canonical(by_id[id]['parameters']),'Signal parameters were changed during prop handoff.')
         expected_strategy=deepcopy(by_id[id].get('strategy'))
@@ -170,11 +206,40 @@ def build_training_context(plan,outer,membership,records,artifact_hashes):
         require(record['id'] not in sources,'One training report cannot masquerade as two configurations.')
         sources[record['id']]=dict(configuration_id=id,strategy_id=strategy['id'],parameters=deepcopy(strategy['parameters']),
             strategy_provenance_sha256=digest(strategy),manifest_sha256=digest(record),artifact_sha256=deepcopy(artifact_hashes[id]))
-    result=dict(version='nested-phase-training-v1',campaign_id=plan['campaign_id'],outer_fold_index=outer['index'],
-        qualification_sha256=membership['qualification_sha256'],input_identity=plan['input_identity'],engine_identity=plan['engine_identity'],
+    return dict(campaign_id=plan['campaign_id'],outer_fold_index=outer['index'],
+        input_identity=plan['input_identity'],engine_identity=plan['engine_identity'],
         train_window=deepcopy(outer['train']),information_cutoff_session=outer['train']['last_session'],
-        qualified_configuration_ids=membership['configuration_ids'],training_sources=sources,
-        session_inventory=deepcopy({day:plan['session_inventory']['counts'][day] for day in outer['train']['sessions']}))
+        training_sources=sources,session_inventory=deepcopy({day:plan['session_inventory']['counts'][day] for day in outer['train']['sessions']}))
+
+
+def build_training_context(plan,outer,membership,records,artifact_hashes):
+    result=_training_context_sources(plan,outer,membership['configurations'],records,artifact_hashes,'policy_train',
+        dict(qualification_sha256=membership['qualification_sha256']))
+    result.update(version='nested-phase-training-v1',qualification_sha256=membership['qualification_sha256'],
+        qualified_configuration_ids=membership['configuration_ids'])
+    result['context_sha256']=digest(result)
+    return result
+
+
+def reference_training_metadata(campaign_id,outer,reference,input_identity):
+    declarations=[reference.model_dump(mode='json')]
+    return dict(phase='inner',role='baseline_train',campaign_id=campaign_id,outer_fold=outer['index'],
+        window=deepcopy(outer['train']),information_cutoff_session=outer['train']['last_session'],
+        reference_ids=[reference.id],reference_declaration_sha256=digest(declarations),
+        admission_scope='predeclared_reference',input_identity=input_identity,cold_start=True,
+        recommendation_eligible=False,controlled_oos=False)
+
+
+def build_reference_context(plan,outer,reference,candidate,record,artifact_hashes):
+    declarations=[reference.model_dump(mode='json')]
+    evidence=dict(reference_ids=[reference.id],reference_declaration_sha256=digest(declarations),
+        admission_scope='predeclared_reference',recommendation_eligible=False)
+    result=_training_context_sources(plan,outer,[candidate],{candidate['id']:record},{candidate['id']:artifact_hashes},
+        'baseline_train',evidence)
+    result.update(version='nested-phase-reference-v1',admission_scope='predeclared_reference',
+        reference_ids=[reference.id],source_configuration_ids=[candidate['id']],
+        reference_declaration_sha256=digest(declarations),reference_declarations=declarations,
+        recommendation_eligible=False)
     result['context_sha256']=digest(result)
     return result
 
@@ -243,30 +308,33 @@ def select_evaluation(calculations,selector):
 
 def select_funded(calculations,selector,search_request):
     selector=FundedSelector.model_validate(selector)
-    require(calculations.get('objective')==FUNDED_OBJECTIVE,'Funded objective must be expected trader receipts within its horizon.')
+    objective=('historical_lower_mean_cash' if selector.mode=='conservative_expected_received_cash' else FUNDED_OBJECTIVE)
+    require(calculations.get('objective')==objective,'Funded calculation objective differs from the predeclared receipt selector.')
     unresolved=_unresolved(calculations)
     if unresolved:return dict(status='INSUFFICIENT_EVIDENCE',selected_ids=[],unresolved_ids=unresolved,reason='complete_candidate_family_not_resolved')
     # Risk constraints have already been applied by the independent funded owner.
     feasible=[row for row in calculations['candidates'] if row['feasible']]
     if selector.minimum_expected_cash is not None:
-        feasible=[row for row in feasible if row['metrics'][FUNDED_OBJECTIVE] is not None and Decimal(str(row['metrics'][FUNDED_OBJECTIVE]))>=selector.minimum_expected_cash]
+        feasible=[row for row in feasible if row['metrics'][objective] is not None and Decimal(str(row['metrics'][objective]))>=selector.minimum_expected_cash]
     if not feasible:return dict(status='NO_FEASIBLE_POLICY',selected_ids=[])
-    require(all(row['metrics'][FUNDED_OBJECTIVE] is not None and Decimal(str(row['metrics'][FUNDED_OBJECTIVE])).is_finite() for row in feasible),'Missing funded cash objective.')
-    best=max(Decimal(str(row['metrics'][FUNDED_OBJECTIVE])) for row in feasible)
-    ids=sorted(row['candidate_id'] for row in feasible if Decimal(str(row['metrics'][FUNDED_OBJECTIVE]))==best)
+    require(all(row['metrics'][objective] is not None and Decimal(str(row['metrics'][objective])).is_finite() for row in feasible),'Missing funded cash objective.')
+    best=max(Decimal(str(row['metrics'][objective])) for row in feasible)
+    ids=sorted(row['candidate_id'] for row in feasible if Decimal(str(row['metrics'][objective]))==best)
     if selector.tie_policy=='configuration_id':
         by_id={row['candidate_id']:row for row in feasible}
         ids=sorted(ids,key=lambda id:stable_policy_identity(by_id[id],'funded'))[:1]
     return dict(status='FROZEN_FAMILY' if len(ids)>1 else 'FROZEN_POLICY',selected_ids=ids,
-        selector=selector.model_dump(mode='json'),constraints=deepcopy(search_request.get('constraints',{})),
+        selector=selector.model_dump(mode='json'),objective=objective,constraints=deepcopy(search_request.get('constraints',{})),
         horizon_calendar_days=search_request['horizon_calendar_days'],receipt_delay_calendar_days=search_request['receipt_delay_calendar_days'],
-        certification='point-estimate choice; Monte Carlo error is not total future uncertainty')
+        certification=('Historical lower estimate of a conditional mean; finite-history resampling and Monte Carlo precision do not certify future outcomes.'
+            if selector.mode=='conservative_expected_received_cash' else 'point-estimate choice; Monte Carlo error is not total future uncertainty'))
 
 
 def study_defaults():
     """Current local model defaults; fees/calendar/settlement are declarations."""
     from .prop.phase_profiles import EvaluationProfile, FundedProfile, rule_version
     from .prop.evaluation_optimization import SequentialRetry
+    from .prop.funded_optimization import FundedHistoricalMean
     profiles = dict(
         evaluation=[asdict(EvaluationProfile('apex-50k-eod',rule_version('apex-50k-eod'),'30','40'))],
         funded=[asdict(FundedProfile(name,rule_version(name))) for name in ('apex-50k-eod','lucidflex-50k')])
@@ -281,7 +349,9 @@ def study_defaults():
         search_settings=dict(calendar=calendar,receipt_delay_calendar_days=0,constraints={},
                              bootstrap_replicates=100,bootstrap_seed=137,near_tie_cash=0),
         selector=FundedSelector().model_dump(mode='json'))
-    return dict(economic_studies=dict(evaluation=evaluation,funded=funded),economic_profiles=profiles)
+    return dict(economic_studies=dict(evaluation=evaluation,funded=funded),economic_profiles=profiles,
+        baseline=dict(id='One MNQ reference',policy=dict(micros=1),required=True),
+        conservative_objective=asdict(FundedHistoricalMean()))
 
 
 def resolved_study(study, outer):
@@ -339,5 +409,16 @@ def freeze_policy(campaign_id,outer,study,context,report,report_sha256,row):
     if study.phase=='funded':
         result['receipt_amount_convention']='kernel_entitlement_unrounded'
         result['receipt_delay_calendar_days']=report['request']['receipt_delay_calendar_days']
+    result['package_sha256']=digest(result)
+    return result
+
+
+def freeze_reference(campaign_id,outer,study,context,report,report_sha256,row,reference):
+    result=freeze_policy(campaign_id,outer,study,context,report,report_sha256,row)
+    result.pop('package_sha256')
+    result.update(package_role='predeclared_reference',baseline_id=reference.id,
+        reference_declaration_sha256=context['reference_declaration_sha256'],recommendation_eligible=False,
+        selector=dict(mode='predeclared_reference',selection_uses_forecast_or_outer_results=False),
+        interpretation='Predeclared measured reference; edge status and forecast feasibility do not make it a recommended policy.')
     result['package_sha256']=digest(result)
     return result

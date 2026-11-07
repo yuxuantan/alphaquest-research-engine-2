@@ -119,10 +119,8 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
     labels, not inferred intraday execution/settlement timestamps. Each path has
     its own addressed RNG; termination never changes another path's schedule.
     """
-    from dataclasses import asdict, replace
+    from dataclasses import asdict
     from datetime import date, timedelta
-    from hashlib import sha256
-    from . import native_engine, lucid_engine
     if not isinstance(profile, FundedProfile) or type(sampling) is not SamplingConfig:
         raise ValueError('Dated funded simulation requires funded-only inputs.')
     positive_integer('horizon_calendar_days', horizon_calendar_days, 3650)
@@ -136,6 +134,31 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
     snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing,
         observed_sessions=observed_sessions)
     trace = SizingTrace(sizing) if sizing is not None else None
+    paths, schedule_sha256, rules = _dated_funded_paths(days, profile, micros, horizon_calendar_days,
+        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace)
+    verify_phase_source(runs, source, snapshot)
+    result = dict(paths=paths, schedule_sha256=schedule_sha256,
+        provenance=provenance('funded', snapshot, profile, micros, simulation, sampling,
+            rules=asdict(rules), horizon_calendar_days=horizon_calendar_days,
+            calendar=asdict(calendar), receipt_delay_calendar_days=receipt_delay_calendar_days,
+            dated_kernel='Python reference FundedAccount.advance; identical native qualification/tier/drawdown/payout policy',
+            dated_clock='Chicago civil session dates; daily resolution, event age is date minus start date; exclusive cutoff',
+            dated_rng='MT19937 seeded by SeedSequence([seed,path_index]); circular source-session blocks; no paired inference claim',
+            settlement='Automatic request/deduction on native eligibility date; entitlement paid after declared civil-day lag, including weekends and after account closure; unverified scenario',
+            initial_state='Fresh funded account at t=0; no evaluation, acquisition or replacement',
+            **({'sizing':trace.result()} if trace is not None else {})))
+    result['provenance']['time_unit'] = 'Chicago civil calendar days, not session counts'
+    result['provenance']['kernel'] = dict(name='python-reference', source='lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py')
+    return result
+
+
+def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
+        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None):
+    """The same fresh-account dated kernel for original and resampled histories."""
+    from dataclasses import replace
+    from datetime import date, timedelta
+    from hashlib import sha256
+    from . import native_engine, lucid_engine
     lucid = profile.profile_id == 'lucidflex-50k'
     rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
              else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts))
@@ -195,19 +218,116 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
             pending_cash=sum(e['trader_cash_entitlement'] for e in events if not e['received_within_horizon']),
             number_of_payouts=len(receipts),
             days_to_first_payout=(date.fromisoformat(receipts[0]['receipt_date'])-start).days if receipts else None))
+    return paths, schedule.hexdigest(), rules
+
+
+def historical_funded_mean(runs, source, profile, micros, horizon_calendar_days,
+        calendar, receipt_delay_calendar_days, simulation, period, sampling, costs,
+        *, configuration, family_size, sizing=None, observed_sessions=None,
+        progress=lambda message: None):
+    """Re-estimate funded mean cash after resampling observed historical blocks.
+
+    This is a nominal percentile calculation under a stationary empirical
+    history model. Its inner Monte Carlo noise is measured and gated; neither
+    that noise nor historical resampling covers total future uncertainty.
+    """
+    from dataclasses import asdict, replace
+    from decimal import Decimal, localcontext
+    from hashlib import sha256
+    from .adapter import canonical
+    from .native_engine import sampled_days
+    from .funded_optimization import FundedHistoricalMean
+    if type(configuration) is not FundedHistoricalMean:
+        raise ValueError('Historical funded mean requires its explicit configuration.')
+    positive_integer('family_size', family_size, 100000)
+    cfg = configuration
+    snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation,
+        period, costs, sizing, observed_sessions=observed_sessions)
+    labels = list(observed_sessions) if observed_sessions is not None else None
+    evidence = 'internally_verified_observed_sessions' if labels is not None else 'unavailable'
+    if labels is None and snapshot.get('source_kind') == 'external_trade_export':
+        bounds = snapshot['profile_research_period']
+        labels = [stamp for stamp in snapshot['canonical_manifest']['coverage']['sessions']
+                  if bounds['first_session'] <= stamp <= bounds['last_session']]
+        snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation,
+            period, costs, sizing, observed_sessions=labels)
+        evidence = 'exporter_declared_observed_sessions_not_independently_certified'
+    # Integer ratios avoid moving an exact rank boundary when a Bonferroni
+    # probability recurs in decimal (for example .1/7 with 350 replicates).
+    confidence_numerator, confidence_denominator = Decimal(str(cfg.confidence_level)).as_integer_ratio()
+    tail_numerator = confidence_denominator-confidence_numerator
+    tail_denominator = confidence_denominator*family_size
+    replicate_tail_numerator = cfg.replicates*tail_numerator
+    rank = (replicate_tail_numerator+tail_denominator-1)//tail_denominator
+    with localcontext() as context:
+        context.prec = 80
+        alpha = Decimal(tail_numerator)/Decimal(tail_denominator)
+        expected_tail = Decimal(replicate_tail_numerator)/Decimal(tail_denominator)
+    count = len(labels) if labels is not None else 0
+    if labels is not None and len(days) != count:
+        raise ValueError('Historical session inventory differs from the admitted source book.')
+    reasons = []
+    if labels is None: reasons.append('verified_observed_session_inventory_required')
+    if count < cfg.minimum_history_sessions: reasons.append('minimum_history_sessions')
+    if count//cfg.block_sessions < cfg.minimum_history_blocks: reasons.append('minimum_history_blocks')
+    if replicate_tail_numerator < 5*tail_denominator: reasons.append('insufficient_family_tail_replicates')
+    starts = sorted(calendar.start_dates)
+    if cfg.simulations_per_replicate % len(starts) or cfg.simulations_per_replicate//len(starts) < 2:
+        reasons.append('minimum_two_inner_paths_per_start_cohort')
+    result = dict(configuration=asdict(cfg), status='insufficient_evidence', reasons=reasons,
+        cash_unit='USD trader cash received within the saved horizon',
+        estimation_target='Expected receipts conditional on a fresh funded account and the declared historical model',
+        lower_mean_cash=None, confidence_level=cfg.confidence_level, family_size=family_size,
+        tail_probability=str(alpha), tail_rank=rank, expected_tail_replicates=str(expected_tail),
+        tail_probability_fraction=dict(numerator=tail_numerator, denominator=tail_denominator),
+        history_session_count=count, history_block_count=count//cfg.block_sessions,
+        history_session_labels=labels, history_evidence=evidence, replicates=[],
+        mc_noise=dict(maximum_allowed_standard_error=cfg.maximum_mc_standard_error,
+            maximum_observed_standard_error=None, median_observed_standard_error=None,
+            same_addressed_simulation_stream_across_histories=True),
+        family_coverage='Nominal one-sided Bonferroni percentile tail across every declared candidate; no simultaneous finite-sample guarantee',
+        method='Circular historical session-block resampling to the original history length, followed by the same dated fresh-funded-account simulation',
+        quantile='Inverse empirical CDF, sorted mean at ceil(replicates * (1-confidence) / family_size)',
+        random_streams='History MT19937 SeedSequence([history_seed,replicate]); inner paths MT19937 SeedSequence([simulation_seed,path_index])',
+        limitations=[
+            'Resampling units are historical sessions/blocks, not the number of Monte Carlo paths. Blocks are not asserted independent.',
+            'Stationarity and the declared block length are modeling assumptions; regime change, unobserved losses, provider rules and execution errors are not covered.',
+            'Account simulations retain the admitted saved signal-path assumption; historical resampling is not a native strategy rerun after account pauses or size changes.',
+            'The percentile concerns an estimated expected cash mean, not a single account payout percentile.',
+            'Replicate means retain finite Monte Carlo error. A standard-error ceiling and common streams reduce numerical noise but do not remove it or certify rare-event accuracy.',
+            'Nominal bootstrap coverage is approximate; neither the confidence label nor additional replicates guarantees future trading cash.'])
+    if reasons:
+        verify_phase_source(runs, source, snapshot)
+        return result
+    if cfg.replicates*count > 1_000_000:
+        raise ValueError('Historical bootstrap source-index capture exceeds one million indices.')
+    if cfg.replicates*cfg.simulations_per_replicate*horizon_calendar_days > 50_000_000:
+        raise ValueError('Historical bootstrap exceeds 50 million inner path calendar days.')
+    inner = replace(simulation, simulations=cfg.simulations_per_replicate, seed=cfg.simulation_seed)
+    for number in range(cfg.replicates):
+        progress(f'Historical funded mean replicate {number+1} / {cfg.replicates}')
+        seed = int(np.random.SeedSequence([cfg.history_seed, number]).generate_state(1)[0])
+        stream = sampled_days(np.random.RandomState(seed), count, cfg.block_sessions)
+        indices = [next(stream) for _ in range(count)]
+        paths, schedule, _ = _dated_funded_paths([days[index] for index in indices], profile,
+            micros, horizon_calendar_days, calendar, receipt_delay_calendar_days, inner, sampling, sizing)
+        cash = np.array([path['cash_received'] for path in paths], dtype=float)
+        groups = [cash[[path['start_date'] == start for path in paths]] for start in starts]
+        se = float(np.sqrt(sum(np.var(group, ddof=1)/len(group) for group in groups))/len(groups))
+        mean = float(cash.mean())
+        if not np.isfinite(mean) or not np.isfinite(se):
+            raise ValueError('Historical funded mean calculation produced nonfinite cash or Monte Carlo error.')
+        result['replicates'].append(dict(replicate=number, history_seed=seed, source_indices=indices,
+            indices_sha256=sha256(canonical(indices).encode()).hexdigest(), simulation_seed=inner.seed,
+            mean_cash=mean, mean_monte_carlo_se=se, schedule_sha256=schedule))
     verify_phase_source(runs, source, snapshot)
-    result = dict(paths=paths, schedule_sha256=schedule.hexdigest(),
-        provenance=provenance('funded', snapshot, profile, micros, simulation, sampling,
-            rules=asdict(rules), horizon_calendar_days=horizon_calendar_days,
-            calendar=asdict(calendar), receipt_delay_calendar_days=receipt_delay_calendar_days,
-            dated_kernel='Python reference FundedAccount.advance; identical native qualification/tier/drawdown/payout policy',
-            dated_clock='Chicago civil session dates; daily resolution, event age is date minus start date; exclusive cutoff',
-            dated_rng='MT19937 seeded by SeedSequence([seed,path_index]); circular source-session blocks; no paired inference claim',
-            settlement='Automatic request/deduction on native eligibility date; entitlement paid after declared civil-day lag, including weekends and after account closure; unverified scenario',
-            initial_state='Fresh funded account at t=0; no evaluation, acquisition or replacement',
-            **({'sizing':trace.result()} if trace is not None else {})))
-    result['provenance']['time_unit'] = 'Chicago civil calendar days, not session counts'
-    result['provenance']['kernel'] = dict(name='python-reference', source='lucid_engine.py' if lucid else 'native_engine.py')
+    errors = [row['mean_monte_carlo_se'] for row in result['replicates']]
+    result['mc_noise'].update(maximum_observed_standard_error=max(errors),
+        median_observed_standard_error=float(np.median(errors)))
+    if max(errors) > cfg.maximum_mc_standard_error:
+        result['reasons'].append('inner_monte_carlo_standard_error_exceeds_declared_limit')
+    else:
+        result.update(status='estimated', lower_mean_cash=sorted(row['mean_cash'] for row in result['replicates'])[rank-1])
     return result
 
 
