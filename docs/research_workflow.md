@@ -45,7 +45,8 @@ viewed data is not made untouched by changing a split.
 Generate candidate strategies/parameters with ordinary IS grids, optionally
 unchecking automatic legacy prop reports. Campaigns reuse saved trades/risk;
 they do not repeat the backtest. Explicit saved-source/job/trial membership ×
-whole-MNQ sizes must fit the declared campaign budget (at most 128); duplicates,
+whole-MNQ sizes are counted before execution; searches above 128 require explicit
+confirmation of the exact count (128 is not a hard cap). Duplicates,
 incomplete jobs, mismatched splits/costs and unsupported sources reject before
 execution. Legacy Historical net is not a candidate pruning criterion. Failed or
 rejected campaign revisions remain research history; OOS access is never erased.

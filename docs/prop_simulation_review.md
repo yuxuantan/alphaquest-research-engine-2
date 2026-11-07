@@ -6909,3 +6909,14 @@ report modified. Temporary browser servers stopped through fixture cleanup; the
 owned RAM volume was detached after verified archival. No persistent server or
 GitHub push was started. See `qualification.json`, `independent.json`,
 `archive-verification.json`, identity snapshots and `preservation-after.json`.
+# Robust research audit and execution plan — 2026-11-07
+
+The new `feature/robust-research-workflow` branch starts at freshly fetched clean
+`origin/main` commit `60dbccbda8e97373a3856ea6ee3fdd07313cad4f`. The
+[audit, traceability matrix and milestone plan](robust_research_plan.md) map the
+complete requested workflow to current owners and missing functionality.
+This documentation-only increment has no artificial demo screen or new report.
+Existing dated replay/cash accounting will be reused; existing Monte Carlo OOS
+assessment is not historical chronological OOS. No new numerical/provider/live
+qualification is claimed. All saved evidence below remains unchanged.
+
