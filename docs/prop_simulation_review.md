@@ -7271,3 +7271,202 @@ the selected base, so never reuse the preserved evidence directories):
   tests/test_backtests_browser.py::test_exact_submitted_configuration_and_saved_completion_summary \
   tests/test_backtests_browser.py::test_mobile_navigation_and_layout
 ```
+
+M2a source-snapshot clarification: its all-Python implementation identity also
+captured the then-unintegrated `prop/sizing.py` contract, which was deliberately
+left out of the import feature commit until M2b integration. The exact matching
+bytes and SHA-256 are preserved at
+`artifacts/trade-import-m2a-20261107/source-snapshot/` with a reconstruction note.
+No saved report was rewritten. The M2b release incorporates that same pure
+contract with its account/API/UI integration.
+
+## Causal sizing and native decision capture — 2026-11-08
+
+M2b uses the existing Evaluation/Funded account transitions, phase campaigns,
+workers and AnalysisStore. Eligible canonical external IS sources can compare
+fixed-contract, fixed-dollar and percentage-risk policies. Each percentage base,
+planning cost, cap, skip and decision is explicit. Native fixed scenarios remain
+supported; native risk-based resizing requires an account-state strategy rerun
+and rejects. Captured native stops do not prove an invariant signal path. Outer
+economic validation and M3–M6 remain incomplete; no production/provider readiness
+or external numerical parity is claimed.
+
+The final normal-product libraries are under
+`artifacts/phase-sizing-m2b-20261108/browser-release/data/`:
+
+| Phase / directory | Source | Campaign | Analysis |
+| --- | --- | --- | --- |
+| Evaluation / `test_imported_causal_sizing_ca0` | `4ebe9ad7fc124dcbbeffbb80d8ad4e17` | `98daecf33e204deb96b9f0124b67049f` | `76bde8b2790e4ad284c1f90ffd5a6f4d` |
+| Funded / `test_imported_causal_sizing_ca1` | `97e0a0783629473c960a04d17662e180` | `dece279fb4b945c392aa157eed10371d` | `f8cb4467b3ac422d9adc0890dc67332d` |
+
+Each includes the synthetic original export, campaign/report/ZIP/CSV downloads,
+`browser-evidence.json`, and desktop/390px screenshots. Original source SHA-256
+`bd30f9f0905b42af3dfecad4b964fb8cdbf0a3f30c95305e4cf0e6a0f886ef02`.
+Evaluation report SHA-256
+`f00a4ea3b6e289fae9d29134a929b66be6d84f356e8ed682d380d88abd2d7dfe`;
+Funded report SHA-256
+`9d31311d68fd41fd56fd11f4bdbeebba4437090015448749c35e31078c7082a6`.
+ZIP hashes and every downloaded file hash are in each evidence JSON. Prior
+`browser-first/` and `browser-final/` outputs remain preserved; the release run
+also verifies corrected external IS date labels in the source picker.
+
+Reopen the Evaluation library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/phase-sizing-m2b-20261108/browser-release/data/test_imported_causal_sizing_ca0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#backtests/report/4ebe9ad7fc124dcbbeffbb80d8ad4e17`.
+The source contains six trades across January 5–6, net $20 and explicitly zero
+fees/slippage. Choose **Configure prop analysis → Create Evaluation campaign**,
+or open the saved campaign at
+`http://127.0.0.1:8019/#backtests/prop/campaign/98daecf33e204deb96b9f0124b67049f`.
+For Funded, stop the server and substitute directory `test_imported_causal_sizing_ca1`,
+then use source/campaign IDs from the table. Stop manually started servers with
+**Ctrl+C**. Automated browser fixtures stopped their temporary servers.
+
+To reproduce from the original export, use the ordinary import form and select
+`SYNTHETIC-causal-sizing.json` from either library. Check/save, then open prop
+configuration and create the chosen independent phase campaign. Keep the
+derived IS window January 5–6. Set simulations 2 and block length 1; Evaluation
+uses 2 chains, Funded uses a 3-calendar-day horizon. Choose **Compare sizing
+policies**, hard MNQ caps `3,40`, and declare these three policies:
+
+- Fixed dollar risk $100, minimum 1 / maximum 40 contracts.
+- Percentage risk 0.2%, reference **current account balance**, minimum 1 / maximum 40.
+- Fixed dollar risk $1, minimum 1 / maximum 40 contracts.
+
+All three use $50,000 initial configured capital, tick size 0.25, MNQ point value
+2, explicit zero planning commission/entry slip/stop-exit slip, and no cushion
+guard. Choose source commissions for actual source P&L. **Save and check** shows
+all **6 candidates** (two caps × three policies), including skipped policies;
+**Run** publishes the ordinary phase report. Inspect each candidate's sizing
+evidence, retained decisions, denominators and reasons. Download sizing summary,
+decision CSV, report JSON, campaign/results CSV and ZIP. Reloading submits no
+POST and all downloaded bytes remain identical. Funded settings can be frozen;
+the imported package explicitly has no native automatic OOS launch.
+
+Independent expectations for the first simulated session are based on three
+one-MNQ returns `−10, +20, 0` and causal stop distances `5, 5, 10` points:
+
+| Policy / limit | Expected quantity and state |
+| --- | --- |
+| $100 risk / cap 40 | Planned unit loss $10/$10/$20; quantities **10/10/5** |
+| 0.2% current balance / cap 40 | Bases **$50000/$49900/$50080**; budgets $100/$99.80/$100.16; quantities **10/9/5** |
+| $100 risk / cap 3 | Quantities **3/3/3**, each with user-cap reason |
+| $1 risk | All opportunities skipped; no P&L/cost/activity charge, calendar still advances |
+
+Later sampled sessions use the changed account state, not one constant multiplier.
+Two repeated source sessions make first-session arithmetic independent of which
+template is drawn. This tiny fixture demonstrates mechanics, not empirical edge
+or future profitability. Evaluation can remain unresolved with no passes; funded
+cash can be zero. Neither result is invented to make the demonstration favorable.
+The API evidence under `artifacts/trade-sizing-m2b-20261108/phase-api/data/`
+also proves explicit fixed policies match legacy metrics/paths, phase independence,
+policy/cost/base/cap identity separation, invalid sources/decisions rejection,
+bounded detail with complete aggregates, and distinct native fixed policies at
+the same cap surviving freeze/manual OOS without reselection.
+
+Native capture uses the ordinary uploaded CSV and real VWAP strategy, saved under
+`artifacts/trade-sizing-m2b-20261108/native-api/`. The source has synthetic morning
+sequences January 5–8, IS January 5–7 and reserved OOS January 8. The declared
+07:00 strategy reset is crossed by the observed morning bars; no missing evening
+bars are invented. Dataset `92f627f930104477bbed84b0ee28b634`, backtest
+`c63385cd0628401784a18bf7391b5745`.
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/trade-sizing-m2b-20261108/native-api/state" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8033
+```
+
+Open `http://127.0.0.1:8033/#backtests/report/c63385cd0628401784a18bf7391b5745`
+and download **Execution decisions**. Per IS session: signal close **108** and
+initial stop **90** at 15:01 UTC; next observed open **115**, actual fill
+**115.25**, target exit **130**. One NQ earns `(130−115.25)×20−2 = $293`;
+three trades total **$879**. The bracket is submitted after the fill and becomes
+active next observed bar; the record does not claim entry-bar stop protection.
+The sidecar SHA-256 is
+`a75399eae78d116f629cbdbb7cf05ff4a99ddd53901a6f76480ee9aa69fe8877`.
+Original trade/equity/risk CSV values are unchanged. No OOS was accessed.
+
+Reproduce the normal fixed-compatible and risk-policy rejection checks:
+
+```sh
+curl --fail-with-body -H 'Content-Type: application/json' \
+  --data-binary @artifacts/trade-sizing-m2b-20261108/native-api/fixed-policy-request.json \
+  http://127.0.0.1:8033/api/prop-analyses/check
+curl -i -H 'Content-Type: application/json' \
+  --data-binary @artifacts/trade-sizing-m2b-20261108/native-api/risk-policy-request.json \
+  http://127.0.0.1:8033/api/prop-analyses/check
+```
+
+Expect 200/compatible for fixed 10 MNQ and 422 with the native strategy-rerun
+requirement for $100 risk. Reopen/download retains all **48** saved backtest and
+automatic prop artifacts without executing the strategy. Changing sidecar bytes
+rejects download/detail reproduction; historical missing stops stay missing.
+Stop the manually started server with **Ctrl+C**. The API proof used no
+persistent server and saves requests, responses, original CSV and evidence JSON.
+
+Kernel validation: **144 tests passed in 8.25 seconds**, including exact fixed
+output hashes pinned to `bdbfa7e`, Python/compiled dynamic parity, hand arithmetic,
+provider/user/cushion limits, inactivity, skips and observed-gap thresholds. Build
+log, hashes and compiled identities are in `trade-sizing-m2b-20261108/kernels/`.
+The stable phase API gate passed **36 tests in 68.74 seconds**. Native capture,
+canonical/execution/reporting and VWAP/next-bar gates passed, and the real native
+API demonstration passed in 17.82 seconds. The final three browser journeys
+passed in **38.01 seconds**, with screenshots visually inspected. Counts overlap;
+full-suite and provider qualification remain separate work.
+
+The exploratory legacy probe during source edits had 20 passes and 48 shared
+fixture errors from a generic backtest HTTP 500. A subsequent stable isolated
+source run succeeded; the generic response did not retain the original cause,
+so no definitive attribution is made. The failed log/JUnit remain in
+`trade-sizing-m2b-20261108/early-probe/`. Stable legacy/browser regression results
+are recorded below; the exploratory gate is not called clean.
+
+Reproduction checks (fresh basetemp directories only):
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_sizing.py tests/test_prop_engine_sizing.py
+.venv/bin/python -m pytest -q tests/test_phase_sizing.py tests/test_external_prop_source.py
+.venv/bin/python -m pytest -q tests/test_native_decisions.py tests/test_native_decisions_api.py
+.venv/bin/python -m pytest -q tests/test_phase_sizing_browser.py
+```
+
+Stable release regression: **125 existing phase/search/campaign/freeze/cache/
+dated/cash tests passed in 541.00 seconds**, saved under
+`trade-sizing-m2b-20261108/legacy-regression/`. The native browser gate had
+**8 passes / 1 failure**: an older test expected the already removed manual
+candidate-budget field. The corrected full affected file passed **2 tests in
+62.64 seconds**, exercising the real 129-member confirmation/dismissal, original
+four-candidate results, constraints, freeze and reopen. Both outcomes are retained
+under `phase-sizing-m2b-20261108/browser-regression/` and
+`browser-regression-updated/`; the mixed run is not labelled clean.
+
+A final backend guard rejects prop `sizing_policies` in inner qualification,
+which otherwise shares the campaign source selector. Its affected nested,
+execution-stress, date-range, optimization-cache and backtest API gate had
+**94 passes / 9 failures**. All nine failures were exact file-inventory assertions
+that omitted the new decision sidecar; their independent trade, equity, metric
+and provenance expectations still passed. The artifact assertion now includes
+and verifies the sidecar hash/filled-trade count. The **entire affected backtest
+API module passed 53 tests in 20.65 seconds** afterward. Logs retain both runs in
+`final-boundaries/` and `backtest-api-final/`. No numerical expectation was relaxed.
+Python compilation, changed JavaScript syntax and `git diff --check` passed.
+No server remains running. These overlapping gates are not a full-suite claim.
+
+Additional exact regression commands:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_evaluation_optimization.py \
+  tests/test_funded_optimization.py tests/test_prop_phase_profiles.py \
+  tests/test_research_campaigns.py tests/test_campaign_assessments.py \
+  tests/test_backtest_reuse.py tests/test_prop_phases.py tests/test_prop_cash.py
+.venv/bin/python -m pytest -q tests/test_campaign_portal_browser.py \
+  tests/test_campaign_window_browser.py tests/test_research_campaigns_browser.py
+.venv/bin/python -m pytest -q tests/test_backtest_api.py \
+  tests/test_backtest_date_range.py tests/test_optimization_acceleration.py \
+  tests/test_robust_research_api.py tests/test_research_robustness_api.py
+```

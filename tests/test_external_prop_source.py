@@ -225,7 +225,7 @@ def test_normal_import_check_analysis_download_and_reopen(tmp_path, monkeypatch)
         preview = client.post(IMPORTS+'/check', params={'filename':'SYNTHETIC-ordered-marks.json'}, content=content)
         assert preview.status_code == 200, preview.text
         assert preview.json()['capabilities']['prop_analysis']
-        assert preview.json()['capabilities']['prop_analysis_modes'] == ['annualized']
+        assert preview.json()['capabilities']['prop_analysis_modes'] == ['annualized', 'evaluation_optimization', 'funded_optimization']
         record = save(client, content); source_id = record['id']
         source_folder = client.app.state.runs.root/source_id
         source_before = snapshot(source_folder)

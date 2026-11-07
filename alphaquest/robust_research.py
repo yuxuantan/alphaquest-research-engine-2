@@ -43,6 +43,8 @@ class RobustResearchRequest(StrictModel):
 
     @model_validator(mode='after')
     def unique_scenarios(self):
+        if any(source.sizing_policies is not None for source in self.sources):
+            raise ValueError('Inner qualification uses saved strategy quantities; declare prop sizing policies in the separate phase-selection stage.')
         names = [s.name for s in self.execution_scenarios]
         if len(set(names)) != len(names) or 'baseline' in names:
             raise ValueError('Scenario names must be unique and cannot use the reserved name baseline.')

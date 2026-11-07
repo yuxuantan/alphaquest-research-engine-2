@@ -4,7 +4,7 @@ import numpy as np
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, EvaluationProfile, EvaluationProfileResult,
     EvaluationSamplingConfig, ResearchPeriod, SavedTradeSource, SimulationConfig,
-    SourceCosts, prepare_phase_source, provenance, verify_phase_source,
+    SourceCosts, SizingConfiguration, SizingTrace, prepare_phase_source, provenance, verify_phase_source,
 )
 
 
@@ -14,6 +14,7 @@ def simulate_evaluation_profile(
     period: ResearchPeriod | None = None,
     sampling: EvaluationSamplingConfig = EvaluationSamplingConfig(),
     costs: SourceCosts = SourceCosts(),
+    sizing: SizingConfiguration | None = None,
 ) -> EvaluationProfileResult:
     """Evaluate one saved source/size, stopping at acquisition; never run funded.
 
@@ -28,11 +29,16 @@ def simulate_evaluation_profile(
         raise ValueError('Evaluation simulation requires EvaluationSamplingConfig.')
     if sampling.computational_horizon_weekdays is not None and profile.profile_id != 'lucidflex-50k':
         raise ValueError('Apex has a fixed 21-weekday provider deadline; no computational override is supported.')
-    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros, simulation, period, costs)
+    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing)
+    trace = SizingTrace(sizing) if sizing is not None else None
 
     def runner(*args, **kwargs):
         if sampling.computational_horizon_weekdays is not None:
             kwargs['deadline'] = sampling.computational_horizon_weekdays
+        if sizing is not None:
+            kwargs.update(sizing.kernel_arguments(stage='attempt_sample' if not kwargs.get('chain') else 'legacy_chain'))
+            if not kwargs.get('chain'):
+                kwargs['trace'] = trace
         return evaluation_model(*args, **kwargs)
 
     sim = runner(days, micros, simulation.simulations, simulation.seed,
@@ -75,7 +81,8 @@ def simulate_evaluation_profile(
             replacement_duration_estimand='Repeated funding chain trading weekdays including existing activation delay; no calendar conversion',
             chain_guard='10,000 attempts; provider-specific computational horizon; aborted chains return no per-path censoring count',
             block_continuity='An unfinished circular block is retained across evaluation retries',
-            selection='None; one requested source, profile and size'))
+            selection='None; one requested source, profile and size',
+            **({'sizing':trace.result()} if trace is not None else {})))
 
 
 def acquisition_economics(train, selected, settings, block, max_micros, sample, chain_stats=None, *, chain_simulations=20000, chain_seed=45, evaluation_runner=None):

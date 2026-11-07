@@ -65,7 +65,7 @@ are split into coherent commits and pushed at least every one or two commits.
 | M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | implemented; new product gates and stable affected-module regression pass |
 | M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; preserve the entire qualified set for phase selection | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | implemented with saved API/browser evidence and stable targeted regression; phase handoff follows M2/M3 |
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
-| M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | pending |
+| M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | pending |
 | M3b: reliability and final procedure | M3a; predeclared baseline/rules/scenarios/access history | Outer aggregate, uncertainty, baseline, complete procedure freeze/holdout/final rerun; permit no qualified candidate | Future poisoning, holdout access guards, limited calibration, uncertainty semantics, source/code identity | pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
@@ -226,3 +226,32 @@ The existing report/strategy/catalogue/configuration/mobile browser regression
 also passed all 29 tests in 323.84 seconds. Screenshots were inspected and all
 temporary servers stopped. Python compilation, changed JavaScript syntax and
 diff whitespace checks passed.
+
+### M2b state-aware account decisions and native capture
+
+8 November 2026: shared causal sizing now runs before each opportunity inside
+the existing Apex/Lucid evaluation/funded transitions. Phase campaigns expand
+the complete source × cap × policy membership and save current-balance/cushion
+bases, planning assumptions, caps, skips and bounded decision detail with complete
+aggregates. Complete canonical external paths are admitted under explicit
+exporter invariance assumptions; native dynamic paths reject. Native reports now
+retain actual initial-stop decisions separately from later fills, with immutable
+sidecar downloads and replay/cache checks. Historical missing information stays
+missing. Fixed unguarded native policies retain the existing numerical scenario.
+
+The [normal-product evidence](prop_simulation_review.md#causal-sizing-and-native-decision-capture--2026-11-08)
+contains both independent phase campaigns, six candidates each, exact $100 versus
+0.2%-balance quantities, skip/cap cases, desktop/mobile checks and byte-identical
+reopen/downloads. A native VWAP example saves three $293 trades and the
+108-signal/90-stop/115.25-fill distinction; native risk sizing rejects explicitly.
+
+Stable gates: 144 kernel/pure tests, 36 phase/import API tests, 125 existing
+phase/campaign/cache/dated/cash tests and three new browser journeys pass. The
+older browser regression's removed-budget assertion was updated to the actual
+128-candidate confirmation flow; its full affected file passes 2/2. A final
+inner-stage guard rejects policy declarations rather than ignoring them. Its
+mixed gate's nine backtest failures concerned only the new sidecar file inventory;
+the entire corrected API module passes 53/53 with original numerical expectations
+intact. Failed/probe logs are preserved and not relabelled clean. Exact scope,
+commands, hashes and remaining limits are in the review. The whole suite remains
+M6 work. M3–M6 and the overall Definition of Done remain **incomplete**.

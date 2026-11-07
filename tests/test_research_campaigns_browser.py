@@ -40,13 +40,31 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
     page.locator('.campaign-source-search').nth(1).fill('')
     playwright.expect(page.locator('.campaign-source-status').nth(1)).to_contain_text('2 of 2')
     page.screenshot(path=str(tmp_path/'selected-backtest-dropdowns.png'),full_page=True)
-    # Boundary: sizes count toward the total, and errors keep Run disabled.
-    page.locator('#campaign-budget').fill('3')
+    # The declared membership is counted automatically. A real 129-member
+    # request crosses the 128-candidate confirmation threshold; declining
+    # must not save or run a campaign. No retired manual budget is restored.
+    playwright.expect(page.locator('#campaign-budget')).to_have_count(0)
+    with ResearchHTTPClient(base_url=portal['url'],timeout=300) as client:
+        c=save_source(client,contracts=2,days=8)
+    page.locator('#campaign-add-source').click()
+    page.locator('.campaign-source-search').nth(2).fill(c['id'])
+    playwright.expect(page.locator('.campaign-source-status').nth(2)).to_contain_text('1 of 1')
+    page.locator('.campaign-reference').nth(2).select_option(c['id'])
+    for index in (0,1):page.locator('.campaign-sizes').nth(index).fill(','.join(map(str,range(1,61))))
+    page.locator('.campaign-sizes').nth(2).fill(','.join(map(str,range(1,10))))
+    confirmations=[]
+    def decline(dialog):
+        confirmations.append(dialog.message)
+        dialog.dismiss()
+    page.once('dialog',decline)
     page.locator('#campaign-check').click()
-    playwright.expect(page.locator('#campaign-status')).to_contain_text('budget exceeded')
+    playwright.expect(page.locator('#campaign-status')).to_contain_text('Cancelled: 129 candidates require confirmation. No campaign was saved.')
+    assert len(confirmations)==1 and '128-candidate confirmation threshold' in confirmations[0]
+    assert page.request.get(portal['url']+'/api/research-campaigns').json()['items']==[]
     playwright.expect(page.locator('#campaign-run')).to_be_disabled()
-    page.screenshot(path=str(tmp_path/'budget-rejection.png'),full_page=True)
-    page.locator('#campaign-budget').fill('4')
+    page.screenshot(path=str(tmp_path/'candidate-confirmation-declined.png'),full_page=True)
+    page.locator('#campaign-sources > fieldset').nth(2).get_by_role('button',name='Remove source').click()
+    for index in (0,1):page.locator('.campaign-sizes').nth(index).fill('1,3')
     page.locator('#campaign-check').click()
     playwright.expect(page.locator('#campaign-run')).to_be_enabled(timeout=30000)
     playwright.expect(page.locator('#campaign-status')).to_contain_text('4 compatible candidates')

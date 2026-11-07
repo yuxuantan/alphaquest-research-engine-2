@@ -372,7 +372,7 @@ class VwapPullbackRiskSizing:
                 LOG.info("%s %s qty=%s close=%s stop=%s target=%s stopDist=%s adx=%s",
                          local.isoformat(), side.upper(), quantity, bar.close, stop, target, distance, self.adx_value)
             self._pending_entry_day = plan.day if plan is not None else None
-            return EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open",
+            return EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open", initial_stop=stop,
                                exit_deadline_utc=self._session_cutoff if p.use_eod_flat else None)
         return None
 

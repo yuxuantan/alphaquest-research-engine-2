@@ -260,7 +260,11 @@ def test_native_projection_uses_real_report_preserves_risk_and_no_invented_stop(
         assert result['validation']['totals']['net_pnl']==records[0]['summary']['total_net_pnl']
         assert result['manifest']['coverage']['sessions'] is None  # no inferred calendar
         assert result['native_risk'] is not None
-        assert all(t['initial_stop'] is None and t['sizing_decision'] is None for t in result['trades'])
+        assert all(t['initial_stop'] is None for t in result['trades'])
+        if records[0].get('execution_decisions'):
+            assert all(t['sizing_decision'] is not None and t['stop_provenance'] == 'not_declared_by_strategy' for t in result['trades'])
+        else:
+            assert all(t['sizing_decision'] is None for t in result['trades'])
         assert all(t['native_fields']['exit_deadline_utc'] is not None for t in result['trades'])
         assert before=={p.name:p.read_bytes() for p in folder.iterdir() if p.is_file()}
         assert result['source']['artifact_sha256']['trades.csv']==sha256(before['trades.csv']).hexdigest()

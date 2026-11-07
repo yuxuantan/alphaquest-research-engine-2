@@ -64,6 +64,12 @@ def defaults():
 async def source(source_id: str, request: Request, discover_exports: bool = True):
     try:
         record=source_record(request.app.state.runs,source_id)
+        if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
+            from .trade_imports import verify_import
+            from .prop.external_source import capabilities
+            canonical_source = await run_in_threadpool(verify_import, request.app.state.runs, record)
+            # Current admission diagnostics are separate from immutable saved bytes.
+            record = {**record, 'capabilities':capabilities(canonical_source)}
         matches=await run_in_threadpool(matching_exports,request.app.state.runs,source_id) if discover_exports else []
         return dict(source=record,matched_exports=matches,analyses=request.app.state.prop_analyses.list(source_id),commission_source_instrument=source_instrument(record))
     except ValueError as exc:
@@ -112,7 +118,7 @@ def job(id: str,request: Request):
     return {**record,**(request.app.state.prop_analyses.summary(id,record=record) or {})}
 
 @router.get('/{id}/downloads/{kind}')
-def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip'],request: Request):
+def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv'],request: Request):
     record=job(id,request)
     if record['status']!='complete':
         raise HTTPException(409,'Operation has not published a completed report.')

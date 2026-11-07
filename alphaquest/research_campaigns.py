@@ -22,6 +22,7 @@ class CandidateSource(StrictModel):
     optimization_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$')
     trials: list[int] | None = Field(default=None, min_length=1)
     sizes: list[int] = Field(min_length=1, max_length=60)
+    sizing_policies: list[dict] | None = Field(default=None, min_length=1, max_length=60)
     trade_file: str = Field(default='', max_length=4096)
     export_timezone: Literal['America/Chicago', 'America/New_York', 'UTC'] = 'America/Chicago'
 
@@ -35,6 +36,11 @@ class CandidateSource(StrictModel):
             raise ValueError('Duplicate trial numbers or sizes are not permitted.')
         if any(size < 1 or size > 60 for size in self.sizes):
             raise ValueError('Sizes must be whole MNQ contracts from 1 to 60; profile caps also apply.')
+        if self.sizing_policies is not None:
+            from .prop.phase_profiles import SizingConfiguration
+            self.sizing_policies = [asdict(SizingConfiguration(**item)) for item in self.sizing_policies]
+            if len({canonical(item) for item in self.sizing_policies}) != len(self.sizing_policies):
+                raise ValueError('Duplicate sizing policies are not permitted.')
         return self
 
 
@@ -196,19 +202,25 @@ class CampaignStore:
                 origins.append(dict(optimization_id=source.optimization_id, selected_trials=sorted(selected),
                     total_grid_trials=job['total_trials'], failed_trials=job.get('failed_trials', []),
                     grid=job['request']['parameter_ranges'], strategy=job['strategy']))
-            count += len(refs)*len(source.sizes)
+            count += len(refs)*len(source.sizes)*len(source.sizing_policies or [None])
             expanded.append((source, refs))
         return expanded, origins, count
 
     def source_window(self, body):
         """Intersect declared IS with saved bar coverage, in CME session dates."""
         from .prop.phase_lifecycle import instant, session_date
+        from .prop.phase_search import declared_is_coverage
         expanded, _, _ = self.resolve_sources(body.sources)
         sources = []
         for id in sorted({ref['run_id'] for _, refs in expanded for ref in refs}):
             record = source_record(self.runs, id)
+            declared = declared_is_coverage(record)
             if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
-                raise ValueError('Imported sources have no native campaign IS/OOS plan. Canonical phase-source campaign integration is pending.')
+                from .trade_imports import verify_import
+                verify_import(self.runs, record)
+                sources.append(dict(source_backtest_id=id, declared_is=declared, saved_coverage=declared,
+                    provenance='Exporter-declared IS session inventory; no native plan or untouched-OOS claim.'))
+                continue
             research = record['run_metadata'].get('research') or {}
             if research.get('phase') != 'is':
                 raise ValueError('The research window requires declared IS backtests; OOS and undeclared sources reject.')
@@ -234,12 +246,15 @@ class CampaignStore:
         for source, refs in expanded:
             for ref in refs:
                 for size in sorted(source.sizes):
-                    candidate = dict(source=dict(source_backtest_id=ref['run_id'], trade_file=source.trade_file,
-                        export_timezone=source.export_timezone), profile=body.profile, micros=size,
-                        simulation=body.simulation, sampling=body.sampling, costs=body.costs, period=body.is_window)
-                    if body.retry is not None:
-                        candidate['retry'] = body.retry
-                    candidates.append(candidate)
+                    for sizing in source.sizing_policies or [None]:
+                        candidate = dict(source=dict(source_backtest_id=ref['run_id'], trade_file=source.trade_file,
+                            export_timezone=source.export_timezone), profile=body.profile, micros=size,
+                            simulation=body.simulation, sampling=body.sampling, costs=body.costs, period=body.is_window)
+                        if sizing is not None:
+                            candidate['sizing'] = sizing
+                        if body.retry is not None:
+                            candidate['retry'] = body.retry
+                        candidates.append(candidate)
         if set(settings) & {'candidates', 'source_backtest_id', 'mode'}:
             raise ValueError('Campaign owns the candidate set, anchor and phase.')
         raw = dict(mode=body.phase+'_optimization', source_backtest_id=min(c['source']['source_backtest_id'] for c in candidates),
@@ -251,7 +266,8 @@ class CampaignStore:
         for row in checks:
             strategy = row['manifest']['strategy']
             signature = canonical(dict(strategy_id=strategy['id'], parameters=strategy['parameters'],
-                strategy_source_sha256=strategy['source_sha256'], micros=row['manifest']['configuration']['micros']))
+                strategy_source_sha256=strategy['source_sha256'], micros=row['manifest']['configuration']['micros'],
+                sizing=row['manifest']['configuration'].get('sizing')))
             if signature in configurations:
                 raise ValueError('Duplicate candidate strategy/parameter/size configuration across saved reports or source aliases.')
             configurations.add(signature)
@@ -262,8 +278,9 @@ class CampaignStore:
             raise ValueError('Candidates require compatible source-risk conventions; measured excursions and held-OHLC bounds cannot be mixed.')
         # Pin the entire window to declared IS, not merely to source file bounds.
         for row in checks:
-            plan = row['manifest']['source']['backtest']['run_metadata']['research']['plan']
-            if not plan['is_start'] <= body.is_window['first_session'] <= body.is_window['last_session'] <= plan['is_end']:
+            from .prop.phase_search import declared_is_coverage
+            coverage = declared_is_coverage(row['manifest']['source']['backtest'])
+            if not coverage['first_session'] <= body.is_window['first_session'] <= body.is_window['last_session'] <= coverage['last_session']:
                 raise ValueError('Campaign research window must lie within declared IS.')
         normalized = json.loads(canonical(asdict(search)))
         normalized['candidates'].sort(key=canonical)
@@ -476,6 +493,9 @@ class CampaignStore:
             access = self.validate(id)
             parents = sorted({r['manifest']['configuration']['source']['source_backtest_id']
                 for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
+            if any(r['manifest']['source'].get('source_kind') == 'external_trade_export'
+                   for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']):
+                raise ValueError('Imported frozen choices need a separately supplied verified external OOS source. Native OOS launch cannot rerun an external strategy; external assessment integration is pending.')
             if any(r['manifest']['configuration']['source']['trade_file'] for r in report['calculations']['candidates']
                    if r['candidate_id'] in package['candidate_ids']):
                 raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')

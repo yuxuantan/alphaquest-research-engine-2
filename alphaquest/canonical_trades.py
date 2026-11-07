@@ -474,6 +474,11 @@ def project_native_source(runs, source_id: str) -> dict:
     rows = list(csv.DictReader(io.StringIO(original.decode('utf-8'), newline='')))
     _require(len(rows) <= MAX_TRADES and len(rows) == record['summary']['trades_taken'], 'Native source trade count differs from saved summary.')
     risk_rows = native_risk(runs, normalized_id, record, rows)
+    decisions = None
+    if record.get('execution_decisions') is not None:
+        from .decision_capture import SIDE_CAR, read_decision_evidence
+        _require(record.get('artifacts', {}).get('execution_decisions_jsonl') == SIDE_CAR, 'Unsupported native decision artifact.')
+        decisions = read_decision_evidence(folder / SIDE_CAR, record['execution_decisions'], rows, record['execution_settings'])
     config = record['execution_settings']
     dataset, strategy = metadata.get('dataset', {}), metadata.get('strategy', {})
     start, end = _timestamp(record['period_start_utc'], 'native period_start_utc'), _timestamp(record['period_end_utc'], 'native period_end_utc')
@@ -497,6 +502,11 @@ def project_native_source(runs, source_id: str) -> dict:
             seen.add(trade['trade_id']); previous_exit = exit
             trade['native_fields'] = dict(r)
             trade['stop_provenance'] = 'not_retained_in_native_trade_artifact'
+            if decisions is not None:
+                evidence = decisions['trades'][trade['trade_id']]
+                trade.update(sizing_decision=evidence['sizing_decision'], initial_stop=evidence['initial_stop'],
+                             stop_updates=evidence['stop_updates'], decision_evidence=evidence,
+                             stop_provenance='causal_native_entry_decision' if evidence['initial_stop'] is not None else 'not_declared_by_strategy')
             trades.append(trade)
         totals = {name: str(sum((Decimal(t[name]) for t in trades), ZERO)) for name in MONEY_FIELDS}
         for name, summary_name in (('gross_pnl', 'total_gross_pnl'), ('slippage_cost', 'total_slippage_cost'),
@@ -505,6 +515,8 @@ def project_native_source(runs, source_id: str) -> dict:
         _require(Decimal(record['summary']['initial_capital']) == Decimal(config['initial_capital']), 'Native initial capital differs from execution settings.')
         _require(Decimal(record['summary']['initial_capital']) + Decimal(totals['net_pnl']) == Decimal(record['summary']['final_equity']), 'Native final equity does not reconcile.')
     hashes = {'trades.csv': sha256(original).hexdigest()}
+    if decisions is not None:
+        hashes['execution_decisions.jsonl'] = record['execution_decisions']['sha256']
     if risk_rows is not None:
         hashes['intratrade_risk.csv'] = record['intratrade_risk']['sha256']
     report_name = record.get('artifacts', {}).get('report')
@@ -529,12 +541,14 @@ def project_native_source(runs, source_id: str) -> dict:
     return dict(normalized_version=NORMALIZED_VERSION,
                 source=dict(kind='native_backtest', source_backtest_id=normalized_id, manifest_sha256=sha256(row[0].encode()).hexdigest(),
                             artifact_sha256=hashes, native_manifest=record), manifest=manifest,
-                trades=trades, risk_events=[], native_risk=deepcopy(risk_rows),
+                trades=trades, risk_events=[], native_risk=deepcopy(risk_rows), native_decisions=decisions,
                 capabilities=dict(native_replay=bool(dataset.get('id')), bar_equity=record.get('report_storage', {}).get('per_bar_equity_retained', record.get('format_version') == 1),
                                   market_benchmark=bool(record.get('market_benchmark')), controlled_oos=bool(dataset.get('id')),
                                   nested_research=bool(dataset.get('id')), prop_analysis=risk_rows is not None,
                                   prop_analysis_reason='Existing native adapter/profile admission remains required.',
-                                  ordered_marks_available=False, initial_stops_available=False, sizing_path_invariance_verified=False,
+                                  ordered_marks_available=False, initial_stops_available=bool(trades) and all(t['initial_stop'] is not None for t in trades),
+                                  sizing_decisions_available=decisions is not None, quantity_path_policy='native_rerun_required',
+                                  sizing_path_invariance_verified=False,
                                   calendar_coverage_verified=False, tick_completeness_verified=False),
                 validation=dict(trade_count=len(trades), event_count=0, totals=totals, exact_arithmetic=True,
                                 completion='native_completed_report', costs='Saved actual net costs are conserved; no costs are charged again.'))

@@ -34,6 +34,64 @@ class SourceCosts:
 
 
 @dataclass(frozen=True)
+class SizingConfiguration:
+    """An explicit policy and decision-time loss assumptions, never P&L costs."""
+    policy: dict
+    initial_configured_capital: str
+    planning_execution: dict
+
+    def __post_init__(self):
+        from .sizing import SizingPolicy, PlanningExecution, amount
+        policy = SizingPolicy.model_validate(self.policy)
+        planning = PlanningExecution.model_validate(self.planning_execution)
+        if amount(self.initial_configured_capital) != Decimal('50000'):
+            raise ValueError('Supported 50K profiles require initial_configured_capital of 50000; source backtest equity is not the prop account balance.')
+        if planning.tick_size != Decimal('0.25'):
+            raise ValueError('MNQ sizing requires tick_size 0.25 and point_value 2.')
+        object.__setattr__(self, 'policy', policy.model_dump(mode='json'))
+        object.__setattr__(self, 'planning_execution', planning.model_dump(mode='json'))
+        object.__setattr__(self, 'initial_configured_capital', '50000')
+
+    @property
+    def needs_stop(self):
+        return (self.policy['kind'] != 'fixed_contracts' or self.policy['constrain_to_account_cushion']
+                or self.policy['constrain_to_daily_cushion'])
+
+    def kernel_arguments(self, **context):
+        return dict(sizing_policy=self.policy, sizing_context=dict(
+            initial_configured_capital=self.initial_configured_capital,
+            planning_execution=self.planning_execution, trace_context=context))
+
+
+class SizingTrace:
+    """Aggregate every decision; bound only retained detail, never simulation."""
+    def __init__(self, configuration, limit=10000):
+        self.configuration, self.limit = configuration, limit
+        self.decisions = []
+        self.summary = dict(decision_count=0, trade_count=0, skipped_count=0,
+            min_quantity=None, max_quantity=None, quantity_counts={}, reason_counts={})
+
+    def __call__(self, decision):
+        summary = self.summary
+        q = int(decision['quantity'])
+        summary['decision_count'] += 1
+        summary['trade_count' if q else 'skipped_count'] += 1
+        summary['min_quantity'] = q if summary['min_quantity'] is None else min(q, summary['min_quantity'])
+        summary['max_quantity'] = q if summary['max_quantity'] is None else max(q, summary['max_quantity'])
+        summary['quantity_counts'][str(q)] = summary['quantity_counts'].get(str(q), 0)+1
+        for reason in decision['reasons']:
+            summary['reason_counts'][reason] = summary['reason_counts'].get(reason, 0)+1
+        if len(self.decisions) < self.limit:
+            self.decisions.append(decision)
+
+    def result(self):
+        return dict(configuration=asdict(self.configuration), summary=self.summary,
+            decisions=self.decisions, trace_limit=self.limit,
+            trace_complete=self.summary['decision_count'] <= self.limit,
+            interpretation='Every simulated opportunity is aggregated; only the first retained decisions are displayed. Planning costs size quantity and are not deducted from source P&L again. Future gaps and size-dependent execution remain unverified.')
+
+
+@dataclass(frozen=True)
 class ResearchPeriod:
     """Inclusive CME session dates within this saved source's research period."""
     first_session: str
@@ -180,7 +238,7 @@ def profile_settings(profile, costs):
     return resolved_settings(overrides)
 
 
-def prepare_phase_source(runs, source, profile, micros, simulation, period, costs):
+def prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing=None):
     """Reuse cost/risk reconciliation and dated fixed-path suitability once."""
     from .source import prepare_source
     from .commissions import adapt
@@ -191,15 +249,27 @@ def prepare_phase_source(runs, source, profile, micros, simulation, period, cost
     if micros > simulation.max_micros:
         raise ValueError('Position size exceeds the simulation exposure cap.')
     snapshot, rows = prepare_source(runs, source.source_backtest_id, source.trade_file, source.export_timezone)
-    if snapshot.get('source_kind') == 'external_trade_export':
-        raise ValueError('Canonical external phase selection is not integrated yet. Imported sources support the existing annualized EOD analysis; no native IS/OOS plan is inferred.')
+    external = snapshot.get('source_kind') == 'external_trade_export'
+    if sizing is not None and not isinstance(sizing, SizingConfiguration):
+        raise ValueError('Sizing requires a validated SizingConfiguration.')
     adapt(snapshot, rows, settings)
-    validate_phase_source(snapshot, rows)
+    if external:
+        snapshot['phase_suitability'] = dict(fixed_quantity=True,
+            instrument=snapshot['commission_simulation']['source_instrument'], risk_covered_trades=len(rows),
+            scaling='Exporter-declared invariant opportunity path with observed ordered mark jumps; size-dependent signals, fills and market impact are not independently verified.')
+    else:
+        validate_phase_source(snapshot, rows)
+        if sizing is not None and sizing.needs_stop:
+            raise ValueError('Native risk-based policies require a strategy rerun with account-state sizing; skipping/resizing a saved native trade path is not established as signal-invariant.')
     # Check all trades, including excluded dates: no hidden invalid source rows.
     source_grid, source_days, _ = day_book(rows, settings)
     record = snapshot['backtest']
-    first = session_date(instant(record['period_start_utc']))
-    last = session_date(instant(record['period_end_utc']))
+    if external:
+        sessions = snapshot['canonical_manifest']['coverage']['sessions']
+        first, last = map(date.fromisoformat, (sessions[0], sessions[-1]))
+    else:
+        first = session_date(instant(record['period_start_utc']))
+        last = session_date(instant(record['period_end_utc']))
     if period is None:
         period = ResearchPeriod(first.isoformat(), last.isoformat())
     if not first.isoformat() <= period.first_session <= period.last_session <= last.isoformat():
@@ -209,19 +279,70 @@ def prepare_phase_source(runs, source, profile, micros, simulation, period, cost
         raise ValueError('Research period requires 1–20,000 session weekdays.')
     book = {stamp.date(): day for stamp, day in zip(source_grid, source_days)}
     days = [book.get(stamp.date(), []) for stamp in grid]
+    if sizing is not None:
+        add_sizing_metadata(runs, snapshot, rows, grid, days, sizing)
     snapshot['profile_research_period'] = dict(**asdict(period), weekdays=len(grid),
         convention='CME Chicago session dates; zero-trade weekdays retained; no internal reselection or split')
     return snapshot, days, settings
 
 
+def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
+    """Bind known causal facts to each source opportunity before sampling."""
+    from ..trade_imports import verify_import
+    from .sizing import choose_quantity, AccountSizingState
+    from .sizing_runtime import decision_risk_from_metadata
+    record = snapshot['backtest']
+    external = snapshot.get('source_kind') == 'external_trade_export'
+    canonical_source = verify_import(runs, record) if external else None
+    original = {t['trade_id']: t for t in canonical_source['trades']} if external else {}
+    metadata = {}
+    previous_exit = None
+    for row in sorted(rows, key=lambda r:(r['entry_utc'], int(r['trade_id']))):
+        t = original.get(row.get('external_trade_id'))
+        item = dict(source_trade_id=t['trade_id'] if t else str(row['trade_id']),
+            side=t['side'] if t else None, entry_time_utc=row['entry_utc'],
+            sizing_decision=t['sizing_decision'] if t else None,
+            initial_stop=t['initial_stop'] if t else None,
+            previous_source_exit_utc=previous_exit)
+        if sizing.needs_stop:
+            if not item['sizing_decision'] or not item['initial_stop']:
+                raise ValueError('Risk-based sizing requires a causal decision reference and initial stop for every source trade.')
+            risk = decision_risk_from_metadata(item)
+            # Validate ticks/denominator/cost arithmetic even for excluded dates.
+            choose_quantity(sizing.policy, AccountSizingState(initial_configured_capital='50000',
+                equity_change_from_initial='0', account_floor_from_initial='-2000',
+                provider_max_contracts=60, user_max_contracts=60), risk, sizing.planning_execution)
+        metadata.setdefault(session_date(instant(row['entry_utc'])), []).append(item)
+        previous_exit = row['exit_utc']
+    for stamp, day in zip(grid, days):
+        items = metadata.get(stamp.date(), [])
+        if len(items) != len(day):
+            raise ValueError('Sizing metadata does not match source opportunity membership.')
+        # An empty frontier preserves the legacy extrema fallback when metadata
+        # adds tuple fields; it does not invent an ordered path from MAE.
+        day[:] = [(trade[0], trade[1], (trade[2] or ()) if len(trade)>2 else (),
+                   trade[3] if len(trade)>3 else True, item) for trade, item in zip(day, items)]
+    snapshot['sizing_source_check'] = dict(configuration=asdict(sizing),
+        source_opportunities=len(rows), complete_causal_stops=sizing.needs_stop,
+        actual_entry_fills_used_for_sizing=False,
+        path_assumption='exporter_declared_invariant' if external else 'existing_fixed_quantity_path',
+        status='compatible', native_rerun_required=False if external else sizing.needs_stop)
+
+
 def verify_phase_source(runs, source, snapshot):
     """Fail closed if saved inputs mutate or disappear during calculation."""
     from hashlib import sha256
+    if snapshot.get('source_kind') == 'external_trade_export':
+        from ..trade_imports import verify_import
+        verify_import(runs, source_record(runs, source.source_backtest_id))
     if sha256(canonical(source_record(runs, source.source_backtest_id)).encode()).hexdigest() != snapshot['manifest_sha256']:
         raise ValueError('Source manifest changed during phase simulation.')
     paths = [(runs.root / source.source_backtest_id / 'trades.csv', snapshot['trades_sha256'])]
     if snapshot.get('native_risk'):
         paths.append((runs.root / source.source_backtest_id / 'intratrade_risk.csv', snapshot['native_risk']['sha256']))
+    decisions = snapshot['backtest'].get('execution_decisions')
+    if decisions:
+        paths.append((runs.root / source.source_backtest_id / 'execution_decisions.jsonl', decisions['sha256']))
     export = snapshot['excursion_input']
     if export['path']:
         paths.append((Path(export['path']), export['sha256']))
@@ -233,7 +354,8 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     from hashlib import sha256
     from .native_analysis import kernel_identity
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
-             'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py']
+             'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
+             'sizing.py', 'sizing_runtime.py', 'external_source.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']
     kernel_file = 'lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py'
@@ -243,7 +365,7 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
         simulation=asdict(simulation), sampling=asdict(sampling),
         account_rule_sha256=sha256(canonical(rule_identity).encode()).hexdigest(),
         kernel=kernel_identity({'ACCOUNT_TYPE':'LucidFlex' if profile.profile_id == 'lucidflex-50k' else 'Apex EOD'}),
-        implementation_sha256={name:digest(Path(__file__).with_name(name)) for name in files},
+        implementation_sha256={name:digest(Path(__file__).parent/name) for name in files},
         rng='MT19937 / RandomState bounded integers; circular weekday blocks',
         time_unit='trading weekdays, not elapsed calendar days',
         uncertainty='Conditional Monte Carlo sampling error, not future uncertainty or verified provider parity',

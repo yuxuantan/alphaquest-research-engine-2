@@ -3,7 +3,7 @@ import numpy as np
 
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, FundedProfile, FundedProfileResult, ResearchPeriod,
-    SamplingConfig, SavedTradeSource, SimulationConfig, SourceCosts,
+    SamplingConfig, SavedTradeSource, SimulationConfig, SourceCosts, SizingConfiguration, SizingTrace,
     positive_integer, prepare_phase_source, provenance, verify_phase_source,
 )
 
@@ -15,6 +15,7 @@ def simulate_funded_profile(
     period: ResearchPeriod | None = None,
     sampling: SamplingConfig = SamplingConfig(),
     costs: SourceCosts = SourceCosts(),
+    sizing: SizingConfiguration | None = None,
 ) -> FundedProfileResult:
     """One fresh funded account per path, with no acquisition or replacement.
 
@@ -30,7 +31,8 @@ def simulate_funded_profile(
     if type(sampling) is not SamplingConfig:
         raise ValueError('Funded simulation accepts only phase-neutral SamplingConfig.')
     positive_integer('horizon_weekdays', horizon_weekdays, 20000)
-    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros, simulation, period, costs)
+    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing)
+    trace = SizingTrace(sizing) if sizing is not None else None
     if profile.profile_id == 'lucidflex-50k':
         from .lucid_backend import Rules as LucidRules
         rules = LucidRules(daily_loss=1200. if profile.daily_loss_limit else None)
@@ -39,7 +41,8 @@ def simulate_funded_profile(
     backend = account_backend(rules)
     accounts = (backend.funded if backend else funded)(days, micros, simulation.simulations,
         simulation.seed, sampling.block_weekdays, horizon=horizon_weekdays,
-        rules=rules, max_micros=simulation.max_micros)
+        rules=rules, max_micros=simulation.max_micros,
+        **(dict(**sizing.kernel_arguments(stage='funded_session_sample'), trace=trace) if sizing is not None else {}))
     # Always sample the requested horizon, including analytical-zero-payout
     # cases: survival still needs the existing funded transitions.
     stats = summary(accounts, micros, len(rules.ladder))
@@ -70,7 +73,8 @@ def simulate_funded_profile(
             initial_state='One fresh funded account; no prior payouts, positions or replacement account',
             receipt_convention='Existing kernel trader payout at request/account deduction; bank settlement delay and pending bank receipts are not modeled',
             quantiles='Inverse empirical CDF (inverted_cdf)',
-            selection='None; one requested source, profile and size'))
+            selection='None; one requested source, profile and size',
+            **({'sizing':trace.result()} if trace is not None else {})))
 
 
 def lifetime_profile(value):
@@ -106,7 +110,7 @@ def lifetime_profile(value):
 
 def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calendar_days,
         calendar, receipt_delay_calendar_days, simulation=SimulationConfig(),
-        period=None, sampling=SamplingConfig(), costs=SourceCosts()):
+        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None):
     """Dated fresh-account paths using the same native funded transitions.
 
     The legacy weekday interface above remains unchanged. Dates are civil session
@@ -127,7 +131,8 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
     if any(date.fromisoformat(s)+timedelta(days=horizon_calendar_days) > date.fromisoformat(calendar.coverage_end)
            for s in calendar.start_dates):
         raise ValueError('Calendar must cover every horizon cutoff.')
-    snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation, period, costs)
+    snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing)
+    trace = SizingTrace(sizing) if sizing is not None else None
     lucid = profile.profile_id == 'lucidflex-50k'
     rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
              else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts))
@@ -156,10 +161,12 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
                 index = next(stream)
                 schedule.update(f'{i}:{day.isoformat()}:{index};'.encode())
                 before = len(account.payouts)
+                dynamic = (dict(**sizing.kernel_arguments(stage='funded_calendar_sample', path_index=i,
+                    source_session_index=index, calendar_date=day.isoformat()), trace=trace) if sizing is not None else {})
                 if lucid:
-                    account.advance(days[index], micros, simulation.max_micros, calendar_day=offset)
+                    account.advance(days[index], micros, simulation.max_micros, calendar_day=offset, **dynamic)
                 else:
-                    account.advance(days[index], micros, simulation.max_micros)
+                    account.advance(days[index], micros, simulation.max_micros, **dynamic)
                 if len(account.payouts) > before:
                     entitlement = account.payouts[-1][1]
                     gross = account.withdrawals[-1][1] if lucid else entitlement
@@ -194,7 +201,8 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
             dated_clock='Chicago civil session dates; daily resolution, event age is date minus start date; exclusive cutoff',
             dated_rng='MT19937 seeded by SeedSequence([seed,path_index]); circular source-session blocks; no paired inference claim',
             settlement='Automatic request/deduction on native eligibility date; entitlement paid after declared civil-day lag, including weekends and after account closure; unverified scenario',
-            initial_state='Fresh funded account at t=0; no evaluation, acquisition or replacement'))
+            initial_state='Fresh funded account at t=0; no evaluation, acquisition or replacement',
+            **({'sizing':trace.result()} if trace is not None else {})))
     result['provenance']['time_unit'] = 'Chicago civil calendar days, not session counts'
     result['provenance']['kernel'] = dict(name='python-reference', source='lucid_engine.py' if lucid else 'native_engine.py')
     return result

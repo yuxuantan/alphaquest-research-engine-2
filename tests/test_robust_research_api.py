@@ -182,12 +182,15 @@ def test_normal_grid_nested_qualification_saved_outputs_and_reopen(tmp_path, mon
 
 
 def test_strict_rejections_and_changed_code_keep_declaration_and_sources(tmp_path, monkeypatch):
+    from sizing_fixtures import sizing_configuration
     with TestClient(create_app(tmp_path / 'datasets.sqlite3')) as client:
         dataset, job, records = save_grid(client)
         body = declaration(job, records)
         for patch in [dict(folds=dict(body['folds'], purge_sessions=True)),
                       dict(qualification=dict(body['qualification'], minimum_folds=True)),
                       dict(outer_outcomes=[100000]),
+                      dict(sources=[dict(optimization_id=job['id'], sizes=[1],
+                                         sizing_policies=[sizing_configuration('fixed_contracts', contracts=1)])]),
                       dict(confirmed_backtest_count=15)]:
             rejected = client.post(PREFIX + '/preview', json=body | patch)
             assert rejected.status_code == 422, rejected.text

@@ -11,6 +11,7 @@ from .decimal_math import add as _add, multiply as _mul, subtract as _sub
 from .intratrade import IntratradeRisk, RiskCapture
 from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
 from .execution_scenarios import FillAssumptions
+from .decision_capture import DecisionEvent
 
 
 TIMESTAMP_CONVENTION = "bar_close"
@@ -93,8 +94,12 @@ def _validate_bar(bar: Bar, previous: Bar | None) -> None:
 
 
 class _Account:
-    def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None):
+    def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None, capture_decisions=False):
         self.config = config
+        self.capture_decisions = capture_decisions
+        self.decision_count = self.decision_sequence = 0
+        self.pending_decision = self.active_decision = None
+        self.decision_events = []
         self.fill_assumptions = fill_assumptions or FillAssumptions()
         self.capture_risk = capture_risk
         self.risk = self.closed_risk = None
@@ -105,6 +110,48 @@ class _Account:
         self.entry_commission = ZERO
         self.trade_count = 0
         self.slippage = _mul(config.tick_size, Decimal(config.slippage_ticks))
+
+    def emit_decision(self, kind, decision_id, bar, side, contracts, **values):
+        if not self.capture_decisions:
+            return None
+        self.decision_sequence += 1
+        event = DecisionEvent(sequence=self.decision_sequence, kind=kind, decision_id=decision_id,
+                              bar_number=bar.bar_number, timestamp_utc=bar.timestamp_utc,
+                              side=side, contracts=contracts, **values)
+        self.decision_events.append(event)
+        return event
+
+    def record_decision(self, intent, bar):
+        if not self.capture_decisions:
+            return
+        if self.pending_decision is not None or self.position is not None:
+            raise ExecutionError('An entry decision requires no active or pending position.')
+        if intent.initial_stop is not None and not (intent.initial_stop < bar.close if intent.side == 'long' else intent.initial_stop > bar.close):
+            raise ExecutionError('Initial stop must be adverse to the causal decision close.')
+        self.decision_count += 1
+        self.pending_decision = self.emit_decision('entry_decision', self.decision_count, bar, intent.side, intent.contracts,
+            trade_number=None, reference_price=bar.close, stop_price=intent.initial_stop,
+            execution_timing=intent.timing, reason=intent.reason)
+
+    def cancel_decision(self, bar, reason):
+        if self.pending_decision is not None:
+            decision = self.pending_decision
+            self.emit_decision('entry_cancelled', decision.decision_id, bar, decision.side, decision.contracts,
+                               trade_number=None, reason=reason)
+            self.pending_decision = None
+
+    def record_bracket(self, intent, bar):
+        if self.capture_decisions:
+            if self.active_decision is None or self.position is None:
+                raise ExecutionError('Bracket evidence requires a captured filled entry decision.')
+            self.emit_decision('bracket_submission', self.active_decision.decision_id, bar,
+                self.position.side, self.position.contracts, trade_number=self.trade_count + 1,
+                reference_price=bar.close, stop_price=intent.stop_price, target_price=intent.target_price,
+                reason='strategy_bracket_next_observed_bar')
+
+    def drain_decisions(self):
+        events, self.decision_events = self.decision_events, []
+        yield from events
 
     def apply(self, intent: EntryIntent | CloseIntent | None, bar: Bar, *, finishing: bool = False,
               reference: Decimal | None = None, limit: bool = False, phase: str = "close",
@@ -125,6 +172,12 @@ class _Account:
             self.entry_intent = intent
             self.entry_reference = reference
             self.entry_commission = commission
+            if self.capture_decisions:
+                if self.pending_decision is None:
+                    raise ExecutionError('Filled entry lacks a causal captured decision.')
+                self.active_decision, self.pending_decision = self.pending_decision, None
+                self.emit_decision('entry_fill', self.active_decision.decision_id, bar, intent.side, intent.contracts,
+                    trade_number=self.trade_count + 1, reference_price=reference, fill_price=fill, reason='actual_native_fill')
             self.cash = _sub(self.cash, commission)
             if self.capture_risk:
                 self.risk = RiskCapture(self.position, self.config, commission, reference, phase)
@@ -168,6 +221,13 @@ class _Account:
         self.cash = _sub(_add(self.cash, gross), commission)
         self.position = None
         self.entry_intent = None
+        if self.capture_decisions:
+            if self.active_decision is None:
+                raise ExecutionError('Completed trade lacks captured decision provenance.')
+            self.emit_decision('trade_close', self.active_decision.decision_id, bar, trade.side, trade.contracts,
+                trade_number=trade.trade_number, reference_price=reference, fill_price=fill, net_pnl=trade.net_pnl,
+                reason=trade.exit_reason)
+            self.active_decision = None
         return trade
 
     def mark(self, bar: Bar | None) -> EquityPoint:
@@ -213,7 +273,7 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
     return None
 
 
-def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
+def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     Preparation is optional. The calendar-based VWAP strategy uses the causal
@@ -221,10 +281,10 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
     """
     prepare = getattr(strategy, "prepare_replay", None)
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
-        yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar, fill_assumptions=fill_assumptions)
+        yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions)
 
 
-def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
+def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -245,7 +305,9 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         raise ExecutionError('fill_assumptions must be FillAssumptions or None.')
     if not callable(getattr(strategy, "on_bar", None)) or not callable(getattr(strategy, "on_finish", None)):
         raise ExecutionError("Strategy must supply on_bar and on_finish callbacks.")
-    account = _Account(config, capture_risk, fill_assumptions)
+    if type(capture_decisions) is not bool:
+        raise ExecutionError('capture_decisions must be a boolean.')
+    account = _Account(config, capture_risk, fill_assumptions, capture_decisions)
     previous = None
     pending = None
     next_order = None
@@ -266,6 +328,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             else:
                 allow_entry = getattr(strategy, "allow_entry_fill", None)
                 if type(next_order) is EntryIntent and allow_entry is not None and not allow_entry(bar):
+                    account.cancel_decision(bar, 'entry_guard_rejected')
                     trade = None
                 else:
                     trade = account.apply(next_order, bar, reference=bar.open, phase="open")
@@ -274,9 +337,13 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                 yield trade
                 if capture_risk:
                     yield account.closed_risk
+        yield from account.drain_decisions()
         if account.risk is not None:
             account.risk.observe_bar(bar)
         intent = strategy.on_bar(bar, account.position)
+        if type(intent) is EntryIntent:
+            account.record_decision(intent, bar)
+            yield from account.drain_decisions()
         next_order = None
         if type(intent) is BracketIntent:
             if account.position is None:
@@ -284,6 +351,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             if ((account.position.side == "long" and intent.stop_price >= intent.target_price)
                     or (account.position.side == "short" and intent.stop_price <= intent.target_price)):
                 raise ExecutionError("Bracket stop and target order is inconsistent with position side.")
+            account.record_bracket(intent, bar)
+            yield from account.drain_decisions()
             next_order = intent
         elif type(intent) in (EntryIntent, CloseIntent) and intent.timing == "next_open":
             if (type(intent) is EntryIntent) != (account.position is None):
@@ -297,6 +366,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                 yield trade
                 if capture_risk:
                     yield account.closed_risk
+        yield from account.drain_decisions()
         pending = account.mark(bar)
         previous = bar
     if previous is None:
@@ -306,6 +376,9 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         yield trade
         if capture_risk:
             yield account.closed_risk
+    yield from account.drain_decisions()
     if account.position is not None:
         raise ExecutionError("Unsupported completion: strategy left an open position after on_finish.")
+    account.cancel_decision(previous, 'end_of_data_before_fill')
+    yield from account.drain_decisions()
     yield account.mark(previous)

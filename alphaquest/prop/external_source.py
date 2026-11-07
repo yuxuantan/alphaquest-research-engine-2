@@ -50,9 +50,25 @@ def admission(source):
 
 def capabilities(source):
     reason = admission(source)
+    phase = reason is None and source['manifest']['research']['phase'] == 'is'
+    dynamic = phase
+    dynamic_reason = reason
+    if dynamic:
+        from .sizing_runtime import decision_risk_from_metadata
+        previous = None
+        try:
+            for trade in source['trades']:
+                decision_risk_from_metadata(dict(source_trade_id=trade['trade_id'], side=trade['side'],
+                    entry_time_utc=trade['entry_time_utc'], sizing_decision=trade['sizing_decision'],
+                    initial_stop=trade['initial_stop'], previous_source_exit_utc=previous))
+                previous = trade['exit_time_utc']
+        except ValueError as exc:
+            dynamic, dynamic_reason = False, str(exc)
     return {**source['capabilities'], 'prop_analysis':reason is None,
-            'prop_analysis_modes':['annualized'] if reason is None else [],
-            'prop_analysis_reason':reason or 'Eligible for the existing annualized EOD model under the disclosed exporter path/calendar assumptions. Independent phase selection and dated replay integration remain pending; no live readiness is certified.'}
+            'prop_analysis_modes':(['annualized']+(['evaluation_optimization', 'funded_optimization'] if phase else [])) if reason is None else [],
+            'phase_selection':phase, 'dynamic_policy_source':dynamic,
+            'dynamic_policy_source_reason':dynamic_reason or ('Complete causal decision/stop metadata; requested policy and planning execution still require checking.' if dynamic else 'Independent phase selection requires an exporter-declared IS source.'),
+            'prop_analysis_reason':reason or 'Eligible for local analysis under the disclosed exporter path/calendar assumptions. Independent IS phases support explicit policies; standalone dated/budgeted integration and external frozen OOS remain pending. No live readiness is certified.'}
 
 
 def prepare_external(runs, record, trade_file):

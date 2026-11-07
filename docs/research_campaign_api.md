@@ -20,6 +20,10 @@ constraints. The two declarations, source sets and calculations are independent.
    older matches. Full parameters and IS dates appear below the selection.
    For jobs, enter selected trial numbers or leave blank for the complete saved
    grid. Give each source its own MNQ size list.
+   Eligible canonical external IS imports can use this same path. To compare
+   state-aware sizing, choose **Compare sizing policies**, add the policy rows
+   and explicit MNQ planning assumptions; the size list becomes hard caps.
+   Every source × cap × policy combination remains in the checked membership.
 3. The IS first/last sessions default to the common saved coverage within the
    selected sources' declared IS splits. These are CME Chicago session dates,
    including observed sessions with no trades. Optionally narrow the window;
@@ -52,9 +56,51 @@ constraints. The two declarations, source sets and calculations are independent.
    assessment report. Open **Open frozen OOS assessment** and download its ZIP.
    No settings are editable on this launch, and no OOS ranking/winner is returned.
    Repeated manual launches append and display prior access; they never update IS.
+   Imported sources cannot use this native rerun: their frozen package remains
+   downloadable, with an explicit unavailable reason and no fabricated OOS.
 
 Campaign reports are independent phase results. Existing annualized joint sizing
 and budgeted cash-ledger workflows retain their request meanings and reports.
+
+## Explicit sizing policies — 8 November 2026
+
+Each source may add `sizing_policies`, a nonempty list of up to 60 distinct
+configurations. Omission/null preserves legacy fixed-size candidates. Each
+configuration is expanded with every declared source size (now a user cap);
+there is no truncation or joint-phase score. Direct phase candidates use the
+same object as optional `sizing`:
+
+```json
+{
+  "policy": {
+    "kind": "percentage_risk", "risk_percent": "0.2",
+    "reference": "current_account_balance",
+    "minimum_contracts": 1, "maximum_contracts": 40,
+    "constrain_to_account_cushion": false,
+    "constrain_to_daily_cushion": false
+  },
+  "initial_configured_capital": "50000",
+  "planning_execution": {
+    "tick_size": "0.25", "point_value": "2",
+    "entry_slippage_ticks": 0, "stop_exit_slippage_ticks": 0,
+    "commission_per_contract_per_side": "0"
+  }
+}
+```
+
+This example explicitly assumes zero planning costs, not a verified market fee.
+Fixed-dollar policies supply `risk_dollars`; fixed contracts supply `contracts`.
+Only fields for the chosen kind may be present. Percentage references are
+initial configured capital, current account balance or available drawdown
+cushion. Money is a bounded decimal string, whole quantities are strict integers,
+and guards are strict booleans. See the [arithmetic/source contract](prop_simulation.md#state-aware-independent-phase-sizing--2026-11-08).
+
+Policy, planning execution, source/cost/risk identity and implementation hashes
+enter the candidate key and freeze. Distinct policies at the same cap remain
+distinct through native fixed-policy OOS matching. Phase reports save complete
+decision aggregates and bounded retained detail, with ordinary
+`sizing_summary.json` / `sizing_decisions.csv` / JSON / ZIP downloads. Planning
+costs never become an additional deduction from source net returns.
 
 ## Automatic calendar coverage — 7 November 2026
 
@@ -159,10 +205,16 @@ and retain explicit errors for wrong-type, missing and incomplete sources.
   captured intratrade risk, a common risk convention (measured excursions and
   held-OHLC bounds cannot be mixed), intraday-flat trades and qualified fixed-quantity
   strategies. Linear MNQ scenarios preserve entry/exit behavior and proportional
-  costs only. Volatility/account-dependent sizing rejects. A different sizing or
+  costs only. Native volatility/account-dependent source sizing rejects. A different sizing or
   execution policy requires a fresh ordinary backtest; unsupported dynamic
   sources are not made scalable by supplying a size list. No liquidity/market
   impact or measured MAE/MFE is invented.
+  Canonical external sources instead retain exporter-declared IS sessions and
+  path invariance, complete ordered marks, exact costs and causal stops for
+  risk-based policies. These declarations are not independently verified market
+  evidence. Native and external provenance/risk conventions cannot be silently
+  mixed. Native risk-based/cushion policies require a suitable strategy rerun;
+  optional decision capture alone does not establish signal invariance.
 - Evaluation currently supports local Apex EOD. Funded supports local Apex EOD and
   LucidFlex. Rule versions come from `GET /api/research-campaigns/defaults`.
   These are implemented local snapshots, not live provider verification.
@@ -381,6 +433,8 @@ campaigns. Existing Evaluation/Funded requests retain their meaning.
   `folds`, `qualification` and optional `confirmed_backtest_count`. `sources`
   reuses saved report/grid selectors; `sizes` must be `[1]` because this step
   qualifies the saved strategy quantities, not prop-sizing alternatives.
+  `sizing_policies` must be omitted/null; inner qualification cannot silently
+  consume or select a prop-policy declaration.
 - `GET /?source_id=...`, `GET /{id}`: history/status/progress and completed result.
 - `POST /{id}/check`, `/run`, `/cancel`: validate identity, enqueue/resume through
   the existing worker, or request safe-checkpoint cancellation. Repeated Run

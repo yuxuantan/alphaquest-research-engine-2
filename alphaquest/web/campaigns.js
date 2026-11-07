@@ -15,17 +15,73 @@
   function button(parent,text,id){const b=node('button',text);b.type='button';b.id=id;b.className='button secondary';parent.append(b);return b;}
   function number(id){const v=Number($('#'+id).value);if(!Number.isFinite(v))throw Error('Enter a finite number.');return v;}
   function integers(value){return value.split(',').map(s=>{if(!/^\d+$/.test(s.trim()))throw Error('Use comma-separated whole numbers.');return Number(s.trim());});}
+  function checkbox(parent,label,cls){const l=node('label'),i=node('input');i.type='checkbox';i.className=cls;l.append(i,document.createTextNode(' '+label));parent.append(l);return i;}
+  const referenceLabels={initial_configured_capital:'Initial configured capital',current_account_balance:'Current account balance',available_drawdown_cushion:'Available drawdown cushion'};
+  function canonical(value){return JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);}
+  function frozenName(assessment,candidate){
+    if(!assessment)return undefined;const config=candidate.manifest.configuration;
+    return assessment.sources.find(mapping=>{if(mapping.source_id!==config.source.source_backtest_id)return false;
+      if(candidate.frozen_candidate_id)return mapping.frozen_candidate_id===candidate.frozen_candidate_id;
+      const expected=structuredClone(mapping.frozen_manifest.configuration);expected.source.source_backtest_id=config.source.source_backtest_id;expected.period=config.period;
+      return canonical(expected)===canonical(config);})?.name;
+  }
+  function sizingLabel(config){
+    const p=config.sizing?.policy;if(!p)return `${config.micros} MNQ`;
+    const label=p.kind==='fixed_contracts'?`${p.contracts} fixed MNQ`:p.kind==='fixed_dollar_risk'?`$${p.risk_dollars} planned risk`:`${p.risk_percent}% of ${(referenceLabels[p.reference]||p.reference).toLowerCase()}`;
+    return `${label} · cap ${config.micros} MNQ`;
+  }
+  function sizingControls(row,sizes){
+    const mode=select(row,'Sizing comparison','',[['legacy','Fixed MNQ sizes · existing'],['policies','Compare sizing policies']]);mode.className='campaign-sizing-mode';
+    const box=node('div');box.className='campaign-sizing-controls';box.style.gridColumn='1 / -1';row.append(box);
+    box.append(node('p','Each selected source or trial × hard MNQ cap × policy is a separate candidate. Quantities are chosen before each trade from the policy, current account state and declared stop when required. Imported source replay needs an exporter-declared size-invariant path; native dynamic policies require a suitable native rerun.'));
+    const policies=node('div');policies.className='campaign-sizing-policies';box.append(policies);
+    const add=button(box,'Add sizing policy','');add.classList.add('campaign-add-policy');
+    const planning=node('details');planning.open=true;planning.append(node('summary','MNQ planning capital and execution assumptions'));box.append(planning);
+    const grid=node('div');grid.className='prop-fields';planning.append(grid);
+    function planningField(label,key,value,type='number'){const i=field(grid,label,'',value,type);i.className='campaign-planning-'+key;i.step='any';return i;}
+    for(const [label,key,value]of [['Initial configured capital · USD','capital','50000'],['MNQ tick size · points','tick','0.25'],['MNQ point value · USD','point','2']])planningField(label,key,value).readOnly=true;
+    for(const [label,key]of [['Planned entry slippage · ticks','entry-slip'],['Planned stop-exit slippage · ticks','stop-slip']]){const i=planningField(label,key,'0');i.step='1';i.min='0';}
+    const commission=planningField('Planned commission per MNQ per side · USD','commission','');commission.min='0';commission.placeholder='Enter an explicit assumption';
+    planning.append(node('p','These declared costs size the planned stop loss only. They are not charged again to source net P&L. Actual source costs remain authoritative. Observed gaps can exceed the planned loss; cushion guards do not guarantee a stop fill. Supported account profiles use $50,000 initial capital and simulated MNQ ($2/point, 0.25 tick).'));
+    function addPolicy(){
+      const group=node('section');group.className='campaign-sizing-policy prop-fields';group.setAttribute('role','group');policies.append(group);
+      const legend=node('h4','Sizing policy');legend.className='campaign-policy-label';legend.style.gridColumn='1 / -1';group.append(legend);
+      const kind=select(group,'Policy kind','',[['fixed_dollar_risk','Fixed dollar risk'],['percentage_risk','Percentage risk'],['fixed_contracts','Fixed contracts']]);kind.className='campaign-policy-kind';
+      const contracts=field(group,'Requested MNQ contracts','','1','number');contracts.className='campaign-policy-contracts';contracts.min='1';contracts.max='60';
+      const dollars=field(group,'Planned risk per trade · USD','','50','number');dollars.className='campaign-policy-dollars';dollars.step='any';dollars.min='0.00000001';
+      const percent=field(group,'Risk percent (0.5 means 0.5%)','','0.5','number');percent.className='campaign-policy-percent';percent.step='any';percent.min='0.00000001';percent.max='100';
+      const reference=select(group,'Percentage reference','',Object.entries(referenceLabels));reference.className='campaign-policy-reference';
+      const advanced=node('details');advanced.style.gridColumn='1 / -1';advanced.append(node('summary','Quantity bounds and cushion guards'));group.append(advanced);
+      const limits=node('div');limits.className='prop-fields';advanced.append(limits);
+      const minimum=field(limits,'Minimum tradable MNQ','','1','number'),maximum=field(limits,'Policy maximum MNQ','','40','number');minimum.className='campaign-policy-minimum';maximum.className='campaign-policy-maximum';
+      for(const input of [minimum,maximum]){input.min='1';input.max='60';}
+      const account=checkbox(limits,'Keep planned loss strictly inside account cushion','campaign-policy-account'),daily=checkbox(limits,'Keep planned loss strictly inside daily cushion','campaign-policy-daily');
+      advanced.append(node('p','The smallest policy, user and provider cap applies. If the resulting quantity is below the minimum, the trade is skipped; it is never rounded up. Cushion guards are optional and use the state known at the decision.'));
+      const remove=button(group,'Remove policy','');remove.classList.add('campaign-remove-policy');remove.onclick=()=>{group.remove();refresh();row.dispatchEvent(new Event('input',{bubbles:true}));};
+      group.refresh=()=>{const active=mode.value==='policies';for(const [input,visible]of [[contracts,kind.value==='fixed_contracts'],[dollars,kind.value==='fixed_dollar_risk'],[percent,kind.value==='percentage_risk'],[reference,kind.value==='percentage_risk']]){input.closest('label').hidden=!visible;input.disabled=!active||!visible;}};
+      group.read=()=>{const policy={kind:kind.value,minimum_contracts:Number(minimum.value),maximum_contracts:Number(maximum.value),constrain_to_account_cushion:account.checked,constrain_to_daily_cushion:daily.checked};
+        if(kind.value==='fixed_contracts')policy.contracts=Number(contracts.value);else if(kind.value==='fixed_dollar_risk')policy.risk_dollars=dollars.value;else Object.assign(policy,{risk_percent:percent.value,reference:reference.value});return policy;};
+      kind.onchange=group.refresh;refresh();
+    }
+    function refresh(){const active=mode.value==='policies';box.hidden=!active;sizes.closest('label').firstChild.textContent=active?'Hard MNQ caps, separated by commas':'MNQ sizes, separated by commas';
+      box.querySelectorAll('input,select,button').forEach(i=>i.disabled=!active);for(const group of policies.children)group.refresh();add.disabled=!active||policies.children.length>=60;
+      [...policies.children].forEach((group,index)=>{const label='Sizing policy '+(index+1);group.querySelector('.campaign-policy-label').textContent=label;group.setAttribute('aria-label',label);group.querySelector('.campaign-remove-policy').disabled=!active||policies.children.length===1;});}
+    add.onclick=()=>{addPolicy();row.dispatchEvent(new Event('input',{bubbles:true}));};mode.onchange=refresh;addPolicy();refresh();
+    return ()=>mode.value==='legacy'?undefined:[...policies.children].map(group=>({policy:group.read(),initial_configured_capital:grid.querySelector('.campaign-planning-capital').value,planning_execution:{tick_size:grid.querySelector('.campaign-planning-tick').value,point_value:grid.querySelector('.campaign-planning-point').value,entry_slippage_ticks:Number(grid.querySelector('.campaign-planning-entry-slip').value),stop_exit_slippage_ticks:Number(grid.querySelector('.campaign-planning-stop-slip').value),commission_per_contract_per_side:commission.value}}));
+  }
   async function configure(source) {
     const panel=$('#prop-campaigns');panel.replaceChildren();
     panel.append(node('h2','Independent phase research campaigns'));
-    if(source.run_metadata.source?.kind==='external_trade_export'){panel.append(node('p','Imported sources retain their exporter’s research declaration. Native campaign search and OOS reruns are unavailable; use the source check below for supported prop analysis.'));return;}
+    const external=source.run_metadata.source?.kind==='external_trade_export';
+    if(external&&source.capabilities?.phase_selection!==true){panel.append(node('p','This imported source is not eligible for independent phase selection. Use the source check below to inspect supported analysis and source limitations. Native strategy and OOS reruns remain unavailable.'));return;}
     if(source.run_metadata.research?.phase!=='is'){panel.append(node('p','Select a declared IS backtest to create a research campaign.'));return;}
     const defaults=await api('/api/research-campaigns/defaults');
     const saved=await api('/api/research-campaigns?source_id='+source.id);
     const history=node('div');for(const c of saved.items){history.append(link(`${c.phase} · ${c.status}${c.frozen?' · frozen':''} · ${c.campaign_id}`,`#backtests/prop/campaign/${c.campaign_id}`),node('br'));}panel.append(history);
     const d=node('details');d.id='campaign-configure';d.append(node('summary','Configure a phase campaign'));panel.append(d);
     const form=node('form');form.id='campaign-form';d.append(form);
-    form.append(node('p','Compare saved IS strategies and optimization trials. Each saved trial × MNQ size is one candidate. The full count is calculated when checking; searches above 128 candidates require confirmation. Sources must share the dataset, research split and execution costs.'));
+    form.append(node('p','Compare saved IS sources and optimization trials. Each trial × fixed MNQ size, or trial × hard cap × declared sizing policy, is one candidate. The full count is calculated when checking; searches above 128 candidates require confirmation. Source identity, research coverage and costs must be compatible.'));
+    if(external)form.append(node('p','Imported IS coverage and size-invariant execution paths are exporter declarations. The source check verifies preserved evidence and causal stop metadata; it does not certify market completeness or broker fills. Native strategy reruns and automatic frozen OOS launches are unavailable.'));
     const phase=select(form,'Phase','campaign-phase',[['evaluation','Evaluation · acquisition cost/time'],['funded','Funded · trader cash received']]);
     const profile=select(form,'Account profile','campaign-profile',[['apex-50k-eod','Apex 50K EOD'],['lucidflex-50k','LucidFlex 50K · funded only']]);
     const entry=node('div');panel.insertBefore(entry,d);
@@ -36,8 +92,8 @@
     const sources=node('div');sources.id='campaign-sources';form.append(sources);
     const anchor={id:source.id,created_at:source.created_at_utc,status:source.status,
       strategy_id:source.run_metadata.strategy.id,parameters:source.run_metadata.strategy.parameters,
-      dataset_name:source.run_metadata.dataset.name,is_start:source.run_metadata.research.plan.is_start,
-      is_end:source.run_metadata.research.plan.is_end,total_trials:1,selectable:true};
+      dataset_name:source.run_metadata.dataset.name,is_start:source.run_metadata.research.plan?.is_start||source.run_metadata.external_manifest?.coverage.sessions[0],
+      is_end:source.run_metadata.research.plan?.is_end||source.run_metadata.external_manifest?.coverage.sessions.at(-1),total_trials:1,selectable:true};
     const brief=(value,max=100)=>{const text=String(value??'');return text.length>max?text.slice(0,max-1)+'…':text;};
     function parametersLabel(item,kind){return Object.entries(item.parameters||{}).map(([key,value])=>{
       if(kind==='optimization_id'&&value&&typeof value==='object')return `${key}=${value.start}…${value.end}`;
@@ -56,11 +112,13 @@
       const listing=node('p');listing.className='campaign-source-status';listing.setAttribute('role','status');row.append(listing);
       const sizes=field(row,'MNQ sizes, separated by commas','','1,3');sizes.className='campaign-sizes';
       const trials=field(row,'Trial numbers (blank: entire job)','','');trials.required=false;trials.className='campaign-trials';trials.disabled=true;
+      row.readSizing=sizingControls(row,sizes);
       const hint=node('p');hint.style.gridColumn='1 / -1';row.append(hint);
       let entries=new Map(),matches=[],offset=0,requestVersion=0,timer=null,loading=false;
       if(id===source.id){entries.set(id,anchor);const o=node('option',sourceLabel(anchor,'backtest_id'));o.value=id;ref.append(o);ref.value=id;}
       function describe(){const item=entries.get(ref.value);information.replaceChildren();if(!item)return;
-        information.append(node('span',`${item.strategy_id} · ${parametersLabel(item,kind.value)} · IS ${item.is_start} → ${item.is_end} · ${item.status} · `),
+        const first=item.is_start||(item.id===source.id?anchor.is_start:null),last=item.is_end||(item.id===source.id?anchor.is_end:null);
+        information.append(node('span',`${item.strategy_id} · ${parametersLabel(item,kind.value)} · ${first&&last?'IS '+first+' → '+last:'IS coverage resolved by source check'} · ${item.status} · `),
           link('Open saved '+(kind.value==='backtest_id'?'report':'job'),kind.value==='backtest_id'?`#backtests/report/${item.id}`:`#backtests/batches/${item.id}`));}
       function paint(){const selected=ref.value,placeholder=node('option',kind.value==='backtest_id'?'Choose a saved backtest…':'Choose a saved optimization job…');placeholder.value='';ref.replaceChildren(placeholder);
         for(const key of new Set([...(selected?[selected]:[]),...matches])){const item=entries.get(key);if(!item)continue;
@@ -90,7 +148,7 @@
     }
     addSource(source.id);button(form,'Add saved source','campaign-add-source').onclick=()=>{addSource();invalidate();refreshWindow();};
     const grid=node('div');grid.className='prop-fields';form.append(grid);
-    const plan=source.run_metadata.research.plan;
+    const plan=source.run_metadata.research.plan||{is_start:anchor.is_start,is_end:anchor.is_end};
     const isFirst=field(grid,'IS first session','campaign-is-start','','date'),isLast=field(grid,'IS last session','campaign-is-end','','date');
     const windowStatus=node('p','Finding common saved IS coverage…');windowStatus.id='campaign-window-status';form.append(windowStatus);
     button(form,'Use full common IS window','campaign-window-reset').onclick=()=>{invalidate();refreshWindow();};
@@ -104,7 +162,7 @@
     const fundedFields=node('div');fundedFields.className='prop-fields';form.append(fundedFields);
     field(fundedFields,'Receipt horizon · calendar days','campaign-horizon','90','number');field(fundedFields,'Receipt delay · calendar days','campaign-delay','0','number');
     field(fundedFields,'Maximum breach probability (0–1)','campaign-breach','1','number').step='any';
-    const note=node('p','Uses captured source costs and fixed-quantity linear MNQ scenarios. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts. Advanced calendars, costs and constraints are available through the campaign API.');form.append(note);
+    const note=node('p','Uses captured source costs. Fixed sizes preserve the existing linear MNQ scenarios; explicit sizing policies use causal stop and account state subject to source admission. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts.');form.append(note);
     const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';profile.options[1].disabled=phase.value==='evaluation';if(phase.value==='evaluation')profile.value='apex-50k-eod';showRule();};phase.onchange=changePhase;changePhase();
     for(const [id,min,max]of [['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1]]){const input=$('#'+id);input.min=min;input.max=max;}
     const count=node('p','Candidate count will be calculated from the selected saved trials and sizes.');count.id='campaign-count';form.append(count);
@@ -115,6 +173,7 @@
       return [...sources.children].map(row=>{const kind=row.querySelector('.campaign-kind').value;
         const id=row.querySelector('.campaign-reference').value.trim();if(!id)throw Error('Choose a saved source in every row to derive the IS window.');
         const value={[kind]:id,sizes:forWindow?[1]:integers(row.querySelector('.campaign-sizes').value)};
+        if(!forWindow){const policies=row.readSizing();if(policies)value.sizing_policies=policies;}
         const trials=row.querySelector('.campaign-trials').value;if(kind==='optimization_id'&&trials.trim())value.trials=integers(trials);
         return value;});
     }
@@ -171,7 +230,9 @@
         const checks=await api(`/api/research-campaigns/${c.campaign_id}/check`,{});
         if(version!==revision)return;
         campaignId=c.campaign_id;count.textContent=`${checks.candidate_search_count} candidates selected${c.manifest.candidate_confirmation?.confirmed_count?' · confirmed':''}.`;run.disabled=false;status.textContent=`${checks.candidate_search_count} compatible candidates · ${c.manifest.selection_objective} · IS only. Calendar automatically covered through ${c.manifest.request.calendar.coverage_end}. Ready to run.`;
-        const prior=form.querySelector('.campaign-checks');if(prior)prior.remove();const checkDetails=node('div');checkDetails.className='campaign-checks';details(checkDetails,'Source checks and saved candidate definitions',checks);form.append(checkDetails);
+        const prior=form.querySelector('.campaign-checks');if(prior)prior.remove();const checkDetails=node('div');checkDetails.className='campaign-checks';
+        if(checks.candidates?.some(row=>row.manifest.configuration.sizing)){checkDetails.append(node('h3','Declared sizing candidates'));dataTable(checkDetails,['Source','Sizing policy / hard cap','Quantity bounds','Cushion guards'],checks.candidates.map(row=>{const c=row.manifest.configuration,p=c.sizing?.policy;return [row.manifest.strategy.id,sizingLabel(c),p?`${p.minimum_contracts}–${p.maximum_contracts} MNQ`:'Fixed size',p?[p.constrain_to_account_cushion?'Account':'',p.constrain_to_daily_cushion?'Daily':''].filter(Boolean).join(', ')||'Not imposed':'Not imposed'];}));checkDetails.append(node('p','Every declared candidate is retained. Planned stop loss determines quantity only; source costs and observed paths are preserved under the admitted source assumptions.'));}
+        details(checkDetails,'Source checks and saved candidate definitions',checks);form.append(checkDetails);
       }catch(e){status.textContent=e.message;}finally{check.disabled=windowPending||!automaticWindow;}
     };
     run.onclick=async()=>{if(!campaignId)return;run.disabled=true;try{await api(`/api/research-campaigns/${campaignId}/run`,{});location.hash=`#backtests/prop/campaign/${campaignId}`;}catch(e){status.textContent=e.message;run.disabled=false;}};
@@ -184,6 +245,30 @@
     const table=node('table');table.className='prop-table';table.id=id;const head=node('thead'),tr=node('tr');
     for(const label of labels){const th=node('th',label);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
     const body=node('tbody');for(const values of rows){const row=node('tr');for(const value of values){const cell=node('td');cell.append(value instanceof Node?value:node('span',format(value)));row.append(cell);}body.append(row);}table.append(body);wrap.append(table);parent.append(wrap);return table;
+  }
+  function renderSizing(parent,candidate){
+    parent.replaceChildren();const config=candidate.manifest.configuration;if(!config.sizing)return;
+    const evidence=candidate.component?.provenance?.sizing||candidate.provenance?.sizing;
+    parent.append(node('h3','Sizing decisions'),node('p',sizingLabel(config)));
+    const external=candidate.manifest.source?.backtest.run_metadata.source?.kind==='external_trade_export';
+    parent.append(node('p','Quantities use the state available at each decision. Planned stop risk includes declared planning costs; it is not an additional P&L deduction. '+(external?'Source execution invariance and observation completeness remain exporter declarations.':'Native fixed-contract scenarios retain the saved source scaling assumptions; native risk-based policies require a new strategy replay.')+' Gaps can exceed planned risk.'));
+    if(!evidence){parent.append(node('p','Detailed sizing decisions are unavailable in this saved report.'));return;}
+    const summary=evidence.summary||{};
+    dataTable(parent,['Decisions','Executed trades','Skipped trades','Minimum MNQ','Maximum MNQ'],[[summary.decision_count,summary.trade_count,summary.skipped_count,summary.min_quantity,summary.max_quantity]],'campaign-sizing-summary');
+    const quantities=Object.entries(summary.quantity_counts||{}).map(([quantity,count])=>`${quantity} MNQ: ${count}`).join(' · '),reasons=Object.entries(summary.reason_counts||{}).map(([reason,count])=>`${reason.replaceAll('_',' ')}: ${count}`).join(' · ');
+    parent.append(node('p','Quantity counts · '+(quantities||'No decisions')),node('p','Cap and skip reasons · '+(reasons||'No limits or skips recorded')));
+    const observations=evidence.decisions||[];
+    parent.append(node('p',`${observations.length} retained decisions of ${summary.decision_count??'unknown'} total. ${evidence.trace_complete?'The saved trace is complete.':'The saved trace is limited; aggregate counts cover the full calculation.'} ${evidence.trace_limit!=null?'Retention limit: '+evidence.trace_limit+'. ':''}Trace retention never removes candidates or simulated opportunities.`));
+    const disclosure=node('details');disclosure.append(node('summary','Inspect retained trade decisions'));parent.append(disclosure);
+    disclosure.append(node('p','Scroll the table horizontally for planned risk, cap reasons and account state. Path and session labels refer to the simulation; source trade IDs identify the sampled observations.'));
+    const buttons=node('div');buttons.className='prop-inline-actions';disclosure.append(buttons);const previous=button(buttons,'Previous decisions','campaign-sizing-previous'),next=button(buttons,'Next decisions','campaign-sizing-next'),position=node('p'),table=node('div');disclosure.append(position,table);let offset=0;
+    function draw(){table.replaceChildren();previous.disabled=offset===0;next.disabled=offset+25>=observations.length;position.textContent=observations.length?`${offset+1}–${Math.min(offset+25,observations.length)} of ${observations.length} retained decisions`:'No retained trade decisions.';
+      dataTable(table,['Source trade','Path / session','Action','Requested MNQ','Chosen MNQ','Reference value · USD','Risk budget · USD','Planned risk / MNQ · USD','Planned total risk · USD','Caps / reasons','Account state'],observations.slice(offset,offset+25).map(observation=>{const d={...observation.decision,...observation},state=node('details');state.append(node('summary','Before / after decision'));for(const [label,value]of [['Before',d.state_before],['After',d.state_after]]){if(value){state.append(node('h4',label));dataTable(state,['State','Value'],Object.entries(value).map(([k,v])=>[k.replaceAll('_',' '),v]));}}
+        const caps=Object.entries(d.caps||{}).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value}`).join(' · '),reasons=(d.reasons||[]).map(value=>value.replaceAll('_',' ')).join(', ');
+        const context=[d.path_index!=null?'Path '+d.path_index:null,d.attempt!=null?'attempt '+d.attempt:null,d.calendar_date||d.session_date||(d.session_index!=null?'session '+d.session_index:null)].filter(Boolean).join(' · ');
+        return [d.source_trade_id??d.trade_id,context||'Unavailable',d.action,d.requested_contracts,d.quantity,d.denominator_value,d.risk_budget,d.planned_risk_per_mnq,d.planned_total_risk,[caps,reasons].filter(Boolean).join('; '),state];}),'campaign-sizing-decisions');}
+    previous.onclick=()=>{offset=Math.max(0,offset-25);draw();};next.onclick=()=>{offset+=25;draw();};draw();
+    details(parent,'Saved sizing policy and planning assumptions',evidence.configuration||config.sizing);
   }
   function svgNode(tag,attrs={},text){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,String(v));if(text!==undefined)n.textContent=text;return n;}
   function chart(parent,rows,phase,frontier,assessment=false){
@@ -199,11 +284,11 @@
       for(let i=0;i<=4;i++){const t=i/4;svg.append(svgNode('text',{x:75,y:289-t*250,'text-anchor':'end'},format(t*maxC)),svgNode('text',{x:80+t*710,y:306,'text-anchor':'middle'},format(t*maxT)));}
       const edge=points.filter(r=>frontier.includes(r.candidate_id)).sort((a,b)=>x(a)-x(b));
       if(edge.length>1)svg.append(svgNode('polyline',{points:edge.map(r=>`${x(r)},${y(r)}`).join(' '),fill:'none',stroke:'#c75a08','stroke-width':2}));
-      for(const r of points){const isFrontier=frontier.includes(r.candidate_id),c=svgNode('circle',{cx:x(r),cy:y(r),r:isFrontier?8:5,fill:isFrontier?'#fff4e8':'#367781',stroke:isFrontier?'#c75a08':'#367781','stroke-width':3,'data-candidate-id':r.candidate_id,'data-frontier':isFrontier});c.append(svgNode('title',{},`${r.manifest.strategy.id} · ${r.manifest.configuration.micros} MNQ · $${format(r.metrics.cost_per_funded)} · ${format(r.metrics.expected_calendar_days_to_funded)} days${isFrontier?' · Pareto frontier':''}`));svg.append(c);}box.append(svg);
+      for(const r of points){const isFrontier=frontier.includes(r.candidate_id),c=svgNode('circle',{cx:x(r),cy:y(r),r:isFrontier?8:5,fill:isFrontier?'#fff4e8':'#367781',stroke:isFrontier?'#c75a08':'#367781','stroke-width':3,'data-candidate-id':r.candidate_id,'data-frontier':isFrontier});c.append(svgNode('title',{},`${r.manifest.strategy.id} · ${sizingLabel(r.manifest.configuration)} · $${format(r.metrics.cost_per_funded)} · ${format(r.metrics.expected_calendar_days_to_funded)} days${isFrontier?' · Pareto frontier':''}`));svg.append(c);}box.append(svg);
     }else{
       box.append(node('h3','Funded payout distribution'),node('p','All-start received cash, including zero-payout paths. Choose a visible strategy/size; selection here only changes this chart.'));
       if(!rows.length){box.append(node('p','No matching candidates.'));return;}
-      const choose=select(box,'Distribution candidate','campaign-distribution',rows.map(r=>[r.candidate_id,`${r.manifest.strategy.id} · ${r.manifest.configuration.micros} MNQ · ${r.candidate_id.slice(0,8)}`]));
+      const choose=select(box,'Distribution candidate','campaign-distribution',rows.map(r=>[r.candidate_id,`${r.manifest.strategy.id} · ${sizingLabel(r.manifest.configuration)} · ${r.candidate_id.slice(0,8)}`]));
       const plot=node('div');box.append(plot);
       function draw(){plot.replaceChildren();const r=rows.find(r=>r.candidate_id===choose.value),values=r.distribution?.values;
         if(r.status!=='estimated')plot.append(node('p','Incomplete horizon: plotted values are accrued cash lower bounds, not completed payout estimates.'));if(!values?.length){plot.append(node('p','Distribution unavailable for this saved report.'));return;}
@@ -215,12 +300,13 @@
   }
   function metricOverview(parent,rows,phase){
     if(!rows.length)return;
-    const choose=select(parent,'Inspect candidate metrics · presentation only','campaign-inspect',rows.map(r=>[r.candidate_id,`${r.manifest.strategy.id} · ${r.manifest.configuration.micros} MNQ · ${r.candidate_id.slice(0,8)}`]));
-    const text=node('p'),cards=node('div');cards.className='campaign-metric-grid';parent.append(text,cards);
+    const choose=select(parent,'Inspect candidate metrics · presentation only','campaign-inspect',rows.map(r=>[r.candidate_id,`${r.manifest.strategy.id} · ${sizingLabel(r.manifest.configuration)} · ${r.candidate_id.slice(0,8)}`]));
+    const text=node('p'),cards=node('div'),sizing=node('section');sizing.id='campaign-sizing-evidence';cards.className='campaign-metric-grid';parent.append(text,cards,sizing);
     function show(){const r=rows.find(r=>r.candidate_id===choose.value),m=r.metrics,u=r.uncertainty||{};cards.replaceChildren();
       text.textContent=Object.entries(r.manifest.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ')+` · ${r.manifest.configuration.profile.profile_id} · ${r.status}. Inspection does not choose or freeze a winner.`;
       const values=phase==='evaluation'?[['Cost per funded account · USD',m.cost_per_funded],['Expected calendar days',m.expected_calendar_days_to_funded],['Pass probability',pct(m.pass_probability)],['Median funding days',m.median_calendar_days_to_funded],['P90 funding days',m.p90_calendar_days_to_funded],['Funded within 30 days',pct(m.probability_funded_by_day_30)],['Funded within 60 days',pct(m.probability_funded_by_day_60)],['Acquisition throughput · accounts/30d',m.funded_accounts_per_30_calendar_days],['MC cost SE · USD',u.cost_se],['MC mean time SE · days',u.calendar_mean_se],['Censoring status',r.reason||r.status]]:[['Expected payout cash · USD',m.expected_payouts],['Median / P10 / P90 · USD',`${format(m.median_payouts)} / ${format(m.p10_payouts)} / ${format(m.p90_payouts)}`],['Probability of first payout',pct(m.probability_first_payout)],['First payout days · conditional on payout',(m.probability_first_payout===0?'No payout observed':m.expected_days_to_first_payout_conditional_on_payout)],['Breach probability',pct(m.account_breach_probability)],['Survival to horizon',pct(m.probability_surviving_to_horizon)],['Risk constraint status',r.feasible?'Meets empirical limits':(r.constraint_violations||[]).join(', ')||'Unresolved'],['Pending cash · USD',m.expected_pending_cash],['MC mean cash SE · USD',u.mean_monte_carlo_se],['Unresolved horizon paths',r.censoring?.unresolved_horizon_paths],['Open lifetimes · censored',r.censoring?.lifetime_censored_paths]];
       for(const [label,value]of values){const card=node('div');card.append(node('span',label),node('strong',format(value)));cards.append(card);}
+      renderSizing(sizing,r);
     }choose.onchange=show;show();
   }
   function renderAnalysis(report,campaign=null){
@@ -232,12 +318,13 @@
     const target=$('#prop-report-content');target.replaceChildren();target.className='';const calc=report.calculations;
     const panel=node('section');panel.className='panel prop-panel';target.append(panel);
     panel.append(node('h2',assessment?'OOS assessment · frozen settings':campaign?.frozen?'Frozen IS selection':'IS candidate results'));
-    panel.append(node('p',`${calc.candidates.length} completed candidates · ${report.model_version}. ${assessment?'Assessment only; no OOS ranking, frontier selection or replacement of IS choices.':'Selection uses IS only. Evaluation has no automatic winner.'} Estimated results; no provider parity or certified optimum.`));
+    panel.append(node('p',`${calc.candidates.length} completed candidates · ${report.model_version}. ${assessment?'Assessment only; no OOS ranking, frontier selection or replacement of IS choices.':isEval?'Selection uses IS only. Evaluation has no automatic winner.':'Selection uses IS only. Funded candidates are ranked by expected trader cash received.'} Estimated results; no provider parity or certified optimum.`));
     if(assessment){panel.append(link('Return to frozen IS campaign',`#backtests/prop/campaign/${assessment.campaign_id}`),node('p',assessment.interpretation));details(panel,'Pre-launch OOS access history',assessment.prior_access);}
     const filters=node('div');filters.className='prop-fields';panel.append(filters);
     const opts=(key,label)=>[['',label],...[...new Set(calc.candidates.map(key))].sort().map(v=>[String(v),String(v)])];
     const strategy=select(filters,'Filter by strategy','campaign-filter-strategy',opts(r=>r.manifest.strategy.id,'All strategies'));
-    const size=select(filters,'Filter by size','campaign-filter-size',opts(r=>r.manifest.configuration.micros,'All sizes'));
+    const hasPolicies=calc.candidates.some(r=>r.manifest.configuration.sizing);
+    const size=select(filters,hasPolicies?'Filter by fixed size / hard cap':'Filter by size','campaign-filter-size',opts(r=>r.manifest.configuration.micros,hasPolicies?'All sizes / caps':'All sizes'));
     const profile=select(filters,'Filter by account profile','campaign-filter-profile',opts(r=>r.manifest.configuration.profile.profile_id,'All profiles'));
     const count=node('p');count.id='campaign-visible-count';panel.append(count);
     const graph=node('div'),comparison=node('div');panel.append(graph,comparison);
@@ -248,15 +335,15 @@
       const rows=displayed.filter(r=>(!strategy.value||r.manifest.strategy.id===strategy.value)&&(!size.value||String(r.manifest.configuration.micros)===size.value)&&(!profile.value||r.manifest.configuration.profile.profile_id===profile.value));
       graph.replaceChildren();comparison.replaceChildren();count.textContent=`${rows.length} of ${calc.candidates.length} candidates shown. Saved frontier/ranks stay fixed.`;
       metricOverview(graph,rows,report.phase);chart(graph,rows,report.phase,assessment?[]:calc.frontier,!!assessment);
-      const labels=['Freeze / name','Saved strategy / source',`Account / rules / ${assessment?'OOS':'IS'} window`,'MNQ','Status',...(isEval?['Cost per funded · USD','Expected calendar days','Pass probability','Median days','P90 days','Funded by 30d','Funded by 60d','Accounts / 30d','Pareto frontier','MC cost SE / days SE','Censoring']:['Expected cash · USD','Median cash','P10 cash','P90 cash','First payout probability','Days to first payout · conditional','Breach probability','Survival to horizon','Risk constraints','Pending cash · USD','Rank','MC mean SE','Censoring'])];
+      const labels=['Freeze / name','Saved strategy / source',`Account / rules / ${assessment?'OOS':'IS'} window`,hasPolicies?'Sizing policy / hard cap':'MNQ','Status',...(isEval?['Cost per funded · USD','Expected calendar days','Pass probability','Median days','P90 days','Funded by 30d','Funded by 60d','Accounts / 30d','Pareto frontier','MC cost SE / days SE','Censoring']:['Expected cash · USD','Median cash','P10 cash','P90 cash','First payout probability','Days to first payout · conditional','Breach probability','Survival to horizon','Risk constraints','Pending cash · USD','Rank','MC mean SE','Censoring'])];
       const values=rows.map(r=>{
         const config=r.manifest.configuration,m=r.metrics,u=r.uncertainty||{},pick=node('div'),box=node('input');box.type='checkbox';box.value=r.candidate_id;box.className='campaign-pick';box.setAttribute('aria-label','Freeze '+r.candidate_id.slice(0,12));box.disabled=!campaign||!!campaign.frozen||!allowed.includes(r.candidate_id);box.checked=picked.has(r.candidate_id);box.onchange=()=>box.checked?picked.add(r.candidate_id):picked.delete(r.candidate_id);pick.append(box);
-        const name=field(pick,'Candidate name','',names.get(r.candidate_id)||assessment?.sources.find(s=>s.source_id===config.source.source_backtest_id&&s.frozen_manifest.configuration.micros===config.micros)?.name||`${r.manifest.strategy.id} · ${config.micros} MNQ · ${r.candidate_id.slice(0,8)}`);names.set(r.candidate_id,name.value);name.className='campaign-candidate-name';name.maxLength=120;name.disabled=box.disabled;name.oninput=()=>names.set(r.candidate_id,name.value);
+        const name=field(pick,'Candidate name','',names.get(r.candidate_id)||frozenName(assessment,r)||`${r.manifest.strategy.id} · ${sizingLabel(config)} · ${r.candidate_id.slice(0,8)}`);names.set(r.candidate_id,name.value);name.className='campaign-candidate-name';name.maxLength=120;name.disabled=box.disabled;name.oninput=()=>names.set(r.candidate_id,name.value);
         const s=node('div');s.append(link(r.manifest.strategy.id,`#backtests/report/${config.source.source_backtest_id}`),node('p',Object.entries(r.manifest.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ')));details(s,'Source identity and provenance',r.manifest);
         const rules=node('div',`${config.profile.profile_id} · ${config.profile.rule_version}`);rules.append(node('p',`${assessment?'OOS':'IS'} ${config.period?.first_session} → ${config.period?.last_session}`));details(rules,'Saved rules, costs and search settings',{profile:config.profile,account_rules:r.provenance?.rules,costs:config.costs,sampling:config.sampling,simulation:config.simulation,calendar:report.request?.calendar,horizon:report.request?.horizon_calendar_days});
         const status=report.phase==='funded'&&r.status==='estimated'&&!r.feasible?'infeasible':r.status;
         const cells=isEval?[m.cost_per_funded,m.expected_calendar_days_to_funded,pct(m.pass_probability),m.median_calendar_days_to_funded,m.p90_calendar_days_to_funded,pct(m.probability_funded_by_day_30),pct(m.probability_funded_by_day_60),m.funded_accounts_per_30_calendar_days,assessment?'Assessment only':r.pareto_member? 'Frontier':'Outside frontier',`${format(u.cost_se)} / ${format(u.calendar_mean_se)}`,`${r.censoring?.chain_paths??'Unknown'} unresolved chains · ${r.reason||r.status}`]:[m.expected_payouts,m.median_payouts,m.p10_payouts,m.p90_payouts,pct(m.probability_first_payout),(m.probability_first_payout===0?'No payout observed':m.expected_days_to_first_payout_conditional_on_payout),pct(m.account_breach_probability),pct(m.probability_surviving_to_horizon),r.feasible?'Meets empirical limits':(r.constraint_violations||[]).join(', ')||'Unresolved',m.expected_pending_cash,r.rank??(assessment?'Assessment only':'Not ranked'),u.mean_monte_carlo_se,`${r.censoring?.unresolved_horizon_paths??0} incomplete horizons; ${r.censoring?.lifetime_censored_paths??0} open lifetimes`];
-        return [pick,s,rules,config.micros,status,...cells];
+        return [pick,s,rules,hasPolicies?sizingLabel(config):config.micros,status,...cells];
       });dataTable(comparison,labels,values,'campaign-candidates');
       if(!rows.length)comparison.append(node('p','No candidates match these filters.'));
     }
@@ -272,10 +359,11 @@
       const actions=node('div');panel.append(actions);
       if(!campaign.frozen){const rationale=field(actions,'Selection rationale','campaign-rationale','');const freeze=button(actions,'Freeze selected candidates','campaign-freeze');const status=node('p');actions.append(status);
         freeze.onclick=async()=>{try{if(!rationale.reportValidity())return;freeze.disabled=true;await api(`/api/research-campaigns/${campaign.campaign_id}/freeze`,{candidate_ids:[...picked],names:Object.fromEntries([...picked].map(id=>[id,names.get(id)||`${id.slice(0,12)}`])),rationale:rationale.value});await watch(campaign.campaign_id,()=>location.hash===`#backtests/prop/campaign/${campaign.campaign_id}`);}catch(e){status.textContent=e.message;freeze.disabled=false;}};
-      }else {details(actions,'Frozen package',campaign.frozen);assessmentControls(actions,campaign);}
+      }else {details(actions,'Frozen package',campaign.frozen);if(calc.candidates.some(r=>r.manifest.source?.backtest.run_metadata.source?.kind==='external_trade_export'))actions.append(node('p','Frozen settings are saved. Automatic OOS launch is unavailable for imported trades: no native strategy or untouched native split exists. Exporter research declarations do not establish an unseen OOS test.'));else assessmentControls(actions,campaign);}
       for(const kind of ['campaign.json','results.csv','results.json','source_checks.json','analysis.zip',...(campaign.frozen?['frozen_package.json']:[])])actions.append(link('Download '+kind,`/api/research-campaigns/${campaign.campaign_id}/exports/${kind}`),node('br'));
       details(panel,'Campaign declaration and numerical identity',campaign.manifest);
     }else {const downloads=node('div');downloads.className='campaign-downloads';for(const [label,path]of [['Download analysis ZIP','downloads/analysis.zip'],['Download metrics CSV','files/phase_metrics.csv'],['Download metrics JSON','files/phase_metrics.json']]){const a=link(label,`/api/prop-analyses/${report.id}/${path}`);a.className='button secondary';downloads.append(a);}panel.append(downloads);}
+    if(hasPolicies)panel.append(link('Download retained sizing decisions (CSV)',`/api/prop-analyses/${report.id}/files/sizing_decisions.csv`));
   }
   async function assessmentControls(parent,campaign){
     const section=node('section');section.id='campaign-assessments';parent.append(section);section.append(node('h3','Manual final OOS assessment'),node('p','Runs ordinary OOS backtests from the frozen IS parents, then assesses this named family at its frozen sizes, profiles, costs, horizon, seeds and scenario calendar. Results append without ranking or changing IS selections. Previously accessed data is not untouched final OOS.'));

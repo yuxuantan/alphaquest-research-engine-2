@@ -6,6 +6,20 @@ from hashlib import sha256
 from .adapter import canonical, source_record
 from .phase_profiles import prepare_phase_source
 
+
+def declared_is_coverage(record):
+    """Native plan or explicit exporter IS coverage, without inventing OOS."""
+    metadata = record['run_metadata']
+    research = metadata.get('research') or {}
+    if research.get('phase') != 'is':
+        raise ValueError('Phase selection requires a declared IS backtest/trial; OOS and undeclared sources reject.')
+    if metadata.get('source', {}).get('kind') == 'external_trade_export':
+        sessions = metadata['external_manifest']['coverage']['sessions']
+        if not sessions:
+            raise ValueError('External IS coverage requires an explicit session inventory.')
+        return dict(first_session=sessions[0], last_session=sessions[-1])
+    return dict(first_session=research['plan']['is_start'], last_session=research['plan']['is_end'])
+
 CANDIDATE_CONFIRMATION_THRESHOLD = 128
 
 
@@ -60,9 +74,20 @@ def check_candidates(runs, search, assessment=None):
         record = source_record(runs, candidate.source.source_backtest_id)
         metadata = record['run_metadata']
         research = metadata.get('research') or {}
+        external = metadata.get('source', {}).get('kind') == 'external_trade_export'
         if assessment:
-            selected = next((r for r in assessment['sources'] if r['source_id'] == record['id']
-                and r['frozen_manifest']['configuration']['micros'] == candidate.micros), None)
+            if external:
+                raise ValueError('Imported frozen choices require a separately supplied, verified external OOS source; native OOS rerun cannot generate external strategy outcomes.')
+            selected = None
+            for mapping in assessment['sources']:
+                if mapping['source_id'] != record['id']:
+                    continue
+                expected = deepcopy(mapping['frozen_manifest']['configuration'])
+                expected['source']['source_backtest_id'] = record['id']
+                expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+                if canonical(asdict(candidate)) == canonical(expected):
+                    selected = mapping
+                    break
             if selected is None:
                 raise ValueError('Assessment source is outside the frozen family.')
             saved = selected['frozen_manifest']['source']['backtest']
@@ -77,14 +102,21 @@ def check_candidates(runs, search, assessment=None):
             expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
             if canonical(asdict(candidate)) != canonical(expected):
                 raise ValueError('Assessment parameters, size, profile, costs, sampling and window are frozen.')
-        elif research.get('phase') != 'is':
-            raise ValueError('Phase selection requires a declared IS backtest/trial; OOS and undeclared sources reject.')
+        else:
+            declared_is_coverage(record)
         snapshot, _, _ = prepare_phase_source(runs, candidate.source, candidate.profile,
-            candidate.micros, candidate.simulation, candidate.period, candidate.costs)
+            candidate.micros, candidate.simulation, candidate.period, candidate.costs, candidate.sizing)
         protocol = dict(dataset=metadata['dataset'], period=snapshot['profile_research_period'],
             execution=record['execution_settings'], costs=asdict(candidate.costs))
         # Research IDs/strategy IDs may differ; the actual split must not.
-        protocol['research_windows'] = {k: research['plan'][k] for k in ('is_start', 'is_end', 'oos_start', 'oos_end')}
+        if external:
+            manifest = metadata['external_manifest']
+            protocol = dict(source_kind='external_trade_export', dataset=manifest['dataset'],
+                instrument=manifest['instrument'], time=manifest['time'], coverage=manifest['coverage'],
+                period=snapshot['profile_research_period'], execution=manifest['execution'],
+                costs=asdict(candidate.costs), research_windows=declared_is_coverage(record))
+        else:
+            protocol['research_windows'] = {k: research['plan'][k] for k in ('is_start', 'is_end', 'oos_start', 'oos_end')}
         if common is not None and canonical(protocol) != canonical(common):
             raise ValueError('Candidates require identical dataset, research windows, source costs and execution protocol.')
         common = protocol
@@ -97,6 +129,10 @@ def check_candidates(runs, search, assessment=None):
         numerical['source']['backtest']['run_metadata'].pop('automatic_prop_analysis', None)
         key = sha256(canonical(numerical).encode()).hexdigest()
         access = dict(status='unavailable', attempts=None)
+        if external:
+            access = dict(status='exporter_declared', prior_access=research['prior_access'],
+                declaration=research['declaration'],
+                interpretation='Exporter research/access claims are retained. No untouched-OOS claim or automatic external OOS execution.')
         origins = []
         if hasattr(runs, 'connect'):
             with runs.connect() as db:
@@ -105,7 +141,7 @@ def check_candidates(runs, search, assessment=None):
                         "SELECT optimization_id,trial FROM optimization_trials WHERE json_extract(payload,'$.run_id')=? ORDER BY optimization_id,trial",
                         (record['id'],)).fetchall()]
                 exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='oos_attempts'").fetchone()
-                if exists:
+                if exists and not external:
                     history = db.execute('SELECT id,parent_run_id,run_id,status,created_at FROM oos_attempts WHERE strategy_id=? AND source_sha256=? ORDER BY created_at,id',
                         (metadata['strategy']['id'], metadata['dataset']['sha256'])).fetchall()
                     access = dict(status='recorded', attempts=[dict(zip(('id','parent_run_id','run_id','status','created_at'), r)) for r in history],
@@ -131,7 +167,11 @@ def capture_inputs(runs, staged, search, calculations):
         captured.add(id)
         folder = staged/'inputs'/id
         folder.mkdir(parents=True)
-        for name in ('trades.csv', 'intratrade_risk.csv'):
+        record = source_record(runs, id)
+        if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
+            from .external_source import capture
+            capture(runs, id, folder)
+        for name in ('trades.csv', 'intratrade_risk.csv', 'execution_decisions.jsonl'):
             path = runs.root/id/name
             if path.is_file(): shutil.copyfile(path, folder/name)
     for row in calculations['candidates']:
@@ -143,8 +183,38 @@ def capture_inputs(runs, staged, search, calculations):
             raise ValueError('Captured source changed during publication.')
         if snapshot.get('native_risk') and digest(folder/'intratrade_risk.csv') != snapshot['native_risk']['sha256']:
             raise ValueError('Captured risk changed during publication.')
+        decisions = snapshot['backtest'].get('execution_decisions')
+        if decisions and digest(folder/'execution_decisions.jsonl') != decisions['sha256']:
+            raise ValueError('Captured native decisions changed during publication.')
         export = snapshot['excursion_input']
         if export['path']:
             target = staged/('input-export-'+export['sha256']+Path(export['path']).suffix)
             if not target.exists(): shutil.copyfile(export['path'], target)
             if digest(target) != export['sha256']: raise ValueError('Captured export changed during publication.')
+
+
+def write_sizing_artifacts(staged, calculations):
+    """Retained decision detail and complete summaries in the ordinary report."""
+    import csv
+    from pathlib import Path
+    summaries = []
+    fields = ['candidate_id', 'source_trade_id', 'stage', 'path_index', 'attempt', 'session_index',
+        'source_session_index', 'calendar_date', 'quantity', 'action', 'requested_contracts',
+        'denominator', 'denominator_value', 'risk_budget', 'planned_risk_per_mnq',
+        'planned_total_risk', 'caps', 'reasons', 'state_before', 'state_after', 'account_hit', 'outcome']
+    rows = []
+    for candidate in calculations['candidates']:
+        provenance = candidate.get('provenance') or candidate.get('component', {}).get('provenance', {})
+        sizing = provenance.get('sizing')
+        if sizing is None:
+            continue
+        summaries.append(dict(candidate_id=candidate['candidate_id'], **{k:v for k,v in sizing.items() if k != 'decisions'}))
+        for decision in sizing['decisions']:
+            value = dict(decision.get('decision', {}), **decision, candidate_id=candidate['candidate_id'])
+            rows.append({k:canonical(value[k]) if isinstance(value.get(k), (dict, list)) else value.get(k) for k in fields})
+    if not summaries:
+        return
+    (Path(staged)/'sizing_summary.json').write_text(canonical(summaries), encoding='utf-8')
+    with (Path(staged)/'sizing_decisions.csv').open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader(); writer.writerows(rows)

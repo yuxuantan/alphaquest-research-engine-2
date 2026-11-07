@@ -109,8 +109,11 @@ class EntryIntent:
     exit_deadline_utc: datetime | None = None
     side: Literal["long", "short"] = "long"
     timing: Literal["same_close", "next_open"] = "same_close"
+    initial_stop: Decimal | None = None
 
     def __post_init__(self):
+        if self.initial_stop is not None:
+            _decimal("initial_stop", self.initial_stop)
         _positive_integer("contracts", self.contracts)
         _reason(self.reason)
         if self.side not in ("long", "short") or self.timing not in ("same_close", "next_open"):

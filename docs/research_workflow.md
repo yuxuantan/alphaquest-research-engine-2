@@ -22,9 +22,48 @@ supported intraday USD NQ/MNQ trades and explicit path-invariance assumptions.
 Review the reason if unavailable; importing does not certify simulation or live
 readiness. For an eligible source, choose source/override commissions, run the
 normal analysis, then reopen/export the immutable report and its captured input
-files. Independent phases, native nested backtest reruns and dynamic sizing are
-pending for external sources. The [saved synthetic journey](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08)
+files. Eligible exporter-declared IS sources can also create independent phase
+campaigns with explicit policies as described below. Native nested backtest
+reruns and automatic external OOS generation remain unavailable. The [saved synthetic journey](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08)
 includes exact inputs, expected arithmetic and rejection examples.
+
+## Phase sizing policies
+
+From **Configure prop analysis**, create an Evaluation or Funded campaign. Each
+source row defaults to the existing fixed-size list. Choose **Compare sizing
+policies** to add fixed contracts, fixed dollar risk or percentage risk. The
+same size list becomes hard MNQ caps; checking expands every declared source,
+trial, cap and policy without truncating membership. Signal parameters remain
+the saved configurations; sizing does not reoptimize them.
+
+For percentage risk choose **initial configured capital**, **current account
+balance**, or **available drawdown cushion**. Supported accounts start with
+$50,000 configured capital; the source backtest's initial equity is not the prop
+account balance. Current balance changes after profits, losses and account
+deductions. Cushion is current equity minus the applicable account floor, with
+the provider's session trail/tier timing retained. Declare planning commission,
+entry slippage and stop-exit slippage explicitly. These affect the planned loss
+denominator only; source P&L already includes its observed costs.
+
+Whole contracts round down from risk budget divided by stop distance × MNQ point
+value plus planned loss-side costs. Minimum/maximum contracts and optional
+account/daily cushion constraints are explicit. A constraint protects planned
+loss strictly below a touched floor; it is not a guarantee against gaps. Zero
+quantity skips the opportunity with no costs or activity, while the account's
+calendar still advances. Inspect aggregate counts and retained per-trade
+decisions in the normal phase report and `sizing_decisions.csv` download.
+When detail retention is bounded, complete aggregate counts remain available and
+the report says which detail was retained; simulation membership is unchanged.
+
+Risk policies require causal initial stops, decision reference prices and an
+admitted invariant source path. External declarations remain unverified
+assumptions. New native reports capture signal/stop decisions separately from
+later fills, but native strategies may change behavior after a skipped/resized
+position and therefore require a suitable rerun. Missing stops, unsupported
+timing or signal dependence reject explicitly. Fixed unguarded native policies
+retain the existing fixed-path scenario. Freezes retain the entire policy and
+planning configuration. Imported packages can be frozen/downloaded, but cannot
+launch a native OOS rerun for an external strategy.
 
 ## Nested inner research
 

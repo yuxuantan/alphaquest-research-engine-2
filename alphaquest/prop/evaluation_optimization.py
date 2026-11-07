@@ -19,7 +19,7 @@ from .adapter import canonical, digest
 from .evaluation_profiles import simulate_evaluation_profile
 from .phase_profiles import (
     EvaluationProfile, EvaluationSamplingConfig, ResearchPeriod, SavedTradeSource,
-    SimulationConfig, SourceCosts, positive_integer,
+    SimulationConfig, SourceCosts, SizingConfiguration, positive_integer,
     verify_phase_source,
 )
 
@@ -60,6 +60,7 @@ class EvaluationCandidate:
     costs: SourceCosts = field(default_factory=SourceCosts)
     period: ResearchPeriod | None = None
     retry: SequentialRetry = field(default_factory=SequentialRetry)
+    sizing: SizingConfiguration | None = None
 
     def __post_init__(self):
         for name, cls in [('source', SavedTradeSource), ('simulation', SimulationConfig),
@@ -69,6 +70,8 @@ class EvaluationCandidate:
                 raise ValueError(f'Evaluation candidate requires {cls.__name__} for {name}.')
         if self.period is not None and not isinstance(self.period, ResearchPeriod):
             raise ValueError('Evaluation candidate period must be a ResearchPeriod.')
+        if self.sizing is not None and not isinstance(self.sizing, SizingConfiguration):
+            raise ValueError('Evaluation sizing must be a SizingConfiguration.')
         id = self.source.source_backtest_id
         if not isinstance(id, str) or UUID(id).hex != id:
             raise ValueError('Saved source ID must be a lowercase UUID hex string.')
@@ -112,7 +115,8 @@ def parse_request(raw):
             item = dict(item)
             for name, cls in [('source', SavedTradeSource), ('profile', EvaluationProfile),
                               ('simulation', SimulationConfig), ('sampling', EvaluationSamplingConfig),
-                              ('costs', SourceCosts), ('period', ResearchPeriod), ('retry', SequentialRetry)]:
+                              ('costs', SourceCosts), ('period', ResearchPeriod), ('retry', SequentialRetry),
+                              ('sizing', SizingConfiguration)]:
                 if item.get(name) is not None:
                     item[name] = cls(**item[name])
             candidates.append(EvaluationCandidate(**item))
@@ -133,9 +137,10 @@ def implementation_identity():
     # Include local source changes, including adapters and numerical kernels.
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
              'native_analysis.py', 'native_engine.py', 'source.py', 'commissions.py',
-             'phase_lifecycle.py', 'adapter.py', 'phase_search.py')
+             'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py',
+             'external_source.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
-    return dict(files={name: digest(Path(__file__).with_name(name)) for name in names},
+    return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel=kernel_identity({'ACCOUNT_TYPE': 'Apex EOD'}), numpy=np.__version__)
 
 
@@ -333,7 +338,8 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
         candidate = configurations[canonical(check['manifest']['configuration'])]
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Evaluating '+check['candidate_id'][:12])
         component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
-            candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs)
+            candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs,
+            **({'sizing':candidate.sizing} if candidate.sizing is not None else {}))
         if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
             raise ValueError('Candidate source changed after source checking.')
         result = acquisition_metrics(component, candidate.profile, candidate.retry, search.calendar, candidate.sampling)
@@ -359,8 +365,9 @@ def write_report(runs, staged, search, checks, calculations):
     staged = Path(staged)
     def save(name, data):
         (staged/name).write_text(canonical(data), encoding='utf-8')
-    from .phase_search import capture_inputs
+    from .phase_search import capture_inputs, write_sizing_artifacts
     capture_inputs(runs, staged, search, calculations)
+    write_sizing_artifacts(staged, calculations)
     save('source_checks.json', checks)
     save('phase_candidates.json', [dict(candidate_id=r['candidate_id'], origin_trials=r['origin_trials'],
         **r['manifest']) for r in calculations['candidates']])

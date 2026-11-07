@@ -26,7 +26,19 @@ semantics. `prop/external_source.py` admits the documented ordered-mark subset,
 normalizes actual costs exactly once, and captures source artifacts through the
 existing AnalysisStore. Existing backtest/import/report and prop controls expose
 this route. No second dataset, simulation engine or result store is introduced.
-External independent phases, dated replay and dynamic sizing are still pending.
+Independent phases now accept eligible external IS sources with explicit sizing
+policies. Standalone external dated/budgeted replay remains pending.
+
+`prop/sizing.py` owns pure causal quantity decisions; `sizing_runtime.py` maps
+saved source facts and current account state into that contract. The existing
+`native_engine.py` and `lucid_engine.py` call it before each opportunity, retain
+their provider transitions, and omit all policy work on the legacy default path.
+`phase_profiles.py` owns admission/configuration and bounded decision capture;
+phase-specific profile/optimization modules keep their independent objectives.
+The existing campaign declaration expands all source × cap × policy combinations.
+Native `decision_capture.py` owns the optional normal-report sidecar. Execution
+records decisions/fills separately; historical missing information stays missing,
+and dynamic native policies reject until a suitable strategy rerun is integrated.
 
 [Home](../README.md) / [Docs](README.md)
 
@@ -76,7 +88,8 @@ research throughput, spending and engineering hours.
 | Capability | Status at this review |
 | --- | --- |
 | Saved IS backtests, single-strategy parameter grids, manual OOS and local prop reports | Implemented. Each trial uses the existing engine; OOS remains manual and unlimited with recorded history. |
-| Canonical external trades | Implemented 8 November 2026: complete versioned exports, exact cost/identity/event validation, ordinary saved reports/catalogue/downloads and eligible annualized local prop analysis. Generic platform CSV, partial-position paths, independent phase selection and dynamic sizing remain unsupported. |
+| Canonical external trades | Implemented 8 November 2026: complete versioned exports, exact cost/identity/event validation, ordinary saved reports/catalogue/downloads, eligible annualized local prop analysis and independent IS phase policies. Generic platform CSV, partial-position paths and native external reruns remain unsupported. |
+| State-aware phase sizing | Fixed contracts, fixed dollars and explicitly based percentage risk run inside existing account transitions for admitted invariant external paths. Whole-MNQ rounding, skips, user/provider/cushion caps and decisions are saved. Native risk-based resizing requires a strategy rerun; no invariant-path claim is made from stop capture alone. |
 | Annualized joint evaluation/funded sizing | Implemented and still the default. Classified as **legacy business-level optimization**, not the target independent phase selector. Preserve calculations, regression tests and historical reports until separately approved retirement. |
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |

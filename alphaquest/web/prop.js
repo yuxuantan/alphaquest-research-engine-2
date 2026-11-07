@@ -143,11 +143,11 @@
     for(const id of ['prop-block','prop-holdout','prop-slots'])$('#'+id).closest('label').hidden=cash;
     $('#prop-fee-fields').hidden=false;$('#prop-activation-wait').closest('label').hidden=!cash;$('#prop-fee-note-label').hidden=!cash;
     $('#prop-method-help').textContent=cash?'Replay one initially unfunded slot with exact monthly fee spending and separately dated trader receipts.':'Choose evaluation and funded sizes using the existing annualized model, with the last 30% of source history held out internally.';
-    if(externalSource)$('#prop-method-help').textContent='This imported source supports the legacy annualized analysis. Source checks retain its declared sessions, actual costs and observed risk limitations.';
+    if(externalSource)$('#prop-method-help').textContent='This form runs the legacy annualized analysis. Eligible imported IS sources can also use the independent phase campaign controls above, including explicit sizing policies. Source checks retain declared sessions, actual costs and observed risk limitations.';
     timingChoices();updateObservedWindow();purchaseHelp();
   }
   $('#prop-method').addEventListener('change',()=>{if($('#prop-method').value!=='annualized')$('#prop-holdout').value='';showMethodFields();invalidate();});
-  function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);$('#prop-use-observed').disabled=v||!observedWindow;}
+  function setBusy(v){busy=v;$('#prop-check').disabled=v;$('#prop-run').disabled=v||!checked;$('#prop-form').querySelectorAll('input,select,textarea').forEach(n=>n.disabled=v);$('#prop-method option[value="budgeted_lifecycle"]').disabled=externalSource;$('#prop-use-observed').disabled=v||!observedWindow;}
   function applyModel(){
     const p=modelProfiles[Number($('#prop-model').value)];if(!p)return;
     const s=p.settings,lucid=s.PROP_FIRM==='Lucid';

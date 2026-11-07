@@ -11,7 +11,7 @@ import numpy as np
 from .adapter import canonical, digest
 from .funded_profiles import simulate_dated_funded_profile
 from .phase_profiles import (FundedProfile, ResearchPeriod, SamplingConfig, SavedTradeSource,
-    SimulationConfig, SourceCosts, positive_integer, verify_phase_source)
+    SimulationConfig, SourceCosts, SizingConfiguration, positive_integer, verify_phase_source)
 from .phase_search import PhaseCalendar, check_candidates
 
 MODEL_VERSION = 'funded-optimization-calendar-receipts-v1'
@@ -28,6 +28,7 @@ class FundedCandidate:
     sampling: SamplingConfig = field(default_factory=SamplingConfig)
     costs: SourceCosts = field(default_factory=SourceCosts)
     period: ResearchPeriod | None = None
+    sizing: SizingConfiguration | None = None
 
     def __post_init__(self):
         for name, cls in [('source', SavedTradeSource), ('profile', FundedProfile),
@@ -36,6 +37,8 @@ class FundedCandidate:
                 raise ValueError(f'Funded candidate requires {cls.__name__} for {name}.')
         if self.period is not None and type(self.period) is not ResearchPeriod:
             raise ValueError('Funded period must be a ResearchPeriod.')
+        if self.sizing is not None and type(self.sizing) is not SizingConfiguration:
+            raise ValueError('Funded sizing must be a SizingConfiguration.')
         id = self.source.source_backtest_id
         if not isinstance(id, str) or UUID(id).hex != id:
             raise ValueError('Source ID must be a lowercase UUID hex string.')
@@ -105,7 +108,7 @@ def parse_request(raw):
             item = dict(item)
             for name, cls in [('source', SavedTradeSource), ('profile', FundedProfile),
                               ('simulation', SimulationConfig), ('sampling', SamplingConfig),
-                              ('costs', SourceCosts), ('period', ResearchPeriod)]:
+                              ('costs', SourceCosts), ('period', ResearchPeriod), ('sizing', SizingConfiguration)]:
                 if item.get(name) is not None: item[name] = cls(**item[name])
             candidates.append(FundedCandidate(**item))
         calendar = dict(value.pop('calendar'))
@@ -124,8 +127,9 @@ def check_search(runs, search):
 def implementation_identity():
     names = ('funded_optimization.py', 'funded_profiles.py', 'phase_profiles.py', 'phase_search.py',
         'native_analysis.py', 'native_engine.py', 'lucid_engine.py', 'lucid_rules.py', 'source.py',
-        'commissions.py', 'phase_lifecycle.py', 'adapter.py')
-    return dict(files={name: digest(Path(__file__).with_name(name)) for name in names},
+        'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
+        'external_source.py', '../canonical_trades.py', '../trade_imports.py')
+    return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel='native Python reference account transitions', numpy=np.__version__)
 
 
@@ -232,7 +236,8 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
         c = configurations[canonical(check['manifest']['configuration'])]
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Simulating funded candidate '+check['candidate_id'][:12])
         component = simulate_dated_funded_profile(runs,c.source,c.profile,c.micros,search.horizon_calendar_days,
-            search.calendar,search.receipt_delay_calendar_days,c.simulation,c.period,c.sampling,c.costs)
+            search.calendar,search.receipt_delay_calendar_days,c.simulation,c.period,c.sampling,c.costs,
+            **({'sizing':c.sizing} if c.sizing is not None else {}))
         if canonical(component['provenance']['source']) != canonical(check['manifest']['source']):
             raise ValueError('Candidate source changed after source checking.')
         rows.append(dict(candidate_id=check['candidate_id'], **funded_metrics(component['paths'],search),
@@ -253,9 +258,10 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
 
 def write_report(runs, staged, search, checks, calculations):
     import csv
-    from .phase_search import capture_inputs
+    from .phase_search import capture_inputs, write_sizing_artifacts
     staged = Path(staged)
     capture_inputs(runs, staged, search, calculations)
+    write_sizing_artifacts(staged, calculations)
     def save(name,data): (staged/name).write_text(canonical(data),encoding='utf-8')
     save('source_checks.json',checks)
     save('phase_candidates.json',[dict(candidate_id=r['candidate_id'], origin_trials=r['origin_trials'],**r['manifest']) for r in calculations['candidates']])

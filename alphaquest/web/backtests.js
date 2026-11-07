@@ -272,6 +272,14 @@
     get('#report-source-download').hidden = get('#report-canonical-download').hidden = !external;
     get('#report-source-download').href = `/api/backtests/${record.id}/exports/source`;
     get('#report-canonical-download').href = `/api/backtests/${record.id}/exports/canonical_source`;
+    let decisionsDownload = get('#report-decisions-download');
+    if (!decisionsDownload) {
+      decisionsDownload = element('a', 'button secondary', 'Entry decisions (JSONL) ↓');
+      decisionsDownload.id = 'report-decisions-download';
+      get('#report-risk-download').after(decisionsDownload);
+    }
+    decisionsDownload.hidden = external || !record.execution_decisions;
+    decisionsDownload.href = `/api/backtests/${record.id}/exports/execution_decisions`;
     if (external) {
       get('#report-storage-note').textContent = 'Imported trade report · Completed fills, exact costs and trade-close equity are saved. Market bars, per-bar equity and native strategy replay are unavailable. Risk coverage remains the exporter’s declared observation basis.';
       for (const id of ['report-generate-detail', 'report-capture-risk', 'report-risk-download']) get('#' + id).hidden = true;
@@ -288,6 +296,7 @@
     get("#report-risk-download").href = `/api/backtests/${record.id}/exports/intratrade_risk`;
     if (record.intratrade_risk) get("#report-storage-note").textContent += ` Intratrade risk: ${record.intratrade_risk.trades} trades captured from held OHLC bars; ${record.intratrade_risk.ambiguous_trades} have ambiguous adverse ordering. Uses conservative bounds, not tick measurements.`;
     else get("#report-storage-note").textContent += " Legacy risk coverage: realized close-only fallback. Capture risk from an IS replay to include held-bar excursions.";
+    if (record.execution_decisions) get('#report-storage-note').textContent += ` Entry decisions: ${record.execution_decisions.decisions} captured, ${record.execution_decisions.filled_trades} filled and ${record.execution_decisions.cancelled_decisions} cancelled. Signal-time decisions and actual fills are distinct. A captured decision may have no initial stop; the export preserves that absence. Dynamic native sizing requires a new strategy replay.`;
     get("#report-detail-status").hidden = true;
     const content = get("#backtest-completion-content");
     content.replaceChildren();
@@ -306,6 +315,7 @@
       ["Strategy", label(metadata.strategy.id)], ["Timestamp convention", record.timestamp_convention === "bar_close" ? "Bar close" : record.timestamp_convention],
       ["Dataset SHA-256", metadata.dataset.sha256], ["Strategy source SHA-256", metadata.strategy.source_sha256],
       ["Execution assumption", record.execution_assumption], ["Currency", "CU · account currency unspecified"],
+      ...(record.execution_decisions ? [["Entry decision evidence", `${record.execution_decisions.version} · ${record.execution_decisions.events} events · ${record.execution_decisions.bracket_submissions} bracket submissions`], ["Entry decision SHA-256", record.execution_decisions.sha256], ["Entry decision limitations", record.execution_decisions.policy]] : [["Entry decision evidence", "Not captured in this saved report. Historical decision times and initial stops are not inferred from later fills."]]),
       ["Dataset default tick size", defaults?.tick_size || "Not recorded"],
       ["Dataset default monetary point value", defaults?.point_value || "Not recorded"],
       ["Instrument overrides", overrides ? Object.entries(overrides).map(([key, value]) => `${executionLabels[key]}: ${value}`).join(" · ") || "None (dataset defaults)"

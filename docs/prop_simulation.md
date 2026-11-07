@@ -24,8 +24,9 @@ ordered marks covering declared extrema, explicit contiguous business-weekday
 inventory including empty edges, and exporter-declared signal-path invariance.
 The declaration is an assumption, not independent proof of tick completeness or
 execution scalability. Other imports remain useful saved reports and explain
-why simulation is unavailable. External dated/budgeted replay and independent
-phase selection are not admitted by this increment.
+why simulation is unavailable. The first M2a increment admitted annualized
+analysis only; M2b adds the independent phase policies below. External standalone
+dated/budgeted replay remains unavailable.
 
 Actual fills already include slippage. Source fees remain in net returns;
 commission overrides replace the source fee once, using one side while open and
@@ -42,7 +43,78 @@ capture immutable inputs in `analysis.zip`, and include importer/adapter code in
 implementation identity. No Bridge or other external prop engine/results are
 used. [Independent arithmetic, boundary checks and saved product evidence](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08).
 
-## Current behavior and navigation — updated 2026-11-07
+## State-aware independent phase sizing — 2026-11-08
+
+Campaigns can retain legacy fixed size lists or declare `sizing_policies` for each
+source. The latter expands every source/trial × hard MNQ cap × policy into a
+candidate. A direct phase candidate supplies optional `sizing`, containing
+`policy`, `initial_configured_capital: "50000"` and `planning_execution`.
+Omitting it preserves the existing fixed-size path. In a policy candidate,
+`micros` means the user ceiling; provider tiers and the simulation exposure cap
+still apply. Phase objectives and source membership remain independent.
+
+| Policy | Decision before each source opportunity |
+| --- | --- |
+| `fixed_contracts` | Requested whole `contracts`, constrained by declared/provider caps |
+| `fixed_dollar_risk` | Floor of `risk_dollars` divided by planned loss per MNQ |
+| `percentage_risk` | Floor of named base × `risk_percent / 100` divided by planned loss per MNQ |
+
+Percentage `reference` is exactly `initial_configured_capital`,
+`current_account_balance` or `available_drawdown_cushion`. These mean $50,000,
+$50,000 plus the current account equity change, or current equity minus its
+applicable account floor respectively. Payout account deductions reduce the
+current balance/cushion; evaluation fees never enter funded account state.
+The existing engines retain session-opening tier/daily floors and their current
+EOD trail timing. No implicit funded replacement or acquisition inputs are added.
+
+For the supported MNQ instrument (`tick_size: "0.25"`, `point_value: "2"`):
+
+```text
+planned loss / MNQ = (adverse stop distance from decision reference
+                    + tick size × (entry slip ticks + stop-exit slip ticks)) × 2
+                    + 2 × planning commission / side
+```
+
+Planning inputs must be explicit; actual future entry fills are excluded. This
+amount chooses quantity only and is never charged to the already net source
+P&L. For example, a five-point stop, one entry-slip tick, two stop-slip ticks and
+$0.50 per side imply $12.50 planned loss per MNQ: $50 risk selects four. An
+opt-in cushion constraint at exactly $50 selects three because touching the
+floor counts as a breach. Observed gaps can exceed planned loss despite this
+constraint. Min/max contracts, account/daily cushion guards and skip reasons are
+part of the saved policy; below-minimum quantity consumes no trade, fee or
+activity, while the session/calendar advances normally.
+
+The shared pure contract lives in `prop/sizing.py`; `sizing_runtime.py` maps
+source metadata/current state into it. Both existing account engines call it
+inside their normal evaluation/funded transitions. Python and matching compiled
+kernels support the same decisions; legacy default calculations retain their
+fixed path. Independent Evaluation attempt samples and dated Funded samples save
+complete decision aggregates plus up to 10,000 retained decisions per candidate.
+This limits detail bytes, not candidate membership or simulated opportunities.
+`sizing_summary.json`, `sizing_decisions.csv`, the normal report JSON and ZIP
+remain ordinary AnalysisStore artifacts. Per-trade state uses session floors;
+later EOD updates are represented by the account paths, not invented intratrade
+trail updates. The legacy float account arithmetic is retained; exact Decimal
+budget division uses the represented predecision account state.
+
+Admitted risk-based sources currently require complete canonical external
+ordered marks, causal same-close/next-open initial-stop decisions and explicit
+exporter-declared path invariance. No original future fill or excursion supplies
+the decision stop. Native fixed unguarded policies retain the existing scenario;
+native dynamic/cushion-guarded policies reject until a suitable strategy rerun
+can handle changed position callbacks and signals. New native report sidecars
+capture actual decisions/stops/fills and verify replay/cache identity, but do not
+prove invariance. All planning/source/code hashes are frozen with candidates.
+Older reports remain immutable; incompatible frozen launches fail closed.
+
+An external IS package can be compared, frozen and downloaded. Native OOS launch
+cannot generate an external strategy's outcomes, so it rejects before accessing
+data. Separately supplied external OOS assessment and chronological outer-policy
+replay remain later work. These are local model scenarios, not provider parity,
+tick-completeness certification or live execution readiness.
+
+## Current behavior and navigation — updated 2026-11-08
 
 Use an ordinary saved IS backtest/trial → **Configure prop analysis** → create an
 independent phase campaign → **Check** → **Run** → durable results/downloads →

@@ -144,15 +144,31 @@ actual-fill slippage. Original/canonical exports and declared sessions are saved
 inside the ordinary AnalysisStore download. Tick completeness, liquidation and
 path invariance remain unverified model assumptions.
 
-Imported sources do not authorize native detail/risk recapture, controlled OOS,
-nested reruns or a fabricated benchmark. External independent phase selection,
-dated replay and dynamic sizing remain pending integration; APIs reject them
-explicitly. A standalone pure sizing contract does not establish engine support.
+8 November 2026: eligible exporter-declared IS sources also support independent
+Evaluation/Funded campaign selection with fixed/dollar/percentage policies.
+Risk-based policies require causal initial stops and decision references for
+every source opportunity, supported same-close/next-open timing, and explicit
+MNQ planning costs. Unknown path invariance, unsupported timing or missing stops
+reject. Imported sources do not authorize native detail/risk recapture, native
+OOS/nested reruns or a fabricated benchmark. Standalone dated/budgeted import
+integration and separately supplied external frozen OOS remain pending.
 
 `project_native_source` provides the same canonical vocabulary for existing
 native reports, preserving original trade/risk fields and hashes. Historical
 initial stops, decision references and session inventories stay unavailable if
 they were not retained. MAE never becomes a fabricated stop.
+
+New native reports optionally capture `execution_decisions.jsonl` through the
+ordinary report writer, and current portal backtests/grids enable it. The
+`native-entry-decisions-v1` sidecar links signal decisions, fills, submitted
+brackets, cancellations and closures by decision/trade IDs. The engine records
+decision-time bar close and timestamp; the strategy may supply an initial stop
+known at that decision. VWAP supplies its actual signal stop. Fill prices remain
+later outcomes. A submitted bracket is effective on the next observed bar, not
+retroactively at signal time. Sidecar hashes/counts, replay and cache membership
+are verified, and the normal report exposes its download. Native sizing-sensitive
+strategies remain `native_rerun_required`: decision capture alone does not prove
+that skipping/resizing trades preserves subsequent signals or fills.
 
 Implementation owners: `canonical_trades.py` validates; `trade_imports.py`
 publishes through RunStore; `prop/external_source.py` checks model admission and
