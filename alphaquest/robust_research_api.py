@@ -6,9 +6,11 @@ from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from .edge_qualification import QualificationSettings
+from .execution_scenarios import ExecutionScenario
 from .prop.adapter import canonical
 from .research import ResearchConflict
 from .research_folds import FoldSettings
+from .research_regimes import RegimeSettings
 from .robust_research import RobustResearchRequest
 
 router = APIRouter(prefix='/api/research-campaigns/robust', tags=['Research campaigns'])
@@ -27,7 +29,13 @@ async def call(request, method, *args):
 
 @router.get('/defaults')
 def defaults():
-    return dict(folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'))
+    return dict(folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
+        execution_scenario=ExecutionScenario(name='cost_stress').model_dump(mode='json'),
+        regimes=RegimeSettings().model_dump(mode='json'), regime_names={
+            'trend':'Trending prior prices', 'range':'Ranging prior prices',
+            'high_volatility':'High prior volatility', 'low_volatility':'Low prior volatility',
+            'high_liquidity':'High prior volume (liquidity proxy)', 'low_liquidity':'Low prior volume (liquidity proxy)',
+            'asia_session':'Asia clock window', 'europe_session':'Europe clock window', 'us_session':'US clock window'})
 
 
 @router.post('/preview')

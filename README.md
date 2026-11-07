@@ -32,7 +32,10 @@ extension described in its guide. MultiCharts export parity remains unverified.
 The same saved report's **Configure prop analysis** screen now includes
 **Nested research**: preview rolling/expanding session windows, declare inner
 qualification criteria, run ordinary isolated backtests, and reopen/download
-every candidate's evidence. This first increment stops at inner qualification;
+every candidate's evidence. Named execution scenarios rerun real fills; causal
+market-condition evidence exposes unknown labels and optional versus required
+conditions. Signal neighborhoods exclude quantity/display settings. This
+increment stops at inner qualification;
 outer economic selection/replay, final recommendations and forward monitoring
 remain pending. See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).

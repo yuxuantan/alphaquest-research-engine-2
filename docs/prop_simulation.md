@@ -1,7 +1,8 @@
 # AlphaQuest local prop simulation
 
 7 November 2026: saved-report prop configuration also exposes nested inner
-research and durable qualification reports. These reports currently stop before
+research, actual execution-stress reruns, causal market-condition evidence and
+durable qualification reports. These reports currently stop before
 prop policy optimization and outer replay; no prop calculations or readiness
 claims are replaced. The [research workflow](research_workflow.md#nested-inner-research)
 explains the increment and the [checklist](robust_research_plan.md) records the

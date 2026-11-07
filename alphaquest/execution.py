@@ -10,6 +10,7 @@ from contextlib import nullcontext
 from .decimal_math import add as _add, multiply as _mul, subtract as _sub
 from .intratrade import IntratradeRisk, RiskCapture
 from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
+from .execution_scenarios import FillAssumptions
 
 
 TIMESTAMP_CONVENTION = "bar_close"
@@ -92,8 +93,9 @@ def _validate_bar(bar: Bar, previous: Bar | None) -> None:
 
 
 class _Account:
-    def __init__(self, config: ExecutionConfig, capture_risk=False):
+    def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None):
         self.config = config
+        self.fill_assumptions = fill_assumptions or FillAssumptions()
         self.capture_risk = capture_risk
         self.risk = self.closed_risk = None
         self.cash = config.initial_capital
@@ -105,7 +107,8 @@ class _Account:
         self.slippage = _mul(config.tick_size, Decimal(config.slippage_ticks))
 
     def apply(self, intent: EntryIntent | CloseIntent | None, bar: Bar, *, finishing: bool = False,
-              reference: Decimal | None = None, limit: bool = False, phase: str = "close") -> Trade | None:
+              reference: Decimal | None = None, limit: bool = False, phase: str = "close",
+              stop_exit: bool = False, risk_reference: Decimal | None = None) -> Trade | None:
         if intent is None:
             return None
         reference = bar.close if reference is None else reference
@@ -134,7 +137,10 @@ class _Account:
         entry = self.entry_intent
         if position is None or entry is None:
             raise ExecutionError("CloseIntent while flat is inconsistent: there is no position to close.")
-        fill = reference if limit else (_sub if position.side == "long" else _add)(reference, self.slippage)
+        slippage = self.slippage
+        if stop_exit and self.fill_assumptions.stop_extra_slippage_ticks:
+            slippage = _add(slippage, _mul(self.config.tick_size, Decimal(self.fill_assumptions.stop_extra_slippage_ticks)))
+        fill = reference if limit else (_sub if position.side == "long" else _add)(reference, slippage)
         commission = _mul(Decimal(position.contracts), self.config.commission_per_contract_per_side)
         signed_contracts = position.contracts if position.side == "long" else -position.contracts
         gross = _pnl(fill, position.entry_fill_price, signed_contracts, self.config.point_value)
@@ -156,7 +162,7 @@ class _Account:
         )
         if self.risk is not None:
             if phase in ("open", "stop", "target"):
-                self.risk.observe_bar(bar, phase, reference)
+                self.risk.observe_bar(bar, phase, reference if risk_reference is None else risk_reference)
             self.closed_risk = self.risk.finish(trade, phase)
             self.risk = None
         self.cash = _sub(_add(self.cash, gross), commission)
@@ -181,26 +187,33 @@ class _Account:
 def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade | None:
     """Open gaps first; otherwise stop wins an ambiguous two-level bar.
 
-    Limits fill at the limit or a better opening price, without adverse slippage.
-    Stops become market orders with adverse slippage. No intrabar path is invented.
+    Optional limit penetration is required before filling; opening improvement
+    can be disabled. Stops include explicitly declared extra stop slippage.
+    No intrabar path or queue position is invented.
     """
     position = account.position
     if position is None:
         raise ExecutionError("Pending bracket has no position.")
     stop, target = bracket.stop_price, bracket.target_price
     long = position.side == "long"
+    assumptions = account.fill_assumptions
+    trigger = target
+    if assumptions.limit_penetration_ticks:
+        penetration = _mul(account.config.tick_size, Decimal(assumptions.limit_penetration_ticks))
+        trigger = (_add if long else _sub)(target, penetration)
     if (bar.open <= stop if long else bar.open >= stop):
-        return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open, phase="open")
-    if (bar.open >= target if long else bar.open <= target):
-        return account.apply(CloseIntent("take_profit"), bar, reference=bar.open, limit=True, phase="open")
+        return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open, phase="open", stop_exit=True)
+    if (bar.open >= trigger if long else bar.open <= trigger):
+        reference = bar.open if assumptions.limit_price_improvement else target
+        return account.apply(CloseIntent("take_profit"), bar, reference=reference, limit=True, phase="open")
     if (bar.low <= stop if long else bar.high >= stop):
-        return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop")
-    if (bar.high >= target if long else bar.low <= target):
-        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True, phase="target")
+        return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop", stop_exit=True)
+    if (bar.high >= trigger if long else bar.low <= trigger):
+        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True, phase="target", risk_reference=trigger)
     return None
 
 
-def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
+def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     Preparation is optional. The calendar-based VWAP strategy uses the causal
@@ -208,10 +221,10 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
     """
     prepare = getattr(strategy, "prepare_replay", None)
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
-        yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar)
+        yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar, fill_assumptions=fill_assumptions)
 
 
-def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
+def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None) -> Iterator[Trade | EquityPoint | IntratradeRisk]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -228,9 +241,11 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
     """
     if type(config) is not ExecutionConfig:
         raise ExecutionError("config must be an ExecutionConfig with explicit Decimal settings.")
+    if fill_assumptions is not None and type(fill_assumptions) is not FillAssumptions:
+        raise ExecutionError('fill_assumptions must be FillAssumptions or None.')
     if not callable(getattr(strategy, "on_bar", None)) or not callable(getattr(strategy, "on_finish", None)):
         raise ExecutionError("Strategy must supply on_bar and on_finish callbacks.")
-    account = _Account(config, capture_risk)
+    account = _Account(config, capture_risk, fill_assumptions)
     previous = None
     pending = None
     next_order = None

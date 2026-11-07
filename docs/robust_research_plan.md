@@ -63,7 +63,7 @@ are split into coherent commits and pushed at least every one or two commits.
 | --- | --- | --- | --- | --- |
 | M0: audit/plan | Fetched clean main; traceability above | Reviewable plan and documented actual gaps before code | Fresh baseline suite; no datasets/results touched | audit/plan committed; interrupted baseline recorded |
 | M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | implemented; new product gates and stable affected-module regression pass |
-| M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; pass the entire qualified set once to normal phase campaigns | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | core criteria implemented; scenario reruns, causal regimes and complexity evidence pending |
+| M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; preserve the entire qualified set for phase selection | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | implemented with saved API/browser evidence and stable targeted regression; phase handoff follows M2/M3 |
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | pending |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | pending |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | pending |
@@ -169,9 +169,36 @@ qualification remains M6 work. Browser/process tests used the required local
 process permissions. The original interrupted baseline log/XML were preserved
 under `artifacts/robust-research-m1-20261107/baseline/`.
 
-Next M1 work: execute declared alternative-fill/cost scenarios, construct causal
-market-condition evidence, define strategy-complexity/signal-parameter criteria,
-and integrate the qualifying set with phase policy selection as later sizing and
-replay dependencies become available. M2–M6 remain pending. In particular no
+Subsequent M1b work implements declared alternative-fill/cost scenarios, causal
+market-condition evidence and strategy-complexity/signal-parameter criteria;
+its evidence follows below. Integrating the qualifying set with phase policy
+selection follows the M2 sizing and M3 replay dependencies. M2–M6 remain pending. In particular no
 standalone external import, dynamic prop sizing, chronological outer assessment,
 final deployment candidate or forward monitor is claimed by this increment.
+
+### M1b execution and condition evidence
+
+`execution_scenarios.py` feeds real costs/stop/limit assumptions into ordinary
+backtests, preserving baseline numerics and saving both baseline/resolved costs.
+`research_regimes.py` fits only inner training and classifies entries using
+strictly earlier bars; it reports incomplete warmup/threshold coverage explicitly.
+`research_complexity.py` separates signal, sizing and display roles. Selected
+scenarios are all required; assessed regimes may be optional or required per
+the declared hypothesis. Complexity gates remain optional and descriptive,
+without a universal score. Cross-instrument transferability remains untested.
+
+The [saved normal-product demonstration](prop_simulation_review.md#execution-stress-and-causal-condition-evidence--2026-11-07)
+shows independent NQ scenario means $2980/−$10, required US-clock evidence,
+unknown optional price regimes, a complete rejection set, desktop/narrow reopen
+and byte-identical exports. Its final two browser tests passed in 73.13 seconds.
+MNQ API output independently matches $297/$97 after $3 additional costs; the
+required-unknown and adverse-scenario boundaries block admission. Earlier source
+reports and libraries are unchanged. Final stable gates: 273 focused tests in
+40.35 seconds; 132 existing regression tests in 230.08 seconds; two browser tests
+in 73.13 seconds. A final source-admission guard prevents programmatic scenario
+IS reports from losing fill assumptions; all 41 affected robustness/nested/manual
+IS/OOS tests passed in 107.02 seconds afterward. Python compilation, JavaScript
+syntax and diff checks pass. Each gate's log/JUnit/library is preserved under
+`artifacts/robust-research-m1b-20261107/`; exact commands and scope are in the review.
+These overlapping gates are not added into a misleading distinct-test total.
+M2–M6 and the overall Definition of Done remain incomplete.

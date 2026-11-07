@@ -11,17 +11,20 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .backtest_api import run_backtest
 from .backtest_requests import ExecutionSettings
-from .edge_qualification import QualificationSettings, qualify_candidates
+from .edge_qualification import QualificationSettings, effective_configuration_identity, qualify_candidates
+from .execution_scenarios import ExecutionScenario
 from .optimization_cache import artifacts, engine_identity
 from .prop.adapter import canonical, source_record
 from .prop.store import seal_report, sealed_checks
 from .research import ResearchConflict
 from .research_campaigns import CandidateSource, StrictModel, fingerprint
 from .research_folds import FoldSettings, SessionDateRange, generate_folds, inventory_sessions
+from .research_complexity import describe_complexity
+from .research_regimes import RegimeSettings, build_regime_evidence
 from .reporting import json_value
 from .session_calendar import session_date
 from .strategies.registry import get_strategy
@@ -34,7 +37,16 @@ class RobustResearchRequest(StrictModel):
     sources: list[CandidateSource] = Field(min_length=1)
     folds: FoldSettings = Field(default_factory=FoldSettings)
     qualification: QualificationSettings = Field(default_factory=QualificationSettings)
+    execution_scenarios: list[ExecutionScenario] = Field(default_factory=list, max_length=12)
+    regimes: RegimeSettings = Field(default_factory=RegimeSettings)
     confirmed_backtest_count: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode='after')
+    def unique_scenarios(self):
+        names = [s.name for s in self.execution_scenarios]
+        if len(set(names)) != len(names) or 'baseline' in names:
+            raise ValueError('Scenario names must be unique and cannot use the reserved name baseline.')
+        return self
 
 
 class ResearchCancelled(Exception):
@@ -70,10 +82,13 @@ class RobustResearchStore:
         if any(source.sizes != [1] for source in body.sources):
             raise ValueError('Inner qualification uses saved strategy quantities; declare sizes [1]. Prop sizing is a later stage.')
         candidates, common, starts, ends, utc_starts, utc_ends = [], None, [], [], [], []
+        sizing_by_strategy, signal_signatures = {}, set()
         for id in ids:
             saved = source_record(self.runs, id)
             meta = saved['run_metadata']
             research = meta.get('research', {})
+            if meta.get('execution_scenario') is not None:
+                raise ValueError('Nested research cannot use scenario-bearing IS sources; choose the original baseline source and declare scenarios in this research plan.')
             if research.get('phase') != 'is':
                 raise ValueError('Nested research candidates must come from declared IS reports; OOS cannot supply candidates.')
             plan = research['plan']
@@ -96,12 +111,24 @@ class RobustResearchStore:
             utc_starts.append(datetime.fromisoformat(saved['period_start_utc'].replace('Z', '+00:00')))
             utc_ends.append(datetime.fromisoformat(saved['period_end_utc'].replace('Z', '+00:00')))
             identity = dict(strategy_id=strategy['id'], parameters=strategy['parameters'])
+            complexity = describe_complexity(strategy['id'], strategy['parameters'])
+            non_signal = sorted(complexity['sizing_parameters'] + complexity['diagnostic_parameters'])
             key = fingerprint(identity)
+            candidate = dict(id=key, **identity, non_signal_parameters=non_signal, complexity=complexity,
+                numeric_parameters=sorted(p['name'] for p in definition.description()['parameters'] if p['type'] in ('int', 'Decimal')))
+            effective = effective_configuration_identity(candidate)
+            sizing = {name:effective['parameters'][name] for name in complexity['sizing_parameters']}
+            if strategy['id'] in sizing_by_strategy and sizing_by_strategy[strategy['id']] != sizing:
+                raise ValueError('Signal qualification requires one fixed source-sizing configuration per strategy. Search position-sizing policies in the prop stage.')
+            sizing_by_strategy[strategy['id']] = sizing
+            signature = canonical(effective)
+            if signature in signal_signatures:
+                raise ValueError('Duplicate effective signal configurations; diagnostic switches, inactive parameters and equivalent numeric spellings do not create independent candidates.')
+            signal_signatures.add(signature)
             if any(c['id'] == key for c in candidates):
                 raise ValueError('Duplicate strategy/parameter configurations; choose each once.')
-            candidates.append(dict(id=key, **identity, source_backtest_id=id,
-                source_manifest_sha256=fingerprint(saved), strategy=strategy,
-                numeric_parameters=sorted(p['name'] for p in definition.description()['parameters'] if p['type'] in ('int', 'Decimal'))))
+            candidates.append(dict(candidate, source_backtest_id=id,
+                source_manifest_sha256=fingerprint(saved), strategy=strategy))
         if anchor['run_metadata'].get('research', {}).get('phase') != 'is':
             raise ValueError('Start nested research from a declared IS report.')
         if anchor['run_metadata']['dataset'] != common['dataset']:
@@ -120,7 +147,7 @@ class RobustResearchStore:
             and datetime.fromisoformat(inventory['bounds'][s]['first_utc'].replace('Z', '+00:00')) >= first_utc
             and datetime.fromisoformat(inventory['bounds'][s]['last_utc'].replace('Z', '+00:00')) <= last_utc]
         folds = generate_folds(sessions, body.folds)
-        count = len(candidates) * sum(2 * len(f['inner']) for f in folds)
+        count = len(candidates) * sum((2 + len(body.execution_scenarios)) * len(f['inner']) for f in folds)
         if body.confirmed_backtest_count is not None and body.confirmed_backtest_count != count:
             raise ValueError(f'Estimated backtest count changed to {count}; review the plan again.')
         # Cross-strategy prior access is disclosed. This is not an untouched-data
@@ -129,12 +156,16 @@ class RobustResearchStore:
             access = [dict(run_id=id, research=json.loads(raw).get('run_metadata', {}).get('research'))
                 for id, raw in db.execute("SELECT id,manifest FROM runs WHERE json_extract(manifest,'$.run_metadata.dataset.sha256')=?",
                                          (dataset['sha256'],))]
-        result = dict(schema_version='nested-research-v1', name=body.name,
+        qualification = body.qualification.model_dump(mode='json')
+        qualification['required_scenarios'] = sorted(set(qualification['required_scenarios']) | {s.name for s in body.execution_scenarios})
+        result = dict(schema_version='nested-research-v2', name=body.name,
             source_backtest_id=body.source_backtest_id, candidates=sorted(candidates, key=lambda c: c['id']),
             dataset=common['dataset'], instrument=common['instrument'], execution_settings=common['execution'], folds=folds,
             convention=inventory['convention'], session_inventory=inventory,
             estimated_backtests=count, optimization_grids=origins, engine_identity=engine_identity(),
-            qualification=body.qualification.model_dump(mode='json'),
+            qualification=qualification,
+            execution_scenarios=[s.model_dump(mode='json') for s in body.execution_scenarios],
+            regimes=body.regimes.model_dump(mode='json'),
             prior_access=dict(status='previously_accessed_development', reports=access,
                 external_access='unknown', untouched=False),
             limitations=[
@@ -143,7 +174,9 @@ class RobustResearchStore:
                 'Whole-session purge/embargo is declared, not inferred from an unknown feature or label horizon.',
                 'Saved source configurations may already reflect prior research; this is not an untouched history claim.',
                 'This increment does not execute outer tests, optimize prop policies or recommend deployment.',
-                'Execution cost sensitivity is an additive stress, not a rerun of alternative fill assumptions.'])
+                'Selected execution scenarios rerun the strategy and fills on the same validation window; all selected scenarios gate admission.',
+                'Regime thresholds fit only inner training; entry labels use strictly earlier completed bars and unknown classifications remain visible.',
+                'OHLC limit penetration and extra stop slippage are declared sensitivity assumptions, not measured order-book execution probabilities.'])
         result['input_identity'] = fingerprint({k:v for k,v in result.items() if k != 'prior_access'})
         return result
 
@@ -154,7 +187,7 @@ class RobustResearchStore:
                     raise ResearchConflict('This ID belongs to a phase campaign; use a new research ID.')
                 exists = db.execute('SELECT declaration FROM robust_research WHERE id=?', (body.campaign_id,)).fetchone()
             if exists:
-                if json.loads(exists[0]) != body.model_dump(mode='json'):
+                if RobustResearchRequest.model_validate(json.loads(exists[0])).model_dump(mode='json') != body.model_dump(mode='json'):
                     raise ResearchConflict('This research ID has an immutable declaration; use a new ID.')
                 return self.get(body.campaign_id)
             plan = self.preview(body)
@@ -240,9 +273,11 @@ class RobustResearchStore:
             if db.execute('SELECT cancel_requested FROM robust_research WHERE id=?', (id,)).fetchone()[0]:
                 raise ResearchCancelled('Cancelled at a safe checkpoint. Completed backtests remain available; Run resumes them.')
 
-    def _backtest(self, campaign, analysis_id, candidate, outer, inner, role):
+    def _backtest(self, campaign, analysis_id, candidate, outer, inner, role, scenario=None):
         id, plan = campaign['campaign_id'], campaign['plan']
         key = f"{outer['index']}:{inner['index']}:{candidate['id']}:{role}"
+        if scenario:
+            key += ':' + scenario.name
         with self.analyses.connect() as db:
             row = db.execute('SELECT payload FROM robust_research_steps WHERE campaign_id=? AND step_key=?', (id, key)).fetchone()
         if row:
@@ -268,6 +303,8 @@ class RobustResearchStore:
         research = dict(phase='inner', role=role, plan=split, campaign_id=id,
             outer_fold=outer['index'], inner_fold=inner['index'], window=window,
             information_cutoff_session=window['last_session'], cold_start=True)
+        if scenario:
+            research['execution_scenario'] = scenario.model_dump(mode='json')
         def progress(stage, processed, total):
             if stage != 'done':
                 self._checkpoint(id)
@@ -283,7 +320,8 @@ class RobustResearchStore:
         try:
             record = run_backtest(self.datasets, self.runs, run_id, dataset, definition, parameters, config,
                 SessionDateRange.parse(window['first_session'], window['last_session']), progress,
-                prop_analyses=None, report_detail='compact', research=research, reuse_results=False)
+                prop_analyses=None, report_detail='compact', research=research, reuse_results=False,
+                execution_scenario=scenario)
         except Exception:
             # A failed unpublished attempt has no artifact to protect. If the
             # report was already published, retain its references for inspection.
@@ -299,16 +337,19 @@ class RobustResearchStore:
             db.execute('INSERT OR IGNORE INTO analysis_sources VALUES (?,?)', (analysis_id, record['id']))
         return record
 
+    def _trades(self, record):
+        with (self.runs.root/record['id']/'trades.csv').open(newline='') as stream:
+            return list(csv.DictReader(stream))
+
     def _evidence(self, record, window, index):
         sessions = {day:dict(session=day, net_pnl=Decimal(0), trade_count=0) for day in window['sessions']}
-        with (self.runs.root/record['id']/'trades.csv').open(newline='') as stream:
-            for trade in csv.DictReader(stream):
-                entry = session_date(datetime.fromisoformat(trade['entry_time_utc'].replace('Z', '+00:00'))).isoformat()
-                day = session_date(datetime.fromisoformat(trade['exit_time_utc'].replace('Z', '+00:00'))).isoformat()
-                if entry not in sessions or day not in sessions:
-                    raise ValueError('A trade crossed its validation information boundary.')
-                sessions[day]['net_pnl'] += Decimal(trade['net_pnl'])
-                sessions[day]['trade_count'] += 1
+        for trade in self._trades(record):
+            entry = session_date(datetime.fromisoformat(trade['entry_time_utc'].replace('Z', '+00:00'))).isoformat()
+            day = session_date(datetime.fromisoformat(trade['exit_time_utc'].replace('Z', '+00:00'))).isoformat()
+            if entry not in sessions or day not in sessions:
+                raise ValueError('A trade crossed its validation information boundary.')
+            sessions[day]['net_pnl'] += Decimal(trade['net_pnl'])
+            sessions[day]['trade_count'] += 1
         return dict(fold_index=index, scope='inner_validation',
             sessions=[dict(row, net_pnl=str(row['net_pnl'])) for row in sessions.values()])
 
@@ -329,7 +370,7 @@ class RobustResearchStore:
             campaign = self.get(id); plan = campaign['plan']
             folds = []
             for outer in plan['folds']:
-                evidence, backtests = {}, []
+                evidence, backtests, regime_evidence = {}, [], []
                 for candidate in plan['candidates']:
                     evidence[candidate['id']] = []
                     for inner in outer['inner']:
@@ -338,12 +379,28 @@ class RobustResearchStore:
                             backtests.append(dict(candidate_id=candidate['id'], role=role,
                                 inner_fold_index=inner['index'], run_id=record['id']))
                             if role == 'inner_validation':
-                                evidence[candidate['id']].append(self._evidence(record, inner['validation'], inner['index']))
+                                inner_evidence = self._evidence(record, inner['validation'], inner['index'])
+                                inner_evidence['scenarios'] = {}
+                                for settings in plan.get('execution_scenarios', []):
+                                    scenario = ExecutionScenario.model_validate(settings)
+                                    stress = self._backtest(campaign, analysis_id, candidate, outer, inner, 'execution_scenario', scenario)
+                                    backtests.append(dict(candidate_id=candidate['id'], role='execution_scenario',
+                                        scenario_name=scenario.name, inner_fold_index=inner['index'], run_id=stress['id']))
+                                    inner_evidence['scenarios'][scenario.name] = self._evidence(stress, inner['validation'], inner['index'])['sessions']
+                                regime_settings = RegimeSettings.model_validate(plan.get('regimes', {}))
+                                if regime_settings.enabled_names:
+                                    classified = build_regime_evidence(self.datasets, plan['dataset']['id'], inner['train'],
+                                        inner['validation'], [dict(t, trade_id=t['trade_number']) for t in self._trades(record)], regime_settings)
+                                    inner_evidence['regimes'] = classified['regimes']
+                                    regime_evidence.append(dict(candidate_id=candidate['id'], inner_fold_index=inner['index'], **classified))
+                                evidence[candidate['id']].append(inner_evidence)
                 qualification = qualify_candidates(
-                    [dict(id=c['id'], strategy_id=c['strategy_id'], parameters=c['parameters'], numeric_parameters=c['numeric_parameters']) for c in plan['candidates']],
+                    [dict(id=c['id'], strategy_id=c['strategy_id'], parameters=c['parameters'], numeric_parameters=c['numeric_parameters'],
+                          non_signal_parameters=c['non_signal_parameters'], complexity=c['complexity']) for c in plan['candidates']],
                     evidence, QualificationSettings.model_validate(plan['qualification']))
                 folds.append(dict(index=outer['index'], qualification=qualification, backtests=backtests,
-                    inner_evidence=evidence, outer_test_status='not_run', policy_selection_status='not_run'))
+                    inner_evidence=evidence, regime_evidence=regime_evidence,
+                    outer_test_status='not_run', policy_selection_status='not_run'))
             self._checkpoint(id)
             self.check(id)
             self._verify_steps(id)
@@ -359,7 +416,7 @@ class RobustResearchStore:
                     for fold in folds:
                         for c in fold['qualification']['candidates']:
                             writer.writerow([fold['index'], c['candidate_id'], c['status'], canonical(c['reasons'])])
-                report = dict(format_version=6, phase='research_integrity', model_version='nested-research-v1',
+                report = dict(format_version=6, phase='research_integrity', model_version='nested-research-v2',
                     settings=dict(ANALYSIS_MODE='nested_research'), request=campaign['declaration'],
                     plan=plan, calculations=result, implementation=dict(engine_identity=plan['engine_identity']))
                 seal_report(staged, report, analysis_id, self.analyses.get(analysis_id)['created'])

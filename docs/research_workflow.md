@@ -10,7 +10,9 @@ must share dataset identity and execution costs; duplicates and OOS candidates
 reject. Previously accessed development data is disclosed, not called untouched.
 
 1. Name the research and select configurations. This increment uses each
-   strategy's saved quantities; independent prop sizing remains a later stage.
+   strategy's saved quantities; one source-sizing configuration is required per
+   strategy. Quantity knobs and display switches cannot manufacture neighboring
+   signal configurations. Independent prop sizing remains a later stage.
 2. Declare rolling or expanding outer training/test lengths and inner
    training/validation lengths, in observed Chicago session dates. Each session
    begins at 17:00 Chicago local time. Purge and embargo are consecutive buffers
@@ -20,12 +22,19 @@ reject. Previously accessed development data is disclosed, not called untouched.
    or regimes, unresolved bootstrap tails and missing neighbors produce
    **INSUFFICIENT_EVIDENCE**. Net cash stress adds the declared amount once per
    completed trade; baseline costs are already included.
+   Under **Execution scenarios**, add named commission/slippage/stop/limit
+   assumptions for actual validation reruns. Every selected scenario must pass
+   the declared scenario threshold. Under **Market conditions**, choose labels
+   to assess and separately choose those required for your hypothesis. Optional
+   regimes remain visible but do not veto a specialized strategy.
 4. **Preview dates and source checks** shows every outer/inner window, excluded
    sessions and exact backtest count. Large plans require that count to be
    confirmed. **Save and run** freezes the declaration and creates normal
    backtests restricted to each inner window, with cold strategy/feature state.
 5. Inspect every PASS/FAIL/INSUFFICIENT_EVIDENCE row, the complete approved set,
    reasons, sample counts, historical uncertainty and neighboring configurations.
+   Expand the evidence to inspect actual scenario returns, causal condition
+   coverage, unknown labels, training calibration and descriptive complexity.
    Open individual backtests or download the ordinary AnalysisStore JSON/CSV/ZIP.
    Saved research history reopens without recomputation. Cancellation stops at a
    safe checkpoint; Run resumes completed backtests after checking their hashes.
@@ -34,9 +43,46 @@ Current boundary: inner execution can be complete while overall readiness is
 **INCOMPLETE**. No outer test is launched by this increment. Inner results are not
 unseen outer outcomes. Prop policy selection, chronological outer replay,
 selection reliability, final procedure/holdout and forward monitoring remain on
-the [active checklist](robust_research_plan.md). Full execution-scenario reruns,
-causal regime construction and complexity diagnostics are also pending; declaring
-such required evidence blocks admission until supplied. No winner is forced.
+the [active checklist](robust_research_plan.md). No winner is forced.
+
+Execution scenarios change the existing execution engine's actual fills and
+strategy callbacks. Additional commission is per contract per side; market
+slippage is additional ticks per applicable fill. Stop exits add the separate
+stop slippage, including opening gaps. Limit penetration requires the declared
+number of ticks beyond the target; disabling price improvement fills eligible
+opening targets at their limit. Existing conservative stop-first ambiguity
+handling remains. These are deterministic OHLC sensitivities: queue position,
+partial fills, depth and real fill probabilities are unverified. Saved run
+metadata retains both baseline and resolved settings so detailed replay cannot
+charge scenario costs twice. Zero/default assumptions retain baseline behavior.
+
+Market conditions use bars strictly before each entry. Volatility and source
+volume thresholds are fitted only to the inner training window, and validation
+features start cold. Unknown warmup/insufficient-fit classifications remain
+visible and prevent admission when that regime is required. Trend/range uses
+predeclared directional efficiency; volatility uses point-based true ranges,
+including instruments with nonpositive prices. Source volume is only a liquidity
+proxy, not executable depth or spread evidence. Asia/Europe/US labels are saved
+Chicago clock buckets, not claims about exchange opening hours. Regime means
+are contributions per covered validation session, including zero contributions;
+minimum regime sessions counts sessions with classified trades. Overlapping
+labels must not be summed as independent results.
+
+Complexity evidence records signal/sizing/display roles, varying signal search
+dimensions and enabled optional entry filters. Optional declared limits can
+reject an overly broad search or excessive filters. A limit requiring unreviewed
+roles produces insufficient evidence. Simpler configurations are compared on
+the same validation windows, with other-parameter confounding disclosed; no
+universal complexity penalty or automatic winner is imposed. Cross-instrument
+transferability remains untested by this same-dataset research increment.
+Parameters of disabled controls cannot establish neighbors or distinct signal
+candidates: for example, changing the ADX threshold while its filter is off is
+not another tested signal. Equivalent numeric spellings are normalized for this
+comparison while original source parameters/hashes remain unchanged. Reports
+created programmatically with an existing execution scenario cannot supply a
+new baseline or launch manual OOS, because those routes do not inherit arbitrary
+scenario assumptions. Select the original baseline and declare research
+scenarios explicitly.
 
 Both manual source-date splits and these session-date folds retain their own
 conventions. Boundary sessions that are only partially covered by the saved IS

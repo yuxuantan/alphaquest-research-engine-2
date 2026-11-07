@@ -5,7 +5,9 @@ from decimal import Decimal
 
 import pytest
 
-from alphaquest.edge_qualification import QualificationSettings, qualify_candidates
+from alphaquest.edge_qualification import QualificationSettings, effective_configuration_identity, qualify_candidates
+from alphaquest.research_complexity import describe_complexity
+from alphaquest.strategies.registry import get_strategy
 
 
 def candidates(count=3, strategy='signal'):
@@ -210,12 +212,133 @@ def test_specialized_regime_strategy_need_only_pass_its_predeclared_regime():
                      sessions=[dict(s, net_pnl='-1') for s in f['sessions']])]
     r = result(es=es, required_regimes=('trend',))
     assert r['approved_ids'] == ['0', '1', '2']
-    assert all(row['market_conditions'][0]['name'] == 'trend' for row in r['candidates'])
+    for row in r['candidates']:
+        conditions = {item['name']: item for item in row['market_conditions']}
+        assert conditions['trend']['required'] and conditions['trend']['status'] == 'PASS'
+        assert not conditions['range']['required'] and conditions['range']['status'] == 'FAIL'
     # A hindsight-defined regime cannot become required causal evidence.
     es['0'][0]['regimes'][0]['observable_at_decision'] = False
     r = result(es=es, required_regimes=('trend',))
     assert r['candidates'][0]['status'] == 'INSUFFICIENT_EVIDENCE'
     assert 'regime_not_observable_at_decision:trend' in r['candidates'][0]['reasons']
+
+
+def test_unknown_classification_and_sparse_regime_sessions_are_not_clean_evidence():
+    es = {str(i): evidence() for i in range(3)}
+    for fs in es.values():
+        for fold in fs:
+            sparse = [dict(s, net_pnl='0', trade_count=0) for s in fold['sessions']]
+            sparse[0] = dict(sparse[0], net_pnl='10', trade_count=1)
+            fold['regimes'] = [dict(name='trend', observable_at_decision=True, sessions=sparse)]
+    r = result(es=es, required_regimes=('trend',), minimum_regime_trades=1)
+    assert all('too_few_regime_observations:trend' in c['reasons'] for c in r['candidates'])
+    assert r['candidates'][0]['market_conditions'][0]['active_sessions'] == 3
+    for fs in es.values():
+        for fold in fs:
+            fold['regimes'][0].update(classification_complete=False, unclassified_trades=1)
+    r = result(es=es, required_regimes=('trend',), minimum_regime_sessions=2, minimum_regime_trades=1)
+    assert all('incomplete_regime_classification:trend' in c['reasons'] for c in r['candidates'])
+
+
+def test_sizing_variants_do_not_create_signal_parameter_neighbors():
+    cs = [dict(id=str(i), strategy_id='signal', parameters=dict(length=2, contracts=i+1),
+               non_signal_parameters=['contracts']) for i in range(3)]
+    r = result(cs=cs)
+    assert r['approved_ids'] == []
+    assert all(c['parameter_stability']['neighbor_ids'] == [] for c in r['candidates'])
+    assert all(c['complexity']['signal_search_dimensions'] == 0 for c in r['candidates'])
+
+
+def vwap_candidate(id, **changes):
+    definition = get_strategy('vwap_pullback_risk_sizing')
+    parameters = {p['name']: p['default'] for p in definition.description()['parameters']}
+    parameters.update(changes)
+    definition.parameters(parameters)  # These are valid native configurations.
+    complexity = describe_complexity('vwap_pullback_risk_sizing', parameters)
+    return dict(id=str(id), strategy_id='vwap_pullback_risk_sizing', parameters=parameters,
+        numeric_parameters=[p['name'] for p in definition.description()['parameters'] if p['type'] in ('int', 'Decimal')],
+        non_signal_parameters=complexity['sizing_parameters'] + complexity['diagnostic_parameters'], complexity=complexity)
+
+
+@pytest.mark.parametrize('axis,values,disabled,enabled', [
+    ('adx_elev_thr', ['10', '20'], dict(use_adx_elev=False), dict(use_adx_elev=True)),
+    ('adx_decay_lb', [1, 2], dict(use_adx_decay=False), dict(use_adx_decay=True)),
+    ('adx_len', [13, 14], dict(use_adx_elev=False, use_adx_decay=False), dict(use_adx_elev=True, use_adx_decay=False)),
+    ('stop_swing_len', [19, 20], dict(stop_mode=2), dict(stop_mode=1)),
+    ('eod_flat_time', [1554, 1555], dict(use_eod_flat=False), dict(use_eod_flat=True)),
+    ('close_buffer_minutes', [4, 5], dict(use_eod_flat=False), dict(use_eod_flat=True)),
+    ('buffer_mode', [1, 2], dict(buffer_amount='0.000'), dict(buffer_amount='1')),
+])
+def test_inactive_settings_cannot_manufacture_stable_parameter_regions(axis, values, disabled, enabled):
+    inactive = [vwap_candidate(i, **disabled, **{axis: value}) for i, value in enumerate(values)]
+    r = result(cs=inactive)
+    assert r['approved_ids'] == []
+    assert all(c['parameter_stability']['neighbor_ids'] == [] for c in r['candidates'])
+    assert all(c['complexity']['signal_search_dimensions'] == 0 for c in r['candidates'])
+    assert effective_configuration_identity(inactive[0]) == effective_configuration_identity(inactive[1])
+    active = [vwap_candidate(i, **enabled, **{axis: value}) for i, value in enumerate(values)]
+    r = result(cs=active)
+    assert r['approved_ids'] == ['0', '1']
+    assert all(c['complexity']['varying_signal_parameters'] == [axis] for c in r['candidates'])
+    assert effective_configuration_identity(active[0]) != effective_configuration_identity(active[1])
+
+
+def test_conditionally_active_roles_can_differ_without_crossing_control_strata():
+    cs = [vwap_candidate(0, use_adx_elev=False, adx_elev_thr='10'),
+          vwap_candidate(1, use_adx_elev=True, adx_elev_thr='10'),
+          vwap_candidate(2, use_adx_elev=True, adx_elev_thr='20')]
+    r = result(cs=cs)
+    assert r['approved_ids'] == ['1', '2']
+    assert r['candidates'][0]['parameter_stability']['neighbor_ids'] == []
+    assert r['candidates'][1]['parameter_stability']['neighbor_ids'] == ['2']
+    assert r['candidates'][2]['parameter_stability']['neighbor_ids'] == ['1']
+    assert all(c['complexity']['varying_signal_parameters'] == ['adx_elev_thr', 'use_adx_elev'] for c in r['candidates'])
+    # Disabled indicators do not make the explicit cold-start length inactive.
+    cs = [vwap_candidate(i, use_adx_elev=False, use_adx_decay=False, max_bars_back=value)
+          for i, value in enumerate([42, 43])]
+    assert result(cs=cs)['approved_ids'] == ['0', '1']
+
+
+def test_effective_source_identity_normalizes_only_declared_numeric_values():
+    a = vwap_candidate(0, mm_risk_pct='2.0', min_rr='1.0')
+    b = vwap_candidate(1, mm_risk_pct='2.00', min_rr='1.00', plot_trade_levels=False)
+    assert effective_configuration_identity(a) == effective_configuration_identity(b)
+    assert a['parameters']['mm_risk_pct'] == '2.0'  # No mutation of source spelling.
+    generic = [dict(id=str(i), strategy_id='unknown', parameters=dict(category=value),
+                    complexity=describe_complexity('unknown', dict(category=value)))
+               for i, value in enumerate(['1', '1.0'])]
+    assert effective_configuration_identity(generic[0]) != effective_configuration_identity(generic[1])
+
+
+@pytest.mark.parametrize('inactive', [['missing'], ['contracts'], ['length', 'length'], ['gate']])
+def test_inactive_role_declarations_must_be_coherent(inactive):
+    cs = candidates()
+    for c in cs:
+        c['parameters'].update(contracts=1, gate=True)
+        c['non_signal_parameters'] = ['contracts']
+        c['complexity'] = dict(status='reviewed', signal_parameters=['length', 'gate'],
+            sizing_parameters=['contracts'], enabled_optional_filters=['gate'],
+            inactive_parameters=inactive, definition='Declared synthetic controls')
+    with pytest.raises(ValueError, match='Inactive parameters|cannot also be inactive'):
+        result(cs=cs)
+
+
+def test_predeclared_complexity_limits_and_simpler_comparison_are_not_a_score():
+    cs = candidates()
+    for i, c in enumerate(cs):
+        c['parameters']['gate'] = i > 0
+        c['complexity'] = dict(status='reviewed', signal_parameters=['length', 'gate'],
+            enabled_optional_filters=['gate'] if i else [], definition='Synthetic declared optional gate')
+    r = result(cs=cs, minimum_neighbors=0, minimum_neighbor_pass_fraction=0.0,
+               maximum_signal_search_dimensions=2, maximum_enabled_optional_filters=0)
+    assert r['approved_ids'] == ['0']
+    assert 'optional_filter_limit_exceeded' in r['candidates'][1]['reasons']
+    assert r['candidates'][1]['complexity']['simpler_configurations'][0]['candidate_id'] == '0'
+    assert 'winner' not in r
+    r = result(cs=cs, maximum_signal_search_dimensions=1)
+    assert all('signal_search_dimension_limit_exceeded' in c['reasons'] for c in r['candidates'])
+    r = result(maximum_signal_search_dimensions=2)
+    assert all('unreviewed_parameter_roles' in c['reasons'] for c in r['candidates'])
 
 
 def test_cost_stress_has_break_even_boundary_and_scenario_rerun_is_distinct():

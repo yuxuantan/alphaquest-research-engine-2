@@ -53,7 +53,11 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False, market_benchmark=None):
+                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False, market_benchmark=None,
+                            execution_scenario=None):
+    from .execution_scenarios import resolve_execution_scenario, scenario_metadata
+    saved_scenario = scenario_metadata(config, execution_scenario)
+    config, fill_assumptions = resolve_execution_scenario(config, execution_scenario)
     timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
@@ -73,6 +77,8 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["research"] = research
     if automatic_prop:
         metadata["automatic_prop_analysis"] = automatic_prop
+    if saved_scenario is not None:
+        metadata['execution_scenario'] = saved_scenario
     with ExitStack() as stack:
         with timings.span('source_loading'):
             selected = stack.enter_context(prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range))
@@ -99,7 +105,8 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                     last_update=monotonic()
 
         stage("replaying")
-        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True, observe_bar=comparison.set_bar), 'replay')
+        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True,
+            observe_bar=comparison.set_bar, fill_assumptions=fill_assumptions), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
                                        execution_assumption=definition.execution_assumption,
@@ -109,15 +116,29 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None,
+                 execution_scenario=None):
     from . import backtest_cache
+    from .execution_scenarios import parse_execution_scenario, resolve_execution_scenario, restore_scenario_config
+    execution_scenario = parse_execution_scenario(execution_scenario)
     definition.validate_instrument(parameters, dataset.get("symbol"))
     market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
     if source_record:
         market_benchmark = source_record.get('market_benchmark', {}).get('settings', market_benchmark)
+        saved_scenario = source_record['run_metadata'].get('execution_scenario')
+        if saved_scenario is not None:
+            baseline_config, inherited = restore_scenario_config(saved_scenario)
+            if execution_scenario is not None and execution_scenario != inherited:
+                raise ReportError('Detailed or risk replay cannot override the saved execution scenario.')
+            if resolve_execution_scenario(baseline_config, inherited)[0] != config:
+                raise ReportError('Saved scenario execution settings do not match the requested replay.')
+            config, execution_scenario = baseline_config, inherited
+        elif execution_scenario is not None:
+            raise ReportError('Detailed or risk replay cannot add an execution scenario to an earlier source.')
     reuse_key=None
     if not source_record:
-        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research,market_benchmark)
+        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research,market_benchmark,
+                                    execution_scenario=execution_scenario)
         if reuse_results:
             reused=backtest_cache.lookup(runs,prop_analyses,reuse_key)
             if reused:
@@ -143,7 +164,8 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
+            execution_scenario=execution_scenario)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -208,7 +230,8 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None):
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None,
+                           execution_scenario=None):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -224,7 +247,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark)
+                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
+                                       execution_scenario=execution_scenario)
         if record['id']!=run_id:
             if operation_id:
                 count=record['run_metadata']['selection']['row_count']

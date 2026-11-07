@@ -8,6 +8,12 @@ AnalysisStore catalogue. `robust_research_api.py` extends the campaign API;
 `web/research_workflow.js` extends saved-report prop configuration and normal
 analysis reports. There is no additional service, database or backtest engine.
 Inner research checkpoints retain run IDs and file hashes for safe resumption.
+`execution_scenarios.py` resolves declared costs/fill assumptions for the existing
+execution engine; saved baseline/resolved settings prevent replay double charges.
+`research_regimes.py` fits training-only thresholds and classifies entries from
+strictly prior bars. `research_complexity.py` supplies reviewed parameter roles;
+the qualifier excludes sizing/display axes from signal neighborhoods. All three
+feed the same saved research report, with no alternative calculation service.
 Outer economic validation and forward monitoring are still pending; see the
 [requirements traceability and milestone checklist](robust_research_plan.md).
 

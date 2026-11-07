@@ -55,6 +55,8 @@ def selected(request,run_id):
     research=record['run_metadata'].get('research')
     if not research or research['phase']!='is':
         raise HTTPException(409,'Select a declared IS backtest or an individual IS optimisation trial. Legacy and OOS reports cannot launch OOS tests.')
+    if record['run_metadata'].get('execution_scenario') is not None:
+        raise HTTPException(409,'Manual OOS does not support execution-scenario IS sources. Select the original baseline IS report; saved scenario assumptions must not be discarded.')
     return record,research['plan']
 
 

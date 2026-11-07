@@ -7016,3 +7016,133 @@ The failing surface was rerun on stable source: the entire existing campaign
 module passed **19 tests** in 41.23 seconds. Logs retain both outcomes; this is not
 a clean full-suite claim. See the [execution log](robust_research_plan.md#m1a-release-evidence-and-remaining-m1-work)
 for the exact commands, diagnosis limits and still-pending full qualification.
+
+## Execution stress and causal condition evidence — 2026-11-07
+
+This additive M1b increment reruns declared execution scenarios through the
+ordinary engine and saves each as a normal backtest. It fits market-condition
+thresholds on inner training only and assigns validation trade labels using
+strictly earlier bars. The existing prop configuration, campaign worker,
+AnalysisStore report and downloads expose every outcome. Sizing/display knobs
+cannot establish signal neighborhoods; descriptive complexity limits are optional
+predeclared research criteria. Earlier M1a reports and libraries above remain
+unchanged. No outer test, prop-policy selection or live qualification is claimed.
+
+The normal-product browser library is
+`artifacts/robust-research-m1b-20261107/browser-final/data/test_execution_scenarios_and_r0/`.
+It contains the source dataset/backtest, 36 generated backtests, the analysis,
+five downloaded artifacts, `browser-evidence.json` and desktop/narrow screenshots.
+Campaign `47de5d87a5f04046b4d66437f4f3c458`, analysis
+`f49cb21d87df4940a1b118cb31dc2a81`, report SHA-256
+`4a948bb975a1d25e239f54d9611016ee012033a3a30d3f879aafc7cf78baf9a1`.
+The preceding `browser-release/` library and its analysis
+`065c000a43cb411fb780d2c1e47df6a2` remain preserved as earlier evidence.
+
+Reopen this actual product library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/robust-research-m1b-20261107/browser-final/data/test_execution_scenarios_and_r0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#backtests/report/fb597ed91b304e128ce4f795897362d9`.
+Choose **Configure prop analysis → Nested research** and open “SYNTHETIC execution
+and causal regime checks”. Or open the saved report directly at
+`http://127.0.0.1:8019/#backtests/prop/job/f49cb21d87df4940a1b118cb31dc2a81`.
+Expand **Evidence** and **Training calibration and unknown validation observations**.
+Reload and download JSON/ZIP/qualification CSV: no recalculation occurs and bytes
+remain identical. Stop the manually started server with **Ctrl+C**. Browser
+fixtures stopped their own temporary servers; no persistent server was started.
+
+To reproduce from that source, use rolling outer train/test 10/3 sessions, inner
+train/validation 2/2, purge 1, embargo 0, minimum inner/outer folds 2/2. Set minimum
+sessions/trades 6/6, trades per fold 1, block length 1, minimum neighbors 0,
+minimum regime sessions/trades 2/1. Enable maximum signal search dimensions 0.
+Add these named scenarios:
+
+| Setting | `higher-costs` | `unviable-costs` |
+| --- | --- | --- |
+| Additional commission per contract per side | 5 | 1500 |
+| Additional market slippage ticks per fill | 1 | 1 |
+| Extra stop slippage ticks | 0 | 1 |
+| Limit penetration ticks | 0 | 1 |
+| Allow opening limit price improvement | true | false |
+
+Assess US clock window, trend and high volatility; require only US clock window.
+Set condition lookback 2 bars and minimum training features 2. Preview shows
+**36 tasks**: three outer plans × three inner folds × one candidate × (training,
+validation and two scenario runs). Save and run.
+
+Independent arithmetic: baseline one-contract NQ earns 150 points × $20 = $3000
+per session. One tick costs .25 × $20 = $5. The first scenario subtracts two $5
+commissions and two $5 market-fill slips: **$2980/session**. The second subtracts
+two $1500 commissions and two $5 slips: **−$10/session**. All three candidate
+rows therefore **FAIL** on `unviable-costs`; no configuration is admitted. These
+source trades have timed exits, so configured stop/limit assumptions are saved
+but not activated in this particular demonstration. Separate execution tests
+cover stop gaps, both directions, target penetration, opening-price improvement,
+callbacks and risk bounds with independent prices/costs.
+
+US clock classification is complete and passes. The first trade in each inner
+window lacks two strictly prior validation bars, so price-feature labels remain
+unknown; trend/high-volatility evidence is **INSUFFICIENT_EVIDENCE** and optional.
+Making trend required instead blocks admission. Training thresholds, cutoff,
+sample counts and unknown reasons are inspectable, as are every scenario's
+source report and resolved execution settings. Source volume is a liquidity
+proxy only, and Chicago clock buckets are not verified exchange hours. The
+reported regime means include all covered validation sessions; do not sum
+overlapping conditions. Overall readiness remains **INCOMPLETE**.
+
+The API library at
+`artifacts/robust-research-m1b-20261107/api-release/verified-data/test_actual_cost_scenario_reru0/`
+also saves `actual-robustness-report.json` and `independent-expectations.json`:
+one-MNQ baseline means $300/$100 become **$297/$97**, because two $1 commissions
+plus two .25-point × $2 slips cost $3. Its required US condition passes and its
+optional trend remains insufficient. Additional API checks reject duplicate or
+reserved scenario names, booleans used as tick counts, unknown condition names,
+changed immutable declarations and OOS launch from inner/scenario sources.
+
+Initial gates: 244 pure/calculation tests passed; nine existing nested API tests
+passed; all three new robustness API tests passed after correcting a test to
+exercise the OOS **launch POST** (the GET merely reports history). The first
+artifact command lacked its parent directory and ran no tests; retained JUnit
+shows that setup error. The first browser gate passed **2 tests in 69.16 seconds**, with
+the existing Starlette/httpx deprecation warning. A subsequent review found
+conditionally disabled knobs could create false signal neighbors; final
+hardening and stable regression results are recorded with the release checklist.
+This is focused evidence, not a full-suite pass or external execution parity.
+
+Stable release gates after the inactive-parameter correction: **273 focused
+tests passed in 40.35 seconds**, **132 existing backtest/reuse/risk/commission/
+phase/campaign tests passed in 230.08 seconds**, and **both final browser journeys
+passed in 73.13 seconds**. Logs/JUnit/libraries are respectively
+`final-focused/`, `legacy-regression/` and `browser-final/` under the M1b artifact
+directory. Disabled filter thresholds, display-only differences and equivalent
+numeric spelling reject as duplicate effective configurations; varied source
+quantities reject before signal qualification. A normal active signal axis still
+forms neighbors. The final boundary review additionally rejects programmatic
+scenario-bearing IS reports in nested/manual OOS routes rather than dropping
+their fill assumptions; its targeted verification is recorded below. This last
+admission guard does not alter the saved demonstrated calculations.
+After that guard, **41 affected robustness, nested and manual IS/OOS tests passed
+in 107.02 seconds**, with log/JUnit/library in `final-boundaries/`. This includes
+the additional programmatic scenario-source regression. Compilation of
+`alphaquest`, JavaScript syntax and `git diff --check` passed. These gate counts
+overlap; they are not a combined distinct-test count or a full-suite claim.
+
+Reproduction commands (use fresh output directories; never reuse these saved
+`--basetemp` paths):
+
+```sh
+.venv/bin/python -m pytest -q tests/test_research_folds.py \
+  tests/test_edge_qualification.py tests/test_execution_scenarios.py \
+  tests/test_execution.py tests/test_next_bar_execution.py \
+  tests/test_intratrade_risk.py tests/test_research_regimes.py \
+  tests/test_robust_research_api.py tests/test_research_robustness_api.py
+.venv/bin/python -m pytest -q tests/test_backtest_api.py \
+  tests/test_backtest_reuse.py tests/test_prop_risk_workflow.py \
+  tests/test_prop_commissions.py tests/test_prop_phase_profiles.py \
+  tests/test_research_campaigns.py
+.venv/bin/python -m pytest -q tests/test_robust_research_browser.py
+```
