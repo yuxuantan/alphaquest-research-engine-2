@@ -114,5 +114,21 @@ existing isolated uvicorn fixtures and stop their servers. Each implementation
 entry must also update `prop_simulation_review.md` with saved normal-product
 outputs, independent expectations, rejection cases and exact reproduction steps.
 
-Current verdict: **incomplete**. None of the new milestones is certified by this
-plan. Research completion and live deployment qualification are separate verdicts.
+7 November component progress: `research_folds.py` now generates immutable
+session-aware nested folds, and `edge_qualification.py` assesses the complete
+inner candidate set with predeclared temporal, neighboring-parameter and cost
+criteria. Their focused tests pass (34 fold and 33 qualification checks).
+API/UI execution and durable product evidence are still being integrated; this
+is not M1 completion. Required-but-absent execution/regime evidence returns
+INSUFFICIENT_EVIDENCE. Bootstrap intervals remain approximate historical
+diagnostics and do not certify a persistent future edge.
+
+The first full baseline invocation was interrupted after 630.63 seconds:
+373 passed, 8 failed and 42 errors. Browser errors include macOS Chromium Mach
+port permission denial inside the sandbox. Backtest failures are under separate
+investigation against an immutable archive of the starting commit. The run is
+not a clean baseline or full regression result. Its log and partial JUnit remain
+at the paths above; rerun applicable gates with the required local test access.
+
+Current verdict: **incomplete**. Research completion and live deployment
+qualification are separate verdicts. The goal remains active.
