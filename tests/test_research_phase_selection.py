@@ -241,3 +241,54 @@ def test_conservative_selector_uses_historical_mean_metric_and_explicit_configur
     assert result['selected_ids']==['lower_mean']
     assert result['objective']==CONSERVATIVE_OBJECTIVE
     with pytest.raises(ValueError,match='differs'):select_funded(calc,{},dict(horizon_calendar_days=2,receipt_delay_calendar_days=0))
+
+
+def terminal_fixture(role='final_fit'):
+    plan, outer, qualification = setup()
+    outer.pop('index')
+    outer.update(application_id=uuid4().hex, procedure_sha256='e'*64, application_role=role)
+    membership=complete_qualified_membership(plan['candidates'],qualification)
+    records={c['id']:record(c,policy_training_metadata(plan['campaign_id'],outer,membership,plan['input_identity']))
+             for c in membership['configurations']}
+    hashes={id:{'trades.csv':'t'*64} for id in records}
+    return plan,outer,membership,records,hashes
+
+
+@pytest.mark.parametrize('role',['final_fit','current_development'])
+def test_terminal_admission_retains_complete_membership_without_outer_fold(role):
+    plan,terminal,membership,records,hashes=terminal_fixture(role)
+    ctx=build_training_context(plan,terminal,membership,records,hashes)
+    assert ctx['version']=='procedure-training-v1'
+    assert ctx['qualified_configuration_ids']==['a','b']
+    assert ctx['application_id']==terminal['application_id'] and ctx['application_role']==role
+    assert ctx['procedure_sha256']=='e'*64 and 'outer_fold_index' not in ctx
+    assert ctx['context_sha256']==digest({k:v for k,v in ctx.items() if k!='context_sha256'})
+    for row in records.values():
+        metadata=row['run_metadata']['research']
+        assert metadata['role']=='procedure_policy_train' and metadata['phase']=='inner'
+        assert 'outer_fold' not in metadata
+    assert len(build_search(study(),ctx)['candidates'])==4
+
+
+@pytest.mark.parametrize('change',['application','procedure','role','fake_fold','missing_member'])
+def test_terminal_admission_rejects_cross_application_and_fold_aliases(change):
+    plan,terminal,membership,records,hashes=terminal_fixture()
+    metadata=records['a']['run_metadata']['research']
+    if change=='application':metadata['application_id']=uuid4().hex
+    elif change=='procedure':metadata['procedure_sha256']='f'*64
+    elif change=='role':metadata['application_role']='current_development'
+    elif change=='fake_fold':metadata['outer_fold']=0
+    else:records.pop('b')
+    with pytest.raises(ValueError):build_training_context(plan,terminal,membership,records,hashes)
+
+
+def test_terminal_reference_authority_is_separate_from_qualified_membership():
+    plan,outer,s,reference,candidate,_=reference_fixture()
+    outer.pop('index');outer.update(application_id=uuid4().hex,procedure_sha256='e'*64,application_role='final_fit')
+    saved=record(candidate,reference_training_metadata(plan['campaign_id'],outer,reference,plan['input_identity']))
+    ctx=build_reference_context(plan,outer,reference,candidate,saved,{'trades.csv':'t'*64})
+    assert ctx['version']=='procedure-reference-v1'
+    assert saved['run_metadata']['research']['role']=='procedure_reference_train'
+    assert ctx['recommendation_eligible'] is False
+    assert not {'qualified_configuration_ids','qualification_sha256','outer_fold_index'} & set(ctx)
+    assert ctx['source_configuration_ids']==[candidate['id']]

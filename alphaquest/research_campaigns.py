@@ -131,8 +131,9 @@ def campaign_search_settings(body):
 
 
 class CampaignStore:
-    def __init__(self, runs, analyses, optimizations):
+    def __init__(self, runs, analyses, optimizations, datasets=None):
         self.runs, self.analyses, self.optimizations = runs, analyses, optimizations
+        self.datasets = datasets
 
     def sources(self, kind, query='', offset=0, limit=50):
         """Metadata-only picker; never load OOS outcomes, trades or prop metrics."""
@@ -261,7 +262,7 @@ class CampaignStore:
                    candidates=candidates, **settings)
         module = module_for(body.phase)
         search = module.parse_request(raw)
-        checks = module.check_search(self.runs, search)
+        checks = module.check_search(self.runs, search, datasets=self.datasets)
         configurations, risk_conventions = set(), set()
         for row in checks:
             strategy = row['manifest']['strategy']
@@ -355,7 +356,7 @@ class CampaignStore:
             row = self.get(id)
             module = module_for(row['manifest']['phase'])
             search = module.parse_request(row['manifest']['request'])
-            checks = module.check_search(self.runs, search)
+            checks = module.check_search(self.runs, search, datasets=self.datasets)
             # Access history is provenance, not a new numerical input. Preserve the
             # declaration snapshot and report additional access without inspecting outcomes.
             before = row['manifest']['source_checks']
@@ -369,7 +370,8 @@ class CampaignStore:
         with self.analyses.lock:
             row = self.get(id)
             if row['analysis'] and row['status'] in ('queued', 'running', 'complete'):
-                if row['status'] == 'complete' and not self.analyses.fingerprint(row['analysis_id']):
+                if row['status'] == 'complete' and (not self.analyses.fingerprint(row['analysis_id'])
+                        or not self.analyses.native_children_unchanged(self.runs,row['analysis_id'])):
                     raise ResearchConflict('Saved calculation failed integrity checks; preserve this campaign and create a new one.')
                 return row
             self.validate(id)
@@ -381,7 +383,7 @@ class CampaignStore:
             module = module_for(manifest['phase'])
             search = module.parse_request(manifest['request'])
             # Submit with the original access snapshot, after live source validation.
-            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'])
+            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'], datasets=self.datasets)
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id, analysis['id']))
                 db.execute('UPDATE research_campaigns SET analysis_id=? WHERE id=?', (analysis['id'], id))
@@ -481,7 +483,12 @@ class CampaignStore:
             if previous:
                 if previous[0] != id:
                     raise ResearchConflict('Assessment request ID already belongs to another campaign.')
-                return json.loads(previous[1]), False
+                attempt=json.loads(previous[1])
+                saved=self.analyses.get(attempt['analysis_id']) if attempt.get('analysis_id') else None
+                if saved and saved['status']=='complete' and (not self.analyses.fingerprint(saved['id'])
+                        or not self.analyses.native_children_unchanged(self.runs,saved['id'])):
+                    raise ResearchConflict('Saved assessment or its native backtest capture changed; preserve the failed identity evidence.')
+                return attempt, False
             campaign = self.get(id)
             package = campaign['frozen']
             if not package:
@@ -503,6 +510,7 @@ class CampaignStore:
                 status='launching', package_sha256=package['package_sha256'], parent_source_ids=parents,
                 prior_access=[dict(candidate_id=c['candidate_id'], prior_access=c['prior_access']) for c in access['candidates']],
                 oos_sources={}, analysis_id=None,
+                native_chronological=package['search_settings'].get('native_execution') is not None,
                 interpretation='Manual OOS assessment of the predeclared frozen family. No reranking or reselection. Prior access is retained; no untouched-OOS claim.')
             return self.save_assessment(row), True
 
@@ -528,7 +536,13 @@ class CampaignStore:
                     raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
                 config['source']['source_backtest_id'] = source_id
                 plan = manifest['source']['backtest']['run_metadata']['research']['plan']
-                config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
+                if raw.get('native_execution') is not None:
+                    from .prop.phase_lifecycle import instant,session_date
+                    observed=source_record(self.runs,source_id)
+                    config['period']=dict(first_session=str(session_date(instant(observed['period_start_utc']))),
+                        last_session=str(session_date(instant(observed['period_end_utc']))))
+                else:
+                    config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
                 selected.append(config)
                 mappings.append(dict(source_id=source_id, frozen_candidate_id=row['candidate_id'], frozen_manifest=manifest,
                     name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))
@@ -538,7 +552,7 @@ class CampaignStore:
             # Protect sources before queueing and keep every report in AnalysisStore.
             with self.analyses.connect() as db:
                 db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
-            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context)
+            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context, datasets=self.datasets)
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
             return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))

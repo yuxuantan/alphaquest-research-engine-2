@@ -174,7 +174,7 @@ def _instant(value):
     return datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
-def check_replay(datasets, runs, request):
+def check_replay(datasets, runs, request, *, admitted_record=None):
     """Verify bytes, native identity, full observed sessions and immutable IS bounds."""
     from ..backtest_data import read_selected_bars
     from ..optimization_cache import artifacts, engine_identity, digest
@@ -187,7 +187,11 @@ def check_replay(datasets, runs, request):
     record = source_record(runs, request.source_backtest_id)
     meta = record['run_metadata']
     research = meta.get('research', {})
-    if research.get('phase') != 'is' or record.get('native_account_control') or meta.get('source', {}).get('kind') == 'external_trade_export':
+    private_admission = admitted_record is not None
+    if private_admission and canonical(admitted_record) != canonical(record):
+        raise ValueError('Internally admitted native source differs from its exact saved record.')
+    if ((research.get('phase') != 'is' and not private_admission) or record.get('native_account_control')
+            or meta.get('source', {}).get('kind') == 'external_trade_export'):
         raise ValueError('Native phase replay requires an ordinary saved native IS report, not imported trades, OOS or an account-controlled result.')
     if meta.get('execution_scenario') is not None:
         raise ValueError('Native phase replay currently requires baseline saved execution settings; stress-scenario reruns are not admitted.')
@@ -295,7 +299,7 @@ def check_replay(datasets, runs, request):
     return result
 
 
-def make_controller(request, check):
+def make_controller(request, check, *, cutoff_date_exclusive=None):
     from .native_control import SessionContext
     from .phase_search import PhaseCalendar
     from .evaluation_optimization import SequentialRetry
@@ -305,7 +309,7 @@ def make_controller(request, check):
         'scheduled_close_utc':_instant(s['scheduled_close_utc'])}) for s in check['sessions']}
     common = dict(max_micros=request.max_micros, session_contexts=contexts,
         start_date=check['period']['first_session'],
-        cutoff_date_exclusive=str(date.fromisoformat(check['period']['last_session'])+timedelta(days=1)))
+        cutoff_date_exclusive=cutoff_date_exclusive or str(date.fromisoformat(check['period']['last_session'])+timedelta(days=1)))
     # Dispatch resolves optimizer contracts; simulation owners remain explicit.
     if request.phase == 'evaluation':
         from .evaluation_profiles import NativeEvaluationController
@@ -402,10 +406,69 @@ def prepare_native_forecast(datasets, request, check):
     return plan, catalogue, cohorts
 
 
-def run_replay(analyses, datasets, runs, id, request, expected, staged):
+def execute_checked_replay(datasets,runs,request,check,*,admitted_record=None,research_metadata=None,
+        run_id=None,control_metadata=None,replay_cutoff_date_exclusive=None,
+        checkpoint=lambda:None,progress=lambda message:None):
+    """Execute one checked native chronology through the ordinary report builder.
+
+    Callers validate private frozen/training admission and pin the supplied child
+    ID in their existing catalogue before execution. No forecast or selector runs.
+    """
     from ..backtest_api import run_backtest
     from ..optimization_cache import digest
     from ..research_folds import SessionDateRange
+    from ..strategies.registry import get_strategy
+    from ..strategy import ExecutionConfig
+    checkpoint()
+    current=check_replay(datasets,runs,request,admitted_record=admitted_record)
+    if canonical(current)!=canonical(check):raise ValueError('Native source or implementation changed before chronological execution.')
+    source=check['source'];strategy=source['run_metadata']['strategy']
+    definition=get_strategy(strategy['id'])
+    config=ExecutionConfig(**{key:Decimal(value) if key!='slippage_ticks' else value for key,value in source['execution_settings'].items()})
+    cutoff=date.fromisoformat(check['period']['last_session'])+timedelta(days=1)
+    if replay_cutoff_date_exclusive is not None:
+        from ..session_calendar import load_calendar
+        requested=date.fromisoformat(replay_cutoff_date_exclusive)
+        if requested<cutoff:raise ValueError('Native civil cutoff cannot omit checked observed sessions.')
+        calendar=load_calendar(symbol=check['dataset']['symbol'])
+        day=cutoff
+        while day<requested:
+            if calendar.plan(day).close is not None:
+                raise ValueError('Native chronology lacks an observed open session before its frozen cutoff.')
+            day+=timedelta(days=1)
+        cutoff=requested
+    controller_check=check
+    if replay_cutoff_date_exclusive is not None:
+        from ..session_calendar import load_calendar
+        calendar=load_calendar(symbol=check['dataset']['symbol'])
+        start=date.fromisoformat(check['period']['first_session'])
+        closures=[];day=start
+        while day<=cutoff:
+            if day.weekday()<5 and calendar.plan(day).close is None:closures.append(str(day))
+            day+=timedelta(days=1)
+        controller_check={**check,'calendar':{**check['calendar'],'coverage_end':str(cutoff),'closures':tuple(closures)}}
+    controller=make_controller(request,controller_check,cutoff_date_exclusive=str(cutoff))
+    metadata=dict(version=MODEL_VERSION,source_backtest_id=source['id'],request=request.model_dump(),
+        source_check_sha256=digest(check),engine_identity=check['engine_identity'],
+        replay_cutoff_date_exclusive=str(cutoff))
+    if any(key in metadata and metadata[key]!=value for key,value in (control_metadata or {}).items()):
+        raise ValueError('Caller metadata cannot override checked native execution identities.')
+    metadata.update(control_metadata or {})
+    def update(stage,processed,total):
+        checkpoint();progress(f'Native {request.phase}: {stage} {processed}/{total}')
+    record=run_backtest(datasets,runs,run_id or uuid4().hex,check['dataset'],definition,
+        definition.parameters(strategy['parameters']),config,
+        SessionDateRange.parse(check['period']['first_session'],check['period']['last_session']),update,
+        reuse_results=False,prop_analyses=None,account_control=controller,control_metadata=metadata,
+        research=research_metadata or dict(phase='native_phase_replay',role='account_controlled_historical_scenario',
+            source_backtest_id=source['id'],period=check['period'],recommendation=False))
+    result=controller.finish_replay();checkpoint()
+    if canonical(check_replay(datasets,runs,request,admitted_record=admitted_record))!=canonical(check):
+        raise ValueError('Native source changed during chronology; controlled child retained, no completed phase report.')
+    return record,result
+
+
+def run_replay(analyses, datasets, runs, id, request, expected, staged):
     from ..strategies.registry import get_strategy
     from ..strategy import ExecutionConfig
     check = check_replay(datasets, runs, request)
@@ -414,25 +477,20 @@ def run_replay(analyses, datasets, runs, id, request, expected, staged):
     source = check['source']; strategy = source['run_metadata']['strategy']
     definition = get_strategy(strategy['id'])
     config = ExecutionConfig(**{k:Decimal(v) if k != 'slippage_ticks' else v for k,v in source['execution_settings'].items()})
-    controller = make_controller(request, check)
     run_id = uuid4().hex
     with analyses.lock, analyses.connect() as db:
         db.execute('INSERT INTO analysis_sources VALUES (?,?)', (id, run_id))
-    control_metadata = dict(version=MODEL_VERSION, analysis_id=id, source_backtest_id=source['id'],
-        request=request.model_dump(), source_check_sha256=digest(check), engine_identity=check['engine_identity'])
     try:
-        record = run_backtest(datasets, runs, run_id, check['dataset'], definition, definition.parameters(strategy['parameters']), config,
-            SessionDateRange.parse(check['period']['first_session'], check['period']['last_session']),
-            lambda stage,processed,total:analyses._update(id, 'running', f'Native {request.phase}: {stage} {processed}/{total}'),
-            reuse_results=False, prop_analyses=None, account_control=controller, control_metadata=control_metadata,
-            research=dict(phase='native_phase_replay', role='account_controlled_historical_scenario',
-                source_backtest_id=source['id'], analysis_id=id, period=check['period'], recommendation=False))
+        record,result=execute_checked_replay(datasets,runs,request,check,run_id=run_id,
+            control_metadata=dict(analysis_id=id),
+            progress=lambda message:analyses._update(id,'running',message),
+            research_metadata=dict(phase='native_phase_replay',role='account_controlled_historical_scenario',
+                source_backtest_id=source['id'],analysis_id=id,period=check['period'],recommendation=False))
     except Exception:
         if runs.get(run_id) is None:
             with analyses.connect() as db:
                 db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?', (id, run_id))
         raise
-    result = controller.finish_replay()
     forecast_result = None
     if request.native_forecast is not None:
         plan, catalogue, cohorts = prepare_native_forecast(datasets, request, check)

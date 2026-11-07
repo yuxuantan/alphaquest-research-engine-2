@@ -37,6 +37,45 @@ def _integer(value, name, minimum=0, maximum=2**32-1):
         raise ValueError(f'{name} must be an integer from {minimum} through {maximum}.')
 
 
+class NativeHistoryPoolUnavailable(ValueError):
+    """A historical refit has no evidence for a required target shape."""
+
+
+def history_origin_weights(catalogue, *, block_sessions, history_seed, replicate):
+    """Resample origin frequencies; never splice bars or refit a future prefix.
+
+    Circular runs refer only to the ordered origin index list. Each origin still
+    executes its intact original source block with its original prior prefix.
+    """
+    _integer(block_sessions,'historical origin block length',1,20000)
+    _integer(history_seed,'history seed');_integer(replicate,'history replicate')
+    count=len(catalogue.blocks)
+    if not count:raise ValueError('Historical native refits require source block origins.')
+    seed=int(np.random.SeedSequence([history_seed,replicate]).generate_state(1)[0])
+    rng=np.random.RandomState(seed);indices=[]
+    while len(indices)<count:
+        first=int(rng.randint(count))
+        indices.extend((first+offset)%count for offset in range(min(block_sessions,count-len(indices))))
+    counts=[0]*count
+    for index in indices:counts[index]+=1
+    result=dict(method='native_origin_block_bootstrap_lower_mean_v1',catalogue_sha256=catalogue.catalogue_sha256,
+        origin_count=count,block_sessions=block_sessions,history_seed=history_seed,replicate=replicate,
+        derived_history_seed=seed,sampled_origins=indices,origin_counts=counts)
+    result['weights_sha256']=_hash(result)
+    return result
+
+
+def _origin_header(weights):
+    return {key:value for key,value in weights.items() if key not in ('sampled_origins','origin_counts')}
+
+
+def _restore_origin_weights(catalogue, header):
+    result=history_origin_weights(catalogue,block_sessions=header['block_sessions'],
+        history_seed=header['history_seed'],replicate=header['replicate'])
+    if _origin_header(result)!=header:raise ValueError('Native historical origin identity changed.')
+    return result
+
+
 def _parameters(parameters):
     if type(parameters) is not Parameters or not parameters.use_eod_flat or parameters.use_vol_sizing:
         raise ValueError('Native block draws require VWAP EOD-flat with local volume sizing disabled.')
@@ -202,7 +241,7 @@ def _block_shape(sessions):
 
 
 def build_schedule(catalogue, target_contexts, parameters, *, phase, seed, path_index, start_date,
-                   cutoff_date_exclusive=None):
+                   cutoff_date_exclusive=None, origin_weights=None):
     """Address each block draw by phase/path/slot, independent of outcomes.
 
     Source blocks never wrap. A short final draw uses the declared leading
@@ -216,6 +255,9 @@ def build_schedule(catalogue, target_contexts, parameters, *, phase, seed, path_
     if phase not in ('evaluation', 'funded'):
         raise ValueError('Native forecast requires an explicit independent phase.')
     _integer(seed, 'seed'); _integer(path_index, 'path_index')
+    if origin_weights is not None:
+        restored=_restore_origin_weights(catalogue,_origin_header(origin_weights))
+        if restored!=origin_weights:raise ValueError('Native historical origin counts changed.')
     target = _target(target_contexts, parameters)
     if type(start_date) is str:
         start_date = date.fromisoformat(start_date)
@@ -247,7 +289,21 @@ def build_schedule(catalogue, target_contexts, parameters, *, phase, seed, path_
             raise ValueError(f'No complete source block matches modeled target shape at slot {slot}; missing early-close or civil-gap evidence cannot be redrawn.')
         generator = np.random.default_rng(np.random.SeedSequence(
             [seed, 0 if phase == 'evaluation' else 1, path_index, slot]))
-        block = catalogue.blocks[pool[int(generator.integers(len(pool)))]]
+        if origin_weights is None:
+            selected_index=pool[int(generator.integers(len(pool)))]
+        else:
+            weights=[origin_weights['origin_counts'][index] for index in pool]
+            total=sum(weights)
+            pools[pool_id].update(origin_weights=weights,total_origin_weight=total)
+            if not total:
+                raise NativeHistoryPoolUnavailable('Historical origin refit has no positive-weight source for a required target shape; no redraw.')
+            draw=int(generator.integers(total));selected_index=None
+            for index,weight in zip(pool,weights,strict=True):
+                if draw<weight:selected_index=index;break
+                draw-=weight
+            block_index=selected_index
+            if block_index is None:raise ValueError('Invalid native historical weighted pool.')
+        block = catalogue.blocks[selected_index]
         selected = catalogue.sessions[block.first_session:block.first_session+take]
         draws.append(dict(slot=slot, source_block_index=block.index,
             source_sessions=[str(s.context.session) for s in selected],
@@ -264,6 +320,7 @@ def build_schedule(catalogue, target_contexts, parameters, *, phase, seed, path_
         target_contexts=[json_native(asdict(target_contexts[day])) for day, _ in target],
         pools=list(pools.values()), draws=draws, estimated_warmup_bars=sum(d['warmup_bars'] for d in draws),
         estimated_executed_bars=sum(d['executed_bars'] for d in draws))
+    if origin_weights is not None:result['origin_weights']=_origin_header(origin_weights)
     result['schedule_sha256'] = _hash(result)
     return result
 
@@ -355,7 +412,8 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
     parameters = strategy.parameters
     fresh = build_schedule(catalogue, target_contexts, parameters, phase=schedule.get('phase'),
         seed=schedule.get('seed'), path_index=schedule.get('path_index'), start_date=schedule.get('start_date'),
-        cutoff_date_exclusive=schedule.get('cutoff_date_exclusive'))
+        cutoff_date_exclusive=schedule.get('cutoff_date_exclusive'),
+        origin_weights=_restore_origin_weights(catalogue,schedule['origin_weights']) if 'origin_weights' in schedule else None)
     if fresh != schedule:
         raise ValueError('Native schedule content, source, prefix or modeled target shape changed.')
     if owner.phase != fresh['phase'] or owner.contexts != target_contexts:

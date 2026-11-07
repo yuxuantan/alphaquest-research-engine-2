@@ -3,7 +3,7 @@
 These are Python component interfaces, not new portal modes or dated optimizers.
 The existing sampler's unit is a trading weekday, including zero-trade weekdays.
 """
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -16,6 +16,30 @@ from .phase_lifecycle import instant, session_date, validate_phase_source
 
 CONTRACT_VERSION = 'phase-profiles-v1'
 ProfileId = Literal['apex-50k-eod', 'lucidflex-50k']
+
+
+@dataclass(frozen=True)
+class NativeExecution:
+    """Explicit native candidate law; absence retains the saved-trade model."""
+    horizon_calendar_days: int
+    model: str = 'observed_contiguous_blocks_with_prior_prefix_v1'
+    early_closes: dict = field(default_factory=dict)
+    capture_paths: int = 1
+
+    def __post_init__(self):
+        import re
+        if self.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+            raise ValueError('Unknown native execution law.')
+        if type(self.horizon_calendar_days) is not int or not 1 <= self.horizon_calendar_days <= 365:
+            raise ValueError('Native execution horizon must be 1 through 365 calendar days.')
+        if type(self.capture_paths) is not int or not 1 <= self.capture_paths <= 20:
+            raise ValueError('Native detailed path capture must be 1 through 20.')
+        if type(self.early_closes) is not dict:
+            raise ValueError('Native early closes must map canonical dates to Chicago HH:MM.')
+        for day, close in self.early_closes.items():
+            if (type(day) is not str or date.fromisoformat(day).isoformat()!=day or type(close) is not str
+                    or not re.fullmatch(r'(?:0[0-9]|1[0-5]):[0-5][0-9]',close)):
+                raise ValueError('Native early closes require canonical dates and HH:MM before 16:00.')
 
 
 def equal_stratum_mean(groups):
@@ -484,8 +508,11 @@ def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs
     from uuid import UUID
     from .phase_dispatch import module_for
     def fingerprint(value): return sha256(canonical(value).encode()).hexdigest()
-    if type(binding) is not dict or binding.get('schema_version') != 'nested-phase-freeze-v1':
+    if type(binding) is not dict or binding.get('schema_version') not in ('nested-phase-freeze-v1','procedure-phase-freeze-v1'):
         raise ValueError('Chronological replay requires a sealed nested phase binding.')
+    terminal = binding['schema_version']=='procedure-phase-freeze-v1'
+    if terminal and (binding.get('application_role') not in ('final_fit','current_development') or 'outer_fold_index' in binding):
+        raise ValueError('Invalid terminal replay application discriminant.')
     payload = deepcopy(binding)
     package_hash = payload.pop('package_sha256', None)
     if package_hash != fingerprint(payload) or binding.get('phase') != phase:
@@ -517,13 +544,17 @@ def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs
             or module_for(phase).implementation_identity() != binding['implementation']):
         raise ValueError('Frozen training context or numerical implementation changed.')
     context = report['training_context']
+    if canonical(binding.get('native_execution')) != canonical(report['request'].get('native_execution')):
+        raise ValueError('Frozen native execution law or exact horizon differs from its training report.')
+    if terminal and any(context.get(key)!=binding.get(key) for key in ('application_id','procedure_sha256','application_role')):
+        raise ValueError('Frozen terminal application differs from its training report.')
     if reference:
-        if (context.get('version') != 'nested-phase-reference-v1'
+        if (context.get('version') != ('procedure-reference-v1' if terminal else 'nested-phase-reference-v1')
                 or binding.get('baseline_id') not in context.get('reference_ids', [])
                 or binding.get('reference_declaration_sha256') != context.get('reference_declaration_sha256')
                 or binding.get('recommendation_eligible') is not False):
             raise ValueError('Frozen reference is outside its explicit predeclared measurement context.')
-    elif context.get('version') != 'nested-phase-training-v1':
+    elif context.get('version') != ('procedure-training-v1' if terminal else 'nested-phase-training-v1'):
         raise ValueError('A predeclared reference cannot masquerade as a selected qualified policy.')
     selected = [row for row in report['calculations']['candidates'] if row['candidate_id'] == binding['candidate_id']]
     if len(selected) != 1:
@@ -553,9 +584,15 @@ def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs
     if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
         raise ValueError('Nested native outer replay cannot invent an external OOS mapping; a separately verified external frozen-source binding is required.')
     research = record['run_metadata'].get('research', {})
-    required = dict(phase='outer', role='baseline_outer_test' if reference else 'outer_test', campaign_id=binding['campaign_id'],
-        outer_fold=binding['outer_fold_index'], frozen_package_sha256=package_hash,
+    required = dict(phase='outer', role=('final_holdout_reference' if reference else 'final_holdout') if terminal else ('baseline_outer_test' if reference else 'outer_test'), campaign_id=binding['campaign_id'],
+        frozen_package_sha256=package_hash,
         training_source_id=config['source']['source_backtest_id'], selected_candidate_id=binding['candidate_id'])
+    if terminal:
+        required.update({key:binding[key] for key in ('application_id','procedure_sha256','application_role')})
+        if 'outer_fold' in research:
+            raise ValueError('Terminal source cannot masquerade as a research fold.')
+    else:
+        required['outer_fold']=binding['outer_fold_index']
     if reference:
         required.update(baseline_id=binding['baseline_id'], reference_declaration_sha256=binding['reference_declaration_sha256'])
     if any(research.get(key) != value for key, value in required.items()):
@@ -614,13 +651,23 @@ def chronological_kernel_arguments(sizing, micros, callback, **tags):
         sizing_context=dict(initial_configured_capital='50000', trace_context=tags), trace=callback)
 
 
+def frozen_replay_tags(binding):
+    """Preserve the actual provenance discriminant; terminal fits are not folds."""
+    if binding.get('schema_version')=='procedure-phase-freeze-v1':
+        return dict(stage='procedure_chronological',application_id=binding['application_id'],
+            procedure_sha256=binding['procedure_sha256'],application_role=binding['application_role'],
+            candidate_id=binding['candidate_id'])
+    return dict(stage='outer_chronological',outer_fold_index=binding['outer_fold_index'],
+        candidate_id=binding['candidate_id'])
+
+
 def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     from hashlib import sha256
     from .native_analysis import kernel_identity
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
              'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
-             'native_draws.py', 'native_replay.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             'native_draws.py', 'native_replay.py', 'native_search.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
              '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']

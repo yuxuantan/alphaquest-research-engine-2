@@ -11,7 +11,7 @@ import numpy as np
 from .adapter import canonical, digest
 from .funded_profiles import simulate_dated_funded_profile
 from .phase_profiles import (FundedProfile, ResearchPeriod, SamplingConfig, SavedTradeSource,
-    SimulationConfig, SourceCosts, SizingConfiguration, positive_integer, verify_phase_source)
+    SimulationConfig, SourceCosts, SizingConfiguration, NativeExecution, positive_integer, verify_phase_source)
 from .phase_search import PhaseCalendar, check_candidates
 
 MODEL_VERSION = 'funded-optimization-calendar-receipts-v1'
@@ -80,7 +80,7 @@ class FundedHistoricalMean:
     maximum_mc_standard_error: float = 25.
 
     def __post_init__(self):
-        if self.method != 'historical_block_bootstrap_lower_mean':
+        if self.method not in ('historical_block_bootstrap_lower_mean','native_origin_block_bootstrap_lower_mean_v1'):
             raise ValueError('Unknown conservative funded objective.')
         if (type(self.confidence_level) not in (int, float) or not np.isfinite(self.confidence_level)
                 or not .5 <= self.confidence_level < 1):
@@ -111,12 +111,21 @@ class FundedSearch:
     near_tie_cash: float = 0.
     mode: str = 'funded_optimization'
     conservative_objective: FundedHistoricalMean | None = None
+    native_execution: NativeExecution | None = None
 
     def __post_init__(self):
         if self.mode != 'funded_optimization' or type(self.calendar) is not PhaseCalendar or type(self.constraints) is not FundedConstraints:
             raise ValueError('Invalid funded-only search contract.')
         if self.conservative_objective is not None and type(self.conservative_objective) is not FundedHistoricalMean:
             raise ValueError('Conservative funded selection requires a FundedHistoricalMean contract.')
+        if self.native_execution is not None and type(self.native_execution) is not NativeExecution:
+            raise ValueError('Native Funded requires an explicit NativeExecution contract.')
+        if self.native_execution is not None and self.native_execution.horizon_calendar_days != self.horizon_calendar_days:
+            raise ValueError('Native Funded forecast horizon must equal the saved cash objective horizon.')
+        if self.conservative_objective is not None:
+            native_method=self.conservative_objective.method=='native_origin_block_bootstrap_lower_mean_v1'
+            if native_method != (self.native_execution is not None):
+                raise ValueError('Conservative mean resampling law must explicitly match native execution or saved-trade execution.')
         if type(self.candidates) is not tuple or not self.candidates or any(type(c) is not FundedCandidate for c in self.candidates):
             raise ValueError('Declare a nonempty immutable set of funded candidates.')
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
@@ -154,13 +163,15 @@ def parse_request(raw):
         if 'constraints' in value: value['constraints'] = FundedConstraints(**value['constraints'])
         if value.get('conservative_objective') is not None:
             value['conservative_objective'] = FundedHistoricalMean(**value['conservative_objective'])
+        if value.get('native_execution') is not None:
+            value['native_execution'] = NativeExecution(**value['native_execution'])
         return FundedSearch(candidates=tuple(candidates), calendar=PhaseCalendar(**calendar), **value)
     except (TypeError, KeyError, AttributeError) as exc:
         raise ValueError(f'Invalid funded-only search contract: {exc}') from exc
 
 
-def check_search(runs, search, *, training_context=None):
-    return check_candidates(runs, search, training_context=training_context)
+def check_search(runs, search, *, training_context=None, datasets=None):
+    return check_candidates(runs, search, training_context=training_context, datasets=datasets)
 
 
 def implementation_identity():
@@ -168,7 +179,7 @@ def implementation_identity():
         'native_analysis.py', 'native_engine.py', 'lucid_engine.py', 'lucid_rules.py', 'source.py',
         'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
         'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
-        'native_draws.py', 'native_replay.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+        'native_draws.py', 'native_replay.py', 'native_search.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
         '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel='native Python reference account transitions', numpy=np.__version__)
@@ -283,9 +294,12 @@ def rank_candidates(rows, search, *, tie_key=None):
             if conservative else 'Within declared cash tolerance or overlapping family mean intervals; missing intervals also mark uncertainty'))
 
 
-def optimize_funded(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None):
+def optimize_funded(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None, datasets=None, checkpoint=lambda:None, reserve_child=None):
     if assessment and training_context is not None:
         raise ValueError('Assessment cannot consume a training context.')
+    if search.native_execution is not None:
+        return optimize_native_funded(datasets,runs,search,checks,progress,
+            assessment=assessment,training_context=training_context,checkpoint=checkpoint,reserve_child=reserve_child)
     if training_context is not None:
         current = check_search(runs, search, training_context=training_context)
         if checks is not None and canonical(current) != canonical(checks):
@@ -335,11 +349,75 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
     return dict(model_version=MODEL_VERSION,phase='funded',**rank_candidates(rows,search,tie_key=tie_key))
 
 
+def optimize_native_funded(datasets,runs,search,checks,progress,*,assessment=False,training_context=None,checkpoint=lambda:None,reserve_child=None):
+    from .native_search import prepare_native_candidate,verify_native_candidate
+    from .funded_profiles import forecast_native_funded,native_funded_metric_paths
+    from .phase_search import stable_phase_policy_identity
+    if assessment:
+        return assess_native_funded(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child)
+    current=check_search(runs,search,datasets=datasets,training_context=training_context)
+    if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Native candidate membership changed.')
+    checks=current;rows=[]
+    configurations={canonical(asdict(candidate)):candidate for candidate in search.candidates}
+    for check in checks:
+        c=configurations[canonical(check['manifest']['configuration'])]
+        progress(f'Native Funded candidate {len(rows)+1}/{len(checks)}')
+        inputs,plan=prepare_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None)
+        forecast=forecast_native_funded(**inputs,receipt_delay_calendar_days=search.receipt_delay_calendar_days,
+            receipt_amount_convention='kernel_entitlement_unrounded',progress=progress,checkpoint=checkpoint)
+        if canonical(forecast['schedules'])!=canonical(plan['schedules']):raise ValueError('Native candidate schedule changed.')
+        paths=native_funded_metric_paths(forecast)
+        row=dict(candidate_id=check['candidate_id'],**funded_metrics(paths,search),paths=paths,
+            native_forecast=forecast,schedule_sha256=plan['plan_sha256'],
+            provenance=dict(source=check['manifest']['source'],rules=forecast['captures'][0]['result']['modeled_rules'],
+                native_execution=asdict(search.native_execution)),manifest=check['manifest'],origin_trials=check['origin_trials'])
+        if search.conservative_objective is not None:
+            from .funded_profiles import historical_native_funded_mean
+            historical=historical_native_funded_mean(inputs,plan,search.conservative_objective,len(search.candidates),
+                receipt_delay_calendar_days=search.receipt_delay_calendar_days,progress=progress,checkpoint=checkpoint)
+            row['conservative_expected_cash']=historical
+            row['uncertainty']['historical_mean']={key:value for key,value in historical.items() if key not in ('replicates','history_session_labels')}
+            row['metrics'][CONSERVATIVE_OBJECTIVE]=historical['lower_mean_cash']
+            if historical['status']!='estimated':row.update(status='unresolved',reason='insufficient_native_historical_mean_evidence')
+        rows.append(row)
+    for check in checks:
+        c=configurations[canonical(check['manifest']['configuration'])]
+        verify_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None)
+    return dict(model_version=MODEL_VERSION,phase='funded',execution_model=search.native_execution.model,
+        **rank_candidates(rows,search,tie_key=lambda row:stable_phase_policy_identity(row,'funded')))
+
+
+def assess_native_funded(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child):
+    from .phase_search import check_candidates
+    from .native_search import execute_native_assessment
+    current=check_candidates(runs,search,assessment,datasets=datasets)
+    if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Frozen native assessment sources changed.')
+    configurations={canonical(asdict(c)):c for c in search.candidates};rows=[]
+    for check in current:
+        c=configurations[canonical(check['manifest']['configuration'])]
+        execution=execute_native_assessment(datasets,runs,search,c,check,assessment,
+            reserve_child=reserve_child,checkpoint=checkpoint,progress=progress)
+        actual=execution['native_chronological_replay']
+        rows.append(dict(candidate_id=check['candidate_id'],frozen_candidate_id=check['frozen_candidate_id'],
+            **execution,manifest=check['manifest'],origin_trials=check['origin_trials'],status='historical_observation',
+            metrics=dict(observed_cash_received=actual['cash_received'],observed_pending_cash=actual['pending_cash'],
+                observed_gross_account_deductions=actual['gross_account_deductions'],observed_equity_change=actual['equity']),
+            uncertainty=dict(interpretation='One observed chronological scenario; no Monte Carlo or expected-mean estimate.'),
+            censoring=dict(lifetime_censored=actual['lifetime_censored'],horizon_complete=True),
+            feasible=None,constraint_violations=[],rank=None,paths=[],schedule_sha256=None,
+            provenance=dict(source=check['manifest']['source'],sizing=actual['sizing'])))
+    return dict(model_version=MODEL_VERSION,phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
+        certified_optimum=False,selection_status='assessment_only_no_reselection',unresolved_candidates=[],
+        objective=objective_metric(search),execution_model='native_actual_chronological_frozen_oos')
+
+
 def write_report(runs, staged, search, checks, calculations):
     import csv
     from .phase_search import capture_inputs, write_sizing_artifacts
     staged = Path(staged)
     capture_inputs(runs, staged, search, calculations)
+    from .native_search import write_native_artifacts
+    write_native_artifacts(runs,staged,calculations)
     write_sizing_artifacts(staged, calculations)
     def save(name,data): (staged/name).write_text(canonical(data),encoding='utf-8')
     from .rule_provenance import search_review, readiness
@@ -350,9 +428,9 @@ def write_report(runs, staged, search, checks, calculations):
     save('phase_metrics.json',[{k:r[k] for k in ('candidate_id','metrics','status','censoring','uncertainty','feasible','constraint_violations','rank')} for r in calculations['candidates']])
     save('ranking.json',{k:v for k,v in calculations.items() if k!='candidates'})
     save('calculations.json',calculations)
-    if search.conservative_objective is not None:
+    if any('conservative_expected_cash' in row for row in calculations['candidates']):
         save('historical_mean_cash.json', [dict(candidate_id=row['candidate_id'],
-            **row['conservative_expected_cash']) for row in calculations['candidates']])
+            **row['conservative_expected_cash']) for row in calculations['candidates'] if 'conservative_expected_cash' in row])
     save('request.json',asdict(search))
     save('sampling.json',[dict(candidate_id=r['candidate_id'],configuration=r['manifest']['configuration']['sampling'],
         simulation=r['manifest']['configuration']['simulation'],schedule_sha256=r['schedule_sha256'],

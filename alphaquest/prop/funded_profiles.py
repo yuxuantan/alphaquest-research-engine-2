@@ -137,7 +137,7 @@ class NativeFundedController(NativeControlBase):
 def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factory, config,
         profile, sizing, micros, *, forecast, receipt_delay_calendar_days,
         receipt_amount_convention, max_micros=40, checkpoint=lambda: None,
-        progress=lambda message: None):
+        progress=lambda message: None, origin_weights=None):
     """One fresh funded account per modeled path; receipt means include zeros."""
     from collections import Counter
     from dataclasses import asdict
@@ -152,7 +152,8 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
         start, first, cutoff, contexts = cohorts[cohort_index]
         progress(f'Native Funded forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
         schedule = build_schedule(catalogue, contexts, parameters, phase='funded',
-            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff)
+            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff,
+            **({'origin_weights':origin_weights} if origin_weights is not None else {}))
         owner = NativeFundedController(profile, sizing, micros, max_micros=max_micros,
             session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
             receipt_delay_calendar_days=receipt_delay_calendar_days,
@@ -207,6 +208,26 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             'Open account lifetimes are censored, while the declared finite-horizon receipt observation is complete under this model.',
             'Target calendars, provider rules, execution liquidity, intrabar ordering and settlement assumptions remain unverified; zero MCSE is not certification.',
             'No Evaluation pass, acquisition fee, acquisition duration or replacement-account inputs enter this Funded forecast.'])
+
+
+def native_funded_metric_paths(forecast):
+    """Map complete actual native paths to the existing funded metric contract."""
+    from datetime import date
+    values=[]
+    for path in forecast['paths']:
+        start=date.fromisoformat(path['start_date'])
+        cutoff=date.fromisoformat(path['cutoff_date_exclusive'])
+        terminal=date.fromisoformat(path['terminal_date']) if path['terminal_date'] else None
+        receipts=[event for event in path['payout_events'] if event['received_within_horizon']]
+        first=min((date.fromisoformat(event['receipt_date']) for event in receipts),default=None)
+        projected=dict(path)
+        for key in ('cash_received','pending_cash','gross_account_deductions','equity','trading_profit'):
+            projected[key]=float(path[key])
+        values.append(dict(**projected,path=path['path_index'],cutoff_exclusive=str(cutoff),
+            horizon_observations_complete=True,unresolved=False,
+            observed_calendar_days=((terminal or cutoff)-start).days,
+            days_to_first_payout=(first-start).days if first else None,number_of_payouts=len(receipts)))
+    return values
 
 
 def simulate_funded_profile(
@@ -422,6 +443,103 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     return paths, schedule.hexdigest(), rules
 
 
+def native_historical_preflight(catalogue_metadata, forecast_plan, configuration, family_size):
+    """Declared history sufficiency and conservative work bound, without prices."""
+    from decimal import Decimal
+    cfg=configuration
+    positive_integer('native historical candidate family size',family_size,100000)
+    if cfg.method!='native_origin_block_bootstrap_lower_mean_v1':
+        raise ValueError('Native historical means require their explicit original-origin resampling law.')
+    numerator,denominator=Decimal(str(cfg.confidence_level)).as_integer_ratio()
+    tail_numerator=denominator-numerator;tail_denominator=denominator*family_size
+    rank=(cfg.replicates*tail_numerator+tail_denominator-1)//tail_denominator
+    count=catalogue_metadata['source_sessions'];origins=len(catalogue_metadata['blocks'])
+    cohorts=len(forecast_plan['cohorts']);reasons=[]
+    if count<cfg.minimum_history_sessions:reasons.append('minimum_history_sessions')
+    if origins//cfg.block_sessions<cfg.minimum_history_blocks:reasons.append('minimum_original_origin_blocks')
+    if cfg.replicates*tail_numerator<5*tail_denominator:reasons.append('insufficient_family_tail_replicates')
+    if cfg.simulations_per_replicate>512 or cfg.simulations_per_replicate%cohorts or cfg.simulations_per_replicate//cohorts<2:
+        reasons.append('two_through_512_inner_paths_with_at_least_two_per_cohort')
+    max_prefix=max(session['first_bar'] for session in catalogue_metadata['sessions'])
+    per_path=max(catalogue_metadata['source_bars']+schedule['estimated_executed_bars']+len(schedule['draws'])*max_prefix
+                 for schedule in forecast_plan['schedules'])
+    work=0 if reasons else cfg.replicates*cfg.simulations_per_replicate*per_path
+    max_draws=max(len(schedule['draws']) for schedule in forecast_plan['schedules'])
+    metadata_bytes=0 if reasons else cfg.replicates*(1024+origins*32+cfg.simulations_per_replicate*(512+max_draws*128))
+    if not reasons and cfg.replicates*origins>1_000_000:raise ValueError('Native historical origin capture exceeds one million indices.')
+    return dict(reasons=reasons,tail_rank=rank,tail_probability_fraction=dict(numerator=tail_numerator,denominator=tail_denominator),
+        source_history_sessions=count,original_block_origins=origins,historical_origin_blocks=origins//cfg.block_sessions,
+        conservative_bar_work_bound=work,retained_metadata_estimated_bytes=metadata_bytes)
+
+
+def historical_native_funded_mean(inputs, forecast_plan, configuration, family_size, *,
+        receipt_delay_calendar_days, receipt_amount_convention='kernel_entitlement_unrounded',
+        checkpoint=lambda:None,progress=lambda message:None):
+    """Historical uncertainty in the native conditional mean, not account p10.
+
+    Reweight original observed block origins. Every selected origin still uses
+    the actual strategy and immutable, strictly prior original-source warmup.
+    """
+    from dataclasses import asdict
+    from .native_draws import history_origin_weights,NativeHistoryPoolUnavailable
+    cfg=configuration;catalogue=inputs['catalogue']
+    admission=native_historical_preflight(catalogue.metadata(),forecast_plan,cfg,family_size)
+    result=dict(configuration=asdict(cfg),status='insufficient_evidence',reasons=admission['reasons'],
+        lower_mean_cash=None,confidence_level=cfg.confidence_level,family_size=family_size,**{key:value for key,value in admission.items() if key!='reasons'},
+        history_session_count=admission['source_history_sessions'],history_block_count=admission['historical_origin_blocks'],
+        cash_unit='USD trader cash received within the saved horizon',
+        estimation_target='Native expected receipts conditional on a fresh funded account and original source-prefix block law',
+        replicates=[],history_session_labels=[str(session.context.session) for session in catalogue.sessions],
+        historical_unit='Original intact block origin with its original strictly prior feature prefix; chronological origin-index runs resample frequencies only.',
+        method='Circular origin-frequency block bootstrap, actual native account-state strategy rerun for every inner path.',
+        family_coverage='Nominal one-sided Bonferroni percentile tail across every declared candidate; not finite-sample simultaneous certification.',
+        quantile='Inverse empirical CDF at ceil(replicates * (1-confidence) / complete candidate family size).',
+        mc_noise=dict(maximum_allowed_standard_error=cfg.maximum_mc_standard_error,maximum_observed_standard_error=None,
+            same_addressed_simulation_stream_across_histories=True),
+        limitations=[
+            'Original source prices, features and permitted prefixes are conditioned on, not spliced or re-estimated on counterfeit history.',
+            'Origin units overlap and are not independent observations; the declared origin-block length and stationarity are assumptions.',
+            'A required shape with zero refit weight makes that replicate unresolved; no retry, uniform fallback or missing-mean omission is allowed.',
+            'This historical conditional-mean percentile differs from individual-account p10 and from conditional Monte Carlo error.',
+            'Provider rules, execution/liquidity errors, structural regime shifts and future uncertainty are not covered by nominal bootstrap confidence.'])
+    if result['reasons']:return result
+    if admission['conservative_bar_work_bound']>50_000_000:
+        raise ValueError('Native historical refits exceed 50 million declared bar work.')
+    forecast=inputs['forecast'].model_copy(update=dict(simulations=cfg.simulations_per_replicate,
+        seed=cfg.simulation_seed,capture_paths=1))
+    for index in range(cfg.replicates):
+        checkpoint();progress(f'Native historical mean replicate {index+1}/{cfg.replicates}')
+        weights=history_origin_weights(catalogue,block_sessions=cfg.block_sessions,
+            history_seed=cfg.history_seed,replicate=index)
+        row=dict(replicate=index,origin_weights=weights,simulation_seed=cfg.simulation_seed,
+            mean_cash=None,mean_monte_carlo_se=None,schedule_sha256s=[])
+        try:
+            native=forecast_native_funded(**{**inputs,'forecast':forecast},origin_weights=weights,
+                receipt_delay_calendar_days=receipt_delay_calendar_days,receipt_amount_convention=receipt_amount_convention,
+                checkpoint=checkpoint,progress=progress)
+            estimate=native['uncertainty']['metrics']['mean_received_cash']
+            row.update(status='estimated',mean_cash=estimate['mean'],mean_monte_carlo_se=estimate['mc_standard_error'],
+                schedule_sha256s=[schedule['schedule_sha256'] for schedule in native['schedules']],
+                paths=[dict(path_index=path['path_index'],start_date=path['start_date'],cash_received=path['cash_received'],
+                    pending_cash=path['pending_cash'],gross_account_deductions=path['gross_account_deductions']) for path in native['paths']])
+        except NativeHistoryPoolUnavailable as exc:
+            row.update(status='unresolved',reason=str(exc))
+        result['replicates'].append(row)
+    unresolved=[row['replicate'] for row in result['replicates'] if row['status']!='estimated']
+    if unresolved:
+        result['reasons'].append('unresolved_required_shape_in_historical_refits');result['unresolved_replicates']=unresolved
+        return result
+    errors=[row['mean_monte_carlo_se'] for row in result['replicates']]
+    if any(value is None for value in errors):
+        result['reasons'].append('insufficient_inner_monte_carlo_precision');return result
+    result['mc_noise']['maximum_observed_standard_error']=max(errors)
+    if max(errors)>cfg.maximum_mc_standard_error:
+        result['reasons'].append('inner_monte_carlo_standard_error_exceeds_declared_limit')
+    else:
+        result.update(status='estimated',lower_mean_cash=sorted(row['mean_cash'] for row in result['replicates'])[admission['tail_rank']-1])
+    return result
+
+
 def historical_funded_mean(runs, source, profile, micros, horizon_calendar_days,
         calendar, receipt_delay_calendar_days, simulation, period, sampling, costs,
         *, configuration, family_size, sizing=None, observed_sessions=None,
@@ -442,6 +560,8 @@ def historical_funded_mean(runs, source, profile, micros, horizon_calendar_days,
         raise ValueError('Historical funded mean requires its explicit configuration.')
     positive_integer('family_size', family_size, 100000)
     cfg = configuration
+    if cfg.method!='historical_block_bootstrap_lower_mean':
+        raise ValueError('Saved-trade history refits cannot apply a native origin execution law.')
     snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation,
         period, costs, sizing, observed_sessions=observed_sessions)
     labels = list(observed_sessions) if observed_sessions is not None else None
@@ -543,7 +663,7 @@ def replay_funded_profile(runs, source, profile, micros, window, calendar, *,
     from . import native_engine, lucid_engine
     from .adapter import canonical
     from .cash_ledger import dated_settlement
-    from .phase_profiles import prepare_chronological_source, verify_frozen_replay, chronological_kernel_arguments
+    from .phase_profiles import prepare_chronological_source, verify_frozen_replay, chronological_kernel_arguments, frozen_replay_tags
     if type(profile) is not FundedProfile:
         raise ValueError('Chronological funded replay accepts a funded profile only.')
     if type(receipt_delay_calendar_days) is not int or not 0 <= receipt_delay_calendar_days <= 365:
@@ -572,8 +692,7 @@ def replay_funded_profile(runs, source, profile, micros, window, calendar, *,
                 qualifying=account.qualifying, sessions=account.day)
             payout_count = len(account.payouts); decisions = []
             def capture(value): collector(value); decisions.append(value)
-            kwargs = chronological_kernel_arguments(sizing, micros, capture, stage='outer_chronological',
-                outer_fold_index=frozen_binding['outer_fold_index'], candidate_id=frozen_binding['candidate_id'],
+            kwargs = chronological_kernel_arguments(sizing, micros, capture, **frozen_replay_tags(frozen_binding),
                 calendar_date=str(day), session_index=account.day+1)
             if lucid: kwargs['calendar_day'] = offset
             account.advance(trades, micros, max_micros, **kwargs)

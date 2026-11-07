@@ -39,7 +39,9 @@ async def history(request: Request, source_id: str | None = Query(default=None, 
 @router.get('/defaults')
 def defaults():
     from .prop.phase_profiles import rule_version
-    return dict(profiles={name:rule_version(name) for name in ('apex-50k-eod', 'lucidflex-50k')})
+    from .prop.native_replay import defaults as native_defaults
+    return dict(profiles={name:rule_version(name) for name in ('apex-50k-eod', 'lucidflex-50k')},
+        native_execution=native_defaults()['native_forecast'])
 
 
 @router.get('/sources')
@@ -67,6 +69,17 @@ async def check(id: UUID, request: Request):
 @router.post('/{id}/run', status_code=202)
 async def run(id: UUID, request: Request):
     return await call(request, 'run', id.hex)
+
+
+@router.post('/{id}/cancel')
+async def cancel(id: UUID, request: Request):
+    campaign=await call(request,'get',id.hex)
+    if not campaign.get('analysis_id'):
+        raise HTTPException(409,'This campaign has no running analysis.')
+    try:
+        return await run_in_threadpool(request.app.state.prop_analyses.cancel_phase,campaign['analysis_id'])
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from exc
 
 
 @router.get('/{id}/candidates')
@@ -98,7 +111,7 @@ async def assessments(id: UUID, request: Request):
 
 @router.post('/{id}/assessments', status_code=202)
 async def assess(id: UUID, body: AssessmentRequest, request: Request):
-    from .research_api import run_oos, OOSRequest
+    from .research_api import run_oos_impl, OOSRequest
     attempt, fresh = await call(request, 'begin_assessment', id.hex, body.request_id)
     if not fresh:
         return attempt
@@ -107,7 +120,8 @@ async def assess(id: UUID, body: AssessmentRequest, request: Request):
         for parent in attempt['parent_source_ids']:
             # The existing manual OOS path enforces dataset/strategy/parameter/
             # execution identity and records unlimited prior-access attempts.
-            result = await run_oos(UUID(parent), OOSRequest(request_id=uuid5(UUID(body.request_id), parent)), request)
+            result = await run_oos_impl(UUID(parent), OOSRequest(request_id=uuid5(UUID(body.request_id), parent)), request,
+                automatic_prop=not attempt.get('native_chronological',False))
             if not isinstance(result, dict):
                 import json
                 result = json.loads(result.body)

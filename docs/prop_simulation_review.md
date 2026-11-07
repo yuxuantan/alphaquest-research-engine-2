@@ -8211,3 +8211,198 @@ all-path retention and inspected narrow dynamic/censored views
 (`root-verification.json`). Python compilation, changed JavaScript syntax checks
 and `git diff --check` passed. The only warning in the API/legacy phase gates is
 the existing Starlette/httpx deprecation. No persistent server was started.
+
+
+# Native phase optimization and complete-procedure verification — 2026-11-08
+
+Release evidence identifiers and checks are appended by the final evidence audit. Earlier isolated browser probes remain preserved and are not release-engine evidence. All synthetic sources use normal dataset/backtest/report routes. The examples test arithmetic, causal state, immutable selection and the product journey; they do not establish market edge, provider parity or production trading readiness.
+
+## Native independent campaign
+
+Open a saved MNQ VWAP source report, choose Configure prop analysis, then the independent Evaluation or Funded campaign. Select **Actual native strategy reruns · MNQ** as the execution model. This explicitly changes the sampling law: original observed source-session blocks and their prior-only warmup rerun the real strategy, while provider state continues between modeled target sessions. No saved trade is resized after its outcome.
+
+For the seven-session constant-profit source, compare fixed quantities **1, 3 MNQ** in Funded and **3, 10 MNQ** in Evaluation. Set total paths **4**, seed **1729**, source block **1 session**, retain detailed paths **1**, horizon **9 calendar days**, target start **2026-01-26**, coverage end **2026-02-05**, declaration **explicit-demo-weekdays-v1**. Leave declared extra closures and early closes empty. This synthetic target calendar is explicitly unverified. Funded receipt delay is **2 calendar days**; the frozen receipt amount convention is unrounded kernel entitlement. Source and planning execution costs are zero for these arithmetic sources. Evaluation fees are **$30 evaluation + $40 activation**.
+
+Choose **Save and check candidates**, inspect the real backend work counts/source pool, then **Run campaign**. Exact button wording remains visible in the screenshots. Inspect either candidate using the report selector; it changes presentation only. Expand retained native paths to compare original source timestamps/prices with modeled target dates and account-state sizing. All four paths enter the metrics; retained detail is the first declared path IDs, not selected by outcome.
+
+Independent observations:
+
+- Funded 1 MNQ receives **$0**, while 3 MNQ receives **$1,500** in every modeled path. The 3 MNQ path has seven $900 trades, $6,300 trading profit, $1,500 gross account deduction, $1,500 trader receipt and $4,800 provider equity change from $50,000. Request January 30 and modeled receipt February 1 remain different events. The 3 MNQ candidate ranks first.
+- Evaluation 3 MNQ has all-path acquisition mean **$70 / 7 calendar days**; 10 MNQ has **$70 / 2 calendar days**. The 10 MNQ point dominates and is the complete Pareto frontier. No Funded cash data chooses Evaluation.
+- Conditional MCSE is zero only because these synthetic paths have constant arithmetic. It is not uncertainty about future markets or provider rules.
+
+For the three-session dynamic source, compare dollar risk **$100** and percentage risk **0.2% of current account balance**, with hard cap **40 MNQ**, initial configured capital $50,000, matching zero planning/execution costs, the same seed/paths/block/calendar and a **3-day** horizon. Retain all **4** paths. The dollar policy quantities by addressed path are `[10,5,10]`, `[10,10,10]`, `[5,5,10]`, `[10,10,10]`; percentage quantities are identical except the last path is `[10,9,10]`. The second quantity falls to 9 after the loss because current balance changes. Both policies receive $0 over this short horizon; neither is described as a profitable edge.
+
+Native support remains explicit: true MNQ, supported VWAP strategy, EOD-flat, strategy-local volatility sizing disabled, complete admitted minute sessions, known causal stop when risk sizing requires it. Unsupported strategy/instrument/calendar/open-risk cases reject; a fixed-trade path is not silently used as native evidence.
+
+## Freeze and inspect actual native OOS
+
+The separate complete IS/OOS fixture has five full synthetic IS sessions January 5–9 and five later full sessions January 26–30. Source-timezone split boundaries are January 4–9 and January 25–30 (UTC); these retain the complete overnight CME sessions. Its native forecast comparison uses start January 12, horizon 7 calendar days, coverage January 19, quantities 1 and 3 MNQ, the same 4 paths/seed/block and 2-day receipt delay.
+
+Select the 3 MNQ IS candidate, enter a rationale, and **Freeze selected candidates**. Then use **Launch OOS with frozen settings**. This is the existing selected-candidate manual OOS feature, distinct from the complete-procedure final verification below. Open the saved assessment: five actual later strategy trades use 3 MNQ, earn **$4,500**, deduct **$1,500** on January 30 and model a **$1,500 receipt on February 1** within the frozen seven-day window. The report links the actual controlled RunStore child. Its cash ledger, provider account state and normal trading equity remain separate. The frozen package bytes stay unchanged; there is no OOS ranking or replacement winner. Previously accessed history is not relabeled untouched.
+
+## Reproduce a protected complete-procedure application
+
+Use a fresh library for a new final-access demonstration. Reopening the saved release library is read-only, but it already contains the consumed final reservation and its access history; it cannot provide a second untouched claim.
+
+1. Upload the saved `SYNTHETIC-procedure-history.csv` through Datasets. Select UTC, MNQ, tick size **0.25**, point value **2** and **Validate and save metadata only** before validation. Dates/counts remain visible; price rows are hidden.
+2. Open dataset details → **Final research holdout reservations**. First/last CME sessions are **2026-01-23 / 2026-01-26**. With external access unknown, check shows **INSUFFICIENT_ACCESS_HISTORY**. Change to the explicit declaration that the sessions were not inspected, check again, and reserve. Eligibility is only under the recorded local scope; the external declaration remains unverified and there is no untouched-data certificate. The protected raw CSV download returns **409**.
+3. In the normal backtest grid choose **Consecutive green hold**: green count 1–2 step 1; hold minutes 1; contracts 1; one worker; initial capital $10,000; zero slippage and commission. Disable automatic legacy prop reports for this source grid. Declare UTC IS January 5–22 and OOS January 23–30. IS reports contain 14 sessions, with exact net profits **$4,200** and **$1,400**; their per-session nets are $300 and $100. No holdout strategy execution has occurred.
+4. Open either saved source report → Configure prop analysis → Nested research. Select both saved source configurations. Use rolling outer training **8 sessions**, test **2**, inner training **2**, validation **2**, purge **1**, embargo **1**, minimum inner folds **2**, outer folds **2**. Set qualification minima: folds 2, sessions 4, trades 4, trades per fold 2, positive-fold fraction 1, maximum profit concentration 0.6, extra round-trip cost $10, neighbors 1, bootstrap replicates 400/block 1/confidence 0.95/minimum tail samples 5.
+5. Enable independent Funded economic validation with default Apex 50K EOD profile, fixed quantities **10, 20 MNQ**, **8 simulations**, source block 1 and complete exact ties. Keep reliability defaults (including five minimum outer blocks). In final requirements, require a final holdout and enable minimum observed Funded trader receipts **$1**. This is a predeclared single-final-path rule, not a lower bound on future mean cash.
+6. Preview and run through the existing form. The two outer folds remain insufficient for the declared reliability requirement. In the completed report, choose the reserved dataset/session range, **Preview complete procedure and final feasibility**, then **Freeze reviewed complete procedure**. Review terminal training January 9–20 (8 sessions), inner validation January 15–16 and January 19–20, purge January 21, embargo January 22, final January 23/26 and exclusive cutoff January 27. Both original strategy configurations and the complete 2 × 2 signal/policy membership are frozen.
+7. Check frozen final access and run final verification. The procedure freshly qualifies both configurations on permitted terminal development information, then retains the four tied Funded policies before actual final replay. Each final policy receives **$0**. The predeclared $1 final floor therefore gives **FAILED_VERIFICATION_CRITERIA** with no final-based replacement or reselection. The earlier outer report bytes stay unchanged.
+8. Run frozen selection on current development. It repeats qualification on the pinned eligible history, excluding reserved final sessions; it does not copy a last-fold winner. Both terminal configurations again have means $100/$300 and the full four-policy family remains. The result says **NO QUALIFIED DEPLOYMENT CANDIDATE**, with research evidence, provider/model and operational blockers separately visible. Production qualified remains false.
+9. Open each terminal report, inspect the qualification/frozen choices/final evidence/readiness, download the ordinary JSON/ZIP and captured procedure, terminal plan, access evidence and journal. Reloading performs no POST or numerical work. At 390 px, the tables stack into labeled rows without horizontal page overflow.
+
+A saved result can be reopened with the ordinary application, using the exact library path and IDs in the release table. Start `ALPHAQUEST_DATA_DIR=<absolute library> .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8021`; open its listed hash route. Stop with Ctrl-C. All automated browser servers are temporary and stop in fixture teardown; none is left running.
+
+## Final release evidence
+
+Numerical source identity before and after all gates: `3a0b3bc7482e85b25d358b85459b43c84a4ee7113f52876c76130080aa09313b`. 23 saved downloads and 94 manifest ZIP members were independently rehashed. All five successful library journeys reopened without POST. Prior failed/probe evidence remains unchanged.
+
+| Example | Saved library under repository | Campaign | Saved analysis |
+| --- | --- | --- | --- |
+| Independent Evaluation | `artifacts/native-phase-optimization-m2e-20261108/browser-final/data/test_native_campaign_fixed_pol1` | `ba14bb3a868b4ea5aa1de1cc6ca1bcc7` | `b1b04f63de064c259447df279b2d75c7` |
+| Independent Funded | `artifacts/native-phase-optimization-m2e-20261108/browser-final/data/test_native_campaign_fixed_pol0` | `113882db496b466abae2cec6372854b1` | `a96f0bf7862a42f78778e83456936459` |
+| Dynamic native policies | `artifacts/native-phase-optimization-m2e-20261108/browser-final/data/test_native_campaign_compares_0` | `45ab863ead6049c7b4c7f7dc85845e75` | `13430d4f595648f38b16e2ecbb470be9` |
+| Actual native OOS | `artifacts/native-phase-optimization-m2e-20261108/browser-final-oos/data/test_native_campaign_frozen_ma0` | `43441085aba642369298772bea340fcd` | `3555539426b24304985796acb5c485be` |
+| Complete procedure | `artifacts/procedure-native-search-m3b2-20261108/browser-final/data/test_complete_procedure_final_0` | `4a6dc8026132441e80ed24b9b2a4d01b` | final: `42b4799b723141ef9aa1764649082357`; current: `9e62119071794a6bada85fdf1eef0e69` |
+
+Start from the repository root, replacing the library with the exact row above:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/<saved library>" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8021
+```
+
+For a campaign open `http://127.0.0.1:8021/#backtests/prop/campaign/<campaign-id>`; for a terminal or actual OOS report open `http://127.0.0.1:8021/#backtests/prop/job/<analysis-id>`. Native original source IDs and exact IS/OOS declarations are in each `evidence.json`; normal source report/CSV and hashes are retained. Procedure source CSV SHA-256 is `47bfeaf8e6465fd14975a9d02e7f750f3995ed029cb68810d85db49158e26b37`. Stop with Ctrl-C.
+
+Run the complete automated normal-product journey again in a fresh directory (preserve release evidence):
+
+```sh
+AQ_RELEASE_REPRO=$(mktemp -d /private/tmp/aq-release-repro.XXXXXX)
+.venv/bin/python -m pytest -q tests/test_native_campaign_browser.py tests/test_research_procedure_browser.py --basetemp "$AQ_RELEASE_REPRO/data" --junitxml "$AQ_RELEASE_REPRO/junit.xml"
+```
+
+Chromium/local-server process access is needed in the managed test environment. These commands run actual product calculations and stop their owned servers. The release logs contain only the existing Starlette/httpx deprecation warning in addition to the explicitly retained comma-format test failure. Numerical/API/legacy gates are documented separately by their owners; this browser evidence does not claim a full pytest run.
+
+Release gate scope: `tests/test_native_campaign_browser.py` first run produced **3 passed / 1 failed in 221.18 seconds**; the one failure expected a thousands comma in the displayed correct `1500.0` OOS cash. Only that assertion changed. Its fresh `browser-final-oos` rerun passed **1 test in 56.99 seconds**. `tests/test_research_procedure_browser.py` passed **1 test in 26.31 seconds**. Both earlier failed output and successful rerun remain saved. Seven owned JavaScript files passed `node --check`; no numerical code changed for the assertion repair.
+
+Copyable saved Funded campaign startup:
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/native-phase-optimization-m2e-20261108/browser-final/data/test_native_campaign_fixed_pol0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8021
+```
+
+Open `http://127.0.0.1:8021/#backtests/prop/campaign/113882db496b466abae2cec6372854b1`. Its ordinary source is `http://127.0.0.1:8021/#backtests/report/5c93d35b2855482d8e991545cee21988`. Stop with Ctrl-C before switching libraries.
+
+Copyable complete-procedure library startup:
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/procedure-native-search-m3b2-20261108/browser-final/data/test_complete_procedure_final_0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8021
+```
+
+Open final evidence at `http://127.0.0.1:8021/#backtests/prop/job/42b4799b723141ef9aa1764649082357` and current development at `http://127.0.0.1:8021/#backtests/prop/job/9e62119071794a6bada85fdf1eef0e69`. The original report is `http://127.0.0.1:8021/#backtests/report/248805ad876543bbb0d9fbb9813d03bb`; configure prop analysis and reopen the named nested campaign to inspect its saved whole-procedure controls. Stop with Ctrl-C.
+
+
+## M3b2 final product evidence — complete procedure, guarded final assessment, current development
+
+Saved normal product library and 73 captured downloads: `artifacts/procedure-native-search-m3b2-20261108/api-final/`. The complete checksum inventory and IDs are in `evidence.json`. The labeled synthetic source has 20 observed weekday sessions / 80 bars, using MNQ prices and $2/point. No future/live outcomes are claimed. The library is 15 MiB; it uses the ordinary DatasetStore, backtests, phase children and AnalysisStore.
+
+Engine identity before and after publication: `3a0b3bc7482e85b25d358b85459b43c84a4ee7113f52876c76130080aa09313b`.
+
+| Saved item | ID |
+|---|---|
+| Dataset | `c91f6599beda4111a92705f96076692f` |
+| Initial ordinary IS grid | `af8602a2cca5442a9cbbae676f1caf20` |
+| Saved IS sources | `ae14fa4dabd34c0ba40812757e10663e`, `ba0f9ea95c024dccbd90cff352bb2328` |
+| Robust campaign | `349584ff2619467285e6fdcd977d9515` |
+| Protected final reservation | `66f033ab7d7c486fabc8c13ff038231d` |
+| Procedure SHA-256 | `f43c4f4d9c64eb1e383526142af3d743be4c4761d079fe311ca29ddd666af4de` |
+| Final application / report | `15d61078cd1540c58468c5e3f5527c1a` / `444c363e2b7f472798848739a5e9e314` |
+| Current-development application / report | `acbf2b8d14e4442bb774469b4cee7226` / `f600c4f9abde49b1bdd05a926efb305f` |
+
+To reopen the saved product without recomputing:
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR=artifacts/procedure-native-search-m3b2-20261108/api-final/state \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8773
+```
+
+Open `http://127.0.0.1:8773/#backtests/prop/job/444c363e2b7f472798848739a5e9e314` for final verification, and `http://127.0.0.1:8773/#backtests/prop/job/f600c4f9abde49b1bdd05a926efb305f` for current selection. The normal report back link returns to the source's research configuration. Reopening is read-only and does not POST/run the analysis. Stop the temporary server with Ctrl-C. The publisher used TestClient lifespans and left no persistent server running.
+
+Expected observations:
+
+1. The dataset entered through `disclosure=metadata_only`, with `preview=[]`. Final sessions January 23 and 26 were reserved before the initial January 5–22 IS optimization. The captured `rejections/protected-csv.json` is a 409; inventory/checking did not expose protected OHLC. The reservation is eligible only within the recorded local scope and the user's unverified external-access declaration, not a universal untouched certificate.
+2. Two actual `consecutive_green_hold` configurations have independent one-contract arithmetic: $300 and $100 net per selected validation session. Both qualify. Whole-session purge and embargo exclude January 21 and 22 from terminal training; terminal training is January 9–20, with the same inner qualification law. It is a new terminal fit, not either outer fold's winner.
+3. The Funded study independently evaluates 10 and 20 MNQ for each qualified signal configuration. The four exact estimated receipt ties remain a four-member family. This case uses the supported saved fixed-signal-path scenario; the separately documented native search evidence demonstrates account-controlled strategy reruns. Neither case is live execution evidence.
+4. The procedure was predeclared to require final verification and at least $1 of trader receipts. Each frozen final policy receives exactly $0 over the two actual final sessions: this short window cannot satisfy the profile's required payout trading-day history. The predeclared gate therefore reports `FAILED_VERIFICATION_CRITERIA`; it does not choose a different policy from the holdout.
+5. Current development reruns the complete frozen qualification/selection procedure on the pinned eligible history, excluding final observations. It retains the same complete family as diagnostics and returns `NO_QUALIFIED_DEPLOYMENT_CANDIDATE`. The insufficient reliability evidence and failed final gate are explicit; provider/operational readiness remains unqualified.
+6. The original campaign report and both application report downloads reopen byte-for-byte unchanged after a fresh app lifespan. `rejections/consumed-final.json` rejects a new final application against the consumed reservation. No new clean holdout claim or hidden repeated selection occurs.
+
+Normal downloads:
+
+- Campaign: `/api/research-campaigns/robust/349584ff2619467285e6fdcd977d9515/exports/report.json`.
+- Final report/archive/procedure/selection/access evidence: `/api/research-campaigns/robust/349584ff2619467285e6fdcd977d9515/applications/15d61078cd1540c58468c5e3f5527c1a/exports/{kind}`.
+- Current equivalents use application `acbf2b8d14e4442bb774469b4cee7226`.
+- Normal AnalysisStore links remain `/api/prop-analyses/{analysis_id}/downloads/report.json` and `/files/{artifact_name}`. Child folders preserve provider rules, source checks, training context and phase metrics; `final-outer/` preserves actual ordinary final backtests and trade/decision downloads.
+
+For a new reproducible run, use a fresh local data directory and the labeled `SYNTHETIC-source.csv`, follow the saved `optimization-request.json`, `declaration.json`, `procedure-freeze-request.json`, `final-request.json` and `current-request.json`, and generate new UUIDs/preview hashes from the current API. Do not reuse the consumed final reservation or call the original saved evidence “untouched” again. `publish.py` documents the complete normal-route sequence and refuses to overwrite the immutable evidence directory.
+
+Validation: `api-gate-final/pytest.log` records 312 passing cases and one sandbox socket rejection before parallel calculation; `multiprocess.log` records that exact case passing outside the socket restriction (313 verified cases in total). The gate covers procedure/folds/phase selection, ordinary robust/economic/reference APIs, imports, research workflow, date/bar readers and datasets. Independent repaired access/cancellation probes passed 7/7, retaining their original failing logs under `/private/tmp/aq-procedure-independent-review/`. Additional terminal-reference role coverage is recorded separately in `terminal-reference.log`. These are scoped gates, not the complete final repository/provider qualification.
+### Native nested family and release verification
+
+The native nested API library is
+`artifacts/native-phase-optimization-m2e-20261108/api-final/data/test_native_inner_search_and_f0`.
+Source `a4401109600547bcbd1bbc477656fa6d`, campaign
+`448f16b24d58474aa490b4d261af5239`, report
+`471d2676eba04de99212fd35439ffb7b` preserve the complete two-policy family in both
+outer folds. The nine-session labeled MNQ source uses train 5/test 2, inner train
+1/validation 2, no gaps, two required inner and outer folds. Each inner validation
+has two actual observations for its one-session block bootstrap; extra bootstrap
+replicates cannot replace that history. The saved `native-nested-evidence.json`
+contains the exact declaration, expected outcomes and report checksum.
+
+Independently, both $100 fixed-risk and 0.2% current-balance policies submit 10/10
+MNQ in each actual two-session outer window. Two $20-per-contract winning days
+give $400 trading profit and $0 payout receipts under the profile's trading-day
+requirement. Both exact receipt ties stay frozen; there is no outer-based winner.
+Each result links a normal protected controlled backtest. As in the browser
+libraries, set `ALPHAQUEST_DATA_DIR` to this path and open the saved report through
+`#backtests/prop/job/471d2676eba04de99212fd35439ffb7b`; stop the temporary server
+with Ctrl-C.
+
+Root's read-only `verify_saved_release.py` checked 29 complete ordinary reports
+and 454 component files across the final API/browser libraries, comparing every
+file's size/SHA-256 and archive bytes. Output is `root-saved-verification.json` in
+the native milestone artifact root. API tests additionally prove that changing
+only a controlled child's catalogue manifest rejects an idempotent assessment
+reuse while leaving the saved report bytes intact. Original failed probe logs
+and immutable snapshots remain available; no earlier report was rewritten.
+
+The frozen engine's API gate passed **51 checks**; native owner gates passed
+**71** and **114** checks. Legacy campaign/regression passed **37** with one
+socket-permission failure; that exact two-worker case passed after granting local
+process access. The procedure/access gate passed **312**, its one socket-blocked
+case passed on the targeted rerun, and the additional terminal-reference case
+passed. The complete gate matrix, timings and paths are in
+[the implementation checklist](robust_research_plan.md#m2e--m3b2-release-native-phase-search-and-guarded-complete-procedures).
+Counts overlap and do not constitute a full repository-suite pass.
+
+Reproduce the native root gates on the saved release code, using a new output
+directory to preserve this evidence:
+
+```sh
+AQ_NATIVE_RELEASE=$(mktemp -d /private/tmp/aq-native-release.XXXXXX)
+.venv/bin/python -m pytest -q tests/test_native_phase_campaigns.py \
+  tests/test_native_nested_economics.py tests/test_research_phase_selection.py \
+  tests/test_phase_analysis_cancellation.py \
+  --basetemp "$AQ_NATIVE_RELEASE/data" --junitxml "$AQ_NATIVE_RELEASE/junit.xml"
+```
+
+The complete source snapshot is `qualified-source.tar.gz` in the native milestone
+artifact root; later code changes may correctly reject new calculations from an
+older frozen package. Saved reports remain readable without recalculation.

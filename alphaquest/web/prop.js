@@ -595,7 +595,32 @@
     for(const path of Object.keys(r.files).sort())fileLink(p,path,names[path]||(path.startsWith('charts/')?`Original ${path.split('/').pop().replace('.svg','')} chart (SVG)`:path.endsWith('.xlsx')?'Original measured-excursion export (XLSX)':path));
     selectView('overview');window.scrollTo(0,0);
   }
-  async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(['error','incompatible'].includes(j.status)){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token){if(r.request?.mode==='native_phase_replay')window.nativeReplay.renderAnalysis(r);else if(['evaluation','funded'].includes(r.phase))window.phaseCampaigns.renderAnalysis(r);else if(r.phase==='research_integrity')window.robustResearch.renderAnalysis(r);else render(r);}return;}await new Promise(resolve=>setTimeout(resolve,700));}}
+  async function watch(id,t){
+    $('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-report-content').replaceChildren();
+    while(t===token){
+      const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;
+      $('#prop-status').textContent=`${j.status} · ${j.progress}`;
+      if(['error','incompatible'].includes(j.status))throw Error(j.error);
+      if(j.status==='cancelled'){
+        $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();
+        p.append(el('p','The phase analysis stopped at a safe checkpoint. No partial candidate population is published. A new run must evaluate the complete saved declaration.'));
+        const back=el('a','Return to source configuration');back.href=`#backtests/prop/new/${j.source_id}`;p.append(back);return;
+      }
+      if(j.capabilities?.cooperative_cancel){
+        $('#prop-report').hidden=false;let stop=$('#prop-analysis-cancel');
+        if(!stop){const p=$('#prop-report-content');p.replaceChildren(el('p','A stop request takes effect at the next safe calculation checkpoint. A finishing report may complete before the request arrives.'));
+          stop=el('button','Request stop at next checkpoint','button secondary');stop.id='prop-analysis-cancel';stop.type='button';p.append(stop);
+          stop.onclick=async()=>{stop.disabled=true;try{const response=await fetch(`/api/prop-analyses/${id}/cancel`,{method:'POST'});const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:'Could not request a stop.');}catch(e){$('#prop-status').textContent=e.message;stop.disabled=false;}};
+        }
+        if(j.stop_requested)stop.disabled=true;
+      }
+      if(j.status==='complete'){
+        const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);
+        if(t===token){if(r.request?.mode==='native_phase_replay')window.nativeReplay.renderAnalysis(r);else if(['evaluation','funded'].includes(r.phase))window.phaseCampaigns.renderAnalysis(r);else if(r.phase==='research_integrity')window.robustResearch.renderAnalysis(r);else render(r);}return;
+      }
+      await new Promise(resolve=>setTimeout(resolve,700));
+    }
+  }
   async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{const campaign=location.hash.match(/^#backtests\/prop\/campaign\/([a-f0-9]{32})$/);if(campaign){await window.phaseCampaigns.watch(campaign[1],()=>t===token);return;}if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3]);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
 
   async function deleteProp(id,row){

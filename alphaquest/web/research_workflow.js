@@ -89,8 +89,8 @@
   function showStudy(parent, study) {
     const section = node('details'); section.append(node('summary', phaseLabel(study.phase)));
     section.append(node('p', selectionLabel(study.selector)));
-    table(section, ['Account profile', 'Saved rule version', 'Fixed MNQ policies', ...(study.phase === 'evaluation' ? ['Evaluation fee · USD', 'Activation fee · USD'] : [])],
-      study.profiles.map(profile => [profile.profile_id, profile.rule_version, study.policies.map(policy => policy.micros).join(', '),
+    table(section, ['Account profile', 'Saved rule version', 'Declared sizing policies', ...(study.phase === 'evaluation' ? ['Evaluation fee · USD', 'Activation fee · USD'] : [])],
+      study.profiles.map(profile => [profile.profile_id, profile.rule_version, study.policies.map(policyLabel).join('; '),
         ...(study.phase === 'evaluation' ? [profile.evaluation_price, profile.activation_fee] : [])]));
     const labels = {maximum_cost_per_funded: 'Maximum expected acquisition cost · USD',
       maximum_expected_calendar_days: 'Maximum expected acquisition time · calendar days',
@@ -102,7 +102,7 @@
     table(section, ['Declared constraint', 'Value'], Object.entries(labels).filter(([key]) => constraints[key] !== undefined).map(([key, label]) => [label, constraints[key] ?? 'Not imposed']));
     section.append(node('p', `Exact objective ties: ${study.selector?.tie_policy === 'configuration_id' ? 'choose the first by stable configuration ID' : 'retain the complete tied family'}.`));
     const settings = [['Forecast paths per candidate', study.simulation?.simulations], ['Simulation seed', study.simulation?.seed],
-      ['Account size ceiling · MNQ', study.simulation?.max_micros], ['Resampling block · weekdays', study.sampling?.block_weekdays], ['Costs', study.costs?.mode === 'source' ? 'Saved source costs; no second deduction' : study.costs?.mode],
+      ['Account size ceiling · MNQ', study.simulation?.max_micros], [study.search_settings?.native_execution ? 'Contiguous observed source sessions per block' : 'Resampling block · weekdays', study.sampling?.block_weekdays], ['Costs', study.costs?.mode === 'source' ? 'Saved source costs; no second deduction' : study.costs?.mode],
       ['Declared calendar version', study.search_settings?.calendar?.version], ['Calendar timezone', study.search_settings?.calendar?.timezone],
       ['Declared closed dates', valueText(study.search_settings?.calendar?.closures || [])]];
     if (study.phase === 'evaluation') settings.push(['Acquisition forecast chains', study.sampling?.chain_simulations], ['Acquisition seed', study.sampling?.chain_seed],
@@ -111,6 +111,10 @@
     else settings.push(['Forecast horizon · calendar days', study.search_settings?.horizon_calendar_days ?? 'Derived from each outer interval; see the chronological plan'],
       ['Receipt delay · calendar days', study.search_settings?.receipt_delay_calendar_days]);
     table(section, ['Saved forecast assumption', 'Value'], settings.map(([label, value]) => [label, valueText(value)]));
+    if (study.search_settings?.native_execution) {
+      section.append(node('p', 'Actual native strategy opportunities, account-state quantities and fills are rerun under the saved source-block law. Chronological outer execution uses actual later bars; it is separate from these modeled forecasts.'));
+      table(section, ['Native execution declaration', 'Saved value'], Object.entries(study.search_settings.native_execution).map(([key, value]) => [words(key), valueText(value)]));
+    }
     if (study.search_settings?.conservative_objective) {
       section.append(node('p', 'The conservative objective resamples historical session blocks and re-estimates expected cash. Its lower empirical percentile concerns the mean estimate, not the payout of one account. It is neither a Monte Carlo-only confidence interval nor a future guarantee.'));
       table(section, ['Historical mean requirement', 'Saved value'], Object.entries(study.search_settings.conservative_objective).map(([key, value]) => [words(key), value]));
@@ -118,7 +122,17 @@
     if (study.phase === 'funded') section.append(node('p', 'Forecast and chronological replay both use unrounded modeled trader entitlement. This fixed receipt amount convention preserves comparability; it is not a statement of bank settlement or cent rounding.'));
     parent.append(section);
   }
+  function policyLabel(policy) {
+    const sizing = policy.sizing?.policy;
+    if (!sizing) return `${policy.micros} MNQ fixed`;
+    if (sizing.kind === 'fixed_contracts') return `${sizing.contracts} MNQ fixed`;
+    return `${sizing.kind === 'fixed_dollar_risk' ? `$${sizing.risk_dollars} planned risk` : `${sizing.risk_percent}% of ${words(sizing.reference)}`} · cap ${policy.micros} MNQ`;
+  }
   function showChronologicalReplay(parent, replay) {
+    if (replay.mode === 'native_historical_chronological_replay') {
+      window.nativeReplay.renderChronologicalEvidence(parent, replay, {phase: replay.phase, receiptDelay: replay.receipt_delay_calendar_days, prefix: 'robust-native-replay'});
+      return;
+    }
     const section = node('section', undefined, 'robust-chronological-result'); parent.append(section);
     section.append(node('h4', 'Historical chronological replay · one observed path'));
     section.append(node('p', 'This is one local replay of the dated outer observations under the previously frozen policy. It is separate from the earlier Monte Carlo forecast; it does not establish future or provider performance.'));
@@ -162,8 +176,8 @@
   function economicControls(parent, defaults, changed) {
     const section = node('details'); section.id = 'robust-economic-configure';
     section.append(node('summary', '6. Economic validation · optional independent phase studies'));
-    section.append(node('p', 'Every qualified strategy configuration enters each enabled study at every declared profile and fixed MNQ quantity. The saved selection rule freezes its choices before outer strategy execution. No second strategy grid or combined Evaluation / Funded score is used.'));
-    section.append(node('p', 'Native studies currently support fixed quantities without account-cushion sizing guards. Dollar or percentage risk sizing requires account-state strategy reruns. Imported trade sources do not acquire native nested-replay capability.'));
+    section.append(node('p', 'Every qualified strategy configuration enters each enabled study at every declared profile and policy. The saved selection rule freezes its choices before outer strategy execution. No second strategy grid or combined Evaluation / Funded score is used.'));
+    section.append(node('p', 'Dollar or percentage risk policies require the explicit native account-state execution model and compatible strategy sources. Existing trade-path studies retain fixed quantities. Imported trade sources do not acquire native nested-replay capability.'));
     parent.append(section);
     const studies = [];
     for (const phase of ['evaluation', 'funded']) {
@@ -189,6 +203,15 @@
       }
       const quantities = field(fields, 'Fixed MNQ quantities to compare · comma-separated whole numbers', prefix + 'quantities', template.policies.map(policy => policy.micros).join(', '), 'text');
       fields.append(node('p', 'Requested quantities remain subject to the saved account size ceiling, phase size tiers and daily account rules.'));
+      const execution = select(fields, 'Forecast and outer execution', prefix + 'execution', [['trade_path', 'Saved trade-path scenarios · existing'], ['native', 'Actual native strategy reruns · MNQ']]);
+      execution.options[1].disabled = !defaults.native_execution;
+      const nativeFields = node('fieldset'); nativeFields.id = prefix + 'native-fields'; nativeFields.disabled = nativeFields.hidden = true; fields.append(nativeFields);
+      nativeFields.append(node('legend', 'Native account-state policy comparison'), node('p', 'The fixed quantities above remain separate policies. Every additional dollar or percentage policy is compared at every hard cap below. Every qualified strategy and selected profile enters the complete membership.'));
+      const riskCaps = field(nativeFields, 'Hard MNQ caps for additional risk policies', prefix + 'risk-caps', '40', 'text');
+      const readRiskPolicies = window.phaseCampaigns.sizingControls(nativeFields, riskCaps, {riskOnly: true, maximumContracts: 40, prefix: prefix + 'risk-'});
+      const capture = field(nativeFields, 'Retained detailed forecast paths per candidate · first IDs', prefix + 'capture-paths', defaults.native_execution?.capture_paths || 1); capture.min = 1; capture.max = 20;
+      const readEarlyCloses = window.nativeReplay.dateRows(nativeFields, 'Modeled early closes', prefix + 'early-close', {withTime: true});
+      nativeFields.append(node('p', 'Each fold supplies its own forecast start, exclusive cutoff and calendar-day horizon. Native draws use original observed source prices with prior-only warmup; provider state continues across sampled blocks. Outer execution uses the later actual bars and the frozen policy. Modeled calendar declarations remain unverified.'));
       const selector = node('div', undefined, 'prop-fields'); fields.append(selector);
       let historical = null; const historicalInputs = {};
       const mode = select(selector, 'Predeclared selection rule', prefix + 'selector', phase === 'evaluation' ? [
@@ -279,25 +302,57 @@
       const closures = field(calendarFields, 'Known closed session dates · YYYY-MM-DD, separated by commas', prefix + 'calendar-closures', (calendarTemplate.closures || []).join(', '), 'text'); closures.required = false;
       calendar.append(node('p', 'This is a saved calendar declaration. The weekday default has no official holiday verification. Missing expected open sessions block chronological replay; they are not filled with zero trades. Enter known closures before running.'));
       fields.append(node('p', 'Forecast scenario dates and chronological outer intervals are derived from each fold and saved in the preview. Source costs are retained without a second deduction.'));
+      let previousExecution = 'trade_path'; const executionInputs = {};
+      const nativeMode = () => execution.value === 'native';
+      const syncNativePaths = () => { if (!nativeMode()) return; for (const [key, sourceKey] of [['chain_simulations', 'simulations'], ['chain_seed', 'seed']]) { const target = inputs.find(item => item.key === key), source = inputs.find(item => item.key === sourceKey); if (target && source) target.input.value = source.input.value; } };
+      execution.onchange = () => {
+        executionInputs[previousExecution] = Object.fromEntries(inputs.map(({key, input}) => [key, input.value]));
+        const active = nativeMode(), saved = executionInputs[execution.value];
+        for (const {key, input} of inputs) {
+          const initial = {simulations: defaults.native_execution?.simulations, seed: defaults.native_execution?.seed, block_weekdays: defaults.native_execution?.block_sessions, max_micros: 40};
+          if (saved?.[key] !== undefined) input.value = saved[key]; else if (active && initial[key] !== undefined) input.value = initial[key];
+          if (key === 'simulations') input.max = active ? '512' : '20000';
+          if (key === 'max_micros') input.max = active ? '40' : phase === 'evaluation' ? '60' : '40';
+          if (['chain_simulations', 'chain_seed', 'horizon_calendar_days'].includes(key)) { input.disabled = active; input.closest('label').hidden = active; }
+          if (key === 'block_weekdays') { input.max = active ? '10' : ''; input.closest('label').firstChild.textContent = active ? 'Contiguous observed source sessions per block · 1, 5 or 10' : 'Resampling block · weekdays'; }
+        }
+        previousExecution = execution.value; nativeFields.disabled = nativeFields.hidden = !active; quantities.required = !active;
+        syncNativePaths(); changed();
+      };
+      for (const {key, input} of inputs) if (['simulations', 'seed'].includes(key)) input.addEventListener('input', syncNativePaths);
       enabled.onchange = () => { fields.disabled = !enabled.checked; fields.hidden = !enabled.checked; changed(); };
       studies.push(() => {
         if (!enabled.checked) return null;
         const study = structuredClone(template);
         study.profiles = profileInputs.filter(item => item.chosen.checked).map(({profile, fees}) => ({...profile, ...Object.fromEntries(Object.entries(fees).map(([key, input]) => [key, input.value]))}));
         if (!study.profiles.length) throw Error(`Choose at least one ${phase} account profile.`);
-        const values = quantities.value.split(',').map(value => value.trim());
-        const maximum = phase === 'evaluation' ? 60 : 40;
+        const values = quantities.value.trim() ? quantities.value.split(',').map(value => value.trim()) : [];
+        const maximum = nativeMode() ? 40 : phase === 'evaluation' ? 60 : 40;
         if (values.some(value => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > maximum)) throw Error(`${words(phase)} fixed quantities must be whole MNQ from 1 to ${maximum}.`);
         if (new Set(values.map(Number)).size !== values.length) throw Error(`${words(phase)} fixed quantities must be unique.`);
         study.policies = values.map(value => ({micros: Number(value)}));
+        if (nativeMode()) {
+          const policies = readRiskPolicies() || [];
+          if (policies.length) {
+            const caps = riskCaps.value.split(',').map(value => value.trim());
+            if (caps.some(value => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 40) || new Set(caps.map(Number)).size !== caps.length) throw Error('Native risk caps must be distinct whole MNQ from 1 to 40.');
+            study.policies.push(...caps.flatMap(value => policies.map(sizing => ({micros: Number(value), sizing}))));
+          }
+          study.search_settings.native_execution = {model: defaults.native_execution.model, capture_paths: Number(capture.value), early_closes: readEarlyCloses()};
+        }
+        if (!study.policies.length) throw Error(`Declare at least one ${phase} fixed quantity or risk policy.`);
         study.selector = {...study.selector, mode: mode.value, tie_policy: ties.value};
         for (const [key, setting] of optional) {
           const target = setting.group === 'constraints' ? (study.search_settings.constraints ||= {}) : study[setting.group];
           target[key] = setting.toggle.checked ? setting.group === 'selector' ? setting.input.value : Number(setting.input.value) : null;
         }
         for (const {group, key, input} of inputs) study[group][key] = Number(input.value);
+        if (nativeMode()) {
+          delete study.search_settings.horizon_calendar_days;
+          if (phase === 'evaluation') Object.assign(study.sampling, {chain_simulations: study.simulation.simulations, chain_seed: study.simulation.seed});
+        }
         if (phase === 'funded') study.search_settings.conservative_objective = mode.value === 'conservative_expected_received_cash'
-          ? {...defaults.conservative_objective, ...Object.fromEntries(Object.entries(historicalInputs).map(([key, input]) => [key, Number(input.value)]))} : null;
+          ? {...defaults.conservative_objective, ...(nativeMode() ? {method: 'native_origin_block_bootstrap_lower_mean_v1'} : {}), ...Object.fromEntries(Object.entries(historicalInputs).map(([key, input]) => [key, Number(input.value)]))} : null;
         const closedDates = closures.value.split(',').map(value => value.trim()).filter(Boolean);
         if (closedDates.some(value => !/^\d{4}-\d{2}-\d{2}$/.test(value))) throw Error('Use YYYY-MM-DD for each declared closed session date.');
         study.search_settings.calendar = {...calendarTemplate, version: calendarVersion.value.trim(), timezone: calendarTimezone.value.trim(), closures: closedDates};
@@ -326,13 +381,13 @@
       if (decision.excluded?.length) table(study, ['Candidate', 'Failed economic limits'], decision.excluded.map(item => [item.candidate_id, (item.constraints || []).map(words).join(', ')]));
       const forecasts = phase.training_forecasts || [], evaluation = phase.phase === 'evaluation';
       if (forecasts.length) {
-        const forecastTable = table(study, ['Frozen candidate', 'Strategy and parameters', 'Profile / fixed MNQ',
+        const forecastTable = table(study, ['Frozen candidate', 'Strategy and parameters', 'Profile / sizing policy',
           ...(evaluation ? ['Expected acquisition cost · USD', 'Expected acquisition time · calendar days', 'Pass probability · 0–1', 'MC standard error · cost / days']
             : ['Expected received cash · USD', 'P10 received cash · USD', 'Breach probability · 0–1', 'MC mean standard error · USD'])], forecasts.map(item => {
           const config = item.manifest.configuration, metrics = item.metrics || {}, uncertainty = item.uncertainty || {};
           const source = node('div', candidateLabel({strategy_id: item.manifest.strategy.id, parameters: item.manifest.strategy.parameters}));
           source.append(node('br'), link('Open training backtest', `#backtests/report/${config.source.source_backtest_id}`));
-          return [item.candidate_id.slice(0, 12), source, `${config.profile.profile_id} / ${config.micros}`,
+          return [item.candidate_id.slice(0, 12), source, `${config.profile.profile_id} / ${policyLabel(config)}`,
             ...(evaluation ? [metrics.cost_per_funded, metrics.expected_calendar_days_to_funded, metrics.pass_probability, `${valueText(uncertainty.cost_se)} / ${valueText(uncertainty.calendar_mean_se)}`]
               : [metrics.expected_payouts, metrics.p10_payouts, metrics.account_breach_probability, uncertainty.mean_monte_carlo_se])];
         })); forecastTable.classList.add('robust-training-forecasts');
@@ -381,7 +436,7 @@
       table(detail, ['Reference declaration', 'Saved value'], [
         ['Required reference', valueText(reference.required)], ['Original edge qualification', reference.edge_qualification?.status],
         ['Signal configuration', package_ ? candidateLabel({strategy_id: package_.strategy.id, parameters: package_.strategy.parameters}) : 'Unavailable'],
-        ['Account profile / fixed MNQ', package_ ? `${package_.configuration.profile.profile_id} / ${package_.configuration.micros}` : 'Unavailable'],
+        ['Account profile / sizing policy', package_ ? `${package_.configuration.profile.profile_id} / ${policyLabel(package_.configuration)}` : 'Unavailable'],
         ['Recommendation eligible', 'No'], ['Reference seal SHA-256', reference.reference_seal_sha256], ['Frozen reference SHA-256', package_?.package_sha256]]);
       list(detail, (reference.edge_qualification?.reasons || []).map(reason));
       if (forecast) table(detail, ['Earlier reference forecast', 'Value'], reference.phase === 'funded'
@@ -486,6 +541,9 @@
     function profiles(row, initial = false) {
       const study = plan?.economic_studies?.find(study => study.phase === row.phase.value);
       options(row.profile, (study?.profiles || []).map(profile => [encodedProfile(profile), `${profile.profile_id} · ${profile.rule_version}${row.phase.value === 'evaluation' ? ` · fees $${profile.evaluation_price} + $${profile.activation_fee}` : ''}`]), initial);
+      const native = !!study?.search_settings?.native_execution;
+      row.nativeFields.disabled = row.nativeFields.hidden = !native;
+      row.quantity.max = native || row.phase.value === 'funded' ? 40 : 60;
     }
     function updateRow(row, initial = false) {
       options(row.source, (plan?.candidates || []).map(candidate => [candidate.id, candidateLabel(candidate)]), initial);
@@ -500,10 +558,12 @@
       const id = field(grid, 'Readable reference ID · unique within this research', prefix + 'id', `${defaults.baseline?.id || 'One MNQ reference'}${number > 1 ? ` ${number}` : ''}`, 'text'); id.maxLength = 120; id.required = false;
       const phase = select(grid, 'Independent phase', prefix + 'phase', []), source = select(grid, 'Declared signal configuration', prefix + 'source', []);
       const profile = select(grid, 'Declared phase profile', prefix + 'profile', []), quantity = field(grid, 'Fixed MNQ quantity', prefix + 'micros', defaults.baseline?.policy?.micros || 1); quantity.min = 1; quantity.max = 60; quantity.step = 1;
+      const nativeFields = node('fieldset'); nativeFields.append(node('legend', 'Reference sizing · native execution only')); entry.append(nativeFields);
+      const readSizing = window.phaseCampaigns.sizingControls(nativeFields, quantity, {native: true, prefix: prefix + 'policy-', execution: plan.execution_settings});
       const label = node('label', undefined, 'robust-source-choice'), required = node('input'); required.type = 'checkbox'; required.id = prefix + 'required'; required.checked = defaults.baseline?.required !== false;
       label.append(required, node('span', 'Required reference · missing evidence blocks a supported comparison')); entry.append(label);
-      entry.append(node('p', 'Fixed quantities may be outside the optimizer quantity grid. Native dollar-risk or state-dependent references require a strategy rerun and are currently unavailable.'));
-      const row = {id, phase, source, profile, quantity, required}; references.set(number, row); updateRow(row, true);
+      entry.append(node('p', 'References may be outside the optimizer policy grid. Native dollar-risk or state-dependent references require the matching study to use actual strategy reruns. A required reference is never silently removed from the comparison.'));
+      const row = {id, phase, source, profile, quantity, required, nativeFields, readSizing}; references.set(number, row); updateRow(row, true);
       phase.onchange = () => { profiles(row, true); changed(); }; required.onchange = changed;
       button(entry, 'Remove reference', prefix + 'remove').onclick = () => { references.delete(number); entry.remove(); changed(); };
       changed();
@@ -522,7 +582,9 @@
           const id = row.id.value.trim(), micros = Number(row.quantity.value);
           if (!id || !row.source.value || !row.phase.value || !row.profile.value) throw Error('Complete each baseline ID, signal configuration, phase and profile. Refresh reference choices after changing sources or studies.');
           if (!Number.isInteger(micros) || micros < 1 || micros > (row.phase.value === 'evaluation' ? 60 : 40)) throw Error('Baseline quantities must be supported whole MNQ counts.');
-          result.push({id, phase: row.phase.value, source_configuration_id: row.source.value, profile: JSON.parse(row.profile.value), policy: {micros}, required: row.required.checked});
+          const study = plan.economic_studies.find(study => study.phase === row.phase.value), sizing = study.search_settings?.native_execution ? row.readSizing()?.[0] : undefined;
+          if (sizing?.policy.kind === 'fixed_contracts' && sizing.policy.contracts !== micros) throw Error('A fixed reference policy quantity must equal its declared MNQ quantity. Use a dollar or percentage policy when the quantity is a hard cap.');
+          result.push({id, phase: row.phase.value, source_configuration_id: row.source.value, profile: JSON.parse(row.profile.value), policy: {micros, ...(sizing ? {sizing} : {})}, required: row.required.checked});
         }
         if (new Set(result.map(row => row.id)).size !== result.length) throw Error('Each baseline needs a unique readable reference ID.');
         return result;
@@ -551,24 +613,24 @@
     action.value = defaults.reliability?.abstention_action || 'unmeasured';
     const label = node('label', undefined, 'robust-source-choice'), required = node('input'); required.type = 'checkbox'; required.id = 'robust-reliability-require_baseline_for_recommendation'; required.checked = defaults.reliability?.require_baseline_for_recommendation !== false;
     label.append(required, node('span', 'Require baseline evidence before a future recommendation can be supported')); section.append(label);
-    section.append(node('p', 'This increment assesses historical evidence only. Final holdout and deployment recommendation controls are not available. Monte Carlo precision, historical sampling uncertainty, and model/rule/execution uncertainty remain separate.'));
+    section.append(node('p', 'These are historical evidence requirements. Final verification must apply the complete frozen procedure, followed by a fresh selection on eligible development history. Monte Carlo precision, historical sampling uncertainty, and model/rule/execution uncertainty remain separate.'));
     return () => ({...defaults.reliability, ...Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, key === 'minimum_baseline_mean_improvement' ? input.value : Number(input.value)])),
       abstention_action: action.value, require_baseline_for_recommendation: required.checked});
   }
-  function showChronologicalFamily(parent, fold) {
+  function showChronologicalFamily(parent, fold, {title = 'Frozen-policy outer observations', periodLabel = 'outer'} = {}) {
     const chronological = fold.chronological_replay;
     if (!chronological) return;
     const section = node('section', undefined, 'robust-outer-evidence');
-    section.append(node('h3', 'Frozen-policy outer observations'), node('p', `Chronological execution: ${chronological.status}.`));
+    section.append(node('h3', title), node('p', `Chronological execution: ${chronological.status}.`));
     if (chronological.interpretation) section.append(node('p', chronological.interpretation));
     if (!chronological.items?.length) {
       section.append(node('p', 'No frozen policy was replayed. An abstention has no fabricated fees, account, payout or performance observation.'));
       parent.append(section); return;
     }
     const frozen = new Map((fold.economic_selection?.phases || []).flatMap(phase => (phase.frozen_packages || []).map(item => [item.candidate_id, item])));
-    table(section, ['Independent phase / frozen candidate', 'Profile / fixed MNQ', 'Historical outcome', 'Paid acquisition fees · USD', 'Received cash · USD', 'Pending receipts / activation · USD'], chronological.items.map(item => {
+    table(section, ['Independent phase / frozen candidate', 'Profile / sizing policy', 'Historical outcome', 'Paid acquisition fees · USD', 'Received cash · USD', 'Pending receipts / activation · USD'], chronological.items.map(item => {
       const policy = frozen.get(item.candidate_id), result = item.result;
-      return [`${words(item.phase)} / ${item.candidate_id.slice(0, 12)}`, policy ? `${policy.configuration.profile.profile_id} / ${policy.configuration.micros}` : 'Unavailable',
+      return [`${words(item.phase)} / ${item.candidate_id.slice(0, 12)}`, policy ? `${policy.configuration.profile.profile_id} / ${policyLabel(policy.configuration)}` : 'Unavailable',
         result.outcome, item.phase === 'evaluation' ? result.paid_fees : 'Not part of this phase',
         item.phase === 'funded' ? result.cash_received : 'Not part of this phase', item.phase === 'funded' ? result.pending_cash : result.pending_activation];
     }), `robust-outer-summary-${fold.index}`);
@@ -576,7 +638,7 @@
       const detail = node('details'); detail.className = 'robust-outer-policy'; detail.open = index === 0;
       detail.dataset.phase = item.phase; detail.dataset.candidateId = item.candidate_id;
       detail.append(node('summary', `${words(item.phase)} · frozen ${item.candidate_id.slice(0, 12)} · ${item.result.outcome || 'observation'}`));
-      detail.append(link('Open ordinary outer backtest', `#backtests/report/${item.outer_run_id}`));
+      detail.append(link(periodLabel === 'outer' ? 'Open ordinary outer backtest' : `Open actual ${periodLabel} backtest`, `#backtests/report/${item.outer_run_id}`));
       const identity = node('details'); identity.append(node('summary', 'Frozen-to-outer evidence identity'));
       table(identity, ['Evidence', 'Saved SHA-256'], [['Frozen policy', item.frozen_package_sha256], ['Selection seal', chronological.selection_seal_sha256],
         ['Replay input manifest', item.result.input_manifest_sha256], ['Chronological source book', item.result.source_book_sha256]]); detail.append(identity);
@@ -602,7 +664,7 @@
       const economic = plan.economic_plan;
       parent.append(node('h4', 'Predeclared independent economic studies'));
       parent.append(node('p', `Work before qualification is known: up to ${economic.estimated_training_backtests} training backtests and ${economic.estimated_outer_backtests} outer backtests, included in the total. Up to ${economic.maximum_phase_candidates} phase forecasts, including any declared references, enter the saved procedure; optimized membership uses all qualified configurations.`));
-      table(parent, ['Independent phase', 'Profiles', 'Fixed policies', 'Maximum candidates per fold', 'Saved selection rule'], economic.studies.map(study => [
+      table(parent, ['Independent phase', 'Profiles', 'Sizing policies', 'Maximum candidates per fold', 'Saved selection rule'], economic.studies.map(study => [
         phaseLabel(study.phase), study.profile_count, study.policy_count, study.max_candidates_per_fold, selectionLabel(study.selector)]), 'robust-economic-plan');
       if (economic.resolved_folds?.length) table(parent, ['Outer fold / phase', 'Forecast start', 'Outer cutoff · exclusive', 'Forecast horizon · calendar days', 'Calendar version / timezone', 'Declared closures'], economic.resolved_folds.map(item => [
         `${item.outer_fold_index} / ${words(item.phase)}`, valueText(item.calendar.start_dates), item.cutoff_date_exclusive,
@@ -614,9 +676,9 @@
     }
     if (plan.baselines?.length) {
       const candidates = new Map(plan.candidates.map(candidate => [candidate.id, candidate]));
-      table(parent, ['Predeclared reference', 'Phase', 'Signal configuration', 'Profile / fixed MNQ', 'Required'], plan.baselines.map(reference => [
+      table(parent, ['Predeclared reference', 'Phase', 'Signal configuration', 'Profile / sizing policy', 'Required'], plan.baselines.map(reference => [
         reference.id, words(reference.phase), candidateLabel(candidates.get(reference.source_configuration_id) || {}),
-        `${reference.profile.profile_id} / ${reference.policy.micros}`, reference.required ? 'Yes' : 'No']), 'robust-baseline-plan');
+        `${reference.profile.profile_id} / ${policyLabel(reference.policy)}`, reference.required ? 'Yes' : 'No']), 'robust-baseline-plan');
     }
     if (plan.reliability) {
       const settings = node('details'); settings.append(node('summary', 'Saved outer reliability requirements'));
@@ -743,6 +805,7 @@
     parent.append(node('h3', 'Next decision'));
     list(parent, result.readiness?.reasons || ['Outer economic replay and deployment validation are pending.']);
     parent.append(node('p', `Readiness: ${result.readiness?.status || 'INCOMPLETE'}. No deployment policy is recommended by this increment.`));
+    if (economic && record.declaration.terminal_selection && record.declaration.final_evidence) window.researchProcedure.configure(parent, record);
     if (includeDownloads) {
       const downloads = node('div', undefined, 'robust-actions');
       for (const file of ['report.json', 'analysis.zip', 'qualification.csv', ...(economic ? ['economic_selection.json', 'chronological_replay.json', 'research_journal.json'] : []), ...(result.reliability ? ['baseline_results.json', 'reliability.json', 'reliability_folds.csv', 'baseline_comparison.csv'] : [])]) downloads.append(link(`Download ${file}`, `${base}/${record.campaign_id}/exports/${file}`));
@@ -751,6 +814,7 @@
     if (record.analysis_id) parent.append(link('Open the saved analysis report', `#backtests/prop/job/${record.analysis_id}`));
   }
   function renderAnalysis(report) {
+    if (report.model_version === 'procedure-application-v1') { window.researchProcedure.renderAnalysis(report); return; }
     const record = {campaign_id: report.request.campaign_id, declaration: report.request, plan: report.plan, result: report.calculations};
     document.querySelector('#prop-config').hidden = true;
     document.querySelector('#prop-report').hidden = false;
@@ -936,6 +1000,19 @@
     const readEconomicStudies = economicControls(form, defaults, invalidate);
     const baselines = baselineControls(form, defaults, invalidate);
     const readReliability = reliabilityControls(form, defaults);
+    const finalRequirements = node('details'); finalRequirements.id = 'robust-final-requirements'; finalRequirements.append(node('summary', '9. Final verification requirements')); form.append(finalRequirements);
+    const finalLabel = node('label', undefined, 'robust-source-choice'), requireHoldout = node('input'); requireHoldout.type = 'checkbox'; requireHoldout.id = 'robust-require-final-holdout'; requireHoldout.checked = defaults.final_evidence?.require_final_holdout === true;
+    finalLabel.append(requireHoldout, node('span', 'Require an eligible final holdout before a current policy can qualify')); finalRequirements.append(finalLabel);
+    const finalEvaluationLabel = node('label', undefined, 'robust-source-choice'), requireFinalAcquisition = node('input'); requireFinalAcquisition.type = 'checkbox'; requireFinalAcquisition.id = 'robust-final-require-acquisition'; requireFinalAcquisition.checked = defaults.final_evidence?.require_evaluation_completed_acquisition === true;
+    finalEvaluationLabel.append(requireFinalAcquisition, node('span', 'Require completed Evaluation acquisition on the final historical path')); finalRequirements.append(finalEvaluationLabel);
+    const cashLabel = node('label', undefined, 'robust-source-choice'), requireFinalCash = node('input'); requireFinalCash.type = 'checkbox'; requireFinalCash.id = 'robust-final-enable-cash-floor'; requireFinalCash.checked = defaults.final_evidence?.minimum_funded_trader_receipts !== null && defaults.final_evidence?.minimum_funded_trader_receipts !== undefined;
+    cashLabel.append(requireFinalCash, node('span', 'Require a minimum Funded trader receipt on the final historical path')); finalRequirements.append(cashLabel);
+    const finalCash = field(finalRequirements, 'Minimum received trader cash on final holdout · USD', 'robust-final-cash-floor', defaults.final_evidence?.minimum_funded_trader_receipts ?? '0'); finalCash.min = 0; finalCash.step = 'any';
+    const syncFinalCash = () => { finalCash.disabled = !requireFinalCash.checked; finalCash.required = requireFinalCash.checked; }; requireFinalCash.onchange = syncFinalCash; syncFinalCash();
+    finalRequirements.append(node('p', 'Optional final outcome limits are declared before research. Without them, the final path is a descriptive observation. Passing one path cannot establish a reliable expected return; failing a declared limit cannot trigger a replacement choice.'));
+    finalRequirements.append(node('p', 'Declare this requirement before running research. Final selection reruns the same frozen qualification and independent economic procedure on eligible development history; it does not promote the last outer-fold winner. Final holdout observations never rerank or replace frozen choices.'));
+    if (defaults.terminal_selection) table(finalRequirements, ['Saved terminal law', 'Requirement'], Object.entries(defaults.terminal_selection).map(([key, value]) => [words(key), valueText(value)]));
+    if (defaults.final_evidence) table(finalRequirements, ['Fixed final evidence guard', 'Requirement'], Object.entries(defaults.final_evidence).filter(([key]) => !['require_final_holdout', 'require_evaluation_completed_acquisition', 'minimum_funded_trader_receipts'].includes(key)).map(([key, value]) => [words(key), valueText(value)]));
     const actions = node('div', undefined, 'robust-actions'); form.append(actions);
     const preview = button(actions, 'Preview dates and source checks', 'robust-preview');
     const run = button(actions, 'Save and run inner qualification', 'robust-run'); run.disabled = true;
@@ -964,7 +1041,11 @@
         sources: [...selected.values()].map(entry => ({[entry.kind]: entry.id, sizes: [1]})),
         folds: {...Object.fromEntries(Object.entries(foldInputs).map(([key, input]) => [key, Number(input.value)])), mode: mode.value}, qualification,
         execution_scenarios, regimes, economic_studies, baselines: includeBaselines ? baselines.read() : [],
-        reliability: economic_studies.length ? readReliability() : null};
+        reliability: economic_studies.length ? readReliability() : null,
+        ...(defaults.terminal_selection ? {terminal_selection: defaults.terminal_selection} : {}),
+        ...(defaults.final_evidence ? {final_evidence: {...defaults.final_evidence, require_final_holdout: requireHoldout.checked,
+          require_evaluation_completed_acquisition: requireFinalAcquisition.checked ? true : null,
+          minimum_funded_trader_receipts: requireFinalCash.checked ? finalCash.value : null}} : {})};
     }
     async function refreshHistory() {
       try {
@@ -1030,5 +1111,5 @@
     };
     drawSources(); await Promise.all([loadSources(true), refreshHistory()]);
   }
-  window.robustResearch = {configure, renderAnalysis};
+  window.robustResearch = {configure, renderAnalysis, showEconomicSelection, showBaselines, showChronologicalFamily, policyLabel};
 })();

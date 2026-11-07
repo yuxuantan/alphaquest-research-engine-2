@@ -126,8 +126,6 @@ class BaselineDeclaration(Contract):
     def coherent(self):
         if not self.id.strip() or self.id!=self.id.strip():
             raise ValueError('Reference ID must be a nonempty readable name without surrounding whitespace.')
-        if self.policy.sizing is not None and SizingConfiguration(**self.policy.sizing).needs_stop:
-            raise ValueError('required_baseline_unavailable: native account-state risk references require a strategy rerun; a fixed quantity cannot substitute for them.')
         return self
 
 
@@ -138,6 +136,9 @@ def baseline_study(reference,studies,candidates):
     phase=[study for study in studies if study.phase==reference.phase]
     require(len(phase)==1,'Each reference requires its declared independent phase study.')
     study=phase[0]
+    if (reference.policy.sizing is not None and SizingConfiguration(**reference.policy.sizing).needs_stop
+            and study.search_settings.get('native_execution') is None):
+        raise ValueError('required_baseline_unavailable: native risk references require the explicit native strategy execution backend.')
     require(any(canonical(reference.profile)==canonical(profile) for profile in study.profiles),
             'Reference profile must match a declared profile in the same phase study.')
     value=study.model_dump(mode='json')
@@ -149,6 +150,8 @@ def validate_native_policies(studies,required_baselines=()):
     """Preview-time rejection, before costly inner work or any outer reads."""
     for study in studies:
         for policy in study.policies:
+            if study.search_settings.get('native_execution') is not None:
+                continue
             if policy.sizing is not None and SizingConfiguration(**policy.sizing).needs_stop:
                 raise ValueError('native_rerun_required: a saved native path cannot support state-dependent risk sizing or cushion guards.')
     for baseline in required_baselines:
@@ -174,8 +177,30 @@ def complete_qualified_membership(plan_candidates,qualification):
                 qualification_sha256=digest(qualification),insufficient_configuration_ids=insufficient)
 
 
+def application_scope(outer, *, context=False):
+    """Terminal applications have their own authority, never a fabricated fold."""
+    if 'application_id' not in outer:
+        return {('outer_fold_index' if context else 'outer_fold'): outer['index']}
+    from uuid import UUID
+    require('index' not in outer and 'outer_fold' not in outer and 'outer_fold_index' not in outer,
+            'A terminal procedure application cannot claim an outer-fold identity.')
+    require(type(outer['application_id']) is str and UUID(outer['application_id']).hex == outer['application_id'],
+            'Procedure application requires a canonical identifier.')
+    value=outer.get('procedure_sha256')
+    require(type(value) is str and len(value)==64 and all(c in '0123456789abcdef' for c in value),
+            'Procedure application requires a frozen procedure hash.')
+    require(outer.get('application_role') in ('final_fit','current_development'), 'Unknown procedure application role.')
+    return {key:outer[key] for key in ('application_id','procedure_sha256','application_role')}
+
+
+def training_role(outer, reference=False):
+    if 'application_id' in outer:
+        return 'procedure_reference_train' if reference else 'procedure_policy_train'
+    return 'baseline_train' if reference else 'policy_train'
+
+
 def policy_training_metadata(campaign_id,outer,membership,input_identity):
-    return dict(phase='inner',role='policy_train',campaign_id=campaign_id,outer_fold=outer['index'],
+    return dict(phase='inner',role=training_role(outer),campaign_id=campaign_id,**application_scope(outer),
                 window=deepcopy(outer['train']),information_cutoff_session=outer['train']['last_session'],
                 qualification_sha256=membership['qualification_sha256'],input_identity=input_identity,
                 cold_start=True,controlled_oos=False,
@@ -191,7 +216,9 @@ def _training_context_sources(plan,outer,candidates,records,artifact_hashes,role
         record=records[id];meta=record['run_metadata'];research=meta.get('research',{})
         require(record['status']=='complete','Training report is incomplete.')
         require(research.get('phase')=='inner' and research.get('role')==role,'Training source has wrong research role.')
-        require(research.get('campaign_id')==plan['campaign_id'] and research.get('outer_fold')==outer['index'],'Training source belongs to another campaign/fold.')
+        require(research.get('campaign_id')==plan['campaign_id'] and all(research.get(k)==v for k,v in application_scope(outer).items()),'Training source belongs to another campaign/fold/application.')
+        if 'application_id' in outer:
+            require('outer_fold' not in research,'Terminal source must not claim an outer fold.')
         require(canonical(research.get('window'))==canonical(outer['train']) and research.get('information_cutoff_session')==outer['train']['last_session'],'Training source crosses the fold information boundary.')
         require(all(canonical(research.get(key))==canonical(value) for key,value in evidence.items()),'Training source admission evidence differs.')
         strategy=meta['strategy']
@@ -206,16 +233,16 @@ def _training_context_sources(plan,outer,candidates,records,artifact_hashes,role
         require(record['id'] not in sources,'One training report cannot masquerade as two configurations.')
         sources[record['id']]=dict(configuration_id=id,strategy_id=strategy['id'],parameters=deepcopy(strategy['parameters']),
             strategy_provenance_sha256=digest(strategy),manifest_sha256=digest(record),artifact_sha256=deepcopy(artifact_hashes[id]))
-    return dict(campaign_id=plan['campaign_id'],outer_fold_index=outer['index'],
+    return dict(campaign_id=plan['campaign_id'],**application_scope(outer,context=True),
         input_identity=plan['input_identity'],engine_identity=plan['engine_identity'],
         train_window=deepcopy(outer['train']),information_cutoff_session=outer['train']['last_session'],
         training_sources=sources,session_inventory=deepcopy({day:plan['session_inventory']['counts'][day] for day in outer['train']['sessions']}))
 
 
 def build_training_context(plan,outer,membership,records,artifact_hashes):
-    result=_training_context_sources(plan,outer,membership['configurations'],records,artifact_hashes,'policy_train',
+    result=_training_context_sources(plan,outer,membership['configurations'],records,artifact_hashes,training_role(outer),
         dict(qualification_sha256=membership['qualification_sha256']))
-    result.update(version='nested-phase-training-v1',qualification_sha256=membership['qualification_sha256'],
+    result.update(version=('procedure-training-v1' if 'application_id' in outer else 'nested-phase-training-v1'),qualification_sha256=membership['qualification_sha256'],
         qualified_configuration_ids=membership['configuration_ids'])
     result['context_sha256']=digest(result)
     return result
@@ -223,7 +250,7 @@ def build_training_context(plan,outer,membership,records,artifact_hashes):
 
 def reference_training_metadata(campaign_id,outer,reference,input_identity):
     declarations=[reference.model_dump(mode='json')]
-    return dict(phase='inner',role='baseline_train',campaign_id=campaign_id,outer_fold=outer['index'],
+    return dict(phase='inner',role=training_role(outer,True),campaign_id=campaign_id,**application_scope(outer),
         window=deepcopy(outer['train']),information_cutoff_session=outer['train']['last_session'],
         reference_ids=[reference.id],reference_declaration_sha256=digest(declarations),
         admission_scope='predeclared_reference',input_identity=input_identity,cold_start=True,
@@ -235,8 +262,8 @@ def build_reference_context(plan,outer,reference,candidate,record,artifact_hashe
     evidence=dict(reference_ids=[reference.id],reference_declaration_sha256=digest(declarations),
         admission_scope='predeclared_reference',recommendation_eligible=False)
     result=_training_context_sources(plan,outer,[candidate],{candidate['id']:record},{candidate['id']:artifact_hashes},
-        'baseline_train',evidence)
-    result.update(version='nested-phase-reference-v1',admission_scope='predeclared_reference',
+        training_role(outer,True),evidence)
+    result.update(version=('procedure-reference-v1' if 'application_id' in outer else 'nested-phase-reference-v1'),admission_scope='predeclared_reference',
         reference_ids=[reference.id],source_configuration_ids=[candidate['id']],
         reference_declaration_sha256=digest(declarations),reference_declarations=declarations,
         recommendation_eligible=False)
@@ -335,6 +362,7 @@ def study_defaults():
     from .prop.phase_profiles import EvaluationProfile, FundedProfile, rule_version
     from .prop.evaluation_optimization import SequentialRetry
     from .prop.funded_optimization import FundedHistoricalMean
+    from .prop.native_replay import defaults as native_defaults
     profiles = dict(
         evaluation=[asdict(EvaluationProfile('apex-50k-eod',rule_version('apex-50k-eod'),'30','40'))],
         funded=[asdict(FundedProfile(name,rule_version(name))) for name in ('apex-50k-eod','lucidflex-50k')])
@@ -351,7 +379,8 @@ def study_defaults():
         selector=FundedSelector().model_dump(mode='json'))
     return dict(economic_studies=dict(evaluation=evaluation,funded=funded),economic_profiles=profiles,
         baseline=dict(id='One MNQ reference',policy=dict(micros=1),required=True),
-        conservative_objective=asdict(FundedHistoricalMean()))
+        conservative_objective=asdict(FundedHistoricalMean()),
+        native_execution=native_defaults()['native_forecast'])
 
 
 def resolved_study(study, outer):
@@ -368,6 +397,13 @@ def resolved_study(study, outer):
         raise ValueError('Nested phase forecast start dates are derived from the outer fold.')
     calendar['start_dates']=[start]
     horizon=(date.fromisoformat(cutoff)-date.fromisoformat(start)).days
+    native=settings.get('native_execution')
+    if native is not None:
+        require(isinstance(native,dict),'Native execution must be an explicit object.')
+        if 'horizon_calendar_days' in native and native['horizon_calendar_days']!=horizon:
+            raise ValueError('Nested native forecast horizon must match the frozen outer/application cutoff.')
+        native['horizon_calendar_days']=horizon
+        native['early_closes']={day:close for day,close in native.get('early_closes',{}).items() if start<=day<=cutoff}
     if study.phase=='funded':
         if 'horizon_calendar_days' in settings and settings['horizon_calendar_days']!=horizon:
             raise ValueError('Nested funded forecast horizon must match the outer fold cutoff.')
@@ -376,7 +412,7 @@ def resolved_study(study, outer):
     else:
         from .prop.evaluation_optimization import SequentialRetry
         retry=SequentialRetry(**(value['retry'] or {}))
-        coverage=(date.fromisoformat(start)+timedelta(days=retry.max_calendar_days)).isoformat()
+        coverage=(date.fromisoformat(start)+timedelta(days=retry.max_calendar_days)).isoformat() if native is None else cutoff
     if 'coverage_end' in calendar and calendar['coverage_end']<coverage:
         raise ValueError('Declared forecast calendar does not cover the frozen horizon or acquisition guard.')
     calendar.setdefault('coverage_end',coverage)
@@ -397,7 +433,7 @@ def freeze_policy(campaign_id,outer,study,context,report,report_sha256,row):
     calendar=deepcopy(report['request']['calendar'])
     calendar['coverage_end']=window['cutoff_date_exclusive']
     calendar['closures']=[day for day in calendar.get('closures',[]) if window['first_session']<=day<window['cutoff_date_exclusive']]
-    result=dict(schema_version='nested-phase-freeze-v1',campaign_id=campaign_id,outer_fold_index=outer['index'],
+    result=dict(schema_version=('procedure-phase-freeze-v1' if 'application_id' in outer else 'nested-phase-freeze-v1'),campaign_id=campaign_id,**application_scope(outer,context=True),
         phase=study.phase,candidate_id=row['candidate_id'],configuration=deepcopy(row['manifest']['configuration']),
         strategy=deepcopy(row['manifest']['strategy']),training_context_sha256=context['context_sha256'],
         training_analysis_id=report['id'],training_report_sha256=report_sha256,
@@ -406,6 +442,10 @@ def freeze_policy(campaign_id,outer,study,context,report,report_sha256,row):
         provider_rules=deepcopy(report.get('provider_rules')),deployment_readiness=deepcopy(report.get('deployment_readiness')),
         outer_window=window,calendar=calendar,
         interpretation='Frozen training selection; chronological outer observations have not been used.')
+    if 'application_id' in outer:
+        result['source_configuration_id']=context['training_sources'][row['manifest']['configuration']['source']['source_backtest_id']]['configuration_id']
+    if report['request'].get('native_execution') is not None:
+        result['native_execution']=deepcopy(report['request']['native_execution'])
     if study.phase=='funded':
         result['receipt_amount_convention']='kernel_entitlement_unrounded'
         result['receipt_delay_calendar_days']=report['request']['receipt_delay_calendar_days']
@@ -422,3 +462,64 @@ def freeze_reference(campaign_id,outer,study,context,report,report_sha256,row,re
         interpretation='Predeclared measured reference; edge status and forecast feasibility do not make it a recommended policy.')
     result['package_sha256']=digest(result)
     return result
+
+
+def replay_native_package(datasets,runs,analyses,campaign_id,analysis_id,record,package,*,
+                          checkpoint=lambda:None,progress=lambda message:None):
+    """Apply an already sealed policy through the normal native backtest owner.
+
+    The caller's journal authorizes this outer source before reaching this
+    function. The shared phase verifier checks the actual training artifacts and
+    frozen mapping again; no selection or forecast is performed on these bars.
+    """
+    from uuid import uuid4
+    from .prop.phase_profiles import (SavedTradeSource,EvaluationProfile,FundedProfile,SourceCosts,
+        ReplayWindow,verify_frozen_replay)
+    from .prop.phase_search import PhaseCalendar
+    from .prop.evaluation_optimization import SequentialRetry
+    from .prop.native_replay import NativeReplayRequest,check_replay,execute_checked_replay
+    require(package.get('native_execution') is not None,'Native outer replay requires its explicit frozen execution law.')
+    require(package['campaign_id']==campaign_id,'Native outer policy belongs to another campaign.')
+    config=package['configuration'];phase=package['phase'];window=package['outer_window']
+    calendar=deepcopy(package['calendar'])
+    calendar['start_dates']=tuple(calendar['start_dates']);calendar['closures']=tuple(calendar.get('closures',[]))
+    common=dict(runs=runs,source=SavedTradeSource(**dict(config['source'],source_backtest_id=record['id'])),
+        phase=phase,profile=(EvaluationProfile if phase=='evaluation' else FundedProfile)(**config['profile']),
+        micros=config['micros'],max_micros=config['simulation']['max_micros'],costs=SourceCosts(**config['costs']),
+        sizing=SizingConfiguration(**config['sizing']) if config.get('sizing') else None,
+        window=ReplayWindow(window['first_session'],window['cutoff_date_exclusive']),
+        calendar=PhaseCalendar(**calendar),binding=package)
+    if phase=='evaluation':common['retry']=SequentialRetry(**config['retry'])
+    else:common.update(receipt_delay_calendar_days=package['receipt_delay_calendar_days'],
+        receipt_amount_convention=package['receipt_amount_convention'])
+    checkpoint();verify_frozen_replay(**common)
+    request=dict(mode='native_phase_replay',phase=phase,source_backtest_id=record['id'],
+        profile=config['profile'],micros=config['micros'],max_micros=config['simulation']['max_micros'],
+        sizing=config.get('sizing'),costs=config['costs'],
+        period=dict(first_session=window['sessions'][0],last_session=window['sessions'][-1]))
+    if phase=='evaluation':request['retry']=config['retry']
+    else:request.update(receipt_delay_calendar_days=package['receipt_delay_calendar_days'],
+        receipt_amount_convention=package['receipt_amount_convention'])
+    request=NativeReplayRequest.model_validate(request)
+    check=check_replay(datasets,runs,request,admitted_record=record)
+    run_id=uuid4().hex
+    with analyses.lock,analyses.connect() as db:
+        db.execute('INSERT INTO campaign_sources VALUES (?,?)',(campaign_id,run_id))
+        db.execute('INSERT INTO analysis_sources VALUES (?,?)',(analysis_id,run_id))
+    research=deepcopy(record['run_metadata']['research'])
+    research.update(native_uncontrolled_source_id=record['id'],native_controlled_replay=True)
+    try:
+        child,result=execute_checked_replay(datasets,runs,request,check,admitted_record=record,
+            research_metadata=research,run_id=run_id,
+            control_metadata=dict(analysis_id=analysis_id,frozen_package_sha256=package['package_sha256']),
+            replay_cutoff_date_exclusive=window['cutoff_date_exclusive'],checkpoint=checkpoint,progress=progress)
+    except Exception:
+        if runs.get(run_id) is None:
+            with analyses.lock,analyses.connect() as db:
+                db.execute('DELETE FROM campaign_sources WHERE campaign_id=? AND source_id=?',(campaign_id,run_id))
+                db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?',(analysis_id,run_id))
+        raise
+    result.update(frozen_binding=dict(package_sha256=package['package_sha256'],
+        training_analysis_id=package['training_analysis_id'],training_report_sha256=package['training_report_sha256']),
+        native_source_check=check,native_controlled_backtest_id=child['id'],native_uncontrolled_source_id=record['id'])
+    return child,result

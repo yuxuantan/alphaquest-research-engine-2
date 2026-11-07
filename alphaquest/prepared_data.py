@@ -5,7 +5,7 @@ read-only; chunks retain Decimal values, UTC timestamps and original CSV fields.
 They are deleted with the job workspace, rather than becoming another dataset.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from dataclasses import dataclass, replace
 from itertools import islice
 from pathlib import Path
@@ -62,6 +62,8 @@ def prepare_data(source, dataset_id, dates, path, progress=lambda *args: None, *
     dataset = source.get(dataset_id)
     if dataset is None:raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
     dates = dates or DateRange()
+    from .research_access import guard_read, metadata_only
+    guard_read(source,dataset_id,dates,origin='prepare_data')
     from .optimization_cache import digest,engine_identity
     key=None
     metadata = {"from_date": dates.from_date.isoformat() if dates.from_date else None,
@@ -69,7 +71,9 @@ def prepare_data(source, dataset_id, dates, path, progress=lambda *args: None, *
                 "source_timezone": dataset.get("source_timezone"), "warmup": "none"}
     if hasattr(dates, 'convention'):
         metadata['date_convention'] = dates.convention
-    with read_bars(source, dataset_id) as bars:
+    with ExitStack() as readers:
+        with metadata_only():
+            bars=readers.enter_context(read_bars(source,dataset_id))
         zone = ZoneInfo(dataset["source_timezone"])
         # Reuse the same verified snapshot for a miss; never hash/copy the
         # original twice just to discover that no derived stream exists.

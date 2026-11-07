@@ -354,3 +354,71 @@ CSV/JSON and ZIP with package/access links. No separate engine, service, databas
 or report directory is introduced. Every source and assessment report remains
 dependency protected. Launch interruption is recorded on restart; a new explicit
 manual attempt appends, rather than replacing any prior attempt or IS selection.
+
+## Native phase search and complete-procedure application — 8 November 2026
+
+The ordinary report → prop configuration → source check → worker → durable
+analysis route now also supports native candidate forecasts and actual frozen
+chronological applications. Saved fixed-path requests, legacy joint economics
+and historical report readers retain their existing meanings.
+
+```mermaid
+flowchart TD
+    A[Dataset metadata and access history] --> B[Saved IS strategy grids]
+    A --> H[Optional protected final sessions]
+    B --> C[Inner folds and complete configuration qualification]
+    C --> D[Independent Evaluation cost and time search]
+    C --> E[Independent Funded receipt search]
+    D --> F[Seal every selected family member]
+    E --> F
+    F --> G[Actual chronological outer replay and reliability]
+    G --> I[Freeze complete procedure and evidence rules]
+    I --> J[Terminal fit on eligible development only]
+    H --> K[Guarded final replay after terminal selection seal]
+    J --> K
+    I --> L[Separate current development procedure rerun]
+    K --> M[Final evidence gate without reselection]
+    L --> N[Current research candidate or no qualified candidate]
+    M --> N
+```
+
+| Owner | Responsibility and boundary |
+| --- | --- |
+| `prop/native_search.py` | Adapts each complete phase candidate to the existing native source check and forecast execution; bounds family work and persists common source/calendar identity. No selector or account arithmetic. |
+| `prop/evaluation_profiles.py`, `prop/funded_profiles.py` | Own actual account state, native forecasts and historical mean refits for their separate phases. Funded receives no acquisition inputs. |
+| Respective `*_optimization.py` modules | Own candidate metrics, constraints, Evaluation frontier and Funded selections; native execution is an explicit additive request mode. |
+| `prop/store.py`, `research_campaigns.py` | Reuse existing workers/catalogue/reports; cooperative phase cancellation, complete population publication, child capture and reuse integrity. |
+| `research_phase_selection.py`, `robust_research.py` | Freeze the full phase family before outer prices; invoke the phase owners for one actual outer path and retain every alternative without hidden weights. |
+| `research_access.py` | Append-only local price/outcome access and reservation records in the existing AnalysisStore database. App and existing CLI readers enforce protected windows before normal price/cache access. |
+| `research_procedure.py`, `research_procedure_store.py` | Validate the full algorithm and terminal law, bind an authoritative immutable freeze, orchestrate guarded final application and separate current development rerun through existing fold/backtest/phase owners. |
+| Existing portal plus `research_reservations.js`, `research_procedure.js` | Metadata-only upload/reservation and complete-procedure controls within dataset and robust report views. No new application, execution engine or result store. |
+
+Native outer and manual OOS children retain normal backtest identities and
+artifacts. AnalysisStore captures the resulting child manifests and files;
+dependency references prevent deletion. Reuse checks manifests as well as file
+hashes, so an unchanged CSV does not legitimize a changed catalogue identity.
+Cancellation and final publication share the coordinator lock. Interrupted work
+cannot publish incomplete candidate metrics as a finished selection.
+
+The complete procedure freezes logical candidate membership, inner/outer laws,
+qualification rules, scenarios, references, sizing/account configurations,
+selectors, uncertainty settings, source identities, calendars, seeds and code
+hashes. A terminal fit has an explicit application identity rather than an
+invented historical fold number. It repeats the original rolling or expanding
+training law, reruns qualification and seals selections before protected prices.
+Final results never re-rank the family; predeclared thresholds can block its
+endorsement. A consumed but interrupted final attempt remains incomplete in the
+subsequent current-development report.
+
+Access history describes this local application scope and explicit external
+access declarations; it cannot certify that nobody saw data elsewhere. Legacy
+unknown history, reformatted/reuploaded sources, NQ/MNQ market aliases and changed
+timezone interpretations cannot silently become untouched evidence. Metadata-only
+inspection exposes inventory without prices. Source prices/outcomes already
+accessed after an explicit release remain permanently recorded.
+
+These are research capabilities. Provider/rule/execution/settlement uncertainty
+and broker authorization remain explicit; a research recommendation is not
+production qualification. Guided research catalogue/templates, optional frozen
+policy-pair lifecycle comparison, timestamped forward monitoring and final
+full-suite acceptance remain separate pending increments.

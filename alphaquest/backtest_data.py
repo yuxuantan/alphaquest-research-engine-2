@@ -112,6 +112,8 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
     metadata = store.get(dataset_id)
     if metadata is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
+    from .research_access import guard_read
+    guard_read(store,dataset_id,origin='read_bars')
     if metadata.get("columns") != COLUMNS:
         raise UnsupportedDatasetSchema("Unsupported dataset schema. Backtest reading requires: " + ",".join(COLUMNS))
     source_timezone = metadata.get("source_timezone")
@@ -157,12 +159,18 @@ def read_selected_bars(store: DatasetStore, dataset_id: str, date_range: DateRan
     dataset = store.get(dataset_id)
     if dataset is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
+    from .research_access import guard_read, metadata_only
+    guard_read(store,dataset_id,date_range,origin='read_selected_bars')
     selection = {"from_date": date_range.from_date.isoformat() if date_range.from_date else None,
                  "to_date": date_range.to_date.isoformat() if date_range.to_date else None,
                  "source_timezone": dataset.get("source_timezone"), "warmup": "none"}
     if hasattr(date_range, 'convention'):
         selection['date_convention'] = date_range.convention
-    with read_bars(store, dataset_id) as source:
+    # Full snapshot validation is internal; only the authorized selected rows
+    # below leave this preparation boundary for strategy/feature calculation.
+    with ExitStack() as readers:
+        with metadata_only():
+            source=readers.enter_context(read_bars(store,dataset_id))
         if not date_range.active:
             selection.update(row_count=dataset["row_count"], start_utc=dataset["start"], end_utc=dataset["end"],
                              first_source_bar_number=1, last_source_bar_number=dataset["row_count"])

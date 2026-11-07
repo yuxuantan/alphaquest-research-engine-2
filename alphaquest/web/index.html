@@ -14,12 +14,14 @@
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_reservations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
     <script src="/static/trade_import.js?v=ASSET_VERSION" defer></script>
     <script src="/static/market-benchmark.js?v=ASSET_VERSION" defer></script>
     <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaigns.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research_workflow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_procedure.js?v=ASSET_VERSION" defer></script>
     <script src="/static/native_replay.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
@@ -176,6 +178,11 @@
                 </label>
               </div>
               <p class="field-help">Set both instrument values now or open the saved dataset to set them later. Point value is money per 1.0 price point, per contract.</p>
+              <details>
+                <summary>Protect a possible final research holdout</summary>
+                <label><input id="dataset-metadata-only" type="checkbox" /> Validate and save metadata only · keep price previews hidden</label>
+                <p class="field-help">Dates, counts and schema remain visible. After saving, open the dataset to reserve final session dates before running research or downloading prices. This preserves local access evidence; it does not verify whether the data was inspected elsewhere.</p>
+              </details>
               <div class="form-actions">
                 <span class="small muted" id="form-hint"
                   >Choose a file to get started.</span

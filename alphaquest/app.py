@@ -26,7 +26,7 @@ from .optimization_api import router as optimization_router
 from .prop_api import router as prop_router
 from .prop.store import AnalysisStore
 from .strategy_library import StrategyLibrary,router as strategy_library_router
-from .research import ResearchStore
+from .research import ResearchStore, ResearchConflict
 from .research_api import router as research_router
 
 WEB = Path(__file__).parent / "web"
@@ -85,13 +85,19 @@ class ProgressTracker:
 def create_app(db_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
-        app.state.store = DatasetStore(db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3")
+        dataset_path=db_path or Path(os.environ.get("ALPHAQUEST_DATA_DIR", "data")) / "datasets.sqlite3"
+        fresh_scope=not dataset_path.exists()
+        app.state.store = DatasetStore(dataset_path)
         app.state.runs = RunStore(app.state.store.path.parent)
         app.state.research = ResearchStore(app.state.runs)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
+        from .research_access import ResearchAccess
+        app.state.research_access=ResearchAccess(app.state.prop_analyses,fresh_scope=fresh_scope)
+        app.state.store.research_access=app.state.research_access
+        app.state.research_access.backfill(app.state.runs,app.state.store)
         app.state.optimizations = OptimizationStore(app.state.runs, app.state.prop_analyses)
         from .research_campaigns import CampaignStore
-        app.state.campaigns = CampaignStore(app.state.runs, app.state.prop_analyses, app.state.optimizations)
+        app.state.campaigns = CampaignStore(app.state.runs, app.state.prop_analyses, app.state.optimizations, app.state.store)
         from .robust_research import RobustResearchStore
         app.state.robust_research = RobustResearchStore(app.state.store, app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
@@ -163,7 +169,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.get("/api/datasets")
     def list_datasets(request: Request):
-        return request.app.state.store.list()
+        return [request.app.state.research_access.public_dataset(value,origin='dataset_list') for value in request.app.state.store.list()]
 
     @app.get("/api/timezones")
     def list_timezones():
@@ -177,14 +183,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         return JSONResponse(state, headers={"Cache-Control": "no-store"})
 
     @app.post("/api/datasets/validate")
-    async def validate(request: Request, filename: str = Query(max_length=1024), source_timezone: str = Query(default="UTC", max_length=100), progress_id: UUID | None = None):
+    async def validate(request: Request, filename: str = Query(max_length=1024), source_timezone: str = Query(default="UTC", max_length=100), progress_id: UUID | None = None,
+                       disclosure: str = Query(default='standard',pattern=r'^(standard|metadata_only)$')):
         progress = track(request, progress_id)
         try:
             async with uploaded_csv(request, progress) as source:
                 result = await run_in_threadpool(validate_csv_file, source, filename, source_timezone, progress)
             if progress:
                 progress("done", result["bytes"], result["bytes"], result["row_count"])
-            return result
+            return request.app.state.research_access.public_dataset(result,disclosure=disclosure,origin='dataset_validate')
         except Exception:
             if progress:
                 progress("failed")
@@ -192,7 +199,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.post("/api/datasets", status_code=201)
     async def save(request: Request, filename: str = Query(max_length=1024), name: str = Query(min_length=1, max_length=120), symbol: str = Query(default="", max_length=40), source_timezone: str = Query(default="UTC", max_length=100), progress_id: UUID | None = None,
-                   tick_size: str | None = Query(default=None, max_length=128), point_value: str | None = Query(default=None, max_length=128)):
+                   tick_size: str | None = Query(default=None, max_length=128), point_value: str | None = Query(default=None, max_length=128),
+                   disclosure: str = Query(default='standard',pattern=r'^(standard|metadata_only)$')):
         if not name.strip():
             raise HTTPException(422, "Give the dataset a name.")
         settings = None
@@ -211,7 +219,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
                 result = await run_in_threadpool(request.app.state.store.save_file, source, metadata, name.strip(), symbol.strip(), progress)
             if progress:
                 progress("done", result["bytes"], result["bytes"], result["row_count"])
-            return result
+            return request.app.state.research_access.public_dataset(result,disclosure=disclosure,origin='dataset_save')
         except Exception:
             if progress:
                 progress("failed")
@@ -222,7 +230,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         dataset = request.app.state.store.get(dataset_id)
         if dataset is None:
             raise HTTPException(404, "Dataset not found.")
-        return dataset
+        return request.app.state.research_access.public_dataset(dataset,origin='dataset_detail')
 
     @app.patch("/api/datasets/{dataset_id}/instrument-settings")
     def update_instrument_settings(dataset_id: str, body: InstrumentSettings, request: Request):
@@ -232,17 +240,24 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             raise HTTPException(422, str(exc)) from None
         if dataset is None:
             raise HTTPException(404, "Dataset not found.")
-        return dataset
+        return request.app.state.research_access.public_dataset(dataset,origin='dataset_instrument_settings')
 
     @app.get("/api/datasets/{dataset_id}/csv")
     def download_dataset(dataset_id: str, request: Request):
         dataset = request.app.state.store.get(dataset_id)
         if dataset is None:
             raise HTTPException(404, "Dataset not found.")
+        from .research_access import coverage
+        try:request.app.state.research_access.observe(dataset,coverage(dataset),kind='price_download',origin='dataset_csv')
+        except ResearchConflict as exc:raise HTTPException(409,str(exc)) from exc
         return StreamingResponse(request.app.state.store.iter_csv(dataset_id), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="dataset-{dataset_id}.csv"', "Content-Length": str(dataset["bytes"])})
 
     @app.delete("/api/datasets/{dataset_id}", status_code=204, response_class=Response)
     def delete_dataset(dataset_id: str, request: Request):
+        dataset=request.app.state.store.get(dataset_id)
+        if dataset is not None:
+            try:request.app.state.research_access.assert_deletable(dataset)
+            except ResearchConflict as exc:raise HTTPException(409,str(exc)) from exc
         if not request.app.state.store.delete(dataset_id):
             raise HTTPException(404, "Dataset not found.")
         return Response(status_code=204)

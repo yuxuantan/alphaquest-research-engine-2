@@ -177,15 +177,19 @@ def inventory_sessions(source, dataset_id: str, *, minimum_sessions: int = 2) ->
     dataset = source.get(dataset_id)
     if dataset is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
-    counts, bounds = {}, {}
+    from .research_access import metadata_only, observation_identity
+    from hashlib import sha256
+    counts, bounds, content = {}, {}, {}
     previous = None
-    with read_bars(source, dataset_id) as bars:
+    with metadata_only(), read_bars(source, dataset_id) as bars:
         for bar in bars:
             stamp = bar.timestamp_utc
             if stamp.utcoffset() is None or previous is not None and stamp <= previous:
                 raise ValueError("Source timestamps must be aware and strictly increasing.")
             previous = stamp
             day = session_date(stamp).isoformat()
+            content.setdefault(day,sha256()).update((observation_identity(stamp,
+                [getattr(bar,key) for key in ('open','high','low','close','volume','up_vol','down_vol')])+'\n').encode())
             counts[day] = counts.get(day, 0) + 1
             instant = stamp.isoformat().replace("+00:00", "Z")
             bounds.setdefault(day, dict(first_utc=instant, last_utc=instant))
@@ -201,5 +205,6 @@ def inventory_sessions(source, dataset_id: str, *, minimum_sessions: int = 2) ->
         sessions=sessions,
         counts=counts,
         bounds=bounds,
+        session_content_sha256={day:value.hexdigest() for day,value in content.items()},
         coverage="observed sessions only; missing market sessions are not inferred",
     )

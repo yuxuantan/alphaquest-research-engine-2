@@ -285,12 +285,16 @@ def test_preview_excludes_session_partly_outside_source_timezone_is_window(tmp_p
     # load data outside the declared source research window.
     raw = header + b'\n01/04/2026,23:01,99,100,99,100,100,60,40\n' + rows
     with TestClient(create_app(tmp_path / 'datasets.sqlite3')) as client:
-        _, job, records = save_grid(client, raw=raw, is_end='2026-01-23', oos_start='2026-01-26')
+        dataset, job, records = save_grid(client, raw=raw, is_end='2026-01-23', oos_start='2026-01-26')
         body = declaration(job, records)
         response = client.post(PREFIX + '/preview', json=body)
         assert response.status_code == 200, response.text
         plan = response.json()
-        assert plan['session_inventory']['bounds']['2026-01-05']['first_utc'] == '2026-01-04T23:01:00Z'
+        from alphaquest.research_folds import inventory_sessions
+        original=inventory_sessions(client.app.state.store,dataset['id'])
+        assert original['bounds']['2026-01-05']['first_utc'] == '2026-01-04T23:01:00Z'
+        assert '2026-01-05' not in plan['session_inventory']['sessions']
+        assert '2026-01-05' not in plan['session_inventory']['bounds']
         assert records[0]['period_start_utc'] == '2026-01-05T18:00:00Z'
         assert plan['folds'][0]['train']['first_session'] == '2026-01-06'
         assert plan['estimated_backtests'] == 16

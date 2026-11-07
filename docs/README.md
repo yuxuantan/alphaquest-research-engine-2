@@ -8,8 +8,9 @@
 - [Technical reference](architecture_reference.md): current storage and export contracts.
 - [IS/OOS workflow](research_workflow.md): splits, manual OOS, research checks and saved history.
 - [Robust research execution checklist](robust_research_plan.md): fresh audit,
-  requirements traceability, implemented inner-fold qualification and the
-  remaining economic validation, final recommendation and monitoring milestones.
+  requirements traceability, inner qualification, independent economic selection,
+  chronological reliability and complete-procedure final verification; guided
+  catalogue/templates, monitoring and full-suite qualification remain pending.
 
 ## Product guides
 
@@ -38,6 +39,7 @@
 - [Prop portfolio plan](prop_portfolio_plan.md): completed phase/cash-ledger
   milestones and optional downstream portfolio work.
 - [Planning costs](planning.md): dated estimates and missing quotes.
-- [Trade export v1](designs/trade_export_v1.md): proposed format, not implemented.
+- [Trade export v1](designs/trade_export_v1.md): supported versioned canonical
+  import contract, source limitations and historical proposal notes.
 
 GitHub links stay within the viewed branch or commit.

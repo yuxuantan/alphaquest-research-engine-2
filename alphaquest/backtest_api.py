@@ -134,6 +134,8 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
                  *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None,
                  execution_scenario=None, account_control=None, control_metadata=None):
     from . import backtest_cache
+    from .research_access import guard_read, metadata_only
+    guard_read(store,dataset['id'],date_range,kind='strategy_execution',origin='backtest:'+run_id)
     from .execution_scenarios import parse_execution_scenario, resolve_execution_scenario, restore_scenario_config
     execution_scenario = parse_execution_scenario(execution_scenario)
     if source_record and source_record.get('native_account_control'):
@@ -176,7 +178,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
             reused=backtest_cache.lookup(runs,prop_analyses,reuse_key)
             if reused:
                 from .backtest_data import read_bars
-                with read_bars(store,dataset['id']):pass
+                with metadata_only(),read_bars(store,dataset['id']):pass
                 count=reused['run_metadata']['selection']['row_count']
                 progress('done',count,count)
                 return reused
@@ -245,9 +247,14 @@ async def _import_bytes(request):
 @router.post('/api/backtests/imports/check')
 async def check_trade_import(request: Request, filename: str = Query('trade-export.json', min_length=1, max_length=255)):
     from .trade_imports import preview_import
+    from .canonical_trades import parse_trade_export
     raw = await _import_bytes(request)
     try:
+        normalized=await run_in_threadpool(parse_trade_export,raw)
+        await run_in_threadpool(request.app.state.research_access.observe_external,normalized,origin='external_import_check')
         return await run_in_threadpool(preview_import, raw, filename)
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -255,12 +262,17 @@ async def check_trade_import(request: Request, filename: str = Query('trade-expo
 @router.post('/api/backtests/imports')
 async def import_trades(request: Request, filename: str = Query('trade-export.json', min_length=1, max_length=255)):
     from .trade_imports import ImportConflict, save_import
+    from .canonical_trades import parse_trade_export
     raw = await _import_bytes(request)
     try:
+        normalized=await run_in_threadpool(parse_trade_export,raw)
+        await run_in_threadpool(request.app.state.research_access.observe_external,normalized,origin='external_import_save')
         record, created = await run_in_threadpool(save_import, request.app.state.runs, raw, filename)
         return JSONResponse(record, status_code=201 if created else 200)
     except ImportConflict as exc:
         raise HTTPException(409, str(exc)) from None
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -318,7 +330,7 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
                            *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None,
-                           execution_scenario=None):
+                           execution_scenario=None,automatic_prop=True):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -334,7 +346,7 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
+                                       prop_analyses=request.app.state.prop_analyses if automatic_prop else None, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
                                        execution_scenario=execution_scenario)
         if record['id']!=run_id:
             if operation_id:

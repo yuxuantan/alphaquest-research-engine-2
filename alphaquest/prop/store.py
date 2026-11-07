@@ -46,6 +46,10 @@ def sealed_checks(directory):
     return {name:digest(directory/name) for name in ('report.json','analysis.zip')}
 
 
+class AnalysisCancelled(Exception):
+    """A cooperative stop never publishes a partial candidate population."""
+
+
 class AnalysisStore:
     def __init__(self,directory,*,recover_interrupted=True):
         self.root=Path(directory)/'prop_analyses';self.root.mkdir(parents=True,exist_ok=True)
@@ -55,6 +59,7 @@ class AnalysisStore:
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
@@ -180,7 +185,7 @@ class AnalysisStore:
         return self.submit_phase(runs, search)
 
     def _reserve_phase(self, runs, search, *, campaign_checks=None, assessment=None,
-                       training_context=None, inline=False):
+                       training_context=None, inline=False, datasets=None):
         """Shared checked reservation; callers hold the catalogue mutation lock."""
         from .phase_dispatch import module_for_mode
         from .phase_search import check_candidates, validate_phase_work
@@ -190,9 +195,9 @@ class AnalysisStore:
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
         if assessment or training_context:
-            checks = check_candidates(runs, search, assessment, training_context=training_context)
+            checks = check_candidates(runs, search, assessment, training_context=training_context, datasets=datasets)
         else:
-            checks = module.check_search(runs, search)
+            checks = module.check_search(runs, search, datasets=datasets)
         if campaign_checks is not None:
             if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
                 raise ValueError('Campaign source identity changed before queueing.')
@@ -207,6 +212,8 @@ class AnalysisStore:
             if row:
                 try: valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
                 except (OSError, ValueError, KeyError): valid = False
+                if valid and row[1]=='complete' and getattr(search,'native_execution',None) is not None:
+                    valid=self.native_children_unchanged(runs,row[0])
                 if valid:
                     if inline and row[1] != 'complete':
                         raise ValueError('This internal phase calculation is already active; it cannot be queued behind its parent.')
@@ -221,38 +228,65 @@ class AnalysisStore:
                 (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
             db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
                 [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
+            db.execute('INSERT INTO phase_analysis_control(analysis_id) VALUES (?)',(id,))
             if training_context:
                 db.execute('INSERT INTO campaign_analyses VALUES (?,?)', (training_context['campaign_id'], id))
         return self.get(id), checks, True
 
-    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None):
+    def cancel_phase(self, id):
+        with self.lock:
+            with self.connect() as db:
+                row=db.execute('SELECT a.status FROM analyses a JOIN phase_analysis_control c ON c.analysis_id=a.id WHERE a.id=?',(id,)).fetchone()
+                if row is None:
+                    raise ValueError('This analysis does not support cooperative phase cancellation.')
+                if row[0] not in ('queued','running'):
+                    raise ValueError('Only queued or running phase analyses can be cancelled.')
+                db.execute('UPDATE phase_analysis_control SET stop_requested=1 WHERE analysis_id=?',(id,))
+                db.execute("UPDATE analyses SET progress='Stop requested; waiting for the next safe calculation boundary' WHERE id=?",(id,))
+            return self.get(id)
+
+    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None, datasets=None):
         """Public phase dispatch retains the existing worker and request meaning."""
         with self.lock:
-            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment)
+            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment, datasets=datasets)
             if fresh:
-                self.worker.submit(self._run_phase, runs, record['id'], search, checks, assessment)
+                self.worker.submit(self._run_phase, runs, record['id'], search, checks, assessment, datasets=datasets)
             return record
 
     def run_phase_inline(self, runs, search, *, training_context, checkpoint=lambda:None,
-                         progress=lambda message:None):
+                         progress=lambda message:None, datasets=None):
         """Internal nested child: normal durable report, no same-worker wait."""
         if not training_context:
             raise ValueError('Inline nested phase execution requires a server-derived training context.')
         checkpoint()
         with self.lock:
-            record, checks, fresh = self._reserve_phase(runs, search, training_context=training_context, inline=True)
+            record, checks, fresh = self._reserve_phase(runs, search, training_context=training_context, inline=True, datasets=datasets)
         if fresh:
             self._run_phase(runs, record['id'], search, checks, training_context=training_context,
-                            checkpoint=checkpoint, progress=progress, raise_errors=True)
+                            checkpoint=checkpoint, progress=progress, raise_errors=True, datasets=datasets)
         checkpoint()
         return self.get(record['id'])
 
     def _run_phase(self, runs, id, search, checks, assessment=None, *, training_context=None,
-                   checkpoint=lambda:None, progress=lambda message:None, raise_errors=False):
+                   checkpoint=lambda:None, progress=lambda message:None, raise_errors=False, datasets=None):
         from .phase_dispatch import module_for_mode
         module = module_for_mode(search.mode)
         optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
+        reserved_children=[]
+        def reserve_child(child_id):
+            with self.lock,self.connect() as db:
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)',(id,child_id))
+                if assessment:
+                    db.execute('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)',(assessment['campaign_id'],child_id))
+            reserved_children.append(child_id)
+        parent_checkpoint=checkpoint
+        def checkpoint():
+            parent_checkpoint()
+            with self.connect() as db:
+                row=db.execute('SELECT stop_requested FROM phase_analysis_control WHERE analysis_id=?',(id,)).fetchone()
+            if row and row[0]:
+                raise AnalysisCancelled('Phase search stopped; no partial result was published. Run again to replay the same complete declaration.')
         def update(message):
             checkpoint()
             self._update(id, 'running', message)
@@ -263,33 +297,75 @@ class AnalysisStore:
                 staged = Path(temp)/'report'; staged.mkdir()
                 with self.runtime.activate():
                     options = dict(assessment=True) if assessment else {}
+                    if getattr(search, 'native_execution', None) is not None:
+                        if assessment is not None:
+                            options['assessment'] = dict(assessment,analysis_id=id)
+                            options['reserve_child'] = reserve_child
+                        options['datasets'] = datasets
+                        options['checkpoint'] = checkpoint
                     if training_context is not None:
                         options['training_context'] = training_context
                     calculations = optimize(runs, search, checks, update, **options)
                 if assessment:
                     calculations['assessment'] = assessment
                 result = module.write_report(runs, staged, search, checks, calculations)
+                if reserved_children:
+                    import shutil
+                    from .adapter import digest
+                    from ..optimization_cache import artifacts
+                    result['native_backtests']={}
+                    for child_id in reserved_children:
+                        child=runs.get(child_id)
+                        if child is None:raise ValueError('Native assessment child was not published.')
+                        hashes=artifacts(runs.root,child)
+                        folder=staged/'native_backtests'/child_id;folder.mkdir(parents=True)
+                        capture={}
+                        for name,expected in hashes.items():
+                            if name=='shared_holding_day':
+                                from ..market_equity import holding_path
+                                source=holding_path(runs.root/child_id,child['market_benchmark'])
+                                target='shared_holding_day.csv'
+                            else:source=runs.root/child_id/name;target=name
+                            destination=folder/target;destination.parent.mkdir(parents=True,exist_ok=True)
+                            shutil.copyfile(source,destination)
+                            if digest(destination)!=expected:raise ValueError('Native child changed during report capture.')
+                            capture[name]=str(destination.relative_to(staged))
+                        (folder/'manifest.json').write_text(canonical(child))
+                        result['native_backtests'][child_id]=dict(record=child,artifact_sha256=hashes,captured_files=capture)
+
                 if assessment:
                     result['assessment'] = assessment
                     result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
                     (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
                 if training_context is not None:
                     from .phase_search import check_candidates
-                    current = check_candidates(runs, search, training_context=training_context)
+                    current = check_candidates(runs, search, training_context=training_context, datasets=datasets)
                     if [c['candidate_id'] for c in current] != [c['candidate_id'] for c in checks]:
                         raise ValueError('Nested training source changed during phase calculation.')
                     result['training_context'] = training_context
                     (staged/'training_context.json').write_text(canonical(training_context))
-                checkpoint()
-                seal_report(staged, result, id, self.get(id)['created'])
-                staged.rename(self.root/id)
-            with self.connect() as db:
-                db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
-                db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
+                # Stop admission and completed publication share the same lock:
+                # an accepted cancellation cannot race with a completed report.
+                with self.lock:
+                    checkpoint()
+                    seal_report(staged, result, id, self.get(id)['created'])
+                    staged.rename(self.root/id)
+                    with self.connect() as db:
+                        db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
+                        db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
+        except AnalysisCancelled as exc:
+            self._update(id,'cancelled','Phase search stopped; run again from the saved declaration',str(exc))
+            if raise_errors:raise
         except Exception as exc:
             self._update(id, 'error', phase+' search failed', f'{type(exc).__name__}: {exc}')
             if raise_errors:
                 raise
+        finally:
+            with self.lock,self.connect() as db:
+                for child_id in reserved_children:
+                    if runs.get(child_id) is None:
+                        db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?',(id,child_id))
+                        if assessment:db.execute('DELETE FROM campaign_sources WHERE campaign_id=? AND source_id=?',(assessment['campaign_id'],child_id))
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
@@ -435,6 +511,18 @@ class AnalysisStore:
             db.execute('DELETE FROM analysis_report_checks WHERE id=?',(prepared['id'],))
             db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(prepared['id'],))
             db.execute('DELETE FROM analyses WHERE id=?',(prepared['id'],))
+
+    def native_children_unchanged(self, runs, id):
+        """Live child links must still agree with the immutable report capture."""
+        from ..optimization_cache import artifacts
+        try:
+            report=json.loads((self.root/id/'report.json').read_text())
+            return all((child:=runs.get(child_id)) is not None
+                and canonical(child)==canonical(saved['record'])
+                and artifacts(runs.root,child)==saved['artifact_sha256']
+                for child_id,saved in report.get('native_backtests',{}).items())
+        except (OSError,ValueError,KeyError):
+            return False
 
     def fingerprint(self, id):
         from .adapter import digest

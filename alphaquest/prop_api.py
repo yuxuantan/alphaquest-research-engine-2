@@ -35,6 +35,7 @@ class EvaluationSearchRequest(BaseModel):
     candidates: list[dict] = Field(min_length=1)
     confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
+    native_execution: dict | None = None
     constraints: dict | None = None
 
 class FundedSearchRequest(BaseModel):
@@ -44,6 +45,7 @@ class FundedSearchRequest(BaseModel):
     candidates: list[dict] = Field(min_length=1)
     confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
+    native_execution: dict | None = None
     horizon_calendar_days: int = Field(strict=True)
     receipt_delay_calendar_days: int = Field(strict=True)
     constraints: dict = Field(default_factory=dict)
@@ -90,7 +92,7 @@ async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRe
         if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
             module = module_for_mode(body.mode)
             search = module.parse_request(phase_request(body))
-            checks = await run_in_threadpool(module.check_search, request.app.state.runs, search)
+            checks = await run_in_threadpool(module.check_search, request.app.state.runs, search, datasets=request.app.state.store)
             return dict(status='compatible', mode=search.mode, candidates=checks, model_version=module.MODEL_VERSION)
         from .prop.phase_lifecycle import prepare_request, source_snapshots, dated
         snapshot,rows,settings=await run_in_threadpool(prepare_request,request.app.state.runs,body.model_dump())
@@ -113,7 +115,7 @@ async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchR
         if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
             module = module_for_mode(body.mode)
             return await run_in_threadpool(request.app.state.prop_analyses.submit_phase,
-                request.app.state.runs, module.parse_request(phase_request(body)))
+                request.app.state.runs, module.parse_request(phase_request(body)), datasets=request.app.state.store)
         return await run_in_threadpool(request.app.state.prop_analyses.submit,request.app.state.runs,body.model_dump())
     except CandidateConfirmationRequired as exc:
         raise HTTPException(409, exc.detail) from exc
@@ -122,12 +124,24 @@ async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchR
     except (ValueError,KeyError,OSError) as exc:
         raise HTTPException(422,str(exc)) from exc
 
+@router.post('/{id}/cancel')
+def cancel(id: str, request: Request):
+    try:
+        return request.app.state.prop_analyses.cancel_phase(id)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from exc
+
+
 @router.get('/{id}')
 def job(id: str,request: Request):
     record=request.app.state.prop_analyses.get(id)
     if not record:
         raise HTTPException(404,'Analysis not found.')
-    return {**record,**(request.app.state.prop_analyses.summary(id,record=record) or {})}
+    with request.app.state.prop_analyses.connect() as db:
+        control=db.execute('SELECT stop_requested FROM phase_analysis_control WHERE analysis_id=?',(id,)).fetchone()
+    return {**record,**(request.app.state.prop_analyses.summary(id,record=record) or {}),
+        'capabilities':dict(cooperative_cancel=control is not None and record['status'] in ('queued','running'),
+            stop_requested=bool(control and control[0]))}
 
 @router.get('/{id}/downloads/{kind}')
 def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv'],request: Request):

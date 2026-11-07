@@ -202,7 +202,7 @@ def test_streaming_inventory_retains_only_metadata_and_does_not_infer_sessions(t
     assert result["counts"] == {"2026-01-04": 1, "2026-01-05": 2, "2026-01-06": 1}
     assert result["source"] == dict(dataset_id=saved["id"], sha256=saved["sha256"], source_timezone="UTC", row_count=4)
     assert result["bounds"]["2026-01-05"] == dict(first_utc="2026-01-04T23:01:00Z", last_utc="2026-01-05T15:00:00Z")
-    assert set(result) == {"convention", "source", "sessions", "counts", "bounds", "coverage"}
+    assert set(result) == {"convention", "source", "sessions", "counts", "bounds", "coverage", "session_content_sha256"}
     assert result["convention"] == SESSION_CONVENTION
     assert source.get(saved["id"]) == saved
     changed, changed_saved = save_source(tmp_path / "changed", price=999)

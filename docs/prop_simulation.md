@@ -1912,3 +1912,82 @@ Normal downloads add `native_forecast_plan.json`, `native_forecast.json`,
 `native_forecast_captures.json`. Native optimizer/campaign integration,
 conservative historical refitting and frozen native outer application remain
 pending. See the [saved workflow and independent expected values](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08).
+
+
+# Native independent phase search contract and limits — 8 November 2026
+
+Additive `search_settings.native_execution` selects actual strategy/account-state
+reruns; omission keeps the saved-trade calculation path and existing defaults.
+Its fields are `model: observed_contiguous_blocks_with_prior_prefix_v1`, explicit
+`horizon_calendar_days` (1–365), `early_closes` date-to-HH:MM map (default empty),
+and `capture_paths` (default 1, maximum 20). Candidate `simulation` supplies the
+path count/seed; `sampling.block_weekdays` supplies 1, 5, or 10 source sessions.
+Evaluation's chain count/seed must agree with that single declared path law.
+Funded's horizon must equal the native execution horizon. Both use the existing
+phase calendar; modeled cohort starts follow admitted IS observations. Calendar
+declarations, rules and settlement assumptions retain their verification status.
+
+Admission requires the existing DatasetStore and actual supported continuous
+MNQ VWAP source, original execution costs, compatible session calendars and
+complete source identity. Public selection remains IS only. Private nested and
+terminal training contexts must verify exact source/frozen membership; a public
+request cannot set those contexts. Supplemental saved-trade excursion files,
+unsupported strategies/scaling and incompatible calendars reject explicitly.
+
+Evaluation retains the independent acquisition-cost/calendar-time Pareto
+contract. Eventual acquisition means are unavailable when required paths remain
+censored; fees spent on those paths are still saved. A visible resolved frontier
+does not make an unresolved declared family safe to freeze. Funded retains mean
+cash actually received within the saved horizon, conditional on one fresh
+funded account. No Evaluation fee/pass statistic enters its selection. All
+candidates remain in the saved report, including unresolved and infeasible rows.
+
+Native manual OOS applies the complete frozen family chronologically through
+normal controlled backtests; it does not resample, shorten the frozen horizon,
+rerank or fit new policies. The original source must cover every required actual
+session. Controlled children are pinned before execution and captured within the
+ordinary AnalysisStore result. Reopening reads saved artifacts.
+
+## Optional conservative native expected cash
+
+Use the explicit method `native_origin_block_bootstrap_lower_mean_v1` inside
+`conservative_objective`; the saved-trade method is not silently substituted.
+Chronological blocks of original source-block origins are sampled into frequency
+weights. Each weighted draw still executes its intact original bars with that
+origin's strictly prior original feature prefix. Prices are never spliced into
+a counterfeit history and quantities are never rewritten after execution.
+
+Every refit reruns the same Funded owner. Saved evidence retains origin indices,
+weights/seeds/hashes, individual cash outcomes, schedule hashes, conditional
+means and Monte Carlo standard errors. The lower historical-mean order statistic
+uses nominal family tail `(1-confidence_level)/complete_candidate_count`; at
+least five expected tail replicates and the declared history/block minima are
+required. Every cohort needs at least two inner paths, at most 512 in total.
+A required calendar-shape pool with zero positive weight makes that refit and
+its lower-mean objective unresolved; it is never redrawn, dropped or replaced
+with the point mean. An insufficient family has no conservative winner.
+
+This estimates uncertainty under an explicit origin-frequency/stationarity
+model conditioned on original feature prefixes. Origins overlap; they are not
+independent new histories. More Monte Carlo paths do not increase historical
+sample size. The lower mean is not a single-account payout percentile, a future
+cash guarantee, execution certification or verified provider parity. Conditional
+Monte Carlo error remains a separate diagnostic.
+
+## Bounded complete-family work and saved outputs
+
+Admission checks the entire declared family before running: at most 50,000,000
+bar operations, 16 MiB of complete point-forecast schedules and 100 MiB estimated
+captures/refit metadata. Historical origin capture is limited to 1,000,000
+indices. Conservative refit work is included in the family bound. Bounds never
+truncate candidate membership, pools or outcomes. Final encoded artifacts plus
+embedded report JSON must fit the existing 128 MiB publication limit.
+
+Ordinary downloads include `native_forecasts.json`,
+`native_forecast_paths.json`, `native_forecast_schedules.json`,
+`native_forecast_captures.json`, and (for frozen assessments)
+`native_chronological_replays.json` plus the normal controlled backtest files.
+History refit evidence is saved with the existing conservative objective export.
+
+
+The saved API/browser journey and targeted release evidence are recorded in `prop_simulation_review.md`. Full-goal qualification and provider/live parity are separate.

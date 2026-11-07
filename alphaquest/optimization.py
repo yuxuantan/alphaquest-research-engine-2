@@ -439,6 +439,8 @@ class OptimizationStore:
                 logger.exception("Could not save progress for optimization %s; continuing active trials", job_id)
 
         try:
+            from .research_access import guard_read
+            guard_read(source,job["dataset"]["id"],date_range,kind='strategy_execution',origin='optimization:'+job_id)
             if job.get("engine_identity") and engine_identity() != job["engine_identity"]:
                 raise ValueError("Engine code changed while this job was queued. Start a new optimization.")
             self.update(job_id, status="running", stage="preparing", started_at_utc=datetime.now(timezone.utc).isoformat())

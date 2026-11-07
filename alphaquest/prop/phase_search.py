@@ -123,17 +123,21 @@ def verify_training_context(runs, search, context):
         if not condition:
             raise ValueError('Invalid nested phase training context: ' + message)
     require(isinstance(context, dict), 'expected an internal context object.')
-    reference = context.get('version') == 'nested-phase-reference-v1'
+    terminal = context.get('version') in ('procedure-training-v1', 'procedure-reference-v1')
+    reference = context.get('version') in ('nested-phase-reference-v1', 'procedure-reference-v1')
     membership_key = 'source_configuration_ids' if reference else 'qualified_configuration_ids'
     admission_key = 'reference_declaration_sha256' if reference else 'qualification_sha256'
-    role = 'baseline_train' if reference else 'policy_train'
-    required = {'version', 'campaign_id', 'outer_fold_index', admission_key,
+    role = ('procedure_reference_train' if reference else 'procedure_policy_train') if terminal else ('baseline_train' if reference else 'policy_train')
+    required = {'version', 'campaign_id', admission_key,
         'input_identity', 'engine_identity', 'train_window', 'information_cutoff_session',
         membership_key, 'training_sources', 'session_inventory', 'context_sha256'}
+    required |= {'application_id','procedure_sha256','application_role'} if terminal else {'outer_fold_index'}
     require(required <= context.keys(), 'missing provenance fields.')
     unsigned = {k:v for k,v in context.items() if k != 'context_sha256'}
-    require(context['version'] in ('nested-phase-training-v1', 'nested-phase-reference-v1') and
+    require(context['version'] in ('nested-phase-training-v1', 'nested-phase-reference-v1', 'procedure-training-v1', 'procedure-reference-v1') and
         sha256(canonical(unsigned).encode()).hexdigest() == context['context_sha256'], 'identity differs.')
+    if terminal:
+        require(context.get('application_role') in ('final_fit','current_development') and 'outer_fold_index' not in context, 'invalid terminal application discriminant.')
     if reference:
         declarations = context.get('reference_declarations')
         require(context.get('admission_scope') == 'predeclared_reference' and
@@ -168,7 +172,11 @@ def verify_training_context(runs, search, context):
         record = source_record(runs, id); meta = record['run_metadata']; research = meta.get('research') or {}
         require(record['status'] == 'complete' and meta.get('source', {}).get('kind') != 'external_trade_export', 'expected a complete native training report.')
         require(research.get('phase') == 'inner' and research.get('role') == role, 'source has the wrong nested training role.')
-        require(research.get('campaign_id') == context['campaign_id'] and research.get('outer_fold') == context['outer_fold_index'], 'source campaign/fold differs.')
+        require(research.get('campaign_id') == context['campaign_id'], 'source campaign differs.')
+        if terminal:
+            require(all(research.get(key)==context[key] for key in ('application_id','procedure_sha256','application_role')) and 'outer_fold' not in research, 'source terminal application differs.')
+        else:
+            require(research.get('outer_fold') == context['outer_fold_index'], 'source fold differs.')
         require(canonical(research.get('window')) == canonical(window) and
             research.get('information_cutoff_session') == sessions[-1], 'source information boundary differs.')
         require(research.get(admission_key) == context[admission_key] and
@@ -207,7 +215,7 @@ def verify_training_context(runs, search, context):
     return sessions
 
 
-def check_candidates(runs, search, assessment=None, *, training_context=None):
+def check_candidates(runs, search, assessment=None, *, training_context=None, datasets=None):
     """Reconcile every source before queueing; admit only comparable saved IS."""
     validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
     rows = []
@@ -215,6 +223,10 @@ def check_candidates(runs, search, assessment=None, *, training_context=None):
     if assessment is not None and training_context is not None:
         raise ValueError('Frozen OOS assessment and nested phase training are distinct source roles.')
     observed = verify_training_context(runs, search, training_context) if training_context is not None else None
+    if getattr(search,'native_execution',None) is not None:
+        from .native_search import check_native_candidates
+        return check_native_candidates(datasets,runs,search,assessment=assessment,
+            training_context=training_context,observed_sessions=observed)
     for candidate in search.candidates:
         record = source_record(runs, candidate.source.source_backtest_id)
         metadata = record['run_metadata']

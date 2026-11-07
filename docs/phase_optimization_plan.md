@@ -719,3 +719,37 @@ temporary servers owned by the checks. Test counts alone do not close a mileston
 - Portfolio allocation and monthly-cap optimization remain optional later work.
   Neither completion of this plan nor a best phase estimate establishes the best
   multi-account cash allocation or trading readiness.
+## 8 November 2026: native candidate and complete-procedure integration
+
+Independent campaigns and nested studies now support the explicit native
+contiguous-block execution method. Each admitted candidate reruns the actual
+strategy and phase account owner with its fixed-contract, fixed-dollar or
+percentage policy. Evaluation still selects an acquisition-cost/calendar-time
+Pareto family; Funded still selects finite-horizon receipts from a fresh account.
+All declared members stay in the search; native origin-weight refits provide an
+explicit conservative historical-mean option with separate Monte Carlo precision
+and unresolved-family handling. The previous fixed-path calculation remains the
+default when native execution is omitted.
+
+Native selected families apply to actual outer and manual OOS bars without
+resampling, horizon shortening or reselection. Complete procedures freeze the
+qualification/search algorithm, references and evidence rules, then rerun terminal
+selection on pinned eligible development. Protected final assessment is optional,
+audited and permanently consumed when authorized. A separate current-development
+application produces a research candidate or an explicit no-qualified-candidate
+result; it cannot promote a last-fold winner or use final outcomes to reselect.
+
+Current owners remain the respective phase profiles/optimizers, shared
+admission/capture, strict dispatch, existing campaign worker and AnalysisStore.
+`native_search.py` adapts candidates; `research_access.py` and
+`research_procedure*.py` own local access/complete-procedure orchestration. No
+Bridge runtime, joint selector, second account engine or result database enters
+this path. See current contracts in [prop simulation](prop_simulation.md),
+[campaign API](research_campaign_api.md) and saved product journeys in
+[prop review](prop_simulation_review.md).
+
+This extends the earlier dated findings; it does not erase their evidence. Guided
+catalogue/templates, optional predefined frozen-pair lifecycle comparison,
+timestamped forward monitoring and full-suite final acceptance remain pending.
+Provider, broker, numerical-reference and operational readiness are separate
+qualification boundaries; no live integration is declared production-ready.

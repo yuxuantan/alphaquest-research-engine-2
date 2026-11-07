@@ -59,8 +59,16 @@ precision requirements. **Native account-state replay** now reruns complete
 one-minute MNQ/VWAP historical sessions with causal quantity decisions, actual
 fills and separate provider/cash ledgers. Its optional native Monte Carlo forecast
 replays observed contiguous blocks with prior-only feature warmup and a separately
-declared modeled calendar. Native policy search, final recommendations and
-forward monitoring remain pending.
+declared modeled calendar. Independent campaigns and nested studies can use this
+native execution mode for fixed contracts, fixed dollars or percentage risk;
+the selected policies rerun the actual later bars with account control.
+Complete research procedures can also be frozen, assessed against a protected
+final window, and rerun on eligible development history for a current research
+candidate. Final assessment cannot select a replacement winner. Metadata-only
+uploads and durable local access history distinguish protected, already accessed
+and unknown-history data. Guided catalogue/templates, optional frozen-pair
+lifecycle comparison, forward monitoring and final full-suite qualification
+remain pending.
 See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 

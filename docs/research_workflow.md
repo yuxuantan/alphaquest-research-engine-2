@@ -540,7 +540,8 @@ first supported subset requires complete one-minute sessions, EOD-flat enabled
 and strategy-local volatility sizing disabled. Results link the actual controlled
 backtest, causal decisions, provider session states, requests/deductions/receipts
 and durable downloads. Historical scenario status stays separate from the optional
-native Monte Carlo forecast below. Native policy selection remains pending. See the [saved journey
+native Monte Carlo forecast below. Native policy selection is now available in
+independent campaigns and nested studies as described below. See the [saved journey
 and independent expected values](prop_simulation_review.md#native-chronological-strategy-and-account-replay--2026-11-08).
 
 
@@ -557,4 +558,71 @@ both source/model clocks. Conditional Monte Carlo error is not future confidence
 Reopening/downloading does not resimulate. The [saved demonstration](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08)
 contains exact declarations, independent dynamic quantities/cash, rejection cases,
 source bytes and startup/shutdown steps. Native candidate optimization and frozen
-outer application remain pending.
+outer application are described next.
+
+### Native policy search and actual later observations
+
+From the same saved IS report, choose an Evaluation or Funded campaign and select
+the native strategy rerun execution method. Keep the phase objective visible:
+Evaluation compares acquisition cost and calendar time; Funded compares receipts
+within its horizon from a fresh account. Declare the complete set of sources,
+whole-contract caps and sizing policies before checking. The native method
+currently admits complete one-minute MNQ sessions from the supported EOD-flat
+VWAP strategy with its local volatility sizing disabled. Unsupported strategies,
+instruments, incomplete sessions or unavailable block shapes reject at checking.
+
+Native checking shows the complete candidate population, source and target
+calendars, simulation work and retained paths. Running saves every candidate's
+paths, schedules and forecast in the existing analysis. The Funded point-mean
+selector retains exact ties; Evaluation retains the Pareto family. A conservative
+mean option refits native forecasts under historical block-origin weights and
+reports unresolved refits explicitly. Its historical interval and conditional
+Monte Carlo error remain separate from per-account cash dispersion and future
+uncertainty.
+
+In nested research, choose the same native method under **Economic validation**.
+Every configuration that passes the inner qualification enters the phase search
+with every declared policy. The full selected family is sealed before any outer
+prices are used. Each outer application runs actual bars once, without sampling
+or reselection, and links its ordinary controlled backtest. Fixed-path campaigns
+keep their earlier meanings and calculations. A frozen native campaign's manual
+OOS action also uses actual chronology, requires its full declared horizon and
+never publishes a new ranking. Requests, account deductions, pending amounts and
+modeled receipts are separate saved fields.
+
+Queued/running independent searches offer **Stop**. A requested stop ends at the
+next safe boundary and cannot publish a partial candidate population as an
+optimum. Run again restarts the complete declaration with its saved seeds.
+Completed report reopening and downloads do not recalculate. Source, code,
+captured artifact and controlled child catalogue changes prevent incompatible
+reuse. Final-procedure controls below apply to the entire research algorithm,
+not just these selected-policy manual OOS checks.
+
+
+## Complete-procedure freeze and terminal applications (M3b2)
+
+Implemented on the existing robust research report, with normal backtests, phase owners, workers and AnalysisStore reports. This increment adds no simulation engine, service, or result database. Existing completed research reports remain immutable. A completed campaign can freeze one complete server-derived procedure; each final/current application is a separate saved AnalysisStore report.
+
+The original research declaration now includes `terminal_selection` and `final_evidence`. Historical campaigns without these declarations can still reopen but cannot acquire a retrospectively declared procedure freeze. A new evaluated declaration is required. The procedure captures every expanded signal configuration and its implementation, qualification/neighbor/complexity rules, folds/gaps, causal regime settings, execution scenarios, independent phase studies/policies/profiles/calendars/seeds/constraints/ties/native law, references, reliability settings and complete engine/data identity. It binds the original report/artifact fingerprint and the exact eligible development session content. The SHA saved in the existing catalogue is authoritative; a modified client blob with a new selfhash is not authority.
+
+Terminal planning uses the predeclared outer training length and rolling/expanding mode. It excludes the declared purge/embargo sessions at the end of development, reruns the same inner qualification over that retained training history, then searches the complete PASS population independently for each phase. All predeclared references retain separate measurement-only admission. The target is the next declared `outer_test_sessions` open dates from the phase calendar; it is price-free modeled calendar metadata, not verified future observations. Terminal applications have their own application/procedure/role discriminants and never claim a fabricated outer fold. No last-fold policy is promoted.
+
+Current-development selection uses the same pinned development snapshot and complete frozen algorithm. It excludes the reserved/consumed final window, even after final assessment. An appended/reformatted source may be chosen before freeze only if every original development session has identical canonical observations and counts, with matching instrument and timestamp interpretation; that exact snapshot is then pinned. Changing criteria, source content, costs, code, or the terminal window requires a new evaluated procedure.
+
+Final verification is optional and only available with a matching reservation and eligible local access evidence. Qualification, phase choices/families and references are durably sealed before final authorization and the first final strategy execution. Assessment applies every frozen member without reselection, ranking replacement or implicit family weights. It records one chronological historical observation for each policy. `final_evidence.require_evaluation_completed_acquisition` and `minimum_funded_trader_receipts` are optional predeclared outcome gates, default `null`; no arbitrary zero-cash certification is implied. Any failed explicit gate, incomplete consumed assessment, insufficient required evidence or unqualified current membership prevents a deployment recommendation. Families remain families. Provider/model/operational blockers remain visible, and every result keeps `production_qualified=false`.
+
+A failed or cancelled final attempt remains consumed once its durable access authorization exists. Current-development reports derive incomplete status from that exact authorization/application, rather than calling it “not requested.” Cancellation is cooperative between durable steps. Completed backtests/phase reports are retained and verified on resume; cancellation accepted during archive staging is rechecked under the publication lock before a completed report can appear. Saved reports reopen without resimulation or mutation.
+
+### Access provenance and feasible fresh-data workflow
+
+A shared append-only access journal lives in the existing AnalysisStore catalogue. A fresh workspace records its scope from creation; an older workspace retains unknown earlier history. Retained backtests and manual OOS attempts establish prior access, including cross-strategy outcomes. Existing normal price readers, prepared/cache paths, optimization dispatch, imports, CSV downloads and the command-line bar reader honor the same journal. Price access is recorded before work/return, including consumer failures. Metadata-only validation and inventory can parse/hash raw bytes but return only timestamps, counts, schema and hashes; this is explicitly not an untouched-byte claim.
+
+Dataset validate/save accept `disclosure=metadata_only`. The response omits OHLC previews and later dataset metadata remains hidden. Reserve the final range before initial IS research to avoid preview/download/outcome contamination. The server derives every actual session in the chosen inclusive range; callers cannot omit inconvenient dates. Ordinary requests overlapping RESERVED/BOUND sessions reject with 409. Explicit release permits ordinary manual research and permanently records the decision. Consumed final history remains available for honest subsequent manual access but cannot obtain a clean reservation again.
+
+The guard uses market/instrument information lineage and session coverage, with raw/canonical content witnesses; it does not equate “new raw SHA” with “untouched.” NQ and MNQ share the Nasdaq information domain while retaining distinct execution contracts. Differing captured source timezones use conservative two-civil-date overlap padding to prevent shifted CSV interpretations laundering the same observations. Unknown lineage/history cannot grant eligibility. Existing CLI readers attach to the existing journal without creating a worker, database or false fresh scope. External prior-access declarations are unverified and never override known overlap. Eligibility is labeled `ELIGIBLE_UNDER_DECLARED_LOCAL_SCOPE`, never a universal untouched certificate.
+
+
+### Current boundaries
+
+
+This does not establish external absence of prior access, official provider parity, future profitability, live execution readiness or automatic trading authorization. A holdout can be infeasible/previously accessed/unknown; that status is retained. Missing or partial evidence cannot produce a forced winner. A single final outcome does not estimate or prove a future mean. Strategy draft/catalogue completion and forward timestamped monitoring remain subsequent milestones.

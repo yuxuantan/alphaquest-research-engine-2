@@ -265,6 +265,36 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
             'No Funded outcomes or cash enter Evaluation sampling, account transitions or metrics.'])
 
 
+def native_acquisition_metrics(forecast):
+    """Project actual native path observations onto the existing Pareto contract."""
+    paths=forecast['paths'];n=len(paths)
+    first=[path['attempts'][0]['outcome'] if path['attempts'] else 'unobserved' for path in paths]
+    terminal={'passed','blown','inactive','expired'}
+    passed=first.count('passed');open_count=sum(value not in terminal for value in first)
+    complete=all(path['acquisition_completed'] for path in paths)
+    m=forecast['metrics'];u=forecast['uncertainty']['metrics']
+    return dict(status='estimated' if complete else 'unresolved',
+        metrics=dict(cost_per_funded=m['mean_acquisition_cost'],
+            expected_calendar_days_to_funded=m['mean_calendar_days_to_funded'],
+            pass_probability=passed/n if not open_count else None,
+            pass_probability_bounds=[passed/n,(passed+open_count)/n],
+            probability_acquisition_by_cutoff=m['probability_acquisition_by_cutoff'],
+            expected_attempts_per_funded=m['mean_attempts_started'] if complete else None,
+            restricted_mean_paid_fees=m['restricted_mean_paid_fees'],
+            restricted_mean_observed_calendar_days=m['restricted_mean_observed_calendar_days']),
+        uncertainty=dict(cost_se=u['mean_acquisition_cost']['mc_standard_error'],
+            calendar_mean_se=u['mean_calendar_days_to_funded']['mc_standard_error'],
+            cost_ci=None,calendar_mean_ci=None,robust_dominance='not_established',
+            interpretation=forecast['uncertainty']['scope']),
+        censoring=dict(status='resolved' if complete else 'censored',
+            censored_paths=m['censored_paths'],first_attempt_censored_paths=open_count,
+            reason=None if complete else 'Finite native path guards/cutoffs leave acquisition means unresolved; all fees retained.'),
+        assumptions=dict(model=forecast['model'],native_execution=True,
+            pass_probability='First purchased account outcome over all start-cohort paths; withheld if any first attempt remains unresolved. Not probability of eventual acquisition.',
+            acquisition='Direct all-path actual fees and calendar time, only when every path acquired; no fee/pass ratio.',
+            declaration=forecast['phase_configuration'],limitations=forecast['assumptions']))
+
+
 def simulate_evaluation_profile(
     runs, source: SavedTradeSource, profile: EvaluationProfile, micros: int,
     simulation: SimulationConfig = SimulationConfig(),
@@ -403,7 +433,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
     from .adapter import canonical
     from .cash_ledger import cash, replay_calendar_sessions, next_evaluation_purchase, acquisition_schedule
     from .evaluation_optimization import SequentialRetry
-    from .phase_profiles import prepare_chronological_source, verify_frozen_replay, chronological_kernel_arguments
+    from .phase_profiles import prepare_chronological_source, verify_frozen_replay, chronological_kernel_arguments, frozen_replay_tags
     if type(retry) is not SequentialRetry or type(profile) is not EvaluationProfile:
         raise ValueError('Chronological acquisition requires evaluation-only profile and retry contracts.')
     snapshot, book, settings = prepare_chronological_source(runs, source, 'evaluation', profile, micros,
@@ -468,8 +498,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
         before = dict(equity=attempt['equity'], high=attempt['high'], best_day=attempt['best'])
         decisions = []
         def capture(value): collector(value); decisions.append(value)
-        kwargs = chronological_kernel_arguments(sizing, micros, capture, stage='outer_chronological',
-            outer_fold_index=frozen_binding['outer_fold_index'], candidate_id=frozen_binding['candidate_id'],
+        kwargs = chronological_kernel_arguments(sizing, micros, capture, **frozen_replay_tags(frozen_binding),
             calendar_date=str(day), session_index=attempt['sessions'], attempt=attempt['index'])
         kwargs['max_micros'] = max_micros
         size = min(micros, max_micros, 40 if lucid else 60)

@@ -67,9 +67,9 @@ are split into coherent commits and pushed at least every one or two commits.
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | implemented for supported native fixed-path policies; normal API/browser evidence and focused regression qualified; no provider/live parity claim |
-| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | partial: native chronological MNQ/VWAP account-controlled replay and optional native forecasts implemented; optimizer/campaign handoff and frozen outer integration remain pending |
+| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | implemented: native chronological MNQ/VWAP execution, candidate forecasts, independent search, conservative native refits and frozen outer/manual OOS integration; targeted release gates recorded below |
 | M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
-| M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | pending |
+| M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | implemented with guarded local-scope access, terminal refit and saved API/browser evidence; full-goal qualification remains pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
 | M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | pending |
 | M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | pending |
@@ -384,3 +384,62 @@ Existing phase optimizer/profile regression also passed 68 checks. Root separate
 verified 64 API components and 84 browser downloads across eight saved analyses;
 compilation, changed JavaScript syntax and diff checks passed. No persistent
 server remains.
+### M2e / M3b2 release: native phase search and guarded complete procedures
+
+Native candidate execution now reaches independent campaign checks/searches,
+conservative Funded origin-weight refits, frozen manual OOS and every qualified
+nested configuration/policy. The complete native family is selected from IS;
+actual outer execution uses normal controlled backtests and cannot select again.
+Source/captured-child identity, complete-family resource bounds and cooperative
+publication/cancellation checks remain authoritative. Legacy saved-trade and joint
+requests retain their meanings.
+
+Complete procedure freeze and terminal applications now reuse the original
+inner qualification law and independent phase owners. Metadata-only upload and
+the append-only local access journal protect reserved final dates across normal
+readers, caches, imports and CLI entry points. Final prices become available only
+after terminal selections/references are sealed. Failed or cancelled consumed
+assessments remain incomplete; current selection is a separate development-only
+procedure rerun. No final-derived replacement, forced winner or universal
+untouched-data certificate is produced.
+
+Shared release engine identity:
+`3a0b3bc7482e85b25d358b85459b43c84a4ee7113f52876c76130080aa09313b`.
+The [normal-product journey](prop_simulation_review.md#native-phase-optimization-and-complete-procedure-verification--2026-11-08)
+contains exact sources, settings, saved IDs, expected quantities/cash/rejections,
+downloads and startup/stop instructions. A source archive remains at
+`artifacts/native-phase-optimization-m2e-20261108/qualified-source.tar.gz`.
+
+| Stable targeted gate | Result and saved evidence |
+| --- | --- |
+| Native campaign, manual OOS, nested actual replay, phase contracts/cancellation | 51 passed in 309.31 s; `native-phase-optimization-m2e-20261108/api-final/` |
+| Native search/refits/forecasts/draws/ties/legacy historical mean | 71 passed in 129.67 s; `owners-final/pytest.log` |
+| Native controllers, chronological profiles and pure sizing | 114 passed in 29.47 s; `owners-final/controllers.log` |
+| Existing campaigns/assessment, architecture, work bounds, validation and empty sources | 37 passed / 1 local-socket sandbox failure in 227.47 s; exact two-worker case passed with process access in 2.50 s; `legacy-regression-final/` |
+| Procedure/access/fold/ordinary research/data/import regression | 312 passed / 1 local-socket sandbox failure in 244.28 s; exact case passed with process access in 3.09 s; one additional terminal-reference application passed in 11.91 s; `procedure-native-search-m3b2-20261108/api-gate-final/` |
+| Independent access/cancellation attacks | 7 repaired checks passed in 2.05 s; original failing timezone-alias, CLI and publication-race evidence retained under `independent-review/` |
+| Native campaign browser | First run 3 passed / 1 formatting-only assertion failure in 221.18 s; actual OOS rerun passed in 56.99 s; both outputs retained |
+| Complete-procedure browser | 1 passed in 26.31 s; metadata-only reservation → final failed criterion → separate current development → immutable reopen |
+| Saved artifacts / static checks | Root verified 29 complete reports and 454 component files against their hashes/ZIPs; product separately verified 23 downloads and 94 ZIP members. Python compilation, seven JavaScript syntax checks and whitespace checks passed. |
+
+Counts overlap between these suites and are not summed into a full-suite claim.
+Exact commands/logs/XML, matching pre/post engine identities and scripts are saved
+under the two named artifact roots. All owned servers stopped. The combined
+main runs with socket failures are preserved; the specific affected cases were
+rerun successfully with the required local process access.
+
+The native nested independent oracle uses nine complete synthetic MNQ sessions,
+five-session training and two two-session inner validations. In each of two
+outer windows, both tied $100-dollar and 0.2%-balance policies remain frozen,
+submit 10/10 MNQ on the actual later sessions, earn $400 trading profit and
+receive $0 cash. The protected final example retains four policies, each receives
+$0, fails its predeclared $1 floor and returns no qualified deployment candidate.
+These are controlled arithmetic/research-integrity demonstrations, not evidence
+of persistent market edge or provider parity.
+
+Remaining overall work: guided research catalogue/drafts/templates and integrated
+visual review; predefined frozen Evaluation/Funded pair comparison; independent
+timestamped forward/paper monitoring and recovery; a complete multi-strategy
+end-to-end example; final full pytest/browser/static/reproducibility acceptance.
+Existing statistical-property fixtures remain part of that final audit. The
+overall goal remains **incomplete**; no live route is production-qualified.

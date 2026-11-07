@@ -12,6 +12,7 @@ from .research import ResearchConflict
 from .research_folds import FoldSettings
 from .research_regimes import RegimeSettings
 from .research_reliability import ReliabilitySettings
+from .research_procedure import TerminalSelection, FinalEvidenceRules
 from .robust_research import RobustResearchRequest
 from .research_phase_selection import study_defaults
 
@@ -31,7 +32,7 @@ async def call(request, method, *args):
 
 @router.get('/defaults')
 def defaults():
-    return dict(**study_defaults(), reliability=ReliabilitySettings().model_dump(mode='json'), folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
+    return dict(**study_defaults(),terminal_selection=TerminalSelection().model_dump(mode='json'),final_evidence=FinalEvidenceRules().model_dump(mode='json'), reliability=ReliabilitySettings().model_dump(mode='json'), folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
         execution_scenario=ExecutionScenario(name='cost_stress').model_dump(mode='json'),
         regimes=RegimeSettings().model_dump(mode='json'), regime_names={
             'trend':'Trending prior prices', 'range':'Ranging prior prices',
@@ -88,3 +89,81 @@ async def export(id: UUID, kind: str, request: Request):
     if not path.is_file():
         raise HTTPException(404, 'This saved research report does not contain this artifact.')
     return FileResponse(path, filename=f'{id.hex}-{kind}')
+
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProcedurePreviewRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    reservation_id:str|None=Field(default=None,pattern=r'^[0-9a-f]{32}$')
+    source_snapshot_id:str|None=None
+
+
+class ProcedureFreezeRequest(ProcedurePreviewRequest):
+    procedure_id:str=Field(pattern=r'^[0-9a-f]{32}$')
+    expected_preview_sha256:str=Field(pattern=r'^[0-9a-f]{64}$')
+
+
+class FinalPreviewRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    procedure_sha256:str=Field(pattern=r'^[0-9a-f]{64}$')
+    reservation_id:str=Field(pattern=r'^[0-9a-f]{32}$')
+    source_snapshot_id:str
+
+
+class FinalRunRequest(FinalPreviewRequest):
+    request_id:str=Field(pattern=r'^[0-9a-f]{32}$')
+    expected_preview_sha256:str=Field(pattern=r'^[0-9a-f]{64}$')
+
+
+class DevelopmentRunRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    request_id:str=Field(pattern=r'^[0-9a-f]{32}$')
+    procedure_sha256:str=Field(pattern=r'^[0-9a-f]{64}$')
+
+
+@router.post('/{id}/procedure/preview')
+async def procedure_preview(id:UUID,body:ProcedurePreviewRequest,request:Request):
+    return await call(request,'procedure_preview',id.hex,body.model_dump(mode='json'))
+
+
+@router.post('/{id}/procedure/freeze',status_code=201)
+async def procedure_freeze(id:UUID,body:ProcedureFreezeRequest,request:Request):
+    return await call(request,'procedure_freeze',id.hex,body.model_dump(mode='json'))
+
+
+@router.post('/{id}/final-verification/preview')
+async def final_preview(id:UUID,body:FinalPreviewRequest,request:Request):
+    return await call(request,'final_preview',id.hex,body.model_dump(mode='json'))
+
+
+@router.post('/{id}/final-verification/run',status_code=202)
+async def final_run(id:UUID,body:FinalRunRequest,request:Request):
+    return await call(request,'run_application',id.hex,body.model_dump(mode='json'),'final_verification')
+
+
+@router.post('/{id}/development-selection/run',status_code=202)
+async def development_run(id:UUID,body:DevelopmentRunRequest,request:Request):
+    return await call(request,'run_application',id.hex,body.model_dump(mode='json'),'current_development')
+
+
+@router.get('/{id}/applications/{application_id}')
+async def application(id:UUID,application_id:UUID,request:Request):
+    return await call(request,'application',id.hex,application_id.hex)
+
+
+@router.post('/{id}/applications/{application_id}/cancel')
+async def cancel_application(id:UUID,application_id:UUID,request:Request):
+    return await call(request,'cancel_application',id.hex,application_id.hex)
+
+
+@router.get('/{id}/applications/{application_id}/exports/{kind}')
+async def application_export(id:UUID,application_id:UUID,kind:str,request:Request):
+    report=await call(request,'application_report',id.hex,application_id.hex)
+    if kind not in ('report.json','analysis.zip','procedure.json','terminal_plan.json','qualification.json','economic_selection.json',
+                    'baseline_results.json','final_verification.json','recommendation.json','research_journal.json','access_evidence.json','calculations.json'):
+        raise HTTPException(404,'Unknown procedure application download.')
+    path=request.app.state.prop_analyses.root/report['id']/kind
+    if not path.is_file():raise HTTPException(404,'Saved application does not contain this artifact.')
+    return FileResponse(path,filename=f'{application_id.hex}-{kind}')

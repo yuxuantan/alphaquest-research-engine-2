@@ -618,3 +618,79 @@ is the distinct modeled result with all-path metrics and uncertainty. Dedicated
 forecast files use ordinary `/api/prop-analyses/{id}/files/{name}` and ZIP routes.
 Changing any declaration invalidates the earlier check. No selector, current
 recommendation or historical-law confidence claim is implied by this option.
+
+## Native execution in independent campaigns and nested studies
+
+Independent phase request bodies now accept optional `native_execution`:
+
+```json
+{
+  "model": "observed_contiguous_blocks_with_prior_prefix_v1",
+  "horizon_calendar_days": 9,
+  "capture_paths": 1,
+  "early_closes": {}
+}
+```
+
+Omission preserves the saved-trade execution path. This explicit method uses the
+existing phase `simulation` paths/seed, `sampling.block_weekdays` (1, 5 or 10),
+profile, sizing and calendar. Native Funded horizon must equal its saved search
+horizon. Native Evaluation requires matching chain path counts/seeds and uses
+the native sequential retry results for acquisition metrics. No fee/pass-ratio
+substitute enters its selection. Total native paths are 2–512, at most 16 equally
+allocated start cohorts, horizon 1–365 civil days, capture 1–20 paths and no more
+than the path count. All dates and target shapes pass the same native calendar
+and source admission as standalone replay.
+
+Campaign declarations place this value in `search_settings.native_execution`.
+`check` includes each candidate's complete native source/forecast plan and family
+work. Unsupported native sources, profiles, calendars or scaling reject before
+queueing. The current implementation admits complete one-minute MNQ VWAP sources
+with EOD-flat enabled and strategy-local volatility sizing disabled. Fixed
+contracts, dollar risk and percentage risk all execute causal quantity decisions
+inside the actual strategy/account path. Every declared source × cap × policy ×
+profile combination stays in the population; unsupported members are not dropped.
+
+Nested economic studies use the same `search_settings.native_execution` but
+derive each forecast's horizon from that fold's exact outer civil cutoff when
+the horizon is omitted. An explicit horizon must agree. Inner qualified
+configuration membership is complete, selections are sealed, and outer execution
+uses original ordered bars without forecasting. Terminal procedure applications
+use explicit application/procedure identities and the same owners; no synthetic
+outer fold is inserted.
+
+`POST /api/prop-analyses/{id}/cancel` and
+`POST /api/research-campaigns/{id}/cancel` request cooperative cancellation for
+new independent phase jobs. Analysis status exposes
+`capabilities.cooperative_cancel` and `capabilities.stop_requested`. Unsupported
+jobs or completed jobs reject cancellation. Accepted stops cannot publish a
+partial population; explicit retry starts the full saved declaration again.
+Cancellation is not a request to delete earlier reports or source evidence.
+
+A native frozen campaign's existing manual assessment endpoint reruns the
+unchanged family on actual OOS chronology. It requires complete reviewed open
+sessions through the saved horizon, may include closed/weekend receipt days, and
+never shortens a horizon to fit the supplied data. Assessment results have
+`selection_status: assessment_only_no_reselection`, empty ranking/frontier and
+no winner. `native_chronological_replay` identifies the actual path; ordinary
+controlled child backtests and their immutable captured files appear under
+`native_backtests`. Idempotent reuse checks both the saved report and live child
+manifest/artifact identity. Earlier fixed-path OOS assessment semantics remain
+unchanged and explicitly labeled.
+
+
+## Complete-procedure and protected-session API
+
+
+- Existing robust request/defaults: `terminal_selection`, `final_evidence`; plan `session_inventory` is now the fully eligible development inventory, excluding partial source-timezone IS sessions and later source sessions. Raw metadata-only inventory remains available to the reservation checker.
+- `POST /api/datasets/{id}/research-reservations/preview` and `POST .../research-reservations`: `{request_id,first_session,last_session,market_domain:"CME:NASDAQ100",external_access:"declared_not_inspected"|"inspected"|"unknown"}`. GET lists reservations; POST `.../{reservation_id}/release` takes `{request_id,reason}`.
+- `POST /api/research-campaigns/robust/{id}/procedure/preview`: `{reservation_id:null|id,source_snapshot_id:null|dataset_id}`. Response includes complete terminal window/development/access/economic work review and `preview_sha256`.
+- `POST .../procedure/freeze`: same fields plus `{procedure_id,expected_preview_sha256}`. The procedure and reservation binding commit atomically.
+- `POST .../final-verification/preview`: `{procedure_sha256,reservation_id,source_snapshot_id}`. POST `.../run` adds `{request_id,expected_preview_sha256}`.
+- `POST .../development-selection/run`: `{request_id,procedure_sha256}`. No signal/policy/candidate/window override is accepted.
+- GET `.../applications/{application_id}`, POST `.../cancel`, and GET `.../exports/{kind}` reuse existing progress, retry and saved report patterns. Fixed exports include report/archive, procedure, terminal plan, qualification, economic selection, references, final verification, recommendation, access evidence and ordered research journal.
+
+The existing report UI renders the freeze/application progression, complete qualification and phase forecast families, actual held-out observations, readiness reasons and normal report/download links. It contains no analytical fixture oracle or demo-only page.
+
+
+For source lineage, local access scope, terminal selection and recommendation semantics, see the [workflow](research_workflow.md#complete-procedure-freeze-and-terminal-applications-m3b2). Historical reports stay readable; code/source changes prevent incompatible new calculations.
