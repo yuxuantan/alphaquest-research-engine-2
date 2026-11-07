@@ -29,6 +29,14 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
+The same saved report's **Configure prop analysis** screen now includes
+**Nested research**: preview rolling/expanding session windows, declare inner
+qualification criteria, run ordinary isolated backtests, and reopen/download
+every candidate's evidence. This first increment stops at inner qualification;
+outer economic selection/replay, final recommendations and forward monitoring
+remain pending. See the [workflow](docs/research_workflow.md#nested-inner-research)
+and [implementation checklist](docs/robust_research_plan.md).
+
 From **Strategies → New backtest**, save an IS grid, open a trial report, then
 **Configure prop analysis → Create Evaluation campaign / Create Funded campaign**.
 Evaluation minimizes acquisition cost and calendar time with a complete estimated

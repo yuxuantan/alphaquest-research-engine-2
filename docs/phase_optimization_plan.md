@@ -1,5 +1,12 @@
 # Independent Evaluation and Funded optimization
 
+Additive work, 7 November 2026: the [robust research plan](robust_research_plan.md)
+extends the existing phase architecture. Its first implementation executes
+session-aware inner research and qualification through normal backtests and
+AnalysisStore. It does not yet feed qualified sets into phase selection or run
+chronological frozen outer tests. The independent objectives and numerical
+owners below remain unchanged; retain all dated evidence and legacy paths.
+
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
 Specification and incremental implementation plan, consolidated 2026-11-06.

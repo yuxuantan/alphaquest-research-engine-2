@@ -160,6 +160,8 @@ def read_selected_bars(store: DatasetStore, dataset_id: str, date_range: DateRan
     selection = {"from_date": date_range.from_date.isoformat() if date_range.from_date else None,
                  "to_date": date_range.to_date.isoformat() if date_range.to_date else None,
                  "source_timezone": dataset.get("source_timezone"), "warmup": "none"}
+    if hasattr(date_range, 'convention'):
+        selection['date_convention'] = date_range.convention
     with read_bars(store, dataset_id) as source:
         if not date_range.active:
             selection.update(row_count=dataset["row_count"], start_utc=dataset["start"], end_utc=dataset["end"],

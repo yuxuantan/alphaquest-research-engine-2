@@ -1,5 +1,11 @@
 # Prop portfolio implementation plan
 
+7 November 2026: [robust research](robust_research_plan.md) now has an initial
+inner-window execution/qualification increment. Independent policy selection,
+frozen chronological outer replay and common-horizon pair comparison remain
+pending there. Existing dated phase-source and exact budgeted cash milestones
+below are retained; payouts still cannot expand the monthly fee cap.
+
 Accepted 2026-11-04. This plan extends [prop simulation](prop_simulation.md)
 through its existing backtest → configure → check → run → durable report journey.
 

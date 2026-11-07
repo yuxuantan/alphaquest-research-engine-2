@@ -6920,3 +6920,99 @@ Existing dated replay/cash accounting will be reused; existing Monte Carlo OOS
 assessment is not historical chronological OOS. No new numerical/provider/live
 qualification is claimed. All saved evidence below remains unchanged.
 
+## Nested inner research product increment — 2026-11-07
+
+Implemented: session-aware rolling/expanding nested plans, declared whole-session
+purge/embargo, normal isolated inner backtests, full-set qualification, numerical
+parameter neighborhoods (including typed Decimal parameters), additive cost
+sensitivity and approximate session-block bootstrap intervals. All thresholds,
+candidate membership and implementation/source identities are saved before
+execution. The existing prop configuration and AnalysisStore provide check/run,
+progress, cooperative stop/resume, durable reports and downloads. No new service,
+database, backtest engine or demo-only screen was created.
+
+This is an **inner research increment**, not complete nested economic validation.
+Outer tests and policy selection are `not_run`; overall readiness is
+`INCOMPLETE`. Required missing execution scenarios/regimes return
+`INSUFFICIENT_EVIDENCE`; causal regime construction, alternative fill reruns,
+variable prop sizing, frozen economic selection/replay, final recommendations
+and forward monitoring remain pending. PASS means only the saved research
+criteria passed. There is no numerical-provider parity or live-readiness claim.
+
+Saved final product library (earlier attempts retained):
+`artifacts/robust-research-m1-20261107/browser-release/test_nested_research_preview_q0/`.
+It contains ordinary dataset/backtest catalogues and AnalysisStore artifacts,
+`browser-evidence.json`, downloaded report/plan/qualification CSV/ZIP, and desktop
+and 390px screenshots. Campaign `4542bf54a18541b5b1c52fcfd9780b65`, report
+`3443ccfab48b4564a50a7125aab6f422`. The report JSON SHA-256 is
+`94e9a8a338f8b3c10116d3378d99e761a7ef2fa7123f94ffcfae8a7cc043333e`.
+
+Reopen the actual saved product from this checkout:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/robust-research-m1-20261107/browser-release/test_nested_research_preview_q0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#backtests/report/090e0c2ee4d841f5a086b34bd345e1b5`.
+Choose **Configure prop analysis → Nested research** and open the saved
+“SYNTHETIC neighboring configurations · inner research” history row. Or open
+`http://127.0.0.1:8019/#backtests/prop/job/3443ccfab48b4564a50a7125aab6f422`
+directly. Expect three outer plans, three inner folds each, both configurations
+qualified in every outer training window, and explicit pending outer testing.
+Download report JSON/ZIP/qualification CSV; reload and observe no recalculation.
+Stop this manually started server with **Ctrl+C**. All browser-test servers were
+temporary and stopped by their fixtures; no persistent server was started.
+
+To reproduce through the form, use the anchor above and select neighbor
+`d867e69488104d7d8d962d14c611b0d9`. Set rolling outer training 10 sessions, outer
+test 3, inner training 2, inner validation 2, purge 1, embargo 0, minimum inner
+folds 2 and outer folds 2. In qualification requirements retain the saved
+defaults except minimum sessions 6, minimum trades 6, minimum trades per fold 1
+and bootstrap block 1. Preview must show **36 backtest tasks**: 3 outer plans ×
+3 inner folds × 2 roles × 2 configurations. Review and run. The source is
+explicitly synthetic and has been accessed before; never label it untouched.
+
+Independent expected arithmetic: one source NQ contract has point value $20.
+The green-count-1 trade earns 150 points × $20 = **$3,000** per session;
+green-count-2 earns 50 points × $20 = **$1,000**, with zero baseline costs.
+Each outer plan has six inner validation sessions, so means are $3,000/$1,000
+and total validation net $18,000/$6,000. The deterministic constant-session
+fixture has degenerate historical bootstrap intervals; this is an arithmetic
+oracle, not credible empirical evidence of a real edge. All six candidate rows
+pass the declared fixture criteria, while overall readiness remains incomplete.
+
+Boundary checks: previewing default 60/20 windows against the short source
+rejects with an insufficient-history reason and disables Run. Test-only fixtures
+also verify partial UTC/Chicago boundary-session exclusion, changing future
+prices without changing earlier admission, absent required regime/fill evidence,
+OOS candidate rejection, actual VWAP Decimal provenance and no-trade insufficiency,
+cross-kind ID collisions, source/code changes, artifact tampering, deletion during
+publication, and cancellation/resumption without discarding completed work.
+
+Executed new gates:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_research_folds.py \
+  tests/test_edge_qualification.py tests/test_robust_research_api.py \
+  --basetemp artifacts/robust-research-m1-20261107/focused/data \
+  --junitxml artifacts/robust-research-m1-20261107/focused/junit.xml
+.venv/bin/python -m pytest -q tests/test_robust_research_browser.py \
+  --basetemp artifacts/robust-research-m1-20261107/browser-release \
+  --junitxml artifacts/robust-research-m1-20261107/browser-release.xml
+```
+
+Results: **90 focused tests passed** in 22.37 seconds; **1 browser test passed**
+in 48.80 seconds. Both had the existing Starlette/httpx deprecation warning.
+The browser gate needed local Chromium process access outside the filesystem
+sandbox. Use a **new** `--basetemp` path when repeating: pytest clears its supplied
+base directory. Do not overwrite these saved libraries. Full baseline/regression
+qualification remains separately recorded in the active implementation checklist.
+
+Regression scope: the existing mixed research/phase/browser gate finished with
+82 passes and 17 shared campaign-fixture errors during concurrent source edits.
+The failing surface was rerun on stable source: the entire existing campaign
+module passed **19 tests** in 41.23 seconds. Logs retain both outcomes; this is not
+a clean full-suite claim. See the [execution log](robust_research_plan.md#m1a-release-evidence-and-remaining-m1-work)
+for the exact commands, diagnosis limits and still-pending full qualification.

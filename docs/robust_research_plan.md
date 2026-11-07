@@ -11,7 +11,7 @@ No main commits, merges, force pushes or PR creation are authorized by this plan
 Status meanings: **usable** = existing implementation with targeted historical
 tests; **partial** = a useful foundation but missing requested behavior;
 **missing** = no implementation found. Historical tests are not a fresh pass.
-Baseline full-suite execution is in progress; record its result below.
+Baseline full-suite execution and its limitations are recorded below.
 
 | Request / requirement | Audited implementation and tests | Gap / planned owner | Status |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ Baseline full-suite execution is in progress; record its result below.
 | 5.1: rolling/expanding nested windows, sessions, purge/embargo, minimum samples | Manual source-date split in `research.py`; phase dates in `prop/phase_lifecycle.py` | `research_folds.py`: explicit session convention, immutable outer/inner folds, gaps and information cutoffs; campaign orchestration runs existing backtests | missing |
 | 5.1: backend leakage isolation and access history | `research_api.run_oos`, `CampaignStore.freeze/begin_assessment`; `test_campaign_assessments.py` | Fold-local runs/feature preparation, no test-driven admission, dataset-wide accessed intervals including failed attempts, holdout guard | partial |
 | 5.2: temporal, parameter-region and complexity qualification | Exhaustive grid only (`optimization.py`); no qualification algorithm | `edge_qualification.py`: predeclared thresholds, all candidates with PASS/FAIL/INSUFFICIENT_EVIDENCE, full eligible set, session uncertainty and nearby settings | missing |
-| 5.2: execution and causal market-condition robustness | Existing explicit fills, costs and intrabar ambiguity; `test_execution_extended.py`, `test_intratrade_risk.py` | Rerun cost/fill scenarios; causal regimes with available-at evidence; distinguish untested scenarios from passes | partial |
+| 5.2: execution and causal market-condition robustness | Existing explicit fills, costs and intrabar ambiguity; `test_next_bar_execution.py`, `test_intratrade_risk.py` | Rerun cost/fill scenarios; causal regimes with available-at evidence; distinguish untested scenarios from passes | partial |
 | 6: fixed whole contracts | `phase_profiles.py`, independent phase optimizers; `test_prop_phase_profiles.py` | Preserve exact fixed-path regressions | usable |
 | 6: dollar/percentage risk, denominator, stop risk, rounding, skips and state | Strategy-local risk sizing exists; phase APIs accept fixed micros only | Common `prop/sizing.py` contract used inside existing account transitions; explicit stop metadata and quantity-invariant source admission | missing |
 | 7: canonical trade/risk identity and cost conservation | `execution.Trade`, `prop/adapter.py`, `prop/source.py`, `commissions.py`, `intratrade.py`; adapter/cost/risk tests | Versioned native/external canonical source, stop updates, ordered events, source-limit disclosure | partial |
@@ -61,9 +61,9 @@ are split into coherent commits and pushed at least every one or two commits.
 
 | Milestone | Dependencies and implementation | Product increment and acceptance | Tests / principal risks | State |
 | --- | --- | --- | --- | --- |
-| M0: audit/plan | Fetched clean main; traceability above | Reviewable plan and documented actual gaps before code | Fresh baseline suite; no datasets/results touched | plan recorded; baseline running |
-| M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | pending |
-| M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; pass the entire qualified set once to normal phase campaigns | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | pending |
+| M0: audit/plan | Fetched clean main; traceability above | Reviewable plan and documented actual gaps before code | Fresh baseline suite; no datasets/results touched | audit/plan committed; interrupted baseline recorded |
+| M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | implemented; new product gates and stable affected-module regression pass |
+| M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; pass the entire qualified set once to normal phase campaigns | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | core criteria implemented; scenario reruns, causal regimes and complexity evidence pending |
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | pending |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | pending |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | pending |
@@ -118,8 +118,8 @@ outputs, independent expectations, rejection cases and exact reproduction steps.
 session-aware nested folds, and `edge_qualification.py` assesses the complete
 inner candidate set with predeclared temporal, neighboring-parameter and cost
 criteria. Their focused tests pass (34 fold and 33 qualification checks).
-API/UI execution and durable product evidence are still being integrated; this
-is not M1 completion. Required-but-absent execution/regime evidence returns
+API/UI execution and durable product evidence are now implemented; this
+is not full M1 completion. Required-but-absent execution/regime evidence returns
 INSUFFICIENT_EVIDENCE. Bootstrap intervals remain approximate historical
 diagnostics and do not certify a persistent future edge.
 
@@ -132,3 +132,46 @@ at the paths above; rerun applicable gates with the required local test access.
 
 Current verdict: **incomplete**. Research completion and live deployment
 qualification are separate verdicts. The goal remains active.
+
+### M1a release evidence and remaining M1 work
+
+The [normal-product demonstration](prop_simulation_review.md#nested-inner-research-product-increment--2026-11-07)
+records exact startup, URLs, field values, independent synthetic expectations,
+saved downloads and stop instructions. New gates: **90 passed** (fold,
+qualification and nine API integration tests), **1 browser passed** at desktop
+and 390px. Python compilation, both changed JavaScript syntax checks and
+`git diff --check` passed. Native VWAP Decimal parameters, no-trade insufficiency,
+future-price poisoning, partial session boundaries, cooperative recovery,
+cross-kind IDs, deletion races and artifact tampering are covered.
+
+Existing regression command:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_research_workflow.py \
+  tests/test_research_campaigns.py tests/test_campaign_assessments.py \
+  tests/test_backtest_date_range.py tests/test_backtest_preparation_browser.py \
+  tests/test_campaign_portal_browser.py tests/test_prop_phase_profiles.py \
+  --basetemp artifacts/robust-research-m1-20261107/regression/data \
+  --junitxml artifacts/robust-research-m1-20261107/regression/junit.xml
+```
+
+That mixed run had **82 passed / 17 errors** in 463.99 seconds. All errors shared
+one `test_research_campaigns.py` module fixture returning HTTP 500 while Python
+sources were being edited; the generic error did not capture the root exception.
+The existing publication identity hashes all Python sources and deliberately
+rejects mid-calculation code changes. This is a plausible cause, not a proven
+attribution. The failing test passed in isolation and after its preceding module
+(25 passed); then the **entire affected campaign module passed 19/19** on stable
+source in 41.23 seconds. The stable log/XML/data are under
+`artifacts/robust-research-m1-20261107/campaign-regression-stable/`. No integrity
+check was weakened. The mixed broad run is not labelled clean; full-suite
+qualification remains M6 work. Browser/process tests used the required local
+process permissions. The original interrupted baseline log/XML were preserved
+under `artifacts/robust-research-m1-20261107/baseline/`.
+
+Next M1 work: execute declared alternative-fill/cost scenarios, construct causal
+market-condition evidence, define strategy-complexity/signal-parameter criteria,
+and integrate the qualifying set with phase policy selection as later sizing and
+replay dependencies become available. M2–M6 remain pending. In particular no
+standalone external import, dynamic prop sizing, chronological outer assessment,
+final deployment candidate or forward monitor is claimed by this increment.

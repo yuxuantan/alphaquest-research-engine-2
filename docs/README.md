@@ -7,6 +7,9 @@
 - [Architecture](architecture.md): requirements, workflow, code map and trade-offs.
 - [Technical reference](architecture_reference.md): current storage and export contracts.
 - [IS/OOS workflow](research_workflow.md): splits, manual OOS, research checks and saved history.
+- [Robust research execution checklist](robust_research_plan.md): fresh audit,
+  requirements traceability, implemented inner-fold qualification and the
+  remaining economic validation, final recommendation and monitoring milestones.
 
 ## Product guides
 

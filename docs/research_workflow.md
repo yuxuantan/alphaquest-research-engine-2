@@ -1,5 +1,54 @@
 # Editable IS / OOS research workflow
 
+## Nested inner research
+
+Implementation increment, 7 November 2026: open a completed IS backtest,
+**Configure prop analysis → Nested research → Configure nested research**.
+Choose saved IS reports or whole saved grids to declare the candidate parameter
+set. Existing full-period performance does not enter qualification. All sources
+must share dataset identity and execution costs; duplicates and OOS candidates
+reject. Previously accessed development data is disclosed, not called untouched.
+
+1. Name the research and select configurations. This increment uses each
+   strategy's saved quantities; independent prop sizing remains a later stage.
+2. Declare rolling or expanding outer training/test lengths and inner
+   training/validation lengths, in observed Chicago session dates. Each session
+   begins at 17:00 Chicago local time. Purge and embargo are consecutive buffers
+   between retained training and validation; both count observed sessions.
+3. Review the qualification requirements before running. Thresholds are
+   research-specific, not universal. Small samples, missing required scenarios
+   or regimes, unresolved bootstrap tails and missing neighbors produce
+   **INSUFFICIENT_EVIDENCE**. Net cash stress adds the declared amount once per
+   completed trade; baseline costs are already included.
+4. **Preview dates and source checks** shows every outer/inner window, excluded
+   sessions and exact backtest count. Large plans require that count to be
+   confirmed. **Save and run** freezes the declaration and creates normal
+   backtests restricted to each inner window, with cold strategy/feature state.
+5. Inspect every PASS/FAIL/INSUFFICIENT_EVIDENCE row, the complete approved set,
+   reasons, sample counts, historical uncertainty and neighboring configurations.
+   Open individual backtests or download the ordinary AnalysisStore JSON/CSV/ZIP.
+   Saved research history reopens without recomputation. Cancellation stops at a
+   safe checkpoint; Run resumes completed backtests after checking their hashes.
+
+Current boundary: inner execution can be complete while overall readiness is
+**INCOMPLETE**. No outer test is launched by this increment. Inner results are not
+unseen outer outcomes. Prop policy selection, chronological outer replay,
+selection reliability, final procedure/holdout and forward monitoring remain on
+the [active checklist](robust_research_plan.md). Full execution-scenario reruns,
+causal regime construction and complexity diagnostics are also pending; declaring
+such required evidence blocks admission until supplied. No winner is forced.
+
+Both manual source-date splits and these session-date folds retain their own
+conventions. Boundary sessions that are only partially covered by the saved IS
+report are excluded. Missing market sessions are not inferred from missing bars.
+Every replay starts flat and cold and must complete normally; no position or
+fitted state crosses a fold. These restrictions do not certify arbitrary
+imported outcomes or unknown feature horizons. Bootstrap repetitions are
+computation, not additional historical observations; intervals remain approximate
+and may miss future regime/model/execution uncertainty.
+
+The existing manual IS/OOS workflow below remains available unchanged.
+
 Implementation update, 2026-11-06: [phase research campaigns](research_campaign_api.md)
 compare saved IS backtests/trials across strategies and optimization jobs, expand
 whole-MNQ sizes under a declared budget, run independent Evaluation/Funded

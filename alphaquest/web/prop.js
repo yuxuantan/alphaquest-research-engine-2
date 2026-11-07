@@ -199,6 +199,7 @@
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;
     sourceRecord=data.source;
     await window.phaseCampaigns.configure(data.source);if(t!==token)return;
+    await window.robustResearch.configure(data.source);if(t!==token)return;
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-form').querySelectorAll('.prop-advanced').forEach(d=>d.open=false);$('#prop-overrides').value='{}';showMethodFields();
     phaseSources=[];sourceOffset=0;await loadSources();if(t!==token)return;updateObservedWindow();
@@ -584,7 +585,7 @@
     for(const path of Object.keys(r.files).sort())fileLink(p,path,names[path]||(path.startsWith('charts/')?`Original ${path.split('/').pop().replace('.svg','')} chart (SVG)`:path.endsWith('.xlsx')?'Original measured-excursion export (XLSX)':path));
     selectView('overview');window.scrollTo(0,0);
   }
-  async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(['error','incompatible'].includes(j.status)){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token){if(['evaluation','funded'].includes(r.phase))window.phaseCampaigns.renderAnalysis(r);else render(r);}return;}await new Promise(resolve=>setTimeout(resolve,700));}}
+  async function watch(id,t){$('#prop-config').hidden=true;$('#prop-report').hidden=true;while(t===token){const j=await read(`/api/prop-analyses/${id}`);if(t!==token)return;$('#prop-status').textContent=`${j.status} · ${j.progress}`;if(['error','incompatible'].includes(j.status)){throw Error(j.error);}if(j.status==='complete'){const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);if(t===token){if(['evaluation','funded'].includes(r.phase))window.phaseCampaigns.renderAnalysis(r);else if(r.phase==='research_integrity')window.robustResearch.renderAnalysis(r);else render(r);}return;}await new Promise(resolve=>setTimeout(resolve,700));}}
   async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{const campaign=location.hash.match(/^#backtests\/prop\/campaign\/([a-f0-9]{32})$/);if(campaign){await window.phaseCampaigns.watch(campaign[1],()=>t===token);return;}if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3]);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
 
   async function deleteProp(id,row){

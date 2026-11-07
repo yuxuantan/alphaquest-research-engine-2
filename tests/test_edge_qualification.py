@@ -123,6 +123,76 @@ def test_neighbors_do_not_cross_strategy_or_categorical_strata():
     assert all(row['status'] == 'INSUFFICIENT_EVIDENCE' for row in r['candidates'][4:])
 
 
+def test_declared_decimal_string_axes_form_exact_numeric_regions():
+    cs = [dict(id=str(i), strategy_id='decimal_strategy',
+        parameters=dict(risk=value, fixed='1.00', label='01'), numeric_parameters=['risk', 'fixed'])
+        for i, value in enumerate(['0.10', '0.20', '0.30'])]
+    # Equivalent spelling on an unchanged numeric axis must not split the grid.
+    cs[1]['parameters']['fixed'] = '1.0'
+    r = result(cs=cs)
+    assert r['approved_ids'] == ['0', '1', '2']
+    assert r['candidates'][1]['parameter_stability']['neighbor_ids'] == ['0', '2']
+    assert r['candidates'][0]['parameters']['risk'] == '0.10'
+    assert r['candidates'][1]['numeric_parameters'] == ['fixed', 'risk']
+    # Declaration ordering is administrative, not numerical input.
+    assert r == result(cs=[dict(c, numeric_parameters=['fixed', 'risk']) for c in cs])
+
+
+def test_numeric_looking_category_strings_are_never_silently_converted():
+    cs = [dict(id=str(i), strategy_id='categories', parameters=dict(category=value))
+          for i, value in enumerate(['1', '1.0', '2'])]
+    r = result(cs=cs)
+    assert len(r['candidates']) == 3  # '1' and '1.0' remain distinct categories.
+    assert not r['approved_ids']
+    assert all(row['parameter_stability']['neighbor_ids'] == [] for row in r['candidates'])
+    assert all('too_few_parameter_neighbors' in row['reasons'] for row in r['candidates'])
+
+
+@pytest.mark.parametrize('values', [('1.0', '1.00'), ('0', '-0.000'), ('1e2', '100'),
+                                    ('1.0000000000000000000000000000001', '1.00000000000000000000000000000010')])
+def test_equivalent_declared_numeric_configurations_are_explicit_duplicates(values):
+    cs = [dict(id=str(i), strategy_id='decimal_strategy', parameters=dict(value=value), numeric_parameters=['value'])
+          for i, value in enumerate(values)]
+    with pytest.raises(ValueError, match='Duplicate strategy configurations'):
+        result(cs=cs)
+
+
+def test_high_precision_declared_axis_adjacency_does_not_round_at_28_digits():
+    cs = [dict(id=str(i), strategy_id='decimal_strategy',
+        parameters=dict(value='1.000000000000000000000000000000'+str(i)), numeric_parameters=['value'])
+          for i in range(3)]
+    r = result(cs=cs)
+    assert r['approved_ids'] == ['0', '1', '2']
+    assert r['candidates'][1]['parameter_stability']['neighbor_ids'] == ['0', '2']
+
+
+def test_numeric_spelling_does_not_change_resampling_schedule_or_admission():
+    cs = [dict(id=str(i), strategy_id='decimal_strategy', parameters=dict(value=str(i+1)), numeric_parameters=['value'])
+          for i in range(3)]
+    es = {c['id']: evidence(([1, 20]*5, [2, 30]*5, [3, 40]*5)) for c in cs}
+    a = result(cs=cs, es=es)
+    for c in cs:
+        c['parameters']['value'] += '.00'
+    b = result(cs=cs, es=es)
+    assert [row['uncertainty'] for row in a['candidates']] == [row['uncertainty'] for row in b['candidates']]
+    assert a['approved_ids'] == b['approved_ids']
+    assert a['input_sha256'] != b['input_sha256']  # Raw saved inputs still preserved.
+
+
+@pytest.mark.parametrize('damage', ['missing_name', 'repeated_name', 'nondecimal', 'nonfinite', 'boolean', 'inconsistent'])
+def test_declared_numeric_axes_reject_invalid_or_inconsistent_metadata(damage):
+    cs = [dict(id=str(i), strategy_id='decimal_strategy', parameters=dict(value=str(i)), numeric_parameters=['value'])
+          for i in range(3)]
+    if damage == 'missing_name': cs[0]['numeric_parameters'] = ['unknown']
+    elif damage == 'repeated_name': cs[0]['numeric_parameters'] = ['value', 'value']
+    elif damage == 'nondecimal': cs[0]['parameters']['value'] = 'category'
+    elif damage == 'nonfinite': cs[0]['parameters']['value'] = 'NaN'
+    elif damage == 'boolean': cs[0]['parameters']['value'] = True
+    elif damage == 'inconsistent': cs[0]['numeric_parameters'] = []
+    with pytest.raises(ValueError):
+        result(cs=cs)
+
+
 def test_missing_required_execution_or_regime_assessment_blocks_admission():
     r = result(required_scenarios=('adverse_limit_fills',), required_regimes=('high_vol',))
     for row in r['candidates']:

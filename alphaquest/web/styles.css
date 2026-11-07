@@ -1661,3 +1661,31 @@ dialog::backdrop {
 .optimization-column-move button { width:28px; height:28px; padding:0; border:1px solid var(--line); border-radius:4px; background:#fff; font:inherit; cursor:pointer; }
 .optimization-column-move button:disabled { opacity:.4; cursor:default; }
 @media(max-width:600px) { .optimization-column-choice { gap:8px; font-size:11px; } .optimization-column-move button { width:24px; } }
+
+/* Nested qualification remains inside the existing prop configuration. */
+#prop-robust-research { min-width:0; }
+#prop-robust-research details { margin:16px 0; }
+#prop-robust-research summary { cursor:pointer; font-weight:600; padding:10px 0; }
+#prop-robust-research label { display:grid; gap:7px; font-size:13px; }
+#prop-robust-research input,#prop-robust-research select { min-width:0; max-width:100%; }
+#prop-robust-research .robust-source-choices { max-height:300px; overflow:auto; margin:12px 0; border:1px solid var(--line); border-radius:8px; }
+#prop-robust-research .robust-source-choice { display:flex; align-items:flex-start; gap:10px; padding:12px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+#prop-robust-research .robust-source-choice input { width:18px; height:18px; flex:none; margin:0; }
+.robust-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:16px 0; }
+.robust-table-scroll { max-width:100%; overflow:auto; margin:12px 0; }
+.robust-table-scroll table { min-width:560px; }
+.robust-table-scroll th,.robust-table-scroll td { white-space:normal; vertical-align:top; }
+.robust-notice { background:#fff7e7; border-left:3px solid #a46a16; padding:12px; }
+.robust-outcome { white-space:nowrap; }
+.robust-pass { color:#165a3f; }
+.robust-fail { color:#992828; }
+.robust-insufficient_evidence { color:#805516; }
+#robust-status { overflow-wrap:anywhere; }
+@media(max-width:600px) {
+  #prop-robust-research { padding:14px; }
+  .robust-table-scroll table,.robust-table-scroll tbody { display:block; width:100%; min-width:0; }
+  .robust-table-scroll thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .robust-table-scroll tr { display:block; border:1px solid var(--line); border-radius:6px; margin-bottom:12px; }
+  .robust-table-scroll td { display:block; border:0; padding:10px 12px; overflow-wrap:anywhere; }
+  .robust-table-scroll td::before { content:attr(data-label); display:block; font-size:10px; font-weight:600; color:var(--muted); margin-bottom:5px; text-transform:uppercase; }
+}

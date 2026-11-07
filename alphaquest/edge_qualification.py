@@ -90,6 +90,16 @@ class _Candidate(_StrictModel):
     id: StrictStr = Field(min_length=1, max_length=200)
     strategy_id: StrictStr = Field(min_length=1, max_length=200)
     parameters: dict
+    # Supplied by the orchestrator from the registered parameter types, never
+    # guessed from strings that could instead denote categories or identifiers.
+    numeric_parameters: list[StrictStr] = Field(default_factory=list)
+
+    @field_validator('numeric_parameters')
+    @classmethod
+    def numeric_axis_names(cls, names):
+        if len(names) != len(set(names)) or any(not name for name in names):
+            raise ValueError('Declared numeric parameter names must be unique and nonempty.')
+        return sorted(names)
 
     @field_validator('parameters')
     @classmethod
@@ -102,6 +112,57 @@ class _Candidate(_StrictModel):
             if isinstance(value, float) and not math.isfinite(value):
                 raise ValueError('Parameters must be finite.')
         return values
+
+    @model_validator(mode='after')
+    def declared_numeric_values(self):
+        if set(self.numeric_parameters) - self.parameters.keys():
+            raise ValueError('Declared numeric parameters must exist in the candidate configuration.')
+        for name in self.numeric_parameters:
+            _parameter_number(self.parameters[name])
+        return self
+
+
+def _parameter_number(value):
+    if type(value) not in (int, float, str):
+        raise ValueError('Declared numeric parameters require finite numbers or decimal strings; booleans are categorical.')
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValueError('Declared numeric parameters require finite numbers or decimal strings.') from exc
+    if not number.is_finite():
+        raise ValueError('Declared numeric parameters must be finite.')
+    return number
+
+
+def _numeric_values(candidate):
+    return {name: _parameter_number(value) for name, value in candidate.parameters.items()
+            if type(value) in (int, float) or name in candidate.numeric_parameters}
+
+
+def _parameter_identity(candidate):
+    """Exact numeric equivalence without Decimal context rounding.
+
+    Preserve categorical string spelling; normalize numeric trailing zeros only
+    on numeric JSON values or explicitly declared numeric parameter axes.
+    """
+    numeric = _numeric_values(candidate)
+    result = {}
+    for name, value in candidate.parameters.items():
+        if name not in numeric:
+            result[name] = dict(kind=type(value).__name__, value=value)
+            continue
+        number = numeric[name]
+        if not number:
+            normalized = [0, '0', 0]
+        else:
+            sign, digits, exponent = number.as_tuple()
+            digits = list(digits)
+            while digits[-1] == 0:
+                digits.pop()
+                exponent += 1
+            normalized = [sign, ''.join(map(str, digits)), exponent]
+        result[name] = dict(kind='numeric', value=normalized)
+    return result
 
 
 class _Session(_StrictModel):
@@ -210,17 +271,15 @@ def _neighbors(candidates):
     result = {c.id: [] for c in candidates}
     levels = defaultdict(set)
     for c in candidates:
-        for name, value in c.parameters.items():
-            if type(value) in (int, float):
-                levels[c.strategy_id, name].add(value)
+        for name, value in _numeric_values(c).items():
+            levels[c.strategy_id, name].add(value)
     positions = {key: {value: index for index, value in enumerate(sorted(values))}
                  for key, values in levels.items()}
     lines = defaultdict(dict)
     for c in candidates:
-        for name, value in c.parameters.items():
-            if type(value) not in (int, float):
-                continue
-            others = _canonical({k: v for k, v in c.parameters.items() if k != name})
+        normalized = _parameter_identity(c)
+        for name, value in _numeric_values(c).items():
+            others = _canonical({k: v for k, v in normalized.items() if k != name})
             line = lines[c.strategy_id, name, others]
             position = positions[c.strategy_id, name][value]
             # Equivalent numeric levels do not create a false neighborhood.
@@ -238,7 +297,11 @@ def _neighbors(candidates):
 def qualify_candidates(candidates, evidence, settings):
     """Return every admitted/rejected/insufficient candidate, never a winner.
 
-    candidates: [{id, strategy_id, parameters}]. evidence: {id: [{fold_index,
+    candidates: [{id, strategy_id, parameters, numeric_parameters?: [names]}].
+    The optional names declare numeric axes from registered strategy field
+    types. JSON numbers are numeric by default; strings are numeric ONLY when
+    explicitly declared. All candidates of a strategy must share the declaration.
+    evidence: {id: [{fold_index,
     sessions: [{session: ISO date, net_pnl, trade_count}], optional scope fixed to
     inner_validation, scenarios: {name: [session rows]}, regimes: [{name,
     observable_at_decision, sessions: [session rows]}]}]. Unknown fields reject.
@@ -254,7 +317,12 @@ def qualify_candidates(candidates, evidence, settings):
     ids = [c.id for c in candidates]
     if len(set(ids)) != len(ids):
         raise ValueError('Candidate IDs must be unique.')
-    definitions = [_canonical(dict(strategy_id=c.strategy_id, parameters=c.parameters)) for c in candidates]
+    declarations = {}
+    for c in candidates:
+        if c.strategy_id in declarations and c.numeric_parameters != declarations[c.strategy_id]:
+            raise ValueError('Numeric parameter declarations must be consistent within each strategy.')
+        declarations[c.strategy_id] = c.numeric_parameters
+    definitions = [_canonical(dict(strategy_id=c.strategy_id, parameters=_parameter_identity(c))) for c in candidates]
     if len(set(definitions)) != len(definitions):
         raise ValueError('Duplicate strategy configurations must be removed explicitly.')
     if not isinstance(evidence, dict) or set(evidence) - set(ids):
@@ -302,7 +370,8 @@ def qualify_candidates(candidates, evidence, settings):
         if trades < settings.minimum_trades: insufficient.append('too_few_validation_trades')
         if any(sum(s.trade_count for s in f.sessions) < settings.minimum_trades_per_fold for f in folds):
             insufficient.append('too_few_trades_in_an_inner_fold')
-        interval, problem = _bootstrap(folds, settings, len(candidates), _canonical(c.model_dump())) if sessions else (None, 'no_inner_validation_evidence')
+        numerical_key = _canonical(dict(id=c.id, strategy_id=c.strategy_id, parameters=_parameter_identity(c)))
+        interval, problem = _bootstrap(folds, settings, len(candidates), numerical_key) if sessions else (None, 'no_inner_validation_evidence')
         if problem: insufficient.append(problem)
         if mean is not None and mean <= settings.minimum_mean_session_net: failures.append('mean_session_net_below_threshold')
         if interval is not None and interval['lower'] <= float(settings.minimum_mean_session_net):
@@ -333,6 +402,7 @@ def qualify_candidates(candidates, evidence, settings):
             regime_results.append(dict(name=name, complete=available, observable_at_decision=causal,
                 sessions=len(subset), trades=count, mean_session_net=str(value) if value is not None else None))
         rows.append(dict(candidate_id=c.id, strategy_id=c.strategy_id, parameters=c.parameters,
+            numeric_parameters=c.numeric_parameters,
             status='INSUFFICIENT_EVIDENCE' if insufficient else 'FAIL' if failures else 'PASS',
             reasons=[], insufficient_reasons=insufficient, failed_criteria=failures,
             metrics=dict(inner_folds=len(folds), validation_sessions=len(sessions), validation_trades=trades,
@@ -374,7 +444,7 @@ def qualify_candidates(candidates, evidence, settings):
             neighbor_mean_changes=[dict(candidate_id=id,
                 mean_session_net_change=str(Decimal(by_id[id]['metrics']['mean_session_net'])-base_mean)
                 if base_mean is not None and by_id[id]['metrics']['mean_session_net'] is not None else None) for id in nearby],
-            definition='One adjacent declared numeric grid coordinate; all other parameters equal within the same strategy. Categorical settings define separate strata.',
+            definition='One adjacent numeric grid coordinate; JSON numbers and explicitly declared numeric string axes only. All other parameters equal within the same strategy; categorical settings define separate strata.',
             region_criterion_met=enough and len(nearby) >= settings.minimum_neighbors)
         row['status'] = 'INSUFFICIENT_EVIDENCE' if row['insufficient_reasons'] else 'FAIL' if row['failed_criteria'] else 'PASS'
         row['reasons'] = row['insufficient_reasons'] + row['failed_criteria']

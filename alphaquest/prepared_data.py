@@ -67,6 +67,8 @@ def prepare_data(source, dataset_id, dates, path, progress=lambda *args: None, *
     metadata = {"from_date": dates.from_date.isoformat() if dates.from_date else None,
                 "to_date": dates.to_date.isoformat() if dates.to_date else None,
                 "source_timezone": dataset.get("source_timezone"), "warmup": "none"}
+    if hasattr(dates, 'convention'):
+        metadata['date_convention'] = dates.convention
     with read_bars(source, dataset_id) as bars:
         zone = ZoneInfo(dataset["source_timezone"])
         # Reuse the same verified snapshot for a miss; never hash/copy the

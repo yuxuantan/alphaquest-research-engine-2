@@ -368,3 +368,32 @@ See [the review log](prop_simulation_review.md#phase-research-campaigns--2026-11
 for actual saved campaign IDs, independent expected outputs, downloads and exact
 reproduction commands. The independent reviewer imports only the Python standard
 library; test-only analytical expectations never enter product calculations.
+# Nested inner research API — 7 November 2026
+
+The additive `/api/research-campaigns/robust` routes use the same application,
+campaign reference tables, backtest catalogue and AnalysisStore as phase
+campaigns. Existing Evaluation/Funded requests retain their meaning.
+
+- `GET /defaults`: explicit fold and qualification defaults.
+- `POST /preview`: source checks, complete candidate membership, exact nested
+  session dates and estimated ordinary backtest count; no jobs are launched.
+- `POST /`: save immutable `campaign_id`, `name`, `source_backtest_id`, `sources`,
+  `folds`, `qualification` and optional `confirmed_backtest_count`. `sources`
+  reuses saved report/grid selectors; `sizes` must be `[1]` because this step
+  qualifies the saved strategy quantities, not prop-sizing alternatives.
+- `GET /?source_id=...`, `GET /{id}`: history/status/progress and completed result.
+- `POST /{id}/check`, `/run`, `/cancel`: validate identity, enqueue/resume through
+  the existing worker, or request safe-checkpoint cancellation. Repeated Run
+  returns the existing active/completed analysis. Source/code drift rejects.
+- `GET /{id}/exports/{kind}`: `campaign.json`, `report.json`, `analysis.zip`,
+  `qualification.csv`, `research_plan.json`, or `calculations.json`.
+
+Reports use format 6, phase `research_integrity`, and analysis mode
+`nested_research`. `calculations.folds` saves qualification, inner source
+references and evidence. `outer_test_status` and `policy_selection_status` are
+`not_run`; overall readiness is `INCOMPLETE`. A completed analysis means inner
+qualification finished, not that the requested full research workflow passed.
+Inner backtests carry research phase `inner` and explicit roles/windows; they
+cannot masquerade as ordinary IS sources or launch manual OOS. Required missing
+assessments remain insufficient. Qualification bootstrap settings, candidate
+membership and approximate historical uncertainty are saved, with no winner.

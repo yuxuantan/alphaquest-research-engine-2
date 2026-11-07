@@ -1,5 +1,16 @@
 # Architecture
 
+7 November 2026 additive research increment: `research_folds.py` owns immutable
+CME-session windows; `edge_qualification.py` assesses bounded inner evidence and
+returns the full qualifying set; `robust_research.py` orchestrates ordinary
+`run_backtest` execution and references results in the existing campaign and
+AnalysisStore catalogue. `robust_research_api.py` extends the campaign API;
+`web/research_workflow.js` extends saved-report prop configuration and normal
+analysis reports. There is no additional service, database or backtest engine.
+Inner research checkpoints retain run IDs and file hashes for safe resumption.
+Outer economic validation and forward monitoring are still pending; see the
+[requirements traceability and milestone checklist](robust_research_plan.md).
+
 [Home](../README.md) / [Docs](README.md)
 
 [Requirements](#requirements-and-scope) · [Workflow](#end-to-end-workflow) ·

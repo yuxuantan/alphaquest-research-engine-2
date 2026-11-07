@@ -279,6 +279,10 @@ class CampaignStore:
 
     def create(self, body):
         with self.analyses.lock:
+            with self.analyses.connect() as db:
+                if (db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='robust_research'").fetchone()
+                        and db.execute('SELECT 1 FROM robust_research WHERE id=?', (body.campaign_id,)).fetchone()):
+                    raise ResearchConflict('This ID belongs to a nested research campaign; use a new phase campaign ID.')
             previous = self._row(body.campaign_id)
             if previous:
                 if CampaignRequest.model_validate(previous['declaration']).model_dump() != body.model_dump():
