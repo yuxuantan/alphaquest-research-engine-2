@@ -71,8 +71,8 @@ are split into coherent commits and pushed at least every one or two commits.
 | M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
 | M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | implemented with guarded local-scope access, terminal refit and saved API/browser evidence; full-goal qualification remains pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | workspace/drafts/templates and visual review implemented at 5308d88 with saved API/browser evidence; forward monitor UI is M5 |
-| M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | supplied observations and advisory recovery implemented; matched forecast scope and frozen sizing conformance follow |
-| M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | pending |
+| M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | implemented with supplied-scope cash comparison, frozen sizing arithmetic and saved API/browser evidence; full-suite acceptance running |
+| M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | uninterrupted 2,270-test full suite running on frozen source; final closeout pending |
 
 ## Integration and safety of conclusions
 
@@ -537,3 +537,126 @@ saved browser verification index checks 20 downloads, 56 ZIP members and three
 zero-POST reopens; desktop and 390 px views were inspected. All temporary servers
 stopped. Python compilation, five changed JavaScript syntax checks and whitespace
 validation passed. Original failed attempts remain preserved.
+
+## Current implementation and qualification map
+
+This is the current map, distinct from the initial audit above. **Implemented**
+means the named local capability exists. **Tested** refers to saved targeted
+API/browser/independent-oracle evidence; it does not imply the pending full
+repository gate passed. Provider verification is never inferred from local tests.
+The final forward comparison/conformance rows and repository acceptance will be
+updated after their actual gates finish.
+
+| Required stage | Local implementation / normal product entry | Implemented and tested evidence | Provider-verified / remaining boundary |
+| --- | --- | --- | --- |
+| Source identity, research declaration and protected data | `datasets.py`, `research_access.py`, `research.py`; Datasets metadata-only reservation → ordinary IS grid | Strict metadata/cost/split contracts, prior-access overlap and timezone/domain guards, source deletion and failed access history tested | Dataset rights/completeness and externally accessed history are supplied claims; local journal is not a global untouched-data certificate |
+| Nested rolling/expanding research | `research_folds.py`, `robust_research.py`; saved IS report → Configure prop → Nested research | Actual ordinary fold-restricted backtests, purge/embargo, session boundaries, leakage/future mutation, progress/cancellation and restart tested | Model research mechanics; no claim of future edge |
+| Robust configuration regions | `edge_qualification.py`, `research_complexity.py`, `research_regimes.py`; candidate evidence and plots | Complete family, temporal/concentration/region bounds, cost/execution stresses, causal regimes, PASS/FAIL/INSUFFICIENT tested; real market-series properties now 7/7 | Sparse synthetic fixtures are arithmetic demonstrations, not executable market evidence or a universal null classifier |
+| Canonical external trades / MultiCharts | `trade_imports.py`, `canonical_trades.py`, `prop/source.py`; Backtests → Import external trades | Raw-byte/provenance/cost validation, complete versioned export ingestion, ordered risk-event admission, meaningful rejection and durable downloads tested | Supplied MultiCharts-compatible exports supported; exporter/platform parity and missing tick order remain unverified; incomplete measured risk is never fabricated |
+| Fixed, fixed-dollar and explicit percentage risk | `prop/sizing.py`, `sizing_runtime.py`, native control and phase owners; independent campaign sizing controls | Floor/rounding/zero skips/cost reserves/caps/changing balance/cushion, native strategy reruns and captured decisions tested | Native supported complete-minute MNQ/VWAP path only; invariant external paths require an explicit source claim; other source/profile combinations reject |
+| Independent Evaluation | `evaluation_profiles.py`, `evaluation_optimization.py`, `phase_dispatch.py`; Evaluation campaign | Acquisition fees/calendar-time complete Pareto, censoring, full family and phase input isolation tested | Provider rule versions are saved; known discrepancies and dated field-level verification remain in `provider_rule_review.md`; no funded objective is used |
+| Independent Funded | `funded_profiles.py`, `funded_optimization.py`; Funded campaign | Fresh-account finite-horizon receipt selection, uncertainty, all tied alternatives and optional conservative historical mean tested | No Evaluation fees/pass probability/time, replacement account or joint annualized selector; payout settlement is modeled and explicitly unverified |
+| Native chronological execution and separate forecasts | `native_replay.py`, `native_control.py`, `native_draws.py`, existing execution engine; native source check/run/report | Actual causal sizing/order/fill/account halts, prior-only warmup, saved block schedules and modeled calendar; ordinary outer/manual OOS child backtests tested | One-minute OHLC is not tick execution; source chronology, modeled draws and cash timing remain distinct |
+| Frozen outer reliability and references | `research_phase_selection.py`, `research_reliability.py`; outer report tables/plots/downloads | Every frozen family, missing/censored/abstained outcomes, predeclared baselines, paired differences and uncertainty labels tested | Monte Carlo error differs from history/model/future uncertainty; unresolved evidence can block endorsement |
+| Complete procedure, final holdout and current rerun | `research_procedure.py`, `research_procedure_store.py`; existing procedure controls | Full algorithm freeze, terminal development fit, seal-before-final, access guard, no final reselection, fresh current fit and no-qualified outcomes tested | Prior access remains visible and final history is not erased; no research status confers deployment readiness |
+| Optional frozen phase-pair comparison | `prop/frozen_pairs.py`, `phase_lifecycle.py`, `cash_ledger.py`; existing prop pair controls | Exact explicit pairs, ordinary completed OOS, common cutoff, source/package/child guards, retry/cancel, receipt/fee arithmetic and mobile report tested | Historical path comparison only, no pair optimizer/ranking, new provider parity or implicit replacement |
+| Guided research workspace | `research_workspace.py`, `web/research_workspace.js`, `research_visuals.js`; Backtests → Research | Search/filter, complete source selection, revisioned drafts, source-free templates, timelines/regions/cash tables, downloads and desktop/390 px journeys tested | Unsupported saved settings remain inspectable and reject rather than being silently converted |
+| Independent forward observations and advisory recovery | `forward_contracts.py`, `forward_policy.py`, `forward_reconcile.py`, `forward_monitoring.py`; current report → Observe current policy | Supplied signal/intents/orders/fills/protection/positions/cash, corrections, exact money, latency/health, latched PAUSED and explicit recovery, immutable snapshots tested | Synthetic/paper/actual-import provenance stays separate; no continuous broker connection, external signal proof, automatic broker pause or order placement |
+| Matched forward forecast scope and sizing conformance | `forward_comparison.py`, `forward_conformance.py`; same monitor/check/import/report workflow | Implemented; independent cash/clock/source-identity and fixed/dynamic arithmetic gates pass; final combined API/browser demonstrations running | Requires explicit prospective coverage/calendar/account claims. Cash eligibility/request/approval behavior remains unverified; descriptive differences are not broker or statistical certification |
+| Whole-workflow and legacy qualification | Existing pytest/Playwright/static infrastructure; saved normal libraries | Two genuine strategies/four configurations, two independent phases, all outer outcomes and fresh terminal recommendation tested; full uninterrupted suite pending | Complete local acceptance remains required before goal completion; no production-qualified live integration |
+
+Current unsupported behavior includes automatic account replacement in independent
+Funded selection; cross-phase weighted objectives; optimizing the predefined
+phase-pair list; native execution for arbitrary strategies/instruments or incomplete
+minute sources; automatic promotion from final outcomes; direct TradingView,
+PickMyTrade, Tradovate or other broker order placement; and inference of tick-level
+fills or measured MAE/MFE from missing data. Existing legacy reports/readers retain
+their original meanings and engines.
+
+### Final acceptance record
+
+The required uninterrupted complete pytest gate is **running** on the final
+forward-comparison implementation (2,270 collected tests). Targeted successes
+above must not be summed into a full-suite claim. Final qualification will record the exact source commit/hash,
+command, environment, totals, elapsed time, browser/static results, saved-report
+checks, reproducibility evidence and remote branch/main refs here.
+
+
+M4b/M5 independent artifact closeout: root verified 53 complete saved reports and
+742 component files against recorded byte counts, SHA-256 and ZIP entries across
+pair/forward/two-strategy/property libraries. Verification script/index and the
+full tracked `27cf056` checkout archive are saved under
+`artifacts/frozen-pair-forward-m4b-m5-20261108/`. The synthetic two-strategy CSV
+has the same SHA-256 as the actual uploaded dataset. Exact IDs, user steps,
+expected quantities/cash and new-library commands are in the review log.
+Nine current guides have valid local link destinations. These checks establish
+artifact integrity and documentation consistency, not provider parity.
+
+
+Final forward review before qualification also requires frozen sizing-code
+identity: recalculating a saved policy under a changed sizing implementation must
+withhold local conformance and forecast comparison. The supplied ledger remains
+inspectable. This preserves the rule that numerical compatibility cannot be
+restored by omitting changed calculation code from identity.
+
+### M5b supplied-scope cash comparison and frozen sizing arithmetic
+
+The existing monitor form now optionally seals a prospective single-cohort
+Funded observation plan. Exact saved dates remain distinct from an explicitly
+assumed calendar-pattern translation; original forecast dates and metrics are
+retained. Complete account coverage, fresh opening/flat cutoff snapshots, known
+pending amounts and linked gross/net cash conservation gate a descriptive
+one-path receipt difference. A partial, incompatible or unknown scope stays
+NOT_COMPARABLE. The checker does not require actual cash to equal the forecast:
+payout eligibility, request timing and approval implementation remain unverified.
+Supplied deviations are visible rather than silently converted into model paths.
+
+Local sizing conformance reuses `prop/sizing.py` with the frozen policy/costs and
+supplied causal account/stop context. It compares fixed and dollar/percentage
+quantities, named denominators, caps, skips and rounding; later fills cannot enter
+a sizing decision. Predecision balances reconcile to the observed ledger. Saved
+and current sizing-source hashes must agree. A mismatch creates advisory PAUSED;
+unknown context withholds conformance. Arithmetic agreement does not establish
+strategy eligibility, provider state, external implementation or broker control.
+
+Final release Python identity:
+`1ff01f1e8e370ef6781b5ec579ce60749310fbe3c0fcb5f78030c7aa7299f5e6`.
+The focused owner/API/storage/access/conformance gate passed **114 tests in
+28.96 s**. The real-trade comparison browser passed **1 case in 14.97 s**:
+3 MNQ earns $6 gross less $3 commissions; actual received $50 minus frozen
+expected $1,500 is −$1,450, with ending provider balance $49,953. Partial coverage
+withholds comparison; completing it appends a new report. Correcting a receipt
+to $25 changes the API demonstration difference to −$1,475 and pending to $25,
+while earlier bytes stay unchanged. The normal API publisher verified 36 downloads
+and exact reopen. All inputs and receiver-clock manipulation are explicitly
+synthetic test-harness evidence; product controls cannot change the server clock.
+
+Retained failed probes found and repaired the distinction between financial
+cutoff and later assessment knowledge, incompatible linked deductions, missing
+sizing-source identity and coverage/access edge cases. The failed source identity
+`289580777e467bbd336db1f347c8d86a9a121e2361402c59565eb28f024f41df`
+and full source archive remain under `artifacts/forward-comparison-m5b-20261108/`.
+Failed attempts are not included in a clean combined-gate claim. A copy-only UI
+clarification after the passing browser makes the supplied trading/sizing-policy
+claim explicit; final full-suite browser execution will exercise that wording.
+
+
+The final authoritative dynamic API example passed **1 test in 182.93 s** on
+unchanged release identity. It generates an ordinary complete-minute native
+source, qualified nested study, predeclared one-MNQ reference and fresh current
+procedure policy. Supplied 0.8%-balance decisions independently recompute to
+10 then 9 contracts at $40 planned risk as balance moves from $50,000 to $49,900;
+actual synthetic trading P&L is $80 and final equity $50,080. A changed supplied
+quantity yields MISMATCH/PAUSED and preserves the earlier report. Typed provenance
+is `synthetic_harness`/`SYNTHETIC_ONLY`; no complete observation horizon is claimed.
+Evidence is `artifacts/forward-comparison-m5b-20261108/dynamic-api-final-v2/`.
+An earlier 190.09 s passing probe is retained but used a paper type despite its
+synthetic name/source; the final gate corrects that typed provenance explicitly.
+
+The uninterrupted full suite has started with **2,270 collected tests** and
+`tmp_path_retention_policy=all`, in a fresh `full-suite-v1` directory under
+`artifacts/final-research-acceptance-20261108/`. Its runner saves the exact command,
+PID, dependency/platform versions, initial/final Python and web hashes, exit code,
+XML/logs and retained normal libraries. A dedicated fallback data directory keeps
+default application startup inside that fresh evidence tree. The suite has not
+finished; no overall completion or clean full-suite result is yet claimed.

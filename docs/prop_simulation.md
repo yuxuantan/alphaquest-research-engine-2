@@ -5,8 +5,12 @@ Current implementation (8 November 2026): later sections and the
 statements. Native independent optimization, complete-procedure verification,
 the guided workspace and explicit frozen phase-pair lifecycle comparison are
 implemented. Supplied forward observations use the normal durable report workflow
-with exact event/cash reconciliation and advisory recovery. Matched forward
-forecast scope and frozen sizing conformance are being completed; the full
+with exact event/cash reconciliation and advisory recovery. Prospective Funded
+observation plans support a descriptive single-path cash difference when full
+supplied coverage, calendar alignment, cash-share conservation and local frozen
+sizing checks agree. Dynamic contexts reuse the existing causal sizing owner;
+changed numerical source identity withholds conformance. Coverage, external
+strategy behavior and provider payout eligibility remain unverified. The full
 repository acceptance gate remains outstanding. No provider or broker integration
 is production-qualified. Earlier findings and reports are preserved below.
 

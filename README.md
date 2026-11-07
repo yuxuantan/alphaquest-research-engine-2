@@ -74,9 +74,12 @@ qualification plots and matched forecast/actual receipt plots with full tables.
 Optional explicit frozen Evaluation/Funded pairs now run on a common finite
 calendar window with separate fees, receipts and pending cash. Current-policy
 reports can launch independent supplied forward observations, reconciliation and
-advisory pause/recovery. These records do not place broker orders. Matched-scope
-forecast comparison, frozen sizing conformance and final full-suite qualification
-are the remaining local acceptance work.
+advisory pause/recovery. These records do not place broker orders. Prospectively
+declared complete Funded observations can show a descriptive forecast/cash
+difference with exact coverage and calendar assumptions. Supplied causal sizing
+contexts are checked against the frozen sizing law. Missing evidence withholds
+comparison; neither check verifies an external platform. Final full-suite
+qualification remains pending.
 See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 

@@ -107,9 +107,10 @@ reject. Previously accessed development data is disclosed, not called untouched.
 
 With Economic validation disabled, the run stops at inner qualification and no
 outer test is launched. With it enabled, the following stage runs from the same
-saved declaration. Overall readiness remains **INCOMPLETE** while final
-procedure/holdout verification, native account-state reruns and forward monitoring are pending on the
-[active checklist](robust_research_plan.md). No winner is forced.
+saved declaration. The later native-execution, complete-procedure and forward
+observation sections describe their implemented extensions. Overall repository
+qualification remains pending on the [active checklist](robust_research_plan.md);
+each study reports its own evidence sufficiency and no winner is forced.
 
 ### Nested economic validation
 
@@ -117,8 +118,11 @@ procedure/holdout verification, native account-state reruns and forward monitori
 Declare account profiles, fixed MNQ policy quantities, costs, sampling and seeds.
 The full PASS configuration set is crossed with every declared profile and
 policy. There is no second signal-parameter search and no hidden top-N reduction.
-Native risk-based sizing still requires an account-state strategy rerun and
-rejects before research starts.
+This initial fixed-path increment rejected native risk-based sizing. The later
+[Native policy search and actual later observations](#native-policy-search-and-actual-later-observations) extension below now
+reruns supported complete-minute MNQ/VWAP strategies inside account state for
+fixed-dollar and percentage policies; unsupported source/profile combinations
+still reject before research starts.
 
 Evaluation retains the entire feasible cost/calendar-time Pareto frontier by
 default. An explicit preference may minimize cost under a time cap, or time
@@ -174,7 +178,9 @@ profile and a fixed quantity/policy. Its normal training forecast and frozen
 package are sealed before any selected or reference outer execution. A reference
 is still measured if it fails edge qualification; it remains explicitly
 ineligible for recommendation. References do not enter the optimizer's selection
-set. Native dynamic references require a real strategy rerun and currently reject.
+set. The initial fixed-path version rejected native dynamic references; the
+later native extension below performs their real account-controlled strategy
+reruns and preserves the same predeclaration and phase-isolation rules.
 
 The report's reliability section follows the changing selection procedure across
 all declared outer folds. It shows coverage, matched forecast errors, actual
@@ -220,8 +226,10 @@ Download `reliability.json`, `reliability_folds.csv`, `baseline_comparison.csv`
 and `baseline_results.json` from the same durable report. Conservative child
 reports also capture `historical_mean_cash.json`, including exact historical
 indices, seeds and schedule hashes. All reports remain research evidence;
-`production_qualified` stays false. Final procedure freeze, feasible holdout,
-current development selection and monitoring remain separate unfinished work.
+`production_qualified` stays false. The later complete-procedure and observation
+sections below implement final freeze, guarded holdout, fresh current selection
+and independent monitoring as separate stages; they do not convert this
+reliability report into a production certificate.
 
 Execution scenarios change the existing execution engine's actual fills and
 strategy callbacks. Additional commission is per contract per side; market

@@ -1,7 +1,7 @@
 """ordinary product API; no demo endpoints or order-placement capability."""
 from fastapi import APIRouter,HTTPException,Request,Response
 from fastapi.responses import JSONResponse
-from .forward_contracts import MonitorDeclaration,EventBatch,Assessment,Control,Thresholds
+from .forward_contracts import MonitorDeclaration,EventBatch,Assessment,Control,Thresholds,FundedObservationPlan,AccountCoverage,SizingDecision
 from .forward_monitoring import Conflict
 
 router=APIRouter(prefix='/api/forward-monitors',tags=['forward observation'])
@@ -22,7 +22,11 @@ def defaults():
     return dict(schema_version='aq-forward-monitor-v1',thresholds=Thresholds().model_dump(mode='json'),
         observation_kinds=['synthetic_harness','paper','actual_import'],control_mode='advisory_only',
         order_placement_enabled=False,accepted_event_schema=EventBatch.model_json_schema(),
-        monitor_schema=MonitorDeclaration.model_json_schema(),limits=dict(batch_bytes=4*1024*1024,batch_events=5000,monitor_events=100000),
+        monitor_schema=MonitorDeclaration.model_json_schema(),
+        forecast_observation=dict(schema=FundedObservationPlan.model_json_schema(),coverage_event_schema=AccountCoverage.model_json_schema(),
+            sizing_decision_schema=SizingDecision.model_json_schema(),phase='funded',initial_balance='50000',currency='USD',
+            alignments=['exact_saved_dates','declared_pattern_translation'],observation_count=1,
+            interpretation='A complete supplied horizon supports a descriptive point difference, never calibration or broker verification.'),limits=dict(batch_bytes=4*1024*1024,batch_events=5000,monitor_events=100000),
         limitations=['Incoming observations are supplied records; no direct broker or market-data connection is verified.',
             'Synthetic observations remain separate from paper and actual-import evidence.'])
 

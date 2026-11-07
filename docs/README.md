@@ -11,8 +11,8 @@
   requirements traceability, inner qualification, independent economic selection,
   chronological reliability, complete-procedure final verification and the
   searchable research catalogue with drafts/templates, frozen pair comparisons and
-  supplied observation monitoring; matched forward comparisons, sizing conformance
-  and final full-suite qualification remain pending.
+  supplied observation monitoring, declared-scope cash comparisons and frozen
+  sizing arithmetic checks; final full-suite qualification remains pending.
 
 ## Product guides
 
@@ -37,7 +37,8 @@
 ## Planning and proposals
 
 - [Independent phase optimization](phase_optimization_plan.md): implemented phase optimizers/campaigns
-  and the remaining generation, refinement and frozen OOS plan.
+  with frozen OOS, native sizing and nested selection; dated generation/refinement
+  milestones distinguish implemented controls from remaining optional work.
 - [Prop portfolio plan](prop_portfolio_plan.md): completed phase/cash-ledger
   milestones and optional downstream portfolio work.
 - [Planning costs](planning.md): dated estimates and missing quotes.

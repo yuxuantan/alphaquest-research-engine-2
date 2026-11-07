@@ -1,9 +1,10 @@
 """independent forward event contract; no historical trade adaptation."""
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal, Union
 import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from .prop.sizing import AccountSizingState
 
 ID=Annotated[str,Field(min_length=1,max_length=128,pattern=r'^[A-Za-z0-9][A-Za-z0-9_.:-]*$')]
 UUID=Annotated[str,Field(pattern=r'^[0-9a-f]{32}$')]
@@ -59,6 +60,7 @@ class Source(Strict):
     adapter:Literal['timestamped_events_v1']='timestamped_events_v1'
     connection_claim:Literal['supplied_records_only']='supplied_records_only'
     position_cost_basis:Literal['fifo','unknown']='unknown'
+    receiver_clock_provenance:Literal['server_wall_clock','synthetic_harness_clock']='server_wall_clock'
 
 
 class Thresholds(Strict):
@@ -91,12 +93,60 @@ class Thresholds(Strict):
         return self
 
 
+def day(value):
+    if type(value) is not str or str(date.fromisoformat(value)) != value:
+        raise ValueError('Use canonical YYYY-MM-DD session dates.')
+    return value
+
+
+class FundedObservationPlan(Strict):
+    schema_version: Literal['funded-observation-plan-v1'] = 'funded-observation-plan-v1'
+    first_session: str
+    cutoff_date_exclusive: str
+    calendar_timezone: Literal['America/Chicago'] = 'America/Chicago'
+    open_sessions: list[str] = Field(min_length=1, max_length=366)
+    early_closes: dict[str, str]
+    calendar_alignment: Literal['exact_saved_dates', 'declared_pattern_translation']
+    transport_assumption: str | None = Field(default=None, min_length=1, max_length=2000)
+    account_id: ID
+    account_scope: Literal['one_fresh_funded_account_no_replacement'] = 'one_fresh_funded_account_no_replacement'
+    initial_balance: str = '50000'
+    currency: Literal['USD'] = 'USD'
+    policy_implementation_claim: Literal['supplied_unchanged_frozen_policy'] = 'supplied_unchanged_frozen_policy'
+    coverage_claim: Literal['all_signals_orders_fills_positions_and_cash'] = 'all_signals_orders_fills_positions_and_cash'
+
+    @field_validator('first_session', 'cutoff_date_exclusive')
+    @classmethod
+    def dates(cls, value): return day(value)
+
+    @field_validator('initial_balance')
+    @classmethod
+    def capital(cls, value): return number(value, positive=True)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        days = [day(value) for value in self.open_sessions]
+        if days != sorted(set(days)) or days[0] != self.first_session or not all(self.first_session <= value < self.cutoff_date_exclusive for value in days):
+            raise ValueError('Declare ordered unique open sessions throughout the exact half-open interval.')
+        for key, value in self.early_closes.items():
+            day(key)
+            if key not in days or len(value) != 5 or value[2] != ':' or not value.replace(':', '').isdigit() or not 0 <= int(value[:2]) <= 23 or not 0 <= int(value[3:]) <= 59:
+                raise ValueError('Early closes require an included open session and HH:MM clock.')
+        if self.calendar_alignment == 'declared_pattern_translation':
+            if not self.transport_assumption or not self.transport_assumption.strip():
+                raise ValueError('Explicit calendar transport requires a predeclared rationale/assumption.')
+        elif self.transport_assumption is not None:
+            raise ValueError('An exact calendar comparison does not use a transport assumption.')
+        return self
+
+
 class MonitorDeclaration(Strict):
     schema_version:Literal['aq-forward-monitor-v1']='aq-forward-monitor-v1'
     monitor_id:UUID
     name:str=Field(min_length=1,max_length=120)
     observation_kind:Literal['synthetic_harness','paper','actual_import']
     policy_binding:PolicyBinding|None=None
+    forecast_observation:FundedObservationPlan|None=None
     source:Source
     instrument:Instrument
     initial_balance:str='50000'
@@ -113,6 +163,10 @@ class MonitorDeclaration(Strict):
     def capital(cls,value):return number(value,positive=True)
     @model_validator(mode='after')
     def binding(self):
+        if self.observation_kind!='synthetic_harness' and self.source.receiver_clock_provenance!='server_wall_clock':
+            raise ValueError('Only explicitly synthetic observations may declare a deterministic harness receiver clock.')
+        if self.forecast_observation is not None and self.policy_binding is None:
+            raise ValueError('A forecast observation needs authoritative current-policy membership.')
         if self.observation_kind!='synthetic_harness' and self.policy_binding is None:
             raise ValueError('Paper/actual observation requires server-verified current-policy authority.')
         return self
@@ -285,7 +339,83 @@ class Void(BaseEvent):
         return self
 
 
-Event=Annotated[Union[Signal,Intent,Order,OrderStatus,Fill,ProtectionIntent,Protection,Position,Market,Heartbeat,Connection,Cash,Void],Field(discriminator='kind')]
+class AccountCoverage(BaseEvent):
+    kind: Literal['account_coverage'] = 'account_coverage'
+    plan_sha256: SHA
+    package_sha256: SHA
+    account_id: ID
+    first_session: str
+    cutoff_date_exclusive: str
+    coverage: Literal['complete', 'partial']
+    fresh_account: bool
+    initial_balance: str
+    currency: Literal['USD']
+    frozen_policy_followed: bool
+    terminal_status: Literal['active_at_cutoff', 'breached', 'inactivity', 'payout_limit_completed']
+    terminal_at_utc: str | None = None
+    replacement_accounts: int = Field(ge=0)
+    pending_trader_cash: str | None
+    complete_through_utc: str
+    statement: str = Field(min_length=1, max_length=2000)
+
+    @field_validator('first_session', 'cutoff_date_exclusive')
+    @classmethod
+    def dates(cls, value): return day(value)
+
+    @field_validator('terminal_at_utc', 'complete_through_utc')
+    @classmethod
+    def times(cls, value): return None if value is None else utc(value)
+
+    @field_validator('initial_balance', 'pending_trader_cash')
+    @classmethod
+    def amounts(cls, value): return None if value is None else number(value, nonnegative=True)
+
+    @model_validator(mode='after')
+    def outcome(self):
+        if not 1 <= (date.fromisoformat(self.cutoff_date_exclusive)-date.fromisoformat(self.first_session)).days <= 365:
+            raise ValueError('Coverage requires a bounded 1 through 365 civil-day interval.')
+        if (self.terminal_status == 'active_at_cutoff') != (self.terminal_at_utc is None):
+            raise ValueError('Ended accounts require a terminal clock; active-at-cutoff has no earlier terminal clock.')
+        return self
+
+class SizingDecision(BaseEvent):
+    kind:Literal['sizing_decision']='sizing_decision'
+    signal_id:ID
+    position_event_id:ID
+    context_known_at_utc:str
+    account_state:AccountSizingState
+    execution_timing:Literal['same_close','next_open']
+    side:Literal['long','short']
+    decision_reference_price:str
+    initial_stop_price:str|None=None
+    initial_stop_known_at_utc:str|None=None
+    submitted_quantity:int=Field(ge=0,le=60)
+    action:Literal['trade','skip']
+
+    @field_validator('context_known_at_utc','initial_stop_known_at_utc')
+    @classmethod
+    def clocks(cls,value):return None if value is None else utc(value)
+
+    @field_validator('decision_reference_price','initial_stop_price')
+    @classmethod
+    def prices(cls,value):return None if value is None else number(value)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        from datetime import datetime
+        stamp=lambda value:datetime.fromisoformat(value.replace('Z','+00:00'))
+        if stamp(self.context_known_at_utc)>stamp(self.event_time_utc):
+            raise ValueError('The account context must be known at or before the decision.')
+        if (self.initial_stop_price is None)!=(self.initial_stop_known_at_utc is None):
+            raise ValueError('Initial stop price and known-at clock are supplied together.')
+        if self.initial_stop_known_at_utc and stamp(self.initial_stop_known_at_utc)>stamp(self.event_time_utc):
+            raise ValueError('The initial stop must be known at or before the decision.')
+        if (self.action=='skip')!=(self.submitted_quantity==0):
+            raise ValueError('A skip has zero quantity; a trade has positive quantity.')
+        return self
+
+
+Event=Annotated[Union[Signal,Intent,Order,OrderStatus,Fill,ProtectionIntent,Protection,Position,Market,Heartbeat,Connection,Cash,Void,AccountCoverage,SizingDecision],Field(discriminator='kind')]
 
 
 class EventBatch(Strict):

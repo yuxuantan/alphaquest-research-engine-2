@@ -33,7 +33,7 @@ def effective_records(records):
     return list(active.values())
 
 
-def reconcile(declaration,records,as_of_utc,*,pause_latched=False,retired=False,acknowledged_incident_sequence=0):
+def reconcile(declaration,records,as_of_utc,*,pause_latched=False,retired=False,acknowledged_incident_sequence=0,accepted_skip_signal_ids=()):
     """Report observed facts and unresolved links, with advisory thresholds only.
 
     Money is calculated from exact supplied fills. Position bookkeeping uses
@@ -43,10 +43,10 @@ def reconcile(declaration,records,as_of_utc,*,pause_latched=False,retired=False,
     if type(declaration) is not MonitorDeclaration:raise ValueError('Validated declaration required.')
     with localcontext() as ctx:
         ctx.prec=128
-        return _reconcile(declaration,records,as_of_utc,pause_latched=pause_latched,retired=retired,acknowledged_incident_sequence=acknowledged_incident_sequence)
+        return _reconcile(declaration,records,as_of_utc,pause_latched=pause_latched,retired=retired,acknowledged_incident_sequence=acknowledged_incident_sequence,accepted_skip_signal_ids=frozenset(accepted_skip_signal_ids))
 
 
-def _reconcile(d,records,as_of_utc,*,pause_latched,retired,acknowledged_incident_sequence):
+def _reconcile(d,records,as_of_utc,*,pause_latched,retired,acknowledged_incident_sequence,accepted_skip_signal_ids):
     asof=stamp(as_of_utc);cfg=d.thresholds;point=Decimal(d.instrument.point_value);tick=Decimal(d.instrument.tick_size)
     initial=Decimal(d.initial_balance);rows=effective_records(records);issues=[];signals={};intents={};orders={};fills={};protective={};protection_intents={}
     lots=deque();position=0;realized=Decimal(0);fees=Decimal(0);mark=None;market_time=None;heartbeat=None;connection=None
@@ -258,7 +258,7 @@ def _reconcile(d,records,as_of_utc,*,pause_latched,retired,acknowledged_incident
     for signal in signals.values():
         matching=[i for i in intents.values() if i['signal_id']==signal['signal_id']]
         submitted=any(intent_orders[i['intent_id']] for i in matching)
-        if not submitted and (asof-stamp(signal['event_time_utc'])).total_seconds()>cfg.maximum_signal_to_order_seconds:
+        if not submitted and signal['signal_id'] not in accepted_skip_signal_ids and (asof-stamp(signal['event_time_utc'])).total_seconds()>cfg.maximum_signal_to_order_seconds:
             issue('missed_signal','WATCH',signal)
     live_parents={lot['order_id'] for lot in lots}
     for protection in protective.values():

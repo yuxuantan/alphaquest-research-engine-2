@@ -942,3 +942,103 @@ connected strategy equivalence and account-state sizing verification are not
 implemented. ACTIVE is an advisory assessment at its saved clock, not continuously
 verified live health. Saved evidence and exact reproduction are in the dated
 [forward monitoring review](prop_simulation_review.md#timestamped-forward-observations--2026-11-08).
+
+## Supplied scope comparison and local sizing checks — 2026-11-08
+
+This extension supersedes the initial M5 limitation above that every comparison
+is `NOT_COMPARABLE`. It adds no endpoint or storage service. Existing declarations,
+raw batches, old reports and ordinary reopen behavior remain supported.
+`GET /api/forward-monitors/defaults` now includes `forecast_observation.schema`,
+`coverage_event_schema` and `sizing_decision_schema`.
+
+A monitor may optionally declare `forecast_observation` before the first target
+session opens. Its strict `funded-observation-plan-v1` fields are:
+
+- `first_session`, `cutoff_date_exclusive`, complete ordered `open_sessions`,
+  `early_closes` (date → Chicago HH:MM) and `calendar_timezone: America/Chicago`.
+- `calendar_alignment: exact_saved_dates|declared_pattern_translation` and an
+  explicit `transport_assumption` for translation; exact dates use null.
+- Stable supplied `account_id`,
+  `account_scope: one_fresh_funded_account_no_replacement`,
+  `initial_balance: "50000"`, `currency: USD`,
+  `policy_implementation_claim: supplied_unchanged_frozen_policy`, and
+  `coverage_claim: all_signals_orders_fills_positions_and_cash`.
+
+The policy claim concerns supplied trading/sizing adherence; it is not verified
+provider payout eligibility, request timing, approval or platform implementation.
+The authoritative current Funded package must contain one saved start cohort and
+an identified finite-horizon receipt estimate. The server compares the weekday,
+civil horizon, relative open-session dates and declared early-close pattern.
+Multiple pooled cohorts, changed patterns and silent date relocation reject.
+Explicit translation retains the original absolute model dates and a supplied
+transport assumption; it does not establish stationarity. Check/create captures
+`forecast_observation_plan`, its plan/binding hashes, original scope, exact UTC
+coverage boundaries, receipt convention and the saved payout-share evidence.
+Missing saved share evidence cannot produce a matched comparison.
+
+The coverage interval begins at 17:00 Chicago on the civil day preceding the
+first session and ends at Chicago midnight on the exclusive cutoff. Trading uses
+CME session labels; receipts belong to civil dates `[first_session, cutoff)`.
+Pre-origin cash is retained but makes the declared fresh-account scope
+incompatible. A receipt exactly at cutoff is excluded from that horizon and can
+remain pending. Financial valuation at cutoff and information received by the
+later assessment clock are separate: a normal exported file received after
+cutoff may be assessed after receipt, but a not-yet-received correction cannot
+repair an earlier assessment.
+
+The normal event importer accepts `account_coverage`. It binds `plan_sha256`,
+`package_sha256`, `account_id`, `first_session`, `cutoff_date_exclusive`,
+`coverage: complete|partial`, strict booleans `fresh_account` and
+`frozen_policy_followed`, initial balance/currency, `replacement_accounts`,
+`pending_trader_cash` (null means unknown), `complete_through_utc` and a supplied
+`statement`. `terminal_status` is `active_at_cutoff`, `breached`, `inactivity` or
+`payout_limit_completed`; ended accounts require `terminal_at_utc`. Completion
+and first receive clocks must span the cutoff. The bounded claim covers 1–365
+civil days. Exactly one effective completion claim, a reconciled fresh flat
+opening snapshot and a known flat closing snapshot are required. Corrections and
+voids use the same append-only chain as other events. Complete claimed quiet
+sessions also enter the access journal, even when the supplied claim conflicts
+with the monitor plan; rejecting a comparison cannot make disclosed outcomes
+untouched.
+
+The strict `sizing_decision` event adds `signal_id`, `position_event_id`,
+`context_known_at_utc`, typed `account_state`, `execution_timing`, `side`,
+`decision_reference_price`, optional paired initial-stop price/known-at clock,
+`submitted_quantity` and `action: trade|skip`. Account state is the existing
+`AccountSizingState`: configured capital, equity change, account/daily floors,
+provider cap and user cap. The server derives policy, user cap and planning costs
+from the frozen configuration and calls the existing `choose_quantity` with
+`KnownDecisionRisk`. The latest causal flat position/balance must reconcile, and
+no intervening fill or provider deduction may invalidate it. Actual later fills
+never supply the sizing reference or costs. Fixed unguarded policies can compare
+requested quantities without inventing provider-state evidence. Reduction orders
+are not new entries. An accepted calculated zero-size skip is not a missed signal.
+
+`policy_conformance.status` is `MATCH`, `MISMATCH`, `INSUFFICIENT_EVIDENCE` or
+`UNBOUND_SYNTHETIC`, with per-decision supplied/recalculated values and saved versus
+current sizing-source hashes. Missing/changed sizing code withholds arithmetic
+agreement. A mismatch pauses advisory state; missing necessary context watches
+and blocks recovery. Supplied floors, caps and known-at clocks remain unverified
+claims even when local arithmetic matches. This does not verify a platform's
+strategy implementation or prevent its orders.
+
+`forecast_comparison.status` is `NOT_COMPARABLE`, `SUPPLIED_SCOPE_COMPARISON` or
+`SYNTHETIC_SCOPE_COMPARISON`. A complete compatible claim supports exactly one
+observed-path descriptive receipt delta and observed payout/breach indicators
+beside the frozen probabilities. It does not provide calibration, a test of
+expected-value accuracy or future certification. The report captures the
+calendar assumption, coverage basis, scoped reconciliation and known pending cash.
+Payout cash requires causal request/deduction/receipt links and exact conservation
+using the selected saved model's trader share (`payout_policy` for Apex,
+`payout_amount` for Lucid). Unknown, missing or inconsistent gross/net evidence
+withholds comparison while preserving all supplied cash facts. Gross 1,000 and
+trader entitlement/receipt 900 reconcile under a saved 90% share; they are not
+charged twice. Actual requests/receipts need not equal the model's forecast
+amounts: payout eligibility/request/approval implementation stays `UNVERIFIED`.
+
+`source.receiver_clock_provenance` defaults to `server_wall_clock`.
+`synthetic_harness_clock` is allowed only for `synthetic_harness` observations and
+is a disclosure, not a clock-changing endpoint. Deterministic test-server clock
+injection is confined to fixture construction. Paper/actual completion requires
+real elapsed scope and supplied records. Saved reports use the existing format-9
+JSON/files/ZIP routes; no read reruns the comparison or selector.

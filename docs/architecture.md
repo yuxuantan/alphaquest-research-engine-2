@@ -392,6 +392,10 @@ flowchart TD
     K --> M[Final evidence gate without reselection]
     L --> N[Current research candidate or no qualified candidate]
     M --> N
+    N --> O[Explicit retained policy or unbound synthetic diagnostic]
+    O --> P[Independent supplied events and causal reconciliation]
+    P --> Q[Durable observation snapshots and advisory recovery]
+    Q --> R[External execution and operational verification still required]
 ```
 
 | Owner | Responsibility and boundary |
@@ -494,8 +498,10 @@ Unknown ordering/positions, current drawdown or missing health cannot be waived.
 Supplied execution provenance and the selected policy's expected implementation
 remain distinct. The system does not independently verify a platform strategy,
 account-state sizing decision, broker connection or settlement. Captured
-forecast/horizon and supplied receipt/duration diagnostics remain NOT_COMPARABLE
-with reasons; matched calibration is not implemented. Synthetic inputs never
+forecast/horizon and supplied receipt/duration diagnostics in the original M5
+increment remained NOT_COMPARABLE. The later supplied-scope extension below adds
+conditional descriptive comparison and local sizing arithmetic; statistical
+calibration and independent platform verification remain unavailable. Synthetic inputs never
 become verified forward performance. See the dated [API contract](research_campaign_api.md#timestamped-forward-observations--8-november-2026)
 and [saved normal-product evidence](prop_simulation_review.md#timestamped-forward-observations--2026-11-08).
 
@@ -654,3 +660,48 @@ replace earlier evidence or call a targeted gate the full baseline. Current
 forward reproduction is in
 `artifacts/forward-monitoring-m5-20261108/api-final/publish.py`; it uses ordinary
 routes and refuses to overwrite an existing library.
+
+### Supplied model comparison and sizing conformance
+
+`forward_comparison.py` binds an optional prospective observation plan to an
+already selected current Funded package. It preserves the original model's
+absolute calendar and requires an explicit assumption for calendar-pattern
+translation. The same normal worker reports a descriptive one-account receipt
+difference only when complete supplied coverage, flat boundary states, compatible
+scope and linked gross/net cash evidence reconcile. The financial cutoff and the
+later assessment knowledge clock are distinct. Neither this comparison nor a
+cash discrepancy selects or reranks a research candidate.
+
+`forward_conformance.py` checks supplied decision arithmetic through the existing
+`prop/sizing.py` owner. It requires the frozen sizing source hash, known decision
+reference/stop, causal prior position state and frozen planning costs. Supplied
+provider caps/floors remain unverified, and later fill prices are outcomes rather
+than sizing inputs. `forward_contracts.py` owns the additive `sizing_decision`,
+`account_coverage` and observation-plan schemas. The existing reconciler still
+owns fills, fees, positions and cash; accepted calculated skips only suppress
+false missed-signal diagnostics. The monitor keeps advisory mismatch/unknown
+states and immutable correction snapshots.
+
+Captured provider rule review supplies the payout-share model value. Comparison
+requires correlated gross deductions, trader entitlement and actual receipts to
+conserve that saved share; it does not refresh a provider rule or claim that a
+provider would approve a supplied request. Unknown evidence stays
+`NOT_COMPARABLE`. The result distinguishes one-path arithmetic, conditional
+Monte Carlo precision, historical/future uncertainty and unverified operational
+integration. It never turns one matching observation into calibration or live
+qualification.
+
+For extensions, add exact boundary oracles before granting another comparison
+scope. Keep correction receive clocks, original bytes, exclusive cutoffs,
+protected-session exposure and source-code compatibility intact. Complete
+supplied quiet-session claims are outcome access, even if the claim later fails
+comparison. New evidence still uses the ordinary monitor and AnalysisStore
+routes, not a second fill engine or report database.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_forward_comparison.py tests/test_forward_conformance.py tests/test_forward_comparison_api.py tests/test_forward_dynamic_api.py
+```
+
+The dated comparison journey in `docs/prop_simulation_review.md` records normal
+saved outputs, synthetic receiver-clock provenance and exact financial oracles.
+The earlier M5 `NOT_COMPARABLE`-only evidence remains a separate immutable release.

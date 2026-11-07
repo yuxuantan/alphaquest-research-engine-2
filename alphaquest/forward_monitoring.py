@@ -12,6 +12,7 @@ from uuid import uuid4
 from alphaquest.prop.store import seal_report, sealed_checks
 from .forward_contracts import MonitorDeclaration, EventBatch, Assessment, Control, utc
 from .forward_reconcile import canonical, digest, effective_records, reconcile, stamp
+from .forward_comparison import check_observation_plan, compare_observation
 
 
 class Conflict(ValueError):
@@ -24,7 +25,7 @@ def now():return datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
 def implementation_identity():
     root=Path(__file__).parent
     return digest({name:sha256((root/name).read_bytes()).hexdigest()
-                   for name in ('forward_contracts.py','forward_reconcile.py','forward_monitoring.py','forward_policy.py','forward_access.py')})
+                   for name in ('forward_contracts.py','forward_reconcile.py','forward_monitoring.py','forward_policy.py','forward_access.py','forward_comparison.py','forward_conformance.py','prop/sizing.py')})
 
 
 def parse_batch(raw):
@@ -93,7 +94,9 @@ class ForwardStore:
         else:
             policy=dict(kind='synthetic_diagnostic',package=None,source_backtest_id=None,
                 recommendation_status='NO_DEPLOYABLE_POLICY',production_qualified=False)
-        return dict(status='ADMITTED_FOR_OBSERVATION',policy_snapshot=deepcopy(policy),
+        observation_plan=(check_observation_plan(declaration.forecast_observation,policy,declared_at_utc=utc(self.clock()))
+            if declaration.forecast_observation is not None else None)
+        return dict(status='ADMITTED_FOR_OBSERVATION',policy_snapshot=deepcopy(policy),forecast_observation_plan=observation_plan,
             observation_kind=declaration.observation_kind,capabilities=dict(order_placement=False,
             direct_broker_connection=False,immutable_supplied_events=True),
             readiness=dict(production_qualified=False,direct_execution_integration=False),
@@ -106,7 +109,8 @@ class ForwardStore:
             with self.analyses.connect() as db:
                 row=db.execute('SELECT declaration FROM forward_monitors WHERE id=?',(declaration.monitor_id,)).fetchone()
             if row:
-                if row[0]!=payload:raise Conflict('Monitor ID is already bound to a different immutable declaration.')
+                if canonical(MonitorDeclaration.model_validate_json(row[0]).model_dump(mode='json'))!=payload:
+                    raise Conflict('Monitor ID is already bound to a different immutable declaration.')
                 return self.get(declaration.monitor_id),False
             checked=self.check(declaration)
             checked['monitor_declaration_sha256']=sha256(payload.encode()).hexdigest()
@@ -318,29 +322,44 @@ class ForwardStore:
                 status='SYNTHETIC_ONLY' if declaration.observation_kind=='synthetic_harness' else
                     'RETROSPECTIVE_OR_UNKNOWN_POLICY_SCOPE' if pre_monitor or pre_policy or not policy_clock else 'SUPPLIED_FORWARD_OBSERVATIONS',
                 observation_timing_independently_verified=False,eligible_for_future_certification=False)
+            forward_evidence=result['forward_evidence']
             package=policy.get('package') or {};forecast_window=package.get('outer_window')
             observed_instants=[value for value in economic if value<=stamp(result['as_of_utc'])]
             observed_start=min(observed_instants) if observed_instants else None
             elapsed=stamp(result['as_of_utc'])-observed_start if observed_start else None
             duration_microseconds=((elapsed.days*86400+elapsed.seconds)*1000000+elapsed.microseconds) if elapsed else 0 if observed_start else None
-            result['forecast_comparison']=dict(status='NOT_COMPARABLE',reasons=[
-                'Supplied events do not establish complete account lifecycle and observed coverage over the saved forecast horizon.',
-                'The supplied observation clock, market path and unverified execution are distinct from the frozen conditional forecast; matched calibration is not implemented.'],
-                frozen_expectation=policy.get('training_forecast'),
-                frozen_scope=dict(phase=package.get('phase'),window=forecast_window,calendar=package.get('calendar'),
-                    receipt_delay_calendar_days=package.get('receipt_delay_calendar_days'),receipt_amount_convention=package.get('receipt_amount_convention')),
-                actual_observation=dict(trader_receipts=result['metrics']['trader_receipts'],as_of_utc=result['as_of_utc'],
-                    first_economic_event_utc=utc(observed_start.isoformat()) if observed_start else None,
-                    duration_microseconds=duration_microseconds,complete_lifecycle_coverage_verified=False),no_future_certification=True)
-            result['policy_conformance']=dict(status='UNVERIFIED_SUPPLIED_SIGNALS',
-                expected_policy_package_sha256=(policy.get('package') or {}).get('package_sha256'),
-                strategy_implementation_independently_verified=False,account_state_sizing_independently_verified=False,
-                interpretation='Signals, intended quantities and fills are reconciled as supplied. No connected platform strategy implementation or account-state sizing decision is independently verified by these events.')
+            from .forward_conformance import evaluate_policy_conformance
+            conformance=evaluate_policy_conformance(policy,records,snapshot['as_of_utc'],reconciliation=result)
+            if conformance.get('accepted_skip_signal_ids'):
+                result=reconcile(declaration,records,snapshot['as_of_utc'],pause_latched=snapshot['pause_latched'],retired=snapshot['retired'],
+                    acknowledged_incident_sequence=snapshot['acknowledged_incident_sequence'],
+                    accepted_skip_signal_ids=conformance['accepted_skip_signal_ids'])
+                # The evidence clocks were computed from immutable source history.
+                result['forward_evidence']=forward_evidence
+            result['policy_conformance']=conformance
+            if conformance.get('status') in ('MISMATCH','INSUFFICIENT_EVIDENCE'):
+                paused=conformance['status']=='MISMATCH'
+                issue=dict(code='frozen_policy_mismatch' if paused else 'frozen_policy_context_unknown',severity='PAUSED' if paused else 'WATCH',
+                    event_id=None,details=dict(reasons=conformance.get('reasons',[])),observed_through_sequence=snapshot['last_event_sequence'],
+                    historical_incident=False,acknowledged=False)
+                result['reconciliation']['issues'].append(issue)
+                result['recovery']['current_blockers'].append(issue)
+                result['recovery']['eligible_for_acknowledgement']=False
+                result['advisory']['reasons'].append(issue['code'])
+                if result['advisory']['state']=='ACTIVE':result['advisory']['state']='WATCH'
+                if paused:
+                    result['reconciliation']['status']='UNRESOLVED'
+                    result['advisory'].update(state='RETIRED' if snapshot['retired'] else 'PAUSED',automatic_pause_latched=True,recovery_required=True)
+            result['forecast_comparison']=compare_observation(declaration,policy,monitor['source_check'].get('forecast_observation_plan'),
+                records,snapshot['as_of_utc'],monitor_created_at_utc=monitor['created_at_utc'])
+            result['forecast_comparison'].setdefault('actual_observation',dict(trader_receipts=result['metrics']['trader_receipts'],
+                as_of_utc=result['as_of_utc'],first_economic_event_utc=utc(observed_start.isoformat()) if observed_start else None,
+                duration_microseconds=duration_microseconds,complete_lifecycle_coverage_verified=False))
             report=dict(format_version=9,model_version='forward-monitor-v1',settings=dict(ANALYSIS_MODE='forward_monitoring'),
                 source_backtest_id=monitor['source_check']['policy_snapshot'].get('source_backtest_id'),monitor_id=id,
                 request=monitor['declaration'],source_check=monitor['source_check'],input_snapshot=snapshot,
                 observation_provenance=dict(kind=declaration.observation_kind,source=declaration.source.model_dump(mode='json'),
-                    broker_connection_verified=False,received_clock='server',supplied_execution_claim_verified=False),calculations=result)
+                    broker_connection_verified=False,received_clock='server',receiver_clock_provenance=declaration.source.receiver_clock_provenance,supplied_execution_claim_verified=False),calculations=result)
             with TemporaryDirectory(prefix='.pending-forward-',dir=self.analyses.root) as temp:
                 staged=Path(temp)/'report';staged.mkdir()
                 for name,value in (('declaration.json',monitor['declaration']),('policy_snapshot.json',monitor['source_check']),

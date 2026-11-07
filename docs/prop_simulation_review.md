@@ -8723,3 +8723,336 @@ Create the evidence parent first and use a genuinely fresh directory. Managed en
 The resumed legacy gate passed **35 tests in 201.27 s**. Python compilation,
 five changed JavaScript syntax checks and `git diff --check` passed. These targeted
 gates do not replace the pending complete repository suite.
+
+## Two-strategy complete research and market-series properties — 2026-11-08
+
+The complete normal-product scenario uses two genuine registered strategies,
+`consecutive_green_hold` and `vwap_pullback_risk_sizing`, with two signal settings
+each. The clearly labeled synthetic source has 20 weekdays × 16 sparse observed
+bars, zero costs, one source MNQ, tick 0.25 and point value $2. It is not complete
+minute or tick evidence. Ordinary grids save 14 IS trades per configuration.
+Independent per-session returns are $4/$12 for the first strategy and $20/$20
+for VWAP; saved IS totals are $56/$168/$280/$280.
+
+The immutable actual library is:
+`artifacts/frozen-pair-m4b-20261108/api-final/data/test_two_strategies_full_membe0`.
+Start a temporary read-only inspection session from the repository root:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/frozen-pair-m4b-20261108/api-final/data/test_two_strategies_full_membe0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8023
+```
+
+Open `http://127.0.0.1:8023/#backtests/prop/job/5c4198a29ca94a76859b8ec64f3327a3`
+for nested report, or report `d24ae5e862ad492fbbb64625fb4f7cc7` for the fresh
+current-development application. The campaign is
+`8c31ea446437453fbe22a4a7f85dfefb`; application is
+`ecb47c1a2edd4b5d85863cb14a26424e`. The original ordinary source is
+`2d4dafba6e4041509f76477c3e19b4b7`; grids are
+`66dd4fcef3284598bfe898c45838e261` and `84884ab97a3d4adfa6b9432dda06727a`.
+Stop with Ctrl+C. Inspect saved evidence without changing its declarations.
+
+To reproduce through the UI in a fresh library, upload
+`artifacts/frozen-pair-m4b-20261108/multi-strategy-inputs/SYNTHETIC-two-strategy-sparse.csv`,
+create those two ordinary grids, open the first
+IS trial → Configure prop → Nested research, and select both complete grids.
+The saved request download contains exact strategy parameters, costs and
+thresholds. Declare rolling 8-session outer training and 2-session tests,
+2-session inner training/validation, one-session purge/embargo, and at least two
+inner/outer folds. Use 1,000 qualification bootstrap repetitions, four historical
+validation sessions, full neighboring membership and zero extra round-trip cost.
+This repetition count resolves a computational family-tail requirement; it does
+not increase the four observed sessions. A separate retained 400-repetition
+example correctly returns insufficient tail resolution.
+
+Enable independent Evaluation and Funded studies, both with whole-MNQ sizes
+10 and 20. Each phase must show all four configurations × two sizes = eight
+candidates. Evaluation's smallest-return member cannot reach $3,000 in 21
+sessions: $4 × 20 × 21 = $1,680. Its full-family acquisition estimate stays
+unresolved and it does not silently select from a smaller family. Funded retains
+all eight exact $0-receipt ties. Across two outer folds, 16 ordinary backtests
+execute; each source configuration has independently expected unit-size net
+$8, $24 or $40 over its two sessions, with fixed-path provider quantities shown
+separately. Trader receipts and pending cash are $0, not the backtest net P&L.
+
+Freeze the complete procedure and run a separate current-development selection.
+It reruns all four configurations and both eight-member phase families. Both
+phases return **NO QUALIFIED DEPLOYMENT CANDIDATE** because the declared reliability
+evidence is insufficient. No final holdout was consumed and no last-fold winner
+was promoted. Downloads include complete inner/phase/outer/reliability results;
+restart/reopen returns identical bytes with calculation functions disabled in
+the automated check.
+
+Exact fresh reproduction:
+
+```sh
+.venv/bin/python -m pytest tests/test_multi_strategy_research.py -q --basetemp=/absolute/new/multi-strategy/data --junitxml=/absolute/new/multi-strategy/pytest.xml
+.venv/bin/python -m pytest tests/test_research_market_properties.py -q --basetemp=/absolute/new/market-properties/data --junitxml=/absolute/new/market-properties/pytest.xml
+```
+
+Create each parent directory first. Never reuse a preserved explicit basetemp;
+pytest removes an existing one at startup. The first scenario passed within the
+25-test shared API gate. The seven market-series checks passed in 54.55 s on the
+same unchanged Python identity `3f6ce9d8…0ff1c` under
+`artifacts/selection-properties-m6-20261108/final-resumed/`.
+
+Those seven normal API runs cover six requested properties: a stable region with
+$10/$12/$14 per-session neighbors; independent seeded IID noise (seeds 7 and 31);
+a predeclared change from +$10 to −$10; an isolated −$10/+$20/−$10 parameter peak;
+causal clock regimes (Europe −$2, US +$20); and a six-member family whose
+400-versus-2,000 bootstrap repetitions change numerical tail resolution without
+adding historical samples. Exact expected values, declared seeds, qualified and
+rejected rows, report downloads and preserved failed/interrupted probes are in
+the artifact README and tests. No qualification result is mocked. These are
+controlled properties, not proof that a finite statistical procedure always
+rejects every noisy market or detects every future change.
+
+Root independently verified **53 complete reports and 742 component files**
+across the final pair, forward, two-strategy and market-property libraries:
+bytes, sizes, SHA-256 and every included ZIP member agree. The read-only script
+and saved index are
+`artifacts/frozen-pair-forward-m4b-m5-20261108/verify_saved_release.py` and
+`root-saved-verification.json`. The matching full tracked checkout is retained as
+`qualified-checkout-27cf056.tar.gz` with a SHA-256 file. It includes source,
+calendars and packaging; environment and compiled-extension builds remain
+separate requirements. Existing archives and reports were not replaced.
+
+The standalone synthetic CSV for the two-strategy journey has SHA-256
+`8c338a42cdc0a722dab436f35a4d679a4feccb8437cca7d993f49ce998f82c72`,
+matching the normal saved dataset. The adjacent `strategy_parameters.json`
+contains exact strategy defaults and each 1-to-2 search axis. These are inputs
+for the normal product workflow; no separate demo endpoint or store exists.
+
+## Complete supplied scope and local sizing arithmetic — 2026-11-08
+
+The ordinary current-policy monitor now supports a narrowly matched descriptive
+Funded cash comparison and local frozen-policy sizing arithmetic. It still does
+not verify a broker/platform implementation, payout approval or future forecast
+accuracy. The preceding M5 report library remains unchanged. This extension
+retains the failed scope-clock/deduction probes and the repaired evidence rather
+than overwriting the original release.
+
+The final fixed-policy API journey is saved at
+`artifacts/forward-comparison-m5b-20261108/api-final/`. Its `evidence.json` SHA-256
+is `f667dc2c00efd1f8b1ecdee3ee3e00f222af265843c178e98af71264ffaff944`.
+All 36 downloaded files reopened byte-for-byte; all three ZIPs contain the exact
+saved report and listed files. The before/after engine is
+`1ff01f1e8e370ef6781b5ec579ce60749310fbe3c0fcb5f78030c7aa7299f5e6`.
+The focused owner/API/access/publication gate passed **114 tests in 28.96s**;
+its exact command, log, JUnit, retained state and hashes are under
+`artifacts/forward-comparison-m5b-20261108/api-gate-release/`. This is a focused
+gate, not the whole-repository baseline. Independent probes retained three
+initial clock/cash failures and then passed five repaired cases; those logs and
+sources are under the adjacent `independent-review/` directory.
+
+The saved normal product identifiers are:
+
+| Item | ID |
+|---|---|
+| Synthetic dataset | `6512d0e182ad4b8f969077479e06ffef` |
+| Full-procedure campaign | `a51da2f52b4a4fec8bcf402ad115c4d6` |
+| Current-development application | `58dbce2d9f1145d0993bc04cdd759ba4` |
+| Current-development normal report | `83b483fa69b34a4e80044a857ad64018` |
+| Supplied observation monitor | `08d1aa5387ea4d678d7d9b33ab853226` |
+| Partial-coverage assessment | `740d6aafafae46208c4261cc5ed98d8e` |
+| Complete-coverage assessment | `07160ab7741e413b9b6d5f9815c499ac` |
+| Corrected-receipt assessment | `4af9f34b788d445c9494e94ca2226c98` |
+
+The chosen package hash is
+`7c56564f214dc8dbedf73bfbeeb915fc62df7659854a5f668725368743e4465e`;
+the immutable observation-plan hash is
+`150393029272c7d3ca2d9efdc4384041db6c9164acd3c36ea1324f398e97f3f0`.
+The saved source check binds both to the actual current-procedure selection and
+normal training report. It does not promote the last outer-fold policy.
+
+Reopen this library from the repository root:
+
+```sh
+ALPHAQUEST_DATA_DIR=artifacts/forward-comparison-m5b-20261108/api-final/state .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8777
+```
+
+Open `http://127.0.0.1:8777/#backtests/prop/job/83b483fa69b34a4e80044a857ad64018`
+to inspect the current-development recommendation and its ordinary monitor
+launcher. Open
+`http://127.0.0.1:8777/#backtests/prop/monitor/08d1aa5387ea4d678d7d9b33ab853226`
+for the declaration, original batches and immutable assessment history. The
+complete report is
+`http://127.0.0.1:8777/#backtests/prop/job/07160ab7741e413b9b6d5f9815c499ac`.
+Download its normal JSON, ZIP, captured policy, input snapshot and raw batches;
+reopen without running another assessment. Stop the server with **Ctrl-C**. No
+persistent server was left running by this API demonstration.
+
+Expected independent arithmetic and states:
+
+1. The earlier selected Funded model estimates **$1,500** of trader receipts over
+   its saved single-cohort horizon. The original model dates remain
+   **2026-01-27 through exclusive 2026-02-03**. The synthetic observation explicitly
+   declares a same-pattern translation to **2026-11-10 through exclusive
+   2026-11-17** before the first target CME session opens. This is a supplied model
+   transport assumption, not a forecast originally issued for those target dates.
+2. Separate incoming synthetic events submit **3 MNQ**, buy at 100 and sell at
+   101. At $2 per point, gross profit is **$6**. Two supplied $1.50 commissions
+   total **$3**, so net trading profit is **$3**. Local fixed-quantity conformance
+   reports `MATCH`; platform strategy behavior remains unverified.
+3. A separately supplied request, gross account deduction and actual trader
+   receipt are each **$50** under the captured 100% trader-share model. Provider
+   balance is **$49,953** after trading profit and deduction. Trader receipt is
+   **$50**, not account balance or trade P&L, and the deduction is not another
+   trader expense. The model's full-cap request policy and payout eligibility are
+   retained as unverified implementation assumptions; the fixture does not claim
+   a provider would approve this $50 request.
+4. The first assessment has `partial` coverage and remains `NOT_COMPARABLE`.
+   An append-only corrected `account_coverage` claim completes the exact interval;
+   the next report is `SYNTHETIC_SCOPE_COMPARISON`, with **$50 − $1,500 = −$1,450**.
+   The report states **one observation**, supplied/unverified completeness and no
+   calibration or future certification.
+5. A new receipt correction changes the actual amount to **$25**, and a correlated
+   completion correction declares **$25 pending**. The third report shows
+   **$25 − $1,500 = −$1,475**. Gross deduction stays $50, trading net stays $3, and
+   earlier reports/downloads remain identical. Reimporting identical source bytes
+   creates no duplicate fills or cash.
+
+The publisher records synthetic receiver-clock injection explicitly as
+`receiver_clock_provenance: synthetic_harness_clock`; the normal product has no
+clock-changing endpoint. Its fixture constructs the server with a deterministic
+clock before the target session and advances it after the horizon. These are not
+real elapsed live observations. `paper`/`actual_import` reject that clock
+provenance, and a genuine complete observation requires an elapsed prospective
+horizon and supplied records. For new monitors, declare a fresh compatible
+calendar after policy selection; never relabel prior observations as prospective.
+The inspectable `publish.py`, `monitor-request.json`, `monitor-check.json`,
+`source-events.json`, normal captured inputs and `command.txt` reproduce the dated
+synthetic journey without a separate demo API or evidence store.
+
+Relevant rejection/clock/cash checks include changed calendar pattern or exact
+absolute dates, pooled cohorts, pre-policy history, partial/voided coverage,
+missing flat boundary state, trading outside declared sessions or after terminal
+account status, ambiguous ties, future-received corrections and pre-origin cash.
+Receipts at the exclusive cutoff remain outside the horizon; known pending
+entitlement is preserved even after breach. Missing, unrelated, duplicated or
+undersized gross deductions cannot produce a matched comparison. A saved **90%**
+share independently reconciles **$1,000 gross / $900 trader entitlement and
+receipt / $0 pending**. Unknown share evidence withholds comparison while keeping
+all supplied financial facts. The existing ordinary request50/deduction60/receipt50
+cash diagnostic remains representable; it is not silently promoted to a matching
+100%-share model.
+
+
+### Authoritative dynamic policy through the normal observation workflow
+
+The final synthetic example creates a complete-minute MNQ/VWAP source, a normal
+nested Funded study with a predeclared one-MNQ reference, a complete procedure
+freeze and a fresh current-development fit. The selected 0.8%-current-balance
+policy is bound to a monitor through the normal source check. Its independent
+supplied decisions have $40 risk per MNQ: $50,000 × 0.008 / $40 = 10 contracts;
+after a $100 loss, floor($49,900 × 0.008 / $40) = 9. The second trade earns $180,
+so trading P&L is $80 and final equity $50,080. A later correction claiming 9
+instead of 10 at the first decision yields MISMATCH and advisory PAUSED; original
+MATCH/ACTIVE bytes remain unchanged through restart. Typed provenance is
+SYNTHETIC_ONLY. No complete horizon is declared, so forecast comparison is
+correctly NOT_COMPARABLE even though local sizing arithmetic agrees.
+
+Final gate: **1 passed in 182.93 s**, with identical before/after engine
+`1ff01f1e8e370ef6781b5ec579ce60749310fbe3c0fcb5f78030c7aa7299f5e6`.
+The earlier 190.09 s probe remains preserved, but its synthetic records were typed
+paper; the final gate corrects the typed provenance as well as the visible label.
+
+From the repository root, inspect the actual saved normal reports:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/forward-comparison-m5b-20261108/dynamic-api-final-v2/data/test_actual_native_current_per0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8778
+```
+
+Open `http://127.0.0.1:8778/#backtests/prop/job/08471bf5e92544c9ab237ce3424fd1da`;
+the discrepancy report is `0339ff79ce6a4a5db580d5454eda251a` on the same route.
+Monitor `7d270d54d1db4058aaa8ce444b1f8298` opens at
+`/#backtests/prop/monitor/7d270d54d1db4058aaa8ce444b1f8298`. The source backtest is
+`e925358cfabc40a9b06a29c3c6437873`, campaign
+`39d741563a684ed8b889f6df0ceae81c` and current application
+`7d885119a7d14481ab43e053eb8b1656`. Ctrl+C stops this manually started server.
+The API test started no persistent server.
+
+The library includes `dynamic-monitor-request.json`, `dynamic-monitor-events.json`,
+`dynamic-monitor-report.json` and `dynamic-monitor-evidence.json`. Use normal JSON
+and ZIP downloads from each report. The original MATCH report SHA-256 is
+`1d270d7f5a63e05452a486afb2954ae2186ce2ba126183fa3f09381291bf4bde`.
+An independent audit verified all 15 listed component hashes/lengths, package
+self-hash, training-report identity and both saved/current sizing-source hashes.
+Exact fresh reproduction is the command in the adjacent gate `commands.txt`:
+run `tests/test_forward_dynamic_api.py` with a new basetemp/XML location. Never
+reuse this retained evidence directory. External strategy eligibility, supplied
+floors/caps and broker enforcement remain unverified.
+
+
+## Complete supplied Funded scope and causal sizing diagnostics
+
+Fixed normal-product browser evidence: **1 passed in 14.97 s**, engine `1ff01f1e8e370ef6781b5ec579ce60749310fbe3c0fcb5f78030c7aa7299f5e6` unchanged before/after. Durable library: `artifacts/forward-comparison-m5b-20261108/browser-release/data/test_prospective_funded_scope_0`. Current report `216d13ae86844b2b8ead0e220f974b8b`; monitor `1953f7df064d412495362af15130bf85`; partial report `10895d18685f47d1bdb7c53f7d3f9bf1`; complete report `cd42126181b44fe4b4d4b0eaad56e4a1`. Verified 8 downloaded files and 15 ZIP members, source CSV identity, unchanged prior snapshot, zero-POST reopen and owned server teardown. Desktop comparison/quantity views and 390 px comparison were manually inspected. `verification.json` and `evidence.json` retain exact checks and hashes.
+
+The first new browser run is preserved at `artifacts/forward-comparison-m5b-20261108/browser-final`: 1 failed in 19.39 s. It exposed horizon valuation versus assessment knowledge-clock handling for a real supplied trade. The coordinated backend repair was verified before the fresh release run. After release, an approved copy-only clarification changed “frozen policy” to “frozen trading/sizing policy”; no numerical behavior changed. Final full-suite and bounded read-render validation of that exact final copy is reported separately after those checks finish. Earlier pair/monitor reports remain unchanged.
+
+### Existing product journey
+
+From a completed current-development report, expand Observe current policy, select an authoritative retained Funded package, and declare the observation source/provenance. The optional complete observation scope is saved immutably with that monitor. It contains the supplied account ID, first CME session, exclusive Chicago-date cutoff, every open session, declared early closes and the relation to the saved model calendar. The original forecast is not modified. Copying frozen dates preserves the absolute dates; explicit translation preserves relative session offsets and requires a transport rationale. The server checks weekday, civil horizon, full session/early-close pattern and single saved cohort. A translation is a declared assumption, not established stationarity.
+
+The normal check shows exact plan/package/binding hashes, UTC opening/cutoff, receipt convention, source calendar and supplied/unverified status. Declaration must precede the first full CME session opening (17:00 Chicago on the preceding civil date). An old forecast cannot be treated as a newly observed prospective interval merely by changing labels.
+
+After observation, use the existing event-file check/import. Include opening and closing flat position snapshots at the exact saved boundaries, all supplied signals/intents/orders/acknowledgements/fills/protection/positions/cash, and an `account_coverage` completion event referencing the exact plan, package and account. Complete coverage, fresh account, no replacement, frozen-policy adherence, terminal status and known pending trader cash are explicit supplied claims. Completion is received after the horizon. Partial, inconsistent or unknown coverage remains NOT_COMPARABLE.
+
+The ordinary assessment report retains the original expectation and gives a descriptive one-account cash difference only when matched scope is established under those supplied claims. Request, gross deduction, received cash and pending entitlement remain separate. Cash at or after the exclusive cutoff is excluded from that horizon. One observed breach/no-breach or receipt/no-receipt is displayed beside the saved modeled probability; it is not a calibration score, p-value, expected-value accuracy test or future guarantee.
+
+### Independent fixed-policy browser example
+
+The actual current-procedure model preserves original dates 2026-01-27 through exclusive 2026-02-03 and expected trader receipts $1,500. The monitor explicitly declares a same-weekday translation to 2026-11-10 through exclusive 2026-11-17, with open sessions November 10, 11, 12, 13 and 16. The synthetic test receiver clock creates the monitor on November 9 before the full session opens at 23:00 UTC. The cutoff is November 17 at 06:00 UTC.
+
+One separately supplied 3 MNQ round trip earns $6 gross P&L, costs $3 commission and nets $3 trading P&L. Supplied request/deduction/receipt amounts are $50 each; final flat account balance is $49,953. The complete-scope observed trader receipt is $50, so observed minus the frozen expected receipt is exactly −$1,450. This is not a claim that a provider would authorize the synthetic request. The local fixed-quantity check expects and observes 3 contracts; provider/platform implementation remains unverified.
+
+First, the event file intentionally declares partial coverage and the report remains NOT_COMPARABLE. A new immutable correction supplies complete coverage; the new report becomes SYNTHETIC_SCOPE_COMPARISON while the first report bytes stay unchanged. Exact absolute-date mode with translated dates rejects before monitor creation. All incoming events and both raw files remain downloadable with original server-received clocks and correction links.
+
+The browser fixture injects a deterministic clock into its ordinary test server and explicitly saves `synthetic_harness_clock` provenance. The product checkbox only declares that provenance and cannot change server time. There is no demo page, demo endpoint or product test-clock control. Normal paper/actual observation requires the real horizon to elapse; supplying future completion records does not establish complete received coverage. Do not replay this synthetic clock fixture as evidence of real elapsed performance.
+
+### Dynamic decision evidence
+
+A `sizing_decision` event links the signal to a preceding reconciled flat position snapshot and supplies account state, known-at clocks, execution timing, decision reference, initial stop, submitted quantity and trade/skip action. AlphaQuest recalculates with the actual frozen policy/planning assumptions using its existing local sizing implementation. The report shows supplied and recalculated quantities, requested quantity, denominator/budget, caps, reasons, planned risk and causal clocks. Later entry fills are not sizing inputs. A supplied skip needs an explicit zero-quantity decision; omitted opportunity history is not invented.
+
+An arithmetic MATCH is conditional on supplied context. Floors, caps, platform strategy eligibility and broker enforcement are not independently verified. Missing context, mismatches, stale prior balances, unknown ordering or unsupported conditions remain visible and withhold matched scope when required. The authoritative native dynamic-current-policy API publisher passed in **182.93 s** on the same final engine. Normal library: `artifacts/forward-comparison-m5b-20261108/dynamic-api-final-v2/data/test_actual_native_current_per0`. Current-development report `634198a4ed454ed0b7a0915aa4b13099`; monitor `7d270d54d1db4058aaa8ce444b1f8298`; matching assessment `08471bf5e92544c9ab237ce3424fd1da`; discrepancy assessment `0339ff79ce6a4a5db580d5454eda251a`.
+
+The actual saved policy risks **0.8% of current account balance**, with zero planned execution costs and an initial stop 20 points from a 100 reference on MNQ ($2/point): planned unit risk is $40. At $50,000, budget $400 gives 10 contracts. After a supplied $100 trading loss and a reconciled $49,900 flat snapshot, budget $399.20 gives 9 contracts. The later supplied trade earns $180, leaving $80 net trading P&L and $50,080 equity. This realized first loss is distinct from the $400 planned stop budget. Provider/user/policy caps are supplied and visible (20/40/60); none binds those two decisions. Receipts remain $0.
+
+A correction supplies 9 for the first decision when the frozen local arithmetic expects 10. The discrepancy remains MISMATCH/PAUSED; the original matching report remains immutable. Both are SYNTHETIC_ONLY. No complete lifecycle comparison plan was asserted for this separate dynamic observation, so its forecast comparison remains NOT_COMPARABLE rather than inventing a horizon outcome.
+
+Bounded read-only portal verification opened both saved assessments and the actual current-policy form, checked supplied/recalculated quantities and denominators, captured desktop causal context and 390 px mismatch rows, verified 4 downloads and 15 ZIP members, and reopened without any POST. It verified the final trading/sizing wording. Evidence: `artifacts/forward-comparison-m5b-20261108/dynamic-render/verification.json`; screenshots were manually inspected. Its temporary server stopped and joined. This renderer check performed no source generation, new assessment, strategy execution or policy selection.
+
+### Reproduction and limitations
+
+The final browser test is `tests/test_forward_comparison_browser.py`, using the real current-procedure, monitor, event-import, assessment and AnalysisStore routes. Save stdout/stderr and JUnit to a fresh artifact directory; retain its normal dataset/report library and hashes. It verifies screenshots at desktop and 390 px, unchanged prior snapshots, exact normal ZIP contents, source CSV identity and zero-POST saved reopen. All temporary servers stop and join at fixture teardown.
+
+A normal manually started server uses `ALPHAQUEST_DATA_DIR="$PWD/<saved-library>" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022`; stop with Ctrl-C. Saved synthetic reports reopen without advancing any clock or rerunning selection. Inspect immutable evidence libraries without changing them; use a separate copy for experiments. This increment supplies a descriptive matched-scope comparison, not calibrated future distributions, connected execution or production qualification.
+
+### Open the fixed release library
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/forward-comparison-m5b-20261108/browser-release/data/test_prospective_funded_scope_0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022
+```
+
+Open `http://127.0.0.1:8022/#backtests/prop/job/cd42126181b44fe4b4d4b0eaad56e4a1` for the complete comparison and `/#backtests/prop/job/10895d18685f47d1bdb7c53f7d3f9bf1` for the preserved partial observation. Open `/#backtests/prop/monitor/1953f7df064d412495362af15130bf85` for the immutable plan, original raw batches, event corrections and saved as-of state. The synthetic receiver clock remains explicitly labeled; reopening does not advance or control the real server clock. Stop with Ctrl-C.
+
+Complete report SHA-256: `d051a69063d2559b17d8771a5804c4c3b3fc22cf3a77f1d3d1a5e810048511b4`. ZIP SHA-256: `0e635a3768d4783afded93fa208c870fd1f56defca5a4ec93419d7b56989a58c`. Source CSV SHA-256: `47bfeaf8e6465fd14975a9d02e7f750f3995ed029cb68810d85db49158e26b37`. Plan SHA-256: `828b22ca7b7715bf1fc47a7653e2e851f3ad45ab1a5033c308e3ae909e299b80`. All other hashes and exact creation/receive/assessment clocks are in the evidence manifest.
+
+### Open the authoritative dynamic library
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/forward-comparison-m5b-20261108/dynamic-api-final-v2/data/test_actual_native_current_per0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022
+```
+
+Open `http://127.0.0.1:8022/#backtests/prop/job/08471bf5e92544c9ab237ce3424fd1da` and `/#backtests/prop/job/0339ff79ce6a4a5db580d5454eda251a` to compare immutable arithmetic evidence. Expand Supplied policy decisions versus local arithmetic, then the causal-clocks section. Current monitor is `/#backtests/prop/monitor/7d270d54d1db4058aaa8ce444b1f8298`; its latest discrepancy remains PAUSED. Stop with Ctrl-C. Historical saved assessment clocks are not a present-health claim.
+
+Matching report SHA-256: `1d270d7f5a63e05452a486afb2954ae2186ce2ba126183fa3f09381291bf4bde`. Discrepancy report SHA-256: `d0b2e9dfb12cb3d4e28f563529ea81fc8d38dea985c456f8c6a9acf421fc6b6b`. The normal library retains `dynamic-monitor-request.json`, `dynamic-monitor-events.json`, `dynamic-monitor-report.json` and `dynamic-monitor-evidence.json`; the read-render directory includes both normal ZIP downloads and hashes. Across fixed and dynamic browser evidence, 12 downloaded files and 30 ZIP members were checked. Full-suite results remain separately reported by the suite owner.
+
+To rebuild the authoritative dynamic API example, run `tests/test_forward_dynamic_api.py::test_actual_native_current_percentage_policy_reconciles_supplied_arithmetic_and_freezes_report` with a fresh `--basetemp`, log and JUnit destination. It uses normal synthetic native source/current-policy/monitor paths; it is a heavier calculation than saved report inspection.
+
+To repeat only the bounded saved-view check without calculations:
+
+```sh
+PYTHONPATH="$PWD" .venv/bin/python tests/inspect_forward_report_browser.py --library artifacts/forward-comparison-m5b-20261108/dynamic-api-final-v2/data/test_actual_native_current_per0 --expectations artifacts/forward-comparison-m5b-20261108/dynamic-render/expectations.json --output /absolute/fresh/render-directory
+```
+
+Use a fresh output path. The utility rejects a missing library, issues no POST requests, asserts the independent expected quantities/denominators and copied wording, checks unchanged normal downloads, and shuts down its own temporary server.
