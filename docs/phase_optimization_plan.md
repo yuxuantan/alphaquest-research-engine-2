@@ -764,3 +764,21 @@ and their declared identities are unchanged. Saved report visuals expose actual
 folds, parameter qualification and matched receipt outcomes without selecting
 again. See the M4 journey in `prop_simulation_review.md`. Frozen-pair lifecycle
 comparison, timestamped monitoring and final system acceptance remain pending.
+
+### Downstream pair and observation integration (8 November 2026)
+
+The predefined frozen-pair request composes the existing native phase controllers
+on one common observed OOS timeline. Actual Evaluation readiness determines the
+fresh Funded continuation; neither independent optimizer receives the other
+phase's inputs or changes its frozen objective. All named pairs remain in order
+without ranking. The original independent Funded horizon remains distinct from
+the remaining historical continuation. Unsupported budgets/providers/backends
+reject, and legacy joint/datetime/budgeted modes remain supported.
+
+Current-procedure observations resolve their selected package from the normal
+immutable application report. Signals/orders/fills are supplied timestamped
+records, not adapted historical backtests. Separate observed cash, execution
+reconciliation, advisory states and source-access exposure use the existing
+AnalysisStore. Model/provider/platform verification remains explicit and no order
+placement is enabled. Release qualification counts and outstanding full-suite
+acceptance are recorded in `robust_research_plan.md` and the review evidence.

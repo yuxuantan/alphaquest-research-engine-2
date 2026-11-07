@@ -1,5 +1,15 @@
 # AlphaQuest local prop simulation
 
+Current implementation (8 November 2026): later sections and the
+[execution checklist](robust_research_plan.md) supersede earlier dated pending
+statements. Native independent optimization, complete-procedure verification,
+the guided workspace and explicit frozen phase-pair lifecycle comparison are
+implemented. Supplied forward observations use the normal durable report workflow
+with exact event/cash reconciliation and advisory recovery. Matched forward
+forecast scope and frozen sizing conformance are being completed; the full
+repository acceptance gate remains outstanding. No provider or broker integration
+is production-qualified. Earlier findings and reports are preserved below.
+
 7 November 2026: saved-report prop configuration also exposes nested inner
 research, actual execution-stress reruns, causal market-condition evidence and
 durable qualification reports. These reports currently stop before

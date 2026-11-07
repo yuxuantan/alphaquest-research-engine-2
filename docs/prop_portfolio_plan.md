@@ -150,3 +150,28 @@ the later cash/budget model is delivered.
 - 2026-11-05: Added the independent-phase prerequisite specification and migration
   boundary. Documentation only; no new optimizer, forecast, test qualification
   or portfolio milestone is claimed. Existing milestone-1/2 evidence is preserved.
+
+## Predefined independent-policy comparison (8 November 2026)
+
+The optional `predefined_lifecycle_comparison` is downstream of independent
+Evaluation and Funded campaign freezes. A user names each pair and a common finite
+window using already manually executed OOS reports. Existing native execution and
+phase controllers calculate actual Evaluation retries/fees/readiness, then at
+most one fresh Funded continuation. Original phase objectives, packages and
+forecast horizons are unchanged. The observed remaining Funded interval has its
+own authenticated continuation binding and cannot be substituted for a full
+fresh-account forecast. No ranking, portfolio allocation, arbitrary weight or
+implicit replacement is introduced.
+
+Exact trader net cash equals receipts received before the exclusive cutoff minus
+actual Evaluation purchase and activation fees. Pending receipts, account
+deductions, retained provider share and source trading P&L remain separate.
+Incomplete acquisition retains paid fees and does not fabricate Funded outcomes.
+The normal prop form/check/worker/report/downloads own the journey; no new result
+store or execution engine is used. See the API contract and dated demonstration
+in `prop_simulation_review.md` for qualification status.
+
+This comparison does not replace the completed dated/budgeted lifecycle modes.
+It admits no monthly budget input: unsupported declarations reject. Existing
+budgeted replay retains the hard monthly fee cap, no rollover and no expansion
+from payouts. General portfolio search remains outside this comparison.

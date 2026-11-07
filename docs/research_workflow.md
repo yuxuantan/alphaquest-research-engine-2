@@ -666,3 +666,94 @@ are not plotted as Funded receipts. Each family member remains visible without
 inventing a probability for ties; chart display limits are labeled and complete
 rows/downloads remain available. Readiness is saved evidence, never a new
 selection or a production certificate computed by the catalogue.
+
+## Compare predefined frozen phase policies
+
+After independently running and freezing Evaluation and Funded campaigns, open
+the existing prop configuration's lifecycle comparison controls. Choose one exact
+frozen candidate for each phase and a completed ordinary manual OOS report for
+its original IS parent. The phases may use different signal parameters or sizing.
+Both must use compatible native MNQ execution and the same provider/account rules
+and observed market dataset. If an OOS source is missing, manually execute the
+ordinary source report's OOS first; Check does not execute or inspect a new final
+holdout on your behalf.
+
+Name each pair and explicitly set the common first session and exclusive cutoff.
+Check the complete membership, source identities, coverage, work estimate and
+frozen costs before running. Both original selections remain unchanged. The
+result shows actual acquisition fees/readiness, subsequent fresh Funded start,
+received and pending cash, and net trader cash. Evaluation profit and unused
+provider equity are not payouts. If readiness never occurs before the cutoff,
+Funded stays unstarted. A receipt on the cutoff is pending, not received.
+
+This is one previously accessed historical path per pair, with no ranking or
+probabilities across the declared pairs. Its shorter Funded continuation is
+explicitly distinct from the independent full-horizon forecast. Open each normal
+controlled backtest or download the exact packages, bindings, phase traces and
+cash ledger. A stopped comparison can retry the exact declaration; changing its
+sources, policies or dates needs a new request. This workflow does not certify
+provider rules, executable fills or future profitability.
+
+## First complete campaign: a practical walkthrough
+
+This example is a research exercise. Use a clearly labeled synthetic source for
+learning, then a licensed dataset whose instrument, timestamps, costs and session
+coverage you have checked. A passing calculation is not a trading recommendation.
+
+1. **Save market data.** In Datasets, set the real symbol, source timezone, tick
+   size and point value before validation. If reserving final evidence, choose
+   metadata-only inspection and declare the possible final session interval
+   before opening its prices. Previous inspection cannot be undone by reuploading.
+2. **Save strategy hypotheses.** In Strategies, create an IS parameter grid with
+   a separate manual OOS interval. Keep quantity fixed in each signal grid;
+   declare prop sizing independently later. Save a second strategy grid on the
+   same dataset/costs to compare hypotheses. You can disable automatic legacy
+   prop reports for these new grids while retaining later manual research.
+3. **Start research from a report.** Open an ordinary IS trial, then Configure
+   prop analysis → Nested research. Select all intended IS configurations/grids,
+   name the study and save a draft. The Research workspace can reopen it later.
+4. **Declare the evidence rules first.** Set training/validation/test lengths,
+   purge/embargo, minimum observations, neighboring-parameter requirements and
+   economic thresholds. Add realistic execution stresses and relevant causal
+   market conditions. More simulation repetitions improve numerical resolution;
+   they do not add historical observations. Add a simple reference before testing
+   if a later recommendation must demonstrate improvement over it.
+5. **Choose each economic objective separately.** Evaluation searches acquisition
+   cost and calendar time. Funded searches receipts within its saved horizon from
+   a fresh account. Select fixed contracts or explicit dollar/percentage-risk
+   policies, account rules, costs, calendars and seeds. Native risk policies need
+   the supported complete-minute MNQ/VWAP source and actual strategy reruns.
+   Unsupported sources reject before a calculation starts.
+6. **Preview, then run.** Inspect the actual session timeline, complete candidate
+   membership, excluded windows and work estimate. Resolve blockers. Run creates
+   normal restricted backtests and immutable phase reports. Stop/retry controls
+   retain completed evidence and verify identities before reuse.
+7. **Review what happened.** Open the saved report from Research. Inspect rejected
+   regions, qualified configurations, every frozen phase family, forecast versus
+   actual outer results, cash/drawdowns and reference comparisons. A tie remains
+   a family. Missing/censored evidence stays explicit; do not interpret a large
+   path count as a large independent historical sample.
+8. **Freeze the whole procedure.** Review the terminal training law and any final
+   reservation before freezing. Run guarded final verification only if eligible.
+   It applies frozen choices and may block endorsement; it never chooses a
+   replacement from the final outcomes. Run current-development selection as a
+   separate fresh application of the frozen procedure. It may correctly return
+   **NO QUALIFIED DEPLOYMENT CANDIDATE**.
+9. **Observe before deployment.** From an eligible current report, choose an
+   exact retained policy and open forward observation. Bind supplied paper/actual
+   records only to authoritative current membership; name an explicit preference
+   if several policies remain. A no-qualified result permits only an unbound,
+   labeled synthetic diagnostic. Import timestamped events, assess at an explicit
+   UTC clock, inspect discrepancies/cash and follow the recorded recovery steps.
+   Monitoring is advisory and does not stop broker orders.
+10. **Keep the evidence.** Download normal JSON/CSV/ZIP artifacts and reopen saved
+    reports without recomputation. Record the source, assumptions and remaining
+    provider/execution checks. The optional frozen-pair comparison is downstream
+    of separate phase freezes and does not turn a historical net-cash result into
+    a new optimizer or a live readiness certificate.
+
+The dated demonstrations in `prop_simulation_review.md` give exact synthetic
+source files, saved IDs, field values, expected arithmetic, rejection cases and
+startup/shutdown commands. The four-configuration/two-strategy example shows why
+an honest completed campaign can retain eight Funded alternatives and still
+return no qualified candidate.

@@ -14,6 +14,7 @@ from .prop.commissions import catalog, source_instrument
 from .prop.phase_dispatch import module_for_mode
 from .prop.phase_search import CandidateConfirmationRequired, require_candidate_confirmation
 from .prop.native_replay import NativeReplayRequest
+from .prop.frozen_pairs import PairComparisonRequest
 from .research import ResearchConflict
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
@@ -65,6 +66,11 @@ def defaults():
     from .prop.native_replay import defaults as native_defaults
     return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog(),
         native_phase_replay=native_defaults(),
+        predefined_lifecycle_comparison=dict(mode='predefined_lifecycle_comparison', max_pairs=20,
+            source='completed_ordinary_manual_oos', backend='native_strategy',
+            continuation='first_ready_session_until_common_cutoff', replacement='none',
+            ranking=False, budget_supported=False, exclusive_cutoff=True,
+            production_qualified=False),
         profiles=[dict(item,commissions=catalog(item['settings']['PROP_FIRM'])) for item in profiles()])
 
 @router.get('/sources/{source_id}')
@@ -83,8 +89,13 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
         raise HTTPException(404,str(exc)) from exc
 
 @router.post('/check')
-async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest, request: Request):
+async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest | PairComparisonRequest, request: Request):
     try:
+        if isinstance(body, PairComparisonRequest):
+            from .prop.phase_lifecycle import check_frozen_pairs
+            checked = await run_in_threadpool(check_frozen_pairs, request.app.state.store,
+                request.app.state.runs, request.app.state.campaigns, body)
+            return dict(status='compatible', mode=body.mode, pair_comparison=checked)
         if isinstance(body, NativeReplayRequest):
             from .prop.native_replay import check_replay
             checks = await run_in_threadpool(check_replay, request.app.state.store, request.app.state.runs, body)
@@ -107,8 +118,11 @@ async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRe
         raise HTTPException(422,str(exc)) from exc
 
 @router.post('',status_code=202)
-async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest, request: Request):
+async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest | PairComparisonRequest, request: Request):
     try:
+        if isinstance(body, PairComparisonRequest):
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_pairs,
+                request.app.state.store, request.app.state.runs, request.app.state.campaigns, body)
         if isinstance(body, NativeReplayRequest):
             return await run_in_threadpool(request.app.state.prop_analyses.submit_native,
                 request.app.state.store, request.app.state.runs, body)

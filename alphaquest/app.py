@@ -100,6 +100,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.campaigns = CampaignStore(app.state.runs, app.state.prop_analyses, app.state.optimizations, app.state.store)
         from .robust_research import RobustResearchStore
         app.state.robust_research = RobustResearchStore(app.state.store, app.state.campaigns)
+        from .forward_monitoring import ForwardStore
+        from .forward_policy import resolve_policy
+        from .forward_access import exposure_adapter
+        app.state.forward_monitors = ForwardStore(app.state.prop_analyses,
+            resolve_policy=lambda declaration: resolve_policy(app.state.robust_research, declaration),
+            record_exposure=exposure_adapter(app.state.research_access))
         from .research_workspace import ResearchWorkspace
         app.state.research_workspace = ResearchWorkspace(app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
@@ -119,6 +125,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(campaign_router)
     from .research_workspace import router as research_workspace_router
     app.include_router(research_workspace_router)
+    from .forward_api import router as forward_router
+    app.include_router(forward_router)
     app.include_router(strategy_library_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 

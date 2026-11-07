@@ -357,3 +357,59 @@ def replay(snapshot, rows, settings):
             'Evaluation profit, account equity and unused allowance are not cash. Source trading costs remain inside net trading results and are never deducted again from this cash ledger.',
             'Open accounts and obligations remain open at the horizon; no terminal value/refund. Earlier annualized and dated models remain unchanged. No additional provider/Bridge numerical parity claim.',
             'Saved fee override note: '+(settings['FEE_OVERRIDE_NOTE'] or 'User-saved prices; not a live provider-price verification.')])
+
+
+# Exact downstream combination; independent phase calculations remain owned above.
+from copy import deepcopy
+from datetime import date
+from decimal import Decimal
+from alphaquest.prop.native_money import money_add,money_sub,money_sum
+
+
+def _pair_cash_money(value):
+    amount=Decimal(str(value))
+    if not amount.is_finite():raise ValueError('Pair cash must be finite exact decimals.')
+    return amount
+
+
+def merge_pair_cash(evaluation,funded,*,first_session,cutoff_date_exclusive,child_ids):
+    """Actual receipts less actual paid fees; equity is never spendable cash."""
+    first,end=date.fromisoformat(first_session),date.fromisoformat(cutoff_date_exclusive)
+    fee=_pair_cash_money(evaluation['paid_evaluation_fees']);activation=_pair_cash_money(evaluation['paid_activation_fees'])
+    paid=money_add(fee,activation)
+    if min(fee,activation)<0 or paid!=_pair_cash_money(evaluation['paid_fees']):
+        raise ValueError('Evaluation fee totals do not reconcile.')
+    received=_pair_cash_money(funded['cash_received']) if funded else Decimal(0)
+    pending=_pair_cash_money(funded['pending_cash']) if funded else Decimal(0)
+    gross=_pair_cash_money(funded['gross_account_deductions']) if funded else Decimal(0)
+    raw=_pair_cash_money(funded['raw_trader_entitlement']) if funded else Decimal(0)
+    share=_pair_cash_money(funded['provider_retained_share']) if funded else Decimal(0)
+    rounding=_pair_cash_money(funded['receipt_rounding_delta']) if funded else Decimal(0)
+    if min(received,pending,gross,raw,share)<0 or gross!=money_add(raw,share) or money_add(received,pending)!=money_add(raw,rounding):
+        raise ValueError('Funded deduction, entitlement and receipt totals do not reconcile.')
+    events=[];totals={phase:Decimal(0) for phase in ('evaluation','funded')}
+    for phase,result in (('evaluation',evaluation),('funded',funded)):
+        for index,item in enumerate((result or {}).get('cash_ledger',[]),1):
+            event=deepcopy(item);day=date.fromisoformat(event['date']);delta=_pair_cash_money(event['cash_delta'])
+            if str(day)!=event['date'] or not first<=day<end:
+                raise ValueError('Actual cash event lies outside the common exclusive cutoff.')
+            if phase=='evaluation' and delta>0 or phase=='funded' and delta<0:
+                raise ValueError('Unsupported cash direction in phase-owned ledger.')
+            if phase=='funded' and delta and event['event']!='trader_receipt':
+                raise ValueError('Only modeled trader receipts can add Funded cash.')
+            totals[phase]=money_add(totals[phase],delta)
+            event.update(phase=phase,owner_sequence=event.pop('sequence',index),
+                native_backtest_id=child_ids[phase],cash_delta=str(delta))
+            events.append(event)
+    if totals['evaluation']!=paid.copy_negate() or totals['funded']!=received:
+        raise ValueError('Phase cash events differ from their owner totals.')
+    events.sort(key=lambda row:(row['date'],0 if row['phase']=='evaluation' else 1,row['owner_sequence']))
+    for index,event in enumerate(events,1):event['sequence']=index
+    net=money_sub(received,paid)
+    if money_sum(totals.values())!=net:raise ValueError('Pair cash ledger does not reconcile.')
+    return dict(paid_evaluation_fees=str(fee),paid_activation_fees=str(activation),paid_fees=str(paid),
+        cash_received=str(received),pending_cash=str(pending),gross_account_deductions=str(gross),
+        raw_trader_entitlement=str(raw),provider_retained_share=str(share),receipt_rounding_delta=str(rounding),
+        net_trader_cash=str(net),cash_ledger=events,
+        conservation=dict(cash_ledger_total=str(net),exact_decimal_cash=True,
+            identity='received_cash - paid_evaluation_fees - paid_activation_fees; provider deductions and account equity are not trader expenses/income'))

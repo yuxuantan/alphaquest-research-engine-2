@@ -62,6 +62,7 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
+            db.execute('CREATE TABLE IF NOT EXISTS lifecycle_comparisons (request_id TEXT PRIMARY KEY, declaration TEXT NOT NULL, checked TEXT NOT NULL, analysis_id TEXT NOT NULL UNIQUE)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
             db.execute('CREATE TABLE IF NOT EXISTS calculation_reuse (key TEXT PRIMARY KEY,engine TEXT NOT NULL,id TEXT NOT NULL,sha256 TEXT NOT NULL)')
             from ..research_campaigns import initialize
@@ -95,7 +96,10 @@ class AnalysisStore:
 
     def active_sources(self):
         with self.connect() as db:
-            return {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') UNION SELECT source_id FROM campaign_sources")}
+            sources = {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') OR EXISTS (SELECT 1 FROM lifecycle_comparisons p WHERE p.analysis_id=a.id) UNION SELECT source_id FROM campaign_sources")}
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
+                sources.update(r[0] for r in db.execute('SELECT source_id FROM forward_source_refs'))
+            return sources
 
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
@@ -109,6 +113,10 @@ class AnalysisStore:
                     record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
                     if db.execute('SELECT 1 FROM campaign_analyses WHERE analysis_id=?', (id,)).fetchone():
                         raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
+                    for table in ('forward_assessments', 'forward_report_refs'):
+                        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                            if db.execute(f'SELECT 1 FROM {table} WHERE analysis_id=?', (id,)).fetchone():
+                                raise ValueError('This report is retained by a forward monitor and cannot be deleted.')
                     if record and record[0] in ('queued','running'):
                         raise ValueError('This prop analysis is queued or running. Wait for it to finish before deleting.')
                     if destination.is_symlink() or staged.is_symlink():
@@ -180,6 +188,119 @@ class AnalysisStore:
                 db.execute("UPDATE analyses SET status='complete',progress='Saved native phase replay ready' WHERE id=?", (id,))
         except Exception as exc:
             self._update(id, 'error', 'Native phase replay failed', f'{type(exc).__name__}: {exc}')
+
+    def submit_pairs(self, datasets, runs, campaigns, request):
+        """Bind an explicit pair declaration to one normal durable analysis."""
+        from .phase_lifecycle import check_frozen_pairs
+        from ..research import ResearchConflict
+        from ..optimization_cache import digest
+        declaration = canonical(request.model_dump(mode='json'))
+        with self.lock:
+            with self.connect() as db:
+                previous = db.execute('SELECT declaration,checked,analysis_id FROM lifecycle_comparisons WHERE request_id=?',
+                    (request.request_id,)).fetchone()
+            if previous and previous[0] != declaration:
+                raise ResearchConflict('Pair request ID is already bound to another declaration. Use a new request ID for a changed comparison.')
+            checked = check_frozen_pairs(datasets, runs, campaigns, request)
+            captured = canonical(checked)
+            if previous:
+                if captured != previous[1]:
+                    raise ResearchConflict('Frozen pair inputs or implementation changed; the original comparison is preserved.')
+                id = previous[2];record = self.get(id)
+                if record is None:
+                    raise ResearchConflict('This comparison was deleted; its request ID cannot be reused.')
+                if record['status'] in ('queued', 'running'):
+                    return record
+                if record['status'] == 'complete':
+                    if self.fingerprint(id) is None or not self.native_children_unchanged(runs, id):
+                        raise ResearchConflict('Saved comparison or captured native child identity changed.')
+                    return record
+                if (self.root/id).exists():
+                    raise ResearchConflict('An interrupted comparison has retained publication files; inspect them before making a new request.')
+                with self.connect() as db:
+                    db.execute("UPDATE analyses SET status='queued',progress='Queued exact frozen-pair retry',error=NULL WHERE id=?", (id,))
+                    db.execute('UPDATE phase_analysis_control SET stop_requested=0 WHERE analysis_id=?', (id,))
+            else:
+                id = uuid4().hex
+                sources = {policy['source']['id'] for pair in checked['pairs'] for policy in pair['policies'].values()}
+                sources.update(policy['configuration']['source']['source_backtest_id']
+                    for pair in checked['pairs'] for policy in pair['policies'].values())
+                first = request.pairs[0].evaluation.source_backtest_id
+                with self.connect() as db:
+                    db.execute('INSERT INTO lifecycle_comparisons VALUES (?,?,?,?)',
+                        (request.request_id, declaration, captured, id))
+                    db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
+                        (id, digest(dict(request=request.model_dump(mode='json'),check=checked)), first,
+                         datetime.now(timezone.utc).isoformat(), 'queued', 'Queued predefined lifecycle comparison', None))
+                    db.executemany('INSERT INTO analysis_sources VALUES (?,?)', [(id, source) for source in sorted(sources)])
+                    db.execute('INSERT INTO phase_analysis_control(analysis_id) VALUES (?)', (id,))
+            self.worker.submit(self._run_pairs, datasets, runs, campaigns, id, request, checked)
+            return self.get(id)
+
+    def _run_pairs(self, datasets, runs, campaigns, id, request, checked):
+        from .phase_lifecycle import run_frozen_pairs
+        reserved = []
+        def checkpoint():
+            with self.connect() as db:
+                row = db.execute('SELECT stop_requested FROM phase_analysis_control WHERE analysis_id=?', (id,)).fetchone()
+            if row and row[0]:
+                raise AnalysisCancelled('Lifecycle comparison stopped; no partial pair population was published.')
+        def reserve_child(child):
+            with self.lock, self.connect() as db:
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)', (id, child))
+            reserved.append(child)
+        def progress(message):
+            checkpoint();self._update(id, 'running', message)
+        try:
+            progress('Checking frozen pair sources and actual chronological continuation')
+            with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
+                staged = Path(temp)/'report';staged.mkdir()
+                with self.runtime.activate():
+                    calculations = run_frozen_pairs(datasets, runs, campaigns, request, checked,
+                        analysis_id=id, reserve_child=reserve_child, checkpoint=checkpoint, progress=progress)
+                result = dict(format_version=8, model_version='alphaquest-frozen-pair-v1',
+                    engine='AlphaQuest local native strategy and independent phase controllers',
+                    request=request.model_dump(mode='json'), settings=dict(ANALYSIS_MODE=request.mode),
+                    source=dict(backtest=checked['pairs'][0]['policies']['evaluation']['source']),
+                    source_check=checked, calculations=calculations,
+                    implementation=dict(engine_identity=checked['pairs'][0]['binding']['engine_identity']),
+                    production_qualified=False)
+                (staged/'request.json').write_text(canonical(result['request']))
+                (staged/'source_check.json').write_text(canonical(checked))
+                (staged/'results.json').write_text(canonical(calculations))
+                import csv
+                ledger = []
+                for number, pair in enumerate(calculations['pairs'], 1):
+                    folder=staged/'pairs'/str(number);folder.mkdir(parents=True)
+                    for phase in ('evaluation', 'funded'):
+                        (folder/(phase+'_package.json')).write_text(canonical(checked['pairs'][number-1]['policies'][phase]['package']))
+                        (folder/(phase+'_result.json')).write_text(canonical(pair[phase]))
+                    (folder/'pair_binding.json').write_text(canonical(pair['pair_binding']))
+                    (folder/'continuation_binding.json').write_text(canonical(pair['continuation_binding']))
+                    (folder/'cash.json').write_text(canonical(pair['cash']))
+                    ledger.extend(dict(pair_id=pair['id'], **event) for event in pair['cash']['cash_ledger'])
+                (staged/'cash_ledger.json').write_text(canonical(ledger))
+                columns = sorted({key for event in ledger for key in event})
+                with (staged/'cash_ledger.csv').open('w', newline='') as stream:
+                    writer=csv.DictWriter(stream,fieldnames=columns);writer.writeheader();writer.writerows(ledger)
+                self.capture_native_children(runs, staged, result, reserved)
+                with self.lock:
+                    checkpoint()
+                    seal_report(staged, result, id, self.get(id)['created'])
+                    checkpoint()
+                    staged.rename(self.root/id)
+                    with self.connect() as db:
+                        db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
+                        db.execute("UPDATE analyses SET status='complete',progress='Saved predefined lifecycle comparison ready' WHERE id=?", (id,))
+        except AnalysisCancelled as exc:
+            self._update(id, 'cancelled', 'Comparison stopped; retry the exact declaration', str(exc))
+        except Exception as exc:
+            self._update(id, 'error', 'Predefined lifecycle comparison failed', f'{type(exc).__name__}: {exc}')
+        finally:
+            with self.lock, self.connect() as db:
+                for child in reserved:
+                    if runs.get(child) is None:
+                        db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?', (id,child))
 
     def submit_funded(self, runs, search):
         return self.submit_phase(runs, search)
@@ -310,28 +431,7 @@ class AnalysisStore:
                     calculations['assessment'] = assessment
                 result = module.write_report(runs, staged, search, checks, calculations)
                 if reserved_children:
-                    import shutil
-                    from .adapter import digest
-                    from ..optimization_cache import artifacts
-                    result['native_backtests']={}
-                    for child_id in reserved_children:
-                        child=runs.get(child_id)
-                        if child is None:raise ValueError('Native assessment child was not published.')
-                        hashes=artifacts(runs.root,child)
-                        folder=staged/'native_backtests'/child_id;folder.mkdir(parents=True)
-                        capture={}
-                        for name,expected in hashes.items():
-                            if name=='shared_holding_day':
-                                from ..market_equity import holding_path
-                                source=holding_path(runs.root/child_id,child['market_benchmark'])
-                                target='shared_holding_day.csv'
-                            else:source=runs.root/child_id/name;target=name
-                            destination=folder/target;destination.parent.mkdir(parents=True,exist_ok=True)
-                            shutil.copyfile(source,destination)
-                            if digest(destination)!=expected:raise ValueError('Native child changed during report capture.')
-                            capture[name]=str(destination.relative_to(staged))
-                        (folder/'manifest.json').write_text(canonical(child))
-                        result['native_backtests'][child_id]=dict(record=child,artifact_sha256=hashes,captured_files=capture)
+                    self.capture_native_children(runs, staged, result, reserved_children)
 
                 if assessment:
                     result['assessment'] = assessment
@@ -511,6 +611,31 @@ class AnalysisStore:
             db.execute('DELETE FROM analysis_report_checks WHERE id=?',(prepared['id'],))
             db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(prepared['id'],))
             db.execute('DELETE FROM analyses WHERE id=?',(prepared['id'],))
+
+    def capture_native_children(self, runs, staged, result, children):
+        """One capture contract for actual native children across analysis modes."""
+        import shutil
+        from .adapter import digest
+        from ..optimization_cache import artifacts
+        result['native_backtests']={}
+        for child_id in children:
+            child=runs.get(child_id)
+            if child is None:raise ValueError('Native controlled child was not published.')
+            hashes=artifacts(runs.root,child)
+            folder=staged/'native_backtests'/child_id;folder.mkdir(parents=True)
+            capture={}
+            for name,expected in hashes.items():
+                if name=='shared_holding_day':
+                    from ..market_equity import holding_path
+                    source=holding_path(runs.root/child_id,child['market_benchmark'])
+                    target='shared_holding_day.csv'
+                else:source=runs.root/child_id/name;target=name
+                destination=folder/target;destination.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(source,destination)
+                if digest(destination)!=expected:raise ValueError('Native child changed during report capture.')
+                capture[name]=str(destination.relative_to(staged))
+            (folder/'manifest.json').write_text(canonical(child))
+            result['native_backtests'][child_id]=dict(record=child,artifact_sha256=hashes,captured_files=capture)
 
     def native_children_unchanged(self, runs, id):
         """Live child links must still agree with the immutable report capture."""

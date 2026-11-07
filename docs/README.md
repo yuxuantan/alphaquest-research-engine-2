@@ -10,8 +10,9 @@
 - [Robust research execution checklist](robust_research_plan.md): fresh audit,
   requirements traceability, inner qualification, independent economic selection,
   chronological reliability, complete-procedure final verification and the
-  searchable research catalogue with drafts/templates; monitoring and full-suite
-  qualification remain pending.
+  searchable research catalogue with drafts/templates, frozen pair comparisons and
+  supplied observation monitoring; matched forward comparisons, sizing conformance
+  and final full-suite qualification remain pending.
 
 ## Product guides
 

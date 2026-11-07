@@ -204,6 +204,7 @@
     await window.phaseCampaigns.configure(data.source);if(t!==token)return;
     await window.robustResearch.configure(data.source,workspaceOptions);if(t!==token)return;
     window.nativeReplay.configure(data.source,defaults.native_phase_replay);
+    window.pairComparison.configure(data.source,defaults.predefined_lifecycle_comparison);
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${externalSource?'Imported external trades · ':''}${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-form').querySelectorAll('.prop-advanced').forEach(d=>d.open=false);$('#prop-overrides').value='{}';showMethodFields();
     $('#prop-method option[value="budgeted_lifecycle"]').disabled=externalSource;
@@ -616,12 +617,12 @@
       }
       if(j.status==='complete'){
         const r=await read(`/api/prop-analyses/${id}/downloads/report.json`);
-        if(t===token){if(r.request?.mode==='native_phase_replay')window.nativeReplay.renderAnalysis(r);else if(['evaluation','funded'].includes(r.phase))window.phaseCampaigns.renderAnalysis(r);else if(r.phase==='research_integrity')window.robustResearch.renderAnalysis(r);else render(r);}return;
+        if(t===token){if(r.model_version==='forward-monitor-v1')window.forwardMonitoring.renderAnalysis(r);else if(r.request?.mode==='predefined_lifecycle_comparison')window.pairComparison.renderAnalysis(r);else if(r.request?.mode==='native_phase_replay')window.nativeReplay.renderAnalysis(r);else if(['evaluation','funded'].includes(r.phase))window.phaseCampaigns.renderAnalysis(r);else if(r.phase==='research_integrity')window.robustResearch.renderAnalysis(r);else render(r);}return;
       }
       await new Promise(resolve=>setTimeout(resolve,700));
     }
   }
-  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const route=location.hash.split('?')[0],params=new URLSearchParams(location.hash.split('?')[1]||''),match=route.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{const campaign=location.hash.match(/^#backtests\/prop\/campaign\/([a-f0-9]{32})$/);if(campaign){await window.phaseCampaigns.watch(campaign[1],()=>t===token);return;}if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3],{draftId:params.get('draft'),researchId:params.get('research')});else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
+  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const route=location.hash.split('?')[0],params=new URLSearchParams(location.hash.split('?')[1]||''),match=route.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{const monitor=route.match(/^#backtests\/prop\/monitor\/([a-f0-9]{32})$/);if(monitor){await window.forwardMonitoring.renderMonitor(monitor[1],()=>t===token);return;}const campaign=location.hash.match(/^#backtests\/prop\/campaign\/([a-f0-9]{32})$/);if(campaign){await window.phaseCampaigns.watch(campaign[1],()=>t===token);return;}if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3],{draftId:params.get('draft'),researchId:params.get('research')});else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
 
   async function deleteProp(id,row){
     if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS execution history are kept. This cannot be undone.`))return;

@@ -93,6 +93,7 @@
     window.robustResearch.showBaselines(panel,{baseline_results:result.baseline_results});
     if(result.final_verification.access)window.researchReservations.accessEvidence(panel,result.final_verification.access.access_at_reservation||result.final_verification.access);
     recommendation(panel,result.recommendation);
+    if(result.purpose==='current_development'&&window.forwardMonitoring){await window.forwardMonitoring.configureLauncher(panel,report);if(panel.isConnected)await window.forwardMonitoring.renderCatalogue(panel,{applicationId:result.application_id,allowSynthetic:false});}
     const files=node('details');files.append(node('summary','Download immutable procedure evidence'));panel.append(files);for(const name of Object.keys(report.files||{}).sort())files.append(link(name,`/api/prop-analyses/${report.id}/files/${name}`),node('br'));
   }
   window.researchProcedure={configure,renderAnalysis};

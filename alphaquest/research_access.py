@@ -384,6 +384,37 @@ class ResearchAccess:
                 window=coverage(dataset,DateRange.parse(plan['oos_start'],plan['oos_end']))
                 self._append(db,'retained-oos-attempt:'+attempt_id,'legacy_access',dict(source=source_identity(dataset),window=window,origin='retained_oos_attempt:'+attempt_id))
 
+    def record_supplied_observation(self,source,window,*,provenance,request_id):
+        """Append external exposure even when a protected reservation overlaps.
+
+        This entry point does not grant reads of reserved datasets. The caller has
+        already supplied this separate observation. Keep reservations intact and
+        make later clean-access checks fail on the known immutable overlap.
+        """
+        with self.analyses.lock,self.analyses.connect() as db:
+            db.execute('BEGIN IMMEDIATE');conflicts=[]
+            for raw, in db.execute("SELECT payload FROM research_holdout_reservations WHERE status IN ('RESERVED','BOUND','CONSUMED')"):
+                reservation=json.loads(raw)
+                common=self._interpreted_intersection(window,reservation['sessions'],source,reservation['source'])
+                if common and self._relation(db,source,reservation['source'],common)!='different':
+                    conflicts.append(dict(reservation_id=reservation['id'],sessions=common,status=reservation['status']))
+            payload=dict(source=deepcopy(source),window=deepcopy(window),origin='supplied_forward_observation',
+                provenance=deepcopy(provenance),protected_conflicts=conflicts,
+                reservation_action='retained; final access eligibility must be rechecked')
+            # Reuse existing outcome-access semantics so every current authorization
+            # reader sees the observation; no independent side-channel journal.
+            prior=db.execute('SELECT payload FROM research_access_events WHERE request_id=?',(request_id,)).fetchone()
+            if prior:
+                event=json.loads(prior[0])
+                old_provenance={k:v for k,v in event['provenance'].items() if k!='first_received_at_utc'}
+                new_provenance={k:v for k,v in provenance.items() if k!='first_received_at_utc'}
+                if event['source']!=source or event['window']!=window or old_provenance!=new_provenance:
+                    raise ResearchConflict('Supplied observation ID changed its immutable source/window/provenance.')
+            else:event=self._append(db,request_id,'strategy_outcome',payload)
+        return dict(status='RECORDED',event_id=event['id'],protected_conflicts=conflicts,
+            synthetic_access_policy='All supplied market/financial observations conservatively affect the market domain, including declared synthetic inputs; the application cannot verify that claimed synthetic prices were never observed.')
+
+
     def observe_external(self,normalized,*,origin):
         manifest=normalized['manifest'];instrument=manifest['instrument'];span=manifest['coverage']
         dataset=dict(manifest['dataset'],symbol=instrument['symbol'],source_timezone=manifest['time']['source_timezone'])

@@ -71,8 +71,12 @@ editable drafts with search, filters and the next available action. Drafts
 preserve source-bound settings; reusable templates require fresh source selection
 and preview. Reports include observed-session fold timelines, parameter
 qualification plots and matched forecast/actual receipt plots with full tables.
-Optional frozen-pair lifecycle comparison, forward monitoring and final
-full-suite qualification remain pending.
+Optional explicit frozen Evaluation/Funded pairs now run on a common finite
+calendar window with separate fees, receipts and pending cash. Current-policy
+reports can launch independent supplied forward observations, reconciliation and
+advisory pause/recovery. These records do not place broker orders. Matched-scope
+forecast comparison, frozen sizing conformance and final full-suite qualification
+are the remaining local acceptance work.
 See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 

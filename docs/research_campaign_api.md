@@ -743,3 +743,202 @@ unsupported saved schema remains readable with `editable:false` and an explicit
 warning; PUT rejects rather than converting it. Every document declares
 `requires_fresh_preview:true`. Saving configuration grants no research-access,
 selection or execution authority.
+
+## Predefined frozen lifecycle comparison
+
+The existing `POST /api/prop-analyses/check` and `POST /api/prop-analyses` accept a
+strict `mode: "predefined_lifecycle_comparison"` request. This is a downstream
+historical comparison of explicitly chosen independent freezes, with no selector.
+It accepts only already completed ordinary manual OOS reports belonging to each
+exact frozen IS parent. Check never launches another OOS attempt.
+
+```json
+{
+  "mode": "predefined_lifecycle_comparison",
+  "request_id": "<new UUID hex>",
+  "window": {"first_session": "2026-01-26", "cutoff_date_exclusive": "2026-02-09"},
+  "pairs": [{
+    "id": "My explicit Evaluation and Funded pair",
+    "evaluation": {"campaign_id": "<UUID>", "package_sha256": "<SHA256>",
+      "candidate_id": "<SHA256>", "source_backtest_id": "<ordinary OOS UUID>"},
+    "funded": {"campaign_id": "<UUID>", "package_sha256": "<SHA256>",
+      "candidate_id": "<SHA256>", "source_backtest_id": "<ordinary OOS UUID>"}
+  }],
+  "continuation": "first_ready_session_until_common_cutoff",
+  "replacement": "none"
+}
+```
+
+The common window spans 1–365 civil days and cannot exceed either frozen native
+forecast horizon. Both policies require the same supported provider/program,
+rule version, underlying dataset and timestamp interpretation. Different signal
+parameters and sizing policies are permitted. Current native source requirements
+still apply: admitted complete one-minute MNQ/VWAP data, exact parent mapping,
+compatible costs, reviewed calendar and complete observed open-session coverage.
+Imported trades, mixed execution backends, protected final tokens, unselected
+members, changed packages and unsupported budgets reject. The maximum declaration
+is 20 named pairs; the complete family must also fit the 50-million-bar work and
+100-MiB estimated capture bounds. Unsupported members are never dropped.
+
+Check returns `pair_comparison` with each immutable policy/source/package and
+server-derived application binding. Evaluation actually purchases/retries/passes
+according to its frozen policy. A fresh Funded account starts only at the actual
+funded-ready event before the common exclusive cutoff; there is no replacement.
+A separate continuation binding identifies this remaining-horizon chronological
+observation. The independent Funded forecast and its original horizon stay
+unchanged. Acquisition incomplete by the cutoff leaves Funded unstarted and all
+paid fees visible. Payout receipt exactly at the cutoff stays pending.
+
+The saved format-8 report contains all declared pairs in order,
+`selection_status: comparison_only_no_selection`, `winner:null`, exact receipts,
+pending entitlements, paid Evaluation/activation fees and net trader cash. Source
+profit, provider equity and account deductions are not trader receipts or extra
+expenses. Each phase uses the existing native engine/controller and its ordinary
+controlled backtest; the standard report captures child manifests and files.
+`request.json`, `source_check.json`, `results.json`, `cash_ledger.json/csv` and
+`pairs/{number}/` package/binding/result/cash downloads use the usual file/ZIP
+routes. Both original freezes remain unchanged.
+
+The request ID binds the exact declaration and checked identity. Exact queued or
+complete repeats reuse the same analysis; changed declarations, code/source
+identity or live child manifests/artifacts reject reuse. Failed/cancelled work
+may retry its exact binding. Cooperative cancellation uses the ordinary analysis
+cancel endpoint and cannot publish a partial pair population. Completed comparison
+sources/children stay pinned until the analysis is explicitly deleted. A deleted
+comparison retains a request-ID tombstone; it cannot be silently recreated by the
+same request. Previously accessed OOS is never described as an untouched holdout.
+
+## Timestamped forward observations — 8 November 2026
+
+Forward monitoring uses the existing application and AnalysisStore. It accepts
+supplied records and produces immutable assessments; it does not place orders,
+connect to a broker or certify the platform's strategy implementation. The
+complete contract is in `forward_contracts.py`; orchestration and authoritative
+policy membership are in `forward_monitoring.py` and `forward_policy.py`.
+
+| Route under `/api/forward-monitors` | Meaning |
+| --- | --- |
+| `GET /defaults` | Strict schemas, threshold defaults, provenance kinds and input limits. |
+| `POST /check`, `POST /` | Check and save an immutable monitor declaration. Creation returns 201; an exact declaration retry returns 200. |
+| `GET /?limit=50&offset=0&q=&application_id=` | Compact metadata projection, `{items,total,limit,offset,projection_only:true}`; at most 100 items per page. No report parsing or recalculation. |
+| `GET /{id}` | Captured policy/check, advisory state at its saved clock, pending observations, control history and recovery authority. |
+| `POST /{id}/events/check?filename=...`, `POST /{id}/events?filename=...` | Validate and import exact UTF-8 JSON bytes. Check does not import events, but supplied market/financial exposure is already recorded in research access history. |
+| `GET /{id}/events?offset=0&limit=100` | Bounded immutable event/correction history with original accepted receive clocks. |
+| `POST /{id}/assess` | Queue a normal assessment of the captured event/control head at an explicit UTC clock. |
+| `POST /{id}/control` | Append advisory pause, acknowledged recovery or retirement. |
+| `GET /{id}/snapshots`, `GET /{id}/batches` | Normal analysis records and original batch metadata. |
+| `GET /{id}/batches/{batch_id}/download` | Exact original input bytes, checked against their saved SHA-256. |
+| `GET /{id}/exports/events.jsonl`, `declaration.json` | Complete retained event history and monitor declaration/provenance. |
+
+A declaration has the following shape. All money/prices are finite plain decimal
+strings; quantities and sequence numbers are strict integers. Unknown fields and
+nonfinite/exponent money reject. `order_placement_enabled` must be strict false.
+
+```json
+{
+  "schema_version": "aq-forward-monitor-v1",
+  "monitor_id": "<UUID hex>",
+  "name": "My supplied observation monitor",
+  "observation_kind": "synthetic_harness",
+  "policy_binding": {
+    "campaign_id": "<robust campaign UUID>",
+    "application_id": "<current-development application UUID>",
+    "phase": "funded",
+    "package_sha256": "<exact selected current package SHA256>",
+    "family_preference_reason": null
+  },
+  "source": {
+    "source_id": "my-events",
+    "label": "Declared supplied source; no verified connection",
+    "adapter": "timestamped_events_v1",
+    "connection_claim": "supplied_records_only",
+    "position_cost_basis": "unknown"
+  },
+  "instrument": {"symbol":"MNQ","tick_size":"0.25","point_value":"2","currency":"USD"},
+  "initial_balance": "50000",
+  "thresholds": {"maximum_position_contracts":3},
+  "control_mode": "advisory_only",
+  "order_placement_enabled": false
+}
+```
+
+`policy_binding` may be omitted only for an explicitly unbound
+`synthetic_harness` diagnostic. `paper` and `actual_import` require an eligible
+latest current-development application. A retained family requires a recorded
+preference reason. The server verifies authoritative application/report seals,
+complete PASS membership, exact phase/package/candidate/configuration/strategy,
+training report and source artifacts. A no-qualified recommendation, old fold,
+final-only fit, reference policy or changed identity cannot become a bound policy.
+Current observation contracts are whole MNQ with 0.25 tick, $2/point and a fresh
+$50,000 baseline; original NQ/MNQ training provenance stays separate. A successful
+check grants observation admission, never trading authorization.
+
+An event envelope is `{"schema_version":"aq-forward-events-v1","batch_id":
+"<UUID hex>","source_id":"my-events","events":[...]}`. Events have immutable
+`event_id`, explicit `event_time_utc`, optional positive `source_sequence`, a
+`kind` discriminator and its strict payload. Supported kinds are `signal`,
+`intent`, `order`, `order_status`, `fill`, `protection_intent`, `protection`,
+`position`, `market`, `heartbeat`, `connection`, `cash` and `void`. Orders/fills
+also declare `execution_kind: synthetic|paper|actual`. Server accepted-receive
+clocks are not caller fields. Ambiguous equal-time market/economic/connectivity
+order remains unresolved; sorting cannot manufacture causality.
+
+A fill's commission is the total supplied fee for that fill, charged once.
+Slippage is diagnostic against the supplied known intent/trigger price and is
+not another deduction. FIFO lots and flat-to-flat trade episodes are the declared
+bookkeeping convention. Unknown supplied cost basis remains unknown through
+partial exits. Whole-account profit requires an observed initial flat position
+and matching initial account balance. Protective fills accumulate against their
+original order; cancelled/stale protection cannot cover a new position.
+
+Cash categories distinguish `payout_request`, `provider_deduction`,
+`trader_receipt`, `evaluation_purchase_fee` and `activation_fee`. Requests declare
+`request_amount_basis: unknown|trader_entitlement|gross_withdrawal` and may supply
+`expected_trader_amount`. Unknown entitlement leaves pending receipts unknown;
+an entitlement above a declared gross request is retained as a discrepancy.
+`net_trader_cash` is actual receipts minus paid Evaluation and activation fees.
+Provider deductions, account equity and trade P&L do not become extra trader-cash
+income or expenses.
+
+Limits are 4 MiB/5,000 events per batch and 100,000 events, 1,000 batches or 32 MiB
+of original inputs per monitor. The same batch ID with changed bytes, or event
+ID with changed content, rejects 409. Exact retries add no fills and retain the
+first accepted receive clock. Corrections require a new event ID, an active
+`supersedes_event_id` and a reason; forks reject. Original bytes and all event
+versions remain inspectable, and corrections never mutate earlier reports.
+
+Check/import records supplied price/financial observations even when they overlap
+protected final sessions: these separate inputs have already been exposed.
+Reservations remain intact, but subsequent final eligibility reflects the
+recorded access. No protected dataset read is granted. Synthetic inputs also
+conservatively affect their market domain because their claimed independence
+cannot be verified. Pure heartbeat/connectivity records do not invent price
+access.
+
+Assessment accepts `{"request_id":"<UUID hex>","as_of_utc":"<UTC ISO>"}`.
+It freezes input/control heads and code identity before the normal worker runs.
+The format-9 `forward-monitor-v1` report stores the declaration, captured policy,
+original batches, normalized history, reconciliation and explicit clock/scope
+facts. Standard prop-analysis `report.json`, `analysis.zip` and `/files/{name}`
+routes provide downloads. Reopen verifies saved bytes without reconciliation or
+policy reselection; new calculations reject changed source/event/declaration
+identity. Monitor policy sources and reports remain deletion-pinned.
+
+Controls accept `request_id`, `action: pause|resume|retire`, `reason`, and for
+resume the exact `acknowledged_snapshot_sha256` returned by GET detail as
+`last_completed_snapshot_sha256`. Recovery requires the latest assessed event
+head, resolved intrinsic/current blockers and a recent server-clock assessment.
+Old resolved incidents may be acknowledged through their captured sequence;
+current drawdown, missing health or unreconciled position/causal evidence cannot
+be waived. Retirement is terminal. These controls cannot stop external orders.
+
+`calculations.forward_evidence` distinguishes synthetic, retrospective and
+supplied post-monitor observations. Analysis reservation time, selection seal
+and unknown actual publication time are labeled separately; monitor creation
+after completed-report verification provides a conservative publication bound.
+`forecast_comparison` presents captured forecast/horizon/calendar and actual
+receipt/duration diagnostics with `NOT_COMPARABLE` reasons. Matched calibration,
+connected strategy equivalence and account-state sizing verification are not
+implemented. ACTIVE is an advisory assessment at its saved clock, not continuously
+verified live health. Saved evidence and exact reproduction are in the dated
+[forward monitoring review](prop_simulation_review.md#timestamped-forward-observations--2026-11-08).

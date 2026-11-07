@@ -8463,4 +8463,263 @@ AQ_WORKSPACE_REGRESSION=$(mktemp -d /private/tmp/aq-workspace-regression.XXXXXX)
 
 Managed environments need Chromium/local-process access. Fixtures stop and join every temporary uvicorn server. Prior probes remain unchanged: they exposed test selector/duplicate-upload/collapsed-section assumptions, plus a client error that initially left a blocked draft message hidden; the final UI opens that message and preserves the document. Final logs contain the existing Starlette/httpx deprecation warning only. Backend/API and broader regression counts are reported separately by their owners. This increment does not establish provider parity or complete the remaining forward-monitor/lifecycle/whole-goal work.
 
-Root API gate: **33 passed in 4.84 s** (`api-final/pytest.log`). Root independently verified four complete ordinary reports and 58 component files against sizes, SHA-256 values and ZIP bytes; `verify_saved_release.py` and `root-saved-verification.json` are in the M4 artifact root. Compilation of four changed Python files, seven JavaScript syntax checks and `git diff --check` passed. `qualified-source.tar.gz` preserves the release source; later code changes may reject new work from its frozen sources while saved reports remain readable. Evaluation/Funded numerical identity comparison against `79cb5b0` is saved in `backend-final/phase_identity.json`.
+Root API gate: **33 passed in 4.84 s** (`api-final/pytest.log`). Root independently verified four complete ordinary reports and 58 component files against sizes, SHA-256 values and ZIP bytes; `verify_saved_release.py` and `root-saved-verification.json` are in the M4 artifact root. Compilation of four changed Python files, seven JavaScript syntax checks and `git diff --check` passed. `qualified-checkout-5308d88.tar.gz` preserves the release source; later code changes may reject new work from its frozen sources while saved reports remain readable. Evaluation/Funded numerical identity comparison against `79cb5b0` is saved in `backend-final/phase_identity.json`.
+
+## Timestamped forward observations — 2026-11-08
+
+This increment follows a real current-development procedure application into
+supplied-event checking, import, assessment and durable results in the existing
+portal/AnalysisStore. It does not connect to a broker or place/cancel orders.
+Signal implementation and account-state sizing equivalence are unverified;
+research/provider/operational blockers remain visible. Synthetic, paper and
+supplied actual-import provenance are distinct.
+
+### Saved normal-product demonstration
+
+The immutable library and downloads are under
+`artifacts/forward-monitoring-m5-20261108/api-final/`. Its `evidence.json` records
+all IDs and hashes; 36 downloaded artifacts reopened byte-identically after an
+application restart. The library plus captures occupy about 6.7 MB. Every
+observation in this saved demonstration is labeled **synthetic_harness**; source
+backtest trades were not relabeled as forward observations.
+
+From the repository root:
+
+```sh
+ALPHAQUEST_DATA_DIR=artifacts/forward-monitoring-m5-20261108/api-final/state .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8775
+```
+
+Open `http://127.0.0.1:8775/#backtests/prop/job/d19222de9b054dc58ecb63f59057efbd`
+for the current-development report, then its forward-observation controls. The
+saved monitor is
+`http://127.0.0.1:8775/#backtests/prop/monitor/d863f7860e9e4e039459d2cc6f4f843b`.
+Stop the temporary server with Ctrl-C. No persistent server was started by this
+API demonstration; both TestClient application lifespans closed.
+
+The ordinary source is dataset `ef7f9f049c134804aca993734aaad737`. Evaluated
+campaign `119c3e875c8d45858aaa1aee329328f9` uses two saved consecutive-green
+configurations, real inner qualification, independent Funded selection and a
+predeclared same-signal one-MNQ reference. Two chronological outer blocks each
+observe selected three-MNQ trader receipts of **1,500 USD** versus reference
+receipts of **0 USD**. The explicit two-block reliability declaration yields
+ASSESSABLE_WITH_LIMITATIONS; it does not establish independent historical sample
+size or future/provider precision.
+
+The complete procedure then reruns current development as application
+`4243b328220a48288d0837f910c0c8aa`. Its selected package SHA is
+`f307db82a10d853b50f65142de9b4a936f798b59d0dc773420d36f95442a8572`.
+The recommendation is **RESEARCH_CANDIDATE_ONLY**, with provider and operational
+blockers retained. Monitor `d863f7860e9e4e039459d2cc6f4f843b` binds this exact
+server-verified current package. A no-qualified outcome cannot be promoted into
+a bound policy; an unbound synthetic diagnostic remains available.
+
+The separate synthetic stream supplies three MNQ bought at 100 and sold at 101,
+with a total commission of 1.50 on each fill. Independent arithmetic is gross
+**6**, fees **3**, net **3 USD**. Its original event batch is
+`947a516cf4dd43e9b816013607fd4775`; the exact file is `source-events.json` and the
+normal original-batch download. Reimporting it returns 200 and adds zero events.
+Changing bytes under the same batch ID rejects 409.
+
+| Normal assessment | Expected saved observation |
+| --- | --- |
+| `aec47bf0b42d4102bd479115f8ec2382` | ACTIVE at the captured clock; gross 6, commissions 3, net 3, flat position. |
+| `4f43555aaad443faa456649635cca5fc` | New-ID exit correction to 100.5 gives gross 3, fees 3, net 0. The earlier supplied 50003 balance conflicts with 50000, so the assessment is PAUSED. |
+| `1c0093de5b8e411382ead5b7c40aafa1` | Correlated position correction supplies 50000. Current blockers are resolved, but the saved snapshot retains the automatic pause before acknowledgement. |
+
+Open any assessment at `#backtests/prop/job/<analysis_id>`. The explicit recovery
+command records a reason and the backend SHA of the latest immutable assessment;
+current monitor state becomes ACTIVE. All earlier snapshots remain unchanged.
+That state describes the old saved clock, not current live health. A recovery
+attempt today needs a fresh valid observation assessment, not an old heartbeat.
+Retirement is terminal, and none of these advisory controls blocks platform
+orders.
+
+Inspect `events.jsonl`, source-batch JSON, captured policy, input snapshot,
+reconciliation and ZIP through the normal downloads. Expected disclosures are
+SYNTHETIC_ONLY, no verified broker/strategy execution, production qualified false,
+and separate frozen forecast versus actual receipt/duration diagnostics marked
+NOT_COMPARABLE. Matched calibration is not implemented. Fees are charged once;
+slippage is diagnostic. Requests, provider deductions, trading P&L and balance do
+not become trader receipts. Net trader cash separately subtracts actual paid
+Evaluation/activation fees from receipts.
+
+### Rejections, boundaries and reproducibility
+
+Strict invalid decimal/clock/quantity fields, unsupported source identities,
+changed batch/event IDs and correction forks reject. Ambiguous same-time market
+or connection order remains unresolved. Protective overfills, fills after
+cancellation, stale prior-position stops, mismatched balances and absent initial
+account evidence pause the assessment without inventing missing fills/stops.
+Unknown lot allocation remains unknown after partial exits. A market mark from
+before entry cannot manufacture held-position profit or drawdown.
+
+Recovery checks the exact latest report SHA and event head, current feed/position
+health and assessment freshness. It preserves historical incidents and lifetime
+drawdown; it cannot acknowledge away current risk or intrinsic causal conflicts.
+Original receive clocks, supplied events and corrections are append-only.
+
+The access probe uses the real dataset reservation API. Checking supplied
+financial/market observations that overlap a protected session retains the
+reservation and the risk records, while final eligibility becomes
+PREVIOUSLY_ACCESSED. It grants no read of the protected dataset. Synthetic inputs
+are conservatively included because their claimed independence is unverified;
+pure heartbeat/connectivity records do not create financial-price access.
+
+`api-final/publish.py` and `command.txt` record the normal-product publisher. To
+reproduce into a **new, non-existing directory**, preserving release evidence:
+
+```sh
+AQ_FORWARD_REPRO=$(mktemp -d /private/tmp/aq-forward-repro.XXXXXX)
+PYTHONPATH=tests:. .venv/bin/python artifacts/forward-monitoring-m5-20261108/api-final/publish.py "$AQ_FORWARD_REPRO/library"
+```
+
+The publisher refuses to overwrite an existing result directory. The exact
+release gate command and output are in `api-gate-final/command.txt`, `pytest.log`,
+`pytest.xml` and `gate.json`: **56 passed in 9.63 s**, including 49 forward checks
+and existing access/publication boundaries. Independent original failures and
+repaired probes remain in `independent-review/`; this includes the exact partial
+fill oracle gross 4/fees 1/net 3 and the trader cash oracle 50−30−40=−20. Fixture
+oracles stay in tests/development evidence, not a product test dashboard.
+
+Complete Python/source identity before and after both gate and publication:
+`3f6ce9d8ef3fd05f25aa7fc4a1a85686c67aae86ee6510063c587ad982a0ff1c`.
+This is targeted evidence, not a full repository/provider/parity qualification.
+Lifecycle, multi-strategy, legacy and browser gates are recorded separately.
+## Frozen pair comparison and integration evidence — 2026-11-08
+
+The normal API journey is saved at
+`artifacts/frozen-pair-m4b-20261108/api-final/data/test_existing_report_to_check_0/library`.
+From the repository, start an optional temporary reader:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/frozen-pair-m4b-20261108/api-final/data/test_existing_report_to_check_0/library" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022
+```
+
+Open `http://127.0.0.1:8022/#backtests/prop/job/189d571453c94ce98338342a9d1d5b38`.
+Stop the server with Ctrl-C. Automated fixtures stopped their own servers.
+The source is explicitly synthetic complete-minute MNQ/VWAP data, with zero
+trading costs and 3-MNQ fixed policies. Independent frozen campaigns are
+Evaluation `d44c1d9ee99a4b5abd6f5d3051253a3f` and Funded
+`0609c6d9b9864508beaa25adb0d11ffd`; their unchanged packages and exact candidate
+IDs are captured in the comparison report. Ordinary manually executed OOS source
+`99accacb3dd04aee9a11f3841ad87a3e` retains its prior-access history.
+
+The common first session is January 26; exclusive cutoff is February 9, 2026.
+Independently, the synthetic source earns $300 per contract per day. At 3 MNQ,
+Evaluation passes January 29, pays $30 purchase plus $40 activation, and becomes
+funded-ready February 2. Five subsequent $900 Funded sessions produce $4,500
+trading profit; the modeled $1,500 request/deduction occurs February 6 and receipt
+February 8. Expected received cash is $1,500, pending $0 and net trader cash
+$1,430. Provider deduction is not another cash expense. The original independent
+Funded forecast horizon stays unchanged; the observed continuation has its own
+binding. There is no combined winner, ranking or implicit replacement.
+
+From the ordinary OOS report, Configure prop analysis → Compare explicit frozen
+Evaluation / Funded pairs. Select each exact frozen candidate and existing OOS
+report, name the pair, and set the dates above. February 10 as cutoff rejects a
+horizon longer than the frozen declaration. February 9 passes Check; checking
+does not increment manual OOS attempts. Run saves the normal report, child
+backtests, phase packages, source checks, bindings and exact cash JSON/CSV/ZIP.
+Exact duplicate requests reuse the saved analysis. A changed declaration under
+the same ID or altered child manifest rejects; original report bytes stay intact.
+Children and both phase sources are protected from deletion while referenced.
+
+Actual-controller boundary tests separately prove that a receipt exactly at the
+exclusive cutoff remains $1,500 pending/$0 received/net −$70, readiness at cutoff
+leaves Funded unstarted, and never-passed Evaluation keeps its $30 paid loss.
+Accepted cancellation cannot publish a partial comparison; exact retry preserves
+the request binding. These calculations use the existing execution/phase owners.
+
+The isolated pair browser probe passed in 94.08 s and retained normal report
+`f09677c4e63e4e8f8265a115f396de58`, screenshots, downloads and zero-POST reopen under
+`artifacts/frozen-pair-m4b-20261108/browser-probe/`. Desktop and 390-pixel cash and
+trace views were inspected. The shared-source API/unit/storage/multi-strategy gate
+passed **25 checks in 130.39 s**, with unchanged Python identity
+`3f6ce9d8ef3fd05f25aa7fc4a1a85686c67aae86ee6510063c587ad982a0ff1c`.
+
+The first shared final browser attempt failed during CSV upload with
+`OSError: [Errno 28] No space left on device`, before product UI execution.
+Its log/XML and failed new scratch directory remain under
+`artifacts/frozen-pair-forward-m4b-m5-20261108/browser-final/` and
+`/private/tmp/aq-final-pair-forward-mySC5B/`. Existing legacy regression was stopped
+before exhausting storage after **54 passed in 276.75 s**. That interrupted gate
+is not labeled clean. No prior datasets, reports, evidence or snapshots were
+deleted. After the user freed storage, the missing Playwright browser binary was
+restored and fresh resumed gates were run separately; their results follow.
+
+
+## Frozen pairs and supplied forward observations — product evidence
+
+This increment uses existing backtest reports, prop configuration, normal analysis jobs and durable results. Every demonstration input is synthetic. It does not establish provider parity, broker connectivity, future profitability or deployment qualification.
+
+### Final evidence
+
+The final engine is `3f6ce9d8ef3fd05f25aa7fc4a1a85686c67aae86ee6510063c587ad982a0ff1c`, unchanged before/after the runs. The restored combined gate passed the pair and bound-forward cases, then failed a test assertion about a disabled option: **2 passed, 1 failed in 119.33 s**. A read-only DOM probe confirmed native `disabled=true` and `disabled=""`; Playwright reported a different option accessibility state. Only the test assertions changed to verify the native attribute/property. The no-qualified case then passed in a fresh library: **1 passed in 7.56 s**. No production fix was needed. This is targeted 2 + 1 passing workflow evidence, not a claimed all-green combined run. Desktop pair cash/ledger, 390 px pair/monitor and no-qualified admission screenshots were manually inspected. Independent re-verification checked **20 downloaded files and 56 ZIP members**, all three zero-POST reopens and all owned server teardowns; see `artifacts/frozen-pair-forward-m4b-m5-20261108/browser-verification.json`.
+
+Prior evidence remains intact:
+
+- Pair isolated browser probe: `artifacts/frozen-pair-m4b-20261108/browser-probe`, 1 passed in 94.08 s.
+- Forward final-engine browser probe: `artifacts/forward-observation-m5-20261108/browser-probe`, 1 passed in 19.06 s.
+- Shared final attempt: `artifacts/frozen-pair-forward-m4b-m5-20261108/browser-final`, CSV upload failed with ENOSPC before UI execution; 1 failed in 2.97 s.
+- First resumed attempt: `.../browser-final-resumed`, 3 setup errors in 3.19 s because Chromium's cached executable was absent after disk cleanup. No product execution occurred. The required Playwright headless shell was restored without changing product code.
+
+All temporary portal fixtures stop and join their servers. No persistent server is started by these tests. Use a separate port and Ctrl-C to stop any server started manually below.
+
+### Final browser libraries and exact saved IDs
+
+Use `ALPHAQUEST_DATA_DIR="$PWD/<library below>" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022`, then the matching hash route. Ctrl-C stops the manual server. Saved views issue reads only; creating a new monitor/report is an explicit separate action. To keep these immutable evidence libraries unchanged, use them only for inspection or work from a separate copy when experimenting.
+
+| Case | Library below `artifacts/frozen-pair-forward-m4b-m5-20261108/` | Open route |
+|---|---|---|
+| Frozen pair | `browser-final-restored/data/test_frozen_pair_normal_report0` | `/#backtests/prop/job/aafa5b7044364aa3acc5e2ff088d0904` |
+| Current-policy observations | `browser-final-restored/data/test_current_policy_supplied_e0` | `/#backtests/prop/monitor/aab8a5c2b3cf43d782de195471fb0daf` |
+| No-qualified diagnostic | `browser-no-qualified-final/data/test_no_qualified_current_poli0` | `/#backtests/prop/monitor/5985e4a5cffe4002a0733bfa3fd2d7a3` |
+
+Pair source `3ecc81f9e4b4438fb70ee92ad4ab42a2`; ordinary OOS `10cd04c21fa14573a48389987c2e67d0`. Actual saved CSV includes IS dates 2026-01-04 through 2026-01-09 and OOS dates 2026-01-25 through 2026-02-06; exact split, source hash and frozen references are in `evidence.json` and the source report. The comparison uses CME session dates 2026-01-26 through the exclusive 2026-02-09 cutoff.
+
+Current-policy report `2afb610c7e204737a07583d2c1029ba0`; synthetic monitor snapshots `4af6c900fff34b54a5ffc641060b73dc` (ACTIVE/net $3), `106b3af015cf44ee8a6b46c8b48226e8` (PAUSED/net $0 with balance mismatch), `d366ddec05a44bfc8926adba2ebbce91` (reconciled but still latched PAUSED). Current monitor ACTIVE followed explicit acknowledgement; each saved assessment remains unchanged and tied to its historical UTC clock. No-qualified current report `f58fef00c37449a586cb838add3700e7` permits only an unbound synthetic monitor; zero events, no assessment or forward outcome is fabricated. A forged actual-import declaration without binding rejects with HTTP 422.
+
+The existing demonstrations deliberately lack complete comparable forecast-scope coverage and show NOT_COMPARABLE. Full compatible Funded forecast-scope comparison is the next separately reviewed increment; it is not claimed implemented here.
+
+### Frozen Evaluation / Funded pair
+
+Independent arithmetic: one predefined 3 MNQ Evaluation / 3 MNQ Funded pair pays $30 Evaluation and $40 activation fees. Evaluation becomes funded-ready on 2026-02-02. Funded begins then and uses only the remaining common window, with a request on 2026-02-06 and modeled receipt on 2026-02-08. Received cash is $1,500, gross account deduction is separately $1,500, pending receipt is $0, and net trader cash is $1,430. These are actual chronological synthetic-history outcomes, not Monte Carlo estimates. There is no winner or ranking.
+
+Normal journey: open the saved ordinary manual OOS backtest → Configure prop → Frozen Evaluation / Funded pair comparison. Give the pair a name. For each phase, explicitly select its independently frozen native campaign, retained candidate and corresponding completed ordinary OOS report. Use first session 2026-01-26 and exclusive cutoff 2026-02-09. Check shows the exact source/package identities, complete work, costs and receipt assumptions. Run saves an ordinary report with two actual controlled child backtests, cash ledger, original frozen packages and downloads.
+
+Boundary: cutoff 2026-02-10 rejects because it exceeds the independently declared native horizons. Check and saved reopen must not increment manual OOS access or change the frozen packages. Imported/external sources and incompatible profiles reject; existing OOS remains explicitly previously accessed. A shorter cutoff can leave a requested amount pending instead of received; the owner/API boundary tests cover that distinction. Multi-pair work is bounded rather than silently reduced.
+
+Final durable API library (also available for read-only inspection):
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/frozen-pair-m4b-20261108/api-final/data/test_existing_report_to_check_0/library" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022
+```
+
+Open `http://127.0.0.1:8022/#backtests/prop/job/189d571453c94ce98338342a9d1d5b38`. Ordinary OOS is `99accacb3dd04aee9a11f3841ad87a3e`; Evaluation campaign `d44c1d9ee99a4b5abd6f5d3051253a3f`; Funded campaign `0609c6d9b9864508beaa25adb0d11ffd`. Do not mutate preserved evidence libraries when inspecting them.
+
+### Supplied observations and advisory recovery
+
+Start from an actual complete current-development report. Expand Observe current policy, explicitly choose a retained frozen member and provenance, name the monitor, declare a source ID and operational/edge thresholds, then Check/Create. Multi-member families require an explicit preference reason; monitoring does not invent a historical winner. A no-qualified result permits only an unbound synthetic diagnostic; paper and actual-import policy bindings remain unavailable.
+
+On the monitor, Check a raw `aq-forward-events-v1` JSON file, Import those reviewed bytes, choose an explicit UTC assessment clock, then save a new immutable ordinary report. Checking financial/market events records research exposure even without import, including protected-session conflicts. Newly accepted observations show WATCH/unassessed prominently. A previous saved ACTIVE state does not validate a changed event head. Opening a report or monitor does not assess or change controls.
+
+Independent synthetic observations: 3 MNQ supplied fills earn $6 gross realized P&L, with $3 total supplied commissions and $3 net trading P&L. A $50 request, $60 provider deduction and $50 trader receipt remain separate. Net trader cash is $50 and provider balance is $49,943. A corrected exit produces $0 net trading P&L and a balance mismatch, so the advisory state is PAUSED. A corrected supplied position gives provider balance $49,940 and resolves current blockers, but PAUSED remains latched until explicit acknowledgement of the backend's exact latest snapshot SHA. The initial saved report bytes remain unchanged.
+
+Exact duplicate event bytes are idempotent. Different bytes under the same batch ID reject. Corrections use new immutable event IDs, supersession links and reasons; originals remain downloadable. Slippage is diagnostic and is not deducted twice. Unknown payout entitlement remains unknown. Saved results remain SYNTHETIC_ONLY, supplied/unverified, NOT_COMPARABLE to the forecast, advisory-only and incapable of placing/cancelling platform orders. There is no continuous broker/data connection. Control recovery also requires a fresh assessment clock and no unseen observations/current blockers; old demonstration clocks are not a current-health claim.
+
+Final API evidence can be inspected by starting the same server command with `ALPHAQUEST_DATA_DIR="$PWD/artifacts/forward-monitoring-m5-20261108/api-final/state"`: current report `d19222de9b054dc58ecb63f59057efbd`, monitor `d863f7860e9e4e039459d2cc6f4f843b`. Report route is `/#backtests/prop/job/{id}`, monitor route `/#backtests/prop/monitor/{id}`. The workspace includes a bounded searchable observation list with saved as-of and pending state.
+
+### Rebuild the demonstration
+
+Run from the repository root after restoring the matching Playwright browser if needed:
+
+```sh
+.venv/bin/python -m playwright install chromium --only-shell
+.venv/bin/python -m pytest tests/test_frozen_pair_browser.py tests/test_forward_browser.py --basetemp=/absolute/fresh/evidence/data --junitxml=/absolute/fresh/evidence/junit.xml -q > /absolute/fresh/evidence/pytest.log 2>&1
+```
+
+Create the evidence parent first and use a genuinely fresh directory. Managed environments require Chromium/local-process access. The test helpers build synthetic datasets and ordinary backtest/campaign/procedure results through the real APIs; UI tests exercise configuration, checking, running, downloads, 390 px layouts and saved reopen. Fixture oracles stay in tests. Fresh synthetic incoming timestamps are created only after the fresh monitor; replaying old event timestamps remains retrospective. Evidence manifests include exact source CSV hashes, report/ZIP/raw-event hashes, explicit outcomes and zero-POST reopen assertions. Numerical/API/full-suite verification is reported separately; this guide does not imply those scopes passed merely because browser cases passed.
+
+The resumed legacy gate passed **35 tests in 201.27 s**. Python compilation,
+five changed JavaScript syntax checks and `git diff --check` passed. These targeted
+gates do not replace the pending complete repository suite.

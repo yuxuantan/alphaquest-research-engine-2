@@ -70,8 +70,8 @@ are split into coherent commits and pushed at least every one or two commits.
 | Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | implemented: native chronological MNQ/VWAP execution, candidate forecasts, independent search, conservative native refits and frozen outer/manual OOS integration; targeted release gates recorded below |
 | M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
 | M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | implemented with guarded local-scope access, terminal refit and saved API/browser evidence; full-goal qualification remains pending |
-| M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
-| M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | pending |
+| M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | workspace/drafts/templates and visual review implemented at 5308d88 with saved API/browser evidence; forward monitor UI is M5 |
+| M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | supplied observations and advisory recovery implemented; matched forecast scope and frozen sizing conformance follow |
 | M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | pending |
 
 ## Integration and safety of conclusions
@@ -481,3 +481,59 @@ Remaining overall scope: predefined frozen Evaluation/Funded pair comparison;
 independent timestamped forward/paper events, discrepancy monitoring and recovery;
 complete multi-strategy end-to-end evidence; final full-suite/browser/static and
 reproducibility acceptance. The complete goal remains **incomplete**.
+
+
+### M4b/M5 frozen pairs and independent supplied observations
+
+8 November 2026: explicit independently frozen Evaluation/Funded pairs now use
+ordinary completed manual OOS sources, the existing native execution controllers
+and cash ledger over a common exclusive cutoff. AnalysisStore owns declarations,
+child captures and durable format-8 reports. Every named pair remains visible;
+no combined selection replaces either independent phase objective. Sources,
+frozen packages, declaration retries and child integrity are guarded.
+
+Current-development reports now launch timestamped independent observations in
+the existing catalogue. Strict supplied event batches support signals, intended
+orders, statuses, fills, protective orders, positions, market/connection health
+and separate requests/deductions/receipts. Append-only corrections, exact FIFO
+money reconciliation, immutable format-9 reports and explicit advisory recovery
+reuse AnalysisStore. All demonstration observations are labelled synthetic;
+actual order placement and broker enforcement are unavailable.
+
+Release Python identity:
+`3f6ce9d8ef3fd05f25aa7fc4a1a85686c67aae86ee6510063c587ad982a0ff1c`.
+The normal-product journeys, exact IDs, independent expected values, download
+checks and server startup/shutdown steps are in `prop_simulation_review.md`.
+
+| Stable targeted gate | Result |
+| --- | --- |
+| Pair API/controllers/admission/storage and complete two-strategy research journey | 25 passed in 130.39 s; `artifacts/frozen-pair-m4b-20261108/api-final/` |
+| Forward contracts, persistence, API, authority and access | 56 passed in 9.63 s; `artifacts/forward-monitoring-m5-20261108/api-gate-final/` |
+| Existing phase profiles, native campaigns and cancellation after disk recovery | 35 passed in 201.27 s; `artifacts/frozen-pair-m4b-20261108/legacy-regression-resumed/` |
+| Actual market-series selection properties across six requested types | 7 passed in 54.55 s; `artifacts/selection-properties-m6-20261108/final-resumed/` |
+
+A preceding legacy gate was interrupted after 54 passes when storage filled;
+its evidence is retained and is not called a full pass. The first resumed browser
+attempt could not launch a missing Playwright executable; the restored-browser
+gate passed the pair and bound-forward journeys, with a browser-option assertion
+failure in the no-qualified diagnostic case. Its exact assertion is being
+corrected against the observed native disabled attribute/property, preserving
+the API rejection check and original evidence. Counts overlap; no full-suite
+claim follows from these targeted results.
+
+Independent review identified two remaining local forward capabilities: a
+complete compatible observation window needs a descriptive forecast-versus-cash
+comparison, and supplied causal sizing decisions need arithmetic checking against
+the frozen policy. Neither can be replaced by a generic external-integration
+warning. Both are the next increment, followed by uninterrupted full-suite,
+browser, static, export/reproducibility and final documentation acceptance.
+The complete goal remains **incomplete** and live integration **unverified**.
+
+
+M4b/M5 browser closeout: the no-qualified diagnostic passed its fresh exact rerun
+in 7.56 s after correcting only the assertion to inspect the native disabled
+attribute. All three normal journeys now pass on unchanged Python identity. The
+saved browser verification index checks 20 downloads, 56 ZIP members and three
+zero-POST reopens; desktop and 390 px views were inspected. All temporary servers
+stopped. Python compilation, five changed JavaScript syntax checks and whitespace
+validation passed. Original failed attempts remain preserved.

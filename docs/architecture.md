@@ -14,8 +14,10 @@ execution engine; saved baseline/resolved settings prevent replay double charges
 strictly prior bars. `research_complexity.py` supplies reviewed parameter roles;
 the qualifier excludes sizing/display axes from signal neighborhoods. All three
 feed the same saved research report, with no alternative calculation service.
-Outer economic validation and forward monitoring are still pending; see the
-[requirements traceability and milestone checklist](robust_research_plan.md).
+At that 7 November increment, outer economic validation and forward monitoring
+were still pending. Later sections and the
+[requirements traceability and milestone checklist](robust_research_plan.md)
+record subsequent implementation and qualification.
 
 8 November 2026 extension: `research_phase_selection.py` validates complete PASS
 membership, phase declarations and immutable frozen packages. It delegates
@@ -40,8 +42,8 @@ actual economics from forecast comparability. Conservative Funded selection
 re-estimates the fitted mean using historical session blocks inside
 `funded_profiles.py`; `funded_optimization.py` owns its objective and constraints.
 Shared preflight limits count all declared historical refits and captured indices.
-Final procedure verification, native selection and forward monitoring remain
-pending. Native chronological reruns and optional forecasts are described below.
+At that reliability increment, final procedure verification, native selection
+and forward monitoring remained pending. Subsequent increments are recorded below.
 
 8 November 2026 canonical-source increment: `canonical_trades.py` validates
 complete versioned external exports and projects existing native sources without
@@ -82,7 +84,8 @@ Separate source/model clocks preserve original fills; no fabricated historical
 backtest is created for sampled paths. Phase owners aggregate all modeled paths,
 while `native_replay.py` validates the declared target calendar and bounded work,
 then saves schedules, captures and forecasts in the same AnalysisStore report.
-Native economic selection and campaign outer integration remain pending.
+At that forecast increment, native economic selection and campaign outer
+integration remained pending; the later native-selection section records delivery.
 Numerical identities include all changed calculation dependencies;
 historical reports are retained and incompatible frozen launches fail closed.
 
@@ -91,7 +94,7 @@ historical reports are retained and incompatible frozen launches fail closed.
 [Requirements](#requirements-and-scope) · [Workflow](#end-to-end-workflow) ·
 [Code](#code-architecture) · [Decisions](#decisions)
 
-Current-state cleanup reviewed 6 November 2026 against repository baseline
+Historical architecture cleanup reviewed 6 November 2026 against repository baseline
 `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus the local cleanup diff.
 The [qualification record](prop_simulation_review.md#final-architecture-cleanup--2026-11-06)
 records the actual gates, preserved identities and remaining limits.
@@ -135,7 +138,7 @@ research throughput, spending and engineering hours.
 | --- | --- |
 | Saved IS backtests, single-strategy parameter grids, manual OOS and local prop reports | Implemented. Each trial uses the existing engine; OOS remains manual and unlimited with recorded history. |
 | Canonical external trades | Implemented 8 November 2026: complete versioned exports, exact cost/identity/event validation, ordinary saved reports/catalogue/downloads, eligible annualized local prop analysis and independent IS phase policies. Generic platform CSV, partial-position paths and native external reruns remain unsupported. |
-| State-aware phase sizing | Fixed contracts, fixed dollars and explicitly based percentage risk run inside existing account transitions for admitted invariant external paths. Whole-MNQ rounding, skips, user/provider/cushion caps and decisions are saved. Native risk-based resizing requires a strategy rerun; no invariant-path claim is made from stop capture alone. |
+| State-aware phase sizing | Fixed contracts, fixed dollars and explicitly based percentage risk run inside existing account transitions. Admitted native MNQ/VWAP uses actual strategy reruns for chronological applications and declared empirical block forecasts; eligible invariant external paths retain their separate adapter. Whole-MNQ rounding, skips, user/provider/cushion caps and causal decisions are saved. Stop capture alone never establishes path invariance. |
 | Annualized joint evaluation/funded sizing | Implemented and still the default. Classified as **legacy business-level optimization**, not the target independent phase selector. Preserve calculations, regression tests and historical reports until separately approved retirement. |
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |
@@ -144,6 +147,8 @@ research throughput, spending and engineering hours.
 | Independent Funded optimizer | Implemented backend/API, 6 November 2026: saved IS candidate ranking by received cash over a declared calendar horizon, fresh funded accounts, native Apex/Lucid transitions, explicit settlement lag, hard empirical constraints and censored lifetime. No evaluation inputs or joint score. Campaign UI and IS freeze are implemented by the subsequent campaign increment. [Contract](prop_simulation.md#standalone-funded-optimizer--2026-11-06). |
 | Cross-job/strategy campaigns and phase package freeze | Implemented, 6 November 2026: saved grid/trial expansion, size budgets, IS compatibility, independent phase execution, immutable source/report references, browser controls and freeze. [Campaign API](research_campaign_api.md). |
 | Frozen OOS phase assessment | Implemented: manual ordinary OOS backtests from frozen IS parents, fixed phase settings, append-only assessment reports in AnalysisStore; no OOS ranking/reselection. |
+| Predefined frozen policy-pair comparison | Implemented downstream historical comparison through the normal prop API/AnalysisStore. Explicit Evaluation/Funded freezes and ordinary OOS parents, actual acquisition/retries, fresh Funded continuation until the common cutoff, no replacement, winner or reselection. |
+| Timestamped forward observation | Implemented strict supplied-event check/import, exact reconciliation, advisory state/recovery and immutable normal reports. Synthetic, paper and supplied actual-import records remain distinct. No broker order placement, connected strategy verification, continuous-health claim or matched forecast calibration. |
 | Automatic new campaign grids and adaptive refinement | Planned. Campaigns consume already saved trials. |
 | Synchronized portfolio allocation/shared-account optimization | Optional, outside the initial phase implementation; later consumer of phase outputs and dependence data. See [portfolio plan](prop_portfolio_plan.md). |
 
@@ -194,6 +199,11 @@ flowchart TB
     EVAL --> SAVED
     FUNDED --> SAVED
     SAVED --> FREEZE["Named IS freeze / manual OOS assessment"]
+    FREEZE --> PAIR["Predefined downstream pair comparison"]
+    PAIR --> SAVED
+    SAVED --> CURRENT["Complete procedure / current development fit"]
+    CURRENT --> FORWARD["Supplied forward observations / advisory assessment"]
+    FORWARD --> SAVED
     FREEZE -. "future consumer; no feedback into phases" .-> PORTFOLIO["Optional portfolio selector: planned"]
     PROP -- "legacy / dated cash results" --> SAVED
     API -- "opens saved results" --> SAVED
@@ -211,6 +221,8 @@ flowchart TB
 | Standalone Funded search | [Funded optimizer](../alphaquest/prop/funded_optimization.py), [dated funded component](../alphaquest/prop/funded_profiles.py), [shared admission/calendar](../alphaquest/prop/phase_search.py), normal API/AnalysisStore | Fresh funded paths, native qualification and termination, exclusive calendar cutoff and explicit modeled receipts; full feasible ranking, uncertainty and path events in format-5 reports. Shares source capture and worker/catalogue with Evaluation; campaign UI is implemented, with no new service, database or portfolio calculation. |
 | Legacy business sizing | [joint sizing](../alphaquest/prop/joint_sizing.py), [account refresh links](../alphaquest/optimization_prop.py) | Joint annualized cost/payout selection and immutable refresh history remain supported; new independent optimizers must not use their score as a phase objective. |
 | Dated phase and cash replay | [phase lifecycle](../alphaquest/prop/phase_lifecycle.py), [cash ledger](../alphaquest/prop/cash_ledger.py) | Share local account transitions; distinguish paid acquisition fees, requests, deductions and modeled receipts under a hard monthly cap. |
+| Frozen pair comparison | [pair orchestration](../alphaquest/prop/frozen_pairs.py), [phase lifecycle](../alphaquest/prop/phase_lifecycle.py), [cash ledger](../alphaquest/prop/cash_ledger.py), normal prop API/AnalysisStore | Apply declared independent freezes to their actual dated OOS sources. Reuse phase owners and exact cash merging; never run a joint selector or mutate either freeze. |
+| Forward observation | [event contracts](../alphaquest/forward_contracts.py), [reconciliation](../alphaquest/forward_reconcile.py), [policy authority](../alphaquest/forward_policy.py), [store orchestration](../alphaquest/forward_monitoring.py), [API](../alphaquest/forward_api.py) | Supplied observations have their own event/receive clocks and correction history. Reconcile exact observed facts without generating fills or relabeling historical backtests; use the existing analysis catalogue/worker/reports. |
 | Default prop reports | [automatic](../alphaquest/prop/automatic.py), [backend](../alphaquest/prop/native_backend.py), [build](../setup.py) | Automatic/manual runs share local models. Optional compiled kernels use the same model source. |
 | Reports and storage | [reporting](../alphaquest/reporting.py), [benchmark](../alphaquest/market_benchmark.py), [backtest store](../alphaquest/backtest_runs.py), [analysis store](../alphaquest/prop/store.py) | Stage calculations, publish completed results, reopen without replay. SQLite indexes files and job state. |
 | Reuse | [replay cache](../alphaquest/replay_cache.py), [features](../alphaquest/strategy_features.py), [calculation cache](../alphaquest/prop/calculation_cache.py) | Reuse matching data/calculations by identity; never share mutable strategy positions between trials. |
@@ -419,9 +431,9 @@ accessed after an explicit release remain permanently recorded.
 
 These are research capabilities. Provider/rule/execution/settlement uncertainty
 and broker authorization remain explicit; a research recommendation is not
-production qualification. Guided research catalogue/templates, optional frozen
-policy-pair lifecycle comparison, timestamped forward monitoring and final
-full-suite acceptance remain separate pending increments.
+production qualification. At that release, guided catalogue/templates, frozen
+policy-pair comparison, timestamped monitoring and full-suite acceptance remained
+separate pending increments. The following entries record their later status.
 
 ### Research workspace metadata and visual review (8 November 2026)
 
@@ -441,3 +453,204 @@ with full tables. Neither module selects a policy or creates calculation results
 The Evaluation and Funded declared numerical implementation identities remain
 unchanged from `79cb5b0`; the global application identity correctly includes the
 new Python orchestration code. Earlier frozen reports remain inspectable.
+
+### Frozen lifecycle comparison and forward observation (8 November 2026)
+
+`prop/frozen_pairs.py` validates explicit independent Evaluation/Funded freezes
+and their completed ordinary manual OOS parents. It delegates account transitions
+to the existing phase owners, continuation to `prop/phase_lifecycle.py`, and
+exact acquisition/receipt cash merging to `prop/cash_ledger.py`. A pair is a
+historical comparison, not a new joint objective. Its remaining-horizon
+continuation binding does not rewrite the original Funded forecast. All declared
+pairs remain in the format-8 report, with `winner:null`, exact fees/receipts,
+censoring and pending cash; neither phase's selection is revisited.
+
+`prop/store.py` reserves pair requests in the existing AnalysisStore, uses its
+worker/cancellation/publication locks and captures ordinary native child
+backtests. Checked request IDs are immutable. Deletion releases completed pair
+artifacts only through the explicit normal delete action and retains a request
+ID tombstone. There is no new database, engine or result directory.
+
+Forward observation has separate, narrow owners:
+
+| Owner | Responsibility |
+| --- | --- |
+| `forward_contracts.py` | Strict versioned monitor/event/control models, finite decimal strings, explicit UTC/source sequence, exact provenance kinds and advisory-only capability. |
+| `forward_policy.py` | Resolve the latest authoritative current-development application and exact eligible family member; verify sealed training/source/configuration evidence. No caller-supplied package authority or last-fold promotion. |
+| `forward_reconcile.py` | Deterministic exact supplied-fill/FIFO/cost/position/protection/cash reconciliation, unresolved causal ordering and declared advisory thresholds. It does not simulate fills or run prop selectors. |
+| `forward_monitoring.py` | Append-only event/batch/control records and immutable assessment snapshots in the same AnalysisStore database/worker/report tree. Bounded catalogue summaries avoid opening every report. |
+| `forward_access.py`, `research_access.py` | Record separately supplied price/financial exposure even if protected final sessions overlap. Preserve the reservation and make future clean-access claims reflect known observations. |
+| `forward_api.py`, `web/forward_monitoring.js` | Existing current-development/report workspace → check/import → explicit-clock assessment → normal saved report → acknowledged advisory recovery. No live connector or separate demo application. |
+
+Forward format-9 reports retain original batch bytes, normalized event history,
+first accepted receive clocks, explicit corrections, policy/source identity,
+assessment/control heads and code identity. Reopen uses saved artifacts without
+reconciliation or reselection. A correction creates a new report; it cannot
+rewrite an earlier snapshot. ACTIVE is a state at a saved assessment clock.
+Pause/retire cannot prevent external orders, and a resolved historical incident
+can be acknowledged only with the latest report/event head and current health.
+Unknown ordering/positions, current drawdown or missing health cannot be waived.
+
+Supplied execution provenance and the selected policy's expected implementation
+remain distinct. The system does not independently verify a platform strategy,
+account-state sizing decision, broker connection or settlement. Captured
+forecast/horizon and supplied receipt/duration diagnostics remain NOT_COMPARABLE
+with reasons; matched calibration is not implemented. Synthetic inputs never
+become verified forward performance. See the dated [API contract](research_campaign_api.md#timestamped-forward-observations--8-november-2026)
+and [saved normal-product evidence](prop_simulation_review.md#timestamped-forward-observations--2026-11-08).
+
+## Developer extension guide
+
+Extend the existing owner for the behavior being changed. A new route or data
+format is not a reason to add a second execution engine, selector, account model
+or report store. The commands below are targeted development checks; run the
+checks appropriate to an actual change and preserve their real scope/results.
+A passing focused command is not a full-suite or provider-parity statement.
+
+### Add a strategy or causal feature
+
+1. Add a code-owned module under `alphaquest/strategies/`, following
+   `consecutive_green_hold.py` or `vwap_pullback_risk_sizing.py`. Define its stable
+   `STRATEGY_ID`, description, frozen `Parameters`, execution assumption and
+   parameter validation. Implement the existing `Strategy` protocol from
+   `alphaquest/strategy.py`: return `EntryIntent`, `CloseIntent` or
+   `BracketIntent`; let `alphaquest/execution.py` own actual fills, slippage,
+   commission, position and trade accounting. Do not accept a caller import path
+   or execute uploaded strategy code.
+2. Register a `StrategyDefinition` in
+   `alphaquest/strategies/registry.py`. Declare whether the factory accepts
+   execution configuration/instrument identity, and validate supported symbols
+   explicitly. Decimal parameters arrive as exact strings. If the strategy
+   depends on helper modules, implement `source_fingerprint()` covering those
+   dependencies rather than treating only the entry module as its full source.
+   Review numeric/signal/sizing/diagnostic parameter classification used by
+   `robust_research.py` and `edge_qualification.py`; an unreviewed complexity or
+   neighbor classification must remain unavailable rather than guessed.
+3. An optional reusable feature implements
+   `strategy_features.Feature(name, version, dependencies, build)` and emits one
+   value per selected bar. Declare every parameter dependency and change the
+   feature version when meaning changes. Use `strategies/vwap_features.py` as the
+   causal reference/binding pattern. Readers advance in bar order. Cache only
+   pure selected-bar features, never positions, orders, account cash or mutable
+   strategy state. Demonstrate future-bar mutation cannot change earlier
+   decisions and cached/uncached output agrees.
+4. Read market data through `read_selected_bars`/`prepare_data` so source identity,
+   declared date convention, cache guards and protected-session access checks
+   still apply. State the warm-up/availability cutoff of every feature. Do not
+   infer an exchange early close from stopped data or read purge/final bars for
+   hidden initialization. `research_regimes.py` illustrates training-only fitted
+   thresholds and features observed strictly before a trade decision.
+5. General strategy registration does **not** grant native prop admission.
+   `prop/native_replay.py`/`native_search.py` currently admit the reviewed complete
+   MNQ/VWAP path. A new strategy needs provisional `on_bar_controlled` acceptance
+   semantics before it consumes a signal/latch, causal stop/decision evidence,
+   true flat/session completion and independent account-skip/gap/rerun oracles.
+   Reuse `prop/native_control.py` and the phase controllers; do not resize saved
+   trades or silently include another strategy in that allowlist.
+
+Useful targeted checks:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_strategy_interface.py tests/test_execution.py tests/test_next_bar_execution.py tests/test_vwap_pullback.py
+.venv/bin/python -m pytest -q tests/test_native_decisions.py tests/test_native_account_execution.py tests/test_native_phase_control.py tests/test_native_draws.py
+```
+
+Also add a small, hand-priced fixture for the new behavior, exercise its ordinary
+dataset → backtest/grid → check → report route, and record exact parameters,
+source bytes and expected fills. For features, add earlier-decision/future-mutation
+and prepared-cache parity cases to the relevant strategy/optimization tests.
+
+### Add or adapt an external source
+
+`canonical_trades.py` owns `aq-trade-export-v1`, `parse_trade_export(raw)` and
+`project_native_source(runs, source_id)`. `trade_imports.py` adapts the validated
+model to the existing RunStore/report routes. Preserve exact raw bytes, export
+and implementation identity, coverage/session declarations, source trade IDs,
+actual/reference prices, costs and ordered risk evidence. An initial stop or
+sizing decision must be explicitly known at the decision clock; do not infer it
+from a later fill, bracket, MAE/MFE or final outcome. Missing historical metadata
+remains missing.
+
+A new producer should emit this supported envelope or add a strict, versioned
+adapter with independent fixtures. It must not fabricate bars/dataset rows,
+synthesize extrema or an ordered path, discard incompatible partial positions,
+or deduct supplied net costs twice. `prop/external_source.py` separately admits
+supported model capabilities; parsing alone does not establish replay eligibility.
+Imported source identity/coverage must also reach `research_access.py` so an
+external outcome cannot erase prior access to final market sessions.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_canonical_trades.py tests/test_trade_imports.py tests/test_phase_sizing.py
+```
+
+Keep ordinary saved-import reads independent from calculation/diagnostic changes;
+new calculations revalidate exact source and capability identity. Demonstrate
+normal preview/import/report/trades/equity/downloads, conflict/idempotency and
+hash-tamper rejection with actual saved outputs.
+
+### Add sizing semantics or a provider rule
+
+`prop/sizing.py` owns `SizingPolicy`, `AccountSizingState`, `KnownDecisionRisk`,
+`DecisionRisk` and `PlanningExecution`. Keep planned risk separate from actual
+fill outcomes: next-open quantity may use only the prior known decision price
+and stop. Use exact Decimal arithmetic and whole-MNQ floor/skip/cap semantics.
+A skipped native order must not consume the strategy's accepted-entry allowance;
+actual fills and costs still belong to `execution.py`. Provider payouts change
+the controller's provider-equity offset, not the normal trading-P&L ledger.
+
+Phase simulation belongs in `prop/evaluation_profiles.py` and
+`prop/funded_profiles.py`; their respective `*_optimization.py` modules own
+metrics, constraints and independent selection. Shared admission/calendar/capture
+is in `phase_profiles.py`/`phase_search.py`, and backend resolution is in
+`phase_dispatch.py`. Unknown phases reject. Extend `native_replay.py`,
+`native_search.py` or `external_source.py` capability admission only when the
+actual required evidence/path semantics are implemented. Keep
+`prop/joint_sizing.py` legacy behavior and historical readers intact.
+
+Provider changes belong in the existing Apex/Lucid rule/kernel/controller owner,
+with dated field-level primary-document evidence in `prop/rule_provenance.py`.
+Change the applicable model/rule versions when numerical meaning changes; keep
+unmodeled approval, settlement, calendar or entitlement assumptions explicit.
+Preserve the independent Python/reference/compiled checks. Do not use provider
+marketing, a green unit suite or an exporter assertion as numerical/live parity.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_sizing.py tests/test_prop_engine_sizing.py tests/test_phase_sizing.py tests/test_native_phase_control.py tests/test_rule_provenance.py
+.venv/bin/python -m pytest -q tests/test_native_prop_engine.py tests/test_native_prop_compiled.py tests/test_frozen_pair.py
+```
+
+Add independent decision-price/stop, gap, rounding, cap, skip, retry, cutoff and
+receipt-versus-deduction oracles as relevant. A downstream pair comparison or
+monitor must consume the existing phase outputs/observations, never feed its
+results back into either phase's candidate selection.
+
+### Preserve identity, storage and product evidence
+
+`optimization_cache.engine_identity()` conservatively hashes all production
+Python, dependencies, calendars and numerical backends. Phase
+`implementation_identity()` values bind their explicit calculation dependencies;
+feature/cache identities bind source range, convention and declared parameters.
+Include a new numerical dependency in the correct phase identity rather than
+excluding it to keep an old freeze launchable. Changed code/source/rules may
+correctly reject an old package's new execution; historical report bytes remain
+readable. Keep source manifest and file verification, source/report deletion
+pins, cancellation/publication locks and exact request-ID semantics.
+
+Use `seal_report` in `prop/store.py` and the existing normal file/ZIP routes. New
+report-specific contracts can add a versioned format/model discriminator; do not
+create another evidence database or silently reinterpret prior schemas. New
+external price/outcome readers must use the existing access guard. Supplied
+forward observations use its explicit append-only exposure entry point because
+already received facts cannot be made unseen by rejecting their risk report.
+
+For each increment, retain a small synthetic source through the real product
+workflow, independently priced expected values, source/model hashes, exact saved
+IDs/downloads and rejection cases. Keep numerical fixture oracles in tests and
+show meaningful source checks/results in the product. Save the exact test/browser
+commands, started-gate results and before/after source identities under a new
+artifact directory. Update `docs/prop_simulation_review.md` with startup URL,
+user actions, expected observations, limitations and Ctrl-C shutdown. Never
+replace earlier evidence or call a targeted gate the full baseline. Current
+forward reproduction is in
+`artifacts/forward-monitoring-m5-20261108/api-final/publish.py`; it uses ordinary
+routes and refuses to overwrite an existing library.
