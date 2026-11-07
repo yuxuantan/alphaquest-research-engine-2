@@ -17,6 +17,21 @@ feed the same saved research report, with no alternative calculation service.
 Outer economic validation and forward monitoring are still pending; see the
 [requirements traceability and milestone checklist](robust_research_plan.md).
 
+8 November 2026 extension: `research_phase_selection.py` validates complete PASS
+membership, phase declarations and immutable frozen packages. It delegates
+simulations and feasibility/ranking to the existing phase owners. Server-only
+training context in `prop/phase_search.py` verifies full-window training reports,
+source/artifact hashes and observed session inventories without relabeling inner
+runs as public IS. AnalysisStore reserves and executes nested child calculations
+inline on the existing worker, avoiding a same-worker submit/wait deadlock.
+Typed checkpoints and ordered selection/access seals use the existing
+`robust_research_steps` table. Evaluation/Funded chronological replay remains in
+their respective `*_profiles.py` owners, sharing calendar and receipt helpers in
+`cash_ledger.py`. `rule_provenance.py` captures dated primary-document reviews and
+unverified model gaps in normal phase reports; it never patches account rules.
+No new engine, service, database or production evidence store is introduced.
+Consolidated reliability, final verification and forward monitoring remain pending.
+
 8 November 2026 canonical-source increment: `canonical_trades.py` validates
 complete versioned external exports and projects existing native sources without
 inventing missing stop/decision data. `trade_imports.py` publishes immutable

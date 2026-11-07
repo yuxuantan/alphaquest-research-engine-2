@@ -86,15 +86,32 @@ class EvaluationCandidate:
 
 
 @dataclass(frozen=True)
+class EvaluationConstraints:
+    maximum_cost_per_funded: float | None = None
+    maximum_expected_calendar_days: float | None = None
+    minimum_pass_probability: float | None = None
+
+    def __post_init__(self):
+        for name in ('maximum_cost_per_funded', 'maximum_expected_calendar_days', 'minimum_pass_probability'):
+            value = getattr(self, name)
+            if value is not None and (type(value) not in (int, float) or not np.isfinite(value)
+                    or value < 0 or (name == 'minimum_pass_probability' and value > 1)):
+                raise ValueError(f'Invalid evaluation constraint {name}.')
+
+
+@dataclass(frozen=True)
 class EvaluationSearch:
     source_backtest_id: str
     candidates: tuple[EvaluationCandidate, ...]
     calendar: AcquisitionCalendar
     mode: str = 'evaluation_optimization'
+    constraints: EvaluationConstraints | None = None
 
     def __post_init__(self):
         if self.mode != 'evaluation_optimization':
             raise ValueError('Unsupported phase search mode.')
+        if self.constraints is not None and type(self.constraints) is not EvaluationConstraints:
+            raise ValueError('Evaluation constraints require an EvaluationConstraints contract.')
         if not self.candidates:
             raise ValueError('Declare at least one candidate; no implicit search truncation.')
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
@@ -123,14 +140,16 @@ def parse_request(raw):
         calendar = dict(value.pop('calendar'))
         for name in ('start_dates', 'closures'):
             if name in calendar: calendar[name] = tuple(sorted(calendar[name]))
+        if value.get('constraints') is not None:
+            value['constraints'] = EvaluationConstraints(**value['constraints'])
         return EvaluationSearch(candidates=tuple(candidates), calendar=AcquisitionCalendar(**calendar), **value)
     except (TypeError, KeyError, AttributeError) as exc:
         raise ValueError(f'Invalid evaluation-only search contract: {exc}') from exc
 
 
-def check_search(runs, search):
+def check_search(runs, search, *, training_context=None):
     from .phase_search import check_candidates
-    return check_candidates(runs, search)
+    return check_candidates(runs, search, training_context=training_context)
 
 
 def implementation_identity():
@@ -138,7 +157,7 @@ def implementation_identity():
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
              'native_analysis.py', 'native_engine.py', 'source.py', 'commissions.py',
              'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py',
-             'external_source.py', '../canonical_trades.py', '../trade_imports.py')
+             'external_source.py', 'cash_ledger.py', 'rule_provenance.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel=kernel_identity({'ACCOUNT_TYPE': 'Apex EOD'}), numpy=np.__version__)
@@ -146,6 +165,7 @@ def implementation_identity():
 
 def search_key(search, checks):
     return sha256(canonical(dict(model=MODEL_VERSION, calendar=asdict(search.calendar),
+        constraints=asdict(search.constraints) if search.constraints is not None else None,
         anchor=search.source_backtest_id,
         candidates=[{k:r[k] for k in ('candidate_id','prior_access','origin_trials')} for r in checks],
         implementation=implementation_identity())).encode()).hexdigest()
@@ -293,13 +313,31 @@ def acquisition_metrics(component, profile, retry, calendar, sampling):
             restricted_mean_at_guard=float(np.mean(times)) if not any(r['event']=='attempt_guard' for r in paths) else None))
 
 
-def pareto_sort(rows):
+def apply_constraints(rows, constraints):
+    """Evaluate declared limits before nondominance, retaining every row."""
+    for row in rows:
+        reasons = []
+        for metric, limit, maximum in (
+            ('cost_per_funded', constraints.maximum_cost_per_funded, True),
+            ('expected_calendar_days_to_funded', constraints.maximum_expected_calendar_days, True),
+            ('pass_probability', constraints.minimum_pass_probability, False)):
+            value = row['metrics'].get(metric)
+            if limit is not None and (value is None or not np.isfinite(value)
+                    or (value > limit if maximum else value < limit)):
+                reasons.append(metric)
+        row.update(feasible=row['status'] == 'estimated' and not reasons, constraint_violations=reasons)
+
+
+def pareto_sort(rows, constraints=None):
     """Strict two-objective nondominance; exact ties retain full membership."""
     rows = sorted(rows, key=lambda r: r['candidate_id'])
     def point(row):
         return row['metrics']['cost_per_funded'], row['metrics']['expected_calendar_days_to_funded']
-    resolved = [r for r in rows if r['status'] == 'estimated' and all(x is not None and np.isfinite(x) for x in point(r))]
-    unresolved = [r['candidate_id'] for r in rows if r not in resolved]
+    numerical = [r for r in rows if r['status'] == 'estimated' and all(x is not None and np.isfinite(x) for x in point(r))]
+    unresolved = [r['candidate_id'] for r in rows if r not in numerical]
+    if constraints is not None:
+        apply_constraints(rows, constraints)
+    resolved = [r for r in numerical if constraints is None or r['feasible']]
     for row in rows:
         dominated_by = []
         if row in resolved:
@@ -309,7 +347,7 @@ def pareto_sort(rows):
             dominated=bool(dominated_by) if row in resolved else None,
             estimated_dominated_by=dominated_by, robust_dominated=None,
             pareto_rank=None,
-            dominance_status='estimated_only' if row in resolved else 'unresolved_not_excluded')
+            dominance_status='estimated_only' if row in resolved else 'constraint_excluded' if row in numerical else 'unresolved_not_excluded')
     remaining = {r['candidate_id']:r for r in resolved}
     rank = 0
     while remaining:
@@ -330,7 +368,14 @@ def pareto_sort(rows):
         acceleration_interpretation='USD per calendar day saved between adjacent points, not a lambda or recommendation; nonconvex Pareto points are retained')
 
 
-def optimize_evaluation(runs, search, checks=None, progress=lambda message: None, *, assessment=False):
+def optimize_evaluation(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None):
+    if assessment and training_context is not None:
+        raise ValueError('Assessment cannot consume a training context.')
+    if training_context is not None:
+        current = check_search(runs, search, training_context=training_context)
+        if checks is not None and canonical(current) != canonical(checks):
+            raise ValueError('Nested training sources changed after checking.')
+        checks = current
     checks = checks if checks is not None else check_search(runs, search)
     configurations = {canonical(asdict(c)): c for c in search.candidates}
     rows = []
@@ -339,7 +384,8 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Evaluating '+check['candidate_id'][:12])
         component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
             candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs,
-            **({'sizing':candidate.sizing} if candidate.sizing is not None else {}))
+            **({'sizing':candidate.sizing} if candidate.sizing is not None else {}),
+            **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
         if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
             raise ValueError('Candidate source changed after source checking.')
         result = acquisition_metrics(component, candidate.profile, candidate.retry, search.calendar, candidate.sampling)
@@ -350,13 +396,15 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
         c = configurations[canonical(check['manifest']['configuration'])]
         verify_phase_source(runs, c.source, check['manifest']['source'])
     if assessment:
+        if search.constraints is not None:
+            apply_constraints(rows, search.constraints)
         for row in rows:
             row.update(pareto_member=False, dominated=None, pareto_rank=None)
         return dict(model_version=MODEL_VERSION, phase='evaluation', candidates=rows,
             frontier=[], marginal_acceleration_cost=[], winner=None, certified_frontier=False,
             selection_status='assessment_only_no_reselection',
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
-    return dict(model_version=MODEL_VERSION, phase='evaluation', **pareto_sort(rows))
+    return dict(model_version=MODEL_VERSION, phase='evaluation', **pareto_sort(rows, search.constraints))
 
 
 def write_report(runs, staged, search, checks, calculations):
@@ -366,6 +414,9 @@ def write_report(runs, staged, search, checks, calculations):
     def save(name, data):
         (staged/name).write_text(canonical(data), encoding='utf-8')
     from .phase_search import capture_inputs, write_sizing_artifacts
+    from .rule_provenance import search_review, readiness
+    provider_rules = search_review(search)
+    save('provider_rules.json', provider_rules)
     capture_inputs(runs, staged, search, calculations)
     write_sizing_artifacts(staged, calculations)
     save('source_checks.json', checks)
@@ -373,7 +424,8 @@ def write_report(runs, staged, search, checks, calculations):
         **r['manifest']) for r in calculations['candidates']])
     save('phase_metrics.json', [dict(candidate_id=r['candidate_id'], metrics=r['metrics'], status=r['status'],
         uncertainty=r['uncertainty'], censoring=r['censoring'], assumptions=r['assumptions'],
-        pareto_member=r['pareto_member'], dominated=r['dominated'], pareto_rank=r['pareto_rank']) for r in calculations['candidates']])
+        pareto_member=r['pareto_member'], dominated=r['dominated'], pareto_rank=r['pareto_rank'],
+        **({k:r[k] for k in ('feasible','constraint_violations')} if 'feasible' in r else {})) for r in calculations['candidates']])
     save('frontier.json', {k:v for k,v in calculations.items() if k != 'candidates'})
     save('calculations.json', calculations)
     save('request.json', asdict(search))
@@ -388,4 +440,5 @@ def write_report(runs, staged, search, checks, calculations):
     return dict(format_version=4, model_version=MODEL_VERSION, phase='evaluation', source=anchor,
         settings=dict(ANALYSIS_MODE='evaluation_optimization'), calculations=calculations,
         implementation=implementation_identity(), request=asdict(search),
+        provider_rules=provider_rules, deployment_readiness=readiness(provider_rules),
         parity_status='Independent mathematical qualification only; no provider or external-engine numerical parity claimed')

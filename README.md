@@ -47,10 +47,13 @@ The same saved report's **Configure prop analysis** screen now includes
 qualification criteria, run ordinary isolated backtests, and reopen/download
 every candidate's evidence. Named execution scenarios rerun real fills; causal
 market-condition evidence exposes unknown labels and optional versus required
-conditions. Signal neighborhoods exclude quantity/display settings. This
-increment stops at inner qualification;
-outer economic selection/replay, final recommendations and forward monitoring
-remain pending. See the [workflow](docs/research_workflow.md#nested-inner-research)
+conditions. Signal neighborhoods exclude quantity/display settings. Optional
+**Economic validation** hands every qualified configuration to independent phase
+searches, freezes the selected family before outer evaluation, and saves modeled
+cash on the actual chronological outer sequence. Forecasts, pending receipts and
+provider-rule gaps remain separate. Consolidated reliability, final recommendations,
+native risk-policy reruns and forward monitoring remain pending.
+See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 
 From **Strategies → New backtest**, save an IS grid, open a trial report, then

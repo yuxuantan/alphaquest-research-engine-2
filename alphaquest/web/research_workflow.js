@@ -60,6 +60,309 @@
   const parameters = item => Object.entries(item.parameters || {}).map(([key, value]) => `${key}=${typeof value === 'object' ? `${value.start}…${value.end}` : value}`).join(', ');
   const candidateLabel = item => `${(item.strategy_id || 'Strategy').replaceAll('_', ' ')} · ${parameters(item)}`;
   const period = item => item ? `${item.first_session} → ${item.last_session} (${Array.isArray(item.sessions) ? item.sessions.length : item.sessions} sessions)` : 'Unavailable';
+  const valueText = value => value === null || value === undefined ? 'Unavailable'
+    : typeof value === 'boolean' ? value ? 'Yes' : 'No'
+    : Array.isArray(value) ? value.map(valueText).join(', ') || 'None' : String(value);
+  const phaseLabel = phase => phase === 'evaluation' ? 'Evaluation · acquisition cost and time' : 'Funded · trader cash received';
+  const selectionLabel = selector => ({pareto_family: 'Keep the complete cost / time Pareto family',
+    min_cost_under_time_cap: 'Lowest expected cost within the declared time limit',
+    min_time_under_cost_cap: 'Shortest expected time within the declared cost limit',
+    maximum_expected_received_cash: 'Highest expected trader cash received'}[selector?.mode] || 'Selection rule unavailable');
+  function retainedTable(parent, title, rows, columns, className) {
+    if (!rows?.length) return;
+    const detail = node('details'); detail.append(node('summary', `${title} · ${rows.length} retained rows`));
+    if (className) detail.className = className;
+    const content = node('div'), controls = node('div', undefined, 'robust-actions');
+    const previous = button(controls, 'Previous 25'), position = node('span'), next = button(controls, 'Next 25');
+    controls.insertBefore(position, next); detail.append(content, controls); parent.append(detail);
+    let offset = 0;
+    const draw = () => {
+      content.replaceChildren();
+      table(content, columns.map(([label]) => label), rows.slice(offset, offset + 25).map(row => columns.map(([, read]) => valueText(read(row)))));
+      position.textContent = `${offset + 1}–${Math.min(offset + 25, rows.length)} of ${rows.length}`;
+      previous.disabled = offset === 0; next.disabled = offset + 25 >= rows.length;
+    };
+    previous.onclick = () => { offset = Math.max(0, offset - 25); draw(); };
+    next.onclick = () => { offset += 25; draw(); }; draw();
+  }
+  function showStudy(parent, study) {
+    const section = node('details'); section.append(node('summary', phaseLabel(study.phase)));
+    section.append(node('p', selectionLabel(study.selector)));
+    table(section, ['Account profile', 'Saved rule version', 'Fixed MNQ policies', ...(study.phase === 'evaluation' ? ['Evaluation fee · USD', 'Activation fee · USD'] : [])],
+      study.profiles.map(profile => [profile.profile_id, profile.rule_version, study.policies.map(policy => policy.micros).join(', '),
+        ...(study.phase === 'evaluation' ? [profile.evaluation_price, profile.activation_fee] : [])]));
+    const labels = {maximum_cost_per_funded: 'Maximum expected acquisition cost · USD',
+      maximum_expected_calendar_days: 'Maximum expected acquisition time · calendar days',
+      minimum_pass_probability: 'Minimum pass probability · 0–1', minimum_expected_cash: 'Minimum expected received cash · USD',
+      maximum_account_breach_probability: 'Maximum account breach probability · 0–1',
+      minimum_probability_first_payout: 'Minimum first payout probability · 0–1', minimum_p10_payouts: 'Minimum P10 received cash · USD',
+      maximum_position_size: 'Maximum position size · MNQ'};
+    const constraints = {...study.selector, ...study.search_settings?.constraints};
+    table(section, ['Declared constraint', 'Value'], Object.entries(labels).filter(([key]) => constraints[key] !== undefined).map(([key, label]) => [label, constraints[key] ?? 'Not imposed']));
+    section.append(node('p', `Exact objective ties: ${study.selector?.tie_policy === 'configuration_id' ? 'choose the first by stable configuration ID' : 'retain the complete tied family'}.`));
+    const settings = [['Forecast paths per candidate', study.simulation?.simulations], ['Simulation seed', study.simulation?.seed],
+      ['Account size ceiling · MNQ', study.simulation?.max_micros], ['Resampling block · weekdays', study.sampling?.block_weekdays], ['Costs', study.costs?.mode === 'source' ? 'Saved source costs; no second deduction' : study.costs?.mode],
+      ['Declared calendar version', study.search_settings?.calendar?.version], ['Calendar timezone', study.search_settings?.calendar?.timezone],
+      ['Declared closed dates', valueText(study.search_settings?.calendar?.closures || [])]];
+    if (study.phase === 'evaluation') settings.push(['Acquisition forecast chains', study.sampling?.chain_simulations], ['Acquisition seed', study.sampling?.chain_seed],
+      ['Retry delay · calendar days', study.retry?.retry_delay_calendar_days], ['Activation delay · eligible sessions', study.retry?.activation_delay_sessions],
+      ['Attempt guard', study.retry?.max_attempts], ['Calendar-day guard', study.retry?.max_calendar_days]);
+    else settings.push(['Forecast horizon · calendar days', study.search_settings?.horizon_calendar_days ?? 'Derived from each outer interval; see the chronological plan'],
+      ['Receipt delay · calendar days', study.search_settings?.receipt_delay_calendar_days]);
+    table(section, ['Saved forecast assumption', 'Value'], settings.map(([label, value]) => [label, valueText(value)]));
+    if (study.phase === 'funded') section.append(node('p', 'Forecast and chronological replay both use unrounded modeled trader entitlement. This fixed receipt amount convention preserves comparability; it is not a statement of bank settlement or cent rounding.'));
+    parent.append(section);
+  }
+  function showChronologicalReplay(parent, replay) {
+    const section = node('section', undefined, 'robust-chronological-result'); parent.append(section);
+    section.append(node('h4', 'Historical chronological replay · one observed path'));
+    section.append(node('p', 'This is one local replay of the dated outer observations under the previously frozen policy. It is separate from the earlier Monte Carlo forecast; it does not establish future or provider performance.'));
+    const evaluation = replay.phase === 'evaluation';
+    const measures = evaluation ? [
+      ['Evaluation passed', replay.evaluation_passed], ['Acquisition completed before cutoff', replay.acquisition_completed],
+      ['Pass date', replay.pass_date], ['Activation eligibility date', replay.eligibility_date], ['First funded-ready date', replay.ready_date], ['Attempts', replay.attempts?.length],
+      ['Paid evaluation fees · USD', replay.paid_evaluation_fees], ['Paid activation fees · USD', replay.paid_activation_fees],
+      ['Paid evaluation and activation fees · USD', replay.paid_fees], ['Activation paid', replay.activation_paid],
+      ['Pending activation obligation · USD', replay.pending_activation], ['Calendar days to funded readiness', replay.calendar_days_to_funded],
+      ['Net trader cash · USD', replay.net_cash], ['Censored at cutoff or guard', replay.censored],
+      ['Effective observation cutoff · exclusive', replay.effective_observation_cutoff_exclusive], ['Calendar guard shortens the outer observation window', replay.calendar_guard_truncates_window]] : [
+      ['Account outcome', replay.outcome], ['Terminal date', replay.terminal_date], ['Cash received · USD', replay.cash_received],
+      ['Pending modeled receipts · USD', replay.pending_cash], ['Gross account deductions · USD', replay.gross_account_deductions],
+      ['Raw trader entitlement · USD', replay.raw_trader_entitlement], ['Receipt amount convention', replay.receipt_amount_convention],
+      ['Ending trading equity · USD', replay.equity], ['Modeled trading profit · USD', replay.trading_profit],
+      ['Lifetime censored', replay.lifetime_censored], ['Horizon observations complete', replay.horizon_observations_complete], ['Account sessions processed', replay.observed_sessions]];
+    const metrics = table(section, ['Historical observation', 'Value'], measures.map(([label, value]) => [label, valueText(value)])); metrics.classList.add('robust-chronological-metrics');
+    section.append(node('p', evaluation
+      ? 'Evaluation uses actual subsequent dates for each frozen retry. Evaluation profit is not trader cash, and this phase does not trade a funded account.'
+      : 'One fresh funded account; no acquisition fees or replacement account. Equity and payout requests are not trader cash. Receipts due at the exclusive cutoff remain pending.'));
+    retainedTable(section, 'Evaluation attempts', replay.attempts, [
+      ['Attempt', row => row.index], ['Purchase date', row => row.purchase_date], ['First session', row => row.first_session],
+      ['Terminal date', row => row.terminal_date], ['Outcome', row => row.outcome], ['Ending equity · USD', row => row.equity]], 'robust-attempts');
+    retainedTable(section, 'Payout requests and settlement', replay.payout_events, [
+      ['Request date', row => row.request_date], ['Account deduction · USD', row => row.gross_account_deduction],
+      ['Raw trader entitlement · USD', row => row.raw_trader_entitlement], ['Modeled receipt · USD', row => row.trader_amount],
+      ['Receipt date', row => row.receipt_date], ['Received before cutoff', row => row.received_within_horizon],
+      ['Amount convention', row => row.amount_convention], ['Settlement assumption', row => row.timing]], 'robust-payouts');
+    retainedTable(section, 'Dated cash ledger', replay.cash_ledger, [
+      ['Date', row => row.date], ['Event', row => words(row.event || 'unknown')], ['Cash change · USD', row => row.cash_delta],
+      ['Account equity change · USD', row => row.account_equity_delta], ['Attempt / payout', row => row.attempt ?? row.payout_id]], 'robust-cash-ledger');
+    retainedTable(section, 'Chronological account transitions', replay.trace, [
+      ['Session date', row => row.date], ['Equity before · USD', row => row.equity_before], ['Equity after · USD', row => row.equity_after],
+      ['Outcome / event', row => row.outcome || words(row.event || 'unknown')], ['Visited source trades', row => row.visited_source_trade_ids],
+      ['Executed opportunities', row => row.executed], ['Unvisited source trades', row => row.unvisited_source_trade_ids]], 'robust-outer-trace');
+    if (replay.observations) section.append(node('p', `${replay.observations.source_opportunities} observed source opportunities · ${replay.observations.visited} visited · ${replay.observations.unvisited} unvisited after account timing or termination.`));
+    if (replay.assumptions?.length) { const assumptions = node('details'); assumptions.append(node('summary', 'Chronological model assumptions')); list(assumptions, replay.assumptions); section.append(assumptions); }
+    if (replay.readiness) section.append(node('p', `Replay interpretation: ${replay.readiness}.`));
+  }
+  function economicControls(parent, defaults, changed) {
+    const section = node('details'); section.id = 'robust-economic-configure';
+    section.append(node('summary', '6. Economic validation · optional independent phase studies'));
+    section.append(node('p', 'Every qualified strategy configuration enters each enabled study at every declared profile and fixed MNQ quantity. The saved selection rule freezes its choices before outer strategy execution. No second strategy grid or combined Evaluation / Funded score is used.'));
+    section.append(node('p', 'Native studies currently support fixed quantities without account-cushion sizing guards. Dollar or percentage risk sizing requires account-state strategy reruns. Imported trade sources do not acquire native nested-replay capability.'));
+    parent.append(section);
+    const studies = [];
+    for (const phase of ['evaluation', 'funded']) {
+      const template = defaults.economic_studies?.[phase];
+      if (!template) continue;
+      const entry = node('section'), label = node('label', undefined, 'robust-source-choice'), enabled = node('input');
+      enabled.type = 'checkbox'; enabled.id = `robust-economic-${phase}`;
+      label.append(enabled, node('span', `Include ${phaseLabel(phase)}`)); entry.append(label); section.append(entry);
+      const fields = node('fieldset'); fields.id = `robust-economic-${phase}-fields`; fields.disabled = true; fields.hidden = true; fields.append(node('legend', phaseLabel(phase))); entry.append(fields);
+      const prefix = `robust-economic-${phase}-`, inputs = [], profileInputs = [];
+      const profiles = node('div', undefined, 'prop-fields'); fields.append(profiles);
+      for (const profile of defaults.economic_profiles?.[phase] || template.profiles) {
+        const wrapper = node('fieldset'), legend = node('legend'), chosen = node('input'); chosen.type = 'checkbox';
+        chosen.id = prefix + profile.profile_id; chosen.checked = template.profiles.some(item => item.profile_id === profile.profile_id);
+        const title = node('label', undefined, 'robust-source-choice'); title.append(chosen, node('span', profile.profile_id)); legend.append(title); wrapper.append(legend);
+        wrapper.append(node('p', `Local rule version: ${profile.rule_version}. These are saved model rules, not newly verified provider terms.`));
+        const fees = {};
+        if (phase === 'evaluation') for (const [key, text] of [['evaluation_price', 'Evaluation fee · USD'], ['activation_fee', 'Activation fee · USD']]) {
+          const input = field(wrapper, text, prefix + profile.profile_id + '-' + key, profile[key]); input.min = 0; input.step = '0.01'; fees[key] = input;
+        }
+        const sync = () => { Object.values(fees).forEach(input => { input.disabled = !chosen.checked; }); };
+        chosen.onchange = () => { sync(); changed(); }; sync(); profiles.append(wrapper); profileInputs.push({profile, chosen, fees});
+      }
+      const quantities = field(fields, 'Fixed MNQ quantities to compare · comma-separated whole numbers', prefix + 'quantities', template.policies.map(policy => policy.micros).join(', '), 'text');
+      fields.append(node('p', 'Requested quantities remain subject to the saved account size ceiling, phase size tiers and daily account rules.'));
+      const selector = node('div', undefined, 'prop-fields'); fields.append(selector);
+      const mode = select(selector, 'Predeclared selection rule', prefix + 'selector', phase === 'evaluation' ? [
+        ['pareto_family', 'Keep the complete cost / time Pareto family'], ['min_cost_under_time_cap', 'Lowest expected cost within a time limit'],
+        ['min_time_under_cost_cap', 'Shortest expected time within a cost limit']] : [['maximum_expected_received_cash', 'Highest expected trader cash received']]);
+      mode.value = template.selector.mode;
+      const constraints = node('details'); constraints.append(node('summary', 'Selection limits and exact ties')); fields.append(constraints);
+      const limits = node('div', undefined, 'prop-fields'); constraints.append(limits);
+      const optional = new Map();
+      const addLimit = (group, key, title, maximum) => {
+        const box = node('div'), label = node('label', undefined, 'robust-source-choice'), toggle = node('input'); toggle.type = 'checkbox';
+        toggle.id = prefix + 'enable-' + key; toggle.checked = template[group]?.[key] !== null && template[group]?.[key] !== undefined;
+        const actual = group === 'constraints' ? template.search_settings?.constraints?.[key] : template[group]?.[key]; toggle.checked = actual !== null && actual !== undefined;
+        label.append(toggle, node('span', title)); box.append(label);
+        const input = field(box, title, prefix + key, actual ?? ''); input.step = key === 'maximum_position_size' ? '1' : 'any';
+        if (key !== 'minimum_expected_cash') input.min = 0; if (maximum !== undefined) input.max = maximum;
+        const sync = () => { input.disabled = !toggle.checked; input.required = toggle.checked; };
+        toggle.onchange = () => { sync(); changed(); }; sync(); limits.append(box); optional.set(key, {group, toggle, input});
+      };
+      if (phase === 'evaluation') {
+        addLimit('selector', 'maximum_cost_per_funded', 'Maximum expected acquisition cost · USD');
+        addLimit('selector', 'maximum_expected_calendar_days', 'Maximum expected acquisition time · calendar days');
+        addLimit('selector', 'minimum_pass_probability', 'Minimum pass probability · 0–1', 1);
+      } else {
+        addLimit('selector', 'minimum_expected_cash', 'Minimum expected received cash · USD');
+        for (const [key, title, maximum] of [
+          ['maximum_account_breach_probability', 'Maximum account breach probability · 0–1', 1],
+          ['minimum_probability_first_payout', 'Minimum first payout probability · 0–1', 1],
+          ['minimum_p10_payouts', 'Minimum P10 received cash · USD'], ['maximum_position_size', 'Maximum position size · MNQ', 40]]) addLimit('constraints', key, title, maximum);
+      }
+      const ties = select(constraints, 'Exact objective ties', prefix + 'ties', [['keep_all_exact_ties', 'Retain the complete tied family'], ['configuration_id', 'Choose the first by stable configuration ID']]);
+      ties.value = template.selector.tie_policy;
+      const syncSelector = () => {
+        const pareto = mode.value === 'pareto_family'; ties.disabled = pareto; if (pareto) ties.value = 'keep_all_exact_ties';
+        const required = {min_cost_under_time_cap: 'maximum_expected_calendar_days', min_time_under_cost_cap: 'maximum_cost_per_funded'}[mode.value];
+        for (const [key, setting] of optional) {
+          setting.toggle.disabled = key === required;
+          if (key === required) { setting.toggle.checked = true; setting.input.disabled = false; setting.input.required = true; constraints.open = true; }
+        }
+      };
+      mode.onchange = () => { syncSelector(); changed(); }; syncSelector();
+      const timing = node('div', undefined, 'prop-fields'); fields.append(timing);
+      const advanced = node('details'); advanced.append(node('summary', 'Forecast sampling, seeds and model guards'));
+      const sampling = node('div', undefined, 'prop-fields'); advanced.append(sampling); fields.append(advanced);
+      const addInput = (container, group, key, title, minimum = 0) => {
+        if (template[group]?.[key] === undefined || template[group][key] === null) return;
+        const input = field(container, title, prefix + key, template[group][key]); input.min = minimum; input.step = '1'; inputs.push({group, key, input});
+      };
+      addInput(sampling, 'simulation', 'simulations', 'Forecast paths per candidate', 2);
+      addInput(sampling, 'simulation', 'seed', 'Simulation seed');
+      addInput(sampling, 'simulation', 'max_micros', 'Account size ceiling · MNQ', 1);
+      addInput(sampling, 'sampling', 'block_weekdays', 'Resampling block · weekdays', 1);
+      if (phase === 'evaluation') {
+        addInput(timing, 'retry', 'retry_delay_calendar_days', 'Retry delay after failure · calendar days');
+        addInput(timing, 'retry', 'activation_delay_sessions', 'Activation delay after pass · eligible sessions');
+        addInput(sampling, 'sampling', 'chain_simulations', 'Acquisition forecast chains', 2);
+        addInput(sampling, 'sampling', 'chain_seed', 'Acquisition seed');
+        addInput(sampling, 'retry', 'max_attempts', 'Attempt guard · unresolved chains remain censored', 1);
+        addInput(sampling, 'retry', 'max_calendar_days', 'Calendar-day guard · unresolved chains remain censored', 1);
+      } else {
+        addInput(timing, 'search_settings', 'horizon_calendar_days', 'Forecast receipt horizon · calendar days', 1);
+        addInput(timing, 'search_settings', 'receipt_delay_calendar_days', 'Modeled receipt delay · calendar days');
+        addInput(sampling, 'search_settings', 'bootstrap_replicates', 'Forecast uncertainty bootstrap repetitions', 100);
+        addInput(sampling, 'search_settings', 'bootstrap_seed', 'Forecast uncertainty seed');
+        fields.append(node('p', 'Receipt timing is a declared settlement assumption. Both the forecast and replay use unrounded modeled trader entitlement; no bank cent-rounding convention is inferred. Payout requests, account deductions, pending receipts and received cash remain separate.'));
+      }
+      const calendar = node('details'); calendar.append(node('summary', 'Declared calendar and coverage'));
+      const calendarFields = node('div', undefined, 'prop-fields'); calendar.append(calendarFields); fields.append(calendar);
+      const calendarTemplate = template.search_settings?.calendar || {};
+      const calendarVersion = field(calendarFields, 'Declared calendar version', prefix + 'calendar-version', calendarTemplate.version || '', 'text');
+      const calendarTimezone = field(calendarFields, 'Calendar timezone · IANA name', prefix + 'calendar-timezone', calendarTemplate.timezone || '', 'text');
+      const closures = field(calendarFields, 'Known closed session dates · YYYY-MM-DD, separated by commas', prefix + 'calendar-closures', (calendarTemplate.closures || []).join(', '), 'text'); closures.required = false;
+      calendar.append(node('p', 'This is a saved calendar declaration. The weekday default has no official holiday verification. Missing expected open sessions block chronological replay; they are not filled with zero trades. Enter known closures before running.'));
+      fields.append(node('p', 'Forecast scenario dates and chronological outer intervals are derived from each fold and saved in the preview. Source costs are retained without a second deduction.'));
+      enabled.onchange = () => { fields.disabled = !enabled.checked; fields.hidden = !enabled.checked; changed(); };
+      studies.push(() => {
+        if (!enabled.checked) return null;
+        const study = structuredClone(template);
+        study.profiles = profileInputs.filter(item => item.chosen.checked).map(({profile, fees}) => ({...profile, ...Object.fromEntries(Object.entries(fees).map(([key, input]) => [key, input.value]))}));
+        if (!study.profiles.length) throw Error(`Choose at least one ${phase} account profile.`);
+        const values = quantities.value.split(',').map(value => value.trim());
+        const maximum = phase === 'evaluation' ? 60 : 40;
+        if (values.some(value => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > maximum)) throw Error(`${words(phase)} fixed quantities must be whole MNQ from 1 to ${maximum}.`);
+        if (new Set(values.map(Number)).size !== values.length) throw Error(`${words(phase)} fixed quantities must be unique.`);
+        study.policies = values.map(value => ({micros: Number(value)}));
+        study.selector = {...study.selector, mode: mode.value, tie_policy: ties.value};
+        for (const [key, setting] of optional) {
+          const target = setting.group === 'constraints' ? (study.search_settings.constraints ||= {}) : study[setting.group];
+          target[key] = setting.toggle.checked ? setting.group === 'selector' ? setting.input.value : Number(setting.input.value) : null;
+        }
+        for (const {group, key, input} of inputs) study[group][key] = Number(input.value);
+        const closedDates = closures.value.split(',').map(value => value.trim()).filter(Boolean);
+        if (closedDates.some(value => !/^\d{4}-\d{2}-\d{2}$/.test(value))) throw Error('Use YYYY-MM-DD for each declared closed session date.');
+        study.search_settings.calendar = {...calendarTemplate, version: calendarVersion.value.trim(), timezone: calendarTimezone.value.trim(), closures: closedDates};
+        return study;
+      });
+    }
+    return () => studies.map(read => read()).filter(Boolean);
+  }
+  function showEconomicSelection(parent, fold) {
+    const selection = fold.economic_selection;
+    if (!selection) return;
+    const section = node('section', undefined, 'robust-economic-result'); section.id = `robust-economics-${fold.index}`;
+    section.append(node('h3', 'Earlier economic forecasts and frozen choices'));
+    section.append(node('p', `Selection status: ${selection.status || selection.membership?.status || 'Unavailable'}. ${selection.membership?.configuration_ids?.length ?? 0} qualified signal configurations enter each declared phase independently.`));
+    if (!selection.phases?.length) {
+      section.append(node('p', 'The procedure abstained before an economic policy was selected. No outer account outcome is fabricated.'));
+      list(section, selection.reasons); parent.append(section); return;
+    }
+    for (const phase of selection.phases) {
+      const study = node('section', undefined, 'robust-phase-evidence'); study.dataset.phase = phase.phase;
+      const decision = phase.decision || {};
+      study.append(node('h4', phaseLabel(phase.phase)), node('p', `Decision: ${decision.status || 'Unavailable'}. ${decision.selected_ids?.length || 0} frozen alternatives from ${phase.complete_search_candidate_count ?? 'unavailable'} complete declared economic candidates.`));
+      if (decision.selector) study.append(node('p', selectionLabel(decision.selector)));
+      if (decision.reason) study.append(node('p', reason(decision.reason)));
+      if (decision.unresolved_ids?.length) study.append(node('p', `Unresolved candidates: ${decision.unresolved_ids.join(', ')}. The complete candidate family must resolve before selection.`));
+      if (decision.excluded?.length) table(study, ['Candidate', 'Failed economic limits'], decision.excluded.map(item => [item.candidate_id, (item.constraints || []).map(words).join(', ')]));
+      const forecasts = phase.training_forecasts || [], evaluation = phase.phase === 'evaluation';
+      if (forecasts.length) {
+        const forecastTable = table(study, ['Frozen candidate', 'Strategy and parameters', 'Profile / fixed MNQ',
+          ...(evaluation ? ['Expected acquisition cost · USD', 'Expected acquisition time · calendar days', 'Pass probability · 0–1', 'MC standard error · cost / days']
+            : ['Expected received cash · USD', 'P10 received cash · USD', 'Breach probability · 0–1', 'MC mean standard error · USD'])], forecasts.map(item => {
+          const config = item.manifest.configuration, metrics = item.metrics || {}, uncertainty = item.uncertainty || {};
+          const source = node('div', candidateLabel({strategy_id: item.manifest.strategy.id, parameters: item.manifest.strategy.parameters}));
+          source.append(node('br'), link('Open training backtest', `#backtests/report/${config.source.source_backtest_id}`));
+          return [item.candidate_id.slice(0, 12), source, `${config.profile.profile_id} / ${config.micros}`,
+            ...(evaluation ? [metrics.cost_per_funded, metrics.expected_calendar_days_to_funded, metrics.pass_probability, `${valueText(uncertainty.cost_se)} / ${valueText(uncertainty.calendar_mean_se)}`]
+              : [metrics.expected_payouts, metrics.p10_payouts, metrics.account_breach_probability, uncertainty.mean_monte_carlo_se])];
+        })); forecastTable.classList.add('robust-training-forecasts');
+        study.append(node('p', 'These are training forecasts. Monte Carlo standard error measures simulation precision conditional on the saved observations and model; it does not measure future uncertainty.'));
+      }
+      if (phase.analysis_id) study.append(link('Open complete earlier phase forecast and candidate family', `#backtests/prop/job/${phase.analysis_id}`));
+      if (phase.provider_rules) window.phaseCampaigns?.renderRuleReview(study, phase.provider_rules, phase.deployment_readiness, phase.analysis_id);
+      for (const frozen of phase.frozen_packages || []) {
+        const detail = node('details'); detail.className = 'robust-frozen-policy';
+        detail.append(node('summary', `Frozen ${frozen.candidate_id.slice(0, 12)} · ${frozen.configuration.profile.profile_id} · ${frozen.configuration.micros} MNQ`));
+        table(detail, ['Immutable selection evidence', 'Saved value'], [
+          ['Strategy and parameters', candidateLabel({strategy_id: frozen.strategy.id, parameters: frozen.strategy.parameters})],
+          ['Last training session', frozen.configuration.period?.last_session], ['Outer first session', frozen.outer_window.first_session],
+          ['Outer cutoff · exclusive calendar date', frozen.outer_window.cutoff_date_exclusive], ['Frozen policy SHA-256', frozen.package_sha256],
+          ...(phase.phase === 'funded' ? [['Receipt amount convention', frozen.receipt_amount_convention], ['Receipt delay · calendar days', frozen.receipt_delay_calendar_days]] : []),
+          ['Training context SHA-256', frozen.training_context_sha256], ['Training report SHA-256', frozen.training_report_sha256],
+          ['Selection seal SHA-256', selection.selection_seal_sha256]]);
+        study.append(detail);
+      }
+      if (!decision.selected_ids?.length) study.append(node('p', 'This independent phase abstained. Another phase’s selection does not supply a replacement policy.'));
+      if (decision.certification) study.append(node('p', decision.certification));
+      section.append(study);
+    }
+    list(section, selection.limitations); parent.append(section);
+  }
+  function showChronologicalFamily(parent, fold) {
+    const chronological = fold.chronological_replay;
+    if (!chronological) return;
+    const section = node('section', undefined, 'robust-outer-evidence');
+    section.append(node('h3', 'Frozen-policy outer observations'), node('p', `Chronological execution: ${chronological.status}.`));
+    if (chronological.interpretation) section.append(node('p', chronological.interpretation));
+    if (!chronological.items?.length) {
+      section.append(node('p', 'No frozen policy was replayed. An abstention has no fabricated fees, account, payout or performance observation.'));
+      parent.append(section); return;
+    }
+    const frozen = new Map((fold.economic_selection?.phases || []).flatMap(phase => (phase.frozen_packages || []).map(item => [item.candidate_id, item])));
+    table(section, ['Independent phase / frozen candidate', 'Profile / fixed MNQ', 'Historical outcome', 'Paid acquisition fees · USD', 'Received cash · USD', 'Pending receipts / activation · USD'], chronological.items.map(item => {
+      const policy = frozen.get(item.candidate_id), result = item.result;
+      return [`${words(item.phase)} / ${item.candidate_id.slice(0, 12)}`, policy ? `${policy.configuration.profile.profile_id} / ${policy.configuration.micros}` : 'Unavailable',
+        result.outcome, item.phase === 'evaluation' ? result.paid_fees : 'Not part of this phase',
+        item.phase === 'funded' ? result.cash_received : 'Not part of this phase', item.phase === 'funded' ? result.pending_cash : result.pending_activation];
+    }), `robust-outer-summary-${fold.index}`);
+    chronological.items.forEach((item, index) => {
+      const detail = node('details'); detail.className = 'robust-outer-policy'; detail.open = index === 0;
+      detail.dataset.phase = item.phase; detail.dataset.candidateId = item.candidate_id;
+      detail.append(node('summary', `${words(item.phase)} · frozen ${item.candidate_id.slice(0, 12)} · ${item.result.outcome || 'observation'}`));
+      detail.append(link('Open ordinary outer backtest', `#backtests/report/${item.outer_run_id}`));
+      const identity = node('details'); identity.append(node('summary', 'Frozen-to-outer evidence identity'));
+      table(identity, ['Evidence', 'Saved SHA-256'], [['Frozen policy', item.frozen_package_sha256], ['Selection seal', chronological.selection_seal_sha256],
+        ['Replay input manifest', item.result.input_manifest_sha256], ['Chronological source book', item.result.source_book_sha256]]); detail.append(identity);
+      showChronologicalReplay(detail, item.result); section.append(detail);
+    });
+    parent.append(section);
+  }
   const reason = value => {
     const [code, detail] = value.split(':');
     const labels = {all_predeclared_criteria_met: 'All declared qualification criteria passed',
@@ -74,6 +377,18 @@
   function showPlan(parent, plan) {
     parent.replaceChildren(node('h3', 'Review the chronological plan'));
     parent.append(node('p', `${plan.candidates.length} configurations · ${plan.folds.length} outer folds · ${plan.estimated_backtests} new backtest tasks before reuse.`));
+    if (plan.economic_plan?.enabled) {
+      const economic = plan.economic_plan;
+      parent.append(node('h4', 'Predeclared independent economic studies'));
+      parent.append(node('p', `Work before qualification is known: up to ${economic.estimated_training_backtests} training backtests and ${economic.estimated_outer_backtests} outer backtests, included in the total. Up to ${economic.maximum_phase_candidates} phase candidates enter the saved forecast procedure; actual membership uses all qualified configurations.`));
+      table(parent, ['Independent phase', 'Profiles', 'Fixed policies', 'Maximum candidates per fold', 'Saved selection rule'], economic.studies.map(study => [
+        phaseLabel(study.phase), study.profile_count, study.policy_count, study.max_candidates_per_fold, selectionLabel(study.selector)]), 'robust-economic-plan');
+      if (economic.resolved_folds?.length) table(parent, ['Outer fold / phase', 'Forecast start', 'Outer cutoff · exclusive', 'Forecast horizon · calendar days', 'Calendar version / timezone', 'Declared closures'], economic.resolved_folds.map(item => [
+        `${item.outer_fold_index} / ${words(item.phase)}`, valueText(item.calendar.start_dates), item.cutoff_date_exclusive,
+        item.horizon_calendar_days ?? 'Evaluation acquisition guard', `${item.calendar.version} / ${item.calendar.timezone}`, valueText(item.calendar.closures)]), 'robust-economic-dates');
+      for (const study of plan.economic_studies || []) showStudy(parent, study);
+      list(parent, economic.limitations);
+    }
     if (plan.execution_scenarios?.length) {
       parent.append(node('p', `${plan.execution_scenarios.length} execution scenarios are included in this work count. Every declared scenario gates qualification.`));
       table(parent, ['Execution scenario', 'Added commission · USD / contract / side', 'Added market / stop-only slippage · ticks', 'Limit fill assumption'],
@@ -90,16 +405,30 @@
     parent.append(inner);
     parent.append(node('p', 'Each period starts without prior strategy state. Counts use observed sessions; saved source history has already been accessed.'));
     const assumptions = node('details'); assumptions.append(node('summary', 'Research assumptions and prior access')); list(assumptions, plan.limitations); parent.append(assumptions);
-    parent.append(node('p', 'This increment runs inner qualification only. The outer periods remain reserved; economic selection, outer replay and deployment recommendation are pending.', 'robust-notice'));
+    parent.append(node('p', plan.economic_plan?.enabled
+      ? 'Qualification → independent training forecasts → saved frozen family → chronological outer strategy execution and account replay. No qualified or feasible policy means abstention. Historical evidence does not authorize deployment.'
+      : 'This increment runs inner qualification only. The outer periods remain reserved; economic selection, outer replay and deployment recommendation are pending.', 'robust-notice'));
   }
   function showResult(parent, record, includeDownloads = true) {
     const result = record.result;
-    parent.replaceChildren(node('h3', `${record.declaration.name} · inner qualification evidence`));
-    parent.append(node('p', 'These are chronological inner-validation results within each outer training period. They are not unseen outer outcomes or a deployment recommendation.', 'robust-notice'));
+    const economic = record.declaration.economic_studies?.length > 0;
+    parent.replaceChildren(node('h3', `${record.declaration.name} · ${economic ? 'qualification and economic evidence' : 'inner qualification evidence'}`));
+    parent.append(node('p', economic
+      ? 'Qualification, earlier economic forecasts and frozen-policy chronological observations are separate evidence. Each phase retains its own objective; no outer result selects a new winner or authorizes deployment.'
+      : 'These are chronological inner-validation results within each outer training period. They are not unseen outer outcomes or a deployment recommendation.', 'robust-notice'));
     if (!result) { parent.append(node('p', 'The saved result is not yet available.')); return; }
     const requirements = node('details'); requirements.append(node('summary', 'Saved qualification requirements'));
     table(requirements, ['Requirement', 'Saved value'], Object.entries(record.declaration.qualification).map(([key, value]) => [words(key), Array.isArray(value) ? value.join(', ') || 'None declared' : value === null ? 'Not imposed' : value]));
     parent.append(requirements);
+    for (const study of record.declaration.economic_studies || []) showStudy(parent, study);
+    if (economic && result.event_journal?.length) {
+      const journal = node('details'); journal.id = 'robust-research-journal'; journal.append(node('summary', 'Ordered evidence: frozen selection before outer strategy execution'));
+      journal.append(node('p', 'The saved sequence records the selection seal before the corresponding outer-access reservation and strategy execution. Inventory inspection and previous source access may already have occurred; this does not certify untouched data.'));
+      table(journal, ['Saved sequence', 'Event', 'Step', 'Recorded time · UTC', 'Selection seal SHA-256', 'Frozen policy SHA-256'], result.event_journal.map(event => [
+        event.sequence, event.kind === 'selection_seal' ? 'Frozen selection sealed' : 'Outer access reserved before strategy execution', event.step_key,
+        valueText(event.created_at), event.selection_seal_sha256, valueText(event.frozen_package_sha256)]), 'robust-event-journal');
+      parent.append(journal);
+    }
     const candidates = new Map(record.plan.candidates.map(item => [item.id, item]));
     for (const fold of result.folds) {
       const section = node('details'); section.open = true; section.append(node('summary', `Outer fold ${fold.index} · ${fold.qualification.approved_ids.length} approved configurations`));
@@ -171,6 +500,8 @@
         }
         section.append(detail);
       }
+      showEconomicSelection(section, fold);
+      showChronologicalFamily(section, fold);
       parent.append(section);
     }
     parent.append(node('h3', 'Next decision'));
@@ -178,7 +509,7 @@
     parent.append(node('p', `Readiness: ${result.readiness?.status || 'INCOMPLETE'}. No deployment policy is recommended by this increment.`));
     if (includeDownloads) {
       const downloads = node('div', undefined, 'robust-actions');
-      for (const file of ['report.json', 'analysis.zip', 'qualification.csv']) downloads.append(link(`Download ${file}`, `${base}/${record.campaign_id}/exports/${file}`));
+      for (const file of ['report.json', 'analysis.zip', 'qualification.csv', ...(economic ? ['economic_selection.json', 'chronological_replay.json', 'research_journal.json'] : [])]) downloads.append(link(`Download ${file}`, `${base}/${record.campaign_id}/exports/${file}`));
       parent.append(downloads);
     }
     if (record.analysis_id) parent.append(link('Open the saved analysis report', `#backtests/prop/job/${record.analysis_id}`));
@@ -187,8 +518,9 @@
     const record = {campaign_id: report.request.campaign_id, declaration: report.request, plan: report.plan, result: report.calculations};
     document.querySelector('#prop-config').hidden = true;
     document.querySelector('#prop-report').hidden = false;
-    document.querySelector('#prop-heading-title').textContent = 'Nested research · inner qualification';
-    document.querySelector('#prop-heading-note').textContent = 'Saved chronological inner evidence · outer economic validation pending';
+    const economic = report.request.economic_studies?.length > 0;
+    document.querySelector('#prop-heading-title').textContent = economic ? 'Nested research · economic validation' : 'Nested research · inner qualification';
+    document.querySelector('#prop-heading-note').textContent = economic ? 'Earlier forecasts, frozen families and chronological outer observations' : 'Saved chronological inner evidence · outer economic validation pending';
     document.querySelector('#prop-back').href = `#backtests/prop/new/${report.request.source_backtest_id}`;
     document.querySelector('#prop-back').textContent = '← Back to research configuration';
     const content = document.querySelector('#prop-report-content'); content.replaceChildren();
@@ -196,6 +528,7 @@
     content.append(plan, results); showPlan(plan, report.plan); showResult(results, record, false);
     const downloads = node('div', undefined, 'robust-actions');
     for (const [name, path] of [['Report JSON', 'downloads/report.json'], ['Analysis ZIP', 'downloads/analysis.zip'], ['Qualification CSV', 'files/qualification.csv']]) downloads.append(link(name, `/api/prop-analyses/${report.id}/${path}`));
+    if (economic) for (const file of ['economic_selection.json', 'chronological_replay.json', 'research_journal.json']) downloads.append(link(`Download ${file}`, `/api/prop-analyses/${report.id}/files/${file}`));
     results.append(downloads);
   }
   async function configure(source) {
@@ -363,6 +696,7 @@
       calibrationInputs[key] = input;
     }
     regimesSection.append(node('p', 'Missing calibration observations and unavailable warm-up features stay visible as unknown evidence. Required conditions with insufficient evidence block qualification.'));
+    const readEconomicStudies = economicControls(form, defaults, invalidate);
     const actions = node('div', undefined, 'robust-actions'); form.append(actions);
     const preview = button(actions, 'Preview dates and source checks', 'robust-preview');
     const run = button(actions, 'Save and run inner qualification', 'robust-run'); run.disabled = true;
@@ -389,7 +723,7 @@
       return {campaign_id: crypto.randomUUID().replaceAll('-', ''), name: name.value.trim(), source_backtest_id: source.id,
         sources: [...selected.values()].map(entry => ({[entry.kind]: entry.id, sizes: [1]})),
         folds: {...Object.fromEntries(Object.entries(foldInputs).map(([key, input]) => [key, Number(input.value)])), mode: mode.value}, qualification,
-        execution_scenarios, regimes};
+        execution_scenarios, regimes, economic_studies: readEconomicStudies()};
     }
     async function refreshHistory() {
       try {
@@ -428,14 +762,18 @@
       try {
         const request = body(), plan = await api(`${base}/preview`, request);
         if (!current() || revision !== versionAtCheck) return;
-        checked = {...request, confirmed_backtest_count: plan.estimated_backtests}; showPlan(planView, plan); run.disabled = false;
-        run.textContent = `Save and run ${plan.estimated_backtests} inner backtests`;
-        status.textContent = 'Source checks passed. Review the dates and qualification requirements, then run.';
+        checked = {...request, confirmed_backtest_count: plan.estimated_backtests,
+          confirmed_economic_candidate_count: plan.economic_plan?.maximum_phase_candidates || null}; showPlan(planView, plan); run.disabled = false;
+        run.textContent = request.economic_studies.length ? `Save and run research · up to ${plan.estimated_backtests} backtests` : `Save and run ${plan.estimated_backtests} inner backtests`;
+        status.textContent = request.economic_studies.length ? 'Source checks passed. Review the dates, phase membership and frozen selection procedure, then run.' : 'Source checks passed. Review the dates and qualification requirements, then run.';
       } catch (error) { if (current()) status.textContent = `Plan needs attention: ${error.message}`; }
       finally { busy = false; if (current()) preview.disabled = false; }
     };
     run.onclick = async () => {
       if (busy || !checked) return;
+      if (checked.confirmed_economic_candidate_count > 128 && !window.confirm(`Run all ${checked.confirmed_economic_candidate_count} predeclared phase candidates across the folds? This includes up to ${checked.confirmed_backtest_count} native backtest tasks. Qualification may reduce subsequent work; no candidates will be silently removed.`)) {
+        status.textContent = 'Large research run was not confirmed. The preview remains available; no campaign was saved.'; return;
+      }
       busy = true; run.disabled = true; preview.disabled = true; status.textContent = 'Saving the declared research procedure…';
       try {
         const record = await api(base, checked); await api(`${base}/${record.campaign_id}/run`, {});

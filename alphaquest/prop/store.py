@@ -134,67 +134,113 @@ class AnalysisStore:
     def submit_funded(self, runs, search):
         return self.submit_phase(runs, search)
 
-    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None):
-        """Additive phase-only dispatch using the existing worker and catalogue."""
+    def _reserve_phase(self, runs, search, *, campaign_checks=None, assessment=None,
+                       training_context=None, inline=False):
+        """Shared checked reservation; callers hold the catalogue mutation lock."""
         from .phase_dispatch import module_for_mode
+        from .phase_search import check_candidates
+        if assessment is not None and training_context is not None:
+            raise ValueError('A phase source cannot be both nested training and manual assessment.')
         module = module_for_mode(search.mode)
-        check_search, search_key = module.check_search, module.search_key
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
-        with self.lock:
-            if assessment:
-                from .phase_search import check_candidates
-                checks = check_candidates(runs, search, assessment)
-            else:
-                checks = check_search(runs, search)
-            if campaign_checks is not None:
-                if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
-                    raise ValueError('Campaign source identity changed before queueing.')
-                checks = campaign_checks
-            # Conservative preflight; sealing still enforces the exact output cap.
-            estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if phase == 'Funded'
-                        else sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates))
-            if estimate > 100*1024*1024:
-                raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
-            if phase == 'Funded' and sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days > 50_000_000:
-                raise ValueError('Declared funded search exceeds 50 million path calendar days; narrow the explicit search.')
-            key = search_key(search, checks)
-            if assessment:
-                key = sha256(canonical(dict(search=key, assessment=assessment)).encode()).hexdigest()
-            with self.connect() as db:
-                row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
-                if row:
-                    try: valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
-                    except (OSError, ValueError, KeyError): valid = False
-                    if valid: return self.get(row[0])
-                id = uuid4().hex
-                db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
-                    (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
-                db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
-                    [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
-            self.worker.submit(self._run_phase, runs, id, search, checks, assessment)
-            return self.get(id)
+        if assessment or training_context:
+            checks = check_candidates(runs, search, assessment, training_context=training_context)
+        else:
+            checks = module.check_search(runs, search)
+        if campaign_checks is not None:
+            if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
+                raise ValueError('Campaign source identity changed before queueing.')
+            checks = campaign_checks
+        estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if phase == 'Funded'
+                    else sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates))
+        if estimate > 100*1024*1024:
+            raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
+        if phase == 'Funded' and sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days > 50_000_000:
+            raise ValueError('Declared funded search exceeds 50 million path calendar days; narrow the explicit search.')
+        key = module.search_key(search, checks)
+        if assessment:
+            key = sha256(canonical(dict(search=key, assessment=assessment)).encode()).hexdigest()
+        if training_context:
+            key = sha256(canonical(dict(search=key, training_context=training_context)).encode()).hexdigest()
+        with self.connect() as db:
+            row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
+            if row:
+                try: valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
+                except (OSError, ValueError, KeyError): valid = False
+                if valid:
+                    if inline and row[1] != 'complete':
+                        raise ValueError('This internal phase calculation is already active; it cannot be queued behind its parent.')
+                    if training_context:
+                        report = json.loads((self.root/row[0]/'report.json').read_text())
+                        if report.get('training_context') != training_context:
+                            raise ValueError('Saved phase report training context differs from its immutable request.')
+                        db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (training_context['campaign_id'], row[0]))
+                    return self.get(row[0]), checks, False
+            id = uuid4().hex
+            db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
+                (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
+            db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
+                [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
+            if training_context:
+                db.execute('INSERT INTO campaign_analyses VALUES (?,?)', (training_context['campaign_id'], id))
+        return self.get(id), checks, True
 
-    def _run_phase(self, runs, id, search, checks, assessment=None):
+    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None):
+        """Public phase dispatch retains the existing worker and request meaning."""
+        with self.lock:
+            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment)
+            if fresh:
+                self.worker.submit(self._run_phase, runs, record['id'], search, checks, assessment)
+            return record
+
+    def run_phase_inline(self, runs, search, *, training_context, checkpoint=lambda:None,
+                         progress=lambda message:None):
+        """Internal nested child: normal durable report, no same-worker wait."""
+        if not training_context:
+            raise ValueError('Inline nested phase execution requires a server-derived training context.')
+        checkpoint()
+        with self.lock:
+            record, checks, fresh = self._reserve_phase(runs, search, training_context=training_context, inline=True)
+        if fresh:
+            self._run_phase(runs, record['id'], search, checks, training_context=training_context,
+                            checkpoint=checkpoint, progress=progress, raise_errors=True)
+        checkpoint()
+        return self.get(record['id'])
+
+    def _run_phase(self, runs, id, search, checks, assessment=None, *, training_context=None,
+                   checkpoint=lambda:None, progress=lambda message:None, raise_errors=False):
         from .phase_dispatch import module_for_mode
         module = module_for_mode(search.mode)
         optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
-        write_report = module.write_report
+        def update(message):
+            checkpoint()
+            self._update(id, 'running', message)
+            progress(message)
         try:
-            self._update(id, 'running', 'Running independent '+phase+' search')
+            update('Running independent '+phase+' search')
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
                 with self.runtime.activate():
                     options = dict(assessment=True) if assessment else {}
-                    calculations = optimize(runs, search, checks,
-                        lambda msg: self._update(id, 'running', msg), **options)
+                    if training_context is not None:
+                        options['training_context'] = training_context
+                    calculations = optimize(runs, search, checks, update, **options)
                 if assessment:
                     calculations['assessment'] = assessment
-                result = write_report(runs, staged, search, checks, calculations)
+                result = module.write_report(runs, staged, search, checks, calculations)
                 if assessment:
                     result['assessment'] = assessment
                     result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
                     (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
+                if training_context is not None:
+                    from .phase_search import check_candidates
+                    current = check_candidates(runs, search, training_context=training_context)
+                    if [c['candidate_id'] for c in current] != [c['candidate_id'] for c in checks]:
+                        raise ValueError('Nested training source changed during phase calculation.')
+                    result['training_context'] = training_context
+                    (staged/'training_context.json').write_text(canonical(training_context))
+                checkpoint()
                 seal_report(staged, result, id, self.get(id)['created'])
                 staged.rename(self.root/id)
             with self.connect() as db:
@@ -202,6 +248,8 @@ class AnalysisStore:
                 db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
         except Exception as exc:
             self._update(id, 'error', phase+' search failed', f'{type(exc).__name__}: {exc}')
+            if raise_errors:
+                raise
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.

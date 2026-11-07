@@ -66,7 +66,8 @@ are split into coherent commits and pushed at least every one or two commits.
 | M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; preserve the entire qualified set for phase selection | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | implemented with saved API/browser evidence and stable targeted regression; phase handoff follows M2/M3 |
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
-| M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | pending |
+| M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | implemented for supported native fixed-path policies; normal API/browser evidence and focused regression qualified; no provider/live parity claim |
+| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | pending; current native risk policies reject rather than substitute a fixed source path |
 | M3b: reliability and final procedure | M3a; predeclared baseline/rules/scenarios/access history | Outer aggregate, uncertainty, baseline, complete procedure freeze/holdout/final rerun; permit no qualified candidate | Future poisoning, holdout access guards, limited calibration, uncertainty semantics, source/code identity | pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
 | M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | pending |
@@ -255,3 +256,35 @@ the entire corrected API module passes 53/53 with original numerical expectation
 intact. Failed/probe logs are preserved and not relabelled clean. Exact scope,
 commands, hashes and remaining limits are in the review. The whole suite remains
 M6 work. M3–M6 and the overall Definition of Done remain **incomplete**.
+
+### M3a frozen economic handoff and chronological outer scenarios
+
+8 November 2026: optional nested Evaluation/Funded studies now consume every
+qualified signal configuration, create normal full-training backtests and
+independent child phase reports, and seal the complete selected family before
+outer execution. Evaluation constraints apply before Pareto ranking; explicit
+tie preferences use phase-only identity. Internal training context verifies
+source/artifact/window/implementation membership without relabeling sources IS.
+The existing worker executes children inline and safely reuses them on resume.
+
+Phase-owned chronological replay uses actual ordered observed sessions, retains
+empty sessions, rejects missing declared-open dates, and separates evaluation
+fees/activation/readiness from one fresh funded account's requests, deductions,
+received cash and pending claims. Dated primary-provider review captures rule
+discrepancies as `UNVERIFIED`; production-qualified remains false. Historical
+fixed-path calculations and saved reports are preserved.
+
+The [normal-product review](prop_simulation_review.md#frozen-phase-selection-and-chronological-outer-replay--2026-11-08)
+contains exact API/browser instructions and independent $70 acquisition and
+$1,500 receipt/cutoff examples, complete-family ties and abstention. Release
+browser: 3 passed; existing browser regression: 4 passed. Release API: 7 passed,
+including real observed bars with zero outer trades and missing-date rejection.
+Stable phase/campaign regression: 95 passed; cash/profile/replay: 74 passed.
+A subsequent readiness-at-guard correction has 18 chronological checks and the
+fresh release API/browser demonstrations. Counts overlap and are not a full-suite
+or provider-parity claim; failed/probe gates remain recorded in the review.
+
+M3b reliability, conservative historical-mean/baseline evidence, full-procedure
+freeze/final holdout/development rerun, native state-aware execution, optional
+finite-horizon lifecycle comparison, forward monitoring and M6 remain pending.
+The whole requested goal remains **incomplete**.

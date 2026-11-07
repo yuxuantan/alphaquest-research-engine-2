@@ -282,7 +282,10 @@ def test_native_sampled_strategies_cash_beats_winrate_and_breach_filter(library,
     # Apex's $250 day. The 2/3-win source can make actual native cash payouts.
     for id,days,winrate in [('lower_winrate',[[(900.,0.)],[(900.,0.)],[(-3000.,3000.,[(3000.,True)])]],2/3),
                             ('higher_winrate',[[(100.,0.)]],1.)]:
-        monkeypatch.setattr(component,'prepare_phase_source',lambda *a,days=days:({},days,{}))
+        def source_book(*args, days=days, observed_sessions=None):
+            assert observed_sessions is None  # This fixture exercises the legacy sampled calendar.
+            return {}, days, {}
+        monkeypatch.setattr(component,'prepare_phase_source',source_book)
         result=component.simulate_dated_funded_profile(None,SavedTradeSource(a['id']),profile(),10,
             90,s.calendar,0,sim,sampling=SamplingConfig(1))
         rows.append(dict(candidate_id=id,**funded_metrics(result['paths'],s),

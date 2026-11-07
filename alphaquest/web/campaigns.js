@@ -309,6 +309,25 @@
       renderSizing(sizing,r);
     }choose.onchange=show;show();
   }
+  function renderRuleReview(parent,review,readiness,analysisId){
+    if(!review)return;
+    const section=node('details');section.className='phase-provider-review';section.append(node('summary',`Provider rules and deployment limits · ${readiness?.status||review.status||'UNVERIFIED'}`));
+    section.append(node('p','VERIFIED_DOCUMENT means published wording was checked on the saved review date. It does not establish numerical model parity, account entitlement, execution quality or deployment approval. Historical reports retain their captured review.'));
+    const display=value=>value===null||value===undefined?'Not specified':Array.isArray(value)?value.map(display).join(', '):typeof value==='object'?Object.entries(value).map(([key,item])=>`${key.replaceAll('_',' ')}: ${display(item)}`).join('; '):String(value);
+    for(const profile of review.profiles||[]){
+      const detail=node('details');detail.append(node('summary',`${profile.profile?.profile_id||'Profile'} · ${profile.phase} · reviewed ${profile.reviewed_at||'unknown'} · ${(profile.fields||[]).filter(row=>row.gap).length} declared gaps`));
+      const gaps=node('ul');for(const item of profile.fields||[])if(item.gap)gaps.append(node('li',`${item.field.replaceAll('_',' ')}: ${item.gap}`));detail.append(gaps);
+      const evidence=node('details');evidence.append(node('summary','Compare saved model values and published wording'));
+      dataTable(evidence,['Field','Saved model value','Primary-document observation','Review status / gap','Primary source / review date'],(profile.fields||[]).map(item=>{
+        const source=node('div');if(item.source_url)source.append(link('Open primary source',item.source_url));else source.append(node('span','Model assumption; no provider source'));
+        source.append(node('p',item.reviewed_at||'Review date unavailable'));
+        return [item.field.replaceAll('_',' '),display(item.model_value),item.primary_observation,`${item.status}${item.gap?`: ${item.gap}`:''}`,source];
+      }));detail.append(evidence);section.append(detail);
+    }
+    section.append(node('p',`Deployment readiness: ${readiness?.status||'UNVERIFIED'}; production qualified: ${readiness?.production_qualified===true?'yes':'no'}.`));
+    if(analysisId)section.append(link('Download captured provider rule review',`/api/prop-analyses/${analysisId}/files/provider_rules.json`));
+    parent.append(section);
+  }
   function renderAnalysis(report,campaign=null){
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-delete').hidden=true;$('#prop-downloads').replaceChildren();
     const assessment=report.assessment,isEval=report.phase==='evaluation';
@@ -319,6 +338,7 @@
     const panel=node('section');panel.className='panel prop-panel';target.append(panel);
     panel.append(node('h2',assessment?'OOS assessment · frozen settings':campaign?.frozen?'Frozen IS selection':'IS candidate results'));
     panel.append(node('p',`${calc.candidates.length} completed candidates · ${report.model_version}. ${assessment?'Assessment only; no OOS ranking, frontier selection or replacement of IS choices.':isEval?'Selection uses IS only. Evaluation has no automatic winner.':'Selection uses IS only. Funded candidates are ranked by expected trader cash received.'} Estimated results; no provider parity or certified optimum.`));
+    renderRuleReview(panel,report.provider_rules,report.deployment_readiness,report.id);
     if(assessment){panel.append(link('Return to frozen IS campaign',`#backtests/prop/campaign/${assessment.campaign_id}`),node('p',assessment.interpretation));details(panel,'Pre-launch OOS access history',assessment.prior_access);}
     const filters=node('div');filters.className='prop-fields';panel.append(filters);
     const opts=(key,label)=>[['',label],...[...new Set(calc.candidates.map(key))].sort().map(v=>[String(v),String(v)])];
@@ -395,5 +415,5 @@
       await new Promise(resolve=>setTimeout(resolve,700));
     }
   }
-  window.phaseCampaigns={configure,watch,renderAnalysis};
+  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview};
 })();

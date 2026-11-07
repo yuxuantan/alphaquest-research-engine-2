@@ -16,6 +16,7 @@ def simulate_funded_profile(
     sampling: SamplingConfig = SamplingConfig(),
     costs: SourceCosts = SourceCosts(),
     sizing: SizingConfiguration | None = None,
+    observed_sessions=None,
 ) -> FundedProfileResult:
     """One fresh funded account per path, with no acquisition or replacement.
 
@@ -31,7 +32,8 @@ def simulate_funded_profile(
     if type(sampling) is not SamplingConfig:
         raise ValueError('Funded simulation accepts only phase-neutral SamplingConfig.')
     positive_integer('horizon_weekdays', horizon_weekdays, 20000)
-    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing)
+    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing,
+        observed_sessions=observed_sessions)
     trace = SizingTrace(sizing) if sizing is not None else None
     if profile.profile_id == 'lucidflex-50k':
         from .lucid_backend import Rules as LucidRules
@@ -110,7 +112,7 @@ def lifetime_profile(value):
 
 def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calendar_days,
         calendar, receipt_delay_calendar_days, simulation=SimulationConfig(),
-        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None):
+        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None):
     """Dated fresh-account paths using the same native funded transitions.
 
     The legacy weekday interface above remains unchanged. Dates are civil session
@@ -131,7 +133,8 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
     if any(date.fromisoformat(s)+timedelta(days=horizon_calendar_days) > date.fromisoformat(calendar.coverage_end)
            for s in calendar.start_dates):
         raise ValueError('Calendar must cover every horizon cutoff.')
-    snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing)
+    snapshot, days, _ = prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing,
+        observed_sessions=observed_sessions)
     trace = SizingTrace(sizing) if sizing is not None else None
     lucid = profile.profile_id == 'lucidflex-50k'
     rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
@@ -206,3 +209,117 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
     result['provenance']['time_unit'] = 'Chicago civil calendar days, not session counts'
     result['provenance']['kernel'] = dict(name='python-reference', source='lucid_engine.py' if lucid else 'native_engine.py')
     return result
+
+
+def replay_funded_profile(runs, source, profile, micros, window, calendar, *,
+        receipt_delay_calendar_days, receipt_amount_convention='kernel_entitlement_unrounded',
+        max_micros=40, costs=SourceCosts(), sizing=None, frozen_binding, checkpoint=lambda: None):
+    """One fresh funded account on its frozen actual historical session sequence."""
+    from dataclasses import asdict, replace
+    from datetime import date, timedelta
+    from decimal import Decimal
+    from hashlib import sha256
+    from . import native_engine, lucid_engine
+    from .adapter import canonical
+    from .cash_ledger import dated_settlement
+    from .phase_profiles import prepare_chronological_source, verify_frozen_replay, chronological_kernel_arguments
+    if type(profile) is not FundedProfile:
+        raise ValueError('Chronological funded replay accepts a funded profile only.')
+    if type(receipt_delay_calendar_days) is not int or not 0 <= receipt_delay_calendar_days <= 365:
+        raise ValueError('Receipt lag must be an explicit whole calendar-day value.')
+    snapshot, book, settings = prepare_chronological_source(runs, source, 'funded', profile, micros,
+        max_micros, costs, sizing, window, calendar, frozen_binding,
+        receipt_delay_calendar_days=receipt_delay_calendar_days, receipt_amount_convention=receipt_amount_convention)
+    lucid = profile.profile_id == 'lucidflex-50k'
+    kernel = lucid_engine if lucid else native_engine
+    rules = lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts)
+    account = kernel.FundedAccount(rules)
+    first, cutoff = date.fromisoformat(window.first_session), date.fromisoformat(window.cutoff_date_exclusive)
+    collector = SizingTrace(sizing)
+    trace, events, ledger = [], [], []
+    terminal = None; trading_profit = Decimal(0)
+    def decimal(value): return Decimal(str(value))
+    for offset in range((cutoff-first).days):
+        if offset % 32 == 0: checkpoint()
+        day = first+timedelta(days=offset)
+        if account.outcome != 'open': continue
+        trades = book.get(str(day))
+        if trades is None:
+            if lucid: account.expire_inactive(offset)
+        else:
+            before = dict(equity=account.equity, high=account.high, locked=account.locked,
+                qualifying=account.qualifying, sessions=account.day)
+            payout_count = len(account.payouts); decisions = []
+            def capture(value): collector(value); decisions.append(value)
+            kwargs = chronological_kernel_arguments(sizing, micros, capture, stage='outer_chronological',
+                outer_fold_index=frozen_binding['outer_fold_index'], candidate_id=frozen_binding['candidate_id'],
+                calendar_date=str(day), session_index=account.day+1)
+            if lucid: kwargs['calendar_day'] = offset
+            account.advance(trades, micros, max_micros, **kwargs)
+            deduction = 0.
+            if len(account.payouts) > payout_count:
+                receipt = account.payouts[-1][1]
+                deduction = account.withdrawals[-1][1] if lucid else receipt
+                events.append(dated_settlement(day, receipt, deduction, receipt_delay_calendar_days,
+                    cutoff, receipt_amount_convention))
+            trading_profit += decimal(account.equity)-decimal(before['equity'])+decimal(deduction)
+            visited = [decision['source_trade_id'] for decision in decisions]
+            visited_set = set(visited)
+            trace.append(dict(date=str(day), event='funded_session', state_before=before,
+                state_after=dict(equity=account.equity, high=account.high, locked=account.locked,
+                    qualifying=account.qualifying, sessions=account.day),
+                equity_before=before['equity'], equity_after=account.equity,
+                decision_floor_state=decisions[0]['state_before'] if decisions else None,
+                account_hit=account.last_hit, outcome=account.outcome, executed=account.trades_consumed,
+                skipped=sum(decision['quantity'] == 0 for decision in decisions),
+                visited_source_trade_ids=visited,
+                unvisited_source_trade_ids=[trade[4]['source_trade_id'] for trade in trades if trade[4]['source_trade_id'] not in visited_set]))
+        if account.outcome != 'open': terminal = str(day)
+    gross = sum((Decimal(event['gross_account_deduction']) for event in events), Decimal(0))
+    received = sum((Decimal(event['trader_amount']) for event in events if event['received_within_horizon']), Decimal(0))
+    pending = sum((Decimal(event['trader_amount']) for event in events if not event['received_within_horizon']), Decimal(0))
+    raw = sum((Decimal(event['raw_trader_entitlement']) for event in events), Decimal(0))
+    share = sum((Decimal(event['provider_retained_share']) for event in events), Decimal(0))
+    rounding = sum((Decimal(event['rounding_delta']) for event in events), Decimal(0))
+    if decimal(account.equity)+gross != trading_profit or gross != raw+share or received+pending != raw+rounding:
+        raise ValueError('Chronological funded cash/account conservation failed.')
+    for number, event in enumerate(events, 1):
+        ledger.extend([dict(date=event['request_date'], event='payout_request', payout_id=number, cash_delta='0'),
+            dict(date=event['deduction_date'], event='account_deduction', payout_id=number,
+                cash_delta='0', account_equity_delta=str(-Decimal(event['gross_account_deduction'])))])
+        if event['received_within_horizon']:
+            ledger.append(dict(date=event['receipt_date'], event='trader_receipt', payout_id=number,
+                cash_delta=event['trader_amount']))
+    order = {'payout_request': 0, 'account_deduction': 1, 'trader_receipt': 2}
+    ledger.sort(key=lambda row: (row['date'], order[row['event']], row['payout_id']))
+    for number, row in enumerate(ledger, 1): row['sequence'] = number
+    if sum((Decimal(row['cash_delta']) for row in ledger), Decimal(0)) != received:
+        raise ValueError('Chronological funded receipt ledger does not reconcile.')
+    checkpoint()
+    verify_phase_source(runs, source, snapshot)
+    verify_frozen_replay(runs, source, 'funded', profile, micros, max_micros, costs, sizing, window, calendar,
+        frozen_binding, receipt_delay_calendar_days=receipt_delay_calendar_days,
+        receipt_amount_convention=receipt_amount_convention)
+    sizing_result = collector.result(); total_opportunities = sum(map(len, book.values()))
+    return dict(mode='historical_chronological_replay', phase='funded', historical_paths=1,
+        frozen_binding=frozen_binding, source=snapshot, rules=asdict(rules),
+        input_manifest_sha256=sha256(canonical(snapshot).encode()).hexdigest(),
+        source_book_sha256=sha256(canonical(book).encode()).hexdigest(),
+        outcome=account.outcome, terminal_date=terminal, lifetime_censored=terminal is None,
+        horizon_observations_complete=True, observed_sessions=account.day,
+        equity=str(account.equity), trading_profit=str(trading_profit), gross_account_deductions=str(gross),
+        raw_trader_entitlement=str(raw), provider_retained_share=str(share), receipt_rounding_delta=str(rounding),
+        receipt_amount_convention=receipt_amount_convention,
+        cash_received=str(received), pending_cash=str(pending), net_cash=str(received),
+        payout_events=events, trace=trace, sizing=sizing_result, sizing_decisions=sizing_result['decisions'], cash_ledger=ledger,
+        observations=dict(source_opportunities=total_opportunities, visited=sizing_result['summary']['decision_count'],
+            unvisited=total_opportunities-sizing_result['summary']['decision_count']),
+        conservation=dict(ending_equity_plus_deductions=str(decimal(account.equity)+gross),
+            trading_profit=str(trading_profit), received_plus_pending=str(received+pending),
+            modeled_entitlement=str(raw+rounding), exact_decimal_cash=True),
+        readiness='HISTORICAL_SCENARIO_ONLY', assumptions=[
+            'Actual observed dates in original order; one fresh funded account, no resampling, replacement or reselection.',
+            'Evaluation pass probability, acquisition fees and evaluation strategies do not enter funded cash.',
+            'Requests, gross account deductions and trader receipts are separate. Account equity and pending entitlements are not received cash.',
+            'Receipts exactly at the exclusive cutoff remain pending; modeled settlement can occur after account termination.',
+            'Saved fixed-signal-path approximation: account pauses/skips are not a strategy rerun. Provider rules, settlement, liquidity and future performance are not certified.'])

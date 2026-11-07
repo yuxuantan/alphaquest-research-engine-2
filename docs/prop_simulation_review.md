@@ -7470,3 +7470,194 @@ Additional exact regression commands:
   tests/test_backtest_date_range.py tests/test_optimization_acceleration.py \
   tests/test_robust_research_api.py tests/test_research_robustness_api.py
 ```
+
+
+## Frozen phase selection and chronological outer replay — 2026-11-08
+
+The normal nested workflow retains the full qualified set, runs independent
+training forecasts, seals each selected family before outer evaluation, and
+saves modeled cash on the ordered historical source path. The three release
+browser journeys passed in 90.90 seconds. This is a supported fixed-signal-path
+increment; consolidated reliability, final recommendation, native state-aware
+reruns and provider/live qualification remain incomplete.
+
+### Normal product exercise
+
+1. Open the saved **SYNTHETIC dated phase arithmetic** native IS backtest report, then **Configure prop analysis** → **Nested research** → **Configure nested research**.
+2. Add the other saved neighboring configuration (`green_bar_count=2`; the anchor uses 1). Both use one NQ in the original native source, zero commission/slippage and the same 30 observed weekday sessions. They produce $3,000 and $1,000 per original trade, or $300 and $100 per MNQ. The reserved synthetic holdout is separate and is not used here.
+3. Set rolling outer training/test to **10 / 7 sessions**, inner training/validation **2 / 2**, purge **1**, embargo **0**, minimum inner/outer folds **2 / 2**. Qualification uses at least six validation sessions/trades, at least one trade per fold, one neighboring parameter configuration, and one-session bootstrap blocks.
+4. Expand **Economic validation**. Enable independent **Evaluation** and **Funded**. These are separate studies, with all qualified signals entering each study; there is no second signal picker or combined score.
+5. Evaluation: Apex 50K EOD; fixed MNQ **10, 20**; retain the complete cost/time Pareto family and all exact ties; evaluation fee **30**, activation **40**, activation delay **1 session**, retry delay **0**. Advanced: 64 paths/chains, block 1 weekday, maximum 30 attempts / 60 calendar days. Guards represent censored calculation limits, not a promise of acquisition.
+6. Funded: Apex 50K EOD; fixed MNQ **3, 10**; maximize expected trader cash, retain exact ties; receipt delay **2 calendar days**. Advanced: 64 paths, block 1 weekday, bootstrap 100. Profile rules, account ceiling, source costs, seeds and declared calendar remain saved. Receipt amounts use explicit unrounded modeled entitlement in both forecast and replay.
+7. **Preview dates and source checks** shows two folds, two independent phase studies, 16 maximum phase candidates and 44 worst-case backtest tasks (24 inner + 4 training + 16 possible outer). It shows the full material declaration and the resolved forecast dates/cutoffs; user-declared calendar is not presented as verified provider calendar data.
+8. **Save and run research** executes qualification, earlier-only economic forecasts, an immutable selection seal, then each selected policy's ordinary outer backtest and historical chronological account replay. The user cannot choose a different family after seeing the outer outcomes.
+
+### Independent expected observations to verify
+
+- Outer fold 1: **2026-01-20 → 2026-01-28**, exclusive cutoff **2026-01-29**.
+- Outer fold 2: **2026-01-29 → 2026-02-06**, exclusive cutoff **2026-02-07**.
+- The $300/MNQ signal passes the $3,000 Evaluation target on the first session at both 10 and 20 MNQ. Both exact cost/time ties remain frozen. No arbitrary hidden winner is substituted.
+- Each selected Evaluation pays **30 + 40 = 70**, net modeled trader cash **−70**, with one attempt. Pass occurs on the first outer session; activation is the second; funded readiness is the third: **Jan 22 / Feb 2**. Evaluation P&L is not trader cash; no funded trades enter this study.
+- Each selected funded policy's first gross request/deduction is **1,500** on its fifth outer session (**Jan 26 / Feb 4**). With two civil days' receipt lag, cash **1,500** arrives on **Jan 28 / Feb 6**, before the exclusive cutoff; pending cash is **0**. This is one fresh funded account per frozen alternative, with no Evaluation/acquisition fees or replacement account.
+- The ordered journal has a matching `selection_seal` before every `outer_access` reservation. This proves the current procedure's ordering, not that historical source bytes were never inspected. Normal inner/training/outer reports and model/source hashes remain inspectable.
+- Captured provider review is **UNVERIFIED / production qualified false**. `VERIFIED_DOCUMENT` means published wording was reviewed, not model/provider numerical parity or account entitlement. Normal report links expose per-profile gaps, primary sources and the saved review file.
+- Research readiness remains **INCOMPLETE**: consolidated outer reliability, baseline superiority and final verification/deployment work are pending.
+
+### Boundary examples
+
+- **Receipt exactly at cutoff:** one qualified signal, Funded 3 MNQ, otherwise the same fold settings, receipt delay **3 days**. Request/deduction stays 1,500, but receipt due date equals the exclusive cutoff; received cash is **0**, pending is **1,500**. It must never appear as received cash or equity valuation.
+- **No qualifying strategy:** one source, neighbor requirement **0**, minimum mean net **4,000** per source validation session. Its actual mean 3,000 fails. The economic selection reports `NO_QUALIFIED_CONFIGURATION`; no phase child or outer account result is fabricated, and the event journal contains seals without outer-access events.
+- Native dollar/percentage risk resizing is not offered in the nested native form. The API rejects these unsupported policies instead of reusing a saved path as a causal stateful strategy rerun.
+
+### Durability and browser evidence
+
+Save/open the ordinary AnalysisStore report, the report JSON and ZIP, qualification CSV, full research plan, `economic_selection.json`, `chronological_replay.json` and `research_journal.json`. Child phase reports and normal outer backtests remain linked in the saved library. Reopen and page reload must issue no calculation POST and preserve download bytes. Inspect desktop and 390px screenshots.
+
+Observed final browser command:
+
+```sh
+mkdir -p artifacts/nested-economics-m3a-20261108/browser-release
+.venv/bin/python -m pytest -q tests/test_nested_economics_browser.py \
+  --basetemp artifacts/nested-economics-m3a-20261108/browser-release/data \
+  --junitxml artifacts/nested-economics-m3a-20261108/browser-release/junit.xml \
+  > artifacts/nested-economics-m3a-20261108/browser-release/pytest.log 2>&1
+```
+
+The portal fixture's owned ephemeral localhost servers stopped after the gate. No persistent server was started by the product agent. To inspect the main saved example without recomputing:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/nested-economics-m3a-20261108/browser-release/data/test_both_independent_studies_0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8012
+```
+
+Open `http://127.0.0.1:8012/#backtests/report/27bf403664fe4a518a697016b7f33200` and follow the normal Configure prop → Nested research saved-history button, or reopen `http://127.0.0.1:8012/#backtests/prop/job/0e5a8acb69354350ac329a6225fd0e65` directly. Stop the inspection server with **Ctrl-C**.
+
+| Example | Saved library under `browser-release/data/` | Source IDs | Campaign ID | Analysis ID |
+| --- | --- | --- | --- | --- |
+| Both independent phases | `test_both_independent_studies_0` | `27bf403664fe4a518a697016b7f33200`, `1a3a07861f874ad6b3aeb9a333ad670c` | `b6f4490f66b64a0892d6daa96d35a148` | `0e5a8acb69354350ac329a6225fd0e65` |
+| Exact-cutoff pending receipt | `test_receipt_at_outer_cutoff_r0` | `02e1c32fdbd84704a3eb81b5002234ac` | `e7c0393a95334570ba9b502fd8233a8e` | `822883ef2724410caeeb37ddc0bcd9f3` |
+| No qualified strategy | `test_no_qualified_configuratio0` | `e5478d31e9514c8ab1e8782588c3bdf0` | `c1904b3736784ec5a741894f306a58a6` | `9d040e76bebc46b999be08597e190ce8` |
+
+Each library contains `browser-evidence.json` with all download hashes. Main root report SHA-256: `f26b5c5e29bdac5dbfd50fb8494fba770dd35b91186d41ff32441461480bfc57`; ZIP: `bd5cfe40dcd298d013e35581616b5958e42e741d461c1d1d67517d0cf428b5e1`; chronological JSON: `ba82cc441d126cbb046a994ee52412e9ad4413ae5a0b71271e6008d046645d94`; journal: `fcb3a0a64c67d901de9536c29011801accd8f67beaf607afd5649c2b027ef9d2`.
+
+Pending report SHA-256: `4a2249dab870c1bfb103ef44b70f9a9ac5b5deefcd421ac708e1364be9e62efd`; ZIP: `b1c0fb1645aecaebbef7318165383f89c0e4bef3e253949a9ffc2ecd4c1ae30d`.
+
+Abstention report SHA-256: `aab9f1486dfc145b49f51c3ede71e652d4e9d5fe853057aa501af25538400eed`; ZIP: `9d43862c048a0c48c8dfe9e0f0fd128b499db48d124cc5a18c9e44ca14cee33d`.
+
+Visually inspected final screenshots: `economic-preview-detail.png`, `outer-cash-summary-detail.png`, `ordered-freeze-journal-detail.png`, `provider-rule-gaps-detail.png`, `narrow-earlier-forecast-viewport.png`, `narrow-received-cash-viewport.png`, pending `receipt-at-cutoff-detail.png`, and `no-qualified-abstention.png`. These show readable matching outcomes and no mobile horizontal overflow. Full-page screenshots are also preserved, along with native source/backtest/report stores. Browser reload issued no calculation POST; saved report/download bytes remained unchanged.
+
+Existing-browser regression command (4 passed; its owned servers also stopped):
+
+```sh
+mkdir -p artifacts/nested-economics-m3a-20261108/browser-regression
+.venv/bin/python -m pytest -q tests/test_robust_research_browser.py tests/test_research_campaigns_browser.py \
+  --basetemp artifacts/nested-economics-m3a-20261108/browser-regression/data \
+  --junitxml artifacts/nested-economics-m3a-20261108/browser-regression/junit.xml \
+  > artifacts/nested-economics-m3a-20261108/browser-regression/pytest.log 2>&1
+```
+
+Both gates reported only the existing Starlette/httpx deprecation warning. JS syntax, the new browser test's Python syntax and the scoped whitespace diff check passed. Production ownership: `alphaquest/web/research_workflow.js`, the compact shared provider-review renderer in `alphaquest/web/campaigns.js`, and `tests/test_nested_economics_browser.py`; no backend or documentation repository files were edited by the product agent.
+
+Release source verification: all 24 downloaded artifacts match their saved SHA-256 values, and all three reports match the current engine identity `03870c3e5d243488520d9059a2f5426fdacce87a4b8678021c78ebfbd7c07a2d`. The final browser snapshot uses the repaired rule that readiness exactly at the numerical retry guard counts only when it remains strictly before the outer cutoff; no trading or fee is introduced at the guard. The chronological boundary suite covers that repair separately from these unchanged product examples.
+
+
+### Additional short-horizon API evidence
+
+Saved final evidence: `artifacts/nested-economics-m3a-20261108/api-release/evidence.json`. The earlier `api` and `api-final` directories are immutable earlier-gate snapshots, preserved across the public Evaluation request schema correction and the numerical retry-guard readiness boundary repair. They remain readable; `api-release` is the release-engine reproduction target.
+
+Final campaign `65c84ffb8c5d43ac8796812dd9611d1c`, aggregate AnalysisStore report `c4e621e0d7674520b76ce8085d66711a`, source report anchor `0170654a49f549649a67eb9b61b2ec1b`. Source dataset `a1e408e8dd3449a79ff31ddbdbbaaf64`, source optimization job `7acadd2a0b7249aabbc56fea7985c132`. The two source reports remain unchanged (16 existing source artifacts checked). Full source identity before and after publication was `03870c3e5d243488520d9059a2f5426fdacce87a4b8678021c78ebfbd7c07a2d`. Four normal child phase reports and twelve normal outer backtests are captured, together with raw trade/decision downloads, provider-rule review, complete training contexts and ordered selection/access journal. No persistent server was started by the publisher.
+
+Start the existing application with the saved isolated product state:
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/nested-economics-m3a-20261108/api-release/state" .venv/bin/uvicorn alphaquest.app:app --host 127.0.0.1 --port 8034
+```
+
+Open `http://127.0.0.1:8034/#backtests/report/0170654a49f549649a67eb9b61b2ec1b`. Choose **Configure prop analysis**, then **Nested research → Saved research**, and open the synthetic complete-qualified-set campaign. The normal AnalysisStore result can also be opened from its source's analysis list. Stop the temporary server with Ctrl-C when finished.
+
+Expected observations:
+
+- Both original signal configurations remain in the complete qualifying set in each of two outer folds. Source arithmetic is independently asserted in tests: one-MNQ daily net $300 or $100. Policies 10 and 20 MNQ form four declared candidates per phase/fold; no parameter search or hidden top-N cut occurs in the economic handoff.
+- Each Evaluation training frontier keeps both exact fastest ties at modeled acquisition cost $70 ($30 evaluation + $40 activation). Each Funded short-horizon mean ties at $0 received cash, so all four policies remain. The figures are training model forecasts, displayed separately from historical replay.
+- Actual chronological outer replay contains four Evaluation paths: each pays $70, passes its evaluation, but funded-ready lies outside its exclusive cutoff. Each stays `activation_pending`, censored, with net cash -$70; do not call this a failed attempt or completed acquired account. Eight Funded paths each receive $0, with no pending payout, and remain open at cutoff. Profit/account equity is not trader cash.
+- The ordered journal shows each `selection_seal` before its matching `outer_access` reservations. These are new outer execution/assessment boundaries. The source history was already accessed; the report makes no untouched-history claim.
+- Provider rules and deployment readiness are `UNVERIFIED`/not production qualified; model-rule gaps and settlement assumptions remain visible. Overall readiness is `INCOMPLETE`. No deployment winner or scalar family portfolio is invented.
+- Manual OOS count is still zero. Existing unlimited manual OOS history remains separate from this nested procedure evaluation.
+
+Inspect exact files directly, or download through the normal API:
+
+```sh
+curl -f http://127.0.0.1:8034/api/research-campaigns/robust/65c84ffb8c5d43ac8796812dd9611d1c/exports/research_journal.json
+curl -f http://127.0.0.1:8034/api/research-campaigns/robust/65c84ffb8c5d43ac8796812dd9611d1c/exports/economic_selection.json
+curl -f http://127.0.0.1:8034/api/research-campaigns/robust/65c84ffb8c5d43ac8796812dd9611d1c/exports/chronological_replay.json
+curl -f http://127.0.0.1:8034/api/research-campaigns/robust/65c84ffb8c5d43ac8796812dd9611d1c/exports/analysis.zip -o /tmp/alphaquest-m3a-analysis.zip
+```
+
+Normal child report artifacts use `/api/prop-analyses/<analysis_id>/files/provider_rules.json` and `/files/training_context.json`; reports use `/downloads/report.json`. Child IDs are listed in evidence.json. Outer ordinary trades and causal decision sidecars use `/api/backtests/<outer_run_id>/exports/trades` and `/exports/execution_decisions`.
+
+The saved rejection responses are under `api-release/rejections`: public requests cannot inject an internal training context; native fixed-dollar/risk sizing fails with `native_rerun_required`. Additional tests mutate self-hashed frozen quantity/profile/phase/fold/source mappings, remove a training artifact, change a source trade file, cancel after a complete inline child, and reopen reports with all backtest/selection/optimization functions forbidden. Relevant data files are restored in those tests; the published product evidence remains immutable.
+
+For a fresh execution against this same frozen code and saved source state, copy `api-release/declaration.json`, assign a new lowercase UUID campaign_id, then use the existing form or POST `/api/research-campaigns/robust/preview`, POST `/api/research-campaigns/robust`, POST `/<new_id>/check`, and POST `/<new_id>/run`. The same counts/values above are expected. If code/rules/source identity has changed, use newly created source reports and a new campaign; never bypass a frozen-identity rejection.
+
+Checks: 29 selection/handoff contract tests passed; final fresh seven normal API tests passed in 19.78s after the public request schema correction and numerical retry-guard readiness repair. The added ordinary zero-trade outer case retains eight observed doji bars, replays both phases, retains $30 Evaluation fees without activation, and records two Funded sessions with $0 receipts. A truly missing outer date rejects the declared-calendar check. The latter is captured in `artifacts/nested-economics-m3a-20261108/api-gate-release.txt`. Source publishing used real normal routes, no mocked calculations, and before/after engine identity matched. Broader regression/browser results are recorded below. Reliability, baseline superiority/conservative historical-mean selection, full-procedure holdout and final development recommendation remain subsequent work; this increment does not satisfy the whole goal.
+
+### Verification scope and retained failed probes
+
+| Gate | Observed result | Saved evidence |
+| --- | --- | --- |
+| Pure constraints/rule review/empty source, Evaluation math and cash ledger | 63 passed, 2.92s | `artifacts/nested-economics-m3a-20261108/root-unit/` |
+| Selection/handoff contracts | 29 passed | `tests/test_research_phase_selection.py`; release API guide |
+| Replay/cash/profile/empty-source regression | 74 passed, 50.95s | `artifacts/chronological-replay-m3a-20261108/kernels/stable/` |
+| Phase optimizers/campaigns/manual assessment/inner API and root contracts | 95 passed, 268.16s | `artifacts/nested-economics-m3a-20261108/legacy-final/` |
+| Subsequent retry-guard boundary repair | 18 passed, 1.10s | `artifacts/chronological-replay-m3a-20261108/kernels/guard-boundary/` |
+| Released normal economic API | 7 passed, 19.78s | `artifacts/nested-economics-m3a-20261108/api-gate-release.txt` |
+| Released new browser journeys | 3 passed, 90.90s | `artifacts/nested-economics-m3a-20261108/browser-release/` |
+| Existing inner-research/phase-campaign browsers | 4 passed, 130.15s | `artifacts/nested-economics-m3a-20261108/browser-regression/` |
+
+Counts overlap. The 95-test and 74-test regressions preceded the final narrowly
+scoped chronological readiness correction. That correction preserves the legacy
+forecast's inclusive numerical readiness guard while retaining the exclusive
+outer cutoff. The 18 boundary tests and fresh seven-API/three-browser gates
+qualify the corrected path. No full-suite, numerical provider-parity or live
+readiness claim follows from these results.
+
+The first phase/campaign regression was stopped after **52 passes / 5 failures**.
+Four failures exposed the missing optional Evaluation `constraints` field in the
+public request schema; that schema is corrected. The fifth was an analytical
+source-book test stub that did not accept the new optional `observed_sessions`
+argument. It now explicitly asserts that the legacy call uses `None`; all
+original cash, breach and ranking expectations remain. The entire affected
+95-test group then passed. Both logs remain under `legacy-regression/` and
+`legacy-final/`.
+
+An earlier mixed-edit cash/profile probe had **46 passes / 28 shared fixture
+errors** from a backtest HTTP 500. The failure did not reproduce in isolated
+sandboxed or escalated runs, and no definitive permission/root-cause claim is
+made. The stable complete affected group passed 74 tests. Those probe logs and
+isolated runs remain in the chronological kernel evidence directory. Two newly
+added API fixtures initially supplied 11 observed sessions where their declared
+8-training + 2-buffer + 2-test fold required 12; they were corrected without a
+production change, then all seven API tests passed.
+
+Earlier `browser-first`, `browser-final`, `api`, and `api-final` snapshots remain
+unchanged. `browser-release` and `api-release` match the released implementation
+identity `03870c3e5d243488520d9059a2f5426fdacce87a4b8678021c78ebfbd7c07a2d`.
+Python compilation, both changed JavaScript syntax checks and `git diff --check`
+pass. All temporary servers stopped; no persistent server was started.
+
+Exact regression commands (use fresh temporary data roots for reruns):
+
+```sh
+.venv/bin/python -m pytest -q tests/test_research_phase_selection.py \
+  tests/test_robust_economic_api.py tests/test_chronological_phase_profiles.py \
+  tests/test_empty_phase_source.py tests/test_evaluation_constraints.py \
+  tests/test_phase_tie_identity.py tests/test_rule_provenance.py
+.venv/bin/python -m pytest -q tests/test_evaluation_optimization.py \
+  tests/test_funded_optimization.py tests/test_research_campaigns.py \
+  tests/test_campaign_assessments.py tests/test_robust_research_api.py
+.venv/bin/python -m pytest -q tests/test_prop_cash.py tests/test_prop_phase_profiles.py
+.venv/bin/python -m pytest -q tests/test_nested_economics_browser.py
+.venv/bin/python -m pytest -q tests/test_robust_research_browser.py \
+  tests/test_research_campaigns_browser.py
+```

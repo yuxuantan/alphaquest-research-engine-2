@@ -120,15 +120,15 @@ def parse_request(raw):
         raise ValueError(f'Invalid funded-only search contract: {exc}') from exc
 
 
-def check_search(runs, search):
-    return check_candidates(runs, search)
+def check_search(runs, search, *, training_context=None):
+    return check_candidates(runs, search, training_context=training_context)
 
 
 def implementation_identity():
     names = ('funded_optimization.py', 'funded_profiles.py', 'phase_profiles.py', 'phase_search.py',
         'native_analysis.py', 'native_engine.py', 'lucid_engine.py', 'lucid_rules.py', 'source.py',
         'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
-        'external_source.py', '../canonical_trades.py', '../trade_imports.py')
+        'external_source.py', 'cash_ledger.py', 'rule_provenance.py', '../canonical_trades.py', '../trade_imports.py')
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel='native Python reference account transitions', numpy=np.__version__)
 
@@ -208,9 +208,10 @@ def apply_constraints(rows, search):
         row.update(constraint_violations=violations, feasible=not violations and row['status']=='estimated', rank=None)
 
 
-def rank_candidates(rows, search):
+def rank_candidates(rows, search, *, tie_key=None):
     apply_constraints(rows, search)
-    ranked = sorted([r for r in rows if r['feasible']], key=lambda r:(-r['metrics'][OBJECTIVE],r['candidate_id']))
+    ranked = sorted([r for r in rows if r['feasible']],
+        key=lambda r:(-r['metrics'][OBJECTIVE], tie_key(r) if tie_key else r['candidate_id'], r['candidate_id']))
     for rank,row in enumerate(ranked,1): row['rank'] = rank
     unresolved = [r['candidate_id'] for r in rows if r['status']!='estimated']
     winner = ranked[0] if ranked and not unresolved else None
@@ -224,11 +225,19 @@ def rank_candidates(rows, search):
         winner=winner['candidate_id'] if winner else None, near_ties=near, unresolved_candidates=unresolved,
         objective=OBJECTIVE, certified_optimum=False,
         selection_status='estimated_only' if winner else ('unresolved' if unresolved else 'no_feasible_candidate'),
-        tie_breaking='Descending expected received cash, then ascending candidate SHA-256; no evaluation inputs',
+        tie_breaking=('Descending expected received cash, then phase-only configuration SHA-256; generated IDs break identical-configuration presentation ties only'
+            if tie_key else 'Descending expected received cash, then ascending candidate SHA-256; no evaluation inputs'),
         near_tie_definition='Within declared cash tolerance or overlapping family mean intervals; missing intervals also mark uncertainty')
 
 
-def optimize_funded(runs, search, checks=None, progress=lambda message: None, *, assessment=False):
+def optimize_funded(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None):
+    if assessment and training_context is not None:
+        raise ValueError('Assessment cannot consume a training context.')
+    if training_context is not None:
+        current = check_search(runs, search, training_context=training_context)
+        if checks is not None and canonical(current) != canonical(checks):
+            raise ValueError('Nested training sources changed after checking.')
+        checks = current
     checks = checks if checks is not None else check_search(runs,search)
     configurations = {canonical(asdict(c)):c for c in search.candidates}
     rows = []
@@ -237,7 +246,8 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Simulating funded candidate '+check['candidate_id'][:12])
         component = simulate_dated_funded_profile(runs,c.source,c.profile,c.micros,search.horizon_calendar_days,
             search.calendar,search.receipt_delay_calendar_days,c.simulation,c.period,c.sampling,c.costs,
-            **({'sizing':c.sizing} if c.sizing is not None else {}))
+            **({'sizing':c.sizing} if c.sizing is not None else {}),
+            **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
         if canonical(component['provenance']['source']) != canonical(check['manifest']['source']):
             raise ValueError('Candidate source changed after source checking.')
         rows.append(dict(candidate_id=check['candidate_id'], **funded_metrics(component['paths'],search),
@@ -253,7 +263,9 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
             ranking=[], winner=None, near_ties=[], certified_optimum=False,
             selection_status='assessment_only_no_reselection', objective=OBJECTIVE,
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
-    return dict(model_version=MODEL_VERSION,phase='funded',**rank_candidates(rows,search))
+    from .phase_search import stable_phase_policy_identity
+    tie_key = (lambda row: stable_phase_policy_identity(row, 'funded')) if training_context is not None else None
+    return dict(model_version=MODEL_VERSION,phase='funded',**rank_candidates(rows,search,tie_key=tie_key))
 
 
 def write_report(runs, staged, search, checks, calculations):
@@ -263,6 +275,9 @@ def write_report(runs, staged, search, checks, calculations):
     capture_inputs(runs, staged, search, calculations)
     write_sizing_artifacts(staged, calculations)
     def save(name,data): (staged/name).write_text(canonical(data),encoding='utf-8')
+    from .rule_provenance import search_review, readiness
+    provider_rules = search_review(search)
+    save('provider_rules.json', provider_rules)
     save('source_checks.json',checks)
     save('phase_candidates.json',[dict(candidate_id=r['candidate_id'], origin_trials=r['origin_trials'],**r['manifest']) for r in calculations['candidates']])
     save('phase_metrics.json',[{k:r[k] for k in ('candidate_id','metrics','status','censoring','uncertainty','feasible','constraint_violations','rank')} for r in calculations['candidates']])
@@ -279,4 +294,5 @@ def write_report(runs, staged, search, checks, calculations):
     anchor = next(r['manifest']['source'] for r in checks if r['manifest']['source']['backtest']['id']==search.source_backtest_id)
     return dict(format_version=5,model_version=MODEL_VERSION,phase='funded',source=anchor,
         settings=dict(ANALYSIS_MODE='funded_optimization'),calculations=calculations,implementation=implementation_identity(),
-        request=asdict(search),parity_status='Independent arithmetic and matching native-account regression only; no provider/external-engine parity claim')
+        request=asdict(search),provider_rules=provider_rules,deployment_readiness=readiness(provider_rules),
+        parity_status='Independent arithmetic and matching native-account regression only; no provider/external-engine parity claim')

@@ -82,7 +82,9 @@ def export_trades(path):
     return records
 
 
-def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago'):
+def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago', *, allow_empty=False):
+    if type(allow_empty) is not bool:
+        raise ValueError('allow_empty must be a strict boolean.')
     record=source_record(runs,source_id)
     from ..trade_imports import external
     if external(record):
@@ -95,7 +97,8 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
         for row in csv.DictReader(stream):
             if len(native)>=100000:raise ValueError('Native source exceeds 100,000 trades.')
             native.append(row)
-    if not native:raise ValueError('Empty source backtest; no trades or excursions are fabricated.')
+    if not native and (not allow_empty or trade_file):
+        raise ValueError('Empty source backtest; no trades or excursions are fabricated.')
     if len(native)!=record['summary']['trades_taken']:raise ValueError('Native trade count differs from its saved summary.')
     totals={k:Decimal(0) for k in ('reference_gross_pnl','slippage_cost','total_commissions','gross_pnl','net_pnl')}
     quantities=set()
@@ -106,7 +109,7 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
         if subtract(subtract(values['reference_gross_pnl'],values['slippage_cost']),values['total_commissions'])!=values['net_pnl'] or subtract(values['gross_pnl'],values['total_commissions'])!=values['net_pnl']:
             raise ValueError('Native source per-trade costs do not reconcile.')
         for k in totals:totals[k]=add(totals[k],values[k])
-    if len(quantities)!=1:raise ValueError('Variable source quantities are not supported by this prop analysis adapter.')
+    if len(quantities)!=1 and (native or not allow_empty):raise ValueError('Variable source quantities are not supported by this prop analysis adapter.')
     if len({r['trade_number'] for r in native})!=len(native):raise ValueError('Duplicate native trade IDs.')
     for k,target in [('net_pnl','total_net_pnl'),('gross_pnl','total_gross_pnl'),('total_commissions','total_commissions'),('slippage_cost','total_slippage_cost')]:
         if totals[k]!=Decimal(record['summary'][target]):raise ValueError('Native source totals differ from the saved backtest.')
@@ -116,6 +119,9 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
                   reconciliation=dict(source_totals={k:str(v) for k,v in totals.items()},source_count=len(native),exact_source_arithmetic=True),
                   filtering='The portal passes all matched entry rows unchanged; AlphaQuest groups Chicago entry timestamps into CME session days, retaining zero-trade weekdays.')
     risk = native_risk(runs, source_id, record, native)
+    if not native and record.get('execution_decisions'):
+        from ..decision_capture import read_decision_evidence, SIDE_CAR
+        read_decision_evidence(runs.root/source_id/SIDE_CAR, record['execution_decisions'], native, record['execution_settings'])
     if not trade_file:
         snapshot['excursion_provenance']='No measured excursions. The local close-only fallback uses realized loss on losing trades and zero on winners; risk may be understated.'
         snapshot['excursion_input']=dict(path=None,filename=None,sha256=None,export_timezone=export_timezone,matched_trades=len(native),measured_mae_count=0,measured_mfe_count=0,cost_contract='Saved net P&L includes source costs. Original costs reconcile before the separately recorded simulation commission treatment; no duplicate source-cost deduction.')

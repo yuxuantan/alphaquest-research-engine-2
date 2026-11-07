@@ -77,7 +77,8 @@ reject. Previously accessed development data is disclosed, not called untouched.
 1. Name the research and select configurations. This increment uses each
    strategy's saved quantities; one source-sizing configuration is required per
    strategy. Quantity knobs and display switches cannot manufacture neighboring
-   signal configurations. Independent prop sizing remains a later stage.
+   signal configurations. Declare independent prop policies separately under
+   **Economic validation**, after the inner qualification controls.
 2. Declare rolling or expanding outer training/test lengths and inner
    training/validation lengths, in observed Chicago session dates. Each session
    begins at 17:00 Chicago local time. Purge and embargo are consecutive buffers
@@ -104,11 +105,65 @@ reject. Previously accessed development data is disclosed, not called untouched.
    Saved research history reopens without recomputation. Cancellation stops at a
    safe checkpoint; Run resumes completed backtests after checking their hashes.
 
-Current boundary: inner execution can be complete while overall readiness is
-**INCOMPLETE**. No outer test is launched by this increment. Inner results are not
-unseen outer outcomes. Prop policy selection, chronological outer replay,
-selection reliability, final procedure/holdout and forward monitoring remain on
-the [active checklist](robust_research_plan.md). No winner is forced.
+With Economic validation disabled, the run stops at inner qualification and no
+outer test is launched. With it enabled, the following stage runs from the same
+saved declaration. Overall readiness remains **INCOMPLETE** while consolidated
+reliability, final procedure/holdout and forward monitoring are pending on the
+[active checklist](robust_research_plan.md). No winner is forced.
+
+### Nested economic validation
+
+8 November 2026: enable Evaluation, Funded, or both under **Economic validation**.
+Declare account profiles, fixed MNQ policy quantities, costs, sampling and seeds.
+The full PASS configuration set is crossed with every declared profile and
+policy. There is no second signal-parameter search and no hidden top-N reduction.
+Native risk-based sizing still requires an account-state strategy rerun and
+rejects before research starts.
+
+Evaluation retains the entire feasible cost/calendar-time Pareto frontier by
+default. An explicit preference may minimize cost under a time cap, or time
+under a cost cap. Pass-probability and cost/time limits apply before nondominance.
+Exact ties remain together unless a phase-only configuration tie preference was
+declared. Funded independently maximizes expected trader cash received from one
+fresh funded account within the fold's horizon; it uses no acquisition inputs.
+
+Preview shows the full work estimate and each fold's forecast dates. Every
+funded horizon starts at its outer test's first session and ends the day after
+the last observed session. Calendar closures are declarations, not inferred from
+missing bars. Missing declared-open outer sessions reject instead of becoming
+zero-trade days. Observed sessions without trades remain present.
+
+Each admitted signal configuration gets a normal backtest on the full outer
+training window. The phase forecast is a normal durable analysis. A sealed
+selection journal captures the full selected family, parameters, rules, costs,
+source identities, implementation and predeclared preference before any outer
+strategy execution. Inner sources keep their explicit research role; they are
+not relabeled public IS sources. Cancellation/resume verifies completed child
+reports and source hashes before reuse.
+
+The report separates training forecasts from **Historical chronological replay**:
+one source path per frozen policy, in actual date order, with no reshuffling or
+reselection. Evaluation retains failed purchase costs, retry waits, activation
+payments and unresolved acquisition time. Readiness exactly at the numerical
+retry guard can complete acquisition if it precedes the outer cutoff; no new
+trade, purchase or fee occurs at that guard. The outer cutoff stays exclusive.
+Funded starts fresh once and has no
+replacement. Requests, account deductions, received cash and pending amounts are
+separate. A receipt at the exclusive cutoff remains pending. The unrounded
+entitlement convention matches the phase forecast; neither convention verifies
+bank settlement.
+
+These are fixed-signal-path account scenarios. Account pauses/skips can alter a
+native strategy's future eligibility, so they do not certify a full strategy
+rerun or live execution. Inspect **Provider rule review** and its dated primary
+sources; unresolved discrepancies block production-qualified claims. No selected
+outer-fold policy is a current deployment recommendation.
+
+Download `economic_selection.json`, `chronological_replay.json`,
+`research_journal.json` and the normal ZIP. Child phase reports include
+`provider_rules.json`, full candidate membership, source captures and sizing
+traces. Reopening uses saved artifacts. If qualification admits nothing, the
+report saves an abstention seal and creates no outer outcomes.
 
 Execution scenarios change the existing execution engine's actual fills and
 strategy callbacks. Additional commission is per contract per side; market

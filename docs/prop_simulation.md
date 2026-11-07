@@ -8,6 +8,19 @@ claims are replaced. The [research workflow](research_workflow.md#nested-inner-r
 explains the increment and the [checklist](robust_research_plan.md) records the
 remaining complete-platform work.
 
+8 November 2026 extension: optional **Economic validation** now carries the full
+inner-qualified set into independent phase forecasts, seals the selected family,
+and replays fixed policies on the actual outer source sequence through the same
+campaign/AnalysisStore workflow. Evaluation feasibility precedes Pareto ranking;
+Funded uses one fresh account and its exact outer cash horizon. Receipt cutoff,
+retry/activation waits, empty observed sessions and abstention remain explicit.
+The [workflow](research_workflow.md#nested-economic-validation) describes the
+current controls. [Provider rule review](provider_rule_review.md) records dated
+source evidence and known discrepancies without changing historical kernels.
+Fixed-signal-path scenarios, sampled forecasts and provider/live qualification
+remain distinct. Consolidated reliability, final recommendation and native
+state-aware strategy reruns remain incomplete.
+
 ## Canonical external sources — 2026-11-08
 
 **Backtests → Import external trades** validates the versioned

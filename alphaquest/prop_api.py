@@ -34,6 +34,7 @@ class EvaluationSearchRequest(BaseModel):
     candidates: list[dict] = Field(min_length=1)
     confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
+    constraints: dict | None = None
 
 class FundedSearchRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')

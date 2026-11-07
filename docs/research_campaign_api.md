@@ -451,3 +451,43 @@ Inner backtests carry research phase `inner` and explicit roles/windows; they
 cannot masquerade as ordinary IS sources or launch manual OOS. Required missing
 assessments remain insufficient. Qualification bootstrap settings, candidate
 membership and approximate historical uncertainty are saved, with no winner.
+
+## Nested economic extension — 8 November 2026
+
+`economic_studies` defaults to `[]`; at most one Evaluation and one Funded study
+may be declared. Each study contains `phase`, `profiles`, `policies` (fixed
+`micros`, with optional supported sizing contract), `simulation`, `sampling`,
+`costs`, `search_settings`, `selector`, and Evaluation-only `retry`. GET defaults
+returns complete phase-specific templates. Opposite-phase fields and native
+risk-based policies reject during preview. Inner source `sizing_policies` remain
+invalid; economics has its own stage declaration.
+
+Evaluation selectors support `pareto_family`, `min_cost_under_time_cap`, or
+`min_time_under_cost_cap`, with optional `maximum_cost_per_funded`,
+`maximum_expected_calendar_days`, and `minimum_pass_probability`. These map to
+the Evaluation owner's feasibility contract before Pareto ranking. Funded uses
+`maximum_expected_received_cash`, optional `minimum_expected_cash`, and its
+existing breach/payout/downside constraints. Ties default to
+`keep_all_exact_ties`; explicit `configuration_id` preference uses a phase-only
+configuration digest, excluding generated source IDs and opposite-phase settings.
+
+Forecast starts and Funded cash horizons derive from each outer window;
+conflicting overrides reject. Preview `economic_plan` records maximum candidate
+membership, policy-training/outer backtest counts and resolved fold calendars.
+Large searches require exact `confirmed_economic_candidate_count`; qualification
+may reduce work but cannot silently omit a PASS configuration.
+
+Completed folds add `economic_selection` and `chronological_replay`. Normal child
+phase reports retain `training_context`, `provider_rules` and
+`deployment_readiness`. Training context is an internal coordinator argument,
+never an accepted public phase request field. Public phase selection still
+rejects inner and outer sources. Evaluation's public request now also accepts
+optional `constraints` (null preserves the original unconstrained behavior).
+
+Additional normal exports: `economic_selection.json`, `chronological_replay.json`
+and `research_journal.json`. The ordered journal seals a complete family before
+each recorded outer access. No-qualified/insufficient states create no fabricated
+outer path. Child report rule evidence uses
+`/api/prop-analyses/{id}/files/provider_rules.json`; it is also in the normal ZIP.
+Readiness remains `INCOMPLETE`, `production_qualified: false` until later workflow
+and qualification requirements are satisfied.

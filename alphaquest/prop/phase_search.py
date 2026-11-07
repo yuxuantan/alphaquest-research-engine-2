@@ -23,6 +23,17 @@ def declared_is_coverage(record):
 CANDIDATE_CONFIRMATION_THRESHOLD = 128
 
 
+def stable_phase_policy_identity(row, phase):
+    """Tie preference independent of run IDs and opposite-phase declarations."""
+    if phase not in ('evaluation', 'funded'):
+        raise ValueError('Unknown phase for policy identity.')
+    strategy = deepcopy(row['manifest']['strategy'])
+    strategy.pop('session_flattening', None)
+    configuration = deepcopy(row['manifest']['configuration'])
+    configuration.pop('source')
+    return sha256(canonical(dict(phase=phase, strategy=strategy, configuration=configuration)).encode()).hexdigest()
+
+
 class CandidateConfirmationRequired(ValueError):
     def __init__(self, count):
         self.detail = dict(code='candidate_confirmation_required', candidate_count=count,
@@ -66,10 +77,65 @@ class PhaseCalendar:
                 raise ValueError('Closure is outside declared calendar coverage.')
 
 
-def check_candidates(runs, search, assessment=None):
+def verify_training_context(runs, search, context):
+    """Admit server-created nested training reports without relabeling them IS.
+
+    This argument is never part of a public phase request. Its self-hash is an
+    integrity check; authority comes from the coordinator and saved reports.
+    """
+    from ..optimization_cache import artifacts, engine_identity
+    def require(condition, message):
+        if not condition:
+            raise ValueError('Invalid nested phase training context: ' + message)
+    require(isinstance(context, dict), 'expected an internal context object.')
+    required = {'version', 'campaign_id', 'outer_fold_index', 'qualification_sha256',
+        'input_identity', 'engine_identity', 'train_window', 'information_cutoff_session',
+        'qualified_configuration_ids', 'training_sources', 'session_inventory', 'context_sha256'}
+    require(required <= context.keys(), 'missing provenance fields.')
+    unsigned = {k:v for k,v in context.items() if k != 'context_sha256'}
+    require(context['version'] == 'nested-phase-training-v1' and
+        sha256(canonical(unsigned).encode()).hexdigest() == context['context_sha256'], 'identity differs.')
+    require(context['engine_identity'] == engine_identity(), 'implementation changed.')
+    window = context['train_window']; sessions = window.get('sessions', [])
+    require(isinstance(sessions, list) and sessions and sessions == sorted(set(sessions)), 'invalid ordered session inventory.')
+    require(all(isinstance(s, str) and date.fromisoformat(s).isoformat() == s for s in sessions), 'noncanonical session date.')
+    require(window.get('first_session') == sessions[0] and window.get('last_session') == sessions[-1]
+        and context['information_cutoff_session'] == sessions[-1], 'training window/cutoff differs.')
+    inventory = context['session_inventory']
+    require(isinstance(inventory, dict) and set(inventory) == set(sessions) and
+        all(type(n) is int and n > 0 for n in inventory.values()), 'each included session needs observed bars.')
+    sources = context['training_sources']; ids = context['qualified_configuration_ids']
+    require(isinstance(sources, dict) and sources and isinstance(ids, list) and ids == sorted(set(ids)), 'invalid qualified membership.')
+    require(sorted(s['configuration_id'] for s in sources.values()) == ids, 'training sources omit or duplicate qualified configurations.')
+    require({c.source.source_backtest_id for c in search.candidates} == set(sources), 'candidate sources differ from the complete qualified set.')
+    for candidate in search.candidates:
+        require(candidate.period is not None and asdict(candidate.period) ==
+            dict(first_session=sessions[0], last_session=sessions[-1]), 'candidate window is not the full declared training window.')
+    for id, expected in sources.items():
+        record = source_record(runs, id); meta = record['run_metadata']; research = meta.get('research') or {}
+        require(record['status'] == 'complete' and meta.get('source', {}).get('kind') != 'external_trade_export', 'expected a complete native training report.')
+        require(research.get('phase') == 'inner' and research.get('role') == 'policy_train', 'source is not a nested policy training run.')
+        require(research.get('campaign_id') == context['campaign_id'] and research.get('outer_fold') == context['outer_fold_index'], 'source campaign/fold differs.')
+        require(canonical(research.get('window')) == canonical(window) and
+            research.get('information_cutoff_session') == sessions[-1], 'source information boundary differs.')
+        require(research.get('qualification_sha256') == context['qualification_sha256'] and
+            research.get('input_identity') == context['input_identity'] and research.get('cold_start') is True,
+            'source qualification/protocol differs.')
+        strategy = meta['strategy']
+        require(strategy['id'] == expected['strategy_id'] and canonical(strategy['parameters']) == canonical(expected['parameters'])
+            and sha256(canonical(strategy).encode()).hexdigest() == expected['strategy_provenance_sha256'], 'strategy parameters or implementation changed.')
+        require(sha256(canonical(record).encode()).hexdigest() == expected['manifest_sha256'], 'source manifest changed.')
+        require(artifacts(runs.root, record) == expected['artifact_sha256'], 'source artifact changed.')
+    return sessions
+
+
+def check_candidates(runs, search, assessment=None, *, training_context=None):
     """Reconcile every source before queueing; admit only comparable saved IS."""
     rows = []
     common = None
+    if assessment is not None and training_context is not None:
+        raise ValueError('Frozen OOS assessment and nested phase training are distinct source roles.')
+    observed = verify_training_context(runs, search, training_context) if training_context is not None else None
     for candidate in search.candidates:
         record = source_record(runs, candidate.source.source_backtest_id)
         metadata = record['run_metadata']
@@ -102,10 +168,11 @@ def check_candidates(runs, search, assessment=None):
             expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
             if canonical(asdict(candidate)) != canonical(expected):
                 raise ValueError('Assessment parameters, size, profile, costs, sampling and window are frozen.')
-        else:
+        elif training_context is None:
             declared_is_coverage(record)
         snapshot, _, _ = prepare_phase_source(runs, candidate.source, candidate.profile,
-            candidate.micros, candidate.simulation, candidate.period, candidate.costs, candidate.sizing)
+            candidate.micros, candidate.simulation, candidate.period, candidate.costs, candidate.sizing,
+            **({'observed_sessions':observed} if observed is not None else {}))
         protocol = dict(dataset=metadata['dataset'], period=snapshot['profile_research_period'],
             execution=record['execution_settings'], costs=asdict(candidate.costs))
         # Research IDs/strategy IDs may differ; the actual split must not.
@@ -115,6 +182,8 @@ def check_candidates(runs, search, assessment=None):
                 instrument=manifest['instrument'], time=manifest['time'], coverage=manifest['coverage'],
                 period=snapshot['profile_research_period'], execution=manifest['execution'],
                 costs=asdict(candidate.costs), research_windows=declared_is_coverage(record))
+        elif training_context is not None:
+            protocol['research_windows'] = training_context['train_window']
         else:
             protocol['research_windows'] = {k: research['plan'][k] for k in ('is_start', 'is_end', 'oos_start', 'oos_end')}
         if common is not None and canonical(protocol) != canonical(common):
@@ -122,6 +191,8 @@ def check_candidates(runs, search, assessment=None):
         common = protocol
         manifest = dict(configuration=asdict(candidate), strategy=metadata['strategy'],
                         source=snapshot)
+        if training_context is not None:
+            manifest['training_context_sha256'] = training_context['context_sha256']
         # Retain the full source for audit, but administrative automatic joint
         # reports must not influence phase candidate keys or tie presentation.
         numerical = deepcopy(manifest)

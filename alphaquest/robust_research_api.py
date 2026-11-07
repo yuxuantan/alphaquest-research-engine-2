@@ -12,6 +12,7 @@ from .research import ResearchConflict
 from .research_folds import FoldSettings
 from .research_regimes import RegimeSettings
 from .robust_research import RobustResearchRequest
+from .research_phase_selection import study_defaults
 
 router = APIRouter(prefix='/api/research-campaigns/robust', tags=['Research campaigns'])
 
@@ -29,7 +30,7 @@ async def call(request, method, *args):
 
 @router.get('/defaults')
 def defaults():
-    return dict(folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
+    return dict(**study_defaults(), folds=FoldSettings().model_dump(mode='json'), qualification=QualificationSettings().model_dump(mode='json'),
         execution_scenario=ExecutionScenario(name='cost_stress').model_dump(mode='json'),
         regimes=RegimeSettings().model_dump(mode='json'), regime_names={
             'trend':'Trending prior prices', 'range':'Ranging prior prices',
@@ -80,6 +81,9 @@ async def export(id: UUID, kind: str, request: Request):
         return Response(canonical(value), media_type='application/json',
                         headers={'Content-Disposition':f'attachment; filename="{id.hex}-{kind}"'})
     report = await call(request, 'report', id.hex)
-    if kind not in ('report.json', 'analysis.zip', 'qualification.csv', 'research_plan.json', 'calculations.json'):
+    if kind not in ('report.json', 'analysis.zip', 'qualification.csv', 'research_plan.json', 'calculations.json', 'economic_selection.json', 'chronological_replay.json', 'research_journal.json'):
         raise HTTPException(404, 'Unknown research download.')
-    return FileResponse(request.app.state.prop_analyses.root/report['id']/kind, filename=f'{id.hex}-{kind}')
+    path=request.app.state.prop_analyses.root/report['id']/kind
+    if not path.is_file():
+        raise HTTPException(404, 'This saved research report does not contain this artifact.')
+    return FileResponse(path, filename=f'{id.hex}-{kind}')
