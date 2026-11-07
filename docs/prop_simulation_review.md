@@ -8406,3 +8406,61 @@ AQ_NATIVE_RELEASE=$(mktemp -d /private/tmp/aq-native-release.XXXXXX)
 The complete source snapshot is `qualified-source.tar.gz` in the native milestone
 artifact root; later code changes may correctly reject new calculations from an
 older frozen package. Saved reports remain readable without recalculation.
+
+## Research workspace, drafts and saved visual review — 2026-11-08
+
+Delivered through the existing portal on 8 November 2026. The Research navigation entry opens `#backtests/research`; source configuration and immutable calculations remain the normal backtest → prop configuration → check → run → AnalysisStore report workflow. Draft/template operations do not run numerical work or confer final-data access authority.
+
+### Saved product demonstration
+
+From `/Users/yx/alphaquest-research-engine-2`:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/research-workspace-m4-20261108/browser-final/data/test_draft_revision_template_f0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8021
+```
+
+Open `http://127.0.0.1:8021/#backtests/research`. Stop the server with Ctrl-C. No persistent server was left running by the automated checks.
+
+The saved workspace contains two named drafts and one completed nested campaign. Filter kind **Drafts** and open **SYNTHETIC preserved independent draft**, ID `88c437e8578643a9b388e9fa6ef03d9b`. Its 800 bootstrap replicates and full declared sources/settings are restored. Run remains disabled until a fresh preview. Expand **Review every saved declaration field** to inspect the full saved assumptions. The first draft, `f240e28806f24836a4af3c11e27fa443`, is revision 2; a stale-tab save was rejected while retaining its local edit, which was then saved as the separate draft.
+
+The reusable template is `dd8c1748e310405b99132a567efd5163`. Applying it retained the current source selection and required a new preview. The demonstration explicitly added the neighboring configuration again before running. Source IDs are `558eaf46994b43a68198cda22486d135` and `a80d4046990344968a6a1a65a51bed50`. These are synthetic MNQ consecutive-green configurations with green counts 1 and 2, hold 1 minute, 1 contract, point value 2, tick size 0.25, and zero commission/slippage. Their saved IS dates are 2026-01-05 through 2026-01-22; declared OOS is 2026-01-23 through 2026-01-30. The ordinary source CSV is saved alongside the evidence, SHA-256 `47bfeaf8e6465fd14975a9d02e7f750f3995ed029cb68810d85db49158e26b37`.
+
+Filter **Nested research**, then **Open saved report**. Campaign `4b5620f9621844d0a4f22d42d140d470`, analysis `4d16599e59c147618977d51218ea64e0`, can also be opened at `#backtests/prop/job/4d16599e59c147618977d51218ea64e0`. The actual saved inner means are independently expected to be **300 USD/session for green count 1** and **100 USD/session for green count 2**, in each outer fold. The parameter plot and exact table show both points, without interpolation. Two outer folds contain four retained Funded alternatives each. All eight earlier receipt forecasts and actual outer receipts are zero in this short synthetic example; overlapping points are not averaged, weighted or interpreted as eight independent folds. Research evidence remains **INSUFFICIENT_EVIDENCE**, production qualified **false**.
+
+The fold timeline uses actual saved CME session labels: first training 2026-01-05–14, purge January 15, embargo January 16, outer test January 19–20; second training January 7–16, purge January 19, embargo January 20, outer test January 21–22. Calendar dates are not imputed as observations. At 390 px the chart scrolls inside its own region, and the exact table remains readable. Display-boundary checks confirm that first-16-fold and first-300-point limits disclose the cap while preserving all 17/301 test rows in the complete tables. Boolean parameters are excluded from numeric axes. Those boundary rows are isolated display tests, not saved research outcomes.
+
+Saved `report.json` SHA-256: `3f5072864d217a52a87e82d5b4c775e973430e22617d29219ec37ffac7120f84`.
+Saved `analysis.zip` SHA-256: `89b91c8191917599142e394a71e76bc7af8d7d933a1186b17422593bda94232b`.
+The normal report and workspace both reopened with zero POST requests. Editable documents never changed this completed report.
+
+### Source and policy boundary demonstrations
+
+Use the same startup command with the library path replaced by the following exact directory:
+
+| Library under `artifacts/research-workspace-m4-20261108/browser-final/data/` | Open | Expected observation |
+| --- | --- | --- |
+| `test_baseline_draft_missing_so0` | `#backtests/research?draft=be95ac8b858e4ffbb41713716d346e43` | The original source job was deleted only inside this synthetic test library. Missing anchor/source references and the original required one-MNQ baseline remain visible. The original draft is unchanged. A source-bound baseline template is rejected. |
+| Same library | `#backtests/research?draft=aa6b591478c8456fab836c1faae6f246` | Explicit replacement anchor is saved in a new draft. Old missing references and baseline are retained until explicitly removed/rebound. The browser removed them in its editable form and obtained a fresh compatible preview; it did not rewrite the original draft. |
+| `test_native_policy_draft_round0` | `#backtests/research?draft=af327962cf3b436a8bc1366244c55e13` | Revision 2 restores exactly six native policies: fixed 1 and 3 MNQ, plus dollar risk 100 and 0.2% current-account-balance risk at each hard cap 20 and 40. Planning capital 50000, point value 2, tick 0.25, zero costs, bounds 1–40 and both cushion guards false are preserved. A fresh real native preview passed; no campaign was run for this declaration-preservation case. |
+| Same native library | `#backtests/research?draft=a98affd5ddb1432f938be32d9327569a` | The five-policy API declaration lacks one cap/policy combination. The grid form refuses to add or drop combinations, exposes the preserved declaration/download, and disables preview/run. It provides an explicit fresh-declaration action. |
+
+The workspace separately renders original campaign, latest final-verification and current-development statuses. A later failed final application must not appear as an older completed campaign. This projection is server-derived; bounded report metadata that cannot be read yields REVIEW_REQUIRED and an ordinary full-report link. Unsupported saved schema versions remain read-only. Drafts do not pin ordinary source jobs; real campaigns keep existing dependency protections.
+
+### Verification and reproduction
+
+The final browser gate passed **3 tests in 17.38 s**. Targeted shared-control regressions passed **2 tests in 18.88 s**: actual native dynamic campaign and mobile navigation/layout. The native regression retains normal analysis `7d089a58a6a24ed795f30ac2d918e42f`, campaign `ff52d0b5e6344d79b20bc197a0d779e8`, in `browser-regression/data/test_native_campaign_compares_0`. Its four declared percentage-risk paths include the expected account-state quantity 9 after a loss; fixed-dollar risk uses 10 at the corresponding opportunity. Both receive zero trader cash over the short horizon. Source/model clocks and account balance remain distinct.
+
+Both gates had unchanged complete engine identity `26edd1fb4462844c5e963fdf50023316758c2dc50497310afa326bcba8b3753b`. Independent release verification checked **14 saved downloads and 26 ZIP manifest members** across four evidence libraries. `artifacts/research-workspace-m4-20261108/release-verification.json` records exact IDs and every captured PNG/JSON/CSV/ZIP hash. Desktop timeline, parameter/forecast charts, missing-source form, native restored settings, rejection text and 390 px evidence were visually inspected.
+
+Run fresh demonstrations without overwriting release evidence:
+
+```sh
+AQ_WORKSPACE_REPRO=$(mktemp -d /private/tmp/aq-workspace-repro.XXXXXX)
+.venv/bin/python -m pytest tests/test_research_workspace_browser.py --basetemp "$AQ_WORKSPACE_REPRO/data" --junitxml "$AQ_WORKSPACE_REPRO/junit.xml" -q
+AQ_WORKSPACE_REGRESSION=$(mktemp -d /private/tmp/aq-workspace-regression.XXXXXX)
+.venv/bin/python -m pytest tests/test_native_campaign_browser.py::test_native_campaign_compares_actual_dynamic_policy_paths tests/test_backtests_browser.py::test_mobile_navigation_and_layout --basetemp "$AQ_WORKSPACE_REGRESSION/data" --junitxml "$AQ_WORKSPACE_REGRESSION/junit.xml" -q
+```
+
+Managed environments need Chromium/local-process access. Fixtures stop and join every temporary uvicorn server. Prior probes remain unchanged: they exposed test selector/duplicate-upload/collapsed-section assumptions, plus a client error that initially left a blocked draft message hidden; the final UI opens that message and preserves the document. Final logs contain the existing Starlette/httpx deprecation warning only. Backend/API and broader regression counts are reported separately by their owners. This increment does not establish provider parity or complete the remaining forward-monitor/lifecycle/whole-goal work.
+
+Root API gate: **33 passed in 4.84 s** (`api-final/pytest.log`). Root independently verified four complete ordinary reports and 58 component files against sizes, SHA-256 values and ZIP bytes; `verify_saved_release.py` and `root-saved-verification.json` are in the M4 artifact root. Compilation of four changed Python files, seven JavaScript syntax checks and `git diff --check` passed. `qualified-source.tar.gz` preserves the release source; later code changes may reject new work from its frozen sources while saved reports remain readable. Evaluation/Funded numerical identity comparison against `79cb5b0` is saved in `backend-final/phase_identity.json`.

@@ -422,3 +422,22 @@ and broker authorization remain explicit; a research recommendation is not
 production qualification. Guided research catalogue/templates, optional frozen
 policy-pair lifecycle comparison, timestamped forward monitoring and final
 full-suite acceptance remain separate pending increments.
+
+### Research workspace metadata and visual review (8 November 2026)
+
+`research_workspace.py` projects existing campaign/application tables and owns
+one small editable-document table in the existing AnalysisStore database.
+Versioned, checksummed drafts/templates use revision-checked writes. Metadata
+operations never call source-price preparation or workers. Draft references are
+not result pins; missing sources remain visible until the user explicitly edits
+or rebinds them. Actual preview, execution, freeze and access authority stay with
+the existing owners. The catalogue verifies bounded saved report bytes before
+showing readiness and retains separate current/final application statuses.
+
+`web/research_workspace.js` integrates these records into **Backtests → Research**
+and the existing prop form. `web/research_visuals.js` renders actual-session fold
+timelines, parameter qualification and comparable Funded forecast/actual values
+with full tables. Neither module selects a policy or creates calculation results.
+The Evaluation and Funded declared numerical implementation identities remain
+unchanged from `79cb5b0`; the global application identity correctly includes the
+new Python orchestration code. Earlier frozen reports remain inspectable.

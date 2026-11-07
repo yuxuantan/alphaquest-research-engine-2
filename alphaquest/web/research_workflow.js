@@ -58,7 +58,7 @@
     high_liquidity: 'High prior volume (liquidity proxy)', low_liquidity: 'Low prior volume (liquidity proxy)',
     asia_session: 'Asia clock window', europe_session: 'Europe clock window', us_session: 'US clock window'}[name] || words(name));
   const parameters = item => Object.entries(item.parameters || {}).map(([key, value]) => `${key}=${typeof value === 'object' ? `${value.start}…${value.end}` : value}`).join(', ');
-  const candidateLabel = item => `${(item.strategy_id || 'Strategy').replaceAll('_', ' ')} · ${parameters(item)}`;
+  const candidateLabel = item => item.label || `${(item.strategy_id || 'Strategy').replaceAll('_', ' ')} · ${parameters(item)}`;
   const period = item => item ? `${item.first_session} → ${item.last_session} (${Array.isArray(item.sessions) ? item.sessions.length : item.sessions} sessions)` : 'Unavailable';
   const valueText = value => value === null || value === undefined ? 'Unavailable'
     : typeof value === 'boolean' ? value ? 'Yes' : 'No'
@@ -179,7 +179,7 @@
     section.append(node('p', 'Every qualified strategy configuration enters each enabled study at every declared profile and policy. The saved selection rule freezes its choices before outer strategy execution. No second strategy grid or combined Evaluation / Funded score is used.'));
     section.append(node('p', 'Dollar or percentage risk policies require the explicit native account-state execution model and compatible strategy sources. Existing trade-path studies retain fixed quantities. Imported trade sources do not acquire native nested-replay capability.'));
     parent.append(section);
-    const studies = [];
+    const studies = [], studyLoaders = new Map();
     for (const phase of ['evaluation', 'funded']) {
       const template = defaults.economic_studies?.[phase];
       if (!template) continue;
@@ -321,16 +321,17 @@
       };
       for (const {key, input} of inputs) if (['simulations', 'seed'].includes(key)) input.addEventListener('input', syncNativePaths);
       enabled.onchange = () => { fields.disabled = !enabled.checked; fields.hidden = !enabled.checked; changed(); };
+      let loadedStudy = null;
       studies.push(() => {
         if (!enabled.checked) return null;
-        const study = structuredClone(template);
+        const study = structuredClone(loadedStudy || template);
         study.profiles = profileInputs.filter(item => item.chosen.checked).map(({profile, fees}) => ({...profile, ...Object.fromEntries(Object.entries(fees).map(([key, input]) => [key, input.value]))}));
         if (!study.profiles.length) throw Error(`Choose at least one ${phase} account profile.`);
         const values = quantities.value.trim() ? quantities.value.split(',').map(value => value.trim()) : [];
         const maximum = nativeMode() ? 40 : phase === 'evaluation' ? 60 : 40;
         if (values.some(value => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > maximum)) throw Error(`${words(phase)} fixed quantities must be whole MNQ from 1 to ${maximum}.`);
         if (new Set(values.map(Number)).size !== values.length) throw Error(`${words(phase)} fixed quantities must be unique.`);
-        study.policies = values.map(value => ({micros: Number(value)}));
+        study.policies = values.map(value => ({...(loadedStudy?.policies.find(policy => policy.micros === Number(value) && !policy.sizing) || {}), micros: Number(value)}));
         if (nativeMode()) {
           const policies = readRiskPolicies() || [];
           if (policies.length) {
@@ -355,11 +356,46 @@
           ? {...defaults.conservative_objective, ...(nativeMode() ? {method: 'native_origin_block_bootstrap_lower_mean_v1'} : {}), ...Object.fromEntries(Object.entries(historicalInputs).map(([key, input]) => [key, Number(input.value)]))} : null;
         const closedDates = closures.value.split(',').map(value => value.trim()).filter(Boolean);
         if (closedDates.some(value => !/^\d{4}-\d{2}-\d{2}$/.test(value))) throw Error('Use YYYY-MM-DD for each declared closed session date.');
-        study.search_settings.calendar = {...calendarTemplate, version: calendarVersion.value.trim(), timezone: calendarTimezone.value.trim(), closures: closedDates};
+        study.search_settings.calendar = {...(loadedStudy?.search_settings?.calendar || calendarTemplate), version: calendarVersion.value.trim(), timezone: calendarTimezone.value.trim(), closures: closedDates};
         return study;
       });
+      studyLoaders.set(phase, value => {
+        enabled.checked = !!value; enabled.onchange(); if (!value) { loadedStudy = null; return; }
+        const canonical = window.researchWorkspace.canonical;
+        for (const saved of value.profiles) {
+          const available = profileInputs.find(item => item.profile.profile_id === saved.profile_id);
+          const comparable = profile => Object.fromEntries(Object.entries(profile).filter(([key]) => !['evaluation_price', 'activation_fee'].includes(key)));
+          if (!available || canonical(comparable(saved)) !== canonical(comparable(available.profile))) throw Error(`Saved ${phase} profile ${saved.profile_id} has rules unsupported by this form. Its declaration is preserved; no current profile is substituted.`);
+        }
+        const fixed = value.policies.filter(policy => !policy.sizing), risk = value.policies.filter(policy => policy.sizing);
+        const caps = [...new Set(risk.map(policy => policy.micros))], unique = [...new Map(risk.map(policy => [canonical(policy.sizing), policy.sizing])).values()];
+        const represented = [...fixed, ...caps.flatMap(micros => unique.map(sizing => ({micros, sizing})))];
+        if (canonical(represented) !== canonical(value.policies)) throw Error(`Saved ${phase} policies are not the exact fixed-list plus risk-policy/cap grid supported by this form. No combinations were added or removed.`);
+        execution.value = value.search_settings?.native_execution ? 'native' : 'trade_path'; execution.onchange();
+        quantities.value = fixed.map(policy => policy.micros).join(', ');
+        riskCaps.value = caps.length ? caps.join(', ') : '40'; readRiskPolicies.load(unique);
+        for (const item of profileInputs) {
+          const saved = value.profiles.find(profile => profile.profile_id === item.profile.profile_id); item.chosen.checked = !!saved;
+          for (const [key, input] of Object.entries(item.fees)) { input.value = saved?.[key] ?? item.profile[key]; input.disabled = !saved; }
+        }
+        mode.value = value.selector.mode; ties.value = value.selector.tie_policy;
+        for (const [key, setting] of optional) {
+          const saved = setting.group === 'constraints' ? value.search_settings.constraints?.[key] : value[setting.group]?.[key];
+          setting.toggle.checked = saved !== null && saved !== undefined; setting.input.value = saved ?? ''; setting.input.disabled = setting.input.required = false;
+          setting.input.disabled = !setting.toggle.checked; setting.input.required = setting.toggle.checked;
+        }
+        for (const {group, key, input} of inputs) if (value[group]?.[key] !== undefined && value[group][key] !== null) input.value = value[group][key];
+        calendarVersion.value = value.search_settings.calendar.version; calendarTimezone.value = value.search_settings.calendar.timezone; closures.value = (value.search_settings.calendar.closures || []).join(', ');
+        const native = value.search_settings.native_execution;
+        if (native) { if (native.model !== defaults.native_execution.model || native.horizon_calendar_days !== undefined) throw Error('Saved nested native law or explicit horizon is unsupported by this form; the derived-window law will not replace it.'); capture.value = native.capture_paths; readEarlyCloses.load(native.early_closes || {}); }
+        else readEarlyCloses.load({});
+        for (const [key, input] of Object.entries(historicalInputs)) input.value = value.search_settings.conservative_objective?.[key] ?? defaults.conservative_objective[key];
+        loadedStudy = structuredClone(value); syncSelector(); syncNativePaths();
+      });
     }
-    return () => studies.map(read => read()).filter(Boolean);
+    const read = () => studies.map(read => read()).filter(Boolean);
+    read.load = values => { for (const value of values) if (!studyLoaders.has(value.phase)) throw Error('Unsupported saved independent phase: ' + value.phase); for (const [phase, load] of studyLoaders) load(values.find(value => value.phase === phase)); };
+    return read;
   }
   function showEconomicSelection(parent, fold) {
     const selection = fold.economic_selection;
@@ -529,7 +565,9 @@
     const notice = node('p', 'Preview source configurations to add a reference.'), rows = node('div'), actions = node('div', undefined, 'robust-actions');
     const add = button(actions, 'Add simple baseline', 'robust-baseline-add'), refresh = button(actions, 'Refresh reference choices', 'robust-baseline-refresh'); add.disabled = true;
     section.append(notice, rows, actions); parent.append(section);
-    let plan = null, serial = 0;
+    let plan = null, serial = 0, retained = [];
+    const retainedView = node('div'); rows.before(retainedView);
+    function showRetained() { retainedView.replaceChildren(); for (const saved of retained) { const item = node('fieldset'); item.append(node('legend', saved.id), node('p', `${phaseLabel(saved.phase)} · ${saved.profile.profile_id} · ${policyLabel(saved.policy)} · source ${saved.source_configuration_id}`), node('p', 'Saved reference retained exactly. Preview revalidates its source and profile. To change its binding, explicitly remove it and add a replacement after refreshing source choices.')); button(item, 'Remove saved reference', '').onclick = () => { retained = retained.filter(row => row.id !== saved.id); showRetained(); changed(); }; retainedView.append(item); } }
     const references = new Map(), encodedProfile = profile => JSON.stringify(profile, Object.keys(profile).sort());
     function options(input, choices, initial = false) {
       const previous = input.value; input.replaceChildren();
@@ -570,6 +608,7 @@
     };
     return {
       refresh,
+      load(values) { retained = structuredClone(values || []); references.clear(); rows.replaceChildren(); serial = 0; showRetained(); },
       update(next) {
         plan = next; add.disabled = !plan.candidates?.length || !plan.economic_studies?.length;
         notice.textContent = add.disabled ? 'Enable an independent economic study and preview its source configurations to add a reference.'
@@ -577,7 +616,7 @@
         for (const row of references.values()) updateRow(row);
       },
       read() {
-        const result = [];
+        const result = structuredClone(retained);
         for (const row of references.values()) {
           const id = row.id.value.trim(), micros = Number(row.quantity.value);
           if (!id || !row.source.value || !row.phase.value || !row.profile.value) throw Error('Complete each baseline ID, signal configuration, phase and profile. Refresh reference choices after changing sources or studies.');
@@ -614,8 +653,11 @@
     const label = node('label', undefined, 'robust-source-choice'), required = node('input'); required.type = 'checkbox'; required.id = 'robust-reliability-require_baseline_for_recommendation'; required.checked = defaults.reliability?.require_baseline_for_recommendation !== false;
     label.append(required, node('span', 'Require baseline evidence before a future recommendation can be supported')); section.append(label);
     section.append(node('p', 'These are historical evidence requirements. Final verification must apply the complete frozen procedure, followed by a fresh selection on eligible development history. Monte Carlo precision, historical sampling uncertainty, and model/rule/execution uncertainty remain separate.'));
-    return () => ({...defaults.reliability, ...Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, key === 'minimum_baseline_mean_improvement' ? input.value : Number(input.value)])),
+    let savedBase = null;
+    const read = () => ({...(savedBase || defaults.reliability), ...Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, key === 'minimum_baseline_mean_improvement' ? input.value : Number(input.value)])),
       abstention_action: action.value, require_baseline_for_recommendation: required.checked});
+    read.load = value => { if (!value) return; savedBase = structuredClone(value); for (const [key, input] of Object.entries(inputs)) input.value = value[key]; action.value = value.abstention_action; required.checked = value.require_baseline_for_recommendation; };
+    return read;
   }
   function showChronologicalFamily(parent, fold, {title = 'Frozen-policy outer observations', periodLabel = 'outer'} = {}) {
     const chronological = fold.chronological_replay;
@@ -659,6 +701,7 @@
   };
   function showPlan(parent, plan) {
     parent.replaceChildren(node('h3', 'Review the chronological plan'));
+    if (window.researchVisuals) window.researchVisuals.timeline(parent, plan);
     parent.append(node('p', `${plan.candidates.length} configurations · ${plan.folds.length} outer folds · ${plan.estimated_backtests} new backtest tasks before reuse.`));
     if (plan.economic_plan?.enabled) {
       const economic = plan.economic_plan;
@@ -717,6 +760,7 @@
     parent.append(requirements);
     for (const study of record.declaration.economic_studies || []) showStudy(parent, study);
     showReliability(parent, result.reliability);
+    if (window.researchVisuals && result.reliability) { const visual = node('details'); visual.append(node('summary', 'Forecast and actual receipt plots')); parent.append(visual); window.researchVisuals.forecastEvidence(visual, result.reliability); }
     if (economic && result.event_journal?.length) {
       const journal = node('details'); journal.id = 'robust-research-journal'; journal.append(node('summary', 'Ordered evidence: frozen selection before outer strategy execution'));
       journal.append(node('p', 'The saved sequence records the selection seal before the corresponding outer-access reservation and strategy execution. Inventory inspection and previous source access may already have occurred; this does not certify untouched data.'));
@@ -728,6 +772,7 @@
     }
     const candidates = new Map(record.plan.candidates.map(item => [item.id, item]));
     for (const fold of result.folds) {
+      if (window.researchVisuals) { const visual = node('details'); visual.append(node('summary', `Outer fold ${fold.index} · parameter qualification plot`)); parent.append(visual); window.researchVisuals.parameterEvidence(visual, record.plan, fold); }
       const section = node('details'); section.open = true; section.append(node('summary', `Outer fold ${fold.index} · ${fold.qualification.approved_ids.length} approved configurations`));
       table(section, ['Configuration', 'Qualification', 'Reasons'], fold.qualification.candidates.map(candidate => [
         candidateLabel(candidates.get(candidate.candidate_id) || {}),
@@ -832,7 +877,7 @@
     if (report.calculations.reliability) for (const file of ['baseline_results.json', 'reliability.json', 'reliability_folds.csv', 'baseline_comparison.csv']) downloads.append(link(`Download ${file}`, `/api/prop-analyses/${report.id}/files/${file}`));
     results.append(downloads);
   }
-  async function configure(source) {
+  async function configure(source, options = {}) {
     const version = ++generation, route = location.hash;
     const current = () => version === generation && route === location.hash;
     panel.replaceChildren(node('h2', 'Nested research'));
@@ -872,9 +917,9 @@
       const entries = new Map([...selected, ...matches.map(item => [`${kind.value}:${item.id}`, {kind: kind.value, id: item.id, item}])]);
       for (const [key, entry] of entries) {
         const label = node('label', undefined, 'robust-source-choice'), check = node('input');
-        check.type = 'checkbox'; check.checked = selected.has(key); check.disabled = !entry.item.selectable;
+        check.type = 'checkbox'; check.checked = selected.has(key); check.disabled = !entry.item.selectable && !selected.has(key);
         check.setAttribute('aria-label', `${candidateLabel(entry.item)} ${entry.id.slice(0, 8)}`);
-        const text = node('span', `${candidateLabel(entry.item)} · ${entry.item.dataset_name || ''}${entry.kind === 'optimization_id' ? ` · ${entry.item.total_trials} trials` : ''} · ${entry.id.slice(0, 8)}`);
+        const text = node('span', `${candidateLabel(entry.item)} · ${entry.item.dataset_name || ''}${entry.kind === 'optimization_id' ? (entry.item.total_trials === undefined ? ' · saved optimization job' : ` · ${entry.item.total_trials} trials`) : ''} · ${entry.id.slice(0, 8)}${entry.item.reason ? ` · ${entry.item.reason}` : ''}`);
         check.onchange = () => { if (check.checked) selected.set(key, entry); else selected.delete(key); invalidate(); };
         label.append(check, text); choices.append(label);
       }
@@ -950,7 +995,7 @@
       additional_slippage_ticks: 'Additional market slippage · ticks', stop_extra_slippage_ticks: 'Additional stop-only slippage · ticks',
       limit_penetration_ticks: 'Required limit-price penetration · ticks',
     };
-    function addScenario() {
+    function addScenario(saved = null) {
       const index = ++scenarioSequence, row = node('fieldset'), legend = node('legend', `Execution scenario ${index}`);
       row.className = 'prop-fields'; row.dataset.scenarioIndex = String(index); row.append(legend);
       const inputs = {name: field(row, 'Scenario name', `robust-scenario-${index}-name`, `stress-${index}`, 'text')}; inputs.name.maxLength = 100;
@@ -962,9 +1007,10 @@
       inputs.limit_price_improvement.value = String(defaults.execution_scenario.limit_price_improvement);
       const remove = button(row, 'Remove scenario', `robust-scenario-${index}-remove`);
       remove.onclick = () => { scenarioInputs.delete(index); row.remove(); invalidate(); };
-      scenarioInputs.set(index, inputs); scenarioRows.append(row); invalidate(); inputs.name.focus();
+      if (saved) for (const [key, input] of Object.entries(inputs)) input.value = String(saved[key]);
+      scenarioInputs.set(index, inputs); scenarioRows.append(row); invalidate(); if (!saved) inputs.name.focus();
     }
-    if (defaults.execution_scenario) button(scenarioSection, 'Add execution scenario', 'robust-add-scenario').onclick = addScenario;
+    if (defaults.execution_scenario) button(scenarioSection, 'Add execution scenario', 'robust-add-scenario').onclick = () => addScenario();
     else scenarioSection.append(node('p', 'Execution scenario settings are unavailable from this server.'));
     const regimesSection = node('details'); regimesSection.id = 'robust-regimes-configure'; regimesSection.append(node('summary', '5. Market conditions · choose relevant evidence'));
     regimesSection.append(node('p', 'Assess the market conditions relevant to this hypothesis. Require only those conditions in which the strategy is intended to work. A strategy does not need to profit in every assessed condition. Calibration uses each inner training period; validation labels use information available by the decision time.'));
@@ -1019,8 +1065,9 @@
     const status = node('p'); status.id = 'robust-status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); form.append(status);
     const planView = node('div'); planView.id = 'robust-plan'; form.append(planView);
     const resultView = node('div'); resultView.id = 'robust-result'; disclosure.append(resultView);
-    let checked = null, revision = 0, busy = false, watchVersion = 0;
-    function invalidate() { revision++; checked = null; run.disabled = true; status.textContent = 'Settings changed. Preview the plan before running.'; planView.replaceChildren(); }
+    let checked = null, revision = 0, busy = false, watchVersion = 0, hydrationBlocked = false, loadingDraft = false, cleanDeclaration = null;
+    const changeListeners = [];
+    function invalidate() { revision++; checked = null; run.disabled = true; status.textContent = 'Settings changed. Preview the plan before running.'; planView.replaceChildren(); if (!loadingDraft) for (const listener of changeListeners) listener(); }
     form.addEventListener('input', event => { if (event.target !== query) invalidate(); });
     form.addEventListener('change', event => { if (event.target !== kind && event.target.type !== 'checkbox') invalidate(); });
     function body(includeBaselines = true) {
@@ -1038,7 +1085,7 @@
       for (const [key, input] of Object.entries(calibrationInputs)) regimes[key] = typeof defaults.regimes[key] === 'number' ? Number(input.value) : input.value;
       const economic_studies = readEconomicStudies();
       return {campaign_id: crypto.randomUUID().replaceAll('-', ''), name: name.value.trim(), source_backtest_id: source.id,
-        sources: [...selected.values()].map(entry => ({[entry.kind]: entry.id, sizes: [1]})),
+        sources: [...selected.values()].map(entry => ({...entry.declaration, [entry.kind]: entry.id, sizes: [1]})),
         folds: {...Object.fromEntries(Object.entries(foldInputs).map(([key, input]) => [key, Number(input.value)])), mode: mode.value}, qualification,
         execution_scenarios, regimes, economic_studies, baselines: includeBaselines ? baselines.read() : [],
         reliability: economic_studies.length ? readReliability() : null,
@@ -1078,7 +1125,7 @@
       }
     }
     async function inspect(includeBaselines = true) {
-      if (busy || (includeBaselines && !form.reportValidity())) return;
+      if (busy || hydrationBlocked || (includeBaselines && !form.reportValidity())) return;
       busy = true; preview.disabled = true; run.disabled = true; const versionAtCheck = revision;
       status.textContent = 'Checking sources and deriving session boundaries…';
       try {
@@ -1109,7 +1156,53 @@
       } catch (error) { if (current()) status.textContent = `Research could not start: ${error.message}`; }
       finally { busy = false; if (current()) { preview.disabled = false; run.disabled = !checked; } }
     };
+    function differencePaths(left, right, path = '') {
+      if (window.researchWorkspace.canonical(left) === window.researchWorkspace.canonical(right)) return [];
+      if (!left || !right || typeof left !== 'object' || typeof right !== 'object' || Array.isArray(left) !== Array.isArray(right)) return [path || 'declaration'];
+      return [...new Set([...Object.keys(left), ...Object.keys(right)])].flatMap(key => differencePaths(left[key], right[key], path ? `${path}.${key}` : key));
+    }
+    const controller = {
+      readDeclaration() { if (hydrationBlocked) throw Error('This saved declaration cannot be represented safely in the editable form. Restore supported settings or start a fresh declaration; no fields will be silently dropped.'); return body(); },
+      invalidate,
+      blockDeclaration(reason) { hydrationBlocked = true; disclosure.open = true; invalidate(); preview.disabled = true; run.disabled = true; status.textContent = reason; },
+      dirty() { if (hydrationBlocked) return false; try { return cleanDeclaration !== window.researchWorkspace.canonical(window.researchWorkspace.logicalDeclaration(body())); } catch (_) { return true; } },
+      markClean() { cleanDeclaration = window.researchWorkspace.canonical(window.researchWorkspace.logicalDeclaration(body())); },
+      onChange(listener) { changeListeners.push(listener); },
+      async hydrate(value, context = {}) {
+        loadingDraft = true; hydrationBlocked = true; invalidate();
+        try {
+          if (value.source_backtest_id !== source.id) throw Error('This draft belongs to a different anchor source. Rebind it explicitly in the research workspace.');
+          if (value.sources.some(entry => entry.sizes?.length !== 1 || entry.sizes[0] !== 1 || entry.sizing_policies)) throw Error('Nested source declarations must retain one native signal contract and no source-level sizing grid. Unsupported values remain saved.');
+          const previous = new Map(selected); selected.clear();
+          for (const entry of value.sources) {
+            const kind = entry.backtest_id ? 'backtest_id' : 'optimization_id', id = entry[kind], key = `${kind}:${id}`;
+            const summary = context.source_summaries?.find(item => item.id === id && item.kind === kind), prior = previous.get(key);
+            selected.set(key, {kind, id, declaration: structuredClone(entry), item: summary || prior?.item || {strategy_id: 'Unavailable saved source', parameters: {}, selectable: false, reason: 'Source metadata unavailable; remove or restore this reference before running.'}});
+          }
+          drawSources(); name.value = value.name; mode.value = value.folds.mode;
+          for (const [key, input] of Object.entries(foldInputs)) input.value = value.folds[key];
+          defaults.qualification = structuredClone(value.qualification);
+          for (const [key, input] of Object.entries(qualificationInputs)) input.value = Array.isArray(value.qualification[key]) ? value.qualification[key].join(', ') : String(value.qualification[key]);
+          for (const [key, fields] of Object.entries(optionalLimits)) { fields.enabled.checked = value.qualification[key] !== null && value.qualification[key] !== undefined; fields.input.disabled = !fields.enabled.checked; fields.input.value = value.qualification[key] ?? ''; }
+          scenarioInputs.clear(); scenarioRows.replaceChildren(); scenarioSequence = 0; for (const scenario of value.execution_scenarios || []) addScenario(scenario);
+          defaults.regimes = structuredClone(value.regimes);
+          for (const [key, inputs] of regimeInputs) { inputs.enabled.checked = value.regimes.enabled_names.includes(key); inputs.required.checked = value.qualification.required_regimes.includes(key); inputs.required.disabled = !inputs.enabled.checked; }
+          for (const [key, input] of Object.entries(calibrationInputs)) input.value = value.regimes[key];
+          readEconomicStudies.load(value.economic_studies || []); baselines.load(value.baselines || []); readReliability.load(value.reliability);
+          if (value.terminal_selection) defaults.terminal_selection = structuredClone(value.terminal_selection);
+          if (value.final_evidence) defaults.final_evidence = structuredClone(value.final_evidence);
+          requireHoldout.checked = value.final_evidence?.require_final_holdout === true; requireFinalAcquisition.checked = value.final_evidence?.require_evaluation_completed_acquisition === true;
+          requireFinalCash.checked = value.final_evidence?.minimum_funded_trader_receipts !== null && value.final_evidence?.minimum_funded_trader_receipts !== undefined; finalCash.value = value.final_evidence?.minimum_funded_trader_receipts ?? '0'; syncFinalCash();
+          const expected = window.researchWorkspace.logicalDeclaration(value), actual = window.researchWorkspace.logicalDeclaration(body()), differences = differencePaths(expected, actual);
+          if (differences.length) throw Error('Saved settings cannot round-trip through this form without changing: ' + differences.slice(0, 12).join(', ') + '. The saved draft is preserved and execution is blocked.');
+          hydrationBlocked = false; disclosure.open = true; status.textContent = 'Saved declaration restored exactly. Preview fresh source checks and work before running.';
+        } finally { loadingDraft = false; preview.disabled = hydrationBlocked; run.disabled = true; }
+      },
+    };
     drawSources(); await Promise.all([loadSources(true), refreshHistory()]);
+    if (window.researchWorkspace) { controller.markClean(); await window.researchWorkspace.attachDraftControls(form, controller, {draftId: options.draftId || null}); }
+    if (options.researchId) await watch(options.researchId);
+
   }
   window.robustResearch = {configure, renderAnalysis, showEconomicSelection, showBaselines, showChronologicalFamily, policyLabel};
 })();

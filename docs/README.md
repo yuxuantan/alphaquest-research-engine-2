@@ -9,8 +9,9 @@
 - [IS/OOS workflow](research_workflow.md): splits, manual OOS, research checks and saved history.
 - [Robust research execution checklist](robust_research_plan.md): fresh audit,
   requirements traceability, inner qualification, independent economic selection,
-  chronological reliability and complete-procedure final verification; guided
-  catalogue/templates, monitoring and full-suite qualification remain pending.
+  chronological reliability, complete-procedure final verification and the
+  searchable research catalogue with drafts/templates; monitoring and full-suite
+  qualification remain pending.
 
 ## Product guides
 

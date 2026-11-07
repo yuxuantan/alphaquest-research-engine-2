@@ -507,23 +507,24 @@
   window.addEventListener("research-split-changed", controls);
 
   function navigate() {
-    const screen = location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
+    const screen = location.hash.startsWith("#backtests/research") ? "research" : location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
     get("#strategies-screen").hidden=screen!=="strategies";
+    get("#research-workspace-screen").hidden=screen!=="research";
     get("#datasets-screen").hidden = screen !== "datasets";
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || location.hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
-    const title = screen === "datasets" ? "Datasets" : "Strategies";
+    const title = screen === "research" ? "Research" : screen === "datasets" ? "Datasets" : "Strategies";
     get("#current-screen").textContent = title;
     document.title = `${title} · AlphaQuest`;
     get("#backtests-title").textContent = "Run backtests.";
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
-      const active = link.dataset.screen === (screen === "datasets" ? "datasets" : "strategies");
+      const active = link.dataset.screen === (screen === "research" ? "research" : screen === "datasets" ? "datasets" : "strategies");
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : ["backtests", "optimizations"].includes(screen) ? "Backtests · Exhaustive parameter research" : "Dataset management · Component 1 of your research workflow";
+    get("#footer-context").textContent = screen === "research" ? "Research · Saved declarations, evidence and next actions" : screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : ["backtests", "optimizations"].includes(screen) ? "Backtests · Exhaustive parameter research" : "Dataset management · Component 1 of your research workflow";
     if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
   window.addEventListener("hashchange", navigate);

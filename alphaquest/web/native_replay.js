@@ -17,7 +17,9 @@
       let time;if(withTime){time=field(row,'Scheduled close · Chicago','','13:00','time');time.className=cls+'-time';}
       const remove=el('button','Remove date');remove.type='button';remove.className='button secondary';row.append(remove);remove.onclick=()=>{row.remove();refresh();host.dispatchEvent(new Event('input',{bubbles:true}));};refresh();}
     add.onclick=()=>{append();host.dispatchEvent(new Event('input',{bubbles:true}));};for(let i=0;i<minimum;i++)append();
-    return()=>{const values=[...rows.children].map(row=>row.querySelector('.'+cls).value);if(new Set(values).size!==values.length)throw Error(title+' must contain distinct dates.');return withTime?Object.fromEntries([...rows.children].map(row=>[row.querySelector('.'+cls).value,row.querySelector('.'+cls+'-time').value])):values;};
+    const read=()=>{const values=[...rows.children].map(row=>row.querySelector('.'+cls).value);if(new Set(values).size!==values.length)throw Error(title+' must contain distinct dates.');return withTime?Object.fromEntries([...rows.children].map(row=>[row.querySelector('.'+cls).value,row.querySelector('.'+cls+'-time').value])):values;};
+    read.load=value=>{const entries=withTime?Object.entries(value||{}):(value||[]).map(day=>[day]);if(entries.length<minimum||entries.length>maximum)throw Error(title+' has an unsupported saved row count.');rows.replaceChildren();for(const[day,time]of entries){append();const row=rows.lastElementChild;row.querySelector('.'+cls).value=day;if(withTime)row.querySelector('.'+cls+'-time').value=time;}refresh();};
+    return read;
   }
   function calendarControls(parent,defaults,{prefix='native-forecast'}={}){
     const version=field(parent,'Modeled calendar declaration name / version',prefix+'-calendar-version',defaults.calendar_version,'text');

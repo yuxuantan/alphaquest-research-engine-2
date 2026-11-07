@@ -194,7 +194,7 @@
     finally{setBusy(false);}
   });
   $('#prop-form').addEventListener('submit',async e=>{e.preventDefault();if(busy||!checked)return;try{setBusy(true);const job=await post('/api/prop-analyses',payload());location.hash=`#backtests/prop/job/${job.id}`;}catch(e){$('#prop-status').textContent=e.message;setBusy(false);}});
-  async function configure(id,t,previousId) {
+  async function configure(id,t,previousId,workspaceOptions={}) {
     $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
     sourceId=id;checked=false;$('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-status').textContent='Loading source and matching exports…';
     const [data,defaults,previous]=await Promise.all([read(`/api/prop-analyses/sources/${id}?discover_exports=false`),read('/api/prop-analyses/defaults'),previousId?read(`/api/prop-analyses/${previousId}/downloads/report.json`):null]);if(t!==token)return;
@@ -202,7 +202,7 @@
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;externalSource=data.source.run_metadata.source?.kind==='external_trade_export';
     sourceRecord=data.source;
     await window.phaseCampaigns.configure(data.source);if(t!==token)return;
-    await window.robustResearch.configure(data.source);if(t!==token)return;
+    await window.robustResearch.configure(data.source,workspaceOptions);if(t!==token)return;
     window.nativeReplay.configure(data.source,defaults.native_phase_replay);
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${externalSource?'Imported external trades · ':''}${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-form').querySelectorAll('.prop-advanced').forEach(d=>d.open=false);$('#prop-overrides').value='{}';showMethodFields();
@@ -621,7 +621,7 @@
       await new Promise(resolve=>setTimeout(resolve,700));
     }
   }
-  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const match=location.hash.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{const campaign=location.hash.match(/^#backtests\/prop\/campaign\/([a-f0-9]{32})$/);if(campaign){await window.phaseCampaigns.watch(campaign[1],()=>t===token);return;}if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3]);else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
+  async function navigate(){const t=++token;$('#prop-delete').hidden=true;$('#prop-delete-status').hidden=true;const route=location.hash.split('?')[0],params=new URLSearchParams(location.hash.split('?')[1]||''),match=route.match(/^#backtests\/prop\/(new|job)\/([a-f0-9]{32})(?:\/from\/([a-f0-9]{32}))?$/);const active=location.hash.startsWith('#backtests/prop/');$('#prop-screen').hidden=!active;if(!active)return;$('#datasets-screen').hidden=true;$('#backtests-screen').hidden=true;$('#current-screen').textContent='Prop analysis';document.title='Prop analysis · AlphaQuest';try{const campaign=location.hash.match(/^#backtests\/prop\/campaign\/([a-f0-9]{32})$/);if(campaign){await window.phaseCampaigns.watch(campaign[1],()=>t===token);return;}if(!match)throw Error('This legacy prop URL is retired. Open a completed backtest report to configure a local analysis.');if(match[1]==='new')await configure(match[2],t,match[3],{draftId:params.get('draft'),researchId:params.get('research')});else await watch(match[2],t);}catch(e){if(t===token)$('#prop-status').textContent=e.message;}}
 
   async function deleteProp(id,row){
     if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS execution history are kept. This cannot be undone.`))return;

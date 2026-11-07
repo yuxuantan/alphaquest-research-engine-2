@@ -443,3 +443,41 @@ timestamped forward/paper monitoring and recovery; a complete multi-strategy
 end-to-end example; final full pytest/browser/static/reproducibility acceptance.
 Existing statistical-property fixtures remain part of that final audit. The
 overall goal remains **incomplete**; no live route is production-qualified.
+
+### M4 guided workspace and saved visual review
+
+8 November 2026: **Backtests → Research** now projects ordinary independent and
+nested campaigns, latest terminal applications and editable pre-work drafts.
+Search/filter/pagination and source selection use metadata. Drafts/templates
+share the existing AnalysisStore catalogue; exact revisions prevent lost edits,
+closed settings contracts prevent transferring saved result authority, and
+missing sources or unsupported policy membership remain inspectable and block
+execution until explicitly resolved. Every loaded declaration needs a fresh
+normal preview. The existing report displays actual fold timelines, parameter
+qualification plots and matched Funded forecast/actual receipts with complete
+accessible tables; plots do not introduce family weights or new selection.
+
+Release engine: `26edd1fb4462844c5e963fdf50023316758c2dc50497310afa326bcba8b3753b`.
+Evaluation/Funded declared numerical identities match `79cb5b0` (28/30 files
+respectively). The global application hash correctly changes for new Python
+orchestration. Earlier saved reports/evidence remain unchanged.
+
+| M4 stable targeted gate | Actual result |
+| --- | --- |
+| Workspace API contracts, revisions/concurrency, missing sources/full grid membership, template authority, latest final/current status and report integrity | 33 passed in 4.84 s; `artifacts/research-workspace-m4-20261108/api-final/` |
+| Draft → template → fresh preview → actual nested run → catalogue/report/downloads; missing-source/baseline rebind; exact native policy round-trip/unsupported family rejection | 3 passed in 17.38 s; `browser-final/` |
+| Shared native dynamic campaign and mobile navigation regression | 2 passed in 18.88 s; `browser-regression/` |
+| Saved reports and static checks | Four complete reports, 58 captured files verified against sizes/SHA/ZIP bytes; four changed Python files compiled, seven JavaScript files parsed, diff check passed. |
+
+The independent API gate separately passed 33 checks in 5.00 s. Original failed
+probes are retained, including the nested template identity and missing grid
+trial defects repaired before release. Final tests left no persistent server.
+The source archive, exact commands, report verification script and outputs are
+saved under the M4 artifact root. The normal-product journey and expected
+observations are in `prop_simulation_review.md`. These are scoped checks, not the
+full repository suite or provider qualification.
+
+Remaining overall scope: predefined frozen Evaluation/Funded pair comparison;
+independent timestamped forward/paper events, discrepancy monitoring and recovery;
+complete multi-strategy end-to-end evidence; final full-suite/browser/static and
+reproducibility acceptance. The complete goal remains **incomplete**.

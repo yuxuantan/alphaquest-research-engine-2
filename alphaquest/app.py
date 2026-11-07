@@ -100,6 +100,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.campaigns = CampaignStore(app.state.runs, app.state.prop_analyses, app.state.optimizations, app.state.store)
         from .robust_research import RobustResearchStore
         app.state.robust_research = RobustResearchStore(app.state.store, app.state.campaigns)
+        from .research_workspace import ResearchWorkspace
+        app.state.research_workspace = ResearchWorkspace(app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
         app.state.progress = ProgressTracker()
         yield
@@ -115,6 +117,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from .robust_research_api import router as robust_research_router
     app.include_router(robust_research_router)
     app.include_router(campaign_router)
+    from .research_workspace import router as research_workspace_router
+    app.include_router(research_workspace_router)
     app.include_router(strategy_library_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 

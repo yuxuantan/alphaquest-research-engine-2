@@ -1991,3 +1991,16 @@ History refit evidence is saved with the existing conservative objective export.
 
 
 The saved API/browser journey and targeted release evidence are recorded in `prop_simulation_review.md`. Full-goal qualification and provider/live parity are separate.
+
+## Research workspace integration (8 November 2026)
+
+**Backtests → Research** is navigation over existing phase/nested campaigns,
+applications and editable drafts. Draft/template configuration lives in the same
+AnalysisStore catalogue; ordinary source checks, independent numerical owners,
+workers and durable reports remain authoritative. Templates cannot transfer
+source identities or results. Draft revisions prevent stale overwrites; missing
+sources and unsupported policy families are preserved and block fresh execution.
+Saved evidence is shown through actual-session timelines, qualification plots
+and matched Funded forecast/actual receipt plots with complete tables/downloads.
+No new simulation, selector or separate result store is introduced. See the M4
+normal-product journey and expected observations in `prop_simulation_review.md`.

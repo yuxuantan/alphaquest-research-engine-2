@@ -694,3 +694,52 @@ The existing report UI renders the freeze/application progression, complete qual
 
 
 For source lineage, local access scope, terminal selection and recommendation semantics, see the [workflow](research_workflow.md#complete-procedure-freeze-and-terminal-applications-m3b2). Historical reports stay readable; code/source changes prevent incompatible new calculations.
+
+## Research workspace API
+
+`GET /api/research-workspace` projects existing phase campaigns, nested campaigns
+and editable drafts. Parameters: `q` (maximum 200 characters), `kind`
+(`phase|nested|draft`), `phase` (`evaluation|funded`), `status`, `sort`
+(`newest|oldest|name`), `offset` and `limit` (1–100). Empty filters are permitted.
+The response has `items,total,offset,limit,sort`. Each item includes the source,
+phase/backend, original campaign status, latest attempt status/stage, separate
+`final_application` and `current_application`, bounded saved-readiness projection
+and `next_action`. Status filtering follows the latest application rather than
+hiding its failure behind the original campaign's success. These reads launch
+neither source-price preparation nor numerical workers.
+
+The same prefix provides `GET/POST /drafts` and `/templates`, and
+`GET/PUT/DELETE /drafts/{id}` or `/templates/{id}`. Lists accept `q,offset,limit`.
+Create returns 201 with a server UUID and revision 1. Update requires the exact
+saved revision; stale writes return 409 without applying edits. Delete requires
+`?revision=N` and removes only that editable document. No report or dataset is
+removed. Draft and template records share the existing AnalysisStore SQLite
+catalogue and have a checksummed, versioned payload, not a new result store.
+
+```json
+{
+  "schema_version": "research-workspace-v1",
+  "kind": "nested",
+  "name": "My research draft",
+  "declaration": {
+    "source_backtest_id": "<saved IS report UUID>",
+    "sources": [{"backtest_id": "<saved IS report UUID>", "sizes": [1]}]
+  }
+}
+```
+
+Drafts normalize the ordinary robust declaration and strip ephemeral campaign
+IDs and work confirmations. GET additionally returns source summaries, the
+anchor and missing/unusable sources. It checks full selected grid membership;
+missing non-anchor trials cannot silently reduce the candidate family. Drafts do
+not pin unused source records. Frozen campaigns retain their existing protection.
+
+Templates use `settings` instead of `declaration`. The closed allowlist is
+`folds,qualification,execution_scenarios,regimes,economic_studies,reliability,terminal_selection,final_evidence`.
+Existing phase contracts validate settings without inventing dates or running a
+preview. Source-bound baselines, embedded identities/outcomes/access claims and
+unknown nested phase settings reject. Payloads are limited to 512 KiB. An
+unsupported saved schema remains readable with `editable:false` and an explicit
+warning; PUT rejects rather than converting it. Every document declares
+`requires_fresh_preview:true`. Saving configuration grants no research-access,
+selection or execution authority.

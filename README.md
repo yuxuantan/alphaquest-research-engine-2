@@ -66,9 +66,13 @@ Complete research procedures can also be frozen, assessed against a protected
 final window, and rerun on eligible development history for a current research
 candidate. Final assessment cannot select a replacement winner. Metadata-only
 uploads and durable local access history distinguish protected, already accessed
-and unknown-history data. Guided catalogue/templates, optional frozen-pair
-lifecycle comparison, forward monitoring and final full-suite qualification
-remain pending.
+and unknown-history data. **Backtests → Research** gathers saved campaigns and
+editable drafts with search, filters and the next available action. Drafts
+preserve source-bound settings; reusable templates require fresh source selection
+and preview. Reports include observed-session fold timelines, parameter
+qualification plots and matched forecast/actual receipt plots with full tables.
+Optional frozen-pair lifecycle comparison, forward monitoring and final
+full-suite qualification remain pending.
 See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 

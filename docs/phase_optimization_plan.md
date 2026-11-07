@@ -753,3 +753,14 @@ catalogue/templates, optional predefined frozen-pair lifecycle comparison,
 timestamped forward monitoring and full-suite final acceptance remain pending.
 Provider, broker, numerical-reference and operational readiness are separate
 qualification boundaries; no live integration is declared production-ready.
+
+### M4 workspace integration (8 November 2026)
+
+The existing portal now has a searchable research catalogue and revisioned
+pre-work drafts/settings templates. Complete source membership, source-bound
+baselines and unsupported declarations are preserved; normal preview is required
+before execution. Final/current statuses remain distinct. Numerical phase owners
+and their declared identities are unchanged. Saved report visuals expose actual
+folds, parameter qualification and matched receipt outcomes without selecting
+again. See the M4 journey in `prop_simulation_review.md`. Frozen-pair lifecycle
+comparison, timestamped monitoring and final system acceptance remain pending.

@@ -626,3 +626,43 @@ The guard uses market/instrument information lineage and session coverage, with 
 
 
 This does not establish external absence of prior access, official provider parity, future profitability, live execution readiness or automatic trading authorization. A holdout can be infeasible/previously accessed/unknown; that status is retained. Missing or partial evidence cannot produce a forced winner. A single final outcome does not estimate or prove a future mean. Strategy draft/catalogue completion and forward timestamped monitoring remain subsequent milestones.
+
+## Research workspace, drafts and templates (M4)
+
+Open **Backtests → Research** to find phase campaigns, nested research and saved
+pre-work drafts. Search matches names, identifiers, strategy names and dataset
+names; filter by kind, phase or status, and sort without changing any numerical
+result. **New research** starts from an ordinary saved IS source. The catalogue
+shows the latest calculation attempt, with final verification and current
+selection visible separately. A later failed assessment does not disappear behind
+an earlier completed campaign. Open completed reports without rerunning them.
+
+Inside the existing nested configuration, expand **Save a draft or reuse declared settings**. Save a
+named draft, resume it from Research, or save a separate copy. Drafts retain the
+complete declared source set, baselines and settings. They are editable pre-work,
+not frozen research evidence. Every reload or template application requires a
+fresh source/date preview before running. If another tab has saved a newer
+revision, your form edits remain visible; reload or copy rather than overwrite.
+
+Templates contain reusable research settings only. They cannot carry source
+identities, saved outcomes, selected candidates or holdout eligibility. A form
+with source-bound baselines must remain a draft until those references are
+explicitly rebound; saving a template does not silently remove them. Applying a
+template keeps the newly chosen source and requires a new preview.
+
+Deleting an unused source does not delete its draft. Research shows the missing
+source and preserves the declaration for download. Rebind the anchor in a new
+draft, then explicitly revise every unavailable source/reference; the original
+record stays unchanged. Unsupported saved schema versions or policy combinations
+remain inspectable and downloadable but cannot run through controls that would
+change their meaning. In particular, a non-Cartesian saved sizing family is not
+silently expanded to a Cartesian family.
+
+Date previews use the actual observed sessions, with excluded sessions/gaps and
+complete tables. Saved reports add interactive numeric parameter qualification
+plots and matched Funded forecast/actual receipt plots. PASS, FAIL and insufficient
+evidence use distinct symbols as well as colors. Evaluation acquisition metrics
+are not plotted as Funded receipts. Each family member remains visible without
+inventing a probability for ties; chart display limits are labeled and complete
+rows/downloads remain available. Readiness is saved evidence, never a new
+selection or a production certificate computed by the catalogue.
