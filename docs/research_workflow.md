@@ -40,6 +40,24 @@ again. A new submission saves its own split snapshot; earlier reports and active
 optimisation jobs retain their recorded dates, settings and results. Previously
 viewed data is not made untouched by changing a split.
 
+## Campaign budgets and computation
+
+Generate candidate strategies/parameters with ordinary IS grids, optionally
+unchecking automatic legacy prop reports. Campaigns reuse saved trades/risk;
+they do not repeat the backtest. Explicit saved-source/job/trial membership ×
+whole-MNQ sizes must fit the declared campaign budget (at most 128); duplicates,
+incomplete jobs, mismatched splits/costs and unsupported sources reject before
+execution. Legacy Historical net is not a candidate pruning criterion. Failed or
+rejected campaign revisions remain research history; OOS access is never erased.
+
+Predeclare path counts, calendar/start cohort, costs, horizon/receipt assumptions,
+constraints and seeds. A changed declaration is a new immutable campaign revision.
+Check the complete candidate table, censoring and uncertainty before freezing.
+The product records numerical settings and a rationale; research acceptance,
+owner/time/spending limits and untouched-data claims still need independent
+justification. Automatic new-grid generation and adaptive confirmation remain
+unimplemented. [Exact resource/metric contracts](phase_optimization_plan.md#implemented-metric-and-selection-contracts).
+
 ## Manual OOS execution
 
 1. Select dataset, strategy, split and settings, review the split and run IS.
@@ -146,9 +164,9 @@ Before search, save the following. Values remain **unset** until supplied.
 | Research | Frozen package passes cash, loss, spending, sample and precision limits on clean final data; cost/data/block-length stress tests pass. | Internal holdout is not final OOS; annual sizing cannot prove cash-by-deadline performance. |
 | Operations | Rejection, duplicate, partial-fill, disconnect, stale-data, protection, forced-flatten and restart tests meet timing/exposure limits; no unexplained orders/positions; broker records match. | NOT TESTED here. First prove installed platform/bridge compatibility and account/API permissions. |
 
-### Cash horizon versus current model objective
+### Cash horizons versus retained legacy objective
 
-[Current sizing](../alphaquest/prop/native_analysis.py) uses training data:
+[Retained legacy annualized sizing](../alphaquest/prop/native_analysis.py) uses training data:
 
 `slot_year = 261 × (expected lifetime payout - acquisition cost) / (expected account days + replacement days)`
 
@@ -159,7 +177,9 @@ For that proposed forecast, count receipts paid by cutoff minus fees/operating
 cash paid within the period. Record liabilities and sunk cash separately. Freeze
 evaluation/replacement delays, approval/settlement, eligibility, payment dates
 and shared-cost allocation before selection. Unpaid equity and payout requests
-are not receipts. Implement/test this selector and ledger before using it for final research decisions.
+are not receipts. The observed one-slot cash ledger is implemented; conditional Funded campaigns
+estimate received cash independently. A general finite-horizon multi-account
+selector remains pending and needs its own contract and qualification.
 Exclude sunk costs from future choices, but retain actual spending/cash history.
 
 If final OOS influences a revision, that data becomes development evidence;

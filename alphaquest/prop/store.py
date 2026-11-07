@@ -3,8 +3,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from hashlib import sha256
-import csv
-import io
 import json
 from pathlib import Path
 import sqlite3
@@ -138,8 +136,8 @@ class AnalysisStore:
 
     def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None):
         """Additive phase-only dispatch using the existing worker and catalogue."""
-        from . import evaluation_optimization, funded_optimization
-        module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
+        from .phase_dispatch import module_for_mode
+        module = module_for_mode(search.mode)
         check_search, search_key = module.check_search, module.search_key
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         with self.lock:
@@ -177,8 +175,8 @@ class AnalysisStore:
             return self.get(id)
 
     def _run_phase(self, runs, id, search, checks, assessment=None):
-        from . import evaluation_optimization, funded_optimization
-        module = funded_optimization if search.mode == 'funded_optimization' else evaluation_optimization
+        from .phase_dispatch import module_for_mode
+        module = module_for_mode(search.mode)
         optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         write_report = module.write_report

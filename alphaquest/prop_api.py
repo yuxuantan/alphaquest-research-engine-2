@@ -7,10 +7,12 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from starlette.concurrency import run_in_threadpool
-from .prop.native_analysis import DEFAULTS, MODEL_VERSION, prepare,model_version
+from .prop.native_analysis import DEFAULTS, MODEL_VERSION,model_version
 from .prop.adapter import source_record
 from .prop.source import matching_exports
 from .prop.commissions import catalog, source_instrument
+from .prop.phase_dispatch import module_for_mode
+from .prop.phase_search import CandidateConfirmationRequired, require_candidate_confirmation
 from .research import ResearchConflict
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
@@ -29,14 +31,16 @@ class EvaluationSearchRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     mode: Literal['evaluation_optimization']
     source_backtest_id: StrictStr = Field(pattern=r'^[0-9a-f]{32}$')
-    candidates: list[dict] = Field(min_length=1, max_length=128)
+    candidates: list[dict] = Field(min_length=1)
+    confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
 
 class FundedSearchRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     mode: Literal['funded_optimization']
     source_backtest_id: StrictStr = Field(pattern=r'^[0-9a-f]{32}$')
-    candidates: list[dict] = Field(min_length=1, max_length=128)
+    candidates: list[dict] = Field(min_length=1)
+    confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
     horizon_calendar_days: int = Field(strict=True)
     receipt_delay_calendar_days: int = Field(strict=True)
@@ -44,6 +48,11 @@ class FundedSearchRequest(BaseModel):
     bootstrap_replicates: int = Field(default=400, strict=True)
     bootstrap_seed: int = Field(default=137, strict=True)
     near_tie_cash: float = Field(default=0, strict=True)
+
+def phase_request(body):
+    require_candidate_confirmation(len(body.candidates), body.confirmed_candidate_count)
+    return body.model_dump(exclude={'confirmed_candidate_count'})
+
 
 @router.get('/defaults')
 def defaults():
@@ -63,21 +72,18 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
 @router.post('/check')
 async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
     try:
-        if isinstance(body, FundedSearchRequest):
-            from .prop.funded_optimization import parse_request, check_search, MODEL_VERSION as FUNDED_VERSION
-            search = parse_request(body.model_dump())
-            checks = await run_in_threadpool(check_search, request.app.state.runs, search)
-            return dict(status='compatible', mode=search.mode, candidates=checks, model_version=FUNDED_VERSION)
-        if isinstance(body, EvaluationSearchRequest):
-            from .prop.evaluation_optimization import parse_request, check_search, MODEL_VERSION as EVALUATION_VERSION
-            search = parse_request(body.model_dump())
-            checks = await run_in_threadpool(check_search, request.app.state.runs, search)
-            return dict(status='compatible', mode=search.mode, candidates=checks, model_version=EVALUATION_VERSION)
+        if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
+            module = module_for_mode(body.mode)
+            search = module.parse_request(phase_request(body))
+            checks = await run_in_threadpool(module.check_search, request.app.state.runs, search)
+            return dict(status='compatible', mode=search.mode, candidates=checks, model_version=module.MODEL_VERSION)
         from .prop.phase_lifecycle import prepare_request, source_snapshots, dated
         snapshot,rows,settings=await run_in_threadpool(prepare_request,request.app.state.runs,body.model_dump())
         for source in source_snapshots(snapshot):
             await run_in_threadpool(request.app.state.prop_analyses.check_oos,source,settings,request.app.state.runs)
         return dict(status='compatible',source=snapshot,settings=settings,matched_trades=len(rows['evaluation']) if dated(body.model_dump()) else len(rows),model_version=model_version(settings))
+    except CandidateConfirmationRequired as exc:
+        raise HTTPException(409, exc.detail) from exc
     except ResearchConflict as exc:
         raise HTTPException(409,str(exc)) from exc
     except (ValueError,KeyError,OSError) as exc:
@@ -86,15 +92,13 @@ async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRe
 @router.post('',status_code=202)
 async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
     try:
-        if isinstance(body, FundedSearchRequest):
-            from .prop.funded_optimization import parse_request
-            return await run_in_threadpool(request.app.state.prop_analyses.submit_funded,
-                request.app.state.runs, parse_request(body.model_dump()))
-        if isinstance(body, EvaluationSearchRequest):
-            from .prop.evaluation_optimization import parse_request
-            return await run_in_threadpool(request.app.state.prop_analyses.submit_evaluation,
-                request.app.state.runs, parse_request(body.model_dump()))
+        if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
+            module = module_for_mode(body.mode)
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_phase,
+                request.app.state.runs, module.parse_request(phase_request(body)))
         return await run_in_threadpool(request.app.state.prop_analyses.submit,request.app.state.runs,body.model_dump())
+    except CandidateConfirmationRequired as exc:
+        raise HTTPException(409, exc.detail) from exc
     except ResearchConflict as exc:
         raise HTTPException(409,str(exc)) from exc
     except (ValueError,KeyError,OSError) as exc:

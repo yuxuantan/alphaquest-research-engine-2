@@ -122,7 +122,6 @@ def test_normal_campaigns_independent_math_reuse_freeze_and_reopen(library, monk
 
 
 @pytest.mark.parametrize('mutate', [
-    lambda r:r.update(maximum_candidates=3),
     lambda r:r['sources'].append(r['sources'][0]),
     lambda r:r['sources'][0].update(sizes=[1,1]),
     lambda r:r['sources'][0].update(sizes=[1.5]),
@@ -159,7 +158,7 @@ def test_reject_mixed_source_risk_costs_and_oos(library):
         with runs.connect() as db: db.execute('UPDATE runs SET manifest=? WHERE id=?', (original,b['id']))
 
 
-def test_duplicate_alias_and_budget_count_sizes(library):
+def test_duplicate_alias_and_legacy_budget_does_not_limit_sizes(library):
     client,a,b,_ = library
     request = declaration(a,b); request['maximum_candidates'] = 10
     request['sources'].append(dict(backtest_id=a['id'],sizes=[1]))
@@ -167,7 +166,8 @@ def test_duplicate_alias_and_budget_count_sizes(library):
     assert r.status_code == 422 and 'Duplicate candidate' in r.text
     request = declaration(a,b); request['maximum_candidates'] = 3
     r = client.post('/api/research-campaigns',json=request)
-    assert r.status_code == 422 and 'budget exceeded' in r.text
+    assert r.status_code == 201, r.text
+    assert r.json()['manifest']['candidate_search_count'] == 4
 
 
 def test_interrupted_job_recovery_and_no_oos_reads(library, monkeypatch):

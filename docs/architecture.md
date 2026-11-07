@@ -5,7 +5,12 @@
 [Requirements](#requirements-and-scope) · [Workflow](#end-to-end-workflow) ·
 [Code](#code-architecture) · [Decisions](#decisions)
 
-Code reviewed 31 October 2026: [6d290c5](https://github.com/yuxuantan/alphaquest-research-engine-2/tree/6d290c5e429c745a4af600e4da7218c680f9a77a).
+Current-state cleanup reviewed 6 November 2026 against repository baseline
+`445c14030c0e060d5844cfaa3bcf6564dd13a981` plus the local cleanup diff.
+The [qualification record](prop_simulation_review.md#final-architecture-cleanup--2026-11-06)
+records the actual gates, preserved identities and remaining limits.
+
+Earlier code review, 31 October 2026: [6d290c5](https://github.com/yuxuantan/alphaquest-research-engine-2/tree/6d290c5e429c745a4af600e4da7218c680f9a77a).
 
 Phase-optimization architecture review, 5 November 2026:
 `71f97a61e568b39b6bf17647078dcdb2364069cb`. The status below supplements the
@@ -59,7 +64,7 @@ Start with the [setup instructions](../README.md#run), then use the existing por
 
 1. **Datasets:** validate/save a CSV with its source timezone, tick size and point value.
 2. **Strategies → New backtest:** choose strategy, costs and IS/OOS split. Equal parameter bounds run one combination; wider ranges run a grid through the same engine. Initial runs use IS only.
-3. **Open the saved report:** inspect trades, metrics and the holding comparison. New runs attempt default Apex/LucidFlex prop analyses; incompatible sources show a reason.
+3. **Open the saved report:** inspect trades, metrics and the holding comparison. New runs attempt default legacy Apex/LucidFlex prop analyses unless the grid opts out; incompatible sources show a reason. The choice is saved per new grid and does not alter existing jobs.
 4. **Configure prop analysis → Check source → Run analysis:** inspect native risk data or a matching optional MultiCharts export. Choose existing annualized sizing, or budgeted cash replay with separate fixed phase sources/sizes, observed dates, monthly cap and explicit timing assumptions. Save/reopen the normal report and downloads. Annualized internal training/holdout stays within the chosen research period; budgeted replay uses the declared common observed window.
 5. **Run OOS with these parameters:** manually launch from a completed IS report using its saved window/settings. Splits remain editable and attempts unlimited; record prior data access before treating OOS as untouched final evidence.
 
@@ -69,12 +74,12 @@ needs real permissions, routing, protection and recovery tests; this workflow
 does not place live orders. See [product steps](strategies_navigation.md) and
 [prop model details](prop_simulation.md).
 
-The Evaluation backend extends step 4 through its existing check/run APIs and
-durable frontier downloads. A phase-specific UI and Funded optimization report
-remain planned. The planned freeze/manual assessment applies chosen packages
-without a new search; those controls are not available yet. The
-[implementation milestones](phase_optimization_plan.md#incremental-implementation-milestones)
-define the usable increments and evidence required.
+For independent research in step 4, create an Evaluation or Funded campaign,
+select saved IS sources/jobs and explicit sizes within a budget, check and run,
+inspect the full frontier/ranking, then freeze named choices. **Launch OOS with
+frozen settings** creates ordinary OOS backtests and an assessment-only phase
+report; it cannot rank OOS or change the IS package. The
+[campaign guide](research_campaign_api.md) describes the available controls.
 
 ## Code architecture
 
@@ -91,7 +96,17 @@ flowchart TB
     SAVED -- "native trades" --> PROP["Source checks and prop models"]
     XLSX["Optional measured XLSX"] --> PROP
     API --> PROP
-    PROP -- "analysis results" --> SAVED
+    SAVED -- "saved IS trials" --> CAMPAIGN["Bounded phase campaigns"]
+    API --> CAMPAIGN
+    CAMPAIGN --> EVAL["Evaluation: acquisition cost / calendar Pareto"]
+    CAMPAIGN --> FUNDED["Funded: received cash within horizon"]
+    PROP --> EVAL
+    PROP --> FUNDED
+    EVAL --> SAVED
+    FUNDED --> SAVED
+    SAVED --> FREEZE["Named IS freeze / manual OOS assessment"]
+    FREEZE -. "future consumer; no feedback into phases" .-> PORTFOLIO["Optional portfolio selector: planned"]
+    PROP -- "legacy / dated cash results" --> SAVED
     API -- "opens saved results" --> SAVED
 ```
 
@@ -103,8 +118,8 @@ flowchart TB
 | Research and jobs | [splits/OOS](../alphaquest/research.py), [grids](../alphaquest/optimization.py), [workers](../alphaquest/optimization_worker.py) | Trials share the backtest path; workers calculate, the coordinator publishes. |
 | Prop calculations | [source checks](../alphaquest/prop/source.py), [analysis](../alphaquest/prop/native_analysis.py), [Apex](../alphaquest/prop/native_engine.py), [Lucid](../alphaquest/prop/lucid_engine.py), [costs](../alphaquest/prop/commissions.py) | Adapt/check trades before account simulation. Firm rules and sizing remain separate from strategy backtests. |
 | Independent phase profiles | [contracts/source admission](../alphaquest/prop/phase_profiles.py), [evaluation profiles](../alphaquest/prop/evaluation_profiles.py), [funded profiles](../alphaquest/prop/funded_profiles.py) | Expose single-source evaluation/acquisition and conditional-funded simulations independently. Evaluation has no funded input; Funded has no evaluation fees/pass-rate input or replacement. Reuse existing provider backends; no service, database or result store. |
-| Standalone Evaluation search | [Evaluation optimizer](../alphaquest/prop/evaluation_optimization.py), [normal API](../alphaquest/prop_api.py), [AnalysisStore](../alphaquest/prop/store.py) | Check every saved IS candidate; compose component outcome/duration laws into dated independent retries; retain the full strict cost/time Pareto set, ties and unresolved candidates. Capture format-4 phase artifacts through the existing worker/catalogue and download paths. No new UI or annualized selector change. |
-| Standalone Funded search | [Funded optimizer](../alphaquest/prop/funded_optimization.py), [dated funded component](../alphaquest/prop/funded_profiles.py), [shared admission/calendar](../alphaquest/prop/phase_search.py), normal API/AnalysisStore | Fresh funded paths, native qualification and termination, exclusive calendar cutoff and explicit modeled receipts; full feasible ranking, uncertainty and path events in format-5 reports. Shares source capture and worker/catalogue with Evaluation; no new service, database, UI or portfolio calculation. |
+| Standalone Evaluation search | [Evaluation optimizer](../alphaquest/prop/evaluation_optimization.py), [normal API](../alphaquest/prop_api.py), [AnalysisStore](../alphaquest/prop/store.py) | Check every saved IS candidate; compose component outcome/duration laws into dated independent retries; retain the full strict cost/time Pareto set, ties and unresolved candidates. Capture format-4 phase artifacts through the existing worker/catalogue and download paths. Campaign UI uses this backend; the annualized selector is unchanged. |
+| Standalone Funded search | [Funded optimizer](../alphaquest/prop/funded_optimization.py), [dated funded component](../alphaquest/prop/funded_profiles.py), [shared admission/calendar](../alphaquest/prop/phase_search.py), normal API/AnalysisStore | Fresh funded paths, native qualification and termination, exclusive calendar cutoff and explicit modeled receipts; full feasible ranking, uncertainty and path events in format-5 reports. Shares source capture and worker/catalogue with Evaluation; campaign UI is implemented, with no new service, database or portfolio calculation. |
 | Legacy business sizing | [joint sizing](../alphaquest/prop/joint_sizing.py), [account refresh links](../alphaquest/optimization_prop.py) | Joint annualized cost/payout selection and immutable refresh history remain supported; new independent optimizers must not use their score as a phase objective. |
 | Dated phase and cash replay | [phase lifecycle](../alphaquest/prop/phase_lifecycle.py), [cash ledger](../alphaquest/prop/cash_ledger.py) | Share local account transitions; distinguish paid acquisition fees, requests, deductions and modeled receipts under a hard monthly cap. |
 | Default prop reports | [automatic](../alphaquest/prop/automatic.py), [backend](../alphaquest/prop/native_backend.py), [build](../setup.py) | Automatic/manual runs share local models. Optional compiled kernels use the same model source. |
@@ -129,14 +144,53 @@ and [review evidence](prop_simulation_review.md#independent-phase-component-extr
 
 Evaluation contracts/retries/Pareto live in `prop/evaluation_optimization.py`;
 Funded contracts/receipt ranking live in `prop/funded_optimization.py`.
-`prop/phase_search.py` shares source admission, calendars and capture. Remaining
-planned module responsibilities include `prop/phase_optimization.py` (broader
-campaign contracts/selection),
-`prop/phase_sampling.py` (dated schedules/uncertainty), and
-`research_campaigns.py` (cross-job candidates/freeze). Extend existing routes,
-workers, backtest catalogue and AnalysisStore. No new service, database or
-backtesting engine is proposed. See the
+`prop/phase_search.py` shares source admission, calendars and capture.
+`prop/phase_dispatch.py` resolves only the requested independent backend for
+HTTP, campaigns and AnalysisStore; unknown phases reject instead of falling
+through to another phase. `research_campaigns.py` owns saved-trial expansion,
+freeze and assessment provenance. The proposed `phase_optimization.py` and
+`phase_sampling.py` were not created; do not add parallel orchestration simply
+to match earlier proposed filenames. All work uses existing routes, workers,
+backtest catalogue and AnalysisStore. See the
 [responsibility and contract map](phase_optimization_plan.md#target-architecture-and-module-responsibilities).
+
+## Final module ownership and retention
+
+| Classification | Modules | Active dependencies and retention decision |
+| --- | --- | --- |
+| Primary phase simulation | `prop/evaluation_profiles.py`, `prop/funded_profiles.py` | Independent single-source and dated-funded runners; also own legacy acquisition/lifetime helpers called through `native_analysis` compatibility delegates. Keep these delegates and seed/dictionary semantics. |
+| Primary phase selection | `prop/evaluation_optimization.py`, `prop/funded_optimization.py` | Own phase contracts, metrics, frontier/ranking and format-4/5 artifact schemas. Opposite-phase inputs reject. No call to the legacy joint selector. |
+| Shared phase infrastructure | `prop/phase_profiles.py`, `prop/phase_search.py` | Frozen types, profile/source/risk/cost admission, source/model identity, calendar and unique source capture. Already shared: no second validation/sampling engine added. |
+| Refactored dispatch | `prop/phase_dispatch.py`, `prop_api.py`, `prop/store.py`, `research_campaigns.py` | Central lazy backend resolution removes repeated phase imports/route branches. Store owns queue/source locks, resource preflight, atomic sealing and persistence; campaigns reference those outputs. Existing `submit_evaluation`/`submit_funded` remain compatibility methods. |
+| Legacy joint business optimizer | `prop/joint_sizing.py`, annualized `prop/native_analysis.py` | Still active via automatic/manual annualized reports, account refresh, joint regression tests and prior report meanings. Joint search is deliberately coupled at the business level; new phase selection cannot call it. No retirement in this task. |
+| Retained kernels and observed cash | `prop/native_engine.py`, `native_backend.py`, `lucid_engine.py`, `lucid_backend.py`, `lucid_rules.py`, `phase_lifecycle.py`, `cash_ledger.py` | Account transitions, compiled/reference equivalence, dated one-path replay and exact monthly fee cap. No kernel or numeric formula rewritten. |
+| Refactored research job option | `backtest_requests.py`, `optimization.py`, `optimization_worker.py`, shared grid UI | New `automatic_prop: false` skips automatic joint simulations and the calculation-cache snapshot. Default true; job profile, metric columns and trial reuse key distinguish modes. Ordinary source reports remain campaign inputs. Worker already supports `default_prop=False` and is retained. |
+| Historical notebook entry point | `prop/analysis.py` | Imported by `scripts/demo_prop_analysis.py`, `tests/test_prop_notebook.py`, `tests/test_prop_adapter.py`; retains notebook preparation/execution/cleaning and pinned evidence. No active production portal caller. |
+| Historical notebook numerical model | `prop/model.py` | `analysis.py` and notebook parity tests use `NotebookModel`; retain the extraction and all numerical cells unchanged. Header mentions the former extractor; no current `scripts/extract_prop_model.py` exists. Do not regenerate from an assumed tool. |
+| Historical notebook settings | `prop/settings.py` | `analysis.py` and notebook tests use pinned defaults/version/checksum/presets. Production settings live in `native_analysis.py`; these defaults are not an independent optimizer configuration. |
+| Historical readers | `web/prop.js`, `prop/store.py` | Format-1 notebook and format-2 external reports remain readable with historical notices; format-3 annualized/dated/cash and format-4/5 phase reports remain distinct. Reading never imports or reruns NotebookModel or an external engine. |
+| Retired production modules | None | No audited module is proven unnecessary across runtime, tests, demos and historical compatibility. Proposed filenames are not implemented modules to delete. No obsolete UI or notebook evidence removed. |
+
+Common artifact publication already lives in AnalysisStore (`seal_report`, file
+allowlist, checksums, ZIP), and `phase_search.capture_inputs` deduplicates source
+files within phase reports. The phase-specific writers retain different sampling,
+uncertainty and frontier/ranking schemas. Combining them would change hashed
+calculation modules without removing a second storage path. This cleanup leaves
+all phase implementation/rule/kernel identities byte-for-byte unchanged. Backtest
+trial identity conservatively hashes all production Python, so new code safely
+invalidates backtest reuse/resume against an older engine; old reports still open.
+Frozen phase package model identities remain valid when their sources/strategies
+are otherwise compatible. No calculation hash is bypassed or relabelled.
+
+Performance remains bounded by 10,000 backtest combinations, configured worker
+limits, 128 phase candidates, 20,000 paths per candidate and report-size preflight.
+Funded adds a 50-million path-calendar-day cap. Large grids should opt out of
+automatic joint reports and run only the declared independent campaigns. Source
+revalidation at check/run/publication is deliberate protection against mutation.
+Evaluation retains both legacy retained-block diagnostics and IID dated chains;
+these are distinct estimands, not interchangeable cached results. Repeat campaigns
+reuse the same verified phase report; reads/downloads never backtest or simulate.
+Adaptive screening and broader profile/uncertainty work remain future research.
 
 ## Decisions
 

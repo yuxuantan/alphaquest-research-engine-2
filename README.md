@@ -27,6 +27,25 @@ OHLC execution assumptions. The same-close descriptions below apply to the
 original consecutive-green-bars sample; the VWAP strategy uses the execution
 extension described in its guide. MultiCharts export parity remains unverified.
 
+## Independent phase research
+
+From **Strategies → New backtest**, save an IS grid, open a trial report, then
+**Configure prop analysis → Create Evaluation campaign / Create Funded campaign**.
+Evaluation minimizes acquisition cost and calendar time with a complete estimated
+Pareto frontier; it does not choose a weighted winner. Funded maximizes modeled
+trader cash received before a saved horizon, conditional on a fresh funded
+account. Each phase selects independently from saved IS trials across jobs and
+strategies. Check sources, run, inspect/download results, freeze named IS choices,
+then manually launch frozen OOS assessment. Assessment never reselects.
+
+For grids feeding these campaigns, uncheck **Calculate automatic legacy Apex and
+Lucid prop reports** to skip expensive joint calculations. It stays checked by
+default for compatibility; saved reports still support manual prop configuration.
+[Campaign steps](docs/research_campaign_api.md) ·
+[Grids and resource limits](docs/optimization.md) ·
+[Freeze/OOS policy](docs/research_workflow.md) ·
+[Current module ownership](docs/architecture.md#final-module-ownership-and-retention)
+
 ## Documentation
 
 - [Architecture guide](docs/architecture.md): requirements, workflow, code components and design trade-offs.
@@ -63,7 +82,8 @@ For the supplied VWAP backtest, the matching MultiCharts XLSX is selected after
 all trade IDs, directions, UTC entry times, quantities and net costs reconcile.
 Its measured excursions supplement native trade storage. Without a matching
 export, the local model uses an explicitly disclosed close-only fallback.
-The supported model uses one strategy with nonoverlapping trades, Apex 50K EOD,
+The retained legacy annualized default uses one source with nonoverlapping trades,
+Apex 50K EOD,
 $49 evaluation + $129 activation, 30% holdout, block 5, 20 slots and standard
 simulation counts. Set prices to $109 and $0 for the alternative choice.
 Saved reports reopen without rerunning. Prior notebook and external-engine
@@ -213,8 +233,9 @@ Its JSON output includes `backtest_id` and `default_prop_analysis_id`; open the
 same library in the portal to inspect Historical net and downloads. The output
 shortcut shares the saved files, and removing the shortcut preserves the saved
 report. Unsupported prop sources show an explicit N/A reason while retaining
-the backtest. The same default analysis runs for every portal/API backtest and
-new optimization trial; standard simulation counts add runtime.
+the backtest. Portal/API single backtests and new optimization trials enable
+legacy reports by default; grids may explicitly set `automatic_prop: false`.
+Standard simulation counts add runtime when enabled.
 
 JSON monetary values and financial CSV cells use exact Decimal strings with no display rounding. JSON timestamps use UTC ISO 8601; null timestamps/deadlines become blank CSV cells. Win rate uses **net** winning trades divided by all completed trades, including breakevens. Zero trades produces JSON `null` and the command displays **N/A**. Recurring percentages use 28 significant Decimal digits; integer win/loss/breakeven counts remain authoritative.
 

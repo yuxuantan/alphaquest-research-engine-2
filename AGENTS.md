@@ -82,3 +82,28 @@ Keep current/planned status explicit and retain all delivery requirements above.
   label synthetic product sources. Documentation-only tasks need no artificial
   screen or simulation result. Do not claim numerical/provider parity without
   independently generated matching evidence.
+
+# Architecture maintenance after phase migration
+
+- Phase simulation belongs in `prop/evaluation_profiles.py` and
+  `prop/funded_profiles.py`; selection/metric/artifact contracts belong in their
+  respective `*_optimization.py` modules. Shared admission/calendar/capture is in
+  `phase_profiles.py`/`phase_search.py`; use `phase_dispatch.py` for backend
+  resolution. Unknown phases must reject; never silently fall back to a phase.
+- API, AnalysisStore and campaigns orchestrate these owners. Do not duplicate
+  simulations/selectors or create the formerly proposed `phase_optimization.py`
+  or `phase_sampling.py` solely to follow obsolete design names.
+- Preserve phase numerical hashes and legacy compatibility delegates for
+  orchestration-only work. If numerical source changes are necessary, retain
+  old reports and fail closed on incompatible frozen-package launch; never
+  exclude changed calculation code from identity merely to allow reuse.
+- New grid requests may set strict boolean `automatic_prop: false`; default true
+  retains legacy automatic reports. Preserve per-job profiles/metric columns and
+  cache separation, and keep opted-out trials usable by manual phase campaigns.
+- Notebook `prop/analysis.py`, `model.py`, `settings.py` remain historical
+  qualification/demo dependencies; format-1/2 readers remain supported. Prove
+  absence of runtime, test, script and historical callers before retirement.
+- Keep point-estimate selection distinct from precision/provider certification.
+  Generated/adaptive campaigns, Lucid dated Evaluation and portfolio search are
+  still pending. Update current documentation without deleting dated findings,
+  ADRs, reports, immutable snapshots or prior numerical evidence.

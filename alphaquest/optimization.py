@@ -134,10 +134,11 @@ class OptimizationStore:
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
                "worker_count": min(request.workers, total), "worker_pids": [], "failed_trials": [], "request": request.model_dump(), "axes": axes,
                "dataset": dataset, "strategy": definition.description(), "report_detail": "compact", "research": research,
-               "engine_identity": engine_identity(), "reused_trials": 0, "default_prop_profile": profile(),
+               "engine_identity": engine_identity(), "reused_trials": 0, "default_prop_profile": profile() if request.automatic_prop else None,
                "prop_unavailable_trials": 0, "prop_error_trials": 0,
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
-               "step_counts": {name: len(values) for name, values in axes.items()}, "metric_columns": list(METRICS)}
+               "step_counts": {name: len(values) for name, values in axes.items()},
+               "metric_columns": list(METRICS if request.automatic_prop else BACKTEST_METRICS)}
         with self.runs.connect() as conn:
             conn.execute("INSERT INTO optimizations VALUES (?, ?, ?)", (job["id"], job["created_at_utc"], json.dumps(job)))
         return job
@@ -468,7 +469,9 @@ class OptimizationStore:
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
                 context = TrialContext(snapshot, root, job["dataset"], job["strategy"]["id"], config, date_range, prepared, features,
-                                       default_prop=bool(job.get("default_prop_profile")),calculation_cache=self.prop_analyses.calculation_snapshot(),research=job.get('research'),market_benchmark=job['request'].get('market_benchmark'))
+                                       default_prop=bool(job.get("default_prop_profile")),
+                                       calculation_cache=self.prop_analyses.calculation_snapshot() if job.get("default_prop_profile") else None,
+                                       research=job.get('research'),market_benchmark=job['request'].get('market_benchmark'))
                 trials = iter(pending)
                 workers = job["worker_count"]
                 if workers == 1:

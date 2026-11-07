@@ -1,3 +1,14 @@
+# Prop simulation review and evidence
+
+Current [architecture cleanup and regression qualification](#final-architecture-cleanup--2026-11-06) ·
+[Phase campaigns](#phase-research-campaigns--2026-11-06) ·
+[Portal / frozen OOS](#phase-campaign-portal-and-frozen-oos--2026-11-06) ·
+[Current contracts](prop_simulation.md) · [Module ownership](architecture.md#final-module-ownership-and-retention).
+
+All earlier dated review records below are preserved. Their model versions,
+numerical findings and scope are historical evidence, not claims of current
+provider accuracy. New qualification uses its own artifact directory.
+
 # Funded simulation UI/UX review — 27 October 2026
 
 The previous report gave source internals, long tables and funded outcomes the
@@ -6199,3 +6210,702 @@ this evidence root's validation summary.
 counts, reconciliation, limits and evidence filenames. This is 257 backend cases
 and 70 distinct browser cases, with the rerun qualification stated above; it is
 not a claim of full P1–P5 certification, provider parity or a green full baseline.
+
+
+## Final architecture cleanup — 2026-11-06
+
+Baseline `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus the saved local cleanup
+diff; no GitHub push. Evidence root:
+`artifacts/phase-architecture-cleanup-20261106/`. All sources here are explicitly
+SYNTHETIC; fee overrides $30/$40 are test scenarios, not provider prices.
+
+### Implementation and retained ownership
+
+- Shared lazy `prop/phase_dispatch.py` now resolves the requested backend for
+  HTTP, campaigns and AnalysisStore. Unknown modes/phases reject before dispatch;
+  no fallback into another objective. Simulation, numerical metrics, selection
+  and phase-specific artifact formats remain owned by their existing phase modules.
+- Strict grid field `automatic_prop` defaults true. False saves normal backtests
+  without automatic legacy Apex/Lucid reports or their calculation-cache snapshot.
+  The shared form exposes the choice, including a one-combination batch path.
+  The saved profile/metric columns and existing trial key separate both modes.
+  Manual configuration and independent campaigns still use those saved sources.
+- Removed unused `prepare` from the HTTP imports and `csv`/`io` from the store.
+  No kernel, phase estimator, sampling law, model/rule version, numeric identity,
+  legacy score, report schema or historical reader was rewritten. No production
+  module retired: notebook analysis/model/settings remain demo/parity dependencies.
+- README, architecture, phase plan, model specification, research/grid workflows,
+  portfolio status and AGENTS now distinguish implemented saved-candidate research
+  from generated/adaptive search, statistical certification and future portfolios.
+  Original ADRs, numerical findings and evidence remain. See the
+  [module/dependency inventory](architecture.md#final-module-ownership-and-retention).
+
+### Saved normal-product demonstration
+
+Stable-code browser run: `stable-focused/`. Each case used a normal uploaded
+SYNTHETIC dataset, reviewed IS/OOS declaration and the existing grid form; no
+report/oracle was injected into runtime. The grid varies Green bar count 1–2,
+holds one minute, one NQ contract, zero commission/slippage, UTC source, point
+value 20, IS 2026-01-05 through 2026-01-14, reserved OOS 2026-01-15 through
+2026-02-05. Each IS source has eight trades earning $3,000 or $1,000 per session.
+Automatic reports are explicitly off; the ordinary report/configuration remains
+usable. The two-trial grids took about 0.159 s and 0.101 s on this small fixture;
+these are software timings, not representative throughput or a general speedup.
+
+| Case | Saved grid / campaign / analysis |
+| --- | --- |
+| Evaluation | `2965dda7f17a4c3aacbe3a93229e6c4c` / `172f63012e0a4fc095d4f77302daf566` / `f075e876e0ae4006b3a1dc79202d7af5` |
+| Funded | `0be0ce87a38b4660938bbc411a5ec35c` / `b7a2b265facd4f5da9706247c2340963` / `fefe4be21e314cf29c6aa6765edd6366` |
+
+Open a grid's saved source report → Configure prop analysis → Create the relevant
+phase campaign → select the complete saved job, explicit sizes and sampling →
+Check → Run. Budget 3 rejects the four candidates and keeps Run disabled; budget
+4 admits all. Evaluation uses 3/10 MNQ; Funded uses 1/3 MNQ. Both use 8 explicitly
+requested paths, block 1, Monday 2026-01-05 start. Evaluation uses 8 acquisition
+chains, $30 purchase/$40 activation and one activation session; Funded uses H=14
+calendar days and a four-day modeled receipt delay. Synthetic paths are constant,
+so these small ensembles give exact deterministic expectations, not useful
+statistical precision for market research.
+
+Independent expected/actual observations, derived from captured trade CSVs:
+
+| Source / size | Evaluation cost and readiness | Funded cash by exclusive Jan 19 cutoff |
+| --- | --- | --- |
+| $300 per MNQ-session, 3 MNQ | $70, 7 calendar days | $1,500 at 3 MNQ; another $1,500 pending |
+| $300 per MNQ-session, 10 MNQ | $70, 2 calendar days; only frontier point | Size 10 is not in this Funded campaign |
+| $100 per MNQ-session, 3 MNQ | $70, 15 calendar days | $0 |
+| $100 per MNQ-session, 10 MNQ | $70, 4 calendar days | Size 10 is not in this Funded campaign |
+| Either source, 1 MNQ | Not in this Evaluation campaign | $0 |
+
+Arithmetic: convert NQ P&L to per-MNQ by dividing by 10, multiply by the requested
+whole size, then `ceil(3000/daily_profit)` passing sessions. A single purchase
+plus activation costs $30+$40=$70. Add the saved activation session and next-open
+readiness on the declared weekday calendar; costs tie, so the two-day point
+strictly dominates the others. For the $900/day Funded path, the native scenario
+qualifies $1,500 requests on Jan 9 and Jan 16; fixed delay yields Jan 13 and Jan 20
+receipts. Only Jan 13 is before Jan 19. Gross deductions are $3,000; cash received
+and pending are $1,500 each. No account equity, acquisition fee or double trading
+cost enters this objective.
+
+Each case saves `grid.json`, `workflow.json`, `source_checks.json`, results JSON/CSV,
+`analysis.zip`, source-check/budget-rejection/results screenshots, and the normal
+`backtest_runs`/`prop_analyses` library. Reopen emits no POST and returns identical
+saved results. `stable-independent-audit.json` independently checks source-derived
+cash/readiness, frontier/ranking, all report artifact hashes and ZIP bytes using
+only standard-library Decimal/date code. The additional one-combination browser
+case opens its ordinary report with exactly 26.00 CU net. Serial/parallel API tests
+verify no automatic computation, strict boolean rejection, same-mode reuse and
+zero cross-mode reuse; default automatic requests remain active.
+
+### Reproduce and inspect manually
+
+Use a **new** path for each pytest run; pytest clears its basetemp. From repo root:
+
+```sh
+PHASE_RECHECK="artifacts/phase-cleanup-recheck-$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$PHASE_RECHECK"
+.venv/bin/python -m pytest -q tests/test_phase_architecture.py \
+  tests/test_phase_architecture_browser.py tests/test_backtest_preparation_browser.py \
+  --basetemp "$PHASE_RECHECK/browser" --junitxml "$PHASE_RECHECK/browser.xml"
+.venv/bin/python tests/review_phase_architecture.py \
+  --browser-root "$PHASE_RECHECK/browser" --output "$PHASE_RECHECK/independent.json"
+```
+
+Expected: all eight checks pass; two complete source-derived campaign audits.
+To reopen the saved Evaluation case without replay, start an owned temporary server:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/phase-architecture-cleanup-20261106/stable-focused/test_opt_out_grid_to_independe0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8016
+```
+
+Open `http://127.0.0.1:8016/#backtests/report/d2371d61f0704e91aa9ff50663df1899`
+and inspect Configure prop analysis/source checks. Reopen the saved campaign at
+`http://127.0.0.1:8016/#backtests/prop/campaign/172f63012e0a4fc095d4f77302daf566`;
+expect four rows, all $70, readiness 2/4/7/15, a single frontier point and no
+Evaluation winner. Download results JSON/CSV, source checks and ZIP. Stop with
+Ctrl-C. For Funded use the sibling `test_opt_out_grid_to_independe1` data directory,
+then campaign `b7a2b265facd4f5da9706247c2340963`; expect cash [0,0,0,1500] and explicit
+pending/deduction fields. The ordinary `analysis.zip` and captured inputs remain
+the authoritative outputs, without a second campaign result store.
+
+The full suite's existing campaign portal cases cover named freeze → manual OOS
+backtest → assessment-only report → repeated reopening/download, including IS
+package hash immutability, no OOS ranking, prior access, model mismatch rejection,
+unsupported sources, zero/censored outcomes and failed worker recovery. Their
+fresh evidence is retained under `final-suite/`; qualification status below must
+be read with the actual suite result.
+
+### Qualification status and limitations
+
+Stable focused checks: 8 passed (22.23 s); original phase regression pass: 44
+passed (219.24 s). The first broad run was deliberately interrupted after 171
+passes and one preparation-browser failure. That failure also occurred on the
+untouched baseline (33.38 s): its symbol-less synthetic source correctly triggered
+the existing calendar guard and disabled Start. The fixture now declares synthetic
+NQ; all progress stages, counts and zero-trade/10,000-equity assertions are retained.
+`baseline-preparation.log`, `preparation-investigation.log`, `full-suite.log` and
+`stable-focused.log` preserve that investigation; no assertion was weakened.
+
+The complete run subsequently exposed three stale deletion-browser assertions;
+all three reproduce unchanged on baseline `445c140` in `baseline-deletion.log`.
+Two expected pre-campaign rejection text while the backend correctly returned
+campaign/running-analysis deletion protection. Their assertions now require the
+current complete rejection reason and retain the preservation/deletion checks.
+The report-link case previously used a one-session source with an incompatible
+prop result, for which the UI correctly exposes no completed-report link. It now
+creates a normal multi-session synthetic source, requires a completed prop report,
+and additionally compares saved report JSON bytes after source deletion. All seven
+checks in both deletion-browser modules pass (`deletion-corrected.xml`, 49.42 s).
+No production deletion guard, incompatible-source rule or numerical test changed.
+
+The full run also exposed the VWAP benchmark fixture's `SYNTHETIC` symbol,
+which rejects with the same reviewed-calendar error on untouched baseline
+(`baseline-benchmark.log`). That one case now explicitly uploads synthetic NQ;
+Use EOD Flat, actual-equity alignment, all four observed bars, close values and
+188 CU holding P&L assertions remain unchanged. Other benchmark fixtures retain
+their generic symbol. All 23 benchmark checks pass (`benchmark-corrected.xml`,
+5.29 s). No calendar, execution or benchmark formula changed.
+
+Independent mathematical audits already completed:
+
+- `independent-evaluation.json`: captured constant-day sources independently
+  produce (cost, days) = (70,4), (90,9), (100,3), (140,2); frontier excludes only
+  (90,9), adjacent acceleration costs are (100−70)/(4−3)=$30/day and
+  (140−100)/(3−2)=$40/day. All 13 saved report/ZIP artifact checks pass.
+- `independent-funded.json`: candidate all-start receipt means [0,0,0,1500], winning pending
+  $1,500/gross deduction $3,000, native account equity and received-path events
+  reconcile; all 13 report/ZIP artifact checks pass.
+- `stable-independent-complete.json`: new opt-out grid workflows plus receipt
+  boundaries. Jan 13 cash with H=8 (cutoff Jan 13) is $0 received/$1,500 pending;
+  H=9 (cutoff Jan 14) is $1,500 received/$0 pending. Standard-library date/Decimal
+  calculations consume event records, not a production selection helper.
+- `final-independent-portal.json`: both normal browser freeze/manual OOS
+  workflows passed independent source-derived arithmetic and 50 report/ZIP
+  artifact checks, with frozen package/rule-source hashes and no reopen POST.
+- `final-independent-cash.json`: all 154 ledger rows conserve exact cash and
+  all monthly spending/reservations stay within cap; 115 ZIP artifact hashes
+  verified. Paid purchases $30+$30 plus $40 activation consume the $100 cap;
+  the receipt case has $1,500 modeled receipts − $90 evaluations − $80 activations
+  = $1,330 net. Pending receipts, month resets and expiry remain separate events.
+- `final-independent-grid.json`: fresh stable-suite opt-out grids feed both phase
+  campaigns with unchanged source-derived expected values, 26 report/ZIP artifact
+  checks and no reopen POST. Stored tiny-grid times were about 0.372 s / 0.178 s
+  while two qualification groups ran; these are not controlled throughput estimates.
+
+| Fresh full-suite portal case | Campaign | IS analysis | Frozen OOS assessment |
+| --- | --- | --- | --- |
+| `test_campaign_portal_frozen_oo0` (Evaluation) | `e559c78629514fc58e207ac0cdff53ce` | `26a4c9a06b2844f2983701a435f54184` | `9153463b0b7f46d6b757ab32780510d1` |
+| `test_campaign_portal_frozen_oo1` (Funded) | `72da9871b06c492881d154a5cc924b5b` | `74f6cde20b764423a09c3c69d84a59a9` | `ac4116bef9b348bfa0a5cf23311566b1` |
+
+For either fresh portal library, use the temporary-server command above with
+`ALPHAQUEST_DATA_DIR` set to `.../final-suite/<case>`. Open
+`/#backtests/prop/campaign/<campaign>` to inspect named frozen IS choices and
+assessment links, or `/#backtests/prop/job/<assessment>` for saved OOS metrics.
+Evaluation's frozen OOS result is $70 / 2 days; Funded's two frozen size results
+are $0 and $1,500 received, with the winning $1,500 still pending separately.
+Both assessment reports have no ranking/frontier and no winner. Stop the server
+with Ctrl-C after inspection.
+
+Reproduce the full regression suite and mathematical audits from fresh outputs
+(reuse the new `PHASE_RECHECK` directory declared above):
+
+```sh
+.venv/bin/python -m pytest -q --basetemp "$PHASE_RECHECK/full" --junitxml "$PHASE_RECHECK/full.xml"
+.venv/bin/python tests/review_evaluation_optimizer.py \
+  --library "$PHASE_RECHECK/full/evaluation-search-library0" --output "$PHASE_RECHECK/evaluation-audit.json"
+.venv/bin/python tests/review_funded_optimizer.py \
+  --library "$PHASE_RECHECK/full/funded-search-library0" --output "$PHASE_RECHECK/funded-audit.json"
+.venv/bin/python tests/review_phase_architecture.py \
+  --browser-root "$PHASE_RECHECK/full" --funded-library "$PHASE_RECHECK/full/funded-search-library0" \
+  --output "$PHASE_RECHECK/campaign-boundary-audit.json"
+.venv/bin/python tests/review_prop_cash_oracles.py \
+  --directory "$PHASE_RECHECK/full/test_budget_configuration_cash0" --output "$PHASE_RECHECK/cash-audit.json"
+```
+
+`final-suite.log` is the second **diagnostic**, interrupted after 809 passes and
+four reproduced baseline assertion/fixture failures (38 min 26.86 s). Its
+completed product reports remain valid inspectable evidence; it is not a green
+full-suite claim. The fresh complete qualification is split into disjoint A–M
+(627 checks) and N–Z (586 checks) groups. `stable-suite-manifest.json` records all
+1,213 collected node IDs, file membership and exact test/production hashes;
+`summarize_qualification.py` rejects omissions, duplicates, unaccounted failures,
+skips or production/source drift. A changed test module must have a complete
+replacement run with its own source hash; raw failed broad results stay recorded.
+Standard path counts and worker limits are unchanged.
+
+The A–M qualification group completed with **627 passed, no failures/errors/skips**
+in 2,082.77 s (34 min 42 s), including all five corrected baseline cases. Its XML
+matches every expected A–M node ID exactly once. One existing Starlette/httpx
+compatibility deprecation warning is recorded; no counts were reduced.
+
+Final N–Z result: **584 passed, two failures, no errors/skips** in 2,219.55 s
+(36 min 59 s), with 24 existing dependency/notebook warnings. Both failures were
+in `test_strategy_dataset_browser.py`: hierarchy separation and decimal spelling
+requested default VWAP calendar flattening on generic `SYNTHETIC` sources.
+The untouched baseline's decimal case reproduces the same 422 calendar rejection
+in `baseline-strategy-decimals.log` (0.99 s); the hierarchy failure reaches that
+same guard after ordinary setup. Its slow archived Python-only setup was stopped
+rather than treated as completed baseline evidence.
+
+Those two cases now upload explicitly labeled synthetic NQ data through the normal
+dataset API. Default EOD flattening and every original grouping, OOS, deletion,
+parameter precision and separation assertion remain. No shared fixture defaults or
+production code changed. The **entire nine-test module passed** in 281.09 s
+(4 min 41 s), recorded in `strategy-source-corrected.xml/.log` and its source-hash
+manifest. The other seven cases in that module were rechecked too.
+
+`qualification.json` records the exact scope: the broad snapshot has **1,211 passes
+and two fixture failures**, followed by the complete **9/9 module recheck**. Final
+source-version coverage is 627 A–M cases + 577 unchanged N–Z cases + all 9 corrected
+module cases = **1,213 distinct collected cases**, with no omission or duplicate.
+Every current case has a passing observation and production hashes are unchanged.
+**No fresh, entirely green full-suite invocation was run after the last fixture
+correction.** Do not relabel the raw N–Z snapshot or a focused pass as a green
+baseline. Its failures/logs remain inspectable.
+
+Final preservation verification: **87,618 earlier data/evidence files unchanged,
+none missing**. `preservation-hash-check.json` contains the full SHA-256 comparison;
+`qualification.json` confirms no subsequent size/mtime/ctime changes to those
+verified files. Final Evaluation/Funded implementation identities exactly match
+`phase-identities-before.json` (`phase-identities-after.json`). All 13 original ADR
+rows, the entire prior review log and the pinned notebook checksum are preserved
+(`identity-and-history-audit.json`). No calculation kernel or model/rule version
+changed; no production module retired. There is no unresolved implementation
+blocker from this cleanup; fresh-full-baseline status and the research/provider
+limits below remain explicit.
+
+The final independent audits are `qualified-independent-evaluation.json`,
+`qualified-independent-funded.json`, `qualified-independent-portal.json`,
+`qualified-independent-grid-and-cutoffs.json`, and `final-independent-cash.json`.
+They inspect normal completed source/report/ZIP outputs from the qualification
+libraries without importing a production calculator. Source-derived frontiers,
+$30/$40 marginal acceleration, horizon cash/ranking, exclusive receipt cutoffs,
+fee conservation and IS/frozen-OOS package identity all match their independent
+expectations. Existing API/UI, strategy/grid, Apex/Lucid, legacy joint, risk/cost,
+source reconciliation, persistence/deletion and historical reopening checks are
+covered by the raw broad XML and the explicitly recorded module recheck.
+
+Reproduce the evidence summary (read-only checks; choose a new output filename):
+
+```sh
+.venv/bin/python artifacts/phase-architecture-cleanup-20261106/summarize_qualification.py \
+  artifacts/phase-architecture-cleanup-20261106/qualification-recheck-NEW.json
+```
+
+Final documentation checks cover all nine requested files: **194 local file and
+heading links valid**, original ADR rows/prior review preserved, and
+`git diff --check` clean (`documentation-links-final.json`).
+
+The source/journey/download commands above reproduce new runs through the normal
+product. All owned temporary servers and browsers stopped; no persistent server
+or GitHub push was started.
+
+Known research/provider limits remain: Apex-only dated Evaluation; stationary
+empirical IID acquisition with unlimited capital; user-declared weekday calendars;
+no verified holidays/early-close/settlement forecast; fixed civil-day receipt lag
+and post-closure entitlement assumptions; native OHLC risk is not measured tick
+MAE/MFE; no provider/Bridge numerical parity or live readiness claim. Point-estimate
+frontiers/rankings and conditional Monte Carlo error are not certified future
+optima. New-grid generation, adaptive confirmation and full simultaneous inference
+remain pending. Original P2/P4 and broader certification exits are not marked
+complete; the saved-candidate portal and freeze/OOS product path is implemented.
+
+No portfolio optimizer is added. Next is portfolio milestone 3's bounded fixed-plan
+separate-account comparison using frozen phase choices, synchronized sources,
+exact fee/receipt timing, a zero-purchase baseline and the unchanged hard monthly
+fee cap; then bounded separate-account search within milestone 3 and independent
+portfolio-level OOS in milestone 5. Shared-account milestone 4 remains separate
+and deferred pending combined exposure/risk evidence. Completed portfolio
+milestones 1–2 remain preserved. All servers/browsers started by the
+checks are fixture-owned and shut down; no persistent server was started.
+
+
+## Automatic campaign calendar coverage — 2026-11-07
+
+New Evaluation/Funded campaigns derive their generated weekday-calendar coverage
+server-side when `coverage_end` is omitted. `research_campaigns.py` normalizes the
+campaign before passing its concrete request to the unchanged phase backend.
+The portal removes the manual coverage field and the hardcoded 2037 date,
+submits only the scenario start, and shows the derived end after checking.
+
+Evaluation adds the existing `SequentialRetry.max_calendar_days` (default 3,650)
+to the latest scenario start. Funded adds its declared receipt horizon; pending
+civil-day receipt dates do not extend the simulated trading horizon. Calendar
+coverage does not change these limits, the IS window, samples, account rules,
+selection, fee/cash accounting or numerical implementations. The exact resolved
+calendar is saved in the existing manifest/report/request/ZIP paths. Existing
+campaigns validate/run/freeze/OOS from their saved concrete requests. Explicit API
+calendars keep their prior meaning and checks; other calendar version labels
+require explicit coverage instead of automatic extrapolation.
+
+### Actual saved journey and independent expectations
+
+Evidence: `artifacts/campaign-calendar-auto-20261107/qualification/`.
+Normal dataset upload → ordinary one-trial IS grid with automatic legacy reports
+explicitly disabled → saved backtest report → Configure prop analysis → Create
+Evaluation/Funded campaign → scenario start → Save/check → Run → durable results,
+JSON/CSV/ZIP downloads and reopen. No new page/API/result store or injected report.
+Sources are labeled **SYNTHETIC automatic calendar coverage**; $30/$40 evaluation/
+activation overrides are software scenarios, not current provider prices.
+
+The source stays on 2026-01-05…2026-01-14 IS, with reserved OOS through 2026-02-05.
+It has eight flat one-NQ trades at $3,000 net each, zero commission/slippage and
+captured native OHLC risk. The modeled target start is deliberately **2040-01-02**,
+beyond the removed 2037 default. No future market bars are loaded or invented.
+All paths are declared at 8, block 1 (and 8 Evaluation chains); the deterministic
+constant-day example establishes arithmetic, not market precision/provider parity.
+
+| Phase | Saved backtest | Campaign | Analysis | Derived coverage end |
+| --- | --- | --- | --- | --- |
+| Evaluation | `b2a9a508f2c54f40a955a9357fc42231` | `a6c5e2ff43b1484abaffc1b52e50750f` | `59b49ed4ca674d93ab9aa4af1e24fdfa` | `2049-12-30` |
+| Funded | `ad451603dc5c451083ac0553cd4b855f` | `922618667eba4f18a8f66d0a6f221cef` | `2c2ebf4ab77a4c0394840acb19694827` | `2040-01-16` |
+
+Evaluation uses 10 MNQ: $3,000 × 10/10 = $3,000 per sampled session, reaching the
+local $3,000 target on Monday Jan 2, 2040. One activation session is Tuesday Jan 3;
+the first usable session is Wednesday Jan 4. Independent expected acquisition is
+**$30+$40=$70**, **2 calendar days**, with coverage **2049-12-30** from exact
+3,650-day addition (leap days included). The 3,650-day chain limit is unchanged.
+
+Funded uses 3 MNQ: $3,000 × 3/10 = $900 per session. Ten weekday sessions fall in
+`[2040-01-02, 2040-01-16)`. Five-day qualification cycles request $1,500 on Jan 6
+and Jan 13; the saved four-day lag yields Jan 10 and Jan 17 receipts. Independent
+expected cash is **$1,500 received**, **$1,500 pending**, **$3,000 gross deductions**;
+coverage is **2040-01-16**. An initial check at H=8 shows **2040-01-10**. Editing
+H to 14 disables Run until rechecking and derives the new Jan 16 date.
+
+Each browser case saves `workflow.json`, `campaign.json`, `source_checks.json`,
+results JSON/CSV, `report.json`, `analysis.zip`, checked-form/results screenshots
+and its ordinary dataset/backtest/AnalysisStore library. The browser request has
+no `coverage_end`; the saved normalized request contains the exact required end.
+Reload and repeated downloads emit no POST and return byte-identical data.
+`independent-audit-final.json` uses standard-library CSV/Decimal/date arithmetic only,
+checks both source-derived outcomes and 34 download/report/ZIP checks, and imports
+no production calculator.
+
+### Boundaries and reproducible verification
+
+Date/API checks cover leap days, year boundaries, multiple starts (latest start
+wins), custom Evaluation limits, fixed receipt-delay independence, explicit
+calendar compatibility, equivalent explicit/automatic cache reuse, immutable
+campaign-ID retries, saved concrete requests, invalid/missing dates, date overflow,
+nonpositive/noninteger horizons and inadequate explicit coverage. Non-default
+calendar versions without explicit coverage reject before a campaign is saved.
+Normal source/research/profile validation and phase resource bounds still apply.
+
+From the repository root, always choose a fresh pytest basetemp:
+
+```sh
+CALENDAR_RECHECK="artifacts/calendar-auto-recheck-$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$CALENDAR_RECHECK"
+.venv/bin/python -m pytest -q tests/test_campaign_calendar.py \
+  tests/test_campaign_calendar_browser.py tests/test_research_campaigns.py \
+  tests/test_campaign_assessments.py tests/test_campaign_portal_browser.py \
+  --basetemp "$CALENDAR_RECHECK/run" --junitxml "$CALENDAR_RECHECK/results.xml"
+.venv/bin/python tests/review_campaign_calendar.py \
+  --browser-root "$CALENDAR_RECHECK/run" --output "$CALENDAR_RECHECK/independent.json"
+```
+
+To inspect the saved Evaluation library through the actual portal:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/campaign-calendar-auto-20261107/qualification/test_automatic_calendar_from_s0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8016
+```
+
+Open `/#backtests/report/b2a9a508f2c54f40a955a9357fc42231` at
+`http://127.0.0.1:8016`, click Configure prop analysis → Create Evaluation campaign,
+and expect no manual calendar-coverage field. Set scenario start 2040-01-02,
+10 MNQ, 8 paths/chains and block 1; Save/check shows 2049-12-30 and enables Run.
+The saved campaign is `/#backtests/prop/campaign/a6c5e2ff43b1484abaffc1b52e50750f`.
+Expect $70 / 2 days and the resolved calendar in downloaded request/report files.
+For Funded, use the sibling `test_automatic_calendar_from_s1` library, campaign
+`922618667eba4f18a8f66d0a6f221cef`, 3 MNQ, H=14 and lag=4; expect the Jan 16
+coverage and $1,500 received/$1,500 pending. Stop the owned server with Ctrl-C.
+Reload/restart an existing app and refresh the browser to load both backend and
+frontend changes; no user server was restarted by this task.
+
+Qualification: **45 targeted tests passed** (359.38 seconds), including both new
+real-browser workflows and existing campaign/freeze/OOS regressions. The only
+warning was the existing FastAPI/Starlette TestClient deprecation. This is not a
+full-repository suite claim. The final independent auditor passed both outcomes
+and 34 download/report/ZIP checks; `git diff --check` and the new documentation
+anchors passed. Evaluation/Funded implementation identities match exactly.
+
+A full SHA256 rehash checked all **121,786** preexisting data/evidence files:
+**121,785 are byte-identical**, none missing. The single exception is the mutable
+`data/prop_analyses/catalog.sqlite3`, whose bytes changed during this session with
+the preexisting reload server still running. Its SQLite quick-check is `ok`, with
+698 complete and 131 incompatible entries. There is no pre-change logical dump,
+so logical catalogue equality is not claimed. All preexisting saved report and
+evidence files match their hashes; no catalogue was restored or overwritten.
+See `qualification.json`, `preservation-validation.json` and both identity
+snapshots in the new evidence root.
+
+Earlier evidence is retained. Existing phase model/code identities are checked
+against the pre-change snapshot. No numerical/provider parity, verified future
+calendar, new sampling model, automatic final OOS or portfolio feature is claimed.
+Temporary browser-test servers stop through fixture cleanup; no persistent server
+or GitHub push was started.
+
+
+## Automatic candidate count and large-search confirmation — 2026-11-07
+
+The manual Maximum candidate count field and the fixed candidate-count ceiling
+are removed. The server counts the complete saved-trial × MNQ-size set. Exactly
+128 needs no confirmation; above 128 returns an HTTP 409 confirmation challenge
+with the exact count before source calculation or campaign persistence. The
+portal displays a native confirmation dialog. Cancel saves nothing and leaves
+Run disabled; Confirm resubmits the same declaration with
+`confirmed_candidate_count`. Configuration edits invalidate the check and discard
+that acknowledgement. Source/profile/risk/cost/date checks still apply.
+
+Sources, explicit trial lists, both phase searches/direct phase APIs and freeze
+selections no longer impose a candidate-count ceiling. Legacy
+`maximum_candidates` is accepted as deprecated metadata and no longer truncates
+or rejects a new search. Old declarations/manifests remain readable and unchanged;
+idempotent submission recognizes old declarations without new default fields.
+Confirmation is saved in the existing campaign manifest/declaration/export and
+is excluded from numerical requests/cache keys. Above-threshold standalone phase
+API check/submit requests also require the exact confirmed count.
+
+This is count admission, not unlimited compute capacity. Existing 100 MiB capture
+preflight, 128 MiB exact report limit, funded 50-million path-calendar-day bound,
+per-candidate path/size limits and queue limits remain. Confirmation does not
+bypass them. No hidden pruning, new service, report store or synthetic UI was added.
+
+### Actual product journey and independent expected values
+
+Normal labeled dataset upload → normal 43-trial IS optimization with automatic
+legacy reports disabled → saved backtest report → Configure prop analysis →
+Create Evaluation/Funded campaign → choose saved optimization and three sizes →
+Save/check → cancel 129 → edit to two sizes/check 86 without dialog → restore
+three sizes → confirm 129 → full check/run → durable results/downloads/reopen.
+Both real-browser cases save the dialog text/decision, screenshots, all six
+ordinary campaign downloads and the existing dataset/backtest/AnalysisStore
+library. The API tests additionally check 128 with no acknowledgement, missing/
+wrong acknowledgement at 129, every source/size member, freezing all 129, source/
+job deletion protection, equivalent-search reuse and workload rejection.
+
+| Phase | Grid | Campaign | Analysis |
+| --- | --- | --- | --- |
+| evaluation | `f31deabe850c4065a3eed7b9a8ce7037` | `6f5d54cce463440dbff1aa42c3d787c8` | `608ce95b5ac948f6bf0935b82c0821d7` |
+| funded | `5e153233918d4163aa24b6b7fa220d2c` | `486ea8530b9841f3b3fe4708041fd912` | `413218d0ec224e8ba9725f3d45c224eb` |
+
+All sources are labeled **SYNTHETIC 43-trial candidate confirmation**. The saved
+IS window is 2026-01-05…2026-01-14, reserved OOS 2026-01-15…2026-02-05. The ordinary
+grid varies fixed NQ contracts C=1…43, with green count/hold minutes both 1,
+initial backtest capital $10 million, and zero commission/slippage. Each source
+has eight native-risk-covered intraday winners at $3,000 × C. Thus every scaled
+MNQ earns $300 per sampled session: `$3,000 × C / (10 × C) = $300`.
+These are deliberate arithmetic scenarios, not current provider prices or forecasts.
+
+- Evaluation uses 10/11/12 MNQ: 43 × 3 = **129** candidates. Each reaches the
+  local $3,000 target on Monday Jan 5, activates Tuesday Jan 6 and is usable
+  Wednesday Jan 7. Expected acquisition is **$30+$40=$70** and **2 calendar days**
+  for every candidate. All 129 objective ties remain on the saved frontier.
+- Funded uses 3/4/5 MNQ: all earn at least $900 per session. Five-day qualification
+  cycles request $1,500 on Jan 9 and Jan 16; a four-day lag gives Jan 13 and Jan 20
+  receipts. The 14-day exclusive cutoff is Jan 19. Expected **$1,500 received**,
+  **$1,500 pending**, **$3,000 gross account deductions** for every candidate.
+  All 129 feasible candidates remain in the ranking.
+
+`tests/review_candidate_confirmation.py` independently checks 258 candidate rows
+from captured CSV/Decimal/date arithmetic, exact 43×3 source/size membership,
+all 12 downloaded-file hashes and 190 ZIP/report artifacts, and both cancel/confirm
+records. It imports no production calculator. The independent output is
+`artifacts/candidate-confirmation-20261107/independent.json`.
+
+### Reproduce and inspect
+
+Use a fresh output directory with adequate free space (the original system disk
+was nearly full; final tests used an owned temporary RAM disk):
+
+```sh
+RECHECK="artifacts/candidate-confirmation-recheck-$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$RECHECK"
+.venv/bin/python -m pytest -q tests/test_candidate_confirmation.py \
+  tests/test_candidate_confirmation_browser.py --basetemp "$RECHECK/run" \
+  --junitxml "$RECHECK/results.xml"
+.venv/bin/python tests/review_candidate_confirmation.py \
+  --browser-root "$RECHECK/run" --output "$RECHECK/independent.json"
+```
+
+The final qualification library is preserved losslessly as
+`artifacts/candidate-confirmation-20261107/qualification.tar.gz`; original
+resource-failed attempts are separately retained and do not count as passing.
+Extract into a fresh directory (archive root is `qualification`) and start a
+server against the saved Evaluation browser library:
+
+```sh
+INSPECT="artifacts/candidate-confirmation-inspect-$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$INSPECT"
+tar -xzf artifacts/candidate-confirmation-20261107/qualification.tar.gz -C "$INSPECT"
+ALPHAQUEST_DATA_DIR="$PWD/$INSPECT/qualification/test_large_campaign_confirmati0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8016
+```
+
+Open `http://127.0.0.1:8016/#backtests/prop/campaign/6f5d54cce463440dbff1aa42c3d787c8`
+for the saved 129-member result. To reproduce the form journey, open saved source
+`/#backtests/report/30831de017534434a23184865e201218`, configure Evaluation, choose grid
+`f31deabe850c4065a3eed7b9a8ce7037`, sizes `10,11,12`, paths/chains 8, block 1. Expect no manual maximum,
+a 129-candidate confirmation at Save/check, no saved campaign on cancellation,
+and $70 / 2 days for all 129 after confirmation/run. For Funded use sibling
+`test_large_campaign_confirmati1`, sizes `3,4,5`, paths 8, block 1, horizon 14 and
+lag 4; expect the receipt/pending amounts above. Stop the owned server with Ctrl-C.
+Reload/restart the normal backend and refresh the browser to load both changes.
+
+Qualification: **99 targeted tests passed** in 458.04 seconds, with one existing
+FastAPI/Starlette TestClient deprecation warning. The final stable run covers both
+phase math suites, all new confirmation cases, existing campaign/freeze/OOS and
+portal regressions, calendar API/browser checks and the adjusted architecture
+workflow. It is not a full-repository-suite claim. Initial disk-space failures
+are retained separately; they are not counted as passes. Both independently
+audited 129-member browser results and their downloads passed.
+
+A full SHA256 rehash matched **all 123,489 preexisting data/evidence files**, with
+none changed or missing. The final scratch library is losslessly archived and
+file-by-file verified against its original (`archive-verification.json`). Earlier
+reports/evidence were not compressed, deleted or rewritten. Temporary browser
+servers stopped through fixture cleanup; the owned RAM volume was detached after
+archival. No persistent server or GitHub push was started. See `qualification.json`
+for the exact final command, scope, initial resource limitation and preservation
+result.
+
+The admission source edits necessarily advance both phase implementation hashes;
+no hash inputs were excluded to force old-package reuse. All top-level numerical
+functions in both phase optimizer modules are AST-identical to the pre-change
+snapshot, and account kernels are unchanged (`identity-review.json`). Existing
+reports/downloads reopen without recalculation; incompatible old campaign checks
+and frozen launches still fail closed and require a new campaign. No change to
+model equations, provider rules, fees/cash semantics or future parity is claimed.
+
+
+## Valid IS window defaults — 2026-11-07
+
+The campaign form now derives IS first/last sessions from the selected saved
+backtests, intersecting each declared IS split with its actual saved bar-period
+bounds in CME Chicago session dates. Multiple sources and selected optimization
+trials use their common intersection. Dates are no longer initialized from the
+wider split declaration. Observed zero-trade edge sessions are retained; dates
+are not inferred from the first/last trade.
+
+The existing campaign API adds a normal, read-only `/source-window` metadata
+operation. Saved-source/job membership resolution is shared with campaign
+creation, including complete/incomplete grid and explicit-trial checks. No trade
+or dataset/OOS outcomes are loaded; no campaign is saved or simulation performed.
+Source compatibility, costs, risk and explicit window validation still happen
+through normal Save/check. Explicit API windows are never silently clipped.
+Existing requests/reports and phase implementation identities are unchanged.
+
+Manual date narrowing remains available within the displayed bounds. Other
+simulation edits preserve it; Use full common IS window restores the defaults.
+Changing sources or explicit trial lists rederives the window, disables checking
+while pending and discards stale lookup results. Missing/invalid/OOS sources or
+a disjoint common window leave checking/running disabled with an explanation.
+Scenario start and automatic future calendar coverage remain separate controls.
+
+### Actual product journey and independent expected values
+
+Normal labeled dataset upload → ordinary two-trial IS grid (`automatic_prop:false`)
+→ saved backtest report → Configure prop analysis → Evaluation/Funded campaign →
+valid dates without editing → intentional narrower dates/reset → add/remove source
+→ select a job trial with zero-trade edge sessions → valid observed defaults →
+select the primary trial → Save/check → Run → durable report/downloads/reopen.
+No separate page, demo API or duplicate result store is used.
+
+| Phase | Grid | Campaign | Analysis |
+| --- | --- | --- | --- |
+| evaluation | `f58116bf7df04e6f90e9116e78933519` | `eb1a9a3507964739bd8dda8ef7709e34` | `19b78150ba474eccb341ef62cdba17c7` |
+| funded | `1f695ff1990745e99b636efe3137bcb3` | `0d0d5e769cc140dc85f46886f0f4c0cc` | `3ffea22d7da34670a2f63af9b4296f69` |
+
+Sources are labeled **SYNTHETIC declared versus observed IS coverage**. The normal
+research declaration is **2021-01-01…2021-01-17**, with reserved civil-date OOS
+2021-01-18…2021-02-04. Saved IS bar timestamps are exactly
+`2021-01-03T23:01:00Z…2021-01-14T23:04:00Z`. Chicago session rollover converts
+these to **2021-01-04…2021-01-15**, ten weekday sessions. That is the independently
+expected form/request default. The old declared dates still reject when explicitly
+submitted, proving the validation was not weakened to hide the bad default.
+
+The grid uses green counts 1/2, one-minute holds, one NQ, zero costs/slippage and
+$10,000 initial backtest capital. The primary source has ten $3,000 winners.
+The second has eight $1,000 winners, with no trades on observed Jan 4/15; its first
+and last trades belong to Jan 5/14. Both must default to Jan 4/15, not trade bounds.
+Custom Jan 5…14 survives unrelated parameter edits and is preserved in explicitly
+saved requests; resetting or changing source selection restores common coverage.
+An explicit Jan 1 override is invalid in the browser and rejects through the API.
+
+For the normal saved result, target scenario start is separately set to Monday
+Jan 4. Eight paths (and eight Evaluation chains), block 1, use the primary source:
+
+- Evaluation at 10 MNQ earns $3,000/session, passes Monday, activates Tuesday and
+  becomes usable Wednesday Jan 6: independent expected **$30+$40=$70** and **2
+  calendar days**. Fees are synthetic software overrides, not provider prices.
+- Funded at 3 MNQ earns $900/session. Five-day cycles request $1,500 on Jan 8/15;
+  four-day receipt lag gives Jan 12/19. A 14-day exclusive cutoff is Jan 18:
+  independent expected **$1,500 received**, **$1,500 pending**, **$3,000 deducted**.
+
+Each browser library saves initial/default, custom, zero-edge, checked and result
+screenshots, `window-metadata.json`, `workflow.json` and the normal six campaign
+JSON/CSV/ZIP downloads. Reopening emits no POST and repeated downloads are
+byte-identical. `tests/review_campaign_window.py` independently checks actual
+saved UTC bounds/CME dates, both source CSVs including the zero-trade edges,
+source-derived fee/cash arithmetic, twelve download hashes and 22 ZIP/report
+artifacts. It imports no production calculator. Results are in `independent.json`.
+
+A read-only metadata check of the previously inspected real source
+`739b88028ef846fdb8891ecb307ed574` now derives **2021-01-04…2024-12-31**;
+`actual-source-metadata.json` records the declared and saved bounds. No analysis
+of that user source was run and no user report was changed.
+
+### Reproduce and inspect
+
+Choose a fresh directory with adequate space; the original system disk was nearly
+full, so final qualification used an owned temporary RAM volume and preserved the
+library losslessly in `artifacts/campaign-is-window-20261107/qualification.tar.gz`.
+
+```sh
+RECHECK="artifacts/campaign-is-window-recheck-$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$RECHECK"
+.venv/bin/python -m pytest -q tests/test_campaign_window.py \
+  tests/test_campaign_window_browser.py --basetemp "$RECHECK/run" \
+  --junitxml "$RECHECK/results.xml"
+.venv/bin/python tests/review_campaign_window.py \
+  --browser-root "$RECHECK/run" --output "$RECHECK/independent.json"
+```
+
+To reopen the saved Evaluation library, extract the archive into a new directory:
+
+```sh
+INSPECT="artifacts/campaign-is-window-inspect-$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$INSPECT"
+tar -xzf artifacts/campaign-is-window-20261107/qualification.tar.gz -C "$INSPECT"
+ALPHAQUEST_DATA_DIR="$PWD/$INSPECT/qualification/test_observed_is_default_in_pr0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8016
+```
+
+Open `http://127.0.0.1:8016/#backtests/report/5cb1fc8debb248058d108ca5212c6f00`, configure Evaluation and
+expect IS **Jan 4…15 automatically**. To match the saved outcome set scenario
+start Jan 4, 10 MNQ, paths/chains 8 and block 1; Save/check then Run gives $70/2 days.
+The saved report is `/#backtests/prop/campaign/eb1a9a3507964739bd8dda8ef7709e34`. For Funded use sibling
+`test_observed_is_default_in_pr1`, size 3, paths 8, block 1, scenario Jan 4, horizon
+14 and lag 4; expect the receipt/pending figures above. Stop the owned server with
+Ctrl-C. Refresh the normal app; restart its backend if it is not using reload.
+
+Qualification: **62 targeted tests passed** in 100.33 seconds, with the existing
+FastAPI/Starlette TestClient deprecation warning. This includes the new date/API
+and both normal-product browser cases, existing campaign creation/cache/freeze
+checks, automatic-calendar checks, all large-candidate confirmation tests and the
+architecture browser workflow. It is not a full-repository suite claim. Initial
+new-test fixture date/CSV-column assumptions were corrected before the final
+stable run; their logs remain separately labeled.
+
+The independent auditor passed both normal-product results and zero-trade-edge
+checks. The archive was verified against all 2,043 original scratch files before
+cleanup. Full SHA256 rehash matched all **123,522 preexisting data/evidence files**,
+none changed or missing. Both complete phase implementation/kernel identities
+match their pre-change snapshots exactly. No user source was resimulated or saved
+report modified. Temporary browser servers stopped through fixture cleanup; the
+owned RAM volume was detached after verified archival. No persistent server or
+GitHub push was started. See `qualification.json`, `independent.json`,
+`archive-verification.json`, identity snapshots and `preservation-after.json`.

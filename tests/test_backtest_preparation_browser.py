@@ -36,8 +36,10 @@ def test_real_preparation_then_replay_uses_a_single_percentage_bar(page,portal,t
     monkeypatch.setattr(strategy_features,'prepare_features',paused_features)
     monkeypatch.setattr(backtest_api,'prepare_backtest_report',paused_report)
     raw,split=reserved_source((FIXTURES/'arithmetic_5m.csv').read_bytes())
+    # Default VWAP EOD flattening requires an explicit reviewed instrument.
+    # Keep the synthetic bars, preparation/progress gates and no-trade oracle.
     uploaded=page.request.post(portal['url']+'/api/datasets',
-        params=dict(filename='SYNTHETIC-progress-stages.csv',name='SYNTHETIC progress stage demonstration',source_timezone='UTC',tick_size='.25',point_value='10'),
+        params=dict(filename='SYNTHETIC-progress-stages.csv',name='SYNTHETIC NQ progress stage demonstration',source_timezone='UTC',tick_size='.25',point_value='10',symbol='NQ'),
         data=b'\xef\xbb\xbf'+raw)
     assert uploaded.status==201
     portal['saved']['arithmetic_5m']=uploaded.json()

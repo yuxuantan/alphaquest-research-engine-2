@@ -1,12 +1,15 @@
 """Immutable phase campaign declarations; calculations live only in AnalysisStore."""
 from dataclasses import asdict
-from datetime import datetime, timezone
+from copy import deepcopy
+from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
 import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from .prop.adapter import canonical
+from .prop.adapter import canonical, source_record
+from .prop.phase_dispatch import module_for
+from .prop.phase_search import CANDIDATE_CONFIRMATION_THRESHOLD, require_candidate_confirmation
 from .research import ResearchConflict
 
 
@@ -17,7 +20,7 @@ class StrictModel(BaseModel):
 class CandidateSource(StrictModel):
     backtest_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$')
     optimization_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$')
-    trials: list[int] | None = Field(default=None, min_length=1, max_length=128)
+    trials: list[int] | None = Field(default=None, min_length=1)
     sizes: list[int] = Field(min_length=1, max_length=60)
     trade_file: str = Field(default='', max_length=4096)
     export_timezone: Literal['America/Chicago', 'America/New_York', 'UTC'] = 'America/Chicago'
@@ -39,8 +42,10 @@ class CampaignRequest(StrictModel):
     campaign_id: str = Field(pattern=r'^[0-9a-f]{32}$')
     phase: Literal['evaluation', 'funded']
     profile: dict
-    sources: list[CandidateSource] = Field(min_length=1, max_length=128)
-    maximum_candidates: int = Field(ge=1, le=128)
+    sources: list[CandidateSource] = Field(min_length=1)
+    # Accepted for old API clients/declarations; no longer limits membership.
+    maximum_candidates: int | None = Field(default=None, ge=1, deprecated=True)
+    confirmed_candidate_count: int | None = Field(default=None, ge=1)
     is_window: dict
     simulation: dict
     sampling: dict
@@ -49,8 +54,12 @@ class CampaignRequest(StrictModel):
     retry: dict | None = None
 
 
+class SourceWindowRequest(StrictModel):
+    sources: list[CandidateSource] = Field(min_length=1)
+
+
 class FreezeRequest(StrictModel):
-    candidate_ids: list[str] = Field(min_length=1, max_length=128)
+    candidate_ids: list[str] = Field(min_length=1)
     rationale: str = Field(min_length=1, max_length=4000)
     names: dict[str, str] = Field(default_factory=dict)
 
@@ -79,13 +88,40 @@ def initialize(db):
     ''')
 
 
-def module_for(phase):
-    from .prop import evaluation_optimization, funded_optimization
-    return evaluation_optimization if phase == 'evaluation' else funded_optimization
-
-
 def fingerprint(value):
     return sha256(canonical(value).encode()).hexdigest()
+
+
+def campaign_search_settings(body):
+    """Resolve omitted weekday coverage before saving a concrete phase request.
+
+    Explicit calendars retain their existing validation and historical meaning.
+    Coverage supports the phase limit; it never changes that limit or the IS data.
+    """
+    settings = deepcopy(body.search_settings)
+    calendar = settings.get('calendar')
+    if not isinstance(calendar, dict) or 'coverage_end' in calendar:
+        return settings
+    if calendar.get('version', 'user-declared-weekdays-v1') != 'user-declared-weekdays-v1':
+        raise ValueError('Automatic coverage supports user-declared-weekdays-v1 only; supply coverage_end for other calendar versions.')
+    starts = calendar.get('start_dates')
+    if not isinstance(starts, (list, tuple)) or not starts:
+        raise ValueError('Calendar start_dates must contain scenario start dates.')
+    try:
+        latest = max(date.fromisoformat(start) for start in starts)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Calendar start dates must use YYYY-MM-DD format.') from exc
+    if body.phase == 'evaluation':
+        limit = module_for(body.phase).SequentialRetry(**(body.retry or {})).max_calendar_days
+    else:
+        from .prop.phase_profiles import positive_integer
+        limit = settings.get('horizon_calendar_days')
+        positive_integer('horizon_calendar_days', limit, 3650)
+    try:
+        calendar['coverage_end'] = (latest + timedelta(days=limit)).isoformat()
+    except OverflowError as exc:
+        raise ValueError('Scenario start plus the phase limit exceeds the supported calendar dates.') from exc
+    return settings
 
 
 class CampaignStore:
@@ -120,11 +156,11 @@ class CampaignStore:
                     parameters=json.loads(r[5] or '{}'), is_start=r[6], is_end=r[7], total_trials=r[8],
                     selectable=r[2]=='complete') for r in rows], total=total, offset=offset, limit=limit)
 
-    def expand(self, body):
-        """Resolve saved grid members without ranking or reading OOS outcomes."""
-        candidates, origins = [], []
+    def resolve_sources(self, sources):
+        """Resolve complete saved membership without loading trades or outcomes."""
+        expanded, origins = [], []
         count = 0
-        for source in body.sources:
+        for source in sources:
             if source.backtest_id:
                 refs = [dict(run_id=source.backtest_id)]
             else:
@@ -161,8 +197,39 @@ class CampaignStore:
                     total_grid_trials=job['total_trials'], failed_trials=job.get('failed_trials', []),
                     grid=job['request']['parameter_ranges'], strategy=job['strategy']))
             count += len(refs)*len(source.sizes)
-            if count > body.maximum_candidates:
-                raise ValueError(f'Candidate budget exceeded: {count} trial × size combinations exceed {body.maximum_candidates}.')
+            expanded.append((source, refs))
+        return expanded, origins, count
+
+    def source_window(self, body):
+        """Intersect declared IS with saved bar coverage, in CME session dates."""
+        from .prop.phase_lifecycle import instant, session_date
+        expanded, _, _ = self.resolve_sources(body.sources)
+        sources = []
+        for id in sorted({ref['run_id'] for _, refs in expanded for ref in refs}):
+            record = source_record(self.runs, id)
+            research = record['run_metadata'].get('research') or {}
+            if research.get('phase') != 'is':
+                raise ValueError('The research window requires declared IS backtests; OOS and undeclared sources reject.')
+            plan = research['plan']
+            first = session_date(instant(record['period_start_utc'])).isoformat()
+            last = session_date(instant(record['period_end_utc'])).isoformat()
+            sources.append(dict(source_backtest_id=id,
+                declared_is=dict(first_session=plan['is_start'], last_session=plan['is_end']),
+                saved_coverage=dict(first_session=first, last_session=last)))
+        first = max(max(s['declared_is']['first_session'], s['saved_coverage']['first_session']) for s in sources)
+        last = min(min(s['declared_is']['last_session'], s['saved_coverage']['last_session']) for s in sources)
+        if first > last:
+            raise ValueError('Selected sources have no common saved IS coverage; choose overlapping IS sources.')
+        return dict(is_window=dict(first_session=first, last_session=last), sources=sources,
+            convention='CME Chicago session dates; saved bar coverage, including zero-trade sessions')
+
+    def expand(self, body):
+        """Resolve saved grid members without ranking or reading OOS outcomes."""
+        settings = campaign_search_settings(body)
+        expanded, origins, count = self.resolve_sources(body.sources)
+        candidates = []
+        require_candidate_confirmation(count, body.confirmed_candidate_count)
+        for source, refs in expanded:
             for ref in refs:
                 for size in sorted(source.sizes):
                     candidate = dict(source=dict(source_backtest_id=ref['run_id'], trade_file=source.trade_file,
@@ -171,10 +238,10 @@ class CampaignStore:
                     if body.retry is not None:
                         candidate['retry'] = body.retry
                     candidates.append(candidate)
-        if set(body.search_settings) & {'candidates', 'source_backtest_id', 'mode'}:
+        if set(settings) & {'candidates', 'source_backtest_id', 'mode'}:
             raise ValueError('Campaign owns the candidate set, anchor and phase.')
         raw = dict(mode=body.phase+'_optimization', source_backtest_id=min(c['source']['source_backtest_id'] for c in candidates),
-                   candidates=candidates, **body.search_settings)
+                   candidates=candidates, **settings)
         module = module_for(body.phase)
         search = module.parse_request(raw)
         checks = module.check_search(self.runs, search)
@@ -199,7 +266,9 @@ class CampaignStore:
         normalized = json.loads(canonical(asdict(search)))
         normalized['candidates'].sort(key=canonical)
         return dict(schema_version='phase-campaign-v1', phase=body.phase, request=normalized,
-            candidate_search_count=count, maximum_candidates=body.maximum_candidates,
+            candidate_search_count=count,
+            candidate_confirmation=dict(threshold=CANDIDATE_CONFIRMATION_THRESHOLD,
+                confirmed_count=body.confirmed_candidate_count),
             source_checks=checks, optimization_grids=origins,
             selection_objective=('cost_time_pareto' if body.phase == 'evaluation' else module.OBJECTIVE),
             constraints=normalized.get('constraints', {}), model_version=module.MODEL_VERSION,
@@ -212,7 +281,7 @@ class CampaignStore:
         with self.analyses.lock:
             previous = self._row(body.campaign_id)
             if previous:
-                if previous['declaration'] != body.model_dump():
+                if CampaignRequest.model_validate(previous['declaration']).model_dump() != body.model_dump():
                     raise ResearchConflict('Campaign ID already has an immutable declaration; use a new campaign ID.')
                 return self.get(body.campaign_id)
             manifest = self.expand(body)

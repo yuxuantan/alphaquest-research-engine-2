@@ -63,7 +63,7 @@ def test_busy_analysis_error_and_last_page_deletion_return_to_previous_page(page
     playwright.expect(page.locator('#completed-runs-count')).to_have_text('26–26 of 26 reports')
     button=page.get_by_role('button',name='Delete backtest '+oldest['id'],exact=True)
     page.once('dialog',lambda dialog:dialog.accept());button.click()
-    playwright.expect(page.locator('#backtest-delete-status')).to_contain_text('A prop analysis is using this backtest')
+    playwright.expect(page.locator('#backtest-delete-status')).to_contain_text('referenced by a research campaign or a running prop analysis; it cannot be deleted')
     playwright.expect(button).to_be_enabled()
     assert page.request.get(portal['url']+'/api/backtests/'+oldest['id']).status==200
     with analyses.connect() as db:db.execute("UPDATE analyses SET status='error' WHERE id=?",(pending,))
@@ -78,7 +78,14 @@ def test_busy_analysis_error_and_last_page_deletion_return_to_previous_page(page
 
 
 def test_deleted_trial_keeps_optimization_metrics_without_broken_report_link(page,portal,tmp_path):
-    dataset=portal['saved']['arithmetic_5m'];request=optimization_body(dataset['id'])
+    from research_fixtures import ResearchHTTPClient
+    from test_automatic_prop import save_history
+    # A completed prop report requires multiple source sessions. The old
+    # one-session fixture correctly yielded an incompatible status, not a link.
+    with ResearchHTTPClient(base_url=portal['url'],timeout=300) as client:
+        dataset=save_history(client,days=8)
+    request=optimization_body(dataset['id'])
+    request['execution_settings'].update(slippage_ticks=0,commission_per_contract_per_side='0')
     request.update(workers=1)
     request['parameter_ranges']=dict(green_bar_count=dict(start=1,end=1,step=0),hold_minutes=dict(start=1,end=1,step=0),contracts=dict(start=1,end=1,step=0))
     submitted=page.request.post(portal['url']+'/api/optimizations',data=request)
@@ -91,6 +98,10 @@ def test_deleted_trial_keeps_optimization_metrics_without_broken_report_link(pag
         time.sleep(.02)
     assert job['status']=='complete',job
     row=page.request.get(portal['url']+'/api/optimizations/'+id+'/results').json()['items'][0]
+    assert row['prop_analysis']['status']=='complete'
+    prop_url=portal['url']+'/api/prop-analyses/'+row['prop_analysis']['id']+'/downloads/report.json'
+    prop_bytes=page.request.get(prop_url).body()
+    assert page.request.get(prop_url).status==200
     page.goto(portal['url']+'/#backtests/report/'+row['run_id'])
     playwright.expect(page.locator('#report-delete')).to_be_visible()
     page.once('dialog',lambda dialog:dialog.accept());page.locator('#report-delete').click()
@@ -101,4 +112,5 @@ def test_deleted_trial_keeps_optimization_metrics_without_broken_report_link(pag
     assert cell.locator('a').count()==0
     playwright.expect(page.locator('#optimization-results td[data-column="total_net_pnl"]')).to_have_text(row['metrics']['total_net_pnl'])
     assert page.locator('#optimization-results td[data-column="historical_net"] a').count()==1
+    assert page.request.get(prop_url).body()==prop_bytes
     page.screenshot(path=str(tmp_path/'optimization-keeps-metrics.png'),full_page=True)

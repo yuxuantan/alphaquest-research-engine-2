@@ -31,8 +31,8 @@ def client(tmp_path):
         yield client
 
 
-def save(client):
-    response = client.post('/api/datasets', params=dict(filename='SYNTHETIC-holding-IS-OOS.csv', name='SYNTHETIC holding comparison', source_timezone='UTC', tick_size='.25', point_value='20', symbol='SYNTHETIC'), content=(FIXTURES / 'SYNTHETIC-holding-IS-OOS.csv').read_bytes())
+def save(client, *, symbol='SYNTHETIC'):
+    response = client.post('/api/datasets', params=dict(filename='SYNTHETIC-holding-IS-OOS.csv', name='SYNTHETIC holding comparison', source_timezone='UTC', tick_size='.25', point_value='20', symbol=symbol), content=(FIXTURES / 'SYNTHETIC-holding-IS-OOS.csv').read_bytes())
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -239,7 +239,8 @@ def test_quantity_affects_reuse_and_corrupt_market_files_invalidate_reuse(client
 
 def test_vwap_lookahead_preparation_keeps_actual_equity_aligned(client):
     from alphaquest.strategies.registry import get_strategy
-    dataset = save(client)
+    # Keep calendar flattening enabled and declare its supported instrument.
+    dataset = save(client, symbol='NQ')
     body = request_body(dataset)
     body.update(strategy_id='vwap_pullback_risk_sizing', strategy_parameters=json.loads(json.dumps(asdict(get_strategy('vwap_pullback_risk_sizing').module.Parameters()), default=str)))
     response = client.post('/api/backtests', json=body)

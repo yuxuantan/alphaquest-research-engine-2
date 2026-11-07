@@ -77,8 +77,8 @@ class FundedSearch:
     def __post_init__(self):
         if self.mode != 'funded_optimization' or type(self.calendar) is not PhaseCalendar or type(self.constraints) is not FundedConstraints:
             raise ValueError('Invalid funded-only search contract.')
-        if type(self.candidates) is not tuple or not 1 <= len(self.candidates) <= 128 or any(type(c) is not FundedCandidate for c in self.candidates):
-            raise ValueError('Declare an immutable set of 1–128 funded candidates.')
+        if type(self.candidates) is not tuple or not self.candidates or any(type(c) is not FundedCandidate for c in self.candidates):
+            raise ValueError('Declare a nonempty immutable set of funded candidates.')
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
             raise ValueError('Navigation anchor must belong to the candidate set.')
         positive_integer('horizon_calendar_days', self.horizon_calendar_days, 3650)

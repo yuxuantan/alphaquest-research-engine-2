@@ -5,7 +5,7 @@
   const link = (text, href) => {const a=node('a',text);a.href=href;return a;};
   async function api(url, body) {
     const response=await fetch(url,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));return result;
+    const result=await response.json();if(!response.ok){const error=Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));error.detail=result.detail;throw error;}return result;
   }
   function details(parent,title,value){const d=node('details');d.append(node('summary',title),node('pre',JSON.stringify(value,null,2)));parent.append(d);}
   function field(parent,label,id,value,type='text') {
@@ -24,7 +24,7 @@
     const history=node('div');for(const c of saved.items){history.append(link(`${c.phase} · ${c.status}${c.frozen?' · frozen':''} · ${c.campaign_id}`,`#backtests/prop/campaign/${c.campaign_id}`),node('br'));}panel.append(history);
     const d=node('details');d.id='campaign-configure';d.append(node('summary','Configure a phase campaign'));panel.append(d);
     const form=node('form');form.id='campaign-form';d.append(form);
-    form.append(node('p','Compare saved IS strategies and optimization trials. Every source × MNQ size counts toward the budget. Sources must share the dataset, research split and execution costs.'));
+    form.append(node('p','Compare saved IS strategies and optimization trials. Each saved trial × MNQ size is one candidate. The full count is calculated when checking; searches above 128 candidates require confirmation. Sources must share the dataset, research split and execution costs.'));
     const phase=select(form,'Phase','campaign-phase',[['evaluation','Evaluation · acquisition cost/time'],['funded','Funded · trader cash received']]);
     const profile=select(form,'Account profile','campaign-profile',[['apex-50k-eod','Apex 50K EOD'],['lucidflex-50k','LucidFlex 50K · funded only']]);
     const entry=node('div');panel.insertBefore(entry,d);
@@ -84,17 +84,19 @@
       hint.textContent='Choose a completed IS backtest, including an individual saved trial.';
       search.addEventListener('input',()=>{++requestVersion;clearTimeout(timer);timer=setTimeout(()=>load(true),200);});
       more.onclick=()=>{if(!loading)load(more.textContent.startsWith('Retry'));};
-      button(row,'Remove source','').onclick=()=>{++requestVersion;clearTimeout(timer);row.remove();invalidate();};
+      button(row,'Remove source','').onclick=()=>{++requestVersion;clearTimeout(timer);row.remove();invalidate();refreshWindow();};
       describe();load(true);
     }
-    addSource(source.id);button(form,'Add saved source','campaign-add-source').onclick=()=>{addSource();invalidate();};
+    addSource(source.id);button(form,'Add saved source','campaign-add-source').onclick=()=>{addSource();invalidate();refreshWindow();};
     const grid=node('div');grid.className='prop-fields';form.append(grid);
     const plan=source.run_metadata.research.plan;
-    field(grid,'Maximum candidate count','campaign-budget','128','number');
-    field(grid,'IS first session','campaign-is-start',plan.is_start,'date');field(grid,'IS last session','campaign-is-end',plan.is_end,'date');
+    const isFirst=field(grid,'IS first session','campaign-is-start','','date'),isLast=field(grid,'IS last session','campaign-is-end','','date');
+    const windowStatus=node('p','Finding common saved IS coverage…');windowStatus.id='campaign-window-status';form.append(windowStatus);
+    button(form,'Use full common IS window','campaign-window-reset').onclick=()=>{invalidate();refreshWindow();};
     field(grid,'Simulated paths per candidate','campaign-paths','1000','number');field(grid,'Simulation seed','campaign-seed','42','number');
     select(grid,'Resampling block · weekdays','campaign-block',[['5','5'],['1','1'],['10','10']]);
-    field(grid,'Scenario start date · Chicago','campaign-start',plan.is_start,'date');field(grid,'Calendar coverage end','campaign-calendar-end','2037-01-01','date');
+    field(grid,'Scenario start date · Chicago','campaign-start',plan.is_start,'date');
+    form.append(node('p','Calendar coverage is calculated automatically from the scenario start and the Evaluation chain limit or Funded receipt horizon. It does not require future market data; the derived dates are saved with the campaign.'));
     const evalFields=node('div');evalFields.className='prop-fields';form.append(evalFields);
     field(evalFields,'Evaluation price · USD','campaign-price','30','number');field(evalFields,'Activation fee · USD','campaign-activation','40','number');
     field(evalFields,'Acquisition chains','campaign-chains','1000','number');field(evalFields,'Acquisition seed','campaign-chain-seed','45','number');
@@ -103,31 +105,76 @@
     field(fundedFields,'Maximum breach probability (0–1)','campaign-breach','1','number').step='any';
     const note=node('p','Uses captured source costs and fixed-quantity linear MNQ scenarios. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts. Advanced calendars, costs and constraints are available through the campaign API.');form.append(note);
     const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';profile.options[1].disabled=phase.value==='evaluation';if(phase.value==='evaluation')profile.value='apex-50k-eod';showRule();};phase.onchange=changePhase;changePhase();
-    for(const [id,min,max]of [['campaign-budget',1,128],['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1]]){const input=$('#'+id);input.min=min;input.max=max;}
+    for(const [id,min,max]of [['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1]]){const input=$('#'+id);input.min=min;input.max=max;}
+    const count=node('p','Candidate count will be calculated from the selected saved trials and sizes.');count.id='campaign-count';form.append(count);
     const check=button(form,'Save and check candidates','campaign-check'),run=button(form,'Run campaign','campaign-run');run.disabled=true;
     const status=node('p');status.id='campaign-status';status.setAttribute('role','status');form.append(status);
-    let campaignId=null,revision=0;
-    function invalidate(){revision++;campaignId=null;run.disabled=true;status.textContent='Configuration changed; save and check candidates.';}
+    let campaignId=null,revision=0,windowVersion=0,windowPending=false,automaticWindow=null,windowTimer=null;
+    function selectedSources(forWindow=false){
+      return [...sources.children].map(row=>{const kind=row.querySelector('.campaign-kind').value;
+        const id=row.querySelector('.campaign-reference').value.trim();if(!id)throw Error('Choose a saved source in every row to derive the IS window.');
+        const value={[kind]:id,sizes:forWindow?[1]:integers(row.querySelector('.campaign-sizes').value)};
+        const trials=row.querySelector('.campaign-trials').value;if(kind==='optimization_id'&&trials.trim())value.trials=integers(trials);
+        return value;});
+    }
+    async function refreshWindow(){
+      clearTimeout(windowTimer);const version=++windowVersion;windowPending=true;automaticWindow=null;
+      check.disabled=true;run.disabled=true;isFirst.disabled=true;isLast.disabled=true;
+      windowStatus.textContent='Finding common saved IS coverage…';
+      try{
+        const result=await api('/api/research-campaigns/source-window',{sources:selectedSources(true)});
+        if(version!==windowVersion||!form.isConnected)return;
+        automaticWindow=result.is_window;
+        for(const input of [isFirst,isLast]){input.min=automaticWindow.first_session;input.max=automaticWindow.last_session;}
+        isFirst.value=automaticWindow.first_session;isLast.value=automaticWindow.last_session;
+        windowStatus.textContent=`IS window derived from all selected sources: ${isFirst.value} → ${isLast.value} (CME session dates). You may narrow it; observed zero-trade sessions are included.`;
+      }catch(e){if(version!==windowVersion||!form.isConnected)return;isFirst.value='';isLast.value='';windowStatus.textContent=e.message;}
+      finally{if(version===windowVersion&&form.isConnected){windowPending=false;isFirst.disabled=false;isLast.disabled=false;check.disabled=!automaticWindow;}}
+    }
+    function queueWindow(){
+      ++windowVersion;clearTimeout(windowTimer);windowPending=true;automaticWindow=null;check.disabled=true;run.disabled=true;
+      isFirst.disabled=true;isLast.disabled=true;windowStatus.textContent='Finding common saved IS coverage…';
+      windowTimer=setTimeout(refreshWindow,200);
+    }
+    function invalidate(){revision++;campaignId=null;run.disabled=true;count.textContent='Candidate count will be recalculated when checking.';status.textContent='Configuration changed; save and check candidates.';}
     form.addEventListener('input',invalidate);form.addEventListener('change',invalidate);form.onsubmit=e=>e.preventDefault();
+    form.addEventListener('change',e=>{if(e.target.matches('.campaign-kind,.campaign-reference'))refreshWindow();});
+    form.addEventListener('input',e=>{if(e.target.matches('.campaign-trials'))queueWindow();
+      else if(e.target===isFirst||e.target===isLast)windowStatus.textContent=`Custom IS window within available coverage ${automaticWindow?.first_session} → ${automaticWindow?.last_session}. Use full common IS window to reset.`;});
     check.onclick=async()=>{if(!form.reportValidity())return;const version=revision;check.disabled=true;run.disabled=true;
       try{
         const isEval=phase.value==='evaluation',p={profile_id:profile.value,rule_version:defaults.profiles[profile.value]};
         if(isEval)Object.assign(p,{evaluation_price:$('#campaign-price').value,activation_fee:$('#campaign-activation').value});
         const sampling={block_weekdays:number('campaign-block')};if(isEval)Object.assign(sampling,{chain_simulations:number('campaign-chains'),chain_seed:number('campaign-chain-seed')});
-        const search_settings={calendar:{start_dates:[$('#campaign-start').value],coverage_end:$('#campaign-calendar-end').value}};
+        const search_settings={calendar:{start_dates:[$('#campaign-start').value]}};
         if(!isEval)Object.assign(search_settings,{horizon_calendar_days:number('campaign-horizon'),receipt_delay_calendar_days:number('campaign-delay'),constraints:{maximum_account_breach_probability:number('campaign-breach')}});
         const body={campaign_id:crypto.randomUUID().replaceAll('-',''),phase:phase.value,profile:p,
-          sources:[...sources.children].map(row=>{const kind=row.querySelector('.campaign-kind').value;const value={[kind]:row.querySelector('.campaign-reference').value.trim(),sizes:integers(row.querySelector('.campaign-sizes').value)};const t=row.querySelector('.campaign-trials').value;if(kind==='optimization_id'&&t.trim())value.trials=integers(t);return value;}),
-          maximum_candidates:number('campaign-budget'),is_window:{first_session:$('#campaign-is-start').value,last_session:$('#campaign-is-end').value},
+          sources:selectedSources(),
+          is_window:{first_session:$('#campaign-is-start').value,last_session:$('#campaign-is-end').value},
           simulation:{simulations:number('campaign-paths'),seed:number('campaign-seed')},sampling,costs:{mode:'source'},search_settings};
-        status.textContent='Checking saved source identity, costs, risk and candidate budget…';
-        const c=await api('/api/research-campaigns',body);const checks=await api(`/api/research-campaigns/${c.campaign_id}/check`,{});
+        status.textContent='Counting candidates and checking saved source identity, costs and risk…';
+        let c;
+        try{c=await api('/api/research-campaigns',body);}
+        catch(e){
+          if(e.detail?.code!=='candidate_confirmation_required')throw e;
+          if(version!==revision)return;
+          const total=e.detail.candidate_count;count.textContent=`${total} candidates selected.`;
+          if(!window.confirm(`This campaign contains ${total} candidates, above the 128-candidate confirmation threshold. Every candidate will be evaluated. Larger searches require more time and storage. Continue?`)){
+            status.textContent=`Cancelled: ${total} candidates require confirmation. No campaign was saved.`;return;
+          }
+          if(version!==revision)return;
+          body.confirmed_candidate_count=total;
+          c=await api('/api/research-campaigns',body);
+        }
         if(version!==revision)return;
-        campaignId=c.campaign_id;run.disabled=false;status.textContent=`${checks.candidate_search_count} compatible candidates · ${c.manifest.selection_objective} · IS only. Ready to run.`;
+        const checks=await api(`/api/research-campaigns/${c.campaign_id}/check`,{});
+        if(version!==revision)return;
+        campaignId=c.campaign_id;count.textContent=`${checks.candidate_search_count} candidates selected${c.manifest.candidate_confirmation?.confirmed_count?' · confirmed':''}.`;run.disabled=false;status.textContent=`${checks.candidate_search_count} compatible candidates · ${c.manifest.selection_objective} · IS only. Calendar automatically covered through ${c.manifest.request.calendar.coverage_end}. Ready to run.`;
         const prior=form.querySelector('.campaign-checks');if(prior)prior.remove();const checkDetails=node('div');checkDetails.className='campaign-checks';details(checkDetails,'Source checks and saved candidate definitions',checks);form.append(checkDetails);
-      }catch(e){status.textContent=e.message;}finally{check.disabled=false;}
+      }catch(e){status.textContent=e.message;}finally{check.disabled=windowPending||!automaticWindow;}
     };
     run.onclick=async()=>{if(!campaignId)return;run.disabled=true;try{await api(`/api/research-campaigns/${campaignId}/run`,{});location.hash=`#backtests/prop/campaign/${campaignId}`;}catch(e){status.textContent=e.message;run.disabled=false;}};
+    refreshWindow();
   }
   const format = value => value===null||value===undefined?'Unresolved / unavailable':typeof value==='number'?value.toLocaleString(undefined,{maximumFractionDigits:3}):String(value);
   const pct = value => value==null?'Unresolved / unavailable':format(value*100)+'%';

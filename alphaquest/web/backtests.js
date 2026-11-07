@@ -38,6 +38,7 @@
     for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = state.busy || state.loading;
     get("#optimization-workers").disabled = state.busy || state.loading || !window.optimizations.workersReady();
     get("#optimization-workers-retry").disabled = state.busy || state.loading;
+    get("#optimization-automatic-prop").disabled = state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
     start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || calendarUnavailable || !window.researchSplit.ready() || !window.optimizations.workersReady();
@@ -175,7 +176,7 @@
       get("#backtest-options-status").textContent = !supported
         ? "No supported saved datasets. Upload and save a nine-column CSV in Datasets first."
         : !strategies.length ? "No strategies are available on this server." : "";
-      get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately. Each backtest also runs the standard Apex 50K EOD analysis with activation fees.";
+      get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately. Automatic legacy Apex and Lucid prop reports are enabled by default; uncheck the automatic-report option to skip them.";
       renderStrategy();
       renderDataset(previousDataset !== datasetSelect.value || !state.instrumentEdited);
     } catch (error) {
@@ -385,7 +386,7 @@
     get("#backtest-error").hidden = true;
     const payload = configuration();
     if (!payload) return;
-    if (payload.strategy_parameters === null) {
+    if (payload.strategy_parameters === null || !get("#optimization-automatic-prop").checked) {
       get("#backtest-progress").hidden = true;
       state.busy = true;
       controls();

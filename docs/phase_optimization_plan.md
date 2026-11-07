@@ -2,11 +2,13 @@
 
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
-Specification and incremental implementation plan, updated 2026-11-06.
+Specification and incremental implementation plan, consolidated 2026-11-06.
+Final code baseline: `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus cleanup diff.
+The qualification record is [here](prop_simulation_review.md#final-architecture-cleanup--2026-11-06).
 **Implemented: standalone Evaluation/Funded backends, saved-trial campaigns,
 portal visual comparisons, named IS freeze and manual frozen OOS assessment.
-Automatic grid generation and adaptive refinement remain planned.** Repository baseline inspected:
-`71f97a61e568b39b6bf17647078dcdb2364069cb`. This document extends the local models
+Automatic grid generation and adaptive refinement remain planned.** Original planning baseline:
+`71f97a61e568b39b6bf17647078dcdb2364069cb` (historical). This document extends the local models
 and product boundary in [prop simulation](prop_simulation.md). The portal extension
 below is implemented; provider rules are not newly verified. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
@@ -15,7 +17,8 @@ legacy numerical semantics; it does not complete an optimization milestone.
 
 [`research_campaigns.py`](../alphaquest/research_campaigns.py) now expands declared
 saved backtest/job/trial references and per-source whole-MNQ sizes into independent
-Evaluation or Funded searches. It enforces a total candidate budget, common IS
+Evaluation or Funded searches. Candidate count is automatic; above 128 requires
+explicit confirmation, with no fixed candidate-count ceiling. It enforces common IS
 protocol and source-risk/cost compatibility, rejects duplicates and incomplete
 jobs/trials, and captures every candidate's strategy parameters and provenance.
 The existing prop configuration/report screen exposes check, run, frontier/ranking,
@@ -84,9 +87,10 @@ Whole-path bootstrap and family mean intervals do not establish a certified
 optimum or future/provider uncertainty. Open-at-horizon lifetimes are censored;
 complete horizon receipts remain usable. Incomplete horizons prevent a winner.
 
-This implements standalone **P3 backend scope**, not the full original P3 UI or
-campaign/precision exit criteria. No UI or portfolio optimizer is added, per the
-current task. Legacy joint sizing and previous reports remain preserved. No
+The original standalone release implemented **P3 backend scope**; the later
+campaign/portal release above added UI and frozen assessment. Precision/provider
+certification and portfolio optimization remain outside that delivery. Legacy
+joint sizing and previous reports remain preserved. No
 external executable, generated reference table or provider verification is used.
 
 ## Implemented standalone Evaluation backend — 2026-11-06
@@ -97,8 +101,9 @@ search and strict two-objective Pareto frontier. It accepts candidates across
 eligible strategies/jobs, with saved parameters, whole-MNQ size, profile/version,
 evaluation/activation fees, retry policy and sampling configuration. It uses the
 normal check/run APIs, existing AnalysisStore worker/catalogue, all-source
-membership and durable report/downloads. No UI is added, per this task's scope;
-legacy annualized and portfolio workflows remain unchanged.
+membership and durable report/downloads. That standalone release was backend-only;
+the later campaign portal now exposes it. Legacy annualized and portfolio
+workflows remain unchanged.
 
 The exact implemented [metric formulas, calendar, assumptions, Pareto rules and
 independent examples](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06)
@@ -120,12 +125,16 @@ supersede planned choices for this backend version. In particular:
   only; simultaneous/paired comparisons and robust certification remain future
   work. Nominal first-stage pass/cost intervals and conditional second-stage time
   SE/CI are retained with their different estimands disclosed.
-- Requests contain an explicit candidate set (1–128); no automated generation,
+- Requests contain an explicit nonempty candidate set; since 7 November 2026,
+  there is no fixed count ceiling and searches above 128 require confirmation
+  at the API/portal admission boundary. There is no automated generation,
   screening/refinement, frozen-package decision or final-OOS assessment is added.
   All source windows/cost protocols must match and sources must be declared IS.
 
-This implements the standalone backend portion of P1/P2, **not all original
-P1/P2 exit criteria** (UI, simultaneous inference and campaign controls remain).
+The standalone release implemented the backend portion of P1/P2. Subsequent
+campaign/portal work added UI, saved candidate controls and freeze/OOS; **the full
+original P1/P2 exits remain partial** because simultaneous inference and broader
+research qualification are still pending.
 See the [review evidence](prop_simulation_review.md#standalone-evaluation-optimizer--2026-11-06)
 for actual normal-backtest → API check/run → saved results/downloads, independent
 arithmetic and limitations. No numerical/provider parity beyond those checks is
@@ -194,7 +203,8 @@ Lucid; tests also cover phase isolation, rules, costs/risk rejections and censor
 cases. See [saved evidence and reproduction](prop_simulation_review.md#independent-phase-component-extraction--2026-11-05).
 This precursor alone did not implement P1–P5. The standalone backend sections
 above now add dated acquisition and funded receipt selection with durable reports;
-UI, broader campaign controls and freeze/OOS enforcement remain future work.
+the saved-trial campaign UI and freeze/OOS enforcement are implemented by the
+later increments above. Broader generated/adaptive search remains future work.
 
 ## Objectives and non-objectives
 
@@ -256,22 +266,23 @@ selection package → manual assessment-only OOS. A later, optional portfolio
 optimizer may consume the phase results and retained dependence information.
 No portfolio score feeds back into either phase's selection.
 
-Except for the implemented Evaluation backend above, optimizer module names
-below remain design targets, not existing APIs.
-They should compose the extracted profile components above and extend their
-explicit weekday/settlement limits when dated metrics are implemented:
+The implementation uses the following ownership map. Earlier proposed filenames
+`phase_optimization.py` and `phase_sampling.py` were not required and are not APIs.
 
-| Module | Responsibility and boundary |
+| Implemented module | Responsibility and boundary |
 | --- | --- |
-| New `alphaquest/prop/phase_optimization.py` | Discriminated phase request/result contracts, profile/size eligibility, stable candidate keys, Pareto/ranking logic and dispatch. Never construct an evaluation/funded Cartesian product. |
-| Implemented `alphaquest/prop/evaluation_optimization.py` | Explicit Evaluation contracts, candidate checks, empirical IID acquisition/calendar metrics, strict Pareto frontier and saved artifacts. Broader dated profiles/uncertainty remain planned. No funded account transitions or payout rules. |
-| New `alphaquest/prop/funded_optimization.py` | Fresh-funded initial state, bounded-horizon account paths, settlement and payout/survival metrics. No evaluation simulator, fees, retry scheduler or acquisition economics. |
-| New `alphaquest/prop/phase_sampling.py` | Versioned dated block schedules, deterministic path streams, calendar mapping and uncertainty summaries shared by both phase runners. Reuse existing numerical primitives; preserve legacy draw streams. |
-| New `alphaquest/research_campaigns.py` | Candidate references across jobs/strategies, split compatibility, bounded search expansion, immutable revisions and freeze/assessment links. Persist through existing catalogues and AnalysisStore; no separate campaign result store. |
-| Extend existing `source.py`, `commissions.py`, `phase_lifecycle.py` | Reuse/extract single-source suitability and reconciliation without requiring two phase sources. Normalize fixed-path exposure once; share account transitions. Keep dated replay unchanged. |
-| Extend `native_analysis.py`, `prop_api.py`, `prop/store.py`, `calculation_cache.py`, `optimization_prop.py` | Dispatch explicit new modes, publish/index phase reports, extend source membership and full numerical identities. Keep legacy refresh compatibility checks distinct from new phase cache keys. |
-| Extend `optimization.py`/worker/API and `research.py` | Generate ordinary IS trials for declared strategy grids and link them to campaigns; reuse existing workers/limits and manual OOS primitives. Do not make a second execution engine. |
-| Extend `web/prop.js`, `web/index.html`, `web/optimizations.js` and existing report links | Phase configuration, candidate selection, checks, results and freeze/assessment actions within the current workflow. No demonstration-only screen. |
+| `prop/evaluation_profiles.py` / `prop/funded_profiles.py` | Independent phase simulation; legacy acquisition/lifetime helpers remain compatibility delegates. |
+| `prop/evaluation_optimization.py` | Evaluation request, empirical IID retries, acquisition/calendar metrics, full strict Pareto/ties/unresolved set, marginal acceleration and format-4 writer. No funded selector/input. |
+| `prop/funded_optimization.py` | Funded request, fresh-account dated runner, all-start horizon receipt/risk metrics, constraints/ranking/near-ties and format-5 writer. No acquisition inputs/replacement. |
+| `prop/phase_profiles.py` / `prop/phase_search.py` | Shared types, source/risk/cost admission and identities, calendar, IS compatibility, captured inputs. Phase-specific schedules/uncertainty stay with their estimator. |
+| `prop/phase_dispatch.py` | Lazy, strict phase resolution shared by API, campaigns and AnalysisStore; no simulation or selection. |
+| `research_campaigns.py` / `campaign_api.py` / `web/campaigns.js` | Saved source/job/trial expansion, complete bounded membership, immutable campaign manifest, named freeze, assessment links and existing prop-screen controls. |
+| `prop/store.py` / `prop_api.py` | Existing queue/worker, source membership/deletion locks, bounded preflight, atomic artifacts and durable readers/downloads. Phase-specific report schemas stay with the owner; common sealing/source capture is already shared. |
+| `optimization.py` / worker/API / `research.py` | Ordinary backtesting/grids, saved IS/OOS protocol, reuse and manual OOS execution. New grids can explicitly skip automatic joint reports; old requests keep the automatic default. Campaigns do not launch new grids. |
+| `prop/native_analysis.py` / `prop/joint_sizing.py` | Retained legacy joint-business calculation and compatibility delegates, never independent selection. |
+
+See [retention/dependency audit](architecture.md#final-module-ownership-and-retention)
+for historical notebook modules and code-identity preservation.
 
 Share small settlement/date helpers with `cash_ledger.py` only after regression
 proof. Do not call its unfunded budget scheduler to produce conditional-funded
@@ -351,6 +362,27 @@ Funded ranking uses the unconditional mean cash within the fixed horizon only;
 downside/survival are diagnostics or predeclared eligibility constraints. Exact
 ties retain all tied candidates; stable hash ordering is presentation only.
 Statistical overlap must not be described as a proven unique winner.
+
+## Implemented metric and selection contracts
+
+The exhaustive field/formula references are the current
+[Evaluation metrics](prop_simulation.md#metrics-censoring-and-uncertainty) and
+[Funded metrics](prop_simulation.md#metrics-risk-constraints-and-uncertainty),
+with [Evaluation selection](prop_simulation.md#pareto-contract-and-saved-artifacts).
+`phase_metrics.json/.csv` exposes these fields without UI rounding. The broader
+mathematical design below is a target contract; it does not expand implemented
+profiles, estimator assumptions or statistical guarantees.
+
+| Owner | Implemented estimand / selection contract |
+| --- | --- |
+| Evaluation | Single-attempt pass probability and bounds; `fee/p + activation` cost and `1/p` attempts only when acquisition resolves; all-start civil-calendar mean/median/P90 readiness, inclusive day-30/day-60 probabilities/bounds, inverse mean throughput. Lower bounds and unavailable tails stay explicit. |
+| Evaluation uncertainty | Nominal Wilson pass/cost inversion, delta-method cost SE, within-start conditional calendar mean SE/CI; no marginal-ratio/quantile intervals or simultaneous/paired dominance certification. |
+| Evaluation selection | Strict two-objective cost/time Pareto retains all ties and nonconvex points, complete candidate table and unresolved competitors. Marginal acceleration is cost increase / positive calendar days saved; null when undefined. No winner or arbitrary lambda. |
+| Funded cash | Mean objective `expected_funded_cash_payouts_within_horizon` (`expected_payouts` alias), all-start median/P10/P90, payout/zero probabilities, conditional first-receipt time, receipt count, pending trader entitlements and gross account deductions. Only receipt dates strictly before cutoff count; no evaluation fees or terminal equity. |
+| Funded risk/lifetime | Breach/inactivity/payout-limit probabilities, horizon survival, restricted mean observed lifetime; unrestricted lifetime null for open/censored accounts. Incomplete horizon withholds objective/ranking winner. |
+| Funded selection/uncertainty | Empirical hard constraint filters; feasible descending cash then candidate hash, full ranking and tolerance/interval near-ties. Whole-path stratified bootstrap, within-start SE, family normal mean intervals; no certified optimum or provider risk guarantee. |
+| Frozen OOS | Apply frozen configuration to ordinary OOS sources; per-candidate metrics/constraint status, empty ranking/frontier and null winner. Repeated assessments append; IS/package bytes remain unchanged. |
+| Legacy / observed ledger | Existing annual slot score and observed budgeted cash retain their own definitions and inclusive/exclusive timestamp conventions; never alias either to a phase objective. |
 
 ## Mathematical metric definitions
 
@@ -642,13 +674,13 @@ grid generation, adaptive confirmation, simultaneous inference and precision
 qualification require further work. The table retains those original exit
 criteria. Prefixes separate this work from portfolio M1/M2.
 
-| Milestone | Concrete artifact and normal user journey | Exit criteria |
-| --- | --- | --- |
-| P1: single-candidate Evaluation | Phase contracts, single-source admission, dated acquisition sampler/metrics. Saved IS report → Configure Evaluation → profile/whole MNQ size/timing → Check → Run → durable report. | No funded dependency; every requested evaluation metric or explicit censoring reason; independent chain/cost/calendar cases and invalid-source checks saved. Single candidate is explicitly not yet a search. |
-| P2: Evaluation search and Pareto | Candidate references across saved strategies/jobs, bounded sizes/profiles, comparison and frontier in the same configuration/report. Minimal immutable campaign revision persisted. | Multi-strategy/multi-job fixture, exact within-phase search coverage, all frontier/tie/unresolved candidates, marginal-cost diagnostics and simultaneous uncertainty; no lambda or funded inputs. |
-| P3: conditional Funded optimization | Independent funded runner, dated settlement, horizon metrics, sizes/profiles and saved candidate set support. Saved IS report → Configure Funded → candidates/profile/size range/horizon → Check → Run → report. | Works with no successful evaluations or evaluation fields; horizon receipt/survival/zero-payout cases, full ranking and missing-precision states; ledger and joint regressions unchanged. Can proceed after P1 shared contracts without depending on P2's selected result. |
-| P4: bounded campaign generation | Extend campaign form to declare multiple strategy parameter grids and link ordinary optimization jobs/trials; preserve saved-candidate entry. | Search caps/failed trials/aliases recorded; common IS protocol checked before jobs; deterministic serial/parallel results and resume; every result opens its original trial and phase report. |
-| P5: freeze and final OOS assessment | Package freeze and manual assessment links in ordinary phase/backtest reports; assessment-only dispatch and provenance downloads. | Frozen strategy/size/profile/horizon/costs/seeds and acceptance limits; OOS mutation/override tests; no reselection; repeated assessments append with access history; independent saved end-to-end evidence. |
+| Milestone | Concrete artifact and normal user journey | Exit criteria | Verified status / remaining exit |
+| --- | --- | --- | --- |
+| P1: single-candidate Evaluation | Phase contracts, single-source admission, dated acquisition sampler/metrics. Saved IS report → Configure Evaluation → profile/whole MNQ size/timing → Check → Run → durable report. | No funded dependency; every requested evaluation metric or explicit censoring reason; independent chain/cost/calendar cases and invalid-source checks saved. Single candidate is explicitly not yet a search. | Implemented for Apex dated acquisition; Lucid dated Evaluation rejects. Current synthetic arithmetic/browser qualification is linked above; no provider certification. |
+| P2: Evaluation search and Pareto | Candidate references across saved strategies/jobs, bounded sizes/profiles, comparison and frontier in the same configuration/report. Minimal immutable campaign revision persisted. | Multi-strategy/multi-job fixture, exact within-phase search coverage, all frontier/tie/unresolved candidates, marginal-cost diagnostics and simultaneous uncertainty; no lambda or funded inputs. | Saved-candidate search/UI implemented; simultaneous dominance and precision qualification remain open. Full original exit is partial. |
+| P3: conditional Funded optimization | Independent funded runner, dated settlement, horizon metrics, sizes/profiles and saved candidate set support. Saved IS report → Configure Funded → candidates/profile/size range/horizon → Check → Run → report. | Works with no successful evaluations or evaluation fields; horizon receipt/survival/zero-payout cases, full ranking and missing-precision states; ledger and joint regressions unchanged. Can proceed after P1 shared contracts without depending on P2's selected result. | Apex/Lucid fresh-funded backend, campaigns/UI and receipt boundaries implemented; certified risk/precision and provider settlement verification remain open. |
+| P4: bounded campaign generation | Extend campaign form to declare multiple strategy parameter grids and link ordinary optimization jobs/trials; preserve saved-candidate entry. | Search caps/failed trials/aliases recorded; common IS protocol checked before jobs; deterministic serial/parallel results and resume; every result opens its original trial and phase report. | Saved-job/trial expansion and bounded sizing implemented. Automatic new-grid generation/adaptive refinement/resume orchestration are pending; full milestone incomplete. |
+| P5: freeze and final OOS assessment | Package freeze and manual assessment links in ordinary phase/backtest reports; assessment-only dispatch and provenance downloads. | Frozen strategy/size/profile/horizon/costs/seeds and acceptance limits; OOS mutation/override tests; no reselection; repeated assessments append with access history; independent saved end-to-end evidence. | Named IS freeze/manual repeated OOS assessment product path implemented and qualified; source-export launch restriction and original broader acceptance certification remain explicit. |
 
 At every exit: publish inspectable report/ZIP and source checks, meaningful
 automated gates plus independently checked actual output, exact expected UI

@@ -63,7 +63,7 @@ def test_delete_100_reports_cancel_busy_rejection_confirm_and_reload(page, porta
         db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)', ('e' * 32, 'pending', rows[-1]['run_id'], '2026-10-31', 'queued', 'Controlled source use', None))
     page.once('dialog', lambda d: d.accept())
     page.locator('#optimization-delete').click()
-    playwright.expect(page.locator('#optimization-delete-status')).to_contain_text('A prop analysis is using a backtest')
+    playwright.expect(page.locator('#optimization-delete-status')).to_contain_text('referenced by a research campaign or running prop analysis; it cannot be deleted')
     playwright.expect(page.locator('#optimization-delete')).to_be_enabled()
     assert page.request.get(portal['url'] + '/api/backtests').json()['total'] == 100
     page.screenshot(path=str(tmp_path / 'activity-busy-rejected.png'), full_page=True)

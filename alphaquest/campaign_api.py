@@ -5,8 +5,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 from .research import ResearchConflict
-from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest
+from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest, SourceWindowRequest
 from .prop.adapter import canonical
+from .prop.phase_search import CandidateConfirmationRequired
 
 router = APIRouter(prefix='/api/research-campaigns', tags=['Research campaigns'])
 
@@ -14,6 +15,8 @@ router = APIRouter(prefix='/api/research-campaigns', tags=['Research campaigns']
 async def call(request, method, *args):
     try:
         return await run_in_threadpool(getattr(request.app.state.campaigns, method), *args)
+    except CandidateConfirmationRequired as exc:
+        raise HTTPException(409, exc.detail) from exc
     except ResearchConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     except KeyError as exc:
@@ -44,6 +47,11 @@ async def sources(request: Request, kind: Literal['backtest_id', 'optimization_i
                   q: str = Query(default='', max_length=200), offset: int = Query(default=0, ge=0),
                   limit: int = Query(default=50, ge=1, le=100)):
     return await call(request, 'sources', kind, q, offset, limit)
+
+
+@router.post('/source-window')
+async def source_window(body: SourceWindowRequest, request: Request):
+    return await call(request, 'source_window', body)
 
 
 @router.get('/{id}')

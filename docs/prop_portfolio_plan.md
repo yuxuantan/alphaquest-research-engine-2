@@ -3,13 +3,13 @@
 Accepted 2026-11-04. This plan extends [prop simulation](prop_simulation.md)
 through its existing backtest → configure → check → run → durable report journey.
 
-## Prerequisite research workstream — 2026-11-05
+## Prerequisite research workstream — updated 2026-11-06
 
 [Independent phase optimization](phase_optimization_plan.md) is the prerequisite
 research workstream for future optimizer-driven portfolio recommendations.
-Evaluation will minimize acquisition cost and calendar time through a Pareto
-frontier; Funded will maximize horizon cash payouts conditional on already being
-funded. They can search saved trials across strategies/jobs independently, then
+The implemented Evaluation campaign minimizes acquisition cost and calendar time
+through an estimated Pareto frontier; the implemented Funded campaign maximizes
+horizon cash payouts conditional on already being funded. They can search saved trials across strategies/jobs independently, then
 freeze selections before manual final OOS assessment. Neither uses the other's
 objective inputs. The existing annualized joint-sizing calculation is classified
 as legacy business-level optimization and remains preserved.
@@ -17,8 +17,8 @@ as legacy business-level optimization and remains preserved.
 This is **not a replacement or restart of completed milestones 1–2** below.
 Separate phase sources, dated transitions and the exact cash ledger/monthly-cap
 scheduler remain implemented capabilities with their existing evidence. They
-currently replay fixed choices on one observed path; they do not yet optimize
-either phase independently. The phase work adds research selection above these
+replay fixed choices on one observed path; separate campaigns now optimize each
+phase independently above that replay. The phase work adds research selection above these
 primitives and retains the cash accounting and hard-cap contract unchanged.
 
 The original five-milestone roadmap and progress entries below are retained.
@@ -29,6 +29,19 @@ maximize finite-horizon trader cash under the spending cap. It must model
 dependence and timing rather than combine marginal summaries or feed joint
 annualized scores back into phase selection. Phase-level OOS freeze is delivered
 by the new plan; portfolio-level allocation/OOS validation remains separate.
+
+The **saved-candidate product prerequisite is implemented and regression-qualified**
+as recorded in the [cleanup evidence](prop_simulation_review.md#final-architecture-cleanup--2026-11-06).
+The full original phase research exits remain partial: generated grids, adaptive
+confirmation, simultaneous frontier certification, verified calendars/settlement
+and numerical/provider parity are unclaimed. Do not label the entire research
+prerequisite complete. Next portfolio work is milestone 3's smallest fixed-plan,
+separate-account comparator: saved frozen phase choices, synchronized observed
+sources, exact fee/receipt timing, zero-purchase baseline and the unchanged hard
+monthly fee cap. Expand bounded separate-account search within milestone 3.
+Milestone 4 is shared-account execution/placement and stays deferred until combined
+exposure/risk can be reconstructed. Milestone 5 adds portfolio-level freeze/manual
+OOS. No portfolio implementation is added here.
 
 ## Accepted scope
 

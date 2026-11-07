@@ -6,6 +6,23 @@ from hashlib import sha256
 from .adapter import canonical, source_record
 from .phase_profiles import prepare_phase_source
 
+CANDIDATE_CONFIRMATION_THRESHOLD = 128
+
+
+class CandidateConfirmationRequired(ValueError):
+    def __init__(self, count):
+        self.detail = dict(code='candidate_confirmation_required', candidate_count=count,
+            confirmation_threshold=CANDIDATE_CONFIRMATION_THRESHOLD,
+            message=f'This search contains {count} candidates. Confirm this count to continue; larger searches require more time and storage.')
+        super().__init__(self.detail['message'])
+
+
+def require_candidate_confirmation(count, confirmed_count):
+    if ((count > CANDIDATE_CONFIRMATION_THRESHOLD and confirmed_count != count)
+            or (confirmed_count is not None and confirmed_count != count)):
+        raise CandidateConfirmationRequired(count)
+
+
 @dataclass(frozen=True)
 class PhaseCalendar:
     start_dates: tuple[str, ...]

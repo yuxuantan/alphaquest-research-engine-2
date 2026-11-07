@@ -2,9 +2,18 @@
 from hashlib import sha256
 import json
 from alphaquest.strategy_browser import full_source
-from test_research_workflow import client,save,body,oos,status
+from test_research_workflow import client,save,body,oos,status,history
 
 STRATEGY='consecutive_green_hold'
+
+
+def save_nq(client, days=4):
+    """Explicit synthetic NQ identity for cases that retain VWAP EOD rules."""
+    response=client.post('/api/datasets',params=dict(filename='SYNTHETIC-NQ-hierarchy.csv',
+        name='SYNTHETIC NQ hierarchy',symbol='NQ',source_timezone='UTC',tick_size='.25',point_value='10'),
+        content=history(days))
+    assert response.status_code==201,response.text
+    return response.json()
 
 
 def run(client,dataset,contracts=1,strategy=STRATEGY):
@@ -45,7 +54,7 @@ def test_strategy_then_full_dataset_period_then_matching_is_oos_metrics(client):
 
 
 def test_same_instrument_multiple_strategies_and_sources_do_not_merge(client):
-    first=save(client,days=4);second=save(client,days=6)
+    first=save_nq(client,days=4);second=save_nq(client,days=6)
     run(client,first);run(client,second);run(client,first,strategy='vwap_pullback_risk_sizing')
     assert len(groups(client))==2
     alternate=groups(client,'vwap_pullback_risk_sizing');assert len(alternate)==1
@@ -131,7 +140,7 @@ def test_deleting_oos_prop_report_preserves_history_and_allows_manual_recalculat
 
 
 def test_decimal_spelling_is_not_highlighted_as_a_different_parameter_value(client):
-    dataset=save(client,days=4)
+    dataset=save_nq(client,days=4)
     definition=next(s for s in client.get('/api/strategies').json() if s['id']=='vwap_pullback_risk_sizing')
     for value in ('2','2.0'):
         request=body(dataset);request['strategy_id']=definition['id']

@@ -20,12 +20,19 @@ constraints. The two declarations, source sets and calculations are independent.
    older matches. Full parameters and IS dates appear below the selection.
    For jobs, enter selected trial numbers or leave blank for the complete saved
    grid. Give each source its own MNQ size list.
-3. Declare the maximum candidate count, IS window, simulation count/seeds and
-   target calendar. Evaluation also declares purchase/activation prices and
+3. The IS first/last sessions default to the common saved coverage within the
+   selected sources' declared IS splits. These are CME Chicago session dates,
+   including observed sessions with no trades. Optionally narrow the window;
+   **Use full common IS window** resets it. Source or selected-trial changes
+   derive it again. Declare simulation count/seeds and
+   scenario start date. Calendar coverage is derived automatically and displayed
+   after checking. Evaluation also declares purchase/activation prices and
    chain counts/seeds. Funded declares receipt horizon, settlement delay and
    maximum breach probability. The UI uses captured source costs; the API exposes
    the full supported phase configuration.
-4. **Save and check candidates** reconciles every source, records full membership,
+4. **Save and check candidates** calculates the full candidate count. Above 128,
+   a confirmation dialog shows the exact count; Cancel saves nothing. Confirm
+   to continue. It then reconciles every source, records full membership,
    and enables **Run campaign** only on success. Changing inputs requires a new
    check and immutable declaration. No final OOS is scheduled or inspected.
 5. The same prop report screen displays all candidates, strategy parameters,
@@ -49,6 +56,57 @@ constraints. The two declarations, source sets and calculations are independent.
 Campaign reports are independent phase results. Existing annualized joint sizing
 and budgeted cash-ledger workflows retain their request meanings and reports.
 
+## Automatic calendar coverage — 7 November 2026
+
+The portal no longer asks for a Calendar coverage end. **Save and check candidates**
+lets the server resolve it, then shows the resulting date in the check status.
+The historical IS window stays unchanged; extending a simulated calendar does not
+require future market bars or imply verified future market/provider conditions.
+
+For campaign requests using the default `user-declared-weekdays-v1` calendar,
+`search_settings.calendar.coverage_end` may be omitted:
+
+- Evaluation: latest `start_dates` entry + `retry.max_calendar_days`, using the
+  existing 3,650-day default when omitted. This is exact civil-day addition,
+  including leap days, rather than adding ten calendar years. The chain cutoff
+  and attempt limits are unchanged.
+- Funded: latest start + `horizon_calendar_days`. Fixed civil-day receipt delays
+  may leave pending receipts after that cutoff; they do not extend the simulated
+  trading horizon or require further calendar coverage.
+
+The normalized `manifest.request.calendar` and report/download `request.json`
+save a concrete end date. Run, freeze, OOS and reopen use this saved request;
+they never recalculate coverage for an existing campaign. An equivalent explicitly
+specified calendar has the same numerical identity/reuse behavior. Explicit API
+coverage remains supported and is validated as before, including rejection of
+insufficient coverage. Other calendar version labels require explicit coverage;
+automatic derivation does not invent coverage for externally versioned calendars.
+Direct standalone `/api/prop-analyses` searches retain their explicit calendar
+contract. See [saved workflow evidence](prop_simulation_review.md#automatic-campaign-calendar-coverage--2026-11-07).
+
+## Valid IS window defaults — 7 November 2026
+
+`POST /api/research-campaigns/source-window` accepts `{"sources": [...]}` using
+the normal saved Backtest/Optimization job references and optional trial lists.
+It resolves exactly the selected saved members, intersects each declared IS
+split with its actual `period_start_utc`/`period_end_utc` converted to CME session
+dates, then returns their common `is_window`, per-source declared/saved bounds
+and the date convention. The form uses that metadata for its initial values and
+date bounds; it does not copy the wider split declaration into the date fields.
+
+This read-only metadata operation creates no campaign, loads no trade/dataset
+or OOS outcomes and does not simulate or qualify sources. Incomplete, missing,
+OOS/undeclared sources and disjoint windows reject. A pending/failed window
+lookup leaves Save/check and Run disabled; stale lookup responses are discarded.
+Normal Save/check still validates dates, source identity, costs, risk and common
+research protocol. Explicit API windows are never silently clipped or changed.
+
+Manual narrowing remains available within the displayed bounds. Edits to other
+simulation settings preserve it; changing the source/trial selection restores
+the automatic common window. The independent scenario start date and future
+calendar coverage remain separate. Existing saved requests/reports and phase
+implementation identities are unchanged. See [normal-product evidence](prop_simulation_review.md#valid-is-window-defaults--2026-11-07).
+
 ## Choosing the source type
 
 Use **Backtest** for a completed IS report, including an individual trial report.
@@ -65,15 +123,29 @@ and retain explicit errors for wrong-type, missing and incomplete sources.
 
 ## Admission, budget and scaling
 
-- `maximum_candidates` is required, between 1 and 128. Count selected saved
-  trials × declared sizes **before** calculation. No hidden top-N, ranking-based
-  pruning, default winner or silent budget truncation. Different parameters are
+- There is no maximum-candidate field or fixed candidate-count ceiling. The
+  server counts selected saved trials × declared sizes **before** source checking
+  or calculation. Above 128, campaign creation returns HTTP 409 with
+  `detail.code="candidate_confirmation_required"`, `candidate_count` and
+  `confirmation_threshold`. After explicit user confirmation, resend the same
+  declaration with `confirmed_candidate_count` equal to the returned count.
+  Missing or mismatched acknowledgement rejects without saving/queueing a
+  campaign. Exactly 128 needs no confirmation; edits require checking again.
+  No hidden top-N, ranking-based
+  pruning, default winner or silent truncation. Different parameters are
   ordinary grid trials; campaigns never manufacture parameters without backtesting.
+- `maximum_candidates` is deprecated: old API declarations remain accepted and
+  saved history stays unchanged, but this field no longer limits new searches.
+  Confirmation is recorded in the campaign manifest/declaration and campaign
+  export, outside numerical inputs. Standalone phase `/api/prop-analyses/check`
+  and submit requests also require `confirmed_candidate_count` above 128; their
+  explicit candidate lists have no count ceiling. The existing path/day/queue
+  and report-byte limits still apply, even after confirmation.
 - A referenced optimization must be complete. An omitted trial list expands the
   entire grid and verifies its saved membership. Missing, failed, interrupted or
   incomplete members reject; resume the ordinary optimization first. Explicit
   trial lists preserve the original grid definition, full grid count, selected
-  indices and failed-trial metadata. The campaign budget counts the selected
+  indices and failed-trial metadata. The campaign candidate count includes the selected
   source × size search, not the earlier grid's total work; both counts remain
   visible. Repeated sizes, repeated trial indices and duplicate candidates,
   including the same backtest reached through a job alias or an equivalent
@@ -159,14 +231,13 @@ all angle-bracket values before submission:
     {"optimization_id": "<VWAP job ID>", "trials": [1, 2, 3], "sizes": [10, 20, 30]},
     {"optimization_id": "<Green Hold job ID>", "trials": [1, 2], "sizes": [10, 20]}
   ],
-  "maximum_candidates": 13,
   "is_window": {"first_session": "2026-01-05", "last_session": "2026-01-14"},
   "simulation": {"simulations": 1000, "seed": 42, "max_micros": 40},
   "sampling": {"block_weekdays": 5, "chain_simulations": 1000, "chain_seed": 45},
   "costs": {"mode": "source"},
   "retry": {"activation_delay_sessions": 1, "retry_delay_calendar_days": 0},
   "search_settings": {
-    "calendar": {"start_dates": ["2026-01-05"], "coverage_end": "2037-01-01"}
+    "calendar": {"start_dates": ["2026-01-05"]}
   }
 }
 ```
@@ -239,7 +310,7 @@ campaign; no frozen record is overwritten.
 are additive tables in the **existing** `prop_analyses/catalog.sqlite3`. They hold
 small manifests/references. Original strategies/parameters, source/risk/cost hashes,
 IS declaration/access metadata, profile/fees, sampling/seeds, calendar, objective,
-constraints, budget, screening/refinement state and numerical identity are saved.
+constraints, candidate count/confirmation, screening/refinement state and numerical identity are saved.
 Original optimization grids/trials stay in the backtest catalogue. Calculations,
 source captures, CSV/JSON and ZIP are published once in normal AnalysisStore.
 Equivalent campaigns reuse the same valid immutable analysis, including when

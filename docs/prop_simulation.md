@@ -1,5 +1,49 @@
 # AlphaQuest local prop simulation
 
+## Current behavior and navigation — updated 2026-11-07
+
+Use an ordinary saved IS backtest/trial → **Configure prop analysis** → create an
+independent phase campaign → **Check** → **Run** → durable results/downloads →
+named IS freeze → manual frozen OOS assessment. Evaluation returns a cost/calendar
+Pareto frontier; Funded ranks cash received before an exclusive calendar cutoff
+from a fresh funded account. Neither selects using the other phase's data.
+Campaign calendar coverage is automatic: scenario start + the saved Evaluation
+chain limit (default 3,650 civil days), or + the Funded receipt horizon. The manual
+coverage-end field is removed; checks, immutable manifests and downloads disclose
+the derived date. Explicit API calendars and earlier reports remain supported.
+This changes campaign normalization/UI, with no kernel, cutoff or metric change.
+[Coverage behavior and limits](research_campaign_api.md#automatic-calendar-coverage--7-november-2026).
+Candidate counts are also automatic. The manual maximum and fixed count ceiling
+are removed; more than 128 candidates require explicit confirmation of the full
+count before a campaign is saved. Source/size membership is never truncated.
+Existing workload/report-byte limits remain. Admission source changes advance
+the phase implementation hashes; existing reports stay readable, while old
+campaign checks/frozen launches fail closed on incompatible implementation identity.
+[Candidate confirmation evidence](prop_simulation_review.md#automatic-candidate-count-and-large-search-confirmation--2026-11-07).
+IS first/last sessions default to the selected sources' common actual saved
+coverage within declared IS, using CME session dates rather than trade dates.
+Optional narrowing/reset remains available; source/trial changes rederive the
+window. This fixes split boundaries outside the saved bar period without
+relaxing validation or changing phase numerical identities.
+[IS window behavior](research_campaign_api.md#valid-is-window-defaults--7-november-2026).
+[Campaign controls](research_campaign_api.md) · [IS/OOS](research_workflow.md) ·
+[Module ownership](architecture.md#final-module-ownership-and-retention) ·
+[Final qualification](prop_simulation_review.md#final-architecture-cleanup--2026-11-06).
+
+New grids can skip automatic **legacy** joint Apex/Lucid reports with
+`automatic_prop: false`; omitted/true retains existing automatic behavior. The
+shared form sends an opted-out single combination through the ordinary grid job
+as well. This changes job orchestration, not account formulas or saved reports.
+Manual legacy annualized sizing and budgeted observed cash remain supported;
+standalone dated replay remains API/report compatible. Portfolio search is pending.
+
+This document preserves the versioned contracts and historical numerical findings.
+The phase sections immediately below are current contracts; dated standalone
+release statements about absent UI are historical scope, superseded by campaigns.
+The [historical notebook specification](#historical-notebook-specification-superseded-for-new-operations)
+and subsequent dated qualification sections are retained evidence, not new defaults.
+No prior calculation/rule identity or historical artifact was rewritten by cleanup.
+
 ## Independent phase optimization — updated 2026-11-06
 
 [The phase optimization specification](phase_optimization_plan.md) extends this
@@ -119,10 +163,34 @@ gross deductions, inactivity and payout-limit probabilities, survival and full
 path payout distributions/events. Quantiles use the inverse empirical CDF.
 Successful payout-limit completion is termination, not breach.
 
+The serialized metric names are fixed for format 5. Let `R_i` be cash received
+strictly before cutoff in path `i`, `L_i` its observed lifetime, and `N` all starts:
+
+| Field | Definition / unavailable state |
+| --- | --- |
+| `expected_funded_cash_payouts_within_horizon`, `expected_payouts` | `sum(R_i)/N`, including zero paths; null if any horizon is incomplete. Sole ranking objective. |
+| `median_payouts`, `p10_payouts`, `p90_payouts` | Inverse empirical CDF at 0.5/0.1/0.9 over all `R_i`; null for incomplete horizons. |
+| `probability_first_payout`, `probability_zero_payout` | Fraction with at least one received payout / with zero received cash. Null for incomplete horizons. |
+| `expected_days_to_first_payout_conditional_on_payout` | Mean civil days to first receipt among paid paths only; null for no receipts or incomplete horizon. |
+| `account_breach_probability` | Fraction with native `blown` outcome; null for incomplete horizon. |
+| `expected_account_lifetime` | Mean `L_i` only if every account terminates and horizons are complete; otherwise null. |
+| `restricted_mean_account_lifetime_calendar_days` | Mean observed lifetime, bounded by H; not an extrapolated tail mean. |
+| `probability_surviving_to_horizon` | Fraction open at H (lifetime-censored); null for incomplete horizons. |
+| `expected_number_of_payouts` | Mean number of received payouts, including zero starts; null for incomplete horizons. |
+| `expected_pending_cash` | Mean trader entitlement due on/after cutoff; retained even if a horizon is incomplete. Not part of the objective. |
+| `expected_gross_account_deductions` | Mean gross native payout deductions before cutoff, including requests still pending settlement. Not trader receipts. |
+| `probability_inactivity`, `probability_payout_limit_completion` | Fractions with native `inactive` / `paid_all` outcomes; null for incomplete horizons. |
+
+`status`, `censoring` and `uncertainty` accompany every row; full path records
+separate complete horizon observations from open lifetime and unresolved guards.
+
 `expected_account_lifetime` is the unrestricted mean only when every observed
 account terminates. Otherwise it is `null`, with
-`restricted_mean_account_lifetime_calendar_days = mean(min(T,H))` and explicit
-lifetime-censored path counts. An open account at H is not falsely terminated;
+`restricted_mean_account_lifetime_calendar_days = mean(min(T,H))` for complete
+horizons and explicit lifetime-censored path counts. If a computational guard
+stops observation before H, this same saved field is only the mean observed-time
+lower bound, not an identified restricted lifetime expectation. An open account
+at H is not falsely terminated;
 its finite-horizon cash is complete. A stopped/incomplete horizon instead makes
 cash estimates unresolved, exposes accrued cash lower bounds, and prevents a
 winner. Exceptions abort publication rather than publish a partial optimum.
@@ -1240,6 +1308,13 @@ See prop_simulation_review.md for exact UI steps, expected values and artifacts.
 ---
 
 ## Historical notebook specification (superseded for new operations)
+
+Everything in this notebook specification through **Parity qualification** records
+the former notebook model. Its modules remain active in demo/parity tests, while
+saved format-1 reports use their historical reader. Later dated local-model
+updates below that qualification retain their own versioned scope. See the
+[current ownership map](architecture.md#final-module-ownership-and-retention).
+
 
 The text below records the previously delivered model and its saved evidence.
 Its reproduction claims apply to the old notebook, not The Bridge model.

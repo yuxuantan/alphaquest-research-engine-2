@@ -40,6 +40,7 @@ class OptimizationRequest(BaseModel):
     workers: StrictInt = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
     reuse_results: StrictBool = True
     prepare_data: StrictBool = True
+    automatic_prop: StrictBool = True
     execution_settings: ExecutionSettings
     sample_split: SplitDeclaration
     market_benchmark: BenchmarkSettings = Field(default_factory=BenchmarkSettings)

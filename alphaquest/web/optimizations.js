@@ -267,7 +267,8 @@
     let job;
     try {
       job = await read("/api/backtests", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...settings, method: "exhaustive", parameter_ranges, workers: Number(get("#optimization-workers").value), reuse_results: get("#optimization-reuse").checked }) });
+        body: JSON.stringify({ ...settings, method: "exhaustive", parameter_ranges, workers: Number(get("#optimization-workers").value), reuse_results: get("#optimization-reuse").checked,
+          automatic_prop: get("#optimization-automatic-prop").checked }) });
     } catch (error) {
       if (error instanceof TypeError || error instanceof SyntaxError) throw new Error("Completion is unconfirmed. Check optimization history before starting another job; the request was not retried.");
       throw error;

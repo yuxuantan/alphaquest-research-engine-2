@@ -8,7 +8,8 @@ execution settings are fixed across trials. Every strategy parameter has
 **Start value**, **End value**, **Step** and **Step count** columns.
 
 Keep start and end equal on every row to run one backtest. A grid generating one
-combination opens its normal report with live progress. Widen ranges for more
+combination opens its normal report with live progress when automatic prop reports
+are enabled. With automatic reports disabled it saves a one-trial batch instead. Widen ranges for more
 combinations; the results open as a sortable batch table with links to individual
 reports. The same grid drafts, costs, benchmark settings and saved-result reuse
 control apply in both cases. There is no second parameter form to keep in sync.
@@ -737,8 +738,10 @@ remain unchanged. No reports were pushed or published externally.
 
 ## Automatic Apex Historical net
 
-Every trial in a new optimization now runs the default local Apex 50K EOD prop
-analysis after replay, inside the same worker. Defaults are **$49 evaluation +
+Unless the new grid explicitly opts out, every trial runs the default local
+legacy Apex 50K EOD prop analysis after replay, inside the same worker.
+The [automatic-report option](#automatic-report-cost-and-source-reuse) also
+controls its Lucid companion. Defaults are **$49 evaluation +
 $129 activation, 20 slots**, block 5, a 70/30 weekday split and the existing
 standard counts (3,000 sizing paths and 20,000 final evaluations/accounts). The
 captured profile is strategy-independent and appears in saved settings. Automatic
@@ -812,6 +815,38 @@ CSV download and ordinary report navigation. The saved-data review additionally
 verified the live 49-column table, 28 hidden fixed parameters and unchanged API/
 CSV bytes. Temporary test servers and review browsers were shut down; no
 persistent server was started.
+
+## Automatic report cost and source reuse
+
+**Calculate automatic legacy Apex and Lucid prop reports** is checked by default.
+Uncheck it for new research grids feeding phase campaigns. API grid requests use
+`automatic_prop: false` (strict boolean); omission means true. The job saves its
+request and `default_prop_profile: null`, excludes automatic legacy metric columns,
+and workers skip both joint reports and their calculation-cache snapshot. Every
+trial still saves ordinary trades, risk, equity and reports for manual configuration
+and phase checks. No zero prop return is invented. Single-combination opt-out
+submissions use the same saved batch/worker path. API single-backtest/manual OOS
+and explicit automatic-analysis workflows keep their defaults.
+
+Old jobs retain their saved profiles, columns, request meaning, refresh links and
+reports. An opted-out trial cannot satisfy a request for automatic reports:
+`trial_key` includes the saved profile as well as source/strategy/parameters/costs,
+research windows, benchmark and engine identity. Identical opt-out grids reuse
+verified backtest artifacts; identical phase campaigns reuse verified AnalysisStore
+reports without backtesting. Inputs are captured once per unique source per phase
+report. No parallel result database is introduced.
+
+Backtests are limited to 10,000 combinations and configured worker bounds (see
+`GET /api/backtests/settings`). Phase search allows 1–128 explicit candidates and
+at most 20,000 paths each; the full combination of those maxima is not admissible:
+100 MiB estimated capture preflight, 128 MiB exact artifact cap and Funded's
+50-million path-calendar-day limit may reject it. Counts are never silently
+lowered. Evaluation deliberately retains legacy retained-block diagnostics as
+well as IID dated chains; they measure different laws and can dominate runtime.
+Repeated source checks protect check/run/publication identity. Adaptive screening,
+new-grid campaign launch and general incremental candidate-profile caching remain
+future work. Small synthetic timings in the [cleanup qualification](prop_simulation_review.md#final-architecture-cleanup--2026-11-06)
+are bounded software evidence, not production throughput forecasts.
 
 ## Independent phase research from saved trials
 

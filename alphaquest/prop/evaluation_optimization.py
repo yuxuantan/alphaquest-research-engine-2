@@ -92,8 +92,8 @@ class EvaluationSearch:
     def __post_init__(self):
         if self.mode != 'evaluation_optimization':
             raise ValueError('Unsupported phase search mode.')
-        if not 1 <= len(self.candidates) <= 128:
-            raise ValueError('Declare 1–128 candidates; no implicit search truncation.')
+        if not self.candidates:
+            raise ValueError('Declare at least one candidate; no implicit search truncation.')
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
             raise ValueError('The navigation anchor must belong to the candidate set.')
         for c in self.candidates:
