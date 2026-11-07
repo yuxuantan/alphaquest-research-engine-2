@@ -135,6 +135,37 @@ class DecisionRisk(Contract):
         return self
 
 
+class KnownDecisionRisk(Contract):
+    """Explicit native submission facts, with no future entry time or fill.
+
+    Only an instance of this model opts into known-time sizing. Dictionary
+    inputs to choose_quantity retain the historical DecisionRisk contract.
+    """
+    sizing_decision_time_utc: str
+    initial_stop_known_at_utc: str
+    previous_source_exit_utc: str | None = None
+    execution_timing: Literal['same_close', 'next_open']
+    side: Literal['long', 'short']
+    decision_reference_price: Decimal
+    initial_stop_price: Decimal
+
+    @field_validator('decision_reference_price', 'initial_stop_price', mode='before')
+    @classmethod
+    def price(cls, value):
+        return amount(value)
+
+    @model_validator(mode='after')
+    def causal(self):
+        decision, known = map(instant, (self.sizing_decision_time_utc, self.initial_stop_known_at_utc))
+        if known > decision:
+            raise ValueError('The initial stop must be known at the sizing decision.')
+        if self.previous_source_exit_utc and instant(self.previous_source_exit_utc) > decision:
+            raise ValueError('The prior actual trade was still open at the sizing decision.')
+        if (self.decision_reference_price-self.initial_stop_price)*(1 if self.side == 'long' else -1) <= 0:
+            raise ValueError('The initial stop must be adverse to the known decision reference.')
+        return self
+
+
 class PlanningExecution(Contract):
     """Declared loss-side costs per simulated MNQ, not a second P&L charge."""
     tick_size: Decimal
@@ -172,7 +203,7 @@ def choose_quantity(policy, state, risk=None, execution=None):
     """
     policy = SizingPolicy.model_validate(policy)
     state = AccountSizingState.model_validate(state)
-    risk = DecisionRisk.model_validate(risk) if risk is not None else None
+    risk = risk if type(risk) is KnownDecisionRisk else DecisionRisk.model_validate(risk) if risk is not None else None
     execution = PlanningExecution.model_validate(execution) if execution is not None else None
     needs_stop = policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
     if needs_stop and (risk is None or execution is None):

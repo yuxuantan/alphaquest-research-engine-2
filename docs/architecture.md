@@ -40,8 +40,8 @@ actual economics from forecast comparability. Conservative Funded selection
 re-estimates the fitted mean using historical session blocks inside
 `funded_profiles.py`; `funded_optimization.py` owns its objective and constraints.
 Shared preflight limits count all declared historical refits and captured indices.
-Final procedure verification, native state-aware reruns and forward monitoring
-remain pending.
+Final procedure verification, native forecasting/selection and forward monitoring
+remain pending. Native chronological reruns are described below.
 
 8 November 2026 canonical-source increment: `canonical_trades.py` validates
 complete versioned external exports and projects existing native sources without
@@ -63,8 +63,21 @@ their provider transitions, and omit all policy work on the legacy default path.
 phase-specific profile/optimization modules keep their independent objectives.
 The existing campaign declaration expands all source × cap × policy combinations.
 Native `decision_capture.py` owns the optional normal-report sidecar. Execution
-records decisions/fills separately; historical missing information stays missing,
-and dynamic native policies reject until a suitable strategy rerun is integrated.
+records decisions/fills separately; historical missing information stays missing.
+Fixed-path phase searches still reject dynamic native policies.
+
+`prop/native_replay.py` now orchestrates a checked historical MNQ/VWAP rerun
+through the existing backtest engine. `execution.py` owns actual fills and
+strategy/provider stop arbitration; the strategy admits provisional entries
+before committing quantity-dependent state. `native_control.py` defines immutable
+execution/account facts and a provider-to-trading-cash bridge. Evaluation and
+Funded controllers live in their respective profile owners and call shared
+provider transition primitives. `native_money.py` preserves exact native money
+while keeping legacy float arithmetic unchanged. No new simulator or catalogue
+is introduced: ordinary RunStore/AnalysisStore own the child, report and exports.
+Native Monte Carlo, economic selection and campaign outer integration remain
+pending. Numerical identities include all changed calculation dependencies;
+historical reports are retained and incompatible frozen launches fail closed.
 
 [Home](../README.md) / [Docs](README.md)
 

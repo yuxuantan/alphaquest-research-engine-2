@@ -67,7 +67,7 @@ are split into coherent commits and pushed at least every one or two commits.
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | implemented for supported native fixed-path policies; normal API/browser evidence and focused regression qualified; no provider/live parity claim |
-| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | pending; current native risk policies reject rather than substitute a fixed source path |
+| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | partial: native chronological MNQ/VWAP account-controlled replay implemented; native forecasts, optimizer/campaign handoff and frozen outer integration remain pending |
 | M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
 | M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
@@ -324,6 +324,33 @@ phase/campaign/profile/replay regression: 107 pass. The review records exact
 scope, earlier failures, commands, IDs, expected values and immutable snapshots.
 These overlapping gates do not constitute full-suite or provider qualification.
 
-M3b2 full-procedure verification/current development selection, native controlled
-execution and forecasting, M4/M5/M6 remain **incomplete**. The native primitive
-and execution-hook designs staged outside the repository are not implementation.
+At M3b1 publication, M3b2 full-procedure verification/current development
+selection, native controlled execution and forecasting, and M4/M5/M6 remained
+**incomplete**. Native chronological execution was implemented in the subsequent
+increment below; this does not complete native forecasting or selection.
+
+### Native chronological account control
+
+`prop/native_replay.py` admits an ordinary saved native IS report and orchestrates
+the existing backtest engine. `execution.py` calls the strategy's provisional
+entry hook before quantity-dependent state commits. `KnownDecisionRisk` exposes
+the decision close and known stop without the future open. Evaluation and Funded
+controllers in their phase owners apply existing provider transition primitives,
+actual fills, session boundaries and the shared cash ledger. Normal trading equity
+keeps actual trading P&L; provider withdrawals and Evaluation account resets use
+an explicit offset rather than rewriting completed trades.
+
+The existing prop check/run routes save an ordinary controlled RunStore child and
+an AnalysisStore report with source identity, decisions, session trace, actual
+trades, cash ledger and ZIP. The initial supported subset is complete one-minute
+continuous/base MNQ sessions, current VWAP, EOD-flat enabled and local strategy
+volatility sizing disabled. Missing sessions/minutes, unreviewed calendar dates,
+NQ relabeling, dated-contract expiry and incompatible costs reject. Controlled
+results cannot masquerade as unconstrained IS sources. Historical reports remain
+readable; changed numerical identities reject incompatible frozen launches.
+
+Native Monte Carlo, native phase economic search and native frozen outer replay
+remain pending. This deterministic historical scenario is not a recommendation,
+forecast or provider qualification. Full-procedure freeze/holdout/current
+development selection, forward monitoring and final qualification also remain
+incomplete. See the dated normal-product journey in `prop_simulation_review.md`.

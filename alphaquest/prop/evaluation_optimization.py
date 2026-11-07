@@ -157,7 +157,7 @@ def implementation_identity():
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
              'native_analysis.py', 'native_engine.py', 'source.py', 'commissions.py',
              'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py',
-             'external_source.py', 'cash_ledger.py', 'rule_provenance.py', '../canonical_trades.py', '../trade_imports.py')
+             'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel=kernel_identity({'ACCOUNT_TYPE': 'Apex EOD'}), numpy=np.__version__)

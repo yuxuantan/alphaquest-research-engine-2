@@ -203,6 +203,17 @@
       }
       const report = savedReport || await read(`/api/prop-analyses/${id}/downloads/report.json`, controller.signal);
       if (active !== controller) return;
+      if (report.request?.mode === 'native_phase_replay') {
+        const c=report.calculations, holder=get('#report-prop-metrics');holder.replaceChildren();
+        context.textContent += ` · Native ${report.request.phase} account-state replay · ${report.request.profile.profile_id} · ${report.source.period.first_session} → ${report.source.period.last_session}`;
+        const cards=node('div',undefined,'prop-metric-grid prop-three-metrics');holder.append(cards);
+        propMetric(cards,'native-trading','Actual trading profit · USD',usd(c.trading_profit,2),'Actual native fills and costs; separate from provider withdrawals and trader cash.',c.trading_profit);
+        propMetric(cards,'native-balance','Provider account balance · USD',usd(c.trace?.at(-1)?.state_after?.balance,2),'Provider initial capital, trading results, account resets and gross withdrawals.',c.trace?.at(-1)?.state_after?.balance);
+        if(report.request.phase==='funded')propMetric(cards,'native-cash','Modeled cash received · USD',usd(c.cash_received,2),`Pending receipt: ${usd(c.pending_cash,2)}. Requests and gross deductions are separate ledger events.`,c.cash_received);
+        else propMetric(cards,'native-fees','Actual-date acquisition fees · USD',usd(c.paid_fees,2),`Acquisition ${c.acquisition_completed?'completed':'incomplete'}; observation ${c.censored?'censored':'complete'}. Evaluation trading profit is not trader cash.`,c.paid_fees);
+        status.textContent='One historical native strategy path. Native forecasting and policy selection are unavailable; provider parity and settlement are unverified.';
+        return;
+      }
       if (report.format_version !== 3 || !report.calculations) {
         status.textContent = "Historical engine report. Open the full analysis to inspect its original results and model.";
         return;

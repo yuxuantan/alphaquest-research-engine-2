@@ -39,6 +39,8 @@ def source_record(runs, run_id):
 
 def adapt(runs, run_id, settings):
     record=source_record(runs,run_id)
+    if record.get('native_account_control'):
+        raise ValueError('Account-controlled native trades are not an unconstrained strategy source; use the original IS report for a new phase calculation.')
     path=runs.root/record['id']/'trades.csv'
     before=digest(path)
     rows=[]

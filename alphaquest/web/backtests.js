@@ -300,6 +300,12 @@
     get("#report-detail-status").hidden = true;
     const content = get("#backtest-completion-content");
     content.replaceChildren();
+    if (record.native_account_control) {
+      const note=document.createElement('p');note.textContent='Actual native account-controlled replay. These trades reflect strategy eligibility and quantities chosen from provider account state. Trading equity retains the original backtest capital; withdrawals and modeled trader receipts are recorded separately in the prop analysis.';content.append(note);
+      const capture=document.createElement('a');capture.href=`/api/backtests/${record.id}/exports/native_account_control`;capture.textContent='Download native account-control evidence';content.append(capture);
+      const analysisId=record.run_metadata.native_account_control?.analysis_id;
+      if(analysisId){const analysis=document.createElement('a');analysis.href=`#backtests/prop/job/${analysisId}`;analysis.textContent='Open native account-state analysis';content.append(document.createElement('br'),analysis);}
+    }
     const metadata = record.run_metadata;
     const defaults = metadata.dataset.instrument_settings;
     const overrides = metadata.instrument_overrides;

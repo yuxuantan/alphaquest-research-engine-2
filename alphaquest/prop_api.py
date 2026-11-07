@@ -13,6 +13,7 @@ from .prop.source import matching_exports
 from .prop.commissions import catalog, source_instrument
 from .prop.phase_dispatch import module_for_mode
 from .prop.phase_search import CandidateConfirmationRequired, require_candidate_confirmation
+from .prop.native_replay import NativeReplayRequest
 from .research import ResearchConflict
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
@@ -59,7 +60,9 @@ def phase_request(body):
 @router.get('/defaults')
 def defaults():
     from .prop.automatic import profiles
+    from .prop.native_replay import defaults as native_defaults
     return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog(),
+        native_phase_replay=native_defaults(),
         profiles=[dict(item,commissions=catalog(item['settings']['PROP_FIRM'])) for item in profiles()])
 
 @router.get('/sources/{source_id}')
@@ -78,8 +81,12 @@ async def source(source_id: str, request: Request, discover_exports: bool = True
         raise HTTPException(404,str(exc)) from exc
 
 @router.post('/check')
-async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
+async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest, request: Request):
     try:
+        if isinstance(body, NativeReplayRequest):
+            from .prop.native_replay import check_replay
+            checks = await run_in_threadpool(check_replay, request.app.state.store, request.app.state.runs, body)
+            return dict(status='compatible', mode=body.mode, model_version=checks['model_version'], native=checks)
         if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
             module = module_for_mode(body.mode)
             search = module.parse_request(phase_request(body))
@@ -98,8 +105,11 @@ async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRe
         raise HTTPException(422,str(exc)) from exc
 
 @router.post('',status_code=202)
-async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
+async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest, request: Request):
     try:
+        if isinstance(body, NativeReplayRequest):
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_native,
+                request.app.state.store, request.app.state.runs, body)
         if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
             module = module_for_mode(body.mode)
             return await run_in_threadpool(request.app.state.prop_analyses.submit_phase,

@@ -131,6 +131,48 @@ class AnalysisStore:
     def submit_evaluation(self, runs, search):
         return self.submit_phase(runs, search)
 
+    def submit_native(self, datasets, runs, request):
+        """A native strategy rerun uses this catalogue and its ordinary worker."""
+        from .native_replay import check_replay
+        from ..optimization_cache import digest
+        with self.lock:
+            checks = check_replay(datasets, runs, request)
+            key = digest(dict(request=request.model_dump(), source_check=checks))
+            with self.connect() as db:
+                row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
+                if row:
+                    valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
+                    if valid and row[1] == 'complete':
+                        from ..optimization_cache import artifacts
+                        report = json.loads((self.root/row[0]/'report.json').read_text())
+                        child = runs.get(report['native_backtest_id'])
+                        valid = child is not None and artifacts(runs.root, child) == report['native_backtest_artifacts']
+                    if valid:
+                        return self.get(row[0])
+                id = uuid4().hex
+                db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
+                    (id, key, request.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued native '+request.phase+' replay', None))
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)', (id, request.source_backtest_id))
+            self.worker.submit(self._run_native, datasets, runs, id, request, checks)
+            return self.get(id)
+
+    def _run_native(self, datasets, runs, id, request, checks):
+        from .native_replay import run_replay
+        from ..optimization_cache import artifacts
+        try:
+            self._update(id, 'running', 'Checking native source and account-control contract')
+            with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
+                staged = Path(temp)/'report'; staged.mkdir()
+                result = run_replay(self, datasets, runs, id, request, checks, staged)
+                result['native_backtest_artifacts'] = artifacts(runs.root, result['native_backtest'])
+                seal_report(staged, result, id, self.get(id)['created'])
+                staged.rename(self.root/id)
+            with self.connect() as db:
+                db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
+                db.execute("UPDATE analyses SET status='complete',progress='Saved native phase replay ready' WHERE id=?", (id,))
+        except Exception as exc:
+            self._update(id, 'error', 'Native phase replay failed', f'{type(exc).__name__}: {exc}')
+
     def submit_funded(self, runs, search):
         return self.submit_phase(runs, search)
 

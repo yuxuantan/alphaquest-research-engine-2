@@ -54,7 +54,7 @@ class BacktestRequest(BaseModel):
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
                             prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False, market_benchmark=None,
-                            execution_scenario=None, capture_decisions=True):
+                            execution_scenario=None, capture_decisions=True, account_control=None, control_metadata=None):
     from .execution_scenarios import resolve_execution_scenario, scenario_metadata
     saved_scenario = scenario_metadata(config, execution_scenario)
     config, fill_assumptions = resolve_execution_scenario(config, execution_scenario)
@@ -79,6 +79,10 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["automatic_prop_analysis"] = automatic_prop
     if saved_scenario is not None:
         metadata['execution_scenario'] = saved_scenario
+    if account_control is not None:
+        if report_detail != 'compact' or compress_report or automatic_prop or not control_metadata:
+            raise ValueError('Controlled native replay requires compact capture, explicit provenance and no automatic prop report.')
+        metadata['native_account_control'] = control_metadata
     with ExitStack() as stack:
         with timings.span('source_loading'):
             selected = stack.enter_context(prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range))
@@ -106,21 +110,38 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
 
         stage("replaying")
         events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True,
-            observe_bar=comparison.set_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions), 'replay')
+            observe_bar=comparison.set_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
+            account_control=account_control, completion='require_flat' if account_control is not None else 'strategy_finish'), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
                                        execution_assumption=definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
                                        detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions)
+    if account_control is not None:
+        result = account_control.finish_replay()
+        path = Path(output) / 'native_account_control.json'
+        path.write_text(json.dumps(result, default=json_value, allow_nan=False, sort_keys=True), encoding='utf-8')
+        if path.stat().st_size > 100 * 1024 * 1024:
+            raise ValueError('Native control capture exceeds 100 MiB; narrow the declared session window.')
+        manifest['artifacts']['native_account_control_json'] = path.name
+        manifest['native_account_control'] = dict(version='native-account-control-v1', sha256=file_hash(path),
+            analysis_id=control_metadata['analysis_id'], phase=account_control.phase)
+        (Path(output) / 'report.json').write_text(json.dumps(manifest, default=json_value, allow_nan=False, indent=2) + '\n', encoding='utf-8')
     return manifest, processed, total
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
                  *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None,
-                 execution_scenario=None):
+                 execution_scenario=None, account_control=None, control_metadata=None):
     from . import backtest_cache
     from .execution_scenarios import parse_execution_scenario, resolve_execution_scenario, restore_scenario_config
     execution_scenario = parse_execution_scenario(execution_scenario)
+    if source_record and source_record.get('native_account_control'):
+        raise ReportError('This report contains native account control. Use its saved full trades, decision capture and prop analysis; generic detail/risk replay cannot reproduce its account state.')
+    if account_control is not None:
+        if source_record or prop_analyses or execution_scenario is not None:
+            raise ReportError('Native account replay requires its dedicated checked request and saved source execution costs.')
+        reuse_results = False
     # New native runs retain decision provenance. Reproduction of an earlier
     # report keeps its capture contract; historical missing stops stay missing.
     capture_decisions = source_record is None or source_record.get('execution_decisions') is not None
@@ -148,7 +169,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         elif execution_scenario is not None:
             raise ReportError('Detailed or risk replay cannot add an execution scenario to an earlier source.')
     reuse_key=None
-    if not source_record:
+    if not source_record and account_control is None:
         reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research,market_benchmark,
                                     execution_scenario=execution_scenario)
         if reuse_results:
@@ -177,7 +198,8 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
             automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
-            execution_scenario=execution_scenario, capture_decisions=capture_decisions)
+            execution_scenario=execution_scenario, capture_decisions=capture_decisions,
+            account_control=account_control, control_metadata=control_metadata)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -501,9 +523,17 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions") or record is None:
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
     _verify_external(request, record)
+    if kind == 'native_account_control':
+        description = record.get('native_account_control')
+        path = runs.root / run_id.hex / 'native_account_control.json'
+        if not description:
+            raise HTTPException(404, 'This report has no native account-control capture.')
+        if path.is_symlink() or not path.is_file() or file_hash(path) != description.get('sha256'):
+            raise HTTPException(409, 'Saved native account-control capture is missing or changed.')
+        return FileResponse(path, media_type='application/json', filename=f'{run_id.hex}-native_account_control.json')
     if kind == 'execution_decisions':
         from .decision_capture import SIDE_CAR, VERSION as DECISION_VERSION
         description = record.get('execution_decisions')

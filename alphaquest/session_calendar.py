@@ -1,4 +1,4 @@
-"""Reviewed NQ session hours from the shared CSV; never inspect price-bar suffixes."""
+"""Reviewed Nasdaq equity session hours; never inspect price-bar suffixes."""
 
 import csv
 from dataclasses import dataclass
@@ -18,6 +18,14 @@ NQ_SYMBOL_PATTERN = r"@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?"
 NQ_CALENDAR = dict(id="cme_nq", file="calendars/cme_nq_closures.csv",
                    instrument="NQ futures", timezone="America/Chicago",
                    symbol_pattern=NQ_SYMBOL_PATTERN)
+MNQ_SYMBOL_PATTERN = r"@?MNQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?"
+MNQ_CALENDAR = dict(id="cme_mnq", file="calendars/cme_nq_closures.csv",
+                    instrument="MNQ futures", timezone="America/Chicago",
+                    symbol_pattern=MNQ_SYMBOL_PATTERN,
+                    first_session="2019-05-06",
+                    mapping="CME equity-index session closes; instrument prices and multipliers remain separate",
+                    reviewed_on="2026-11-08",
+                    source_url="https://www.cmegroup.com/trading/equity-index/files/cme-micro-e-mini-futures-fact-card.pdf")
 FIELDS = ("coverage_start", "coverage_end", "session_date", "closure_type",
           "close_time_local", "timezone", "event", "source_url", "source_note", "verified_on")
 
@@ -28,11 +36,12 @@ class CalendarError(ValueError):
 
 def resolve_calendar(symbol):
     """Resolve an explicitly saved/chart symbol; never infer from prices or names."""
-    if not re.fullmatch(NQ_SYMBOL_PATTERN, str(symbol or "").strip().upper()):
-        raise CalendarError(f"No reviewed session calendar for instrument {symbol or '(not set)'!r}. "
-                            "Calendar EOD flattening currently supports NQ only. "
-                            "Use a dataset with an explicit supported symbol, or disable Use EOD Flat.")
-    return dict(NQ_CALENDAR)
+    for descriptor in (NQ_CALENDAR, MNQ_CALENDAR):
+        if re.fullmatch(descriptor['symbol_pattern'], str(symbol or "").strip().upper()):
+            return dict(descriptor)
+    raise CalendarError(f"No reviewed session calendar for instrument {symbol or '(not set)'!r}. "
+                        "Calendar EOD flattening currently supports NQ and MNQ only. "
+                        "Use a dataset with an explicit supported symbol, or disable Use EOD Flat.")
 
 
 def validate_close_buffer(minutes):
@@ -72,16 +81,17 @@ class SessionCalendar:
     end: date
     entries: object
     sha256: str
+    instrument: str = "NQ futures"
 
     def metadata(self):
         return dict(file="calendars/cme_nq_closures.csv", sha256=self.sha256,
                     coverage_start=self.start.isoformat(), coverage_end=self.end.isoformat(),
-                    timezone="America/Chicago", instrument="NQ futures", rows=len(self.entries))
+                    timezone="America/Chicago", instrument=self.instrument, rows=len(self.entries))
 
     def plan(self, day, eod_flat_time=1555, close_buffer_minutes=MINUTES_BEFORE_CLOSE):
         validate_close_buffer(close_buffer_minutes)
         if not self.start <= day <= self.end:
-            raise CalendarError(f"NQ session calendar does not cover {day}; reviewed coverage is "
+            raise CalendarError(f"{self.instrument.split()[0]} session calendar does not cover {day}; reviewed coverage is "
                              f"{self.start} through {self.end}. Update the shared CSV before running this period.")
         if day.weekday() >= 5:
             return SessionPlan(day, "weekend", None, None)
@@ -94,7 +104,8 @@ class SessionCalendar:
         return SessionPlan(day, kind, close, min(configured, close - timedelta(minutes=close_buffer_minutes)))
 
 
-def load_calendar(path=None):
+def load_calendar(path=None, *, symbol="NQ"):
+    descriptor = resolve_calendar(symbol)
     path = Path(path) if path is not None else calendar_path()
     try:
         raw = path.read_bytes()
@@ -134,6 +145,7 @@ def load_calendar(path=None):
             entries[day] = MappingProxyType(row)
         if not entries:
             raise ValueError("no exception rows")
-        return SessionCalendar(start, end, MappingProxyType(entries), hashlib.sha256(raw).hexdigest())
+        effective_start = max(start, date.fromisoformat(descriptor.get('first_session', start.isoformat())))
+        return SessionCalendar(effective_start, end, MappingProxyType(entries), hashlib.sha256(raw).hexdigest(), descriptor['instrument'])
     except (OSError, ValueError, csv.Error, UnicodeError) as error:
         raise CalendarError(f"Invalid NQ session calendar {path}: {error}") from error

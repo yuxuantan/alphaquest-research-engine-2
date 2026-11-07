@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from collections import deque
 import numpy as np
 import cython
+from .native_money import money_add, money_sub, money_mul, rule_constant
 from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags
 
 
@@ -74,22 +75,9 @@ class FundedAccount:
             raise ValueError('Cannot advance a closed account.')
         runtime=resolve_runtime(sizing_policy,sizing_context,trace)
         if runtime is not None:self.opportunities_consumed=0;self.skipped_trades=0
-        r = self.rules
-        self.last_hit = 0
-        self.trades_consumed = 0
-        self.day += 1
-        opening = self.equity
-        floor = r.lock_profit if self.locked else self.high - r.max_dd
-        if floor >= r.lock_profit:
-            self.locked = True
-            floor = r.lock_profit
-        cap, dll = r.levels[0][1:]
-        for threshold, level_cap, level_dll in r.levels:
-            if opening >= threshold:
-                cap, dll = level_cap, level_dll
+        opening, floor, daily_floor, cap = self.begin_session()
         size = min(micros, cap, max_micros)
         self.effective_micros = size if runtime is None else None
-        daily_floor = opening - dll
         for opportunity_index, trade in enumerate(trades, 1):
             decision=None
             if runtime is not None:
@@ -134,35 +122,61 @@ class FundedAccount:
             finally:
                 if decision is not None:
                     finish_trace(runtime,decision,self.equity,self.last_hit,self.outcome)
-        profit = self.equity - opening
+        return self.finish_session(opening)
+
+    def begin_session(self):
+        """Shared one-time opening; no trade or fill is consumed."""
+        if self.outcome != 'open':
+            raise ValueError('Cannot begin a closed account session.')
+        r = self.rules
+        self.last_hit = 0
+        self.trades_consumed = 0
+        self.day += 1
+        opening = self.equity
+        floor = r.lock_profit if self.locked else money_sub(self.high,r.max_dd)
+        if floor >= r.lock_profit:
+            self.locked = True
+            floor = r.lock_profit
+        cap, dll = r.levels[0][1:]
+        for threshold, level_cap, level_dll in r.levels:
+            if opening >= threshold:
+                cap, dll = level_cap, level_dll
+        daily_floor = money_sub(opening,dll)
+        return opening, floor, daily_floor, cap
+
+    def finish_session(self, opening):
+        """Shared EOD qualification, payout and trail finalization."""
+        r = self.rules
+        profit = money_sub(self.equity,opening)
         if profit >= r.inactivity_profit:
             self.activity.append(self.day)
         while self.activity and self.activity[0] <= self.day - r.inactivity_window:
             self.activity.popleft()
         if profit < r.inactivity_profit and self.day >= r.inactivity_window and len(self.activity) < r.inactivity_days:
             self.outcome = 'inactive'
-            return 0.
+            return self.equity - self.equity
         if not self.approval or r.approval_day_counts:
             self.qualifying += profit >= r.qualifying_profit
             self.best_day = max(self.best_day, profit)
         self.approval = False
-        cycle_profit = self.equity - self.cycle_start
-        amount = 0.
+        cycle_profit = money_sub(self.equity,self.cycle_start)
+        amount = self.equity - self.equity
         if (self.qualifying >= r.qualifying_days and cycle_profit > 0
-                and self.best_day <= r.consistency * cycle_profit
-                and self.equity - r.safety_net >= r.ladder[len(self.payouts)]):
+                and self.best_day <= money_mul(r.consistency,cycle_profit)
+                and money_sub(self.equity,r.safety_net) >= r.ladder[len(self.payouts)]):
             amount = r.ladder[len(self.payouts)]
-            self.equity -= amount
+            self.equity = money_sub(self.equity,amount)
             self.payouts.append((self.day, amount))
             self.cycle_start = self.equity
             self.qualifying = 0
-            self.best_day = 0.
+            self.best_day = self.equity - self.equity
             self.approval = True
             if len(self.payouts) == len(r.ladder):
                 self.outcome = 'paid_all'
         # The end-of-day trail observes the balance before a payout withdrawal.
-        self.high = max(self.high, self.equity + amount)
+        self.high = max(self.high, money_add(self.equity,amount))
         return amount
+
 
 
 def sampled_days(rng, length, block):
@@ -200,9 +214,7 @@ def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_co
     """One Apex evaluation session, shared by sampled and dated replay."""
     runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     sizing_cap=min(size,max_micros)
-    opening = equity
-    floor = min(high - 2000., 3000.)
-    daily_floor = opening - 1000.
+    opening, floor, daily_floor = evaluation_opening(equity,high)
     result = 'open'
     hit = consumed = 0
     for opportunity_index, trade in enumerate(trades, 1):
@@ -237,7 +249,8 @@ def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_co
         finally:
             if decision is not None:
                 finish_trace(runtime,decision,equity,hit,result)
-    return equity, max(high, equity), result, hit, consumed
+    equity, high, result = evaluation_finish(equity,high,result)
+    return equity, high, result, hit, consumed
 
 
 @cython.locals(equity=cython.double, high=cython.double, size=cython.double,
@@ -321,3 +334,14 @@ def funded(days, micros, sims, seed, block=5, horizon=2000, rules=Rules(), max_m
                 break
         accounts.append(account)
     return accounts
+
+
+def evaluation_opening(equity,high):
+    """Shared opening; account state is never restarted per native trade."""
+    floor=min(money_sub(high,rule_constant(high,'2000')),rule_constant(high,'3000'))
+    daily_floor=money_sub(equity,rule_constant(equity,'1000'))
+    return equity,floor,daily_floor
+
+
+def evaluation_finish(equity,high,result):
+    return equity,max(high,equity),result

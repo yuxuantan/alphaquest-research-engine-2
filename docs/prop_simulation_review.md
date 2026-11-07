@@ -7860,3 +7860,227 @@ execution/forecasting, full-procedure freeze/holdout/current development selecti
 optional lifecycle comparison, forward monitoring and final full qualification
 are separate remaining increments. No last-fold policy, reference comparison or
 confidence label is a deployment recommendation.
+
+## Native chronological strategy and account replay — 2026-11-08
+
+Scope: a usable deterministic historical replay in the normal product. It closes
+native entry/sizing/execution integration for the admitted MNQ/VWAP subset. It
+does **not** complete native Monte Carlo, native economic search, frozen outer
+campaign integration, final procedure/holdout selection or forward monitoring.
+Reports say `HISTORICAL_SCENARIO_ONLY`, `native_forecast_available: false` and
+`production_qualified: false`. Provider-rule review and modeled rule values are
+saved; numerical/provider equivalence is not inferred from these examples.
+
+The implementation uses the existing execution engine, phase transition owners,
+RunStore, AnalysisStore, worker and prop routes. The native phase mode re-executes
+actual strategy callbacks. It accepts/skips quantity before VWAP commits latches
+and its daily entry allowance. The quantity controller receives the completed
+signal close and causal stop, not the next open. Actual fills, gaps, commission,
+stop exits and subsequent eligibility belong to the normal execution loop.
+`native_money.py` preserves exact native money while retaining the legacy float
+path; the cash bridge keeps provider state distinct from ordinary trading equity.
+
+### Independent expected observations
+
+All sources in this demonstration are explicitly synthetic, true MNQ price bars
+(tick 0.25, point value 2), with every minute from previous-day 17:01 through 16:00
+Chicago and no commission/slippage in these particular arithmetic examples.
+The source backtest starts with $10,000 trading equity. Provider percentage-risk
+bases use the declared $50,000 account, never that source reporting capital.
+
+| Scenario | Independently expected actual results |
+| --- | --- |
+| Three-session current-balance risk 0.2% | Decision closes 118; stops 113, 113, 108. Planned unit losses $10, $10, $20. Balances $50,000, $49,900, $50,080 before decisions; whole quantities 10, 9, 5; trade nets −$100, +$180, +$100. Ordinary final equity $10,180; provider balance $50,180. |
+| Same bars, fixed dollar risk $100 | Quantities 10, 10, 5; nets −$100, +$200, +$100; provider balance $50,200. |
+| First next-open gaps from decision 118 to 120 | First accepted quantity remains 10 because 120 was unavailable at decision time. First loss $140; later quantities 9, 5 and gains $180, $100. Provider balance $50,140. Per-contract fill-to-known-stop risk increases $4. |
+| Native skip changes eligibility | Original one-contract source takes an early −$10 trade and exhausts its one-trade allowance. A $1 budget skips the 5-point stop, keeps eligibility, then accepts 2 contracts at the later 09:06 close 118 with known stop 117.75. Actual 09:07 fill 118, target 121, net $12. This later opportunity is produced by real strategy execution, not fabricated by resizing a completed trade. |
+| Independent Evaluation, same three sessions | Native quantities 10, 9, 5 and trading net $180; purchase fee $30 paid, activation fee $0, acquisition incomplete/censored. No pass-probability or mean acquisition cost is invented from this single path. |
+| Seven-session fresh Funded payout | Signal 118, target 268, fixed 3 MNQ: 7 × $900 = $6,300 trading profit. First gross request/deduction $1,500 on 2026-01-09; modeled two-calendar-day receipt $1,500 on 2026-01-11. Original trading equity $16,300; provider balance $54,800; pending $0. The request, deduction and receipt remain separate events. |
+
+Controller/unit cases additionally check actual floor touches and gap losses,
+commission pushing a shallower daily exit through the account floor, provider
+size tiers, cancelled entries, account retries and exact prior-loss offsets,
+pending receipt cutoffs, no-trade coverage, default-path parity, strict flat EOF
+and session boundaries, and separate source versus future-entry facts. A $13.50
+planned unit loss under a $100 budget accepts 7 (planned $94.50); a later gap
+produces actual loss $108.50 without changing the accepted quantity.
+
+### Final API evidence and boundaries
+
+`artifacts/native-sizing-m2c-20261108/api-final/` contains a complete normal-product
+library for each arithmetic case, 12 passing API checks (50.51 seconds), test log,
+JUnit, before/after engine identity and independent artifact verification.
+Both identities are
+`e2fdb34805ce3239f98580af9b621fa0fd3c088c79d64f0efc1da4743260a5f2`.
+`verified-evidence.json` rehashes 52 saved analysis outputs plus each controlled
+child's report/trade/equity/risk/decision/control files. The separate cache
+boundary test intentionally corrupts its own test artifact and proves a new
+analysis is created; it is not one of the four verified example libraries.
+
+| Library under `api-final/data/` | Original IS report | Analysis | Controlled child |
+| --- | --- | --- | --- |
+| `test_real_native_report_workfl0/library` | `8d1558fee4f44783b1fb3a3adcf9e7ef` | `7f1842601b9a4ee1855308d2e7a67f9a` | `6592c13017dc4cea8125735ab27cd5f5` |
+| `test_real_native_report_workfl1/library` | `77a5b0af462f4e2d83d0be1ce45953ab` | `0fdc6160c2414539a089ee1831c8a17d` | `b4219f4e24284027bd06a7aa262a7409` |
+| `test_real_native_report_workfl2/library` | `7d65f3230e594a1680df59c5f11a22e8` | `941f3fc017b046cca280dbc01b565f1c` | `367de20db8c747e8af7bb488471c0f58` |
+| `test_real_native_report_workfl3/library` | `364c2fba719b44bcb160d3abaf24d4c5` | `d290dd3398de4a5482de70548180108d` | `58d17cc8382a4626972f4bb09c35cae9` |
+
+Checks reject an unknown phase, boolean size, opposite-phase inputs, implicit
+Funded receipt assumptions, unsupported sampling, replacement costs, changed
+planning costs, out-of-source session boundaries, NQ substitution, incompatible
+MNQ point value, local strategy sizing, disabled EOD flat and a missing minute.
+During execution, source and analysis deletion return 409. Controlled children
+cannot become unconstrained phase sources or undergo generic detail/risk
+reproduction. Repeated identical requests reuse a verified result; damaged
+artifacts do not. Original source manifest and trade bytes remain unchanged.
+The application is closed and reopened before asserting byte-identical saved
+report JSON and ZIP; reopening performs no recomputation.
+
+To inspect the first saved API case without recalculating:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/native-sizing-m2c-20261108/api-final/data/test_real_native_report_workfl0/library" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8012
+```
+
+Open `http://127.0.0.1:8012/#backtests/report/8d1558fee4f44783b1fb3a3adcf9e7ef`
+and choose Configure prop analysis, or reopen the saved result directly at
+`http://127.0.0.1:8012/#backtests/prop/job/7f1842601b9a4ee1855308d2e7a67f9a`.
+Stop an optional inspection server with **Ctrl-C**. No persistent server was
+started for this API gate; TestClient lifespans closed their workers.
+
+### Native regression scope and intermediate failures
+
+The final frozen controller/execution gate passed 72 tests in 24.43 seconds, the
+existing kernel gate passed 98 in 5.94 seconds, and 24 fixed cases matched immutable
+commit `60a0cd4ea587813907d0f25dd3babe00416e3cf1` exactly for both current Python
+and rebuilt Cython kernels (full account/path/RNG outputs, 100 paths per case).
+Reproduction script, archived pre-native sources, hashes and case results are
+under `artifacts/native-sizing-m2c-20261108/kernels/`. The earlier execution gate
+passed 203 tests in 14.97 seconds; these scopes overlap and must not be summed as a
+single unique test count.
+
+The source calendar and close-boundary regression passed 88 tests in 6.03 seconds
+(`calendar-release/`). Existing Evaluation/Funded optimizer, phase-profile and
+chronological-profile regression passed 86 tests in 159.06 seconds
+(`phase-regression/`). Final API checks passed 12 as recorded above. Compileall
+and whitespace checks passed. These are targeted qualification gates, not a full
+repository baseline or live-provider qualification.
+
+Earlier attempts are retained rather than represented as clean: the initial
+calendar run hit the sandbox's local multiprocessing socket restriction; the
+permitted rerun then found an outdated test stub that did not accept the new
+explicit calendar symbol. Updating that test-only stub preserved its original
+snapshot-immutability assertion and yielded the 88-pass result. Initial API
+probes caught fixture Decimal serialization/range-step mistakes, and an actual
+admission mistake requiring dataset-wide regular spacing despite legitimate
+maintenance gaps. The final admission proves minute cadence within each session.
+One owned source-generation test was stopped because ordinary single-backtest
+creation invoked unrelated default legacy simulations; the demonstration now
+uses the existing one-configuration grid with strict `automatic_prop: false`.
+No user process, existing dataset or earlier report was stopped or removed.
+
+An earlier mixed kernel run had three test-only Decimal string-format mismatches
+during concurrent test edits; the final scoped kernel/controller gates passed.
+Browser history is recorded with the final product evidence below. Numerical
+Python was held fixed during the final API/browser gates, at the captured engine
+identity. Rebuilt binaries match their source; historical reports retain their
+original identity and bytes.
+
+To reproduce backend checks into a **new** evidence directory:
+
+```sh
+(
+  set -e
+  NATIVE_CHECK_DIR="artifacts/native-recheck-$(date +%Y%m%d-%H%M%S)"
+  mkdir "$NATIVE_CHECK_DIR"
+  .venv/bin/python -m pytest -q tests/test_native_replay_api.py \
+    tests/test_native_account_execution.py tests/test_native_phase_control.py \
+    tests/test_session_calendar.py tests/test_inferred_session_close.py \
+    --basetemp "$NATIVE_CHECK_DIR/data" \
+    --junitxml "$NATIVE_CHECK_DIR/junit.xml" \
+    > "$NATIVE_CHECK_DIR/pytest.log" 2>&1
+)
+```
+
+The calendar grid check requires local worker sockets. Run it in the ordinary
+local environment, or grant the test process that capability if a sandbox blocks
+it. Never reuse an existing evidence directory as pytest's `--basetemp`, which
+pytest clears before starting.
+
+### Native browser journey and saved product demonstration
+
+This increment runs the actual native MNQ VWAP strategy with one Evaluation or fresh Funded controller. It does not provide native Monte Carlo forecasting or native policy selection. All examples below are explicitly synthetic arithmetic demonstrations, not strategy-edge, provider-parity or deployment evidence. Earlier saved reports remain unchanged.
+
+Final evidence: `artifacts/native-sizing-m2c-20261108/browser-release-source`. The final six browser cases passed in 35.06 seconds. All 114 saved downloads were independently rehashed, including exact source CSVs against dataset SHA-256 and every analysis artifact against its normal report manifest. Each reopened analysis issued no POST. Every temporary server was owned by the portal fixture and stopped on exit. Desktop and 390 px viewport screenshots were inspected. Engine identity remained `e2fdb34805ce3239f98580af9b621fa0fd3c088c79d64f0efc1da4743260a5f2` before and after the gates.
+
+Existing imported sizing campaigns and ordinary reports: `tests/test_phase_sizing_browser.py tests/test_reports_browser.py`, 18 passed in 61.98 seconds. The native-only summary branch was then covered by the final six native cases. `browser-final` is preserved with 6 passed assertions and 6 teardown errors from an older research view assuming an IS/OOS plan on the controlled child. That UI assumption was corrected. `browser-release` and `browser-release-ui` are also preserved; final exact-source reproduction artifacts are in `browser-release-source`.
+
+#### Open the saved normal product
+
+Start the ordinary application with one evidence library. For the main Funded percentage example:
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/native-sizing-m2c-20261108/browser-release-source/data/test_native_percentage_balance1" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8018
+```
+
+Open `http://127.0.0.1:8018/#backtests/report/fcfe70cb868f4c1e8db387951567973b`. This is the original saved native IS report, created through the normal one-configuration grid with `automatic_prop:false`; unrelated legacy automatic simulations were explicitly disabled. The default automatic behavior is unchanged. Original source trades are one MNQ with net −10, +20 and +20 USD.
+
+Choose **Configure prop analysis**, expand **Configure native account-state replay**, select **Fresh Funded account** and the Apex 50K EOD profile. Leave session dates blank to use the complete saved IS session coverage. Set hard user cap to 40 MNQ, sizing mode to **Account-state sizing policy**, kind to **Percentage risk**, risk percent to `0.2`, reference to **Current account balance**. Keep the declared planning costs at the actual source values: zero slippage and zero commission. Current native admission requires these planning values to match saved execution costs. Keep minimum 1, policy maximum 40, optional cushion guards off. Set receipt delay to 2 calendar days and **Unrounded model entitlement**.
+
+Choose **Check native source**. Expect MNQ, 3 complete observed sessions, 4,140 observed minute bars, CME dates January 5–7, 2026, future-fill sizing **No**, costs charged once **Yes**, and a versioned reviewed calendar. Choose **Run native replay**. An identical saved request can reopen its durable result; changing a supported declaration creates a separately identified analysis.
+
+The native result shows decision balances 50,000 / 49,900 / 50,080, known close 118 with stops 113 / 113 / 108, planned unit risk 10 / 10 / 20, accepted quantities 10 / 9 / 5 and actual trade nets −100 / +180 / +100 USD. Final provider balance is 50,180; ordinary trading equity is 10,180 because its original backtest initial capital is 10,000. No trader payout was received or pending. **Open actual controlled backtest** shows the actual new trades; it is labeled a native historical replay, not a new IS/OOS declaration. The parent source remains unchanged.
+
+Open the durable analysis directly at `http://127.0.0.1:8018/#backtests/prop/job/cee2d2df97d6449fb4884e0b4d438d3f`. Download report JSON, analysis ZIP, actual trade/equity CSV, original signal decisions JSONL, native account-control events, sizing decisions, session states, cash ledger and provider review from ordinary report routes. Reloading this URL does not resimulate. Stop the server with **Ctrl-C**. No persistent demonstration server was left running by the agent.
+
+#### Independent expected comparisons
+
+Use the corresponding library below, keeping port 8018 and stopping the previous server first. Open its source report and use the same ordinary configure/check/run controls, or open the saved analysis directly.
+
+| Case | Declaration | Expected actual observations |
+| --- | --- | --- |
+| Evaluation percentage | 0.2% of current balance, cap 40, evaluation fee $30, activation $40 | Same 10 / 9 / 5 quantities and $180 trading net. $30 evaluation fee paid, $0 activation, acquisition incomplete and censored. Trading profit is not trader cash. |
+| Fixed dollar risk | $100, cap 40 | Quantities 10 / 10 / 5 from known stop widths; nets −100 / +200 / +100; final provider balance 50,200. |
+| Entry gap | 0.2% current balance, first fill 120 instead of decision close 118 | First accepted quantity remains 10; actual first loss is $140 and fill-to-stop risk increases $4 per MNQ. Later quantities 9 / 5; final balance 50,140. |
+| Skipped then eligible | $1 planned risk, one observed session | Four opportunities are skipped below minimum quantity. At 09:06 Chicago the known stop is 117.75 vs decision 118, unit risk $0.50, so 2 MNQ are accepted and filled at 09:07. Target 121 yields $12. The earlier skips preserve the one accepted-entry allowance. Original fixed-size source instead took the early −$10 trade. |
+| Payout separation | Fixed 3 MNQ, seven sessions January 5–13, lag 2 calendar days | Seven actual $900 trades = $6,300 trading profit. $1,500 gross withdrawal requested/deducted January 9; modeled receipt January 11. Cash received $1,500, pending $0, provider balance $54,800. Ordinary backtest equity remains $16,300; withdrawal never reduces that trading ledger. |
+
+The main browser boundary test enters first CME session `2026-01-04` with last `2026-01-07`: the source check rejects the unobserved session and Run stays disabled. Clear both dates to restore full coverage. Source/cost/strategy guard coverage also exists in `tests/test_native_replay_api.py`: NQ or wrong point value, a missing observed minute, local strategy volatility sizing, disabled EOD-flat, changed planning costs, invalid phase/caps, missing receipt declaration, mismatched phase fields and forecast sampling inputs reject. Those are rejection checks, not inferred support.
+
+#### Exact saved inputs and identities
+
+Each case directory contains `SYNTHETIC-MNQ-observed-bars.csv` downloaded from the actual dataset endpoint, `original-source-report.json`, `source-research-declaration.json`, `browser-evidence.json`, normal analysis downloads and screenshots. The CSV includes one explicitly synthetic reserved OOS row after the full synthetic IS sessions. That final row is not executed by native replay and is not evidence of untouched market data. The source split uses source-timezone UTC dates; the native form uses CME session dates. Use the saved split dates exactly when rebuilding the source.
+
+Main three-session UTC split: IS January 4–7, OOS January 8, 2026. Native CME sessions are January 5–7. Skip split: IS January 4–5, OOS January 6; native session January 5. Payout split: IS January 4–13, OOS January 14; native sessions January 5–13. All source datasets declare symbol MNQ, tick size 0.25, point value 2, timezone UTC. Use the exact strategy parameters and execution settings in `original-source-report.json`; local volatility sizing is disabled, EOD-flat enabled, one accepted entry per strategy reset day, and reset time 07:00 Chicago.
+
+| Case library suffix | Original source ID | Analysis ID | Actual controlled backtest ID |
+| --- | --- | --- | --- |
+| `test_native_fixed_dollars_reac0` | `e131186c89864746b16eed8977f33fb2` | `19382c6c96b94ef78128825c1b8d5142` | `8056a6b70fdc4df6a2d72f7171404ba4` |
+| `test_native_gap_keeps_causal_q0` | `96535b508bbc4eef88e2cfc68cefaf8b` | `ffead0845b4c45e4a8ea01d9ca95f899` | `81b7326e43504a409944cfce759a2b16` |
+| `test_native_payout_keeps_tradi0` | `8bf099c5f54347f9908c629e2f05dcdf` | `cff7f2400639450aa0edd43c878d3578` | `ae4dda28f1004694b483847fee0ffefc` |
+| `test_native_percentage_balance0` | `f31438dddcac4145abec62bac982acc7` | `1ec811b297804872be04383208c80071` | `eddb3e12c18149eb82f13eb516a98af7` |
+| `test_native_percentage_balance1` | `fcfe70cb868f4c1e8db387951567973b` | `cee2d2df97d6449fb4884e0b4d438d3f` | `879cb9fe93814056b491ef7c71f96781` |
+| `test_native_skipped_signal_pre0` | `44bcda4ef301498d8cc5c5dfe7c44288` | `95473a4617d14db3a4c53c978e1349da` | `961d74c90eae41e38765d48beb399dc7` |
+
+All suffixes are under `artifacts/native-sizing-m2c-20261108/browser-release-source/data/`. Full SHA-256 values for every case are in `artifacts/native-sizing-m2c-20261108/browser-release-source/verified-evidence.json` and the per-case `browser-evidence.json`.
+
+Main Funded report SHA-256: `0852b200555ecdda2e4ed71f78bbea21374c693e00a6e6f15ecae2165241ab73`; ZIP: `9f8eec81d729af606e8071aadbb590a969f6d357b242cb60f4145a5989f0e2d5`; exact dataset: `0adecad3c095cc7cd9650a6e82d5529b83718d5e700939d70b4d10fa0ae7badb`.
+
+Payout report SHA-256: `a7845a5d6c2cd8609710b66680f349846c216850187a40ebb9fcfebfbeac051c`; ZIP: `8b09b3851b368d3ac534341c1e39ea0b65f38f5474b3f49337c69ad42f0fcbf5`; exact dataset: `5d191f992bd728706a5e6c7ce34e46f8b8edea9906c3a06bdf18ad3a91f614e0`.
+
+#### Reproduce the automated product check
+
+Use a fresh output path to preserve existing evidence:
+
+```sh
+(
+  set -e
+  cd /Users/yx/alphaquest-research-engine-2
+  aq_native_run="/private/tmp/alphaquest-native-reproduce-$(date +%Y%m%d-%H%M%S)"
+  mkdir "$aq_native_run"
+  .venv/bin/python -m pytest -q tests/test_native_replay_browser.py --basetemp "$aq_native_run/data" --junitxml "$aq_native_run/junit.xml" > "$aq_native_run/pytest.log" 2>&1
+)
+```
+
+The fixture creates normal local datasets, a normal saved single-configuration grid source, normal prop analyses and actual controlled child backtests. It uses no demo-only route or product oracle. Chromium needs process access on this macOS environment. Each owned server is stopped by the fixture, including failures. This browser gate is a focused workflow/evidence check, not a full repository or provider-certification claim.

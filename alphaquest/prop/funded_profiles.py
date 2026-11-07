@@ -1,11 +1,137 @@
 """Fresh-funded orchestration; acquisition inputs never enter these runners."""
 import numpy as np
+from .native_control import NativeControlBase
 
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, FundedProfile, FundedProfileResult, ResearchPeriod,
     SamplingConfig, SavedTradeSource, SimulationConfig, SourceCosts, SizingConfiguration, SizingTrace,
     positive_integer, prepare_phase_source, provenance, verify_phase_source,
 )
+
+
+class NativeFundedController(NativeControlBase):
+    """Fresh-funded actual-fill owner; no evaluation or replacement inputs."""
+    phase='funded'
+
+    def __init__(self,profile,sizing,micros,*,max_micros=40,session_contexts,start_date,
+            cutoff_date_exclusive,receipt_delay_calendar_days,receipt_amount_convention='kernel_entitlement_unrounded'):
+        from dataclasses import asdict,replace
+        from datetime import timedelta
+        from decimal import Decimal
+        from . import native_backend,lucid_backend
+        from .native_control import exact_rule_values
+        from .phase_profiles import profile_settings
+        if type(profile) is not FundedProfile:raise ValueError('Native funded control requires a FundedProfile.')
+        profile_settings(profile,SourceCosts())
+        if type(receipt_delay_calendar_days) is not int or not 0<=receipt_delay_calendar_days<=365:
+            raise ValueError('Native funded receipts require an explicit calendar-day lag.')
+        if receipt_amount_convention not in ('kernel_entitlement_unrounded','usd_cents_half_up'):
+            raise ValueError('Unknown native funded receipt amount convention.')
+        super().__init__(sizing,micros,max_micros=max_micros,session_contexts=session_contexts,
+            start_date=start_date,cutoff_date_exclusive=cutoff_date_exclusive)
+        self.profile=profile;self.lucid=profile.profile_id=='lucidflex-50k'
+        self.kernel=(lucid_backend if self.lucid else native_backend).module()
+        rules=self.kernel.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if self.lucid else self.kernel.Rules(approval_day_counts=profile.approval_day_counts)
+        self.rules=self.kernel.Rules(**{key:exact_rule_values(value) for key,value in asdict(rules).items()})
+        args=dict(rules=self.rules,equity=Decimal(0),high=Decimal(0),cycle_start=Decimal(0))
+        if not self.lucid:args['best_day']=Decimal(0)
+        self.account=self.kernel.FundedAccount(**args)
+        self.receipt_delay=receipt_delay_calendar_days;self.receipt_convention=receipt_amount_convention
+        self.payout_events=[];self._calendar_cursor=self.start_date-timedelta(days=1);self.terminal_date=None
+
+    @property
+    def equity(self):return self.account.equity
+    @equity.setter
+    def equity(self,value):self.account.equity=value
+    @property
+    def account_outcome(self):return self.account.outcome
+
+    def _advance_calendar(self,until):
+        from datetime import timedelta
+        while self._calendar_cursor<until:
+            self._calendar_cursor+=timedelta(days=1)
+            if self.lucid and self.account.outcome=='open':
+                self.account.expire_inactive((self._calendar_cursor-self.start_date).days)
+                if self.account.outcome!='open':self.terminal_date=self._calendar_cursor
+
+    def _phase_begin(self,session,snapshot):
+        from datetime import timedelta
+        from decimal import Decimal
+        self._advance_calendar(session.session-timedelta(days=1))
+        self._active_session=self.account.outcome=='open';self.can_trade=self._active_session
+        self._session_entitlement=Decimal(0)
+        if not self._active_session:return
+        boundary=self.account.begin_session((session.session-self.start_date).days) if self.lucid else self.account.begin_session()
+        if boundary is None:
+            self._active_session=self.can_trade=False;self.terminal_date=session.session;return
+        self._opening,self.account_floor,daily,self.provider_cap=boundary[:4]
+        self.daily_floor=None if self.lucid and self.rules.daily_loss is None else daily
+        self._calendar_day=(session.session-self.start_date).days
+
+    def _record_payout(self,entitlement):
+        from decimal import Decimal,localcontext
+        from .cash_ledger import dated_settlement
+        gross=self.account.withdrawals[-1][1] if self.lucid else entitlement
+        self.bridge.deduct_gross(gross);self._session_entitlement=entitlement
+        with localcontext() as context:
+            context.prec=max(256,len(gross.as_tuple().digits)+abs(gross.as_tuple().exponent)+20)
+            event=dated_settlement(self._session.session,entitlement,gross,self.receipt_delay,self.cutoff,self.receipt_convention)
+        self.payout_events.append(event);self._emit('payout_request',**event)
+
+    def _phase_close(self,trade,hit):
+        from .native_money import money_sub
+        account=self.account;account.trades_consumed+=1;account.last_hit=hit
+        if self.lucid and trade.net_pnl.copy_abs()>=1:account.last_activity=self._calendar_day
+        if hit==2:
+            account.outcome='blown';self.can_trade=False;self.terminal_date=self._session.session;return
+        if self.lucid and self.rules.daily_loss is not None and account._eligible(money_sub(self.equity,self._opening)):
+            self._record_payout(account._withdraw());self._daily_halt=True
+            if account.outcome!='open':self.terminal_date=self._session.session
+
+    def _phase_end(self,session,snapshot):
+        if self._active_session and self.account.outcome not in ('blown','inactive'):
+            count=len(self.account.payouts)
+            amount=(self.account.finish_session(self._opening,self._calendar_day,self._session_entitlement)
+                    if self.lucid else self.account.finish_session(self._opening))
+            if len(self.account.payouts)>count:self._record_payout(amount)
+            if self.account.outcome!='open':self.terminal_date=session.session
+        self._calendar_cursor=session.session;self.can_trade=False
+
+    def _phase_finish(self):
+        from datetime import timedelta
+        self._advance_calendar(self.cutoff-timedelta(days=1))
+
+    def _phase_result(self):
+        from dataclasses import asdict
+        from decimal import Decimal
+        from .native_money import money_sum,money_add
+        events=self.payout_events
+        total=lambda key,select=lambda event:True:money_sum(Decimal(event[key]) for event in events if select(event))
+        gross=total('gross_account_deduction');raw=total('raw_trader_entitlement')
+        received=total('trader_amount',lambda event:event['received_within_horizon'])
+        pending=total('trader_amount',lambda event:not event['received_within_horizon'])
+        share=total('provider_retained_share');rounding=total('rounding_delta')
+        if money_add(raw,share)!=gross or money_add(received,pending)!=money_add(raw,rounding):
+            raise ValueError('Native funded entitlement/deduction/receipt conservation failed.')
+        ledger=[]
+        for number,event in enumerate(events,1):
+            ledger.extend([dict(date=event['request_date'],event='payout_request',payout_id=number,cash_delta='0'),
+                dict(date=event['deduction_date'],event='account_deduction',payout_id=number,cash_delta='0',
+                     account_equity_delta=str(Decimal(event['gross_account_deduction']).copy_negate()))])
+            if event['received_within_horizon']:
+                ledger.append(dict(date=event['receipt_date'],event='trader_receipt',payout_id=number,cash_delta=event['trader_amount']))
+        order={'payout_request':0,'account_deduction':1,'trader_receipt':2}
+        ledger.sort(key=lambda row:(row['date'],order[row['event']],row['payout_id']))
+        for index,row in enumerate(ledger,1):row['sequence']=index
+        return dict(outcome=self.account.outcome,terminal_date=self.terminal_date,
+            modeled_rules=dict(profile_id=self.profile.profile_id,rule_version=self.profile.rule_version,
+                initial_configured_capital='50000',parameters=asdict(self.rules),
+                arithmetic='Exact Decimal state for native actual fills; legacy fixed-book float arithmetic is unchanged.'),
+            lifetime_censored=self.account.outcome=='open',observed_sessions=len(self.session_trace),active_sessions=self.account.day,
+            gross_account_deductions=str(gross),raw_trader_entitlement=str(raw),provider_retained_share=str(share),
+            cash_received=str(received),pending_cash=str(pending),net_cash=str(received),receipt_rounding_delta=str(rounding),
+            receipt_amount_convention=self.receipt_convention,payout_events=events,cash_ledger=ledger,
+            horizon_observations_complete=True)
 
 
 def simulate_funded_profile(

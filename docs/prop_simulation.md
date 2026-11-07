@@ -1787,3 +1787,64 @@ cache hashes distinguish the new engine; all prior saved reports remain readable
 
 Source: [Apex Rithmic commissions and instruments](https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/),
 checked 29 October 2026. The schedule is not a live guarantee of future fees.
+
+### Native chronological account-controlled replay — 2026-11-08
+
+The normal prop configuration/check/run workflow also supports
+`mode: "native_phase_replay"`. This mode reruns the actual native strategy over
+an explicit historical IS window and saves a normal RunStore backtest plus an
+AnalysisStore report. It is one historical scenario, not a Monte Carlo estimate,
+phase optimizer, frozen outer assessment or deployment recommendation. Native
+forecasting and optimizer/campaign integration remain pending.
+
+The initial admitted subset is the current VWAP strategy, actual continuous/base
+MNQ prices, tick size 0.25, point value 2, complete one-minute sessions, EOD-flat
+enabled and strategy-local volatility sizing disabled. Source checking validates
+all original dataset bytes, source/risk/cost identity, current strategy identity,
+whole sessions inside the saved IS report, the reviewed exchange calendar and
+every observed minute from 17:01 Chicago through the scheduled close. Maintenance
+gaps may make the dataset's original spacing metadata irregular; the check proves
+minute cadence separately inside sessions. It does not impute missing bars.
+Missing open sessions, sparse or partial sessions, unreviewed dates, NQ relabeling,
+dated-contract expiry, incompatible point values and other strategies reject.
+The first capture contract supports at most 366 calendar days and 510,000 bars.
+
+`KnownDecisionRisk` contains only the completed decision close, causal initial
+stop, timestamp and current account state. The owner accepts a whole-MNQ quantity
+or skips before VWAP commits its entry counter/latches. The existing execution
+engine then fills the accepted order on the actual next open. Actual gap loss may
+exceed planned stop risk. Existing strategy brackets and provider loss floors
+share the ordinary conservative OHLC/gap fill rules. Planning commission and
+entry/stop slippage must match saved actual execution settings; planning loss is
+never deducted from P&L. Session/EOF boundaries require flat actual exposure and
+no pending orders; this mode does not invent end-of-data liquidation.
+
+Evaluation owns fees, sequential provider-account retries, activation and
+censoring. Strategy features continue causally across retries; only provider
+state resets, with prior-attempt trading P&L retained in the ordinary trade
+ledger. Funded starts with one fresh account, has no acquisition inputs or
+replacement, and separately saves requests, gross account deductions, modeled
+trader receipts and pending amounts. The normal backtest retains initial trading
+capital plus actual trade net P&L. A cash bridge translates provider floors and
+withdrawals without subtracting them a second time from trading equity.
+
+The request declares phase/profile, size cap, optional common sizing policy and
+inclusive CME session period. Evaluation accepts only its retry contract. Funded
+requires explicit modeled receipt lag and amount convention. The server derives
+the versioned calendar. Reports capture the request, source check, complete
+session inventory, code identity, provider-rule review, actual child backtest,
+sizing decisions, control events, session states, cash ledger, CSVs and ZIP.
+Controlled results have their own research role and cannot be reused as ordinary
+unconstrained IS paths. Generic detailed/risk reproduction rejects them; their
+original full trade/risk/decision/control artifacts remain downloadable.
+
+MNQ has an explicit `cme_mnq` calendar mapping, separate from instrument price and
+multiplier identity. CME's [Micro E-mini contract fact card](https://www.cmegroup.com/trading/equity-index/files/cme-micro-e-mini-futures-fact-card.pdf)
+specifies MNQ's multiplier/tick and 17:00–16:00 Chicago session. The mapping shares
+the existing reviewed equity-index closure CSV, preserving its checksum and
+coverage; it does not extrapolate later holidays. Its first allowed session is
+6 May 2019, supported by [CME's launch notice](https://www.cmegroup.com/notices/ser/2019/04/SER-8360.html).
+The saved CSV currently ends on 2 November 2026. This is an EOD-close calendar,
+not a complete intraday halt or individual-contract expiration calendar. Provider
+rule equivalence, liquidity, OHLC ordering and settlement remain explicit
+unverified assumptions. Earlier reports and numerical evidence are unchanged.

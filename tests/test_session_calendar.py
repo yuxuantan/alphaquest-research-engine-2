@@ -39,7 +39,7 @@ def test_reviewed_calendar_resolves_only_explicit_nq_symbols(symbol):
     assert resolve_calendar(symbol)['id'] == 'cme_nq'
 
 
-@pytest.mark.parametrize('symbol', ['', None, 'ES', 'CL', 'MNQ', 'ofb_bars_NQ', 'NQ_fake'])
+@pytest.mark.parametrize('symbol', ['', None, 'ES', 'CL', 'ofb_bars_NQ', 'NQ_fake', 'MNQ_fake'])
 def test_unsupported_symbols_never_receive_the_nq_calendar(symbol):
     with pytest.raises(ValueError, match='No reviewed session calendar'):
         resolve_calendar(symbol)
@@ -94,7 +94,7 @@ def test_api_saves_editable_buffer_and_auto_calendar_without_reusing_different_f
         assert {row['parameters']['close_buffer_minutes']: row['metrics']['total_net_pnl'] for row in results} == {5: '88.00', 10: '28.00'}
 
 
-@pytest.mark.parametrize('symbol', ['', 'CL', 'MNQ'])
+@pytest.mark.parametrize('symbol', ['', 'CL', 'MNQ_fake'])
 def test_api_rejects_unsupported_calendar_before_publishing_or_queuing(tmp_path, symbol):
     from research_fixtures import ResearchClient
     from alphaquest.app import create_app
@@ -135,6 +135,22 @@ def test_holiday_evening_uses_next_session_and_weekends_are_closed():
  assert session_date(stamp)==date(2024,12,26)
  assert calendar.plan(session_date(stamp)).allows(stamp)
  assert not calendar.plan(date(2024,12,28)).allows(datetime(2024,12,28,9,tzinfo=CT))
+
+
+@pytest.mark.parametrize('symbol', ['MNQ', 'mnq', '@MNQ', 'MNQ1!', 'MNQZ26', 'MNQ.CME'])
+def test_mnq_has_explicit_mapping_and_launch_boundary(symbol):
+    descriptor = resolve_calendar(symbol)
+    assert descriptor['id'] == 'cme_mnq'
+    calendar = load_calendar(symbol=symbol)
+    assert calendar.metadata()['instrument'] == 'MNQ futures'
+    assert calendar.start == date(2019, 5, 6)
+    assert calendar.sha256 == load_calendar().sha256
+    with pytest.raises(ValueError, match='does not cover'):
+        calendar.plan(date(2019, 5, 3))
+    with pytest.raises(ValueError, match='does not cover'):
+        calendar.plan(date(2026, 11, 3))
+    assert calendar.plan(date(2024, 11, 29)).close.strftime('%H:%M') == '12:15'
+    assert calendar.plan(date(2026, 1, 5)).close.strftime('%H:%M') == '16:00'
 
 
 @pytest.mark.parametrize('day',[date(2015,12,31),date(2026,11,3),date(2027,1,4)])
@@ -213,8 +229,8 @@ def test_report_metadata_stays_bound_to_the_snapshot_used_for_trading(tmp_path, 
     path = tmp_path / 'calendar.csv'
     path.write_bytes(raw)
 
-    def read_then_replace_file():
-        snapshot = load_calendar(path)
+    def read_then_replace_file(**options):
+        snapshot = load_calendar(path, **options)
         # A concurrent manual update changes the file after this read. The
         # running strategy must describe its original snapshot, not the new file.
         path.write_bytes(raw.replace(b'No session ending', b'Reviewed session ending', 1))

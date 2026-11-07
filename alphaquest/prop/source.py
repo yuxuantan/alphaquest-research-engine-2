@@ -86,6 +86,8 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
     if type(allow_empty) is not bool:
         raise ValueError('allow_empty must be a strict boolean.')
     record=source_record(runs,source_id)
+    if record.get('native_account_control'):
+        raise ValueError('Account-controlled native trades cannot be reused as an unconstrained phase source. Select the original IS report.')
     from ..trade_imports import external
     if external(record):
         from .external_source import prepare_external

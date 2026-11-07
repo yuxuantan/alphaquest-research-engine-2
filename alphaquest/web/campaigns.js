@@ -30,44 +30,45 @@
     const label=p.kind==='fixed_contracts'?`${p.contracts} fixed MNQ`:p.kind==='fixed_dollar_risk'?`$${p.risk_dollars} planned risk`:`${p.risk_percent}% of ${(referenceLabels[p.reference]||p.reference).toLowerCase()}`;
     return `${label} · cap ${config.micros} MNQ`;
   }
-  function sizingControls(row,sizes){
-    const mode=select(row,'Sizing comparison','',[['legacy','Fixed MNQ sizes · existing'],['policies','Compare sizing policies']]);mode.className='campaign-sizing-mode';
-    const box=node('div');box.className='campaign-sizing-controls';box.style.gridColumn='1 / -1';row.append(box);
-    box.append(node('p','Each selected source or trial × hard MNQ cap × policy is a separate candidate. Quantities are chosen before each trade from the policy, current account state and declared stop when required. Imported source replay needs an exporter-declared size-invariant path; native dynamic policies require a suitable native rerun.'));
-    const policies=node('div');policies.className='campaign-sizing-policies';box.append(policies);
-    const add=button(box,'Add sizing policy','');add.classList.add('campaign-add-policy');
+  function sizingControls(row,sizes,options={}){
+    const native=options.native===true,prefix=native?'native-':'campaign-';
+    const mode=select(row,native?'Sizing mode':'Sizing comparison','',native?[['legacy','Fixed MNQ quantity'],['policies','Account-state sizing policy']]:[['legacy','Fixed MNQ sizes · existing'],['policies','Compare sizing policies']]);mode.className=prefix+'sizing-mode';
+    const box=node('div');box.className=prefix+'sizing-controls';box.style.gridColumn='1 / -1';row.append(box);
+    box.append(node('p',native?'Rerun the original MNQ bars. One policy chooses quantity at each real strategy opportunity from the account state, decision close and known stop. A skipped opportunity does not consume the daily accepted-entry allowance.':'Each selected source or trial × hard MNQ cap × policy is a separate candidate. Quantities are chosen before each trade from the policy, current account state and declared stop when required. Imported source replay needs an exporter-declared size-invariant path; native dynamic policies require a suitable native rerun.'));
+    const policies=node('div');policies.className=prefix+'sizing-policies';box.append(policies);
+    const add=button(box,'Add sizing policy','');add.classList.add(prefix+'add-policy');add.hidden=native;
     const planning=node('details');planning.open=true;planning.append(node('summary','MNQ planning capital and execution assumptions'));box.append(planning);
     const grid=node('div');grid.className='prop-fields';planning.append(grid);
-    function planningField(label,key,value,type='number'){const i=field(grid,label,'',value,type);i.className='campaign-planning-'+key;i.step='any';return i;}
+    function planningField(label,key,value,type='number'){const i=field(grid,label,'',value,type);i.className=prefix+'planning-'+key;i.step='any';return i;}
     for(const [label,key,value]of [['Initial configured capital · USD','capital','50000'],['MNQ tick size · points','tick','0.25'],['MNQ point value · USD','point','2']])planningField(label,key,value).readOnly=true;
-    for(const [label,key]of [['Planned entry slippage · ticks','entry-slip'],['Planned stop-exit slippage · ticks','stop-slip']]){const i=planningField(label,key,'0');i.step='1';i.min='0';}
-    const commission=planningField('Planned commission per MNQ per side · USD','commission','');commission.min='0';commission.placeholder='Enter an explicit assumption';
+    for(const [label,key]of [['Planned entry slippage · ticks','entry-slip'],['Planned stop-exit slippage · ticks','stop-slip']]){const i=planningField(label,key,native?options.execution.slippage_ticks:'0');i.step='1';i.min='0';}
+    const commission=planningField('Planned commission per MNQ per side · USD','commission',native?options.execution.commission_per_contract_per_side:'');commission.min='0';commission.placeholder='Enter an explicit assumption';
     planning.append(node('p','These declared costs size the planned stop loss only. They are not charged again to source net P&L. Actual source costs remain authoritative. Observed gaps can exceed the planned loss; cushion guards do not guarantee a stop fill. Supported account profiles use $50,000 initial capital and simulated MNQ ($2/point, 0.25 tick).'));
     function addPolicy(){
-      const group=node('section');group.className='campaign-sizing-policy prop-fields';group.setAttribute('role','group');policies.append(group);
-      const legend=node('h4','Sizing policy');legend.className='campaign-policy-label';legend.style.gridColumn='1 / -1';group.append(legend);
-      const kind=select(group,'Policy kind','',[['fixed_dollar_risk','Fixed dollar risk'],['percentage_risk','Percentage risk'],['fixed_contracts','Fixed contracts']]);kind.className='campaign-policy-kind';
-      const contracts=field(group,'Requested MNQ contracts','','1','number');contracts.className='campaign-policy-contracts';contracts.min='1';contracts.max='60';
-      const dollars=field(group,'Planned risk per trade · USD','','50','number');dollars.className='campaign-policy-dollars';dollars.step='any';dollars.min='0.00000001';
-      const percent=field(group,'Risk percent (0.5 means 0.5%)','','0.5','number');percent.className='campaign-policy-percent';percent.step='any';percent.min='0.00000001';percent.max='100';
-      const reference=select(group,'Percentage reference','',Object.entries(referenceLabels));reference.className='campaign-policy-reference';
+      const group=node('section');group.className=prefix+'sizing-policy prop-fields';group.setAttribute('role','group');policies.append(group);
+      const legend=node('h4','Sizing policy');legend.className=prefix+'policy-label';legend.style.gridColumn='1 / -1';group.append(legend);
+      const kind=select(group,'Policy kind','',[['fixed_dollar_risk','Fixed dollar risk'],['percentage_risk','Percentage risk'],['fixed_contracts','Fixed contracts']]);kind.className=prefix+'policy-kind';
+      const contracts=field(group,'Requested MNQ contracts','','1','number');contracts.className=prefix+'policy-contracts';contracts.min='1';contracts.max=native?'40':'60';
+      const dollars=field(group,'Planned risk per trade · USD','','50','number');dollars.className=prefix+'policy-dollars';dollars.step='any';dollars.min='0.00000001';
+      const percent=field(group,'Risk percent (0.5 means 0.5%)','','0.5','number');percent.className=prefix+'policy-percent';percent.step='any';percent.min='0.00000001';percent.max='100';
+      const reference=select(group,'Percentage reference','',Object.entries(referenceLabels));reference.className=prefix+'policy-reference';
       const advanced=node('details');advanced.style.gridColumn='1 / -1';advanced.append(node('summary','Quantity bounds and cushion guards'));group.append(advanced);
       const limits=node('div');limits.className='prop-fields';advanced.append(limits);
-      const minimum=field(limits,'Minimum tradable MNQ','','1','number'),maximum=field(limits,'Policy maximum MNQ','','40','number');minimum.className='campaign-policy-minimum';maximum.className='campaign-policy-maximum';
-      for(const input of [minimum,maximum]){input.min='1';input.max='60';}
-      const account=checkbox(limits,'Keep planned loss strictly inside account cushion','campaign-policy-account'),daily=checkbox(limits,'Keep planned loss strictly inside daily cushion','campaign-policy-daily');
+      const minimum=field(limits,'Minimum tradable MNQ','','1','number'),maximum=field(limits,'Policy maximum MNQ','','40','number');minimum.className=prefix+'policy-minimum';maximum.className=prefix+'policy-maximum';
+      for(const input of [minimum,maximum]){input.min='1';input.max=native?'40':'60';}
+      const account=checkbox(limits,'Keep planned loss strictly inside account cushion',prefix+'policy-account'),daily=checkbox(limits,'Keep planned loss strictly inside daily cushion',prefix+'policy-daily');
       advanced.append(node('p','The smallest policy, user and provider cap applies. If the resulting quantity is below the minimum, the trade is skipped; it is never rounded up. Cushion guards are optional and use the state known at the decision.'));
-      const remove=button(group,'Remove policy','');remove.classList.add('campaign-remove-policy');remove.onclick=()=>{group.remove();refresh();row.dispatchEvent(new Event('input',{bubbles:true}));};
+      const remove=button(group,'Remove policy','');remove.classList.add(prefix+'remove-policy');remove.hidden=native;remove.onclick=()=>{group.remove();refresh();row.dispatchEvent(new Event('input',{bubbles:true}));};
       group.refresh=()=>{const active=mode.value==='policies';for(const [input,visible]of [[contracts,kind.value==='fixed_contracts'],[dollars,kind.value==='fixed_dollar_risk'],[percent,kind.value==='percentage_risk'],[reference,kind.value==='percentage_risk']]){input.closest('label').hidden=!visible;input.disabled=!active||!visible;}};
       group.read=()=>{const policy={kind:kind.value,minimum_contracts:Number(minimum.value),maximum_contracts:Number(maximum.value),constrain_to_account_cushion:account.checked,constrain_to_daily_cushion:daily.checked};
         if(kind.value==='fixed_contracts')policy.contracts=Number(contracts.value);else if(kind.value==='fixed_dollar_risk')policy.risk_dollars=dollars.value;else Object.assign(policy,{risk_percent:percent.value,reference:reference.value});return policy;};
       kind.onchange=group.refresh;refresh();
     }
-    function refresh(){const active=mode.value==='policies';box.hidden=!active;sizes.closest('label').firstChild.textContent=active?'Hard MNQ caps, separated by commas':'MNQ sizes, separated by commas';
+    function refresh(){const active=mode.value==='policies';box.hidden=!active;sizes.closest('label').firstChild.textContent=native?(active?'Hard user cap · MNQ':'Fixed quantity · MNQ'):(active?'Hard MNQ caps, separated by commas':'MNQ sizes, separated by commas');
       box.querySelectorAll('input,select,button').forEach(i=>i.disabled=!active);for(const group of policies.children)group.refresh();add.disabled=!active||policies.children.length>=60;
-      [...policies.children].forEach((group,index)=>{const label='Sizing policy '+(index+1);group.querySelector('.campaign-policy-label').textContent=label;group.setAttribute('aria-label',label);group.querySelector('.campaign-remove-policy').disabled=!active||policies.children.length===1;});}
+      [...policies.children].forEach((group,index)=>{const label='Sizing policy '+(index+1);group.querySelector('.'+prefix+'policy-label').textContent=label;group.setAttribute('aria-label',label);group.querySelector('.'+prefix+'remove-policy').disabled=!active||policies.children.length===1;});}
     add.onclick=()=>{addPolicy();row.dispatchEvent(new Event('input',{bubbles:true}));};mode.onchange=refresh;addPolicy();refresh();
-    return ()=>mode.value==='legacy'?undefined:[...policies.children].map(group=>({policy:group.read(),initial_configured_capital:grid.querySelector('.campaign-planning-capital').value,planning_execution:{tick_size:grid.querySelector('.campaign-planning-tick').value,point_value:grid.querySelector('.campaign-planning-point').value,entry_slippage_ticks:Number(grid.querySelector('.campaign-planning-entry-slip').value),stop_exit_slippage_ticks:Number(grid.querySelector('.campaign-planning-stop-slip').value),commission_per_contract_per_side:commission.value}}));
+    return ()=>mode.value==='legacy'?undefined:[...policies.children].map(group=>({policy:group.read(),initial_configured_capital:grid.querySelector('.'+prefix+'planning-capital').value,planning_execution:{tick_size:grid.querySelector('.'+prefix+'planning-tick').value,point_value:grid.querySelector('.'+prefix+'planning-point').value,entry_slippage_ticks:Number(grid.querySelector('.'+prefix+'planning-entry-slip').value),stop_exit_slippage_ticks:Number(grid.querySelector('.'+prefix+'planning-stop-slip').value),commission_per_contract_per_side:commission.value}}));
   }
   async function configure(source) {
     const panel=$('#prop-campaigns');panel.replaceChildren();
@@ -418,5 +419,5 @@
       await new Promise(resolve=>setTimeout(resolve,700));
     }
   }
-  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview};
+  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview,sizingControls};
 })();

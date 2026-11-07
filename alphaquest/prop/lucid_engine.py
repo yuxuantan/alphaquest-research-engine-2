@@ -6,6 +6,7 @@ frontiers enter breach checks; no tick paths or live-account outcomes are invent
 from dataclasses import dataclass, field
 import numpy as np
 import cython
+from .native_money import money_add, money_sub, money_mul, money_half, money_sum, rule_constant
 from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags
 from .native_engine import risk_hit, sampled_days
 from .lucid_rules import EVALUATION_INITIAL_HORIZON, EVALUATION_MAX_HORIZON
@@ -75,18 +76,12 @@ class FundedAccount:
         if self.outcome!='open':raise ValueError('Cannot advance a closed account.')
         runtime=resolve_runtime(sizing_policy,sizing_context,trace)
         if runtime is not None:self.opportunities_consumed=0;self.skipped_trades=0
-        self.last_hit=0;self.trades_consumed=0
-        self.day+=1
-        calendar_day=((self.day-1)//5*7+(self.day-1)%5) if calendar_day is None else calendar_day
-        if self.expire_inactive(calendar_day, before_session=True):return 0.
-        opening=self.equity;r=self.rules
-        floor=r.lock_profit if self.locked else min(self.high-r.max_dd,r.lock_profit)
-        cap=20
-        for threshold,level_cap,_ in r.levels:
-            if opening>=threshold:cap=level_cap
+        boundary=self.begin_session(calendar_day)
+        if boundary is None:return 0.
+        opening,floor,daily_floor,cap,calendar_day=boundary
+        r=self.rules
         size=min(micros,cap,max_micros)
         self.effective_micros=size if runtime is None else None
-        daily_floor=opening-r.daily_loss if r.daily_loss is not None else -float('inf')
         amount=0.
         for opportunity_index, trade in enumerate(trades, 1):
             decision=None
@@ -115,11 +110,31 @@ class FundedAccount:
             finally:
                 if decision is not None:
                     finish_trace(runtime,decision,self.equity,self.last_hit,self.outcome)
-        profit=self.equity+sum(v for d,v in self.withdrawals if d==self.day)-opening
+        return self.finish_session(opening,calendar_day,amount)
+
+    def begin_session(self, calendar_day=None):
+        """Shared one-time opening on the declared calendar clock."""
+        if self.outcome != 'open':raise ValueError('Cannot begin a closed account session.')
+        self.last_hit=0;self.trades_consumed=0
+        self.day+=1
+        calendar_day=((self.day-1)//5*7+(self.day-1)%5) if calendar_day is None else calendar_day
+        if self.expire_inactive(calendar_day, before_session=True):return None
+        opening=self.equity;r=self.rules
+        floor=r.lock_profit if self.locked else min(money_sub(self.high,r.max_dd),r.lock_profit)
+        cap=20
+        for threshold,level_cap,_ in r.levels:
+            if opening>=threshold:cap=level_cap
+        daily_floor=money_sub(opening,r.daily_loss) if r.daily_loss is not None else -float('inf')
+        return opening, floor, daily_floor, cap, calendar_day
+
+    def finish_session(self, opening, calendar_day, amount):
+        """Finalize once, including an earlier same-session request."""
+        r=self.rules
+        profit=money_sub(money_add(self.equity,money_sum(v for d,v in self.withdrawals if d==self.day)),opening)
         if not amount and self._eligible(profit):amount=self._withdraw()
         if not amount:self.qualifying+=profit>=r.qualifying_profit
-        self.high=max(self.high,self.equity+(self.withdrawals[-1][1] if amount else 0.))
-        if self.high-r.max_dd>=r.lock_profit:self.locked=True
+        self.high=max(self.high,money_add(self.equity,(self.withdrawals[-1][1] if amount else self.equity-self.equity)))
+        if money_sub(self.high,r.max_dd)>=r.lock_profit:self.locked=True
         self.expire_inactive(calendar_day)
         return amount
 
@@ -136,12 +151,12 @@ class FundedAccount:
         r=self.rules
         return (self.qualifying+(profit>=r.qualifying_profit)>=r.qualifying_days
                 and self.equity>self.cycle_start
-                and min(self.equity*.5,r.ladder[len(self.payouts)])>=r.minimum_request)
+                and min(money_half(self.equity),r.ladder[len(self.payouts)])>=r.minimum_request)
 
     def _withdraw(self):
-        gross=min(self.equity*.5,self.rules.ladder[len(self.payouts)])
-        self.equity-=gross;self.locked=True
-        receipt=gross*self.rules.payout_share
+        gross=min(money_half(self.equity),self.rules.ladder[len(self.payouts)])
+        self.equity=money_sub(self.equity,gross);self.locked=True
+        receipt=money_mul(gross,self.rules.payout_share)
         self.withdrawals.append((self.day,gross));self.payouts.append((self.day,receipt))
         self.cycle_start=self.equity;self.qualifying=0
         if len(self.payouts)==len(self.rules.ladder):self.outcome='paid_all'
@@ -158,10 +173,9 @@ def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,d
     """One Lucid evaluation session on a caller-owned calendar clock."""
     runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     sizing_cap=min(size,max_micros)
-    if calendar-last_activity>30:
-        return equity,high,best_day,last_activity,'inactive',0,0
-    opening=equity;floor=min(high-2000.,100.)
-    daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')
+    boundary=evaluation_opening(equity,high,last_activity,calendar,daily_loss)
+    if boundary is None:return equity,high,best_day,last_activity,'inactive',0,0
+    opening,floor,daily_floor=boundary
     result='open';hit=consumed=0
     for opportunity_index, trade in enumerate(trades, 1):
         decision=None
@@ -180,10 +194,8 @@ def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,d
         finally:
             if decision is not None:
                 finish_trace(runtime,decision,equity,hit,result)
-    best_day=max(best_day,equity-opening);high=max(high,equity)
-    if result!='blown':
-        if equity>=3000. and best_day<=consistency*equity:result='passed'
-        elif calendar-last_activity>=30:result='inactive'
+    equity,high,best_day,last_activity,result=evaluation_finish(
+        equity,high,best_day,opening,last_activity,calendar,result,consistency)
     return equity,high,best_day,last_activity,result,hit,consumed
 
 
@@ -326,3 +338,18 @@ def funded(days,micros,sims,seed,block=5,horizon=2000,rules=Rules(),max_micros=4
             qualifying=qual,payouts=payouts,withdrawals=withdrawals,outcome=outcome,last_activity=last_activity)
         accounts.append(account)
     return accounts
+
+
+def evaluation_opening(equity,high,last_activity,calendar,daily_loss):
+    if calendar-last_activity>30:return None
+    floor=min(money_sub(high,rule_constant(high,'2000')),rule_constant(high,'100'))
+    daily_floor=money_sub(equity,daily_loss) if daily_loss is not None else -float('inf')
+    return equity,floor,daily_floor
+
+
+def evaluation_finish(equity,high,best_day,opening,last_activity,calendar,result,consistency):
+    best_day=max(best_day,money_sub(equity,opening));high=max(high,equity)
+    if result!='blown':
+        if equity>=3000. and best_day<=money_mul(consistency,equity):result='passed'
+        elif calendar-last_activity>=30:result='inactive'
+    return equity,high,best_day,last_activity,result

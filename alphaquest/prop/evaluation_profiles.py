@@ -1,11 +1,188 @@
 """Evaluation-only orchestration over the existing provider kernels."""
 import numpy as np
+from .native_control import NativeControlBase
 
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, EvaluationProfile, EvaluationProfileResult,
     EvaluationSamplingConfig, ResearchPeriod, SavedTradeSource, SimulationConfig,
     SourceCosts, SizingConfiguration, SizingTrace, prepare_phase_source, provenance, verify_phase_source,
 )
+
+
+class NativeEvaluationController(NativeControlBase):
+    """Actual chronological acquisition, with fresh provider-account retries."""
+    phase='evaluation'
+
+    def __init__(self,profile,sizing,micros,*,max_micros=40,session_contexts,start_date,
+            cutoff_date_exclusive,calendar,retry):
+        from datetime import timedelta
+        from decimal import Decimal
+        from . import native_backend,lucid_backend
+        from .cash_ledger import cash,replay_calendar_sessions
+        from .evaluation_optimization import SequentialRetry
+        from .phase_profiles import profile_settings
+        if type(profile) is not EvaluationProfile or type(retry) is not SequentialRetry:
+            raise ValueError('Native acquisition requires EvaluationProfile and SequentialRetry only.')
+        profile_settings(profile,SourceCosts())
+        super().__init__(sizing,micros,max_micros=max_micros,session_contexts=session_contexts,
+            start_date=start_date,cutoff_date_exclusive=cutoff_date_exclusive)
+        self.profile=profile;self.retry=retry;self.calendar=calendar
+        self.calendar_sessions=replay_calendar_sessions(calendar)
+        if any(day not in self.calendar_sessions for day in self.contexts):
+            raise ValueError('An observed native session conflicts with the saved acquisition calendar.')
+        self.lucid=profile.profile_id=='lucidflex-50k'
+        self.kernel=(lucid_backend if self.lucid else native_backend).module()
+        self.guard=self.start_date+timedelta(days=retry.max_calendar_days)
+        self.effective_cutoff=min(self.cutoff,self.guard)
+        self._equity=self.high=self.best_day=Decimal(0);self.last_activity=0
+        self._account_status='not_purchased';self._current_attempt=None;self.attempts=[]
+        self._calendar_cursor=self.start_date-timedelta(days=1);self._purchase_date=self.start_date
+        self.fee,self.activation=cash(profile.evaluation_price),cash(profile.activation_fee)
+        self.paid_evaluation=self.paid_activation=Decimal(0);self.cash_ledger=[]
+        self.pass_date=self.eligibility_date=self.ready_date=None;self.activation_paid=False
+        self.outcome='window_censored';self._active_session=False
+
+    @property
+    def equity(self):return self._equity
+    @equity.setter
+    def equity(self,value):self._equity=value
+    @property
+    def account_outcome(self):return self._account_status
+
+    def _cash_event(self,day,event,amount=None,**values):
+        self.cash_ledger.append(dict(sequence=len(self.cash_ledger)+1,date=str(day),event=event,
+            cash_delta=str(amount) if amount is not None else '0',**values))
+
+    def _buy(self,day):
+        from decimal import Decimal
+        from .native_money import money_add,money_sub
+        if len(self.attempts)>=self.retry.max_attempts:
+            self.outcome='attempt_guard_censored';self._account_status='attempt_guard_censored';return
+        self.bridge.account_start_trading_net=money_sub(self._last_snapshot.engine_trade_cash,self._last_snapshot.engine_initial_capital)
+        self.equity=self.high=self.best_day=Decimal(0);self.last_activity=0
+        self._current_attempt=dict(index=len(self.attempts)+1,purchase_date=str(day),first_session=None,
+            sessions=0,outcome='open',equity='0',high='0',best_day='0',
+            prior_attempt_trading_net=str(self.bridge.account_start_trading_net))
+        self.attempts.append(self._current_attempt);self._account_status='open'
+        self.paid_evaluation=money_add(self.paid_evaluation,self.fee)
+        self._cash_event(day,'evaluation_purchase',self.fee.copy_negate(),attempt=self._current_attempt['index'])
+
+    def _fail(self,day,state):
+        from .cash_ledger import next_evaluation_purchase
+        if self._current_attempt is None:return
+        self._current_attempt.update(outcome=state,terminal_date=str(day),equity=str(self.equity),high=str(self.high),best_day=str(self.best_day))
+        self._cash_event(day,'evaluation_failure',attempt=self._current_attempt['index'],reason=state)
+        self._current_attempt=None;self._purchase_date=next_evaluation_purchase(day,self.retry.retry_delay_calendar_days)
+        self._account_status='retry_wait';self.can_trade=False
+
+    def _activation_payment(self,day):
+        from .native_money import money_add
+        if self.activation_paid:return
+        self.paid_activation=money_add(self.paid_activation,self.activation);self.activation_paid=True
+        self._cash_event(day,'activation_payment',self.activation.copy_negate())
+
+    def _advance_calendar(self,until,*,observed_session=None):
+        from datetime import date,timedelta
+        while self._calendar_cursor<until:
+            self._calendar_cursor+=timedelta(days=1);day=self._calendar_cursor
+            if day>=self.effective_cutoff:
+                if day==self.guard and self.guard<self.cutoff and day==self.ready_date and self.activation_paid:
+                    self.outcome='funded_ready';self._account_status='funded_ready';self._cash_event(day,'funded_ready')
+                elif self.outcome=='window_censored' and self.guard<self.cutoff:
+                    self.outcome='calendar_guard_censored';self._account_status='calendar_guard_censored'
+                continue
+            if self.pass_date is not None:
+                if day==self.eligibility_date:self._activation_payment(day)
+                if day==self.ready_date:
+                    self.outcome='funded_ready';self._account_status='funded_ready';self._cash_event(day,'funded_ready')
+                continue
+            if self._current_attempt is None and day>=self._purchase_date and self.outcome!='attempt_guard_censored':self._buy(day)
+            attempt=self._current_attempt
+            if self.lucid and attempt is not None and attempt['first_session'] is not None and day!=observed_session:
+                elapsed=(day-date.fromisoformat(attempt['first_session'])).days
+                if elapsed-self.last_activity>=30:self._fail(day,'inactive')
+
+    def _phase_begin(self,session,snapshot):
+        from datetime import date
+        from decimal import Decimal
+        self._advance_calendar(session.session,observed_session=session.session)
+        attempt=self._current_attempt
+        self._active_session=attempt is not None and self._account_status=='open' and session.session<self.effective_cutoff
+        self.can_trade=self._active_session
+        if not self._active_session:return
+        if attempt['first_session'] is None:attempt['first_session']=str(session.session)
+        self._calendar_day=(session.session-date.fromisoformat(attempt['first_session'])).days
+        daily=Decimal(1200) if self.profile.daily_loss_limit else None
+        boundary=(self.kernel.evaluation_opening(self.equity,self.high,self.last_activity,self._calendar_day,daily)
+            if self.lucid else self.kernel.evaluation_opening(self.equity,self.high))
+        if boundary is None:
+            self._fail(session.session,'inactive');self._active_session=False;return
+        self._opening,self.account_floor,daily_floor=boundary
+        self.daily_floor=None if self.lucid and daily is None else daily_floor
+        self.provider_cap=40 if self.lucid else 60;attempt['sessions']+=1
+
+    def _phase_close(self,trade,hit):
+        if self.lucid and trade.net_pnl.copy_abs()>=1:self.last_activity=self._calendar_day
+        if hit==2:self._account_status='blown';self.can_trade=False
+        elif not self.lucid and self.equity>=3000:
+            self._account_status='passed';self.can_trade=False
+
+    def _phase_end(self,session,snapshot):
+        from decimal import Decimal
+        from .cash_ledger import acquisition_schedule
+        if not self._active_session:return
+        if self.lucid:
+            self.equity,self.high,self.best_day,self.last_activity,self._account_status=self.kernel.evaluation_finish(
+                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal('.4'))
+        else:
+            self.equity,self.high,self._account_status=self.kernel.evaluation_finish(self.equity,self.high,self._account_status)
+            if self._account_status=='open' and self._current_attempt['sessions']>=21:self._account_status='expired'
+        attempt=self._current_attempt
+        attempt.update(equity=str(self.equity),high=str(self.high),best_day=str(self.best_day),outcome=self._account_status)
+        if self._account_status=='passed':
+            attempt['terminal_date']=str(session.session);self.pass_date=session.session
+            self._cash_event(session.session,'evaluation_passed',attempt=attempt['index'])
+            self.eligibility_date,self.ready_date=acquisition_schedule(session.session,self.calendar_sessions,
+                self.retry.activation_delay_sessions,allow_pending=True)
+            if self.eligibility_date==session.session:self._activation_payment(session.session)
+            self.outcome='activation_pending';self._account_status='activation_pending';self._current_attempt=None
+        elif self._account_status in ('blown','inactive','expired'):
+            self._fail(session.session,self._account_status)
+        self.can_trade=False
+
+    def _phase_finish(self):
+        from datetime import timedelta
+        self._advance_calendar(self.cutoff-timedelta(days=1))
+
+    def _phase_result(self):
+        from decimal import Decimal
+        from .native_money import money_add,money_sum
+        paid=money_add(self.paid_evaluation,self.paid_activation)
+        actual=money_sum(Decimal(event['cash_delta']) for event in self.cash_ledger)
+        if actual!=paid.copy_negate():raise ValueError('Native acquisition fee ledger does not reconcile.')
+        acquired=self.outcome=='funded_ready'
+        return dict(outcome=self.outcome,attempts=self.attempts,evaluation_passed=self.pass_date is not None,
+            modeled_rules=dict(profile_id=self.profile.profile_id,rule_version=self.profile.rule_version,
+                initial_configured_capital='50000',maximum_drawdown='2000',profit_target='3000',
+                eod_floor_cap='100' if self.lucid else '3000',
+                daily_loss=('1200' if self.profile.daily_loss_limit else None) if self.lucid else '1000',
+                maximum_contracts=40 if self.lucid else 60,
+                consistency_fraction='0.4' if self.lucid else None,
+                consistency_test='best_day <= fraction * total_profit at session close' if self.lucid else None,
+                provider_expiry_sessions=None if self.lucid else 21,
+                inactivity_calendar_days=30 if self.lucid else None,
+                activity_minimum_absolute_trade_net='1' if self.lucid else None,
+                arithmetic='Exact Decimal state for native actual fills; legacy fixed-book float arithmetic is unchanged.'),
+            pass_date=self.pass_date,eligibility_date=self.eligibility_date,ready_date=self.ready_date,
+            acquisition_completed=acquired,activation_paid=self.activation_paid,
+            paid_evaluation_fees=str(self.paid_evaluation),paid_activation_fees=str(self.paid_activation),
+            paid_fees=str(paid),net_cash=str(paid.copy_negate()),cash_ledger=self.cash_ledger,
+            pending_activation=str(self.activation if self.pass_date is not None and not self.activation_paid else Decimal(0)),
+            calendar_days_to_funded=(self.ready_date-self.start_date).days if acquired else None,censored=not acquired,
+            effective_observation_cutoff_exclusive=str(self.effective_cutoff),readiness_guard_inclusive=True,
+            calendar_guard_truncates_window=self.guard<self.cutoff,
+            strategy_state_on_retry='Continuous causal strategy features on original bars; only the provider account resets.',
+            observed_sessions=len(self.session_trace))
 
 
 def simulate_evaluation_profile(

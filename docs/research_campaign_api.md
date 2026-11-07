@@ -541,3 +541,35 @@ and each fold's `baseline_results`. Additional normal exports are
 uses immutable saved artifacts. `INSUFFICIENT_EVIDENCE` and
 `ASSESSABLE_WITH_LIMITATIONS` describe research evidence only; neither makes
 `production_qualified` true or supplies the unfinished final deployment package.
+
+## Native historical phase replay
+
+Use the existing `POST /api/prop-analyses/check` and `POST /api/prop-analyses`
+with `mode: "native_phase_replay"`. This is a deterministic source rerun, not a
+campaign optimizer. `GET /api/prop-analyses/defaults` supplies supported native
+profiles, retry defaults and explicit receipt assumptions under
+`native_phase_replay`.
+
+Required fields: `phase`, `source_backtest_id`, `profile`, strict integer
+`micros` (quantity or risk-policy cap, 1–40). Optional `max_micros` defaults to 40;
+`micros` cannot exceed it. Optional `sizing` uses the common policy contract;
+omission means fixed contracts. `costs` defaults to source/MNQ and cannot replace
+saved execution costs. Optional `period` has `first_session`/`last_session`
+(inclusive CME session dates within saved IS). Evaluation accepts `retry`, but
+no receipt fields. Funded accepts no retry inputs and requires
+`receipt_delay_calendar_days` and `receipt_amount_convention`
+(`kernel_entitlement_unrounded` or `usd_cents_half_up`). Unknown fields reject.
+Calendar, source coverage and strategy identity are checked server-side.
+
+Check returns `native.source_check`, the admitted period/session inventory,
+effective sizing and captured provenance. Submission returns the ordinary queued
+analysis record. The completed report has
+`request.mode == "native_phase_replay"`, `native_backtest_id`, `calculations`
+(the phase owner's actual historical result) and `production_qualified: false`.
+Download normal report JSON/ZIP or the captured file links. The child backtest
+also exposes `/api/backtests/{id}/exports/native_account_control` with integrity
+validation. Source and child IDs are protected during execution; completed ZIPs
+retain their actual trade, equity, risk, decision and control evidence even if a
+user later deletes a standalone child. Cache reuse verifies both the sealed
+analysis and original child artifacts. No sampling/selector parameters are
+accepted by this mode.

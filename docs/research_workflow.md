@@ -530,3 +530,15 @@ the exhaustion/cancellation proof is in `final-suite/test_explicit_dates_require
 `qualification.json` records the independent per-period values and immutable code
 commit. The running checkout retains its own read-only live verification and
 before/after preservation evidence under `artifacts/is-oos-20261028/`.
+
+### Native historical account-state replay
+
+From an ordinary MNQ VWAP IS report, open **Configure prop analysis → Configure
+native account-state replay**. Select Evaluation or fresh Funded, the profile
+and common sizing policy, then Check native source and Run native replay. The
+first supported subset requires complete one-minute sessions, EOD-flat enabled
+and strategy-local volatility sizing disabled. Results link the actual controlled
+backtest, causal decisions, provider session states, requests/deductions/receipts
+and durable downloads. Historical scenario status stays separate from native
+Monte Carlo and policy selection, which remain pending. See the [saved journey
+and independent expected values](prop_simulation_review.md#native-chronological-strategy-and-account-replay--2026-11-08).
