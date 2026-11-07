@@ -167,7 +167,9 @@ def implementation_identity():
     names = ('funded_optimization.py', 'funded_profiles.py', 'phase_profiles.py', 'phase_search.py',
         'native_analysis.py', 'native_engine.py', 'lucid_engine.py', 'lucid_rules.py', 'source.py',
         'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
-        'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py', '../canonical_trades.py', '../trade_imports.py')
+        'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
+        'native_draws.py', 'native_replay.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+        '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
                 kernel='native Python reference account transitions', numpy=np.__version__)
 

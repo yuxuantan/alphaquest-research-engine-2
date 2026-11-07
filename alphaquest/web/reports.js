@@ -211,7 +211,7 @@
         propMetric(cards,'native-balance','Provider account balance · USD',usd(c.trace?.at(-1)?.state_after?.balance,2),'Provider initial capital, trading results, account resets and gross withdrawals.',c.trace?.at(-1)?.state_after?.balance);
         if(report.request.phase==='funded')propMetric(cards,'native-cash','Modeled cash received · USD',usd(c.cash_received,2),`Pending receipt: ${usd(c.pending_cash,2)}. Requests and gross deductions are separate ledger events.`,c.cash_received);
         else propMetric(cards,'native-fees','Actual-date acquisition fees · USD',usd(c.paid_fees,2),`Acquisition ${c.acquisition_completed?'completed':'incomplete'}; observation ${c.censored?'censored':'complete'}. Evaluation trading profit is not trader cash.`,c.paid_fees);
-        status.textContent='One historical native strategy path. Native forecasting and policy selection are unavailable; provider parity and settlement are unverified.';
+        status.textContent='One historical native strategy path. '+(report.native_forecast?'A separate native Monte Carlo forecast is saved in the full analysis.':'No native forecast is saved in this report.')+' Native policy selection is unavailable. Provider parity and settlement remain unverified.';
         return;
       }
       if (report.format_version !== 3 || !report.calculations) {

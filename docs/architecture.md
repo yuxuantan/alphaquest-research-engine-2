@@ -40,8 +40,8 @@ actual economics from forecast comparability. Conservative Funded selection
 re-estimates the fitted mean using historical session blocks inside
 `funded_profiles.py`; `funded_optimization.py` owns its objective and constraints.
 Shared preflight limits count all declared historical refits and captured indices.
-Final procedure verification, native forecasting/selection and forward monitoring
-remain pending. Native chronological reruns are described below.
+Final procedure verification, native selection and forward monitoring remain
+pending. Native chronological reruns and optional forecasts are described below.
 
 8 November 2026 canonical-source increment: `canonical_trades.py` validates
 complete versioned external exports and projects existing native sources without
@@ -75,8 +75,15 @@ Funded controllers live in their respective profile owners and call shared
 provider transition primitives. `native_money.py` preserves exact native money
 while keeping legacy float arithmetic unchanged. No new simulator or catalogue
 is introduced: ordinary RunStore/AnalysisStore own the child, report and exports.
-Native Monte Carlo, economic selection and campaign outer integration remain
-pending. Numerical identities include all changed calculation dependencies;
+`native_draws.py` adapts immutable contiguous source blocks to this same execution
+engine. It resets strategy features at each block and warms them from the strictly
+prior source prefix while the phase owner and actual trading cash continue.
+Separate source/model clocks preserve original fills; no fabricated historical
+backtest is created for sampled paths. Phase owners aggregate all modeled paths,
+while `native_replay.py` validates the declared target calendar and bounded work,
+then saves schedules, captures and forecasts in the same AnalysisStore report.
+Native economic selection and campaign outer integration remain pending.
+Numerical identities include all changed calculation dependencies;
 historical reports are retained and incompatible frozen launches fail closed.
 
 [Home](../README.md) / [Docs](README.md)

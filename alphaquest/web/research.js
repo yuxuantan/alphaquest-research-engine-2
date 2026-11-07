@@ -54,7 +54,7 @@
     if(record.native_account_control||research?.phase==='native_phase_replay'){
       get('#report-research-title').textContent='Native account-state historical replay';
       get('#report-research-period').textContent=`Observed CME sessions ${research.period?.first_session||record.period_start_utc} → ${research.period?.last_session||record.period_end_utc}. Actual strategy execution with account-controlled quantities.`;
-      get('#report-oos-budget').textContent='This controlled historical result is not a new IS declaration or an untouched OOS test. Reuse the original saved IS report to configure another replay; native forecasting and phase selection are unavailable.';
+      get('#report-oos-budget').textContent='This controlled historical result is not a new IS declaration or an untouched OOS test. Reuse the original saved IS report to configure another replay or a separately declared native forecast. Native phase selection remains unavailable.';
       return;
     }
     if(record.run_metadata.source?.kind==='external_trade_export'||record.capabilities?.controlled_oos===false){

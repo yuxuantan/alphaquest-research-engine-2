@@ -67,7 +67,7 @@ are split into coherent commits and pushed at least every one or two commits.
 | M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | implemented for supported native fixed-path policies; normal API/browser evidence and focused regression qualified; no provider/live parity claim |
-| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | partial: native chronological MNQ/VWAP account-controlled replay implemented; native forecasts, optimizer/campaign handoff and frozen outer integration remain pending |
+| Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | partial: native chronological MNQ/VWAP account-controlled replay and optional native forecasts implemented; optimizer/campaign handoff and frozen outer integration remain pending |
 | M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
 | M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | pending |
@@ -354,3 +354,33 @@ remain pending. This deterministic historical scenario is not a recommendation,
 forecast or provider qualification. Full-procedure freeze/holdout/current
 development selection, forward monitoring and final qualification also remain
 incomplete. See the dated normal-product journey in `prop_simulation_review.md`.
+
+
+### M2d native contiguous-block forecasts
+
+The normal native replay form optionally adds a separately declared modeled
+forecast using the existing execution engine and phase controllers. Immutable
+source blocks, prior-only feature warmup, persistent provider/trading cash,
+explicit source/model clocks, full addressed schedules and all-path metrics are
+saved in the same AnalysisStore. The source calendar remains reviewed historical
+metadata; modeled target closures/early closes are explicit and unverified.
+Censoring prevents completed-only acquisition means. Equal-cohort MC standard
+errors are conditional numerical uncertainty, distinct from historical-law and
+future uncertainty. Preflight and publication reject excessive work/size without
+truncating paths. The [normal-product evidence](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08)
+includes independent $70 acquisition, $1,500 receipt and dynamic $145 mean provider
+equity-change examples, null censored means and rejection boundaries.
+
+Final API: 17 passed. Final adapter/profile/controller/contract gate: 99 passed.
+Forecast browsers: four passed; historical native browsers: six passed. All 84
+browser captures were rehashed; source bytes/splits and immutable reopen were
+verified. Engine identity stayed
+`619d0bae83c621462f869e06b0f5fd52b3bb84d4a0c07c356560a36083bc8ba9`.
+Gates overlap and are not a full baseline or provider qualification. Native
+optimizer/campaign integration, native conservative historical refits, full
+procedure freeze/final holdout/current-development selection, forward monitoring
+and final system qualification remain incomplete.
+Existing phase optimizer/profile regression also passed 68 checks. Root separately
+verified 64 API components and 84 browser downloads across eight saved analyses;
+compilation, changed JavaScript syntax and diff checks passed. No persistent
+server remains.

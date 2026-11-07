@@ -571,5 +571,50 @@ also exposes `/api/backtests/{id}/exports/native_account_control` with integrity
 validation. Source and child IDs are protected during execution; completed ZIPs
 retain their actual trade, equity, risk, decision and control evidence even if a
 user later deletes a standalone child. Cache reuse verifies both the sealed
-analysis and original child artifacts. No sampling/selector parameters are
-accepted by this mode.
+analysis and original child artifacts. Selector parameters remain unsupported.
+The optional native forecast extension below adds explicit sampling parameters.
+
+
+## Optional native forecast
+
+`native_phase_replay` accepts optional `native_forecast` with the following strict
+contract (omission preserves the actual historical-only request):
+
+```json
+{
+  "model": "observed_contiguous_blocks_with_prior_prefix_v1",
+  "simulations": 4,
+  "seed": 1729,
+  "block_sessions": 1,
+  "horizon_calendar_days": 9,
+  "capture_paths": 2,
+  "calendar": {
+    "start_dates": ["2026-01-26"],
+    "coverage_end": "2026-02-05",
+    "closures": [],
+    "timezone": "America/Chicago",
+    "version": "explicit-demo-weekdays-v1"
+  },
+  "early_closes": {}
+}
+```
+
+These are labeled synthetic example dates, not an official exchange calendar.
+Defaults expose supported limits, model and assumptions but do not silently
+supply verified future dates. `simulations` is total paths, strict integer 2–512;
+`seed` is a strict unsigned 32-bit integer; `block_sessions` is 1, 5 or 10;
+`horizon_calendar_days` is 1–365; `capture_paths` is 1–20 and cannot exceed paths.
+Booleans are not integers. Calendar starts/closures are JSON arrays of canonical
+ISO dates; at most 16 distinct starts; total paths must divide evenly between
+starts. Version is explicitly required. Early-close values are local `HH:MM`
+before 16:00 on covered open weekdays. All target starts follow the admitted IS
+source, and every requested target shape must have a source pool.
+
+Check adds the full `native_forecast_plan`: source catalogue and hash, complete
+addressed schedules, target contexts, cohort allocation, selected capture indices
+and bounded work. Submission uses this same checked plan. The saved report's
+`calculations` remains the actual historical result; top-level `native_forecast`
+is the distinct modeled result with all-path metrics and uncertainty. Dedicated
+forecast files use ordinary `/api/prop-analyses/{id}/files/{name}` and ZIP routes.
+Changing any declaration invalidates the earlier check. No selector, current
+recommendation or historical-law confidence claim is implied by this option.

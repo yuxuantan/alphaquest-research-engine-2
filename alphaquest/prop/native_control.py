@@ -67,14 +67,21 @@ class SessionContext:
     calendar_sha256: str
     observed_bar_count: int
     fully_observed_or_flat_after_entry_cutoff: bool
+    kind: Literal['observed','modeled'] = 'observed'
+    expected_bar_count: int | None = None
 
     def __post_init__(self):
         if type(self.session) is not date or self.scheduled_close_utc.tzinfo is None or self.scheduled_close_utc.utcoffset()!=timedelta(0):
             raise ValueError('Native session context requires an actual date and UTC close.')
         if not self.calendar_version or len(self.calendar_sha256)!=64 or any(c not in '0123456789abcdef' for c in self.calendar_sha256):
             raise ValueError('Native session context requires a versioned calendar SHA256.')
-        if type(self.observed_bar_count) is not int or self.observed_bar_count<1 or self.fully_observed_or_flat_after_entry_cutoff is not True:
-            raise ValueError('Native control requires a verified observed flat-session inventory.')
+        if self.kind=='observed':
+            if type(self.observed_bar_count) is not int or self.observed_bar_count<1 or self.fully_observed_or_flat_after_entry_cutoff is not True or self.expected_bar_count is not None:
+                raise ValueError('Observed native context requires verified bars, not a modeled expected count.')
+        elif self.kind=='modeled':
+            if type(self.observed_bar_count) is not int or self.observed_bar_count!=0 or self.fully_observed_or_flat_after_entry_cutoff is not False or type(self.expected_bar_count) is not int or self.expected_bar_count<1:
+                raise ValueError('Modeled native context has no observed target bars; declare only a positive expected source-bar count.')
+        else:raise ValueError('Unknown native session context kind.')
 
 
 class NativePhaseOwner(Protocol):
@@ -188,6 +195,9 @@ class NativeControlBase:
         positive_integer('micros',micros,60);positive_integer('max_micros',max_micros,60)
         if type(session_contexts) is not dict or not session_contexts or any(type(v) is not SessionContext or k!=v.session for k,v in session_contexts.items()):
             raise ValueError('Native control requires an explicit verified session context mapping.')
+        kinds={value.kind for value in session_contexts.values()}
+        if len(kinds)!=1:raise ValueError('Native owner cannot mix observed and modeled session contexts.')
+        self.context_kind=next(iter(kinds))
         self.start_date=date.fromisoformat(start_date) if type(start_date) is str else start_date
         self.cutoff=date.fromisoformat(cutoff_date_exclusive) if type(cutoff_date_exclusive) is str else cutoff_date_exclusive
         if type(self.start_date) is not date or type(self.cutoff) is not date or not self.start_date<self.cutoff:
@@ -353,5 +363,20 @@ class NativeControlBase:
             readiness='HISTORICAL_SCENARIO_ONLY',native_forecast_available=False,
             assumptions=['Actual native strategy callbacks and fills; quantity is admitted at the completed decision bar without the next open.',
                 'Provider rules, OHLC intrabar ordering, execution liquidity and modeled settlement remain unverified assumptions.',
-                'Native Monte Carlo and economic selection are unsupported until a separately declared causal bar/session sampling law is integrated.'])
+                'This component contains one historical path. Optional native forecasts are separate; native policy selection remains unsupported.'])
+        if self.context_kind=='modeled':
+            result.pop('historical_paths',None);result.pop('native_forecast_available',None)
+            result['mode']='native_modeled_path';result['observation_kind']='modeled'
+            result['observed_target_history']=False
+            result['modeled_sessions']=result.pop('observed_sessions',len(self.session_trace))
+            if 'horizon_observations_complete' in result:
+                result['modeled_horizon_complete']=result.pop('horizon_observations_complete')
+            if 'strategy_state_on_retry' in result:
+                result['strategy_state_on_retry']='Only the provider account resets here; the explicit modeled execution adapter supplies strategy reset and prior-prefix warmup.'
+            result['readiness']='MODELED_SCENARIO_ONLY'
+            result['assumptions']=[
+                'Actual native execution replays observed source bars; account and cash dates use a separately declared modeled target calendar.',
+                'Quantity is chosen from the completed source decision bar and current provider state, without its future entry fill.',
+                'The declared empirical source-block draw law supplies strategy reset, strictly prior source warmup, source/model clock mapping and complete schedule identity.',
+                'Target sessions are modeled, not observed future data. Provider rules, OHLC ordering and settlement remain unverified assumptions.']
         return json_native(result)

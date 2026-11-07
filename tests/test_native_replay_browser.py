@@ -58,7 +58,7 @@ def preserve(page, portal, report, tmp_path, expected, original, **fixture):
     assert report['calculations']['native_forecast_available'] is False
     assert page.request.get(portal['url']+'/api/backtests/'+original['id']).json() == original
     playwright.expect(page.locator('#native-result')).to_contain_text('HISTORICAL_SCENARIO_ONLY')
-    playwright.expect(page.locator('#native-result')).to_contain_text('Native Monte Carlo forecasts and native policy selection are unavailable')
+    playwright.expect(page.locator('#native-result')).to_contain_text('This saved report contains no native Monte Carlo forecast')
     playwright.expect(page.locator('#native-decision-table')).to_contain_text('118')
     page.locator('#native-decisions').screenshot(path=str(tmp_path/'causal-decisions-and-fills.png'))
     page.locator('#native-cash-ledger').screenshot(path=str(tmp_path/'dated-cash-ledger.png'))

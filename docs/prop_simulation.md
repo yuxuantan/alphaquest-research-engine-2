@@ -25,7 +25,9 @@ forecasts do not erase observed cash, and censored acquisition fees remain paid.
 Optional conservative Funded selection resamples historical sessions and
 re-estimates mean cash, preserving separate numerical-error requirements. It
 does not optimize a single-account payout percentile or claim future confidence.
-Final recommendation and native state-aware strategy reruns remain incomplete.
+Final recommendation remains incomplete. Subsequent increments below implement
+native chronological account-controlled reruns and optional native forecasts;
+native candidate optimization and frozen campaign handoff remain pending.
 
 ## Canonical external sources — 2026-11-08
 
@@ -1794,8 +1796,9 @@ The normal prop configuration/check/run workflow also supports
 `mode: "native_phase_replay"`. This mode reruns the actual native strategy over
 an explicit historical IS window and saves a normal RunStore backtest plus an
 AnalysisStore report. It is one historical scenario, not a Monte Carlo estimate,
-phase optimizer, frozen outer assessment or deployment recommendation. Native
-forecasting and optimizer/campaign integration remain pending.
+phase optimizer, frozen outer assessment or deployment recommendation. The
+subsequent optional native forecast is a separate report component; native
+optimizer/campaign integration remains pending.
 
 The initial admitted subset is the current VWAP strategy, actual continuous/base
 MNQ prices, tick size 0.25, point value 2, complete one-minute sessions, EOD-flat
@@ -1848,3 +1851,64 @@ The saved CSV currently ends on 2 November 2026. This is an EOD-close calendar,
 not a complete intraday halt or individual-contract expiration calendar. Provider
 rule equivalence, liquidity, OHLC ordering and settlement remain explicit
 unverified assumptions. Earlier reports and numerical evidence are unchanged.
+
+
+### Native contiguous-block forecasts — 2026-11-08
+
+The same native prop form can optionally add `native_forecast`. The actual
+historical child and its calculation remain separate from all modeled paths.
+`native_draws.py` indexes the immutable admitted source sessions and samples
+complete contiguous blocks of 1, 5 or 10 sessions, retaining loss and no-trade
+blocks. Pools match session lengths, close/cutoff shape and relative calendar
+gaps. A short final draw uses a declared leading prefix of a complete block.
+Missing compatible shapes reject; there is no circular price wrap, price
+rebasing, lucky redraw or discarded execution failure.
+
+Each block creates the normal strategy and warms its features using every
+permitted source bar strictly before that block, with entry admission disabled.
+Warmup has no provider callbacks, trades or fees. The existing engine then
+executes the actual source bars. Strategy state resets at the declared block
+boundary; provider state and actual trading cash persist across blocks. Original
+source timestamps/prices remain intact, with explicit mappings to chronological
+modeled account dates. Source row indices are one-based ordinals of the admitted
+selection, not raw dataset file lines. The report also saves source timestamps,
+dataset bytes/hash, period and original bars for exact identification.
+
+A versioned, explicit America/Chicago target-calendar declaration supplies
+weekdays, full closures and optional early closes. It is labeled modeled and
+exchange-unverified, separately from the reviewed historical source calendar.
+Starts must be after the last admitted IS session. Every start has an exclusive
+calendar-day cutoff and at least one modeled open session. Target coverage must
+include all cutoffs. Total paths are allocated equally across sorted distinct
+start cohorts. Addressed random streams bind seed, phase, path index and draw
+slot, so adding later paths cannot shift earlier draws.
+
+Evaluation retains every attempt, fee, readiness date and censored path. If any
+path has not acquired an account by cutoff, eventual acquisition cost/time means
+remain null; restricted fees/durations and completion probability remain visible.
+Funded starts one fresh account and estimates cash received by the finite cutoff,
+with separate pending cash, gross account deductions and provider equity change.
+No Evaluation inputs or implicit replacement account enter it. All path summaries
+and schedules are retained; only the first declared K paths retain full detail,
+chosen before outcomes. Equal-cohort means and conditional Monte Carlo standard
+errors are separate from account outcome percentiles and future uncertainty.
+Each cohort needs at least two paths for an MC standard error; one-path cohort
+means remain visible with unavailable precision. Historical-law uncertainty and
+provider/settlement qualification are not supplied by these error bars.
+
+Preflight counts source-content validation, feature warmup and actual sampled
+execution, bounded at 10 million bar work, 16 MiB encoded schedules and a 100 MiB
+estimated detail allowance. The estimate does not guarantee encoded size.
+Publication enforces 128 MiB for component files plus embedded `report.json`,
+excluding the separate compressed ZIP. Excess work rejects before job reservation;
+excess encoded output fails publication without dropping paths or truncating
+captures. Rebuilt execution schedules must match the checked plan exactly, and
+source/code identities are rechecked after both actual and modeled calculations.
+A failed forecast does not publish a completed combined report; an already-saved
+actual historical child remains inspectable.
+
+Normal downloads add `native_forecast_plan.json`, `native_forecast.json`,
+`native_forecast_paths.json`, `native_forecast_schedules.json` and
+`native_forecast_captures.json`. Native optimizer/campaign integration,
+conservative historical refitting and frozen native outer application remain
+pending. See the [saved workflow and independent expected values](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08).

@@ -26,7 +26,10 @@ def seal_report(staged, result, id, created):
     if sum(v['bytes'] for v in files.values())>128*1024*1024:
         raise ValueError('Analysis output exceeds 128 MiB; no completed result was published.')
     result['files']=files
-    (staged/'report.json').write_text(canonical(result),encoding='utf-8')
+    report_text=canonical(result)
+    if sum(v['bytes'] for v in files.values())+len(report_text.encode('utf-8'))>128*1024*1024:
+        raise ValueError('Analysis artifacts and embedded report exceed 128 MiB; no completed result was published. The archive is a separate compressed copy.')
+    (staged/'report.json').write_text(report_text,encoding='utf-8')
     with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
         for p in staged.rglob('*'):
             if p.is_file() and p.name!='analysis.zip':archive.write(p,str(p.relative_to(staged)))

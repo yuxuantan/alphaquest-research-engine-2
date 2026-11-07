@@ -57,8 +57,10 @@ missing outcome and acquisition censoring. Funded studies may explicitly select
 a historical lower estimate of mean received cash, with history and Monte Carlo
 precision requirements. **Native account-state replay** now reruns complete
 one-minute MNQ/VWAP historical sessions with causal quantity decisions, actual
-fills and separate provider/cash ledgers. Native forecasts and policy search,
-final recommendations and forward monitoring remain pending.
+fills and separate provider/cash ledgers. Its optional native Monte Carlo forecast
+replays observed contiguous blocks with prior-only feature warmup and a separately
+declared modeled calendar. Native policy search, final recommendations and
+forward monitoring remain pending.
 See the [workflow](docs/research_workflow.md#nested-inner-research)
 and [implementation checklist](docs/robust_research_plan.md).
 

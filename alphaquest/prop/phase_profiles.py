@@ -18,6 +18,72 @@ CONTRACT_VERSION = 'phase-profiles-v1'
 ProfileId = Literal['apex-50k-eod', 'lucidflex-50k']
 
 
+def equal_stratum_mean(groups):
+    """Conditional Monte Carlo precision for equally weighted start cohorts.
+
+    Replications quantify simulation noise under a declared law, not historical
+    sample size, uncertainty in that law, or a bound on future account outcomes.
+    """
+    from math import fsum, isfinite, sqrt
+    from statistics import fmean, variance
+    samples = [tuple(float(value) for value in group) for group in groups]
+    if not samples or any(not group for group in samples):
+        raise ValueError('Every declared start cohort requires at least one modeled path.')
+    if len({len(group) for group in samples}) != 1:
+        raise ValueError('Native forecast cohorts require equal replication counts.')
+    if any(not isfinite(value) for group in samples for value in group):
+        raise ValueError('Native forecast aggregates require finite path values.')
+    enough = all(len(group) >= 2 for group in samples)
+    return dict(mean=fmean(fmean(group) for group in samples),
+        mc_standard_error=(sqrt(fsum(variance(group)/len(group) for group in samples))/len(samples)
+                           if enough else None),
+        cohort_counts=[len(group) for group in samples], equal_cohort_weights=True,
+        precision_status='conditional_mc_only' if enough else 'insufficient_within_cohort_replication')
+
+
+def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
+    """Validate the shared declared calendar/layout, without running a phase."""
+    from datetime import timedelta, timezone
+    from .cash_ledger import replay_calendar_sessions
+    from .phase_search import PhaseCalendar
+    if forecast.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+        raise ValueError('Unknown native forecast law.')
+    if type(forecast.simulations) is not int or not 2 <= forecast.simulations <= 512:
+        raise ValueError('Native forecasts require 2 through 512 paths.')
+    if type(forecast.capture_paths) is not int or not 1 <= forecast.capture_paths <= min(20, forecast.simulations):
+        raise ValueError('Native forecasts require an explicitly bounded path capture count.')
+    if catalogue.block_sessions != forecast.block_sessions:
+        raise ValueError('Native forecast source block length differs from its declaration.')
+    calendar = PhaseCalendar(**{**forecast.calendar,
+        'start_dates':tuple(forecast.calendar['start_dates']),
+        'closures':tuple(forecast.calendar.get('closures',()))})
+    starts = tuple(sorted(calendar.start_dates))
+    if forecast.simulations % len(starts):
+        raise ValueError('Native forecast cohorts require an equal number of paths.')
+    if set(target_contexts_by_cohort) != set(starts):
+        raise ValueError('Native forecast target contexts must cover every declared start cohort exactly.')
+    allowed = replay_calendar_sessions(calendar)
+    declared_calendar = forecast.target_calendar()
+    result = []
+    for start in starts:
+        first = date.fromisoformat(start)
+        cutoff = first + timedelta(days=forecast.horizon_calendar_days)
+        contexts = target_contexts_by_cohort[start]
+        expected = [day for day in allowed if first <= day < cutoff]
+        if not expected:
+            raise ValueError('Native forecasts with no modeled open sessions are currently unsupported.')
+        if list(contexts) != expected or any(context.kind != 'modeled' or context.session != day
+                                            for day, context in contexts.items()):
+            raise ValueError('Native forecast requires the complete ordered modeled target session inventory.')
+        if any(context.calendar_sha256 != declared_calendar.sha256
+               or context.calendar_version != calendar.version
+               or context.scheduled_close_utc != declared_calendar.plan(day).close.astimezone(timezone.utc)
+               for day, context in contexts.items()):
+            raise ValueError('Native forecast contexts differ from the saved modeled calendar declaration.')
+        result.append((start, first, cutoff, contexts))
+    return calendar, result
+
+
 @dataclass(frozen=True)
 class SavedTradeSource:
     source_backtest_id: str
@@ -553,7 +619,9 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     from .native_analysis import kernel_identity
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
-             'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py', '../canonical_trades.py', '../trade_imports.py']
+             'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
+             'native_draws.py', 'native_replay.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']
     kernel_file = 'lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py'

@@ -185,6 +185,86 @@ class NativeEvaluationController(NativeControlBase):
             observed_sessions=len(self.session_trace))
 
 
+def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_factory, config,
+        profile, sizing, micros, *, forecast, retry, max_micros=40, checkpoint=lambda: None,
+        progress=lambda message: None):
+    """Actual native execution under the declared draw law, ending at acquisition.
+
+    Unresolved paths retain every paid fee. They cannot identify an untruncated
+    acquisition mean by dropping censoring or dividing restricted fees by passes.
+    """
+    from collections import Counter
+    from dataclasses import asdict
+    from datetime import date
+    from .native_draws import build_schedule, run_path
+    from .phase_profiles import equal_stratum_mean, native_forecast_layout
+    calendar, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue)
+    parameters = strategy_factory().parameters
+    paths, schedules, captures = [], [], []
+    for path_index in range(forecast.simulations):
+        checkpoint()
+        cohort_index = path_index % len(cohorts)
+        start, first, cutoff, contexts = cohorts[cohort_index]
+        progress(f'Native Evaluation forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
+        schedule = build_schedule(catalogue, contexts, parameters, phase='evaluation',
+            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff)
+        owner = NativeEvaluationController(profile, sizing, micros, max_micros=max_micros,
+            session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
+            calendar=calendar, retry=retry)
+        detailed = path_index < forecast.capture_paths
+        output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
+            capture=detailed, checkpoint=checkpoint)
+        result = output['result']
+        elapsed = (result['calendar_days_to_funded'] if result['acquisition_completed'] else
+                   (date.fromisoformat(result['effective_observation_cutoff_exclusive'])-first).days)
+        row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
+            cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
+            observed_calendar_days=elapsed, attempts_started=len(result['attempts']),
+            sizing_summary=result['sizing']['summary'])
+        for key in ('outcome','acquisition_completed','censored','paid_evaluation_fees',
+                    'paid_activation_fees','paid_fees','pending_activation','net_cash',
+                    'calendar_days_to_funded','pass_date','eligibility_date','ready_date',
+                    'attempts','cash_ledger','equity','trading_profit','execution_counts','conservation'):
+            row[key] = result[key]
+        paths.append(row); schedules.append(schedule)
+        if detailed:
+            captures.append(dict(path_index=path_index, cohort_index=cohort_index, **output))
+        progress(f'Native Evaluation forecast completed path {path_index+1}/{forecast.simulations}.')
+    def estimate(key):
+        return equal_stratum_mean([[row[key] for row in paths if row['cohort_index']==index]
+                                  for index in range(len(cohorts))])
+    names = dict(restricted_mean_paid_fees='paid_fees',
+        restricted_mean_observed_calendar_days='observed_calendar_days',
+        probability_acquisition_by_cutoff='acquisition_completed', mean_attempts_started='attempts_started')
+    estimates = {name: estimate(key) for name,key in names.items()}
+    complete = all(row['acquisition_completed'] for row in paths)
+    for name,key in (('mean_acquisition_cost','paid_fees'),('mean_calendar_days_to_funded','calendar_days_to_funded')):
+        estimates[name] = estimate(key) if complete else dict(mean=None,mc_standard_error=None,
+            cohort_counts=[forecast.simulations//len(cohorts)]*len(cohorts),equal_cohort_weights=True,
+            precision_status='unresolved_acquisition_censoring')
+    metrics = {key:value['mean'] for key,value in estimates.items()}
+    metrics.update(completed_paths=sum(row['acquisition_completed'] for row in paths),
+        censored_paths=sum(row['censored'] for row in paths), paths=len(paths),
+        outcome_counts=dict(Counter(row['outcome'] for row in paths)))
+    return dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='evaluation',
+        model=forecast.model,settings=forecast.model_dump(mode='json'),catalogue=catalogue.metadata(),
+        phase_configuration=dict(profile=asdict(profile),sizing=asdict(sizing),micros=micros,
+            max_micros=max_micros,retry=asdict(retry)),
+        status='identified_model_mean' if complete else 'unresolved_censoring',
+        readiness='MODELED_SCENARIO_ONLY',observed_future_data=False,metrics=metrics,
+        uncertainty=dict(metrics=estimates,
+            method='Equal-weight start cohorts; MCSE sqrt(sum(within-cohort sample variance / paths per cohort)) / cohort count.',
+            scope='Conditional Monte Carlo noise under the declared empirical draw law only; not uncertainty in the law or future performance.',
+            historical_mean_uncertainty_available=False),
+        paths=paths,schedules=schedules,captures=captures,capture_path_indices=list(range(forecast.capture_paths)),
+        assumptions=[
+            'Every declared path is included, including failures, retries and guard/cutoff censoring; no redraw by outcome.',
+            'Acquisition means are withheld unless every required path reaches funded readiness. All paid fees remain in restricted all-path summaries.',
+            'Restricted observed duration ends at funded readiness or the computational/civil cutoff, not an estimated eventual funding time.',
+            'Finite simulation completion does not prove finite population acquisition means. Target calendars, provider rules, execution and settlement remain unverified.',
+            'No Funded outcomes or cash enter Evaluation sampling, account transitions or metrics.'])
+
+
 def simulate_evaluation_profile(
     runs, source: SavedTradeSource, profile: EvaluationProfile, micros: int,
     simulation: SimulationConfig = SimulationConfig(),

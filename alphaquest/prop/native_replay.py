@@ -3,7 +3,7 @@
 No account transition, position sizing, fill arithmetic or selector lives here.
 The phase owner controls admission; execute produces ordinary actual trades.
 """
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 import json
@@ -17,6 +17,91 @@ from .adapter import canonical, source_record
 from .phase_profiles import EvaluationProfile, FundedProfile, ResearchPeriod, SizingConfiguration, SourceCosts
 
 MODEL_VERSION = 'native-phase-chronological-v1'
+MAX_FORECAST_BAR_WORK = 10_000_000
+MAX_FORECAST_SCHEDULE_BYTES = 16 * 1024 * 1024
+MAX_FORECAST_CAPTURE_ESTIMATE = 100 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class DeclaredNativeCalendar:
+    """Delegate close arithmetic while retaining honest modeled provenance."""
+    calendar: object
+    declaration_json: str
+
+    @property
+    def sha256(self):
+        return self.calendar.sha256
+
+    def plan(self, *args, **kwargs):
+        return self.calendar.plan(*args, **kwargs)
+
+    def metadata(self):
+        return dict(kind='modeled', observed=False, exchange_verified=False,
+            sha256=self.sha256, declaration=json.loads(self.declaration_json),
+            coverage_start=str(self.calendar.start), coverage_end=str(self.calendar.end))
+
+
+class NativeForecastRequest(BaseModel):
+    """Explicit fitted source-block law, separate from the observed replay."""
+    model_config = ConfigDict(extra='forbid', frozen=True)
+    model: Literal['observed_contiguous_blocks_with_prior_prefix_v1']
+    simulations: int = Field(strict=True, ge=2, le=512)
+    seed: int = Field(strict=True, ge=0, le=2**32-1)
+    block_sessions: int = Field(strict=True)
+    calendar: dict
+    early_closes: dict[StrictStr, StrictStr] = Field(default_factory=dict)
+    horizon_calendar_days: int = Field(strict=True, ge=1, le=365)
+    capture_paths: int = Field(strict=True, ge=1, le=20)
+
+    @model_validator(mode='after')
+    def declared_law(self):
+        from .phase_search import PhaseCalendar
+        if self.block_sessions not in (1, 5, 10):
+            raise ValueError('Native source blocks must contain 1, 5 or 10 consecutive observed sessions.')
+        try:
+            raw = dict(self.calendar)
+            if 'version' not in raw:
+                raise ValueError('The modeled target calendar requires an explicit saved version label.')
+            for field in ('start_dates', 'closures'):
+                if field in raw:
+                    if type(raw[field]) is not list or any(type(value) is not str for value in raw[field]):
+                        raise ValueError(f'Modeled calendar {field} must be an array of canonical date strings.')
+                    raw[field] = tuple(raw[field])
+            calendar = PhaseCalendar(**raw)
+        except (TypeError, KeyError) as exc:
+            raise ValueError(f'Invalid modeled native calendar: {exc}') from exc
+        if len(calendar.start_dates) > 16 or self.simulations % len(calendar.start_dates):
+            raise ValueError('Declare at most 16 start dates and an equal number of paths per start cohort; simulations is the total path count.')
+        try:
+            cutoff = max(map(date.fromisoformat, calendar.start_dates))+timedelta(days=self.horizon_calendar_days)
+        except OverflowError as exc:
+            raise ValueError('Forecast horizon exceeds supported calendar dates.') from exc
+        if cutoff > date.fromisoformat(calendar.coverage_end):
+            raise ValueError('The modeled calendar must cover every exclusive forecast cutoff.')
+        if self.capture_paths > self.simulations:
+            raise ValueError('Retained detailed paths cannot exceed total simulations.')
+        first = min(calendar.start_dates)
+        for day, close in self.early_closes.items():
+            if (date.fromisoformat(day).isoformat() != day or not first <= day <= calendar.coverage_end
+                    or date.fromisoformat(day).weekday() > 4 or day in calendar.closures
+                    or not re.fullmatch(r'(?:0[0-9]|1[0-5]):[0-5][0-9]', close)):
+                raise ValueError('Declare unique weekday early closes before 16:00 Chicago, inside target calendar coverage and outside full closures.')
+        return self
+
+    def target_calendar(self):
+        """Use shared close/cutoff semantics without claiming exchange review."""
+        from types import MappingProxyType
+        from ..session_calendar import SessionCalendar
+        from ..optimization_cache import digest
+        entries = {date.fromisoformat(day):MappingProxyType(dict(closure_type='full_close', close_time_local=''))
+            for day in self.calendar.get('closures', [])}
+        entries.update({date.fromisoformat(day):MappingProxyType(dict(closure_type='early_close', close_time_local=close))
+            for day,close in self.early_closes.items()})
+        declaration = dict(calendar=self.calendar, early_closes=self.early_closes,
+            regular_close='16:00', timezone='America/Chicago', status='USER_DECLARED_UNVERIFIED')
+        calendar = SessionCalendar(min(map(date.fromisoformat, self.calendar['start_dates'])),
+            date.fromisoformat(self.calendar['coverage_end']), MappingProxyType(entries), digest(declaration), 'Modeled MNQ')
+        return DeclaredNativeCalendar(calendar, canonical(declaration))
 
 
 def defaults():
@@ -31,7 +116,14 @@ def defaults():
         result['funded'].append(asdict(FundedProfile(**common)))
     return dict(profiles=result, retry=asdict(SequentialRetry()), max_micros=40,
         receipt_delay_calendar_days=2, receipt_amount_convention='kernel_entitlement_unrounded',
-        receipt_assumption='Unverified calendar-day model; review explicitly before running.')
+        receipt_assumption='Unverified calendar-day model; review explicitly before running.',
+        native_forecast=dict(model='observed_contiguous_blocks_with_prior_prefix_v1', simulations=32,
+            seed=1729, block_sessions=1, supported_block_sessions=[1,5,10], horizon_calendar_days=30,
+            capture_paths=1, calendar_version='user-declared-native-weekdays-v1',
+            limits=dict(bar_work=MAX_FORECAST_BAR_WORK, schedule_bytes=MAX_FORECAST_SCHEDULE_BYTES,
+                estimated_capture_bytes=MAX_FORECAST_CAPTURE_ESTIMATE),
+            weighting='Total paths divided equally across sorted start-date cohorts; every path enters the mean.',
+            calendar_status='USER_DECLARED_UNVERIFIED'))
 
 
 class NativeReplayRequest(BaseModel):
@@ -48,6 +140,7 @@ class NativeReplayRequest(BaseModel):
     retry: dict | None = None
     receipt_delay_calendar_days: int | None = Field(default=None, strict=True, ge=0, le=365)
     receipt_amount_convention: Literal['kernel_entitlement_unrounded', 'usd_cents_half_up'] | None = None
+    native_forecast: NativeForecastRequest | None = None
 
     @model_validator(mode='after')
     def phase_contract(self):
@@ -194,9 +287,11 @@ def check_replay(datasets, runs, request):
             complete_minute_sessions=True, historical_paths=1, recommendation=False,
             limitations=['Continuous/base MNQ, one-minute complete sessions, VWAP EOD-flat only.',
                 'Strategy starts cold at the first retained source bar; prior source results do not enter sizing.',
-                'Historical scenario only; native Monte Carlo and policy selection are not implemented by this mode.',
+                'The historical replay is one observed path. An optional native forecast is saved separately; native policy selection remains unsupported.',
                 'Provider rules, OHLC ordering and payout settlement assumptions remain unverified.']))
     make_controller(request, result)
+    if request.native_forecast is not None:
+        result['native_forecast_plan'], _, _ = prepare_native_forecast(datasets, request, result)
     return result
 
 
@@ -219,6 +314,92 @@ def make_controller(request, check):
     from .funded_profiles import NativeFundedController
     return NativeFundedController(FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
         **common, receipt_delay_calendar_days=request.receipt_delay_calendar_days, receipt_amount_convention=request.receipt_amount_convention)
+
+
+def prepare_native_forecast(datasets, request, check):
+    """Build all addressed schedules before queueing; never execute a strategy."""
+    from ..backtest_data import read_selected_bars
+    from ..research_folds import SessionDateRange
+    from ..session_calendar import CT
+    from ..strategies.registry import get_strategy
+    from ..optimization_cache import digest
+    from .native_control import SessionContext, json_native
+    from .native_draws import build_catalogue, build_schedule
+    forecast = request.native_forecast
+    if forecast is None:
+        raise ValueError('An explicit native forecast declaration is required.')
+    starts = sorted(forecast.calendar['start_dates'])
+    if starts[0] <= check['period']['last_session']:
+        raise ValueError('Every modeled forecast start must follow the last admitted source IS session.')
+    source = check['source']; strategy = source['run_metadata']['strategy']
+    parameters = get_strategy(strategy['id']).parameters(strategy['parameters'])
+    source_contexts = {date.fromisoformat(row['session']):SessionContext(**{**row,
+        'session':date.fromisoformat(row['session']), 'scheduled_close_utc':_instant(row['scheduled_close_utc'])})
+        for row in check['sessions']}
+    source_identity = dict(source_backtest_id=source['id'], source_manifest_sha256=check['source_manifest_sha256'],
+        dataset_sha256=check['dataset']['sha256'], source_period=check['period'], strategy=strategy,
+        execution=source['execution_settings'], source_calendar=check['calendar_metadata'],
+        engine_identity=check['engine_identity'])
+    with read_selected_bars(datasets, check['dataset']['id'],
+            SessionDateRange.parse(check['period']['first_session'], check['period']['last_session'])) as selected:
+        catalogue = build_catalogue(selected.bars, source_contexts, parameters,
+            block_sessions=forecast.block_sessions, source_identity=source_identity)
+    calendar = forecast.target_calendar()
+    cohorts, cohort_rows = {}, []
+    for text in starts:
+        start = date.fromisoformat(text); cutoff = start+timedelta(days=forecast.horizon_calendar_days)
+        contexts = {}; day = start
+        while day < cutoff:
+            plan = calendar.plan(day, parameters.eod_flat_time, parameters.close_buffer_minutes)
+            if plan.close is not None:
+                close = plan.close.astimezone(timezone.utc)
+                begin = datetime.combine(day-timedelta(days=1), time(17,1), CT).astimezone(timezone.utc)
+                expected = int((close-begin).total_seconds()/60)+1
+                contexts[day] = SessionContext(day, close, forecast.calendar['version'], calendar.sha256,
+                    0, False, kind='modeled', expected_bar_count=expected)
+            day += timedelta(days=1)
+        if not contexts:
+            raise ValueError('Native forecast currently requires at least one modeled open session per cohort; no target bars or zero-session account outcome are invented.')
+        cohorts[text] = contexts
+        cohort_rows.append(dict(start_date=text, cutoff_date_exclusive=str(cutoff),
+            modeled_open_sessions=len(contexts), paths=forecast.simulations//len(starts),
+            context_kind='modeled', observed_target_bars=0,
+            contexts=[json_native(asdict(row)) for row in contexts.values()]))
+    schedules = []; warmup = executed = validation = schedule_bytes = captured_bars = 0
+    for index in range(forecast.simulations):
+        start = starts[index % len(starts)]
+        schedule = build_schedule(catalogue, cohorts[start], parameters, phase=request.phase,
+            seed=forecast.seed, path_index=index, start_date=start,
+            cutoff_date_exclusive=str(date.fromisoformat(start)+timedelta(days=forecast.horizon_calendar_days)))
+        warmup += schedule['estimated_warmup_bars']; executed += schedule['estimated_executed_bars']
+        validation += len(catalogue.bars)
+        schedule_bytes += len(canonical(json_native(schedule)).encode())
+        if index < forecast.capture_paths:
+            captured_bars += schedule['estimated_executed_bars']
+        if warmup+executed+validation > MAX_FORECAST_BAR_WORK:
+            raise ValueError(f'Native forecast exceeds {MAX_FORECAST_BAR_WORK} declared source-validation, warmup and execution bar work. Reduce paths, source window, target horizon or block resets; no paths were truncated.')
+        if schedule_bytes > MAX_FORECAST_SCHEDULE_BYTES:
+            raise ValueError('Native forecast schedules exceed 16 MiB; reduce the declared work. No pool members or schedules were omitted.')
+        if captured_bars * 2048 > MAX_FORECAST_CAPTURE_ESTIMATE:
+            raise ValueError('Native detailed-path capture estimate exceeds 100 MiB; reduce capture_paths or target horizon. Every path still belongs in the aggregate.')
+        schedules.append(schedule)
+    plan = dict(schema_version='native-forecast-plan-v1', request=forecast.model_dump(mode='json'),
+        catalogue=catalogue.metadata(), target_calendar=calendar.metadata(), cohorts=cohort_rows,
+        simulations=forecast.simulations, paths_per_cohort=forecast.simulations//len(starts),
+        cohort_assignment='path_index modulo sorted start-date count; equal path/cohort weights',
+        schedules=json_native(schedules), retained_path_indices=list(range(forecast.capture_paths)),
+        work=dict(source_validation_bars=validation, warmup_bars=warmup, executed_bars=executed,
+            total_bar_work=validation+warmup+executed, schedule_bytes=schedule_bytes,
+            retained_path_executed_bars=captured_bars, estimated_capture_bytes=captured_bars*2048,
+            capture_estimate='Preflight allowance, not a promise of encoded size; publication also enforces the existing 128 MiB artifact limit.',
+            bar_work_limit=MAX_FORECAST_BAR_WORK, schedule_bytes_limit=MAX_FORECAST_SCHEDULE_BYTES),
+        limitations=['Modeled future dates have no observed bars and are not a verified exchange calendar.',
+            'Actual source prices/timestamps are preserved. Signal state resets once per block with prior-only original-source feature warmup.',
+            'Provider state and original trading cash continue across blocks; no redraw is allowed after an execution failure.',
+            'Monte Carlo error conditions on this fitted block law and excludes historical-law, execution, provider and future uncertainty.',
+            'Native policy selection, historical-mean refitting and final procedure qualification remain separate unfinished work.'])
+    plan['plan_sha256'] = digest(plan)
+    return plan, catalogue, cohorts
 
 
 def run_replay(analyses, datasets, runs, id, request, expected, staged):
@@ -251,9 +432,40 @@ def run_replay(analyses, datasets, runs, id, request, expected, staged):
             with analyses.connect() as db:
                 db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?', (id, run_id))
         raise
+    result = controller.finish_replay()
+    forecast_result = None
+    if request.native_forecast is not None:
+        plan, catalogue, cohorts = prepare_native_forecast(datasets, request, check)
+        if canonical(plan) != canonical(expected['native_forecast_plan']):
+            raise ValueError('Native forecast schedule or source changed after its preflight.')
+        parameters = definition.parameters(strategy['parameters'])
+        factory = lambda:definition.create(parameters, config, instrument_symbol=check['dataset']['symbol'])
+        common = dict(forecast=request.native_forecast, max_micros=request.max_micros,
+            progress=lambda message:analyses._update(id, 'running', message))
+        if request.phase == 'evaluation':
+            from .evaluation_profiles import forecast_native_evaluation
+            from .evaluation_optimization import SequentialRetry
+            forecast_result = forecast_native_evaluation(catalogue, cohorts, factory, config,
+                EvaluationProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
+                retry=SequentialRetry(**(request.retry or {})), **common)
+        else:
+            from .funded_profiles import forecast_native_funded
+            forecast_result = forecast_native_funded(catalogue, cohorts, factory, config,
+                FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
+                receipt_delay_calendar_days=request.receipt_delay_calendar_days,
+                receipt_amount_convention=request.receipt_amount_convention, **common)
+        if canonical(forecast_result['schedules']) != canonical(plan['schedules']):
+            raise ValueError('Native forecast execution did not use the complete checked schedules.')
+        forecast_result['plan_sha256'] = plan['plan_sha256']
+        forecast_result['target_calendar'] = plan['target_calendar']
+        forecast_result['work'] = plan['work']
+        for name,value in [('native_forecast_plan.json', plan), ('native_forecast.json', forecast_result),
+                ('native_forecast_paths.json', forecast_result['paths']),
+                ('native_forecast_schedules.json', forecast_result['schedules']),
+                ('native_forecast_captures.json', forecast_result['captures'])]:
+            (staged/name).write_text(canonical(value), encoding='utf-8')
     if canonical(check_replay(datasets, runs, request)) != canonical(expected):
         raise ValueError('Native source or engine changed during execution; child report is retained for inspection, no phase report published.')
-    result = controller.finish_replay()
     from .rule_provenance import VERSION as REVIEW_VERSION, readiness
     rule_review = dict(version=REVIEW_VERSION, status='UNVERIFIED', production_qualified=False,
         profiles=[check['provider_rule_review']])
@@ -264,8 +476,11 @@ def run_replay(analyses, datasets, runs, id, request, expected, staged):
         ('native_result.json', result), ('control_events.json', result['control_events']),
         ('sizing_decisions.json', result['sizing_decisions']), ('session_trace.json', result['trace']), ('cash_ledger.json', result['cash_ledger'])]:
         (staged/name).write_text(canonical(value), encoding='utf-8')
-    return dict(format_version=6, model_version=MODEL_VERSION, engine='AlphaQuest local native strategy and phase controllers',
+    report = dict(format_version=6, model_version=MODEL_VERSION, engine='AlphaQuest local native strategy and phase controllers',
         settings=dict(ANALYSIS_MODE=request.mode, PHASE=request.phase), request=request.model_dump(), source=check,
         native_backtest_id=run_id, native_backtest=record, calculations=result,
         provider_rules=rule_review, deployment_readiness=readiness(rule_review),
         production_qualified=False, engine_identity=check['engine_identity'])
+    if forecast_result is not None:
+        report['native_forecast'] = forecast_result
+    return report

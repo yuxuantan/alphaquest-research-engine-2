@@ -539,6 +539,22 @@ and common sizing policy, then Check native source and Run native replay. The
 first supported subset requires complete one-minute sessions, EOD-flat enabled
 and strategy-local volatility sizing disabled. Results link the actual controlled
 backtest, causal decisions, provider session states, requests/deductions/receipts
-and durable downloads. Historical scenario status stays separate from native
-Monte Carlo and policy selection, which remain pending. See the [saved journey
+and durable downloads. Historical scenario status stays separate from the optional
+native Monte Carlo forecast below. Native policy selection remains pending. See the [saved journey
 and independent expected values](prop_simulation_review.md#native-chronological-strategy-and-account-replay--2026-11-08).
+
+
+### Optional native Monte Carlo forecast
+
+In the same native form, enable **Add native Monte Carlo forecast**. Declare total
+paths/seed, contiguous source block length, modeled calendar horizon, retained
+path count and an explicitly versioned target calendar. Source checking shows
+observed sessions separately from modeled cohorts and rejects unsupported shapes
+or excessive work. Run saves the actual historical child plus a separate forecast
+in the same normal durable report. Inspect all-path statistics, censored
+Evaluation means, separate receipts/pending/deductions, selected detail paths and
+both source/model clocks. Conditional Monte Carlo error is not future confidence.
+Reopening/downloading does not resimulate. The [saved demonstration](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08)
+contains exact declarations, independent dynamic quantities/cash, rejection cases,
+source bytes and startup/shutdown steps. Native candidate optimization and frozen
+outer application remain pending.

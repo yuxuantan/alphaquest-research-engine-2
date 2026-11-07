@@ -8084,3 +8084,130 @@ Use a fresh output path to preserve existing evidence:
 ```
 
 The fixture creates normal local datasets, a normal saved single-configuration grid source, normal prop analyses and actual controlled child backtests. It uses no demo-only route or product oracle. Chromium needs process access on this macOS environment. Each owned server is stopped by the fixture, including failures. This browser gate is a focused workflow/evidence check, not a full repository or provider-certification claim.
+
+
+## Native contiguous-block forecasts — 2026-11-08
+
+
+The existing native prop form now optionally adds a native Monte Carlo forecast to its actual historical replay. Both results are retained separately in the same normal AnalysisStore report. The historical controlled RunStore child remains a real observed chronology; sampled source blocks never become a fabricated historical dataset or child backtest. Native policy optimization, campaign integration, historical-mean refitting and final procedure qualification remain pending.
+
+Final evidence is `artifacts/native-forecast-m2d-20261108/browser-final`: four browser cases passed in 69.12 seconds. The six existing historical native browser cases passed separately in 38.03 seconds under `artifacts/native-forecast-m2d-20261108/browser-regression`. All 84 captured final downloads were independently rehashed, exact saved source CSVs match dataset SHA-256, each report file matches its manifest, all four reloads issued no POST, and retained detail IDs are exactly 0 and 1 while all four paths remain in metrics and schedules. Screenshots of declarations, source/model clocks, dynamic outcomes and censored means were inspected at desktop and 390 px widths. Every owned temporary server exited; no persistent demonstration server remains running.
+
+Engine identity before and after: `619d0bae83c621462f869e06b0f5fd52b3bb84d4a0c07c356560a36083bc8ba9`. The synthetic fixtures are arithmetic and workflow demonstrations, not evidence of market edge, future precision or provider parity. Zero Monte Carlo standard error on the constant source pool does not certify the model or future performance.
+
+### Reopen and reproduce the Funded example
+
+Start the ordinary application with the saved Funded library:
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/native-forecast-m2d-20261108/browser-final/data/test_native_forecast_is_separa0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#backtests/report/29f8a3430541461196361d22a46a016d`. This original source was made by the normal one-configuration grid with `automatic_prop:false`, actual MNQ symbol/tick/point values, EOD-flat enabled and local strategy volatility sizing disabled. It has seven complete synthetic minute sessions. Automatic legacy reports were explicitly disabled for this grid; their product default and historical calculations are unchanged.
+
+Choose **Configure prop analysis** → **Configure native account-state replay**. Select **Fresh Funded account**, Apex 50K EOD, **Fixed MNQ quantity** and 3 MNQ. Leave source session dates blank for the saved complete IS coverage. Actual execution and matching planning costs are zero slippage and zero commission. Receipt delay is 2 calendar days, **Unrounded model entitlement**.
+
+Check **Add native Monte Carlo forecast** and enter:
+
+- Total paths `4`; seed `1729`; contiguous source sessions per block `1`.
+- Modeled horizon `9` calendar days; retain detailed paths `2`.
+- Modeled calendar declaration `explicit-demo-weekdays-v1`.
+- Start date `2026-01-26`; coverage end `2026-02-05`; timezone America/Chicago.
+- No additional full closures or early closes for this explicit synthetic modeled-calendar example. The target calendar is user-declared and unverified; it is not copied from reviewed source-calendar metadata.
+
+Choose **Check native source**. The actual source shows 7 observed complete sessions / 9,660 minute bars. The forecast plan shows 7 complete one-session source blocks, 4 total paths in one equally weighted start cohort, modeled cutoff `2026-02-04` exclusive and 7 modeled open sessions. Retained detailed IDs are `0, 1`, chosen before outcomes. Expected planned work is 38,640 source-validation bars + 104,880 feature-only warmup bars + 38,640 sampled execution bars = **182,160 total bar work**, with 26,189 schedule bytes and a 39,567,360-byte capture allowance. These are backend plan values, not frontend estimates or a claim that every planned trade occurs.
+
+Choose **Run native replay**. The original historical part remains January 5–13, with $6,300 trading profit, $1,500 gross withdrawal and modeled historical receipt on January 11. Below it, **Native Monte Carlo forecast** shows a separate modeled target horizon: each of four paths realizes seven $900 trades, a $1,500 request/deduction on January 30 and modeled receipt February 1. Mean received cash is $1,500; mean pending cash is $0; mean gross deductions are $1,500; mean provider equity **change** is $4,800, equivalent to nominal balance $54,800 from the declared $50,000 basis. All four paths enter these means. Their constant arithmetic gives conditional MCSE 0; the UI explicitly limits its interpretation.
+
+Expand **Inspect all modeled path summaries** and **Inspect retained native paths and both clocks**. Selecting path 1 changes presentation only. The source dates may repeat or move backward, while modeled target sessions remain chronological. Original source fill timestamps/prices remain distinct from modeled provider/cash dates. Warmup is prior-only feature processing and creates no trades, fees or provider activity. Provider state and actual trading cash continue across sampled blocks.
+
+Open the durable analysis directly at `http://127.0.0.1:8019/#backtests/prop/job/0f18e55474c5489eb3f0de917ff948a1`. Its actual controlled backtest is `a0137f073a61462c8013db555a45cf63`. Reloading the saved analysis executes no POST or native bars. Download the normal report JSON/ZIP and dedicated `native_forecast_plan.json`, `native_forecast.json`, `native_forecast_paths.json`, `native_forecast_schedules.json` and `native_forecast_captures.json`. Historical `trades.csv`, `equity.csv` and cash ledger remain separate files. Stop the server with **Ctrl-C**.
+
+### Independent Evaluation and dynamic-sizing observations
+
+Switch the evidence library to the applicable suffix below, restart the same normal server, and open its source or saved analysis. All dates and inputs remain inspectable in the captured request JSON.
+
+| Example | Inputs | Independent expected result |
+| --- | --- | --- |
+| Evaluation resolved | Same seven-session source and 3 MNQ; evaluation fee $30, activation $40; same forecast dates/horizon | Every path passes January 29, pays activation January 30 and reaches funded readiness February 2. All-path acquisition mean $70, elapsed calendar mean 7 days, 4 completed / 0 censored. No Funded outcomes enter Evaluation. |
+| Evaluation censored | Same setup, horizon 3 calendar days, cutoff January 29 exclusive | All four paths pay $30, none acquires a funded account, observed duration 3 days. Eventual acquisition cost/time means and their MCSE are unavailable with `unresolved_acquisition_censoring`; restricted all-path fees remain $30. No successful-only statistic or fees/pass ratio is substituted. |
+| Dynamic Funded forecast | Three-session source; hard cap 40; risk policy 0.2% current balance; 4 paths, seed 1729, block 1, horizon 3, same target start/coverage | Source block indices are [1,2,0], [1,0,0], [2,2,0], [0,1,1]. Accepted quantities are [10,5,10], [10,10,10], [5,5,10], [10,9,10]. Path provider equity changes are $200, $0, $100, $280. Equal-path mean $145 and conditional MCSE 60.759087111860616. Received and pending cash are $0. Historical source chronology independently stays quantities 10/9/5 and $180 trading profit. |
+
+Dynamic arithmetic uses the known source outcomes and stop widths: source block 0 has unit net −$10 / planned unit risk $10; block 1 +$20 / risk $10; block 2 +$20 / risk $20. Quantity is the whole-contract floor of 0.2% of the current provider balance divided by unit risk, under the saved caps. The oracle lives in tests and does not call the production sizing or aggregate helper.
+
+The report labels account cash P10/median as outcome distributions, distinct from the estimated mean's conditional Monte Carlo error. A Funded account can remain open at cutoff while finite-horizon cash observation is complete. Historical-law uncertainty, execution/liquidity, provider rules, settlement and future uncertainty are not measured by these MC standard errors.
+
+### Rejection observations through the same form
+
+Before the valid Funded check, the browser verified these declarations reject and keep Run disabled:
+
+1. Modeled start January 13, on the last admitted source session.
+2. Two distinct starts but total paths 3, so equal start-cohort allocation is impossible.
+3. A modeled January 27 early close at 13:00 with no compatible observed source block shape. The date is not silently removed and no lucky redraw repairs it.
+4. Retained detailed paths 5 with total paths 4.
+
+Changing a forecast or calendar field invalidates the previous check. An execution failure fails combined analysis publication rather than silently dropping the forecast; any already-created historical child remains independently inspectable. Censored Evaluation with null acquisition means is a valid completed result, not such an execution failure.
+
+### Exact source bytes, identities and split dates
+
+All fixture input rows are synthetic. `SYNTHETIC-MNQ-observed-bars.csv` is downloaded from the actual dataset endpoint and matches its saved SHA-256. Its final reserved synthetic OOS row is unexecuted; it is included so a fresh source recreation can use the exact original declaration. Use `source-research-declaration.json` and `original-source-report.json` for original parameters, costs and split dates.
+
+For the three constant-pool cases, source timezone UTC IS is January 4–13, 2026 and reserved OOS January 14; admitted CME sessions are January 5–13. For the dynamic case UTC IS is January 4–7 and reserved OOS January 8; admitted CME sessions are January 5–7. Modeled forecasts start January 26, after all admitted IS sessions. Do not confuse these three clocks/date declarations.
+
+All suffixes below are under `artifacts/native-forecast-m2d-20261108/browser-final/data/`.
+
+| Library suffix | Original source | Combined analysis | Actual historical child |
+| --- | --- | --- | --- |
+| `test_native_forecast_dynamic_q0` | `0b53e6a599f04052bfba2b887ee2db60` | `81d08647db0d4ccb8ef08f5b37f4cd4f` | `4d0888be9b624d42a6e7ee52ef29f0a8` |
+| `test_native_forecast_is_separa0` | `29f8a3430541461196361d22a46a016d` | `0f18e55474c5489eb3f0de917ff948a1` | `a0137f073a61462c8013db555a45cf63` |
+| `test_native_forecast_is_separa1` | `f5dfec353fcf41f4a9be66a8cf4c9977` | `e5ecc4a663a04af7813d26edabf43f22` | `2fd92a591d9a4a9a80b899e2675638bc` |
+| `test_native_forecast_is_separa2` | `55effe7affb740e9b7f0c3faf38ad0e8` | `55fd65b3360c4a45ac1945b6383a2a68` | `086bf0e1abd64723b9d05d24ac08e04d` |
+
+Full hashes, schedules, work estimates, expected values and absolute library paths are in `artifacts/native-forecast-m2d-20261108/browser-final/verified-evidence.json`, with per-case downloads in `browser-evidence.json`.
+
+Funded report SHA-256: `470284a500dc7adee68de0abc7cb7225a940bc71cba75b7ced07cd5ff8e3d253`; ZIP: `6b4910e6b8f8f62964443254a834f2572fabaf77e44e7e41731bdd7cafb55266`; forecast: `4ab7ebad266258fd7d0c8b41ee616a34d549f42b46863b0409158d38dffd4500`.
+
+Dynamic report SHA-256: `df3fbff345faba8020b5a8eb3a860a79e62de265f7945c4efb272db36f7cb929`; ZIP: `838ff3b4fe384c4d7ff5dfae8725477c6486cc51f83b9dc0d0dacf46b1b6eabb`; forecast: `90c23c62e035fd27937ef76781a1b5bdce1f693e65a3c17d1af2018fa31d04fc`.
+
+### Repeat the focused product gate without replacing saved evidence
+
+```sh
+cd /Users/yx/alphaquest-research-engine-2
+aq_forecast_run="/private/tmp/alphaquest-native-forecast-reproduce-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$aq_forecast_run"
+.venv/bin/python -m pytest -q tests/test_native_forecast_browser.py --basetemp "$aq_forecast_run/data" --junitxml "$aq_forecast_run/junit.xml" > "$aq_forecast_run/pytest.log" 2>&1
+```
+
+Historical native regression: run `tests/test_native_replay_browser.py` with a separate fresh basetemp/log/XML directory. Chromium needs process access in this macOS environment. Portal fixtures create only owned temporary local servers and stop them on exit, including failures. These focused browser checks do not claim full-suite success, native optimizer integration or provider/deployment certification.
+
+
+### Additional backend gates and earlier probes
+
+Final API integration is `artifacts/native-forecast-m2d-20261108/api-final/`:
+17 passed in 142.69 seconds, including historical API regressions, all-path
+cash/censoring, blocks 1 and 5, unavailable block-10 pools, incompatible early
+closes and rejection before reservation. Engine identity before/after matched.
+Final focused contracts/adapter/phase owners/observed controllers are in
+`pure-final/`: 99 passed in 63.26 seconds, including strict calendar arrays,
+resource bounds, report-plus-components publication size, source/prefix hash
+verification, rejected schedule tampering, phase separation and Python/compiled
+observed controller checks. The independent owner gate also passed 58 checks;
+it overlaps the final focused gate and is not an extra independent baseline.
+
+Earlier probe failures remain saved. An API run correctly rejected a concurrent
+production-code identity change; it was repeated only after the code freeze.
+A positive contract fixture initially declared coverage two days short of its
+latest cutoff; the fixture was corrected, preserving the production rejection.
+Independent review tightened calendar array types and included embedded report
+JSON in publication size before the final gates. These are targeted checks;
+provider parity, whole-platform qualification and native policy selection are
+not claimed.
+
+Existing Evaluation/Funded/profile regression: 68 passed in 149.02 seconds
+(`existing-phase-regression.log/.xml`). Root independently rehashed 64 API
+component files and 84 browser downloads across eight saved analyses; verified
+all-path retention and inspected narrow dynamic/censored views
+(`root-verification.json`). Python compilation, changed JavaScript syntax checks
+and `git diff --check` passed. The only warning in the API/legacy phase gates is
+the existing Starlette/httpx deprecation. No persistent server was started.

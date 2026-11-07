@@ -134,6 +134,81 @@ class NativeFundedController(NativeControlBase):
             horizon_observations_complete=True)
 
 
+def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factory, config,
+        profile, sizing, micros, *, forecast, receipt_delay_calendar_days,
+        receipt_amount_convention, max_micros=40, checkpoint=lambda: None,
+        progress=lambda message: None):
+    """One fresh funded account per modeled path; receipt means include zeros."""
+    from collections import Counter
+    from dataclasses import asdict
+    from .native_draws import build_schedule, run_path
+    from .phase_profiles import equal_stratum_mean, native_forecast_layout
+    _, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue)
+    parameters = strategy_factory().parameters
+    paths, schedules, captures = [], [], []
+    for path_index in range(forecast.simulations):
+        checkpoint()
+        cohort_index = path_index % len(cohorts)
+        start, first, cutoff, contexts = cohorts[cohort_index]
+        progress(f'Native Funded forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
+        schedule = build_schedule(catalogue, contexts, parameters, phase='funded',
+            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff)
+        owner = NativeFundedController(profile, sizing, micros, max_micros=max_micros,
+            session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
+            receipt_delay_calendar_days=receipt_delay_calendar_days,
+            receipt_amount_convention=receipt_amount_convention)
+        detailed = path_index < forecast.capture_paths
+        output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
+            capture=detailed, checkpoint=checkpoint)
+        result = output['result']
+        row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
+            cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
+            positive_received_cash=float(result['cash_received'])>0,
+            breached=result['outcome']=='blown', open_at_cutoff=result['outcome']=='open',
+            sizing_summary=result['sizing']['summary'])
+        for key in ('outcome','terminal_date','lifetime_censored','cash_received','pending_cash',
+                    'gross_account_deductions','raw_trader_entitlement','provider_retained_share',
+                    'net_cash','receipt_rounding_delta','receipt_amount_convention','payout_events',
+                    'cash_ledger','equity','trading_profit','execution_counts','conservation'):
+            row[key] = result[key]
+        paths.append(row); schedules.append(schedule)
+        if detailed:
+            captures.append(dict(path_index=path_index, cohort_index=cohort_index, **output))
+        progress(f'Native Funded forecast completed path {path_index+1}/{forecast.simulations}.')
+    def estimate(key):
+        return equal_stratum_mean([[row[key] for row in paths if row['cohort_index']==index]
+                                  for index in range(len(cohorts))])
+    names = dict(mean_received_cash='cash_received',mean_pending_cash='pending_cash',
+        mean_gross_account_deductions='gross_account_deductions',mean_provider_equity_change='equity',
+        probability_positive_received_cash='positive_received_cash',probability_breach='breached',
+        probability_open_at_cutoff='open_at_cutoff')
+    estimates = {name:estimate(key) for name,key in names.items()}
+    values = [float(row['cash_received']) for row in paths]
+    metrics = {key:value['mean'] for key,value in estimates.items()}
+    metrics.update(p10_received_cash=float(np.quantile(values,.1)),median_received_cash=float(np.median(values)),
+        zero_cash_paths=sum(value==0 for value in values),paths=len(paths),
+        outcome_counts=dict(Counter(row['outcome'] for row in paths)))
+    return dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='funded',
+        model=forecast.model,settings=forecast.model_dump(mode='json'),catalogue=catalogue.metadata(),
+        phase_configuration=dict(profile=asdict(profile),sizing=asdict(sizing),micros=micros,
+            max_micros=max_micros,receipt_delay_calendar_days=receipt_delay_calendar_days,
+            receipt_amount_convention=receipt_amount_convention),
+        status='finite_horizon_model_mean',readiness='MODELED_SCENARIO_ONLY',observed_future_data=False,
+        metrics=metrics,uncertainty=dict(metrics=estimates,
+            method='Equal-weight start cohorts; MCSE sqrt(sum(within-cohort sample variance / paths per cohort)) / cohort count.',
+            account_quantiles='Empirical per-account cash quantiles with linear interpolation, not uncertainty bounds on expected cash.',
+            scope='Conditional Monte Carlo noise under the declared empirical draw law only; not uncertainty in the law or future performance.',
+            historical_mean_uncertainty_available=False),
+        paths=paths,schedules=schedules,captures=captures,capture_path_indices=list(range(forecast.capture_paths)),
+        assumptions=[
+            'Exactly one fresh funded account per path; every path remains in receipt means, including zero cash, breach and inactivity.',
+            'Only modeled trader receipts strictly before the civil cutoff count as cash; pending entitlement, gross account deductions and provider equity stay separate.',
+            'Provider equity change is relative to the configured 50000 initial account balance; it is not trader cash received.',
+            'Open account lifetimes are censored, while the declared finite-horizon receipt observation is complete under this model.',
+            'Target calendars, provider rules, execution liquidity, intrabar ordering and settlement assumptions remain unverified; zero MCSE is not certification.',
+            'No Evaluation pass, acquisition fee, acquisition duration or replacement-account inputs enter this Funded forecast.'])
+
+
 def simulate_funded_profile(
     runs, source: SavedTradeSource, profile: FundedProfile, micros: int,
     horizon_weekdays: int,
