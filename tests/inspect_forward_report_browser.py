@@ -6,6 +6,7 @@ Run explicitly; ordinary pytest discovery does not collect this utility.
 """
 import argparse
 from hashlib import sha256
+from decimal import Decimal
 import io
 import json
 from pathlib import Path
@@ -39,15 +40,28 @@ def inspect(library,expectations,output):
                 expect(page.locator('#forward-assessment-result')).to_be_visible(timeout=30000)
                 response=page.request.get(url+f'/api/prop-analyses/{id}/downloads/report.json');assert response.ok,response.text()
                 raw=response.body();report=response.json();assert report['model_version']=='forward-monitor-v1'
-                conformance=report['calculations']['policy_conformance'];assert conformance['status']==case['status']
+                if 'report_sha256' in case:assert sha256(raw).hexdigest()==case['report_sha256']
+                calculations=report['calculations']
+                for key,value in case.get('expected_metrics',{}).items():assert Decimal(calculations['metrics'][key])==Decimal(value)
+                if 'expected_advisory' in case:assert calculations['advisory']['state']==case['expected_advisory']
+                if 'expected_forward_evidence' in case:assert calculations['forward_evidence']['status']==case['expected_forward_evidence']
+                conformance=calculations['policy_conformance'];assert conformance['status']==case['status']
                 rows=conformance['decisions'];assert [row['recalculated']['quantity'] for row in rows]==case['expected_quantities']
                 if 'expected_supplied' in case:assert [row['supplied'].get('submitted_quantity',row['supplied'].get('quantity')) for row in rows]==case['expected_supplied']
                 if 'denominator_values' in case:assert [row['recalculated'].get('denominator_value') for row in rows]==case['denominator_values']
+                if 'expected_denominators' in case:assert [row['recalculated'].get('denominator') for row in rows]==case['expected_denominators']
+                if 'expected_reason_codes' in case:assert [row['reasons'] for row in rows]==case['expected_reason_codes']
                 panel=page.locator('#forward-policy-conformance')
                 if panel.get_attribute('open') is None:panel.locator(':scope > summary').click()
                 expect(page.locator('#forward-sizing-decisions tbody tr')).to_have_count(len(rows))
                 for index,row in enumerate(rows):
                     expect(page.locator('#forward-sizing-decisions tbody tr').nth(index)).to_contain_text(str(row['recalculated']['quantity'])+' / '+row['recalculated']['action'])
+                if 'expected_decision_text' in case:
+                    assert len(case['expected_decision_text'])==len(rows)
+                    for index,texts in enumerate(case['expected_decision_text']):
+                        displayed=page.locator('#forward-sizing-decisions tbody tr').nth(index)
+                        for text in texts:expect(displayed).to_contain_text(text)
+                        for cell in (5,6):expect(displayed.locator('td').nth(cell)).not_to_contain_text('_')
                 panel.screenshot(path=str(output/(case['label']+'-decisions.png')))
                 clocks=panel.get_by_text('Supplied causal sizing clocks and planned risk',exact=True)
                 if clocks.count():clocks.click();panel.screenshot(path=str(output/(case['label']+'-causal-context.png')))

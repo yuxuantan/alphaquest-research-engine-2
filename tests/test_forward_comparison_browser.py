@@ -19,9 +19,9 @@ from test_research_procedure_browser import portal
 from test_forward_api import current_policy
 from test_forward_browser import event_file,import_file,monitor
 from test_forward_reconcile import fixture
-from test_forward_comparison import comparison_fixture
+from tests.forward_comparison_fixtures import prospective_observation,coverage_events_for_binding
 from alphaquest.forward_reconcile import stamp
-from alphaquest.forward_comparison import iso
+from alphaquest.forward_comparison import boundary,iso
 
 
 def assess_at(page,portal,clock):
@@ -34,8 +34,7 @@ def assess_at(page,portal,clock):
 
 
 def supplied_comparison_events(binding):
-    _,_,_,rows,_,_=comparison_fixture()
-    base=[deepcopy(row['event']) for row in rows]
+    base,_=coverage_events_for_binding(binding,complete=False)
     start=stamp(binding['coverage_start_utc']);trades=[]
     for index,event in enumerate(fixture()[1:14],1):
         event=deepcopy(event);event['event_id']='trade-'+event['event_id']
@@ -59,7 +58,8 @@ def supplied_comparison_events(binding):
 def test_prospective_funded_scope_partial_then_complete_exact_cash_delta(page,portal,tmp_path):
     with httpx.Client(base_url=portal['url'],timeout=300) as client:
         dataset,campaign,application,package=current_policy(client)
-    clock=['2026-11-09T00:00:00Z'];portal['app'].state.forward_monitors.clock=lambda:clock[0]
+    plan,created=prospective_observation(application,package)
+    clock=[created];portal['app'].state.forward_monitors.clock=lambda:clock[0]
     page.goto(portal['url']+'/#backtests/prop/job/'+application['analysis_id'])
     page.locator('#forward-launcher > summary').click()
     page.locator('#forward-name').fill('SYNTHETIC full Funded scope · deterministic receiver clock')
@@ -69,9 +69,9 @@ def test_prospective_funded_scope_partial_then_complete_exact_cash_delta(page,po
     page.locator('#forward-synthetic-clock').check()
     page.locator('#forward-observation-scope > summary').click();page.locator('#forward-scope-enabled').check()
     page.locator('#forward-scope-account').fill('synthetic-funded')
-    page.locator('#forward-scope-first').fill('2026-11-10');page.locator('#forward-scope-translate').click()
-    playwright.expect(page.locator('#forward-scope-cutoff')).to_have_value('2026-11-17')
-    assert page.locator('.forward-scope-session').evaluate_all('(rows)=>rows.map(row=>row.value)')==['2026-11-10','2026-11-11','2026-11-12','2026-11-13','2026-11-16']
+    page.locator('#forward-scope-first').fill(plan['first_session']);page.locator('#forward-scope-translate').click()
+    playwright.expect(page.locator('#forward-scope-cutoff')).to_have_value(plan['cutoff_date_exclusive'])
+    assert page.locator('.forward-scope-session').evaluate_all('(rows)=>rows.map(row=>row.value)')==plan['open_sessions']
     page.locator('#forward-scope-assumption').fill('Predeclared synthetic same-weekday calendar-pattern translation; stationarity and future behavior are not established.')
     # Absolute dates are not silently relabeled as the saved model calendar.
     page.locator('#forward-scope-alignment').select_option('exact_saved_dates');page.locator('#forward-check').click()
@@ -80,15 +80,15 @@ def test_prospective_funded_scope_partial_then_complete_exact_cash_delta(page,po
     page.locator('#forward-launch-status').screenshot(path=str(tmp_path/'exact-date-mismatch-rejection.png'))
     page.locator('#forward-scope-alignment').select_option('declared_pattern_translation');page.locator('#forward-check').click()
     playwright.expect(page.locator('#forward-create')).to_be_enabled(timeout=30000)
-    playwright.expect(page.locator('#forward-scope-binding-facts')).to_contain_text('2026-11-09T23:00:00Z')
+    playwright.expect(page.locator('#forward-scope-binding-facts')).to_contain_text(iso(boundary(plan['first_session'],plan['cutoff_date_exclusive'])[0]))
     page.locator('#forward-source-check').screenshot(path=str(tmp_path/'prospective-synthetic-scope-check.png'))
     page.locator('#forward-create').click();playwright.expect(page.locator('#forward-monitor-state')).to_be_visible()
     id=page.url.rsplit('/',1)[-1];base=portal['url']+'/api/forward-monitors/'+id
     saved=page.request.get(base).json();binding=saved['source_check']['forecast_observation_plan']
     assert saved['declaration']['source']['receiver_clock_provenance']=='synthetic_harness_clock'
     assert binding['original_window']['first_session']=='2026-01-27'
-    assert binding['plan']['first_session']=='2026-11-10'
-    assert binding['plan']['cutoff_date_exclusive']=='2026-11-17'
+    assert binding['plan']['first_session']==plan['first_session']
+    assert binding['plan']['cutoff_date_exclusive']==plan['cutoff_date_exclusive']
     events=supplied_comparison_events(binding);end=stamp(binding['coverage_cutoff_utc'])
     clock[0]=iso(end+timedelta(seconds=1))
     partial_file=event_file(tmp_path,'SYNTHETIC-partial-scope-events.json',events)
@@ -141,5 +141,5 @@ def test_prospective_funded_scope_partial_then_complete_exact_cash_delta(page,po
     (tmp_path/'evidence.json').write_text(json.dumps(dict(campaign_id=campaign,current_analysis_id=application['analysis_id'],monitor_id=id,
         partial_analysis_id=partial['id'],complete_analysis_id=complete['id'],package_sha256=package['package_sha256'],
         plan_sha256=binding['plan_sha256'],expected=dict(frozen_mean=1500,received=50,observed_minus_expected=-1450,trading_net=3,provider_balance=49953,fixed_entry_quantity=3),
-        synthetic_clock=dict(created='2026-11-09T00:00:00Z',received=clock[0],assessment=iso(end+timedelta(seconds=4)),provenance='synthetic_harness_clock',product_clock_control=False),
+        synthetic_clock=dict(created=created,received=clock[0],assessment=iso(end+timedelta(seconds=4)),provenance='synthetic_harness_clock',product_clock_control=False),
         downloads=downloads,reopen_posts=posts,prior_snapshot_unchanged=True,server='Owned temporary server stopped and joined.'),indent=2))

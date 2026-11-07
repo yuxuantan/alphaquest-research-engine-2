@@ -9056,3 +9056,56 @@ PYTHONPATH="$PWD" .venv/bin/python tests/inspect_forward_report_browser.py --lib
 ```
 
 Use a fresh output path. The utility rejects a missing library, issues no POST requests, asserts the independent expected quantities/denominators and copied wording, checks unchanged normal downloads, and shuts down its own temporary server.
+
+## 8 November 2026 — Final acceptance repairs and readable sizing explanations
+
+The first complete suite retained 2,262 passes and eight investigated failures;
+it is not a passing release result. The failure dispositions and retained paths
+are in `robust_research_plan.md`. The corrected application identity is
+`cb93c970dab535aaa3b0943243b15695e2c1b885513a13da164008e92bab3866`.
+Malformed saved timezone metadata now reaches the normal dataset diagnostic
+before any cache or source read. The 116-case reader/access/cache gate passed;
+phase calculation identities remain unchanged. This does not change valid
+source calculations or authorize reuse by omitting changed code from identity.
+
+The normal saved monitor report now displays `current account balance` and
+readable mismatch reasons. JSON downloads retain the original reason codes.
+The actual repository read-render utility reopened both prior dynamic reports
+on the corrected source, verified their original SHA-256 values, four downloads
+and 15 ZIP members, and made zero POST requests. Desktop and 390 px views were
+inspected. Evidence, independent expectations and the exact command are in
+`artifacts/final-research-acceptance-20261108/dynamic-label-browser-v1/`.
+
+Use the authoritative dynamic-library startup command in the preceding section.
+Open the matching and discrepancy report links, then expand **Supplied policy
+decisions versus local arithmetic**. Expect quantities 10 then 9, balances
+$50,000 then $49,900, risk budgets $400.00 then $399.20, and readable words in
+the denominator/reasons cells. The corrected supplied first quantity is 9
+against a recalculated 10, producing MISMATCH and advisory PAUSED. Both snapshots
+retain actual synthetic trading P&L $80 and ending equity $50,080. The prior
+matching report stays unchanged. Download JSON/ZIP, reload, and reopen from the
+monitor: no calculation is launched. Stop the temporary server with Ctrl-C.
+
+The repaired prospective-clock/API/browser gate passed eight cases, including
+future policy seals and DST boundaries, under the corrected source. Its normal
+browser library is available with:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/final-research-acceptance-20261108/forward-clock-repair-gate-v1/data/test_prospective_funded_scope_0" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8022
+```
+
+Open `http://127.0.0.1:8022/#backtests/prop/job/1472693d8494404baaeacd1e4027a8bf`.
+Expect frozen receipts $1,500, synthetic supplied receipts $50, difference
+−$1,450, trading net $3, ending provider balance $49,953 and fixed quantity 3.
+The earlier partial report `47da447933d747ceb03998c061465d4b` remains
+NOT_COMPARABLE. The normal monitor is
+`/#backtests/prop/monitor/1aeec84afa114078865727179a1d8187` and current-policy
+report is `/#backtests/prop/job/bc58047afe384d65ae7f42734ea11adc`. Eight downloads,
+15 ZIP members and unchanged prior bytes were checked. Stop with Ctrl-C.
+
+These examples use labeled synthetic inputs and test-harness receiver clocks.
+The product cannot change its server clock. Original forecast dates stay fixed;
+the test declaration follows the actual policy seal and chooses a compatible
+later observation window. Reopening these reports does not create genuine
+future observations or a present broker-health claim. All automated temporary
+servers stopped. A fresh complete passing suite remains the final release gate.

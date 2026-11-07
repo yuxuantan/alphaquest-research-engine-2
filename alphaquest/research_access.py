@@ -93,13 +93,14 @@ def source_identity(dataset):
 
 
 def coverage(dataset, date_range=None):
+    from .backtest_data import saved_source_timezone
+    zone=saved_source_timezone(dataset)
     first=datetime.fromisoformat(dataset['start'].replace('Z','+00:00'))
     last=datetime.fromisoformat(dataset['end'].replace('Z','+00:00'))
     if date_range is not None:
         if getattr(date_range,'convention',None)=='cme_chicago_1700_v1':
             return dict(first_session=(date_range.from_date.isoformat() if date_range.from_date else str(session_date(first))),
                 last_session=(date_range.to_date.isoformat() if date_range.to_date else str(session_date(last))))
-        zone=ZoneInfo(dataset['source_timezone'])
         if date_range.from_date:
             first=max(first,datetime.combine(date_range.from_date,time.min,zone).astimezone(timezone.utc))
         if date_range.to_date:

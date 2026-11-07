@@ -29,6 +29,17 @@ class UnsupportedDatasetSchema(DatasetReadError):
     pass
 
 
+def saved_source_timezone(metadata):
+    """Validate persisted timezone metadata before access mapping or replay."""
+    source_timezone = metadata.get("source_timezone")
+    if not isinstance(source_timezone, str) or not source_timezone:
+        raise DatasetReadError("The dataset has no saved source timezone; it cannot be inferred.")
+    try:
+        return ZoneInfo(source_timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise DatasetReadError(f"Invalid saved source timezone: {source_timezone!r}.") from None
+
+
 @dataclass(frozen=True)
 class DateRange:
     """Inclusive calendar dates in the dataset's saved source timezone."""
@@ -116,13 +127,7 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
     guard_read(store,dataset_id,origin='read_bars')
     if metadata.get("columns") != COLUMNS:
         raise UnsupportedDatasetSchema("Unsupported dataset schema. Backtest reading requires: " + ",".join(COLUMNS))
-    source_timezone = metadata.get("source_timezone")
-    if not isinstance(source_timezone, str) or not source_timezone:
-        raise DatasetReadError("The dataset has no saved source timezone; it cannot be inferred.")
-    try:
-        zone = ZoneInfo(source_timezone)
-    except (ZoneInfoNotFoundError, ValueError):
-        raise DatasetReadError(f"Invalid saved source timezone: {source_timezone!r}.") from None
+    zone = saved_source_timezone(metadata)
     with ExitStack() as stack:
         open_snapshot = getattr(store, "open_snapshot", None)
         snapshot = stack.enter_context(open_snapshot(dataset_id) if open_snapshot else TemporaryFile(mode="w+b"))

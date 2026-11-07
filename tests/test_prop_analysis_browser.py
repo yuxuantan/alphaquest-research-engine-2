@@ -32,8 +32,28 @@ def test_local_report_reload_reopen_and_download(page,portal,tmp_path):
     assert data['calculations']['joint_sizing']['selected'] is None
     posts=[];page.on('request',lambda req:posts.append(req.url) if req.method=='POST' else None)
     page.reload();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=10000);assert not posts
-    page.locator('#prop-back').click();page.locator('#report-prop-setup').click();page.locator('#prop-saved a').first.click()
+    saved_report=portal['app'].state.prop_analyses.root/data['id']/'report.json'
+    source_report=portal['app'].state.runs.root/r['id']/'report.json'
+    saved_bytes,source_bytes=saved_report.read_bytes(),source_report.read_bytes()
+    analysis_ids={row['id'] for row in portal['app'].state.prop_analyses.list(r['id'])}
+    page.locator('#prop-back').click()
+    # Configure derives the existing IS bounds through one metadata-only POST;
+    # report reload/reopen must still make no calculation or submission requests.
+    window_url=portal['url']+'/api/research-campaigns/source-window'
+    with page.expect_response(lambda response:response.url==window_url and response.request.method=='POST') as checked_window:
+        page.locator('#report-prop-setup').click()
+    response=checked_window.value
+    assert response.status==200
+    assert response.request.post_data_json=={'sources':[{'backtest_id':r['id'],'sizes':[1]}]}
+    assert response.json()['is_window']=={'first_session':'2026-01-05','last_session':'2026-01-06'}
+    assert posts==[window_url]
+    posts.clear()
+    page.locator(f"#prop-saved a[href='#backtests/prop/job/{data['id']}']").click()
     playwright.expect(page.locator('#prop-report')).to_be_visible();assert not posts
+    assert page.url.endswith('/#backtests/prop/job/'+data['id'])
+    assert saved_report.read_bytes()==saved_bytes==destination.read_bytes()
+    assert source_report.read_bytes()==source_bytes
+    assert {row['id'] for row in portal['app'].state.prop_analyses.list(r['id'])}==analysis_ids
 
 
 def presentation_fixture(record):

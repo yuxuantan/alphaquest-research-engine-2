@@ -9,26 +9,22 @@ from fastapi.testclient import TestClient
 from alphaquest.app import create_app
 from alphaquest.forward_reconcile import stamp, digest
 from tests.test_forward_api import current_policy, wait_monitor
-from tests.test_forward_comparison import comparison_fixture
+from tests.forward_comparison_fixtures import prospective_observation,coverage_events_for_binding
 from tests.test_forward_reconcile import fixture
 from alphaquest.forward_comparison import iso
 
 
 def observation_body(client,campaign_id,application,package):
-    _,_,binding,_,_,created=comparison_fixture()
+    plan,created=prospective_observation(application,package)
     return dict(monitor_id=uuid4().hex,name='SYNTHETIC complete funded horizon; deterministic receiver clock',observation_kind='synthetic_harness',
         policy_binding=dict(campaign_id=campaign_id,application_id=application['application_id'],phase='funded',package_sha256=package['package_sha256']),
         source=dict(source_id='synthetic-full-horizon',label='SYNTHETIC independent events and deterministic harness receiver clock',receiver_clock_provenance='synthetic_harness_clock'),
         instrument=dict(symbol='MNQ',tick_size='.25',point_value='2'),thresholds=dict(maximum_position_contracts=3),
-        forecast_observation=binding['plan']),created
+        forecast_observation=plan),created
 
 
 def coverage_events(checked,*,complete=False):
-    _,_,_,records,asof,_=comparison_fixture()
-    events=[deepcopy(r['event']) for r in records]
-    events[-1].update(plan_sha256=checked['forecast_observation_plan']['plan_sha256'],
-        package_sha256=checked['policy_snapshot']['package']['package_sha256'],coverage='complete' if complete else 'partial')
-    return events,asof
+    return coverage_events_for_binding(checked['forecast_observation_plan'],complete=complete)
 
 
 def launch_comparison(client,campaign_id,application,package,*,complete=True):

@@ -72,7 +72,7 @@ are split into coherent commits and pushed at least every one or two commits.
 | M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | implemented with guarded local-scope access, terminal refit and saved API/browser evidence; full-goal qualification remains pending |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | workspace/drafts/templates and visual review implemented at 5308d88 with saved API/browser evidence; forward monitor UI is M5 |
 | M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | implemented with supplied-scope cash comparison, frozen sizing arithmetic and saved API/browser evidence; full-suite acceptance running |
-| M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | uninterrupted 2,270-test full suite running on frozen source; final closeout pending |
+| M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | first complete run: 2,262 passed, 8 failed; investigated repairs under qualification; a fresh complete passing suite remains required |
 
 ## Integration and safety of conclusions
 
@@ -544,8 +544,9 @@ This is the current map, distinct from the initial audit above. **Implemented**
 means the named local capability exists. **Tested** refers to saved targeted
 API/browser/independent-oracle evidence; it does not imply the pending full
 repository gate passed. Provider verification is never inferred from local tests.
-The final forward comparison/conformance rows and repository acceptance will be
-updated after their actual gates finish.
+The final forward comparison/conformance evidence is recorded below. Repository
+acceptance remains pending until the complete suite finishes and any failures
+are corrected and revalidated.
 
 | Required stage | Local implementation / normal product entry | Implemented and tested evidence | Provider-verified / remaining boundary |
 | --- | --- | --- | --- |
@@ -562,7 +563,7 @@ updated after their actual gates finish.
 | Optional frozen phase-pair comparison | `prop/frozen_pairs.py`, `phase_lifecycle.py`, `cash_ledger.py`; existing prop pair controls | Exact explicit pairs, ordinary completed OOS, common cutoff, source/package/child guards, retry/cancel, receipt/fee arithmetic and mobile report tested | Historical path comparison only, no pair optimizer/ranking, new provider parity or implicit replacement |
 | Guided research workspace | `research_workspace.py`, `web/research_workspace.js`, `research_visuals.js`; Backtests → Research | Search/filter, complete source selection, revisioned drafts, source-free templates, timelines/regions/cash tables, downloads and desktop/390 px journeys tested | Unsupported saved settings remain inspectable and reject rather than being silently converted |
 | Independent forward observations and advisory recovery | `forward_contracts.py`, `forward_policy.py`, `forward_reconcile.py`, `forward_monitoring.py`; current report → Observe current policy | Supplied signal/intents/orders/fills/protection/positions/cash, corrections, exact money, latency/health, latched PAUSED and explicit recovery, immutable snapshots tested | Synthetic/paper/actual-import provenance stays separate; no continuous broker connection, external signal proof, automatic broker pause or order placement |
-| Matched forward forecast scope and sizing conformance | `forward_comparison.py`, `forward_conformance.py`; same monitor/check/import/report workflow | Implemented; independent cash/clock/source-identity and fixed/dynamic arithmetic gates pass; final combined API/browser demonstrations running | Requires explicit prospective coverage/calendar/account claims. Cash eligibility/request/approval behavior remains unverified; descriptive differences are not broker or statistical certification |
+| Matched forward forecast scope and sizing conformance | `forward_comparison.py`, `forward_conformance.py`; same monitor/check/import/report workflow | Independent cash/clock/source-identity and fixed/dynamic arithmetic gates pass; complete API/browser demonstrations and immutable downloads verified on release identity | Requires explicit prospective coverage/calendar/account claims. Cash eligibility/request/approval behavior remains unverified; descriptive differences are not broker or statistical certification |
 | Whole-workflow and legacy qualification | Existing pytest/Playwright/static infrastructure; saved normal libraries | Two genuine strategies/four configurations, two independent phases, all outer outcomes and fresh terminal recommendation tested; full uninterrupted suite pending | Complete local acceptance remains required before goal completion; no production-qualified live integration |
 
 Current unsupported behavior includes automatic account replacement in independent
@@ -619,7 +620,7 @@ and current sizing-source hashes must agree. A mismatch creates advisory PAUSED;
 unknown context withholds conformance. Arithmetic agreement does not establish
 strategy eligibility, provider state, external implementation or broker control.
 
-Final release Python identity:
+M5b release Python identity, before the final acceptance repair:
 `1ff01f1e8e370ef6781b5ec579ce60749310fbe3c0fcb5f78030c7aa7299f5e6`.
 The focused owner/API/storage/access/conformance gate passed **114 tests in
 28.96 s**. The real-trade comparison browser passed **1 case in 14.97 s**:
@@ -660,3 +661,75 @@ PID, dependency/platform versions, initial/final Python and web hashes, exit cod
 XML/logs and retained normal libraries. A dedicated fallback data directory keeps
 default application startup inside that fresh evidence tree. The suite has not
 finished; no overall completion or clean full-suite result is yet claimed.
+
+M5b was committed and pushed as `4f86c73dcec8040209e00d9323297307b2251f11`.
+Remote `main` remained `60dbccbda8e97373a3856ea6ee3fdd07313cad4f` at that push.
+The matching tracked checkout archive and checksum are retained in the M5b
+artifact directory. The bounded dynamic read-render check verified both normal
+reports, 4 downloads and 15 ZIP entries, desktop/390 px sizing and causal-context
+views, byte-identical reopen and zero POSTs. Its temporary server stopped.
+Combined with the fixed browser's download check, this is 12 downloads and
+30 ZIP entries; it is not a new simulation gate.
+
+Root independently verified 31 complete M5b reports and 390 captured component
+files against their lengths, SHA-256 and ZIP bytes. The read-only script and
+index are `artifacts/forward-comparison-m5b-20261108/verify_saved_release.py` and
+`root-saved-verification.json`. Static release checks passed Python compilation,
+all 19 portal JavaScript syntax checks and whitespace validation. No additional
+lint/type-check command is configured. These checks are saved under
+`artifacts/final-research-acceptance-20261108/static-release/`.
+
+The Evaluation and Funded declared numerical identities equal `27cf056` across
+28 and 30 source files respectively, with unchanged identity functions and
+runtime/dependency helper files. The global application identity correctly
+changes for the new forward calculation owners. Exact comparison results and
+script are `phase_identity.json` and `verify_phase_identity.py` under the final
+acceptance artifact root. Earlier source, report and numerical snapshots remain
+preserved. Repository-wide test execution is still running and remains a separate
+required release gate.
+
+### M6 first complete suite and acceptance repairs
+
+The first complete run finished with **2,262 passed, 8 failed and 24 warnings in
+5,633.23 seconds**. Its source and portal hashes stayed unchanged throughout.
+`full-suite-v1/failure-index.json`, XML, log and all retained product libraries
+remain under `artifacts/final-research-acceptance-20261108/`. The warnings are the
+existing Starlette HTTPX deprecation and 23 deprecated pandas day-of-week calls
+in the historical notebook. This run is not a passing release gate.
+
+| Failure | Evidence and correction |
+| --- | --- |
+| Prepared-data parse count | Count the mandatory one-per-job access inventory separately; retain the exact 8-versus-45 calculation-parse assertions and numerical/CSV parity. Staged case passed. |
+| Compact-storage browser | Retain 50-fold representation/report compression while separately measuring the identical mandatory causal decision ledger; assert its bytes, SHA, event counts and completion footer. Full staged journey passed. |
+| Three legacy report/configuration browsers | Assert the exact metadata-only IS-window lookup during Configure. Direct saved-report reads/reloads still make zero POSTs; original cash/commission/count assertions and saved bytes remain. All three staged journeys passed. |
+| Two malformed saved-timezone cases | Actual production error-contract regression: admission raised raw timezone exceptions before the reader's normal diagnostic. Reuse `saved_source_timezone` before every coverage path, retaining authorization before cache/source access. Original assertions stay unchanged; additional boundary checks cover malformed metadata and forbidden reads. |
+| Strategy-library browser | Include the implemented Research navigation link in the exact navigation contract. Existing instrument, report, reload and narrow-layout checks remain; full staged case passed. |
+
+The repair also removes a future expiry from the synthetic comparison fixtures:
+their declaration follows the actual policy seal and wall clock, with a separately
+anchored opening and cutoff across DST. The original frozen forecast dates and
+exact $1,500 / $50 / −$1,450 arithmetic remain fixed. Six clock-boundary regressions
+exercise the real prospective-scope guard. No product clock control is added.
+
+Visual inspection found raw underscore-delimited codes in the sizing table.
+The existing formatter now renders its denominator and reasons as readable words;
+saved JSON codes and amounts are unchanged. The bounded saved-report browser
+check passed with independent quantity, cash, label and byte assertions: two
+saved cases, four downloads, 15 ZIP members, zero POSTs and unchanged original
+report hashes. Desktop and 390 px screenshots were inspected; its server stopped.
+
+The corrected application identity is
+`cb93c970dab535aaa3b0943243b15695e2c1b885513a13da164008e92bab3866`.
+Both declared phase calculation identities remain unchanged (28 Evaluation and
+30 Funded files); no changed source is removed from global identity. Earlier
+reports, source archives and failed evidence remain preserved. Focused checks
+passed: **116 reader/access/cache/fold/parse-parity cases in 9.35 seconds** and
+**8 prospective-clock/API/browser cases in 32.35 seconds**. The first reader
+gate retained 92 passes and 24 failures in a new test spy's setup: the optional
+`open_snapshot` method was absent. Installing that forbidden-read spy with
+`raising=False` fixed the setup; its assertions and production code were unchanged.
+That failed gate is retained. The final passing reader gate confirms rejection
+before any source or cache read across missing, null, non-string and unknown
+timezones, full history, civil dates and CME-session windows.
+
+A fresh complete suite remains required before local acceptance can be completed.
