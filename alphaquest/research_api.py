@@ -52,6 +52,9 @@ def preview(body:PreviewRequest,request:Request):
 def selected(request,run_id):
     record=request.app.state.runs.get(run_id.hex)
     if not record:raise HTTPException(404,'Completed backtest not found.')
+    from .trade_imports import external
+    if external(record):
+        raise HTTPException(409,'Imported research declarations do not authorize native OOS replay. Supply a separately identified external OOS export.')
     research=record['run_metadata'].get('research')
     if not research or research['phase']!='is':
         raise HTTPException(409,'Select a declared IS backtest or an individual IS optimisation trial. Legacy and OOS reports cannot launch OOS tests.')
@@ -64,6 +67,9 @@ def selected(request,run_id):
 def selected_status(run_id:UUID,request:Request):
     record=request.app.state.runs.get(run_id.hex)
     if not record:raise HTTPException(404,'Completed backtest not found.')
+    from .trade_imports import external
+    if external(record):
+        raise HTTPException(409,'Imported research declarations have no native OOS plan. The saved exporter declaration remains available in the source report.')
     research=record['run_metadata'].get('research')
     if not research:raise HTTPException(409,'This legacy report has no IS/OOS declaration.')
     plan=research['plan']

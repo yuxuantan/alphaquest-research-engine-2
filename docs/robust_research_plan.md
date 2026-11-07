@@ -64,7 +64,7 @@ are split into coherent commits and pushed at least every one or two commits.
 | M0: audit/plan | Fetched clean main; traceability above | Reviewable plan and documented actual gaps before code | Fresh baseline suite; no datasets/results touched | audit/plan committed; interrupted baseline recorded |
 | M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | implemented; new product gates and stable affected-module regression pass |
 | M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; preserve the entire qualified set for phase selection | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | implemented with saved API/browser evidence and stable targeted regression; phase handoff follows M2/M3 |
-| M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | pending |
+| M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
 | M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | pending |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | pending |
 | M3b: reliability and final procedure | M3a; predeclared baseline/rules/scenarios/access history | Outer aggregate, uncertainty, baseline, complete procedure freeze/holdout/final rerun; permit no qualified candidate | Future poisoning, holdout access guards, limited calibration, uncertainty semantics, source/code identity | pending |
@@ -202,3 +202,27 @@ syntax and diff checks pass. Each gate's log/JUnit/library is preserved under
 `artifacts/robust-research-m1b-20261107/`; exact commands and scope are in the review.
 These overlapping gates are not added into a misleading distinct-test total.
 M2–M6 and the overall Definition of Done remain incomplete.
+
+### M2a canonical import and existing prop workflow
+
+8 November 2026: complete canonical exports now save through RunStore with
+original/canonical bytes, exact trade/cost/event validation and external research
+provenance. The existing catalogue/report/configure/check/run/download journey
+supports the documented annualized ordered-mark subset. Unknown path invariance,
+missing event coverage, unsupported currency/quantity/calendar or dated modes
+reject explicitly. Original imports and prior analysis evidence are unchanged.
+Ordinary read/reopen verifies immutable files without recalculation; new analysis
+revalidates semantics and captures all source artifacts. This closes the audit's
+standalone-import gap, not the independent-phase/dynamic-sizing gap.
+
+The [saved product demonstration](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08)
+shows $4 source net, $2 per-MNQ net, $3 observed adverse excursion, an explicitly
+empty validation session and unavailable funded outcomes. Final integration
+regression passed 233 tests; the final import/prop boundary gate passed 38 tests.
+Both import browser journeys passed. Test counts overlap and do not establish a
+full-suite or provider-parity result. M2b causal sizing integration and M3–M6
+remain pending; the overall verdict stays **incomplete**.
+The existing report/strategy/catalogue/configuration/mobile browser regression
+also passed all 29 tests in 323.84 seconds. Screenshots were inspected and all
+temporary servers stopped. Python compilation, changed JavaScript syntax and
+diff whitespace checks passed.

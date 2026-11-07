@@ -191,6 +191,8 @@ def prepare_phase_source(runs, source, profile, micros, simulation, period, cost
     if micros > simulation.max_micros:
         raise ValueError('Position size exceeds the simulation exposure cap.')
     snapshot, rows = prepare_source(runs, source.source_backtest_id, source.trade_file, source.export_timezone)
+    if snapshot.get('source_kind') == 'external_trade_export':
+        raise ValueError('Canonical external phase selection is not integrated yet. Imported sources support the existing annualized EOD analysis; no native IS/OOS plan is inferred.')
     adapt(snapshot, rows, settings)
     validate_phase_source(snapshot, rows)
     # Check all trades, including excluded dates: no hidden invalid source rows.

@@ -207,6 +207,8 @@ class CampaignStore:
         sources = []
         for id in sorted({ref['run_id'] for _, refs in expanded for ref in refs}):
             record = source_record(self.runs, id)
+            if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
+                raise ValueError('Imported sources have no native campaign IS/OOS plan. Canonical phase-source campaign integration is pending.')
             research = record['run_metadata'].get('research') or {}
             if research.get('phase') != 'is':
                 raise ValueError('The research window requires declared IS backtests; OOS and undeclared sources reject.')

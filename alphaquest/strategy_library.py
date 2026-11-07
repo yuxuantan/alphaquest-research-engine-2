@@ -28,13 +28,15 @@ class StrategyLibrary:
                 values=[]
                 for id,raw in missing:
                     record=json.loads(raw);metadata=record['run_metadata'];dataset=metadata['dataset']
+                    external=metadata.get('source',{}).get('kind')=='external_trade_export'
+                    source_identity=('external:'+metadata['source']['raw_sha256']) if external else dataset['id']
                     instrument=metadata.get('instrument',{}).get('symbol')
-                    if instrument is None:instrument=sources.get(dataset['id'],{}).get('symbol','')
+                    if instrument is None:instrument=dataset.get('symbol','') if external else sources.get(dataset['id'],{}).get('symbol','')
                     instrument=(instrument or '').strip().upper()
                     # An unknown symbol cannot establish instrument equivalence.
-                    identity='symbol:'+instrument if instrument else 'dataset:'+dataset['id']
+                    identity='symbol:'+instrument if instrument else 'dataset:'+source_identity
                     label=instrument or 'Unspecified · '+dataset['name']
-                    values.append((id,sha256(identity.encode()).hexdigest(),label,dataset['id']))
+                    values.append((id,sha256(identity.encode()).hexdigest(),label,source_identity))
                 with self.runs.connect() as db:
                     db.executemany('INSERT OR IGNORE INTO strategy_run_index SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM runs WHERE id=?)',[(*row,row[0]) for row in values])
 
@@ -57,7 +59,7 @@ class StrategyLibrary:
             record=json.loads(raw);metadata=record['run_metadata'];summary=record['summary']
             prop=metadata.get('automatic_prop_analysis')
             analysis=self.analyses.summary(prop['id']) if prop else None
-            items.append(dict(id=record['id'],strategy_id=metadata['strategy']['id'],dataset_id=metadata['dataset']['id'],dataset_name=metadata['dataset']['name'],created_at_utc=record['created_at_utc'],selection=metadata.get('selection',{}),research_phase=metadata.get('research',{}).get('phase','legacy'),metrics={key:summary.get(key) for key in ('total_net_pnl','trades_taken','max_drawdown_amount')},historical_net=analysis.get('historical_net') if analysis else None,prop_status=analysis.get('status') if analysis else None,batch_id=batch))
+            items.append(dict(id=record['id'],strategy_id=metadata['strategy']['id'],dataset_id=metadata['dataset']['id'],dataset_name=metadata['dataset']['name'],source_kind=metadata.get('source',{}).get('kind','native_backtest'),source_sha256=metadata.get('source',{}).get('raw_sha256'),created_at_utc=record['created_at_utc'],selection=metadata.get('selection',{}),research_phase=metadata.get('research',{}).get('phase','legacy'),metrics={key:summary.get(key) for key in ('total_net_pnl','trades_taken','max_drawdown_amount')},historical_net=analysis.get('historical_net') if analysis else None,prop_status=analysis.get('status') if analysis else None,batch_id=batch))
         return dict(group=dict(id=group,instrument=found[0]),items=items,total=found[1],offset=offset,limit=limit)
 
 

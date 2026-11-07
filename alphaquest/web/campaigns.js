@@ -18,6 +18,7 @@
   async function configure(source) {
     const panel=$('#prop-campaigns');panel.replaceChildren();
     panel.append(node('h2','Independent phase research campaigns'));
+    if(source.run_metadata.source?.kind==='external_trade_export'){panel.append(node('p','Imported sources retain their exporter’s research declaration. Native campaign search and OOS reruns are unavailable; use the source check below for supported prop analysis.'));return;}
     if(source.run_metadata.research?.phase!=='is'){panel.append(node('p','Select a declared IS backtest to create a research campaign.'));return;}
     const defaults=await api('/api/research-campaigns/defaults');
     const saved=await api('/api/research-campaigns?source_id='+source.id);

@@ -1,5 +1,31 @@
 # Editable IS / OOS research workflow
 
+## External trade imports
+
+Open **Backtests → Import external trades**, select a complete
+[`aq-trade-export-v1` JSON export](designs/trade_export_v1.md), and **Check import**.
+Review counts, exact cost reconciliation, original hash, time/session conventions,
+research declaration and risk coverage before **Save imported report**. Saving
+uses the ordinary report catalogue; importing identical bytes returns the same
+report. Reusing an export ID with changed bytes rejects. A partial export or
+inconsistent cost/event/completion record cannot be saved.
+
+The saved report contains actual trade-close equity, source currency, original
+trade IDs and downloadable original/canonical files. It does not invent market
+bars, a holding benchmark, native risk replay or an untouched OOS split. Exported
+IS/OOS/prior-access declarations are retained as exporter claims. A matching
+declared dataset hash does not link the import to an unrelated local dataset.
+
+Use **Configure prop analysis → Check source** for model eligibility. The current
+annualized route requires complete ordered marks, declared no-trade sessions,
+supported intraday USD NQ/MNQ trades and explicit path-invariance assumptions.
+Review the reason if unavailable; importing does not certify simulation or live
+readiness. For an eligible source, choose source/override commissions, run the
+normal analysis, then reopen/export the immutable report and its captured input
+files. Independent phases, native nested backtest reruns and dynamic sizing are
+pending for external sources. The [saved synthetic journey](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08)
+includes exact inputs, expected arithmetic and rejection examples.
+
 ## Nested inner research
 
 Implementation increment, 7 November 2026: open a completed IS backtest,

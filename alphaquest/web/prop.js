@@ -2,7 +2,7 @@
 (() => {
   const $ = s => document.querySelector(s);
   const deletingReports=new Set();
-  let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,commissionDefault='',modelProfiles=[];
+  let sourceId, checked = false, busy = false, token = 0, holdoutSource=false,nativeRiskSource=false,externalSource=false,commissionDefault='',modelProfiles=[];
   let phaseSources=[],sourceOffset=0;
   let sourceRecord=null,observedWindow=null;
   const cashFields={'prop-monthly-cap':'MONTHLY_CAP','prop-budget-timezone':'BUDGET_TIMEZONE','prop-start-date':'START_DATE','prop-horizon-end':'HORIZON_END','prop-receipt-days':'PAYOUT_RECEIPT_DAYS','prop-payout-assumption':'PAYOUT_TIMING_ASSUMPTION','prop-deadline-days':'ACTIVATION_DEADLINE_DAYS','prop-payment-days':'ACTIVATION_PAYMENT_DELAY_DAYS','prop-activation-assumption':'ACTIVATION_TIMING_ASSUMPTION','prop-fee-note':'FEE_OVERRIDE_NOTE'};
@@ -50,7 +50,7 @@
       COMMISSION_PER_SIDE:['Rithmic','Lucid'].includes($('#prop-commission-broker').value)&&$('#prop-commission-side').value===commissionDefault?'':$('#prop-commission-side').value});
     const model=modelProfiles[Number($('#prop-model').value)];
     if(model)Object.assign(settings,{PROP_FIRM:model.settings.PROP_FIRM,ACCOUNT_TYPE:model.settings.ACCOUNT_TYPE,DAILY_LOSS_LIMIT:$('#prop-dll').value});
-    const result={source_backtest_id:sourceId,trade_file:holdoutSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),export_timezone:$('#prop-export-timezone').value,settings};
+    const result={source_backtest_id:sourceId,trade_file:holdoutSource||externalSource?'':$('#prop-trade-file').value||(nativeRiskSource?'':null),export_timezone:$('#prop-export-timezone').value,settings};
     if($('#prop-method').value!=='annualized'){
       Object.assign(settings,{ANALYSIS_MODE:$('#prop-method').value,EVALUATION_MICROS:$('#prop-evaluation-micros').value,FUNDED_MICROS:$('#prop-funded-micros').value,ACTIVATION_WAIT_WEEKDAYS:$('#prop-activation-wait').value});
       Object.assign(result,{funded_source_backtest_id:$('#prop-funded-source').value||sourceId,funded_trade_file:$('#prop-funded-file').value,funded_export_timezone:$('#prop-funded-zone').value});
@@ -143,6 +143,7 @@
     for(const id of ['prop-block','prop-holdout','prop-slots'])$('#'+id).closest('label').hidden=cash;
     $('#prop-fee-fields').hidden=false;$('#prop-activation-wait').closest('label').hidden=!cash;$('#prop-fee-note-label').hidden=!cash;
     $('#prop-method-help').textContent=cash?'Replay one initially unfunded slot with exact monthly fee spending and separately dated trader receipts.':'Choose evaluation and funded sizes using the existing annualized model, with the last 30% of source history held out internally.';
+    if(externalSource)$('#prop-method-help').textContent='This imported source supports the legacy annualized analysis. Source checks retain its declared sessions, actual costs and observed risk limitations.';
     timingChoices();updateObservedWindow();purchaseHelp();
   }
   $('#prop-method').addEventListener('change',()=>{if($('#prop-method').value!=='annualized')$('#prop-holdout').value='';showMethodFields();invalidate();});
@@ -166,7 +167,9 @@
   function renderSourceCheck(data){
     const p=$('#prop-check-output'),source=data.source,risk=source.excursion_input;
     p.replaceChildren(el('h3','Source check passed'));
-    p.append(el('p',`${data.matched_trades} trades checked · source net P&L $${source.reconciliation.source_totals.net_pnl}. Captured OHLC risk: ${risk.native_ohlc_count||0} trades; measured MAE: ${risk.measured_mae_count}.`));
+    p.append(el('p',`${data.matched_trades} trades checked · source net P&L $${source.reconciliation.source_totals.net_pnl}.`));
+    if(source.backtest.run_metadata.source?.kind==='external_trade_export')p.append(el('p',`${risk.ordered_mark_count} observed ordered marks across ${risk.matched_trades} trades. ${source.excursion_provenance}`));
+    else p.append(el('p',`Captured OHLC risk: ${risk.native_ohlc_count||0} trades; measured MAE: ${risk.measured_mae_count}.`));
     const commission=source.commission_simulation;
     p.append(el('p',commission.applied?`${commission.broker} · ${commission.source_instrument} source → MNQ orders · $${commission.per_side} per side, $${commission.round_turn} round turn. Source commission replaced once; slippage retained.`:commission.explanation));
     if(source.phase_sources){
@@ -196,15 +199,18 @@
     sourceId=id;checked=false;$('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-status').textContent='Loading source and matching exports…';
     const [data,defaults,previous]=await Promise.all([read(`/api/prop-analyses/sources/${id}?discover_exports=false`),read('/api/prop-analyses/defaults'),previousId?read(`/api/prop-analyses/${previousId}/downloads/report.json`):null]);if(t!==token)return;
     if(previous&&previous.source?.backtest?.id!==id)throw Error('The saved analysis belongs to a different source backtest.');
-    holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;
+    holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;externalSource=data.source.run_metadata.source?.kind==='external_trade_export';
     sourceRecord=data.source;
     await window.phaseCampaigns.configure(data.source);if(t!==token)return;
     await window.robustResearch.configure(data.source);if(t!==token)return;
-    $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
+    $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${externalSource?'Imported external trades · ':''}${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-form').querySelectorAll('.prop-advanced').forEach(d=>d.open=false);$('#prop-overrides').value='{}';showMethodFields();
+    $('#prop-method option[value="budgeted_lifecycle"]').disabled=externalSource;
     phaseSources=[];sourceOffset=0;await loadSources();if(t!==token)return;updateObservedWindow();
     modelProfiles=defaults.profiles||[];
-    $('#prop-trade-file').value=!holdoutSource&&!nativeRiskSource&&data.matched_exports?.length===1?data.matched_exports[0].path:'';
+    $('#prop-trade-file').value=!externalSource&&!holdoutSource&&!nativeRiskSource&&data.matched_exports?.length===1?data.matched_exports[0].path:'';
+    for(const key of ['prop-trade-file','prop-export-timezone'])$('#'+key).closest('label').hidden=externalSource;
+    $('#prop-source-export-heading').hidden=externalSource;
     $('#prop-eval-fee').value=defaults.defaults.EVAL_PRICE;$('#prop-activation').value=defaults.defaults.ACTIVATION_FEE;
     $('#prop-block').value=defaults.defaults.BLOCK_DAYS;$('#prop-slots').value=defaults.defaults.SLOTS;
     $('#prop-max-nq').value=defaults.defaults.MAX_TOTAL_NQ;$('#prop-holdout').value='';
@@ -215,6 +221,7 @@
     const automatic=data.source.run_metadata.automatic_prop_analysis,labels=new Map(automatic?[automatic,...(automatic.companions||[])].map(a=>[a.id,a.label||'Apex 50K EOD']):[]);
     $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${labels.get(a.id)||'Saved analysis'} · ${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
     $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
+    if(externalSource)$('#prop-status').textContent='Imported source · Research phase and coverage come from the exporter declaration. Check the preserved trade identity, costs, risk coverage and supported model before running.';
     if(previous){
       const settings={...previous.settings},retiredLifecycle=settings.ANALYSIS_MODE==='dated_lifecycle';
       if(retiredLifecycle)settings.ANALYSIS_MODE='budgeted_lifecycle';
@@ -391,11 +398,12 @@
     [...$('#prop-downloads').children].forEach((link,i)=>{link.textContent=downloadNames[i];if(i===2)link.className='button primary';});
     const rerun=el('a','Configure new analysis','button secondary');rerun.href=`#backtests/prop/new/${r.source.backtest.id}/from/${r.id}`;$('#prop-downloads').append(rerun);
     const root=$('#prop-report-content'),c=r.calculations,e=c.evaluation,f=c.funded,s=f?.selected,source=r.source;
+    const external=source.backtest.run_metadata.source?.kind==='external_trade_export';
     root.className='prop-insight-report';
     const context=el('div',undefined,'prop-report-context');
     const sourceLink=el('a',`Strategy: ${source.backtest.run_metadata.strategy.id.replaceAll('_',' ')}`);sourceLink.href=`#backtests/report/${source.backtest.id}`;context.append(sourceLink);
     context.append(el('span',`${number(source.reconciliation.source_count)} source trades`),el('span',`Holdout: ${dateRange(c.samples.validation)}`),el('span',`${number(e.simulations)} evaluation paths`));root.append(context);
-    if(source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
+    if(source.backtest.run_metadata.source?.kind==='external_trade_export'||source.excursion_input.native_ohlc_count){root.append(el('p',source.excursion_provenance,'prop-assumption-note'));}else if(source.excursion_input.measured_mae_count<source.reconciliation.source_count){root.append(el('p',`Excursion coverage: ${number(source.excursion_input.measured_mae_count)} of ${number(source.reconciliation.source_count)} trades have measured MAE. Remaining trades use a close-only fallback, which may understate intratrade risk.`,'prop-assumption-note'));}
     if(!['alphaquest-apex50k-eod-v6-acquisition-bounds','alphaquest-lucidflex50k-eod-v4-acquisition-bounds'].includes(r.model_version))root.append(el('p',`Saved earlier model: ${r.model_version}. Its results are preserved. Use Configure new analysis to copy its account settings and calculate with the current model.`, 'prop-assumption-note'));
     if(lucid){root.append(el('p',`LucidFlex standard 40% evaluation consistency; funded payouts are trader receipts after the 90/10 split. Evaluation has no provider deadline; this report uses a ${number(e.horizon_weekdays||2000)}-session computational limit per attempt.${e.initial_horizon_weekdays<e.horizon_weekdays?` Open paths continue beyond ${number(e.initial_horizon_weekdays)} sessions with their existing account and sampling state.`:''} The sim-funded model stops after five payouts and excludes discretionary early live transitions.`,'prop-assumption-note'));if(r.settings.DAILY_LOSS_LIMIT==='on')root.append(el('p','DLL-on models a fixed $1,200 daily stop in both phases. Holding this amount fixed above the trail is an assumption: the official Flex help pages do not specify that adjustment. See Source & model.','prop-assumption-note'));}
     const commission=source.commission_simulation;
@@ -555,7 +563,8 @@
     }
 
     p=reportBlock(views.model,'Source and sample checks','The backtest supplies trade identity, quantities, UTC fills and net costs.');
-    facts(p,[['Source trades',number(source.reconciliation.source_count)],['Source net P&L',money(source.reconciliation.source_totals.net_pnl)],['Measured MAE',`${number(source.excursion_input.measured_mae_count)} trades`],['Held OHLC risk',`${number(source.excursion_input.native_ohlc_count||0)} trades`],['Training',`${dateRange(c.samples.train)} · ${number(c.samples.weekdays[0])} weekdays`],['Holdout',`${dateRange(c.samples.validation)} · ${number(c.samples.weekdays[1])} weekdays`]]);
+    const riskFacts=external?[['Observed ordered marks',`${number(source.excursion_input.ordered_mark_count)} events`],['Trades with ordered risk',`${number(source.excursion_input.matched_trades)} trades`]]:[['Measured MAE',`${number(source.excursion_input.measured_mae_count)} trades`],['Held OHLC risk',`${number(source.excursion_input.native_ohlc_count||0)} trades`]];
+    facts(p,[['Source trades',number(source.reconciliation.source_count)],['Source net P&L',money(source.reconciliation.source_totals.net_pnl)],...riskFacts,['Training',`${dateRange(c.samples.train)} · ${number(c.samples.weekdays[0])} weekdays`],['Holdout',`${dateRange(c.samples.validation)} · ${number(c.samples.weekdays[1])} weekdays`]]);
     p.append(el('p',source.excursion_provenance,'prop-assumption-note'));
     explanation(p,'How are training, holdout and session days used?','Sizes are selected on the training sample; reported account simulations use the holdout sample. Entries are grouped by Chicago session date, with zero-trade weekdays retained. The historical replay includes both samples and is labelled separately.');
     details(p,'Source identity and exact cost reconciliation',source);
@@ -563,7 +572,7 @@
     explanation(p,'Average payout, median payout and acquisition cost','The average includes all simulated funded accounts. The median describes the middle account; a $0 median means at least half receive $0. Payouts do not subtract evaluation and activation fees. Acquisition cost is shown separately, while historical net subtracts it.');
     explanation(p,'Drawdown failures can also receive payouts','Payout outcomes partition accounts by how many payouts they received. Drawdown failure describes how an account closed. An account can belong to a paid group and later fail its drawdown limit.');
     explanation(p,'Simulation and historical replay answer different questions','Simulation resamples historical days to estimate account outcomes. Historical replay follows the one observed sequence of trades. Slots share that sequence, and training years influenced the size choice.');
-    explanation(p,'Model limits and missing excursions','Measured adverse excursions do not reveal the exact intratrade price path. New native reports use conservative held-OHLC bounds and observed opening/cost jumps; target-exit ordering can be ambiguous. Cross-session native inputs reject. Legacy sources without capture use a disclosed close-only fallback that may understate risk. The model supports one strategy with nonoverlapping positions; payouts, costs and delays are model estimates.');
+    explanation(p,'Model limits and missing excursions',external?'The model replays supplied ordered marks and treats every adverse observation as a jump. Observation completeness, calendar coverage and size invariance remain exporter declarations; missing ticks and executable fills are not verified. Unsupported risk and cross-session trades reject. Payouts, costs and delays are model estimates.':'Measured adverse excursions do not reveal the exact intratrade price path. New native reports use conservative held-OHLC bounds and observed opening/cost jumps; target-exit ordering can be ambiguous. Cross-session native inputs reject. Legacy sources without capture use a disclosed close-only fallback that may understate risk. The model supports one strategy with nonoverlapping positions; payouts, costs and delays are model estimates.');
     if(lucid&&c.provider_contract){
       p.append(el('h3','LucidFlex rules checked '+c.provider_contract.checked_on));
       p.append(el('p',c.provider_contract.documentation_conflict),el('p',c.provider_contract.daily_loss_assumption),el('p',c.provider_contract.source_hours),el('p',c.provider_contract.timing),el('p',c.provider_contract.horizon),el('p',c.provider_contract.renewal));

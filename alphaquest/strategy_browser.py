@@ -69,16 +69,23 @@ class StrategyBrowser:
                 indexed=[];grouped={}
                 for id,raw,batch in missing:
                     record=json.loads(raw);meta=record['run_metadata'];saved=meta['dataset'];strategy=meta['strategy']['id']
-                    live=sources.get(saved['id']) or by_content.get((saved['sha256'],saved['source_timezone']))
+                    external=meta.get('source',{}).get('kind')=='external_trade_export'
+                    live=None if external else sources.get(saved['id']) or by_content.get((saved['sha256'],saved['source_timezone']))
                     if live and (live['sha256'],live['source_timezone'])!=(saved['sha256'],saved['source_timezone']):live=None
                     # Full dates come only from full dataset metadata. IS run
                     # selection and research-plan bounds are never substitutes.
                     snapshot=full_source(live or meta.get('full_dataset') or saved)
+                    if external:
+                        snapshot.update(source_kind='external_trade_export',currency=saved.get('currency'),
+                                        declared_start_utc=record['period_start_utc'],declared_end_utc=record['period_end_utc'],
+                                        full_range_available=False,source_sha256=meta['source']['raw_sha256'])
                     instrument=meta.get('instrument',{}).get('symbol')
-                    if instrument is None:instrument=(live or {}).get('symbol','')
+                    if instrument is None:instrument=(saved if external else live or {}).get('symbol','')
                     instrument=(instrument or '').strip().upper()
                     group=digest([strategy,saved['sha256'],saved['source_timezone'],instrument])
+                    if external:group=digest(['external_trade_export',strategy,saved.get('sha256') or meta['source']['raw_sha256'],saved['source_timezone'],instrument,saved.get('currency'),saved.get('tick_size'),saved.get('point_value'),saved.get('contract'),saved.get('adjustment'),record['period_start_utc'],record['period_end_utc']])
                     group_data=dict(id=group,strategy_id=strategy,instrument=instrument or 'Unspecified',dataset=snapshot)
+                    if external:group_data.update(source_kind='external_trade_export',currency=saved.get('currency'),native_replay=False)
                     research=meta.get('research',{});phase=research.get('phase','legacy')
                     comparison=digest([meta['strategy'].get('source_sha256'),meta['strategy']['parameters'],record['execution_settings'],research.get('plan')])
                     automatic=meta.get('automatic_prop_analysis',{});prop_id=automatic.get('id')
@@ -91,6 +98,8 @@ class StrategyBrowser:
                                  research_phase=phase,parent_id=research.get('parent_run_id'),
                                  metrics={k:record['summary'].get(k) for k in METRICS},batch_id=batch,
                                  prop_model=automatic.get('model_version'))
+                    if external:payload.update(source_kind='external_trade_export',source_sha256=meta['source']['raw_sha256'],currency=saved.get('currency'),
+                                               declared_start_utc=record['period_start_utc'],declared_end_utc=record['period_end_utc'],capabilities=record.get('capabilities',{}))
                     if group not in grouped or snapshot['full_range_available']:
                         grouped[group]=(group,strategy,json.dumps(group_data),snapshot['full_range_available'])
                     indexed.append((id,group,phase,research.get('parent_run_id'),comparison,prop_id,status,json.dumps(net) if net is not None else None,json.dumps(payload),id))
@@ -115,8 +124,9 @@ class StrategyBrowser:
         with self.runs.connect() as db:
             stats={id:(groups,count) for id,groups,count in db.execute('''SELECT d.strategy_id,COUNT(DISTINCT d.id),COUNT(*)
                 FROM library_datasets d JOIN library_runs r ON r.group_id=d.id GROUP BY d.strategy_id''')}
+            external=dict(db.execute("SELECT d.strategy_id,COUNT(*) FROM library_datasets d JOIN library_runs r ON r.group_id=d.id WHERE json_extract(r.payload,'$.source_kind')='external_trade_export' GROUP BY d.strategy_id"))
         return dict(items=[dict(id=id,name=id.replace('_',' ').title(),registered=id in registered,
-                                datasets=stats.get(id,(0,0))[0],reports=stats.get(id,(0,0))[1])
+                                datasets=stats.get(id,(0,0))[0],reports=stats.get(id,(0,0))[1],external_reports=external.get(id,0))
                            for id in sorted(registered.keys()|stats.keys())])
 
     def dataset_groups(self,strategy,offset,limit):
@@ -132,7 +142,7 @@ class StrategyBrowser:
         items=[]
         for raw,count,insample,oos in rows:
             item=json.loads(raw);source=item['dataset'];item.update(reports=count,is_reports=insample,oos_reports=oos,
-                available_dataset_id=available.get((source['sha256'],source['source_timezone'])))
+                available_dataset_id=None if item.get('source_kind')=='external_trade_export' else available.get((source['sha256'],source['source_timezone'])))
             items.append(item)
         return dict(strategy_id=strategy,items=items,total=total,offset=offset,limit=limit)
 
@@ -186,6 +196,8 @@ class StrategyBrowser:
                 items.append(dict(id=parent['id'],parameters=parent['parameters'],created_at_utc=parent['created_at_utc'],
                                   phase=row['phase'],insample=parent if row['phase']=='is' else None,
                                   oos=children if row['phase']=='is' else [parent] if row['phase']=='oos' else [],
-                                  legacy=parent if row['phase']=='legacy' else None))
+                                  legacy=parent if row['phase']=='legacy' else None,
+                                  unclassified=parent if row['phase'] not in ('is','oos','legacy') else None,
+                                  source_kind=parent.get('source_kind','native_backtest')))
         return dict(group=json.loads(found[0]),items=items,total=total,offset=offset,limit=limit,
                     parameter_columns=parameters,varying_parameters=varying,sort=sort,direction=direction)

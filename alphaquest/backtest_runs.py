@@ -47,6 +47,9 @@ class RunStore:
                     ordinal INTEGER NOT NULL, payload TEXT NOT NULL,
                     PRIMARY KEY (run_id, ordinal)
                 );
+                CREATE UNIQUE INDEX IF NOT EXISTS imported_export_identity ON runs
+                    (json_extract(manifest,'$.run_metadata.source.export_id'))
+                    WHERE json_extract(manifest,'$.run_metadata.source.kind')='external_trade_export';
             """)
 
     def connect(self):
@@ -125,12 +128,13 @@ class RunStore:
                     except OSError as exc:
                         raise OSError(cleanup_error or f'Backtest removed from the library, but file cleanup failed. Retry Delete for {run_id}.') from exc
 
-    def _rows(self, source: Path, kind: str):
+    def _rows(self, source: Path, kind: str, *, external=False):
         with source.open(encoding="utf-8", newline="") as stream:
             for ordinal, row in enumerate(csv.DictReader(stream)):
                 if kind == "trades":
                     for key in INTEGER_TRADE_FIELDS:
-                        row[key] = int(row[key])
+                        row[key] = (None if external and key in ('entry_bar_number', 'exit_bar_number')
+                                    and row[key] == '' else int(row[key]))
                     row["exit_deadline_utc"] = row["exit_deadline_utc"] or None
                 else:
                     row["trade_number"] = int(row["trade_number"])
@@ -156,8 +160,9 @@ class RunStore:
             with self.connect() as conn:
                 conn.execute("INSERT INTO runs VALUES (?, ?, ?)", (run_id, record["created_at_utc"], json.dumps(record)))
                 for kind, table in (("trades", "run_trades"), ("equity", "run_equity")):
+                    options = dict(external=True) if record.get('run_metadata', {}).get('source', {}).get('kind') == 'external_trade_export' else {}
                     conn.executemany(f"INSERT INTO {table} VALUES (?, ?, ?)", (
-                        (run_id, ordinal, payload) for ordinal, payload in self._rows(report_directory / f"{kind}.csv", kind)
+                        (run_id, ordinal, payload) for ordinal, payload in self._rows(report_directory / f"{kind}.csv", kind, **options)
                     ))
                 report_directory.rename(destination)
                 published = True

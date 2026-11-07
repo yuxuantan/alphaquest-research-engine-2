@@ -84,6 +84,10 @@ def export_trades(path):
 
 def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago'):
     record=source_record(runs,source_id)
+    from ..trade_imports import external
+    if external(record):
+        from .external_source import prepare_external
+        return prepare_external(runs, record, trade_file)
     native_path=runs.root/source_id/'trades.csv'
     native_hash=digest(native_path)
     native=[]
@@ -163,6 +167,9 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
 
 def matching_exports(runs, source_id):
     """Suggest only fully reconciled reports; never select an unrelated export."""
+    from ..trade_imports import external
+    if external(source_record(runs, source_id)):
+        return []
     matches = []
     for path in sorted((Path.home() / 'Downloads').glob('*Strategy Performance Report*.xlsx'))[:32]:
         try:

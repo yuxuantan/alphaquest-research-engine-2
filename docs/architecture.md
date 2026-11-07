@@ -17,6 +17,17 @@ feed the same saved research report, with no alternative calculation service.
 Outer economic validation and forward monitoring are still pending; see the
 [requirements traceability and milestone checklist](robust_research_plan.md).
 
+8 November 2026 canonical-source increment: `canonical_trades.py` validates
+complete versioned external exports and projects existing native sources without
+inventing missing stop/decision data. `trade_imports.py` publishes immutable
+original/canonical/trade/equity artifacts through RunStore. Reads verify hashes
+without parsing or recalculating; new calculations also revalidate canonical
+semantics. `prop/external_source.py` admits the documented ordered-mark subset,
+normalizes actual costs exactly once, and captures source artifacts through the
+existing AnalysisStore. Existing backtest/import/report and prop controls expose
+this route. No second dataset, simulation engine or result store is introduced.
+External independent phases, dated replay and dynamic sizing are still pending.
+
 [Home](../README.md) / [Docs](README.md)
 
 [Requirements](#requirements-and-scope) · [Workflow](#end-to-end-workflow) ·
@@ -41,7 +52,7 @@ AlphaQuest is a local, single-user futures research app. It must:
 - Run strategies and parameter searches through the same execution engine, with explicit fills, costs and instrument settings.
 - Separate in-sample (IS) research from manually launched out-of-sample (OOS) tests; save each run's settings.
 - Calculate supported Apex/LucidFlex prop outcomes locally; check source trades/costs and disclose missing or bar-based risk data.
-- Save reports and downloads so reopening never reruns or changes them. External generated results are comparison references only.
+- Save reports and downloads so reopening never reruns or changes them. External prop outcomes are comparison references only; validated external trade/fill/risk observations may supply local calculations.
 
 The business goal is to maximize expected cash received minus added costs within
 a set period and loss/spending limits. Current default sizing uses annual slot
@@ -52,7 +63,8 @@ a Pareto frontier. Independent funded-stage horizon cash optimization conditiona
 on already being funded is also implemented through the same phase-report workflow. A portfolio optimizer is optional
 downstream work. The proof of concept lasts six months; set the trading
 period separately. Order-book depth (L2), a tested MultiCharts .NET live route,
-standalone external-backtest imports and multi-strategy allocation remain proposed.
+and multi-strategy allocation remain proposed. Standalone canonical external
+trade imports are now supported within the documented source-admission limits.
 The long-term depth goal covers historical research and live execution; define
 fields, depth, event timing, coverage and replay needs per strategy. Full
 MultiCharts feature parity and commercialization are outside the initial scope.
@@ -64,6 +76,7 @@ research throughput, spending and engineering hours.
 | Capability | Status at this review |
 | --- | --- |
 | Saved IS backtests, single-strategy parameter grids, manual OOS and local prop reports | Implemented. Each trial uses the existing engine; OOS remains manual and unlimited with recorded history. |
+| Canonical external trades | Implemented 8 November 2026: complete versioned exports, exact cost/identity/event validation, ordinary saved reports/catalogue/downloads and eligible annualized local prop analysis. Generic platform CSV, partial-position paths, independent phase selection and dynamic sizing remain unsupported. |
 | Annualized joint evaluation/funded sizing | Implemented and still the default. Classified as **legacy business-level optimization**, not the target independent phase selector. Preserve calculations, regression tests and historical reports until separately approved retirement. |
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |

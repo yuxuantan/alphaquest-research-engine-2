@@ -75,6 +75,9 @@ class RobustResearchStore:
 
     def preview(self, body):
         anchor = source_record(self.runs, body.source_backtest_id)
+        from .trade_imports import external
+        if external(anchor):
+            raise ValueError('Imported trades cannot run native nested research without the corresponding strategy and price dataset.')
         expanded, origins, _ = self.campaigns.resolve_sources(body.sources)
         ids = sorted({ref['run_id'] for _, refs in expanded for ref in refs})
         if any(source.trade_file for source in body.sources):
@@ -85,6 +88,8 @@ class RobustResearchStore:
         sizing_by_strategy, signal_signatures = {}, set()
         for id in ids:
             saved = source_record(self.runs, id)
+            if external(saved):
+                raise ValueError('Imported candidate trades cannot run native nested research without a local strategy and price dataset.')
             meta = saved['run_metadata']
             research = meta.get('research', {})
             if meta.get('execution_scenario') is not None:

@@ -193,6 +193,54 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
 router = APIRouter()
 
 
+async def _import_bytes(request):
+    from .canonical_trades import MAX_EXPORT_BYTES
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk)
+        if len(content) > MAX_EXPORT_BYTES:
+            raise HTTPException(422, 'Trade export exceeds the 32 MiB input limit.')
+    return bytes(content)
+
+
+@router.post('/api/backtests/imports/check')
+async def check_trade_import(request: Request, filename: str = Query('trade-export.json', min_length=1, max_length=255)):
+    from .trade_imports import preview_import
+    raw = await _import_bytes(request)
+    try:
+        return await run_in_threadpool(preview_import, raw, filename)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+@router.post('/api/backtests/imports')
+async def import_trades(request: Request, filename: str = Query('trade-export.json', min_length=1, max_length=255)):
+    from .trade_imports import ImportConflict, save_import
+    raw = await _import_bytes(request)
+    try:
+        record, created = await run_in_threadpool(save_import, request.app.state.runs, raw, filename)
+        return JSONResponse(record, status_code=201 if created else 200)
+    except ImportConflict as exc:
+        raise HTTPException(409, str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+def _verify_external(request, record):
+    from .trade_imports import external, verify_import_artifacts
+    if external(record):
+        try:
+            verify_import_artifacts(request.app.state.runs, record)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, str(exc)) from None
+
+
+def _native_replay_only(record):
+    from .trade_imports import external
+    if external(record):
+        raise HTTPException(409, 'Imported trades have no local strategy/price replay. Supply a new external export; no bars or missing risk observations are fabricated.')
+
+
 @router.get("/api/strategies")
 def strategies():
     return list_strategies()
@@ -268,6 +316,7 @@ async def detailed(run_id: UUID, request: Request, progress_id: UUID | None = No
     record = await run_in_threadpool(request.app.state.runs.get, run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    _native_replay_only(record)
     if record.get('run_metadata',{}).get('research',{}).get('phase') != 'is':
         raise HTTPException(409, 'Only declared IS reports can be replayed for detail. OOS replays require a manual OOS request from IS; legacy reports remain read-only.')
     if record.get("report_storage", {}).get("detail") != "compact":
@@ -292,6 +341,7 @@ async def capture_risk(run_id: UUID, request: Request, progress_id: UUID | None 
     record = await run_in_threadpool(runs.get, run_id.hex)
     if record is None:
         raise HTTPException(404, 'Completed backtest not found.')
+    _native_replay_only(record)
     if record.get('run_metadata', {}).get('research', {}).get('phase') != 'is':
         raise HTTPException(409, 'Risk capture replay requires declared IS. OOS needs a new explicit manual OOS run from IS; legacy reports remain read-only.')
     if record.get('intratrade_risk'):
@@ -309,6 +359,7 @@ async def capture_risk(run_id: UUID, request: Request, progress_id: UUID | None 
 
 
 async def generate_detail(request, record, progress_id, *, risk_replay=False):
+    _native_replay_only(record)
     metadata = record["run_metadata"]
     dataset = await run_in_threadpool(request.app.state.store.get, metadata["dataset"]["id"])
     if dataset is None:
@@ -341,6 +392,7 @@ def completed_run(run_id: UUID, request: Request):
     record = request.app.state.runs.get(run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    _verify_external(request, record)
     return record
 
 
@@ -363,6 +415,9 @@ def delete_run(run_id: UUID,request: Request):
 
 
 def result_page(request, run_id, kind, offset, limit):
+    record = request.app.state.runs.get(run_id.hex)
+    if record is not None:
+        _verify_external(request, record)
     page = request.app.state.runs.page(run_id.hex, kind, offset, limit)
     if page is None:
         raise HTTPException(404, "Completed backtest not found.")
@@ -385,9 +440,14 @@ def chart(run_id: UUID, request: Request, max_points: int = Query(1000, ge=16, l
     record = runs.get(run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    _verify_external(request, record)
     try:
-        return equity_preview(runs.root / run_id.hex / "equity.csv",
-                              record["summary"]["trades_taken"] + 1, max_points)
+        result = equity_preview(runs.root / run_id.hex / "equity.csv",
+                                record["summary"]["trades_taken"] + 1, max_points)
+        from .trade_imports import external
+        if external(record):
+            result['currency'] = record['run_metadata']['instrument']['currency']
+        return result
     except (OSError, ValueError, RuntimeError) as exc:
         raise HTTPException(500, "Saved equity chart could not be read.") from exc
 
@@ -409,6 +469,9 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
         raise HTTPException(404, 'Completed backtest not found.')
     descriptor = record.get('market_benchmark')
     if descriptor is None:
+        from .trade_imports import external
+        if external(record):
+            return dict(unavailable='This imported trade source has no local price bars. No market benchmark or per-bar equity was fabricated.')
         return dict(unavailable='This saved report predates market comparisons. Its results are preserved. Run a new IS backtest to capture a comparison; OOS execution remains a manual action.')
     try:
         folder = runs.root / run_id.hex
@@ -421,8 +484,15 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity") or record is None:
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
+    _verify_external(request, record)
+    if kind in ('source', 'canonical_source'):
+        from .trade_imports import external, SOURCE_FILES
+        if not external(record):
+            raise HTTPException(404, 'This report has no preserved external trade export.')
+        return FileResponse(runs.root/run_id.hex/SOURCE_FILES[kind], media_type='application/json',
+                            filename=f'{run_id.hex}-{SOURCE_FILES[kind]}')
     if kind == 'market_equity' and record.get('market_benchmark', {}).get('storage'):
         from .market_equity import equity_csv
         try:

@@ -7146,3 +7146,128 @@ Reproduction commands (use fresh output directories; never reuse these saved
   tests/test_research_campaigns.py
 .venv/bin/python -m pytest -q tests/test_robust_research_browser.py
 ```
+
+## Canonical external trades and local prop analysis — 2026-11-08
+
+M2a adds versioned external trade ingestion to the existing Backtests report and
+strategy catalogue, followed by normal prop configuration, source checking,
+analysis execution and durable downloads. It does not create market data or
+invoke an external prop engine. The complete contract is in
+[`designs/trade_export_v1.md`](designs/trade_export_v1.md). An import can be valid
+while being ineligible for a particular simulation. External independent phases,
+dated/budgeted replay and dynamic sizing remain pending. Earlier evidence and
+reports above are preserved.
+
+The final eligible synthetic product library is
+`artifacts/trade-import-m2a-20261107/browser-final/data/test_supported_external_source0/`.
+It contains the original synthetic JSON, ordinary saved source and analysis,
+source-check JSON, downloaded report/ZIP/CSV, `browser-evidence.json` and desktop
+and 390px screenshots. Source `42c0d5aba86f49b4a86cc1b3101e8187`, analysis
+`fda22a17fa544222a39d75e49e241aec`. Original SHA-256
+`fc5c179cd0acd64beb323320cac5ce362ec35d9ebb5ec61fd1eb6ce5117dba4f`;
+report SHA-256
+`59e55e5609f3dfc8b0a8fd9bfe42b41ff4e454e96540fcc2a404463a7bc2f58a`;
+ZIP SHA-256
+`7f4c80568e36485645bfc0c02547a48a6ab2dd8da6344cbc0fadf55cae3796d2`.
+The first and second browser libraries remain unchanged; the first had one
+assertion failure from checking option-disabled state without distinguishing its
+disabled parent select. The corrected assertion inspects the option's own
+disabled property. Both subsequent browser journeys passed.
+
+Reopen the saved product library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/trade-import-m2a-20261107/browser-final/data/test_supported_external_source0" \
+  .venv/bin/python -m uvicorn alphaquest.app:create_app --factory \
+  --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#backtests/report/42c0d5aba86f49b4a86cc1b3101e8187`.
+Expected: source net **$4**, gross **$6**, commissions **$2**, slippage **$2**,
+trade-close equity **$10000 → $10004**, original trade ID `mc-42`, and explicit
+external-source provenance. No local dataset is created. The market benchmark
+explains the lack of bars; native OOS/risk replay/detail controls are unavailable.
+Original/canonical/trade/equity/report downloads remain inspectable.
+
+For a fresh import, open `http://127.0.0.1:8019/#backtests/new?import=external`,
+select `SYNTHETIC-supported-external-trades.json` from this library,
+**Check import → Save imported report**. The same bytes reopen the same report
+without duplication. From the report select **Configure prop analysis**. In
+advanced settings choose source commissions, 1 slot, maximum total NQ 0.1 and
+block length 1; retain annualized mode. **Check source** shows $4 source net and
+**5 observed ordered marks across 1 trade**, plus two declared sessions with a
+1/1 training/validation split. **Run analysis** publishes through the ordinary
+AnalysisStore. Direct saved result:
+`http://127.0.0.1:8019/#backtests/prop/job/fda22a17fa544222a39d75e49e241aec`.
+Select **Source & model**, reload and download JSON/ZIP/trades CSV. Reopening
+makes no POST and returns byte-identical downloads without recalculation.
+`analysis.zip` includes original and normalized source inputs with hashes.
+Stop the manually started server with **Ctrl+C**. All browser fixtures stopped
+their temporary servers; no persistent server was started for this increment.
+
+Independent arithmetic and expected results:
+
+| Observation | Independent expectation |
+| --- | --- |
+| Two MNQ, reference 100 → 102, point value $2 | Reference gross $8 |
+| Actual fills 100.25 → 101.75 | Actual gross $6; $2 slippage already reflected |
+| Entry/exit commissions $1 each | Net $4; no second slippage or fee deduction |
+| Ordered net marks −1, −6, −2, +6, +4 | Observed whole-trade MAE/MFE $6/$6; 5 events |
+| Normalize to one MNQ | Net $2; observed MAE $3; fee $1 |
+| Declared Jan 5 and Jan 6 sessions | Retain empty Jan 6; training/validation 1/1 |
+| Tiny source cannot reach evaluation target | Pass rate 0; funded results unavailable, not invented zero-payout forecasts |
+| Override fee $1 per MNQ per side | Net $1; adverse mark $3.50, charging only entry fee while open |
+| Daily threshold −$2 crossed by observed adverse mark | Loss −$3 (or −$3.50 with override), preserving the observed jump |
+
+The source labels its fixed-path invariance as an exporter declaration. This
+synthetic arithmetic fixture is not market evidence, tick-completeness proof,
+provider certification or a profitable-strategy recommendation. Observed marks
+are not fabricated measured companion MAE/MFE. Independent tests distinguish an
+observed jump from continuous threshold interpolation, which would erase the
+overshoot. Planning/provider uncertainty remains explicit.
+
+The second saved library
+`browser-final/data/test_import_review_rejection_s0/` holds source
+`a42547c267ad44429bdb09d3cb4966d7`, whose unverified path-invariance declaration
+allows import but blocks prop analysis with a visible reason. Its browser
+journey also rejects an incomplete export before Save, confirms the external
+catalogue has no native dataset link or native rerun control, and verifies
+duplicate import/reload/download integrity. API/unit checks cover duplicate keys,
+decimal/time/hash/count/cost mismatch, late or impossible stop decisions, partial
+positions, out-of-order event ownership, reported extrema beyond the observed
+path, unsupported source calendars/currency/quantity, tampered artifacts, changed
+export IDs and concurrent identical imports. Native-only routes return explicit
+rejections instead of failing on a nonexistent dataset.
+
+The prop API library
+`artifacts/trade-import-m2a-20261107/prop-api/data/test_normal_import_check_analy0/`
+saves `independent-expectations.json` and normal downloads. That 17-test gate
+passed in 2.25 seconds after correcting two test expectations; the earlier
+failures are retained in its log. The stable integrated regression passed
+**233 tests in 283.58 seconds**, covering existing backtest/reuse/prop API/cost/
+phase/campaign behavior plus canonical import/catalogue. After final report
+contract wording, **38 import/prop boundary tests passed in 4.48 seconds**.
+Both final import browser journeys passed in **12.54 seconds**. Logs/JUnit/data
+are under `regression/`, `final-prop/` and `browser-final/` respectively. Existing
+report, strategy catalogue, dataset navigation, exact submitted configuration
+and mobile browser regression passed **29 tests in 323.84 seconds**, saved under
+`browser-regression/`. Desktop and 390px screenshots were visually inspected.
+Starlette/httpx deprecation warnings remain. These overlapping gates are not a
+combined distinct-test count or a full-suite/provider-parity claim.
+
+Reproduction commands (use fresh directories for `--basetemp`; pytest clears
+the selected base, so never reuse the preserved evidence directories):
+
+```sh
+.venv/bin/python -m pytest -q tests/test_backtest_api.py \
+  tests/test_backtest_reuse.py tests/test_prop_analysis_api.py \
+  tests/test_prop_commissions.py tests/test_prop_phase_profiles.py \
+  tests/test_research_campaigns.py tests/test_canonical_trades.py \
+  tests/test_trade_imports.py tests/test_external_trade_library.py
+.venv/bin/python -m pytest -q tests/test_external_prop_source.py tests/test_trade_imports.py
+.venv/bin/python -m pytest -q tests/test_trade_import_browser.py
+.venv/bin/python -m pytest -q tests/test_reports_browser.py \
+  tests/test_strategies_browser.py tests/test_strategy_dataset_browser.py \
+  tests/test_backtests_browser.py::test_exact_submitted_configuration_and_saved_completion_summary \
+  tests/test_backtests_browser.py::test_mobile_navigation_and_layout
+```

@@ -260,6 +260,7 @@
 
   function completion(record) {
     reportRecord = record;
+    const external = record.run_metadata.source?.kind === 'external_trade_export';
     const compact = record.report_storage?.detail === "compact";
     const compressed = record.report_storage?.compression === "gzip";
     get("#report-storage-note").textContent = compact
@@ -268,6 +269,17 @@
     if (record.market_benchmark) get("#report-storage-note").textContent += " Aligned strategy/holding bar-close equity is already saved in the Market benchmark CSV; viewing it requires no replay.";
     get("#report-json-download").href = `/api/backtests/${record.id}/exports/report`;
     get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
+    get('#report-source-download').hidden = get('#report-canonical-download').hidden = !external;
+    get('#report-source-download').href = `/api/backtests/${record.id}/exports/source`;
+    get('#report-canonical-download').href = `/api/backtests/${record.id}/exports/canonical_source`;
+    if (external) {
+      get('#report-storage-note').textContent = 'Imported trade report · Completed fills, exact costs and trade-close equity are saved. Market bars, per-bar equity and native strategy replay are unavailable. Risk coverage remains the exporter’s declared observation basis.';
+      for (const id of ['report-generate-detail', 'report-capture-risk', 'report-risk-download']) get('#' + id).hidden = true;
+      get('#report-detail-status').hidden = true;
+      window.externalTradeImport.renderPreview({source: record.run_metadata.source, manifest: record.run_metadata.external_manifest, summary: record.summary,
+        validation: record.run_metadata.source_validation, capabilities: record.capabilities, limitations: record.limitations}, get('#backtest-completion-content'));
+      return;
+    }
     get("#report-generate-detail").hidden = !compact || record.run_metadata.research?.phase !== 'is';
     get("#report-generate-detail").disabled = detailedBusy;
     get("#report-capture-risk").hidden = !!record.intratrade_risk || record.run_metadata.research?.phase !== 'is';
@@ -343,6 +355,7 @@
   get("#report-capture-risk").onclick = () => replayReport(true);
   async function replayReport(risk) {
     if (detailedBusy || !reportRecord) return;
+    if (reportRecord.run_metadata.source?.kind === 'external_trade_export' || reportRecord.capabilities?.native_replay === false) return;
     const id = reportRecord.id, operationId = crypto.randomUUID();
     const hash = location.hash;
     const status = get("#report-detail-status");

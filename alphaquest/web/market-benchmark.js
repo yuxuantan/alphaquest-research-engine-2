@@ -90,6 +90,10 @@
     get("#market-benchmark-results").hidden = true;
     get("#market-benchmark-context").textContent = "";
     get("#market-benchmark-status").textContent = "Loading saved comparison…";
+    if (record.run_metadata.source?.kind === 'external_trade_export' || record.capabilities?.market_benchmark === false) {
+      get('#market-benchmark-status').textContent = 'Market comparison unavailable: this imported source supplies completed trades without the market bars required for a benchmark or per-bar equity.';
+      return;
+    }
     try {
       const response = await fetch(`/api/backtests/${record.id}/market-benchmark`, {cache: "no-store", signal: current.signal});
       const result = await response.json();

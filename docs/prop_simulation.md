@@ -8,6 +8,40 @@ claims are replaced. The [research workflow](research_workflow.md#nested-inner-r
 explains the increment and the [checklist](robust_research_plan.md) records the
 remaining complete-platform work.
 
+## Canonical external sources — 2026-11-08
+
+**Backtests → Import external trades** validates the versioned
+[`aq-trade-export-v1` contract](designs/trade_export_v1.md) and saves an ordinary
+backtest report. Original bytes, normalized trades/risk events, exporter identity,
+declared research access and exact fee/slippage reconciliation remain inspectable.
+No market dataset, missing sessions, measured excursions or native replay are
+fabricated. Importing is distinct from model admission.
+
+The normal **Configure prop analysis → Check source → Run analysis** journey
+accepts a bounded annualized subset: identified USD NQ/MNQ with constant source
+quantity, actual-fill timestamps, intraday-flat nonoverlapping trades, complete
+ordered marks covering declared extrema, explicit contiguous business-weekday
+inventory including empty edges, and exporter-declared signal-path invariance.
+The declaration is an assumption, not independent proof of tick completeness or
+execution scalability. Other imports remain useful saved reports and explain
+why simulation is unavailable. External dated/budgeted replay and independent
+phase selection are not admitted by this increment.
+
+Actual fills already include slippage. Source fees remain in net returns;
+commission overrides replace the source fee once, using one side while open and
+two at close. Every newly adverse observed mark is a jump, preserving overshoot
+when a threshold is crossed instead of inventing a fill at the threshold. The
+adapted CSV retains original net/costs and ordered events alongside per-NQ
+simulation values (one MNQ is 0.1 NQ). Observed-mark extrema are labelled
+separately from measured companion excursions. Closed-trade or extrema-only
+data cannot establish crossing order and rejects this simulation route.
+
+Ordinary reports/downloads verify saved byte hashes without re-parsing or
+recalculation. New analyses additionally verify source/canonical semantics,
+capture immutable inputs in `analysis.zip`, and include importer/adapter code in
+implementation identity. No Bridge or other external prop engine/results are
+used. [Independent arithmetic, boundary checks and saved product evidence](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08).
+
 ## Current behavior and navigation — updated 2026-11-07
 
 Use an ordinary saved IS backtest/trial → **Configure prop analysis** → create an

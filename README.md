@@ -29,6 +29,16 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
+**Backtests → Import external trades** accepts complete, versioned trade/risk
+exports and saves an ordinary report with original bytes, provenance and exact
+cost reconciliation. Eligible ordered-mark sources can continue through
+**Configure prop analysis → Check source → Run analysis** for the existing
+annualized model. No market bars or native strategy replay are invented. See the
+[export contract](docs/designs/trade_export_v1.md),
+[import steps](docs/research_workflow.md#external-trade-imports) and
+[saved demonstration](docs/prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08).
+External independent-phase selection and dynamic sizing remain pending.
+
 The same saved report's **Configure prop analysis** screen now includes
 **Nested research**: preview rolling/expanding session windows, declare inner
 qualification criteria, run ordinary isolated backtests, and reopen/download

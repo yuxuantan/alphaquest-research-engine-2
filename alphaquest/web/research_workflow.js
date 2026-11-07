@@ -202,6 +202,9 @@
     const version = ++generation, route = location.hash;
     const current = () => version === generation && route === location.hash;
     panel.replaceChildren(node('h2', 'Nested research'));
+    if (source.run_metadata.source?.kind === 'external_trade_export' || source.capabilities?.nested_research === false) {
+      panel.append(node('p', 'Nested strategy reruns require native strategy code and market bars. Imported trades retain their declared research history but cannot run this workflow.')); return;
+    }
     if (source.run_metadata.research?.phase !== 'is') {
       panel.append(node('p', 'Open a declared in-sample backtest to configure chronological research.')); return;
     }
