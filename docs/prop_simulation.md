@@ -159,6 +159,13 @@ tick-completeness certification or live execution readiness.
 
 ## Current behavior and navigation — updated 2026-11-08
 
+The configuration page now starts with a [goal-led flow](prop_setup.md). Choose
+**Find a robust strategy, size and account**, **Compare qualified candidates**,
+or **Inspect one strategy/account policy**. Legacy joint sizing, budgeted cash
+and frozen-pair tools are explicit alternatives under **Other analysis tools**.
+Use **Show all settings for this task** when following older dated field-level
+instructions. Saved calculations and the numerical objectives below are unchanged.
+
 Use an ordinary saved IS backtest/trial → **Configure prop analysis** → create an
 independent phase campaign → **Check** → **Run** → durable results/downloads →
 named IS freeze → manual frozen OOS assessment. Evaluation returns a cost/calendar

@@ -82,7 +82,9 @@
     read.load=values=>{if(!values?.length){mode.value='legacy';refresh();return;}if(values.length>60||(native&&values.length!==1))throw Error('Saved sizing policy count is unsupported by these controls.');const common=({initial_configured_capital,planning_execution})=>canonical({initial_configured_capital,planning_execution});if(values.some(value=>common(value)!==common(values[0])))throw Error('Saved policies have distinct planning assumptions; these grouped controls cannot silently combine them.');if(values.some(value=>options.riskOnly&&value.policy.kind==='fixed_contracts'))throw Error('An explicit fixed sizing object cannot be silently converted to a bare quantity.');mode.value='policies';policies.replaceChildren();for(const value of values)addPolicy().load(value.policy);const value=values[0];for(const[key,v]of Object.entries({capital:value.initial_configured_capital,tick:value.planning_execution.tick_size,point:value.planning_execution.point_value,'entry-slip':value.planning_execution.entry_slippage_ticks,'stop-slip':value.planning_execution.stop_exit_slippage_ticks,commission:value.planning_execution.commission_per_contract_per_side}))grid.querySelector('.'+prefix+'planning-'+key).value=v;refresh();};
     return read;
   }
-  async function configure(source) {
+  let configurationVersion=0;
+  async function configure(source,{isCurrent=()=>true}={}) {
+    const version=++configurationVersion;
     const panel=$('#prop-campaigns');panel.replaceChildren();
     panel.append(node('h2','Independent phase research campaigns'));
     const external=source.run_metadata.source?.kind==='external_trade_export';
@@ -90,7 +92,8 @@
     if(source.run_metadata.research?.phase!=='is'){panel.append(node('p','Select a declared IS backtest to create a research campaign.'));return;}
     const defaults=await api('/api/research-campaigns/defaults');
     const saved=await api('/api/research-campaigns?source_id='+source.id);
-    const history=node('div');for(const c of saved.items){history.append(link(`${c.phase} · ${c.status}${c.frozen?' · frozen':''} · ${c.campaign_id}`,`#backtests/prop/campaign/${c.campaign_id}`),node('br'));}panel.append(history);
+    if(version!==configurationVersion||!isCurrent())return;
+    const history=node('div');history.dataset.setupHistory='compare';for(const c of saved.items){history.append(link(`${c.phase} · ${c.status}${c.frozen?' · frozen':''} · ${c.campaign_id}`,`#backtests/prop/campaign/${c.campaign_id}`),node('br'));}panel.append(history);
     const d=node('details');d.id='campaign-configure';d.append(node('summary','Configure a phase campaign'));panel.append(d);
     const form=node('form');form.id='campaign-form';d.append(form);
     form.append(node('p','Compare saved IS sources and optimization trials. Each trial × fixed MNQ size, or trial × hard cap × declared sizing policy, is one candidate. The full count is calculated when checking; searches above 128 candidates require confirmation. Source identity, research coverage and costs must be compatible.'));
@@ -200,7 +203,7 @@
     field(fundedFields,'Receipt horizon · calendar days','campaign-horizon','90','number');field(fundedFields,'Receipt delay · calendar days','campaign-delay','0','number');
     field(fundedFields,'Maximum breach probability (0–1)','campaign-breach','1','number').step='any';
     const note=node('p','Uses captured source costs. Fixed sizes preserve the existing linear MNQ scenarios; explicit sizing policies use causal stop and account state subject to source admission. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts.');form.append(note);
-    const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';syncProfile();};phase.onchange=changePhase;changePhase();
+    const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';for(const input of evalFields.querySelectorAll('input,select'))input.disabled=evalFields.hidden||(nativeMode()&&['campaign-chains','campaign-chain-seed'].includes(input.id));for(const input of fundedFields.querySelectorAll('input,select'))input.disabled=fundedFields.hidden||(nativeMode()&&input.id==='campaign-horizon');syncProfile();};phase.onchange=changePhase;changePhase();
     for(const [id,min,max]of [['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1],['campaign-retry-delay',0,365],['campaign-activation-delay',0,365]]){const input=$('#'+id);input.min=min;input.max=max;}
     let previousExecution='trade_path';const executionValues={};
     function nativeMode(){return execution.value==='native';}
@@ -214,7 +217,7 @@
       $('#campaign-paths').min=active?'2':'1';$('#campaign-paths').max=active?'512':'20000';
       $('#campaign-block').closest('label').firstChild.textContent=active?'Contiguous observed source sessions per block':'Resampling block · weekdays';
       note.textContent=active?'Actual native strategy reruns use the declared policy at each causal opportunity. Source costs are charged once; planning costs must match the admitted source. Modeled target calendar and settlement assumptions remain unverified.':'Uses captured source costs. Fixed sizes preserve the existing linear MNQ scenarios; explicit sizing policies use causal stop and account state subject to source admission. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts.';
-      synchronizeNativePaths();syncProfile();
+      synchronizeNativePaths();changePhase();
     }
     execution.addEventListener('change',changeExecution);$('#campaign-paths').addEventListener('input',synchronizeNativePaths);$('#campaign-seed').addEventListener('input',synchronizeNativePaths);
     const count=node('p','Candidate count will be calculated from the selected saved trials and sizes.');count.id='campaign-count';form.append(count);

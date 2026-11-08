@@ -1,4 +1,5 @@
 """Actual upload -> declared IS -> selected OOS -> durable native prop reports."""
+from prop_setup_helpers import open_prop_task
 
 from test_backtests_browser import set_parameter
 from hashlib import sha256
@@ -108,7 +109,8 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     page.screenshot(path=str(tmp_path/'is-cash-summary.png'),full_page=True)
     # Enter the normal configuration -> source checking -> run -> durable report
     # workflow. Identical native analysis reopens the verified saved calculation.
-    page.locator('#report-prop-setup').click();playwright.expect(page.locator('#prop-activation')).to_have_value('129')
+    page.locator('#report-prop-setup').click();open_prop_task(page, 'legacy');playwright.expect(page.locator('#prop-activation')).to_have_value('129')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('180000')
     page.screenshot(path=str(tmp_path/'is-native-source-check.png'),full_page=True)
@@ -147,7 +149,7 @@ def test_percentage_is_sweep_select_oos_with_default_prop_and_reopen_downloads(p
     expected_ids={automatic['id'],*(item['id'] for item in automatic.get('companions',[]))}
     assert {item['id'] for item in page.request.get(portal['url']+'/api/prop-analyses/sources/'+oos_id+'?discover_exports=false').json()['analyses']}==expected_ids
     page.screenshot(path=str(tmp_path/'oos-cash-summary.png'),full_page=True)
-    page.locator('#report-prop-setup').click();page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
+    page.locator('#report-prop-setup').click();open_prop_task(page, 'legacy');page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('180000')
     page.screenshot(path=str(tmp_path/'oos-native-source-check.png'),full_page=True)
     page.locator('#prop-run').click();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=30000)

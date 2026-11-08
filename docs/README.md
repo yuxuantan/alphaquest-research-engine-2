@@ -19,6 +19,8 @@
 
 ## Product guides
 
+- [Guided prop configuration](prop_setup.md): choose a goal, confirm sources, configure only relevant settings, review/check/run, restore drafts and inspect previous work.
+
 - [Strategies](strategies_navigation.md): browse and run backtests.
 - [Backtests](backtests_portal.md): configure runs and read reports.
 - [Optimizations](optimization.md): parameter searches and downloads.

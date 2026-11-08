@@ -201,14 +201,12 @@
     if(previous&&previous.source?.backtest?.id!==id)throw Error('The saved analysis belongs to a different source backtest.');
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;externalSource=data.source.run_metadata.source?.kind==='external_trade_export';
     sourceRecord=data.source;
-    await window.phaseCampaigns.configure(data.source);if(t!==token)return;
-    await window.robustResearch.configure(data.source,workspaceOptions);if(t!==token)return;
-    window.nativeReplay.configure(data.source,defaults.native_phase_replay);
-    window.pairComparison.configure(data.source,defaults.predefined_lifecycle_comparison);
+    let legacyLoaded=false;
+    const loadLegacy=async()=>{if(!legacyLoaded){await loadSources();legacyLoaded=true;updateObservedWindow();}};
     $('#prop-back').href=`#backtests/report/${id}`;$('#prop-source').textContent=`${externalSource?'Imported external trades · ':''}${data.source.run_metadata.strategy.id} · ${data.source.run_metadata.dataset.name} · ${data.source.summary.trades_taken} saved trades · ${id}`;
     $('#prop-form').reset();$('#prop-form').querySelectorAll('.prop-advanced').forEach(d=>d.open=false);$('#prop-overrides').value='{}';showMethodFields();
     $('#prop-method option[value="budgeted_lifecycle"]').disabled=externalSource;
-    phaseSources=[];sourceOffset=0;await loadSources();if(t!==token)return;updateObservedWindow();
+    phaseSources=[];sourceOffset=0;if(previous)await loadLegacy();if(t!==token)return;updateObservedWindow();
     modelProfiles=defaults.profiles||[];
     $('#prop-trade-file').value=!externalSource&&!holdoutSource&&!nativeRiskSource&&data.matched_exports?.length===1?data.matched_exports[0].path:'';
     for(const key of ['prop-trade-file','prop-export-timezone'])$('#'+key).closest('label').hidden=externalSource;
@@ -222,7 +220,7 @@
     $('#prop-commission-source').href=defaults.commissions.source_url;$('#prop-commission-source').textContent='Apex Rithmic commission schedule';
     const automatic=data.source.run_metadata.automatic_prop_analysis,labels=new Map(automatic?[automatic,...(automatic.companions||[])].map(a=>[a.id,a.label||'Apex 50K EOD']):[]);
     $('#prop-saved').replaceChildren();for(const a of data.analyses){const row=el('div',undefined,'strategy-saved-prop-row'),link=el('a',`${labels.get(a.id)||'Saved analysis'} · ${a.created} · ${a.status} · ${a.id}`);link.href=`#backtests/prop/job/${a.id}`;const remove=el('button','Delete','button danger');remove.type='button';remove.disabled=['queued','running'].includes(a.status);remove.setAttribute('aria-label',`Delete prop report ${a.id}`);remove.onclick=()=>deleteProp(a.id,row);row.append(link,remove);$('#prop-saved').append(row);}
-    $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'AlphaQuest local calculations · selected backtest period, internal 30% validation, block 5, standard simulation counts. Check the source before running.';$('#prop-config').hidden=false;setBusy(false);
+    $('#prop-check-output').replaceChildren();$('#prop-defaults').textContent=JSON.stringify(defaults.defaults,null,2);$('#prop-status').textContent=holdoutSource?'OOS source · This period was manually executed from a completed IS report. Check the source to reopen a saved analysis or run with new prop settings.':'Choose a goal to see the applicable assumptions and source checks.';$('#prop-config').hidden=false;setBusy(false);
     if(externalSource)$('#prop-status').textContent='Imported source · Research phase and coverage come from the exporter declaration. Check the preserved trade identity, costs, risk coverage and supported model before running.';
     if(previous){
       const settings={...previous.settings},retiredLifecycle=settings.ANALYSIS_MODE==='dated_lifecycle';
@@ -257,6 +255,12 @@
       }
       $('#prop-status').textContent=retiredLifecycle?'Saved phase sources and sizes copied to Budgeted cash ledger. Set the monthly fee cap, dates and timing assumptions, then check source.':'Saved account settings copied. Check the same source, then run a new analysis with the current model. The earlier report is preserved.';
     }
+    await window.propSetup.mount({source:data.source,isCurrent:()=>t===token,initialGoal:previous?($('#prop-method').value==='budgeted_lifecycle'?'budget':'legacy'):(workspaceOptions.draftId||workspaceOptions.researchId?'research':null),initializers:{
+      research:()=>window.robustResearch.configure(data.source,workspaceOptions),
+      compare:()=>window.phaseCampaigns.configure(data.source,{isCurrent:()=>t===token}),
+      inspect:()=>window.nativeReplay.configure(data.source,defaults.native_phase_replay),
+      legacy:loadLegacy,budget:loadLegacy,pair:()=>window.pairComparison.configure(data.source,defaults.predefined_lifecycle_comparison),
+    }});
   }
   function render(r) {
     $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);

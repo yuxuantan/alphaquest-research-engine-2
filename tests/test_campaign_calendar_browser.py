@@ -1,4 +1,5 @@
 """Saved backtest → automatically dated campaign → durable report/downloads."""
+from prop_setup_helpers import open_prop_task
 import json
 from hashlib import sha256
 
@@ -15,6 +16,7 @@ def test_automatic_calendar_from_saved_report(page, portal, tmp_path, phase, end
         source, job_id = saved_grid_source(client)
     page.goto(portal['url']+'/#backtests/report/'+source['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     assert page.locator('#campaign-calendar-end').count() == 0
     playwright.expect(page.locator('#campaign-form')).to_contain_text('Calendar coverage is calculated automatically')

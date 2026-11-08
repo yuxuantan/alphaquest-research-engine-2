@@ -1,4 +1,5 @@
 """Find and understand saved work through the normal Research product page."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 import io
 import json
@@ -16,6 +17,7 @@ def test_find_campaign_by_activity_backtest_and_link_then_review(page,portal,tmp
     # Normal report -> configure -> source check -> phase run, using the whole grid.
     page.goto(portal['url']+'/#backtests/report/'+records[0]['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-configure > summary').click()
     page.locator('#campaign-phase').select_option('funded')
     page.locator('.campaign-kind').select_option('optimization_id')

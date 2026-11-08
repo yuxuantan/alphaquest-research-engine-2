@@ -1,4 +1,5 @@
 """Real native policy comparisons in the existing phase campaign, never a demo UI."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 from hashlib import sha256
 import io
@@ -16,6 +17,7 @@ from test_native_replay_api import source
 def configure_native_campaign(page, portal, original, phase, quantities, *, horizon=9, capture=1):
     page.goto(portal['url']+'/#backtests/report/'+original['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     page.locator('#campaign-execution').select_option('native')
     page.locator('.campaign-sizes').fill(quantities)

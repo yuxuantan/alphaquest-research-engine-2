@@ -1,4 +1,5 @@
 """Declared sizing policies through the ordinary import/phase-campaign workflow."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 from hashlib import sha256
 import json
@@ -48,6 +49,7 @@ def test_imported_causal_sizing_campaign_membership_decisions_downloads_and_reop
     source_id = page.url.rsplit('/', 1)[1]
     playwright.expect(page.locator('#report-net')).to_have_text('20')
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     playwright.expect(page.locator('#campaign-is-start')).to_have_value('2026-01-05')
     playwright.expect(page.locator('#campaign-is-end')).to_have_value('2026-01-06')
@@ -171,6 +173,7 @@ def test_native_decisions_download_and_dynamic_policy_requires_rerun(page, porta
     assert sha256(response.body()).hexdigest() == source['execution_decisions']['sha256']
     page.screenshot(path=str(tmp_path/'native-entry-decision-download.png'), full_page=True)
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-evaluation').click()
     page.locator('.campaign-sizing-mode').select_option('policies')
     page.locator('.campaign-planning-commission').fill('0')

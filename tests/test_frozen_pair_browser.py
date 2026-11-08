@@ -1,4 +1,5 @@
 """Normal source report → explicit frozen pair → actual dated cash report."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 from hashlib import sha256
 import io
@@ -32,6 +33,7 @@ def test_frozen_pair_normal_report_check_run_cash_and_reopen(page,portal,tmp_pat
     access_before=page.request.get(portal['url']+'/api/backtests/'+parent['id']+'/oos').json()['used']
     page.goto(portal['url']+'/#backtests/report/'+oos['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'pair', close_outer=True)
     page.locator('#pair-configure > summary').click()
     page.locator('#pair-1-name').fill('SYNTHETIC frozen 3 MNQ Evaluation → 3 MNQ Funded')
     page.locator('#pair-first').fill('2026-01-26')

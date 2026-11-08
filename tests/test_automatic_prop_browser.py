@@ -1,4 +1,5 @@
 """Usable automatic Apex workflow with actual standard-count saved outputs."""
+from prop_setup_helpers import open_prop_task
 
 from test_backtests_browser import set_parameter
 
@@ -79,12 +80,17 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     page.locator('#prop-back').click()
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-activation')).to_have_value('129')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-overrides').fill('{"unsupported_automatic_test":1}')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-status')).to_contain_text('Unknown prop analysis setting')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-overrides').fill('{}')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('180000')

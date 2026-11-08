@@ -9382,3 +9382,93 @@ marked running and queued during this task; that server and all production jobs,
 files and records were left untouched. Restarting only to cancel one queued job
 can interrupt other work; wait for needed work to finish. Pre-update saved jobs
 retain the existing engine-identity compatibility guard.
+
+## Guided prop configuration — 2026-11-09
+
+All eight configuration UX recommendations are implemented in the existing
+backtest report → Configure prop analysis → check → run → durable report journey:
+
+1. A goal-first landing recommends full robustness research, with separate saved
+   candidate comparison and single-policy inspection choices. Legacy joint,
+   budgeted cash-ledger and frozen-pair tools are explicit alternatives.
+2. Sources → Research design → Accounts and sizing → Review and run shows only
+   relevant settings. Tasks without research design omit that step.
+3. Preliminary saved-source compatibility appears before detailed configuration;
+   known unsupported native choices explain their requirements. Authoritative
+   owner admission remains mandatory, and no execution is silently substituted.
+4. Evaluation and Funded objectives/settings stay independent. Inactive phase
+   controls are disabled so irrelevant validation cannot block the active phase.
+5. Position sizing uses plain-language questions over existing fixed, dollar and
+   percentage policies, bases and hard caps. Source costs are never charged twice.
+6. Human labels and explanatory headings replace setup jargon; legacy JSON is
+   an expert disclosure. Existing calculation meanings remain intact.
+7. A desktop study summary and expandable mobile summary show declarations and
+   check status; Review exposes every enabled setting plus authoritative checks.
+8. Contextual window/sampling/seed controls, a selected-task all-settings view
+   and separate previous-work history reduce the default form's density.
+
+`docs/prop_setup.md` documents the workflow. Exact copy/start/stop commands,
+source/campaign/analysis IDs, settings, normal URLs, downloads, expected boundaries
+and screenshots are in `artifacts/prop-setup-ux-20261108/README.md`. The final
+examples are intact normal product libraries, with SYNTHETIC source labels.
+There is no separate demo page, API, database, simulation or evidence store.
+
+Three normal-product demonstrations were executed through the guided controls:
+
+- **Compare qualified candidates:** saved MNQ source, Funded Apex, fixed sizes
+  1/3, 8 paths, block 1, 14 calendar days and 4-day receipt lag. The independent
+  $300/$900-session paths produce modeled received cash `[0,1500]`; the next
+  payout remains outside the horizon. Campaign `9a32a49effbe4395907f9fd75ab543c8`,
+  analysis `18b0ea3355c847fea3a75116b0c68645` reopens without simulation.
+- **Full robustness research:** two saved strategy sources, rolling 8/2 outer
+  and 2/2 inner windows, 1/1 purge/embargo, qualification declared before work,
+  optional independent Funded study at quantities 10/20. Every inner fold's
+  qualification means are $100/$300 per session, matching independent synthetic
+  arithmetic. Campaign `d71b087aece04a1d94a6fc7c498a26b8`, analysis
+  `e1381e845e7c4ea1a5b1fea45a6755cb` saves research/reliability and remains
+  **INCOMPLETE**, production_qualified false; this is not a deployment claim.
+- **Inspect one native policy:** supported MNQ VWAP source, Funded Apex, fixed
+  size 3. Independent unit nets `[-10,20,20]` imply `[-30,60,60]`, three trades,
+  $90 trading profit, $50,090 provider balance and $0 trader receipts. Analysis
+  `e7ed7d0006aa4bef99d8bb894348f001` and controlled backtest
+  `d954b2da480847c7932577a1bd385a5a` are durable. Source report bytes are unchanged.
+  The native JSON/ZIP are direct downloads, with every manifest component checked.
+  This is one historical path, without a forecast or optimizer selection.
+
+The guided checks exercise lazy loading without unrelated POSTs, preserved values
+across steps/goals, remounting after report navigation, edit invalidation of Run,
+inactive-phase validation, native compatibility, explicit qualification-only
+intent, and recoverable defaults failure without a browser exception. Existing
+Lucid restrictions still reject unsupported execution. Desktop and 390 px views
+were inspected, including the mobile summary above the form and no page overflow.
+Existing freeze, final manual OOS, drafts/templates, native campaigns/replays,
+legacy economics, commission and historical report assertions remain in scope;
+legacy detailed tests select their explicit goal/all-settings view.
+
+The final primary browser sweep passed 21 cases and failed one old navigation
+assumption: after restoring a draft to Sources, its test attempted to open the
+hidden Accounts section. The test now follows the explicit navigation and that
+exact native Lucid restoration case passes. Earlier diagnostic/interrupted
+sweeps and their logs remain preserved; they are not claimed as clean gates.
+The compatibility sweep passed 39 cases before stopping at three old navigation
+assumptions: collapsed ordinary reports, reopened cash configuration at Sources,
+and lazily loaded research history. Tests now select the applicable task/step or
+open Previous analyses before accessing those controls; original arithmetic and
+immutable-report assertions remain. A focused follow-up includes all three plus
+the three cases not reached by that sweep. Final gate details and qualified case
+membership are saved in `verification.json`. The follow-up passed all six cases.
+Final qualification covers **113 distinct cases**: 46 backend contracts and 67
+browser cases, counting each case once after its navigation correction. All
+production hashes match across gates and current files; both phase identities
+match the earlier full-suite snapshot. Native ZIP verification covers all 11
+manifest components and the report itself. The sandbox-only Chromium launch
+failure is retained separately; the permitted localhost browser follow-up passes.
+This increment has focused qualification, not a fresh full-suite or numerical/
+provider-parity claim. Production Python calculations were not changed.
+
+All temporary servers stopped/joined. No persistent server was started and the
+user's existing app/jobs, datasets, backtests and results were left untouched.
+Refresh the browser to load this static UI change. Finished intermediate libraries
+are losslessly compressed only after SHA-256 membership checks and full standard
+`tar` restoration verification; original locations retain restore instructions.
+Final examples remain unpacked, and prior evidence/reports are preserved.

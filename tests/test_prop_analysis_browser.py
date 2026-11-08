@@ -1,3 +1,4 @@
+from prop_setup_helpers import open_prop_task
 from research_fixtures import ResearchHTTPClient
 import json
 import httpx
@@ -12,8 +13,10 @@ def test_local_report_reload_reopen_and_download(page,portal,tmp_path):
     path=export_for(adapter,r,tmp_path)
     page.goto(portal['url']+f"/#backtests/report/{r['id']}");page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     page.locator('#prop-trade-file').fill(str(path));page.locator('#prop-export-timezone').select_option('UTC')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('52.00')
     page.locator('#prop-run').click();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=20000)
@@ -37,17 +40,11 @@ def test_local_report_reload_reopen_and_download(page,portal,tmp_path):
     saved_bytes,source_bytes=saved_report.read_bytes(),source_report.read_bytes()
     analysis_ids={row['id'] for row in portal['app'].state.prop_analyses.list(r['id'])}
     page.locator('#prop-back').click()
-    # Configure derives the existing IS bounds through one metadata-only POST;
-    # report reload/reopen must still make no calculation or submission requests.
-    window_url=portal['url']+'/api/research-campaigns/source-window'
-    with page.expect_response(lambda response:response.url==window_url and response.request.method=='POST') as checked_window:
-        page.locator('#report-prop-setup').click()
-    response=checked_window.value
-    assert response.status==200
-    assert response.request.post_data_json=={'sources':[{'backtest_id':r['id'],'sizes':[1]}]}
-    assert response.json()['is_window']=={'first_session':'2026-01-05','last_session':'2026-01-06'}
-    assert posts==[window_url]
-    posts.clear()
+    # Goal selection is metadata-only and no unrelated phase window is derived.
+    page.locator('#report-prop-setup').click()
+    playwright.expect(page.locator('#setup-goals')).to_be_visible()
+    assert not posts
+    page.locator('#prop-previous > summary').click()
     page.locator(f"#prop-saved a[href='#backtests/prop/job/{data['id']}']").click()
     playwright.expect(page.locator('#prop-report')).to_be_visible();assert not posts
     assert page.url.endswith('/#backtests/prop/job/'+data['id'])

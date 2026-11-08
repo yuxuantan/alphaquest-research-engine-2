@@ -1,4 +1,5 @@
 """Retired method stays readable; configuration uses the normal budgeted flow."""
+from prop_setup_helpers import open_prop_task
 import json
 
 from research_fixtures import ResearchHTTPClient
@@ -20,16 +21,10 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     window_lookups=[]
     def configure_with_window_lookup(link):
-        # Configure reads existing IS metadata; this is not an analysis launch.
-        url=portal['url']+'/api/research-campaigns/source-window';before=len(posts)
-        with page.expect_response(lambda response:response.url==url and response.request.method=='POST') as checked:
-            link.click()
-        response=checked.value
-        assert response.status==200
-        assert response.request.post_data_json=={'sources':[{'backtest_id':a['id'],'sizes':[1]}]}
-        assert response.json()['is_window']=={'first_session':'2026-01-05','last_session':'2026-02-20'}
-        assert posts[before:]==[url]
-        window_lookups.append(dict(request=response.request.post_data_json,status=response.status,response=response.json()))
+        # Previous reports restore their explicit legacy/budgeted tool without unrelated task initialization.
+        before=len(posts);link.click();open_prop_task(page,'legacy')
+        assert posts[before:]==[]
+        window_lookups.append(dict(method='GET-only configuration',source_id=a['id']))
     page.goto(portal['url']+'/#backtests/report/'+a['id'])
     configure_with_window_lookup(page.locator('#report-prop-setup'))
     posts.clear()  # Subsequent saved report reads/reloads must make no POST.
@@ -77,6 +72,7 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
         playwright.expect(page.locator('#'+field)).to_have_value('')
     assert json.loads(page.locator('#prop-overrides').input_value())['ANALYSIS_MODE']=='budgeted_lifecycle'
     page.screenshot(path=str(tmp_path/'legacy-copied-to-budgeted.png'),full_page=True)
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-check-output [role=alert]')).to_contain_text('Enter your monthly fee cap')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
@@ -88,11 +84,13 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
     page.locator('#prop-payout-preset').select_option('0')
     page.locator('#prop-activation-preset').select_option('immediate7')
     page.locator('#prop-funded-source').select_option(incompatible['id'])
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-status')).to_contain_text('Funded source incompatible')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
     page.locator('#prop-funded-source').select_option(b['id'])
     with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as checked:
+        open_prop_task(page, 'legacy', close_outer=False)
         page.locator('#prop-check').click()
     assert checked.value.status==200,checked.value.text()
     assert checked.value.json()['settings']['ANALYSIS_MODE']=='budgeted_lifecycle'

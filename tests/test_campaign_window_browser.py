@@ -1,4 +1,5 @@
 """Saved report → valid common IS default → checks, run and durable downloads."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 import json
 
@@ -15,6 +16,7 @@ def test_observed_is_default_in_product(page,portal,tmp_path,phase):
         records,job,rows=saved_window_grid(client)
     page.goto(portal['url']+'/#backtests/report/'+records[0]['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     first=page.locator('#campaign-is-start');last=page.locator('#campaign-is-end')
     playwright.expect(first).to_have_value('2021-01-04')

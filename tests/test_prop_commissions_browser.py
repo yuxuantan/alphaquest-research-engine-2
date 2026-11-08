@@ -1,4 +1,5 @@
 """Commission demonstration through backtest -> configure -> check -> report."""
+from prop_setup_helpers import open_prop_task
 import csv
 from datetime import date, timedelta
 from decimal import Decimal
@@ -61,12 +62,14 @@ def test_actual_instrument_commission_workflow_downloads_and_reopen(page,portal,
     page.goto(portal['url']+'/#backtests/report/'+source_id)
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     playwright.expect(page.locator('#prop-commission-side')).to_have_value('0.51')
     playwright.expect(page.locator('#prop-commission-help')).to_contain_text('Detected source: NQ')
     page.locator('#prop-trade-file').fill('')
     page.locator('#prop-commission-broker').fill('Custom broker')
     page.locator('#prop-commission-side').fill('0.7')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('$0.7 per side, $1.4 round turn')
@@ -75,6 +78,7 @@ def test_actual_instrument_commission_workflow_downloads_and_reopen(page,portal,
     page.locator('#prop-commission-side').fill('0')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
     page.locator('#prop-commission-side').fill('0.7')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     page.locator('#prop-run').click()
@@ -110,18 +114,11 @@ def test_actual_instrument_commission_workflow_downloads_and_reopen(page,portal,
     page.reload();playwright.expect(page.locator('#prop-report')).to_be_visible()
     assert not posts
     page.locator('#prop-back').click()
-    # Configure derives IS defaults from saved metadata; it must not calculate
-    # a campaign or analysis. Opening the saved report itself remains GET-only.
-    with page.expect_response(lambda r:r.url.endswith('/api/research-campaigns/source-window')
-                              and r.request.method=='POST') as window_response:
-        page.locator('#report-prop-setup').click()
-    lookup=window_response.value
-    assert lookup.status==200
-    assert lookup.request.post_data_json==dict(sources=[dict(backtest_id=source_id,sizes=[1])])
-    assert lookup.json()['is_window']==dict(first_session='2026-01-05',last_session='2026-03-27')
-    assert posts==[lookup.url]
-    (tmp_path/'source-window-lookup.json').write_text(json.dumps(dict(method=lookup.request.method,url=lookup.url,request=lookup.request.post_data_json,status=lookup.status,response=lookup.json()),indent=2))
-    posts.clear()
+    # Opening configuration and previous saved analyses does not initialize another task.
+    page.locator('#report-prop-setup').click()
+    playwright.expect(page.locator('#setup-goals')).to_be_visible()
+    assert not posts
+    page.locator('#prop-previous > summary').click()
     page.locator(f'#prop-saved a[href$="{id}"]').click()
     playwright.expect(page.locator('#prop-report')).to_be_visible()
     assert not posts

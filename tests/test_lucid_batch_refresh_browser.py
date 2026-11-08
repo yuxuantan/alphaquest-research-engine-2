@@ -1,4 +1,5 @@
 """Refresh old N/A trials in the existing batch UI, preserving source outputs."""
+from prop_setup_helpers import open_prop_task
 import csv
 import io
 import json
@@ -66,6 +67,7 @@ def test_batch_refresh_pending_reload_sort_download_and_report_source_check(page
     playwright.expect(page.locator('#prop-view-history')).to_contain_text('$88,792')
     page.get_by_role('link',name='Configure new analysis',exact=True).click()
     playwright.expect(page.locator('#prop-model')).to_have_value('1')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     page.locator('#prop-run').click()

@@ -1,4 +1,5 @@
 """Inspect compact optimization through reports, detailed replay and native prop analysis."""
+from prop_setup_helpers import open_prop_task
 
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -138,13 +139,18 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     page.goto(compact_url)
     page.locator("#report-prop-setup").click()
     playwright.expect(page.locator("#prop-config")).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator("#prop-advanced > summary").click()
     # Reject an unsupported configuration in the real flow before a valid check.
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator("#prop-overrides").fill('{"unsupported_storage_test":1}')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator("#prop-check").click()
     playwright.expect(page.locator("#prop-status")).to_contain_text("Unknown prop analysis setting")
     playwright.expect(page.locator("#prop-run")).to_be_disabled()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator("#prop-overrides").fill("{}")
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator("#prop-check").click()
     playwright.expect(page.locator("#prop-check-output")).to_contain_text("Source check passed")
     playwright.expect(page.locator("#prop-check-output")).to_contain_text("26.00")
@@ -168,6 +174,7 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     playwright.expect(page.locator("#prop-report")).to_be_visible()
     page.locator("#prop-back").click()
     page.locator("#report-prop-setup").click()
+    page.locator('#prop-previous > summary').click()
     page.locator('#prop-saved a[href="' + prop_url[prop_url.index('#'):] + '"]').click()
     playwright.expect(page).to_have_url(prop_url)
     playwright.expect(page.locator("#prop-report")).to_be_visible()

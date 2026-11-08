@@ -29,6 +29,10 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
+[Guided prop configuration](docs/prop_setup.md) starts from a saved report with
+a goal choice, relevant source/design/account steps and a review/check/run stage.
+Previous analyses and legacy tools remain separate and available.
+
 **Strategies → Import trades** accepts complete, versioned trade/risk
 exports and saves an ordinary report with original bytes, provenance and exact
 cost reconciliation. Eligible ordered-mark sources can continue through
