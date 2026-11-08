@@ -3,9 +3,9 @@
   const $ = s => document.querySelector(s);
   const node = (tag, text) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
   const link = (text, href) => {const a=node('a',text);a.href=href;return a;};
-  async function api(url, body) {
-    const response=await fetch(url,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const result=await response.json();if(!response.ok){const error=Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));error.detail=result.detail;throw error;}return result;
+  async function api(url, body, method='POST') {
+    const response=await fetch(url,body===undefined?{}:{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const result=await response.json();if(!response.ok){const error=Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));error.detail=result.detail;error.status=response.status;throw error;}return result;
   }
   function details(parent,title,value){const d=node('details');d.append(node('summary',title),node('pre',JSON.stringify(value,null,2)));parent.append(d);}
   function field(parent,label,id,value,type='text') {
@@ -481,23 +481,71 @@
       try{const a=await api(`/api/research-campaigns/${campaign.campaign_id}/assessments`,{request_id:requestId});requestId=null;status.textContent=`Assessment ${a.status}. IS selection remains frozen.`;await refresh();}catch(e){status.textContent=e.message;}finally{launch.disabled=false;}};
     await refresh();
   }
+  function renderDeleted(receipt){
+    $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-delete').hidden=true;
+    $('#prop-heading-title').textContent='Campaign deleted';$('#prop-heading-note').textContent='Backtests, reports and research-access history retained';
+    $('#prop-status').textContent=`Campaign ${receipt.campaign_id} deleted. ${receipt.source_reference_count} source reference${receipt.source_reference_count===1?'':'s'} released.`;
+    const target=$('#prop-report-content');target.replaceChildren();const panel=node('section');panel.className='panel prop-panel';target.append(panel);
+    const result=node('p',`${receipt.source_reference_count} campaign source reference${receipt.source_reference_count===1?'':'s'} released. Backtests and completed reports were kept. Other workflows may still protect a source.`);result.id='campaign-deletion-result';result.setAttribute('role','status');panel.append(result);
+    panel.append(link('Open research workspace','#backtests/research'),node('br'),link('Download campaign deletion record',`/api/research-campaigns/${receipt.campaign_id}/exports/deletion_record.json`));
+    for(const analysis of receipt.retained_analyses)if(analysis.status==='complete')panel.append(node('br'),link('Open retained report '+analysis.id.slice(0,12),`#backtests/prop/job/${analysis.id}`));
+    const sources=node('details');sources.append(node('summary','Retained source backtests'));
+    for(const source of receipt.source_ids)sources.append(link('Open source '+source.slice(0,12),`#backtests/report/${source}`),node('br'));
+    panel.append(sources);
+  }
+  async function deletionControls(c,current){
+    const panel=node('section');panel.className='panel prop-panel';panel.id='campaign-deletion';panel.append(node('h2','Remove an unused campaign'));
+    const notice=node('p');notice.id='campaign-delete-status';notice.setAttribute('role','status');panel.append(notice);
+    const remove=button(panel,'Delete campaign','campaign-delete');remove.disabled=true;
+    let allowed=false;
+    $('#prop-report-content').append(panel);
+    function show(preview){
+      allowed=preview.deletable;
+      remove.disabled=!preview.deletable;
+      notice.textContent=preview.deletable?`${preview.source_reference_count} source reference${preview.source_reference_count===1?'':'s'} will be released. All source backtests, ${preview.retained_analyses.length} calculation record${preview.retained_analyses.length===1?'':'s'} and research-access history will be kept.`:preview.blockers.map(b=>b.message).join(' ');
+      if(preview.other_source_references?.length)notice.textContent+=` Source backtests still protected by other workflows: ${preview.other_source_references.length}.`;
+    }
+    try{const preview=await api(`/api/research-campaigns/${c.campaign_id}/deletion`);if(!current())return;show(preview);}catch(error){notice.textContent=error.message;return;}
+    remove.onclick=async()=>{
+      remove.disabled=true;
+      try{
+        const fresh=await api(`/api/research-campaigns/${c.campaign_id}/deletion`);if(!current())return;
+        if(fresh.deleted){renderDeleted(fresh);return;}show(fresh);if(!fresh.deletable)return;
+        if(!window.confirm(`Delete ${fresh.phase} campaign ${c.campaign_id}?\n\nRelease ${fresh.source_reference_count} campaign source reference(s). Keep all backtests, ${fresh.retained_analyses.length} calculation record${fresh.retained_analyses.length===1?'':'s'} and research-access history.\n\nFrozen, assessed, running or dependent campaigns cannot be deleted.`))return;
+        remove.disabled=true;
+        const receipt=await api(`/api/research-campaigns/${c.campaign_id}`,{confirmation_sha256:fresh.confirmation_sha256},'DELETE');
+        if(current())renderDeleted(receipt);
+      }catch(error){
+        notice.textContent=error.message;
+        try{const latest=await api(`/api/research-campaigns/${c.campaign_id}/deletion`);if(!current())return;if(latest.deleted){renderDeleted(latest);return;}show(latest);notice.textContent=error.message+' '+notice.textContent;}catch(_){/* Keep the original failure visible. */}
+      }
+      finally{if(panel.isConnected)remove.disabled=!allowed;}
+    };
+  }
   async function watch(id,current){
     $('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-downloads').replaceChildren();$('#prop-report-content').replaceChildren();
     let stopping=false;
     while(current()){
-      const c=await api('/api/research-campaigns/'+id);if(!current())return;
+      let c;
+      try{c=await api('/api/research-campaigns/'+id);}catch(error){
+        if(error.status!==404)throw error;
+        const deleted=await api(`/api/research-campaigns/${id}/deletion`);
+        if(current()&&deleted.deleted)renderDeleted(deleted);return;
+      }
+      if(!current())return;
       $('#prop-status').textContent=`${c.manifest.phase} campaign · ${c.status} · ${c.analysis?.progress||'Sources checked'} · ${c.status==='complete'?c.manifest.candidate_search_count+' / '+c.manifest.candidate_search_count+' completed candidates':c.manifest.candidate_search_count+' declared candidates'} · ${c.campaign_id}`;
-      if(c.status==='complete'){const r=await api(`/api/prop-analyses/${c.analysis_id}/downloads/report.json`);if(current())renderAnalysis(r,c);return;}
+      if(c.status==='complete'){const r=await api(`/api/prop-analyses/${c.analysis_id}/downloads/report.json`);if(current()){renderAnalysis(r,c);await deletionControls(c,current);}return;}
       if(['validated','error','cancelled'].includes(c.status)){
         $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();p.append(node('p',c.analysis?.error||'Sources validated. Run the saved campaign to calculate results.'));
         if(c.status==='cancelled')p.append(node('p','The phase search stopped at a safe checkpoint. No partial candidate population is published. Running again restarts the full saved deterministic declaration; it does not select from completed candidates only.'));
         details(p,'Retained calculation attempts',await api(`/api/research-campaigns/${id}/attempts`));
-        button(p,c.status==='error'?'Retry interrupted or failed calculation':c.status==='cancelled'?'Run saved declaration again':'Run saved campaign','campaign-resume').onclick=async()=>{try{await api(`/api/research-campaigns/${id}/run`,{});await watch(id,current);}catch(e){$('#prop-status').textContent=e.message;}};return;
+        button(p,c.status==='error'?'Retry interrupted or failed calculation':c.status==='cancelled'?'Run saved declaration again':'Run saved campaign','campaign-resume').onclick=async()=>{try{await api(`/api/research-campaigns/${id}/run`,{});await watch(id,current);}catch(e){$('#prop-status').textContent=e.message;}};await deletionControls(c,current);return;
       }
       if(['queued','running'].includes(c.status)&&!$('#campaign-cancel')){
         $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();p.append(node('p','The complete declared candidate population is retained. A stop request takes effect at the next safe calculation checkpoint; a finishing report may complete before the request arrives.'));
         const stop=button(p,'Request stop at next checkpoint','campaign-cancel');stop.disabled=stopping;
         stop.onclick=async()=>{stop.disabled=true;try{await api(`/api/research-campaigns/${id}/cancel`,{});stopping=true;}catch(e){$('#prop-status').textContent=e.message;stop.disabled=false;}};
+        await deletionControls(c,current);
       }
       await new Promise(resolve=>setTimeout(resolve,700));
     }

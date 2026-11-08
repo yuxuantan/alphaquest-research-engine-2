@@ -9213,3 +9213,52 @@ full command/environment, warning details, Definition-of-Done mapping and
 publication record are in the [final acceptance record](robust_research_plan.md#final-acceptance-record).
 Local research acceptance is complete. Provider/platform/broker/live readiness
 remains unverified; no order placement or broker-enforced pause is supplied.
+
+## 8 November 2026 — Delete unused phase campaigns and release source pins
+
+The existing **Research → Manage campaign** screen now exposes checked phase
+campaign deletion. It shows source-link and retained-analysis counts, rejects
+frozen/assessed/active/dependent records with their IDs, and rechecks the fresh
+confirmation inside the same analysis lock and one immediate catalogue transaction.
+Deleting a campaign keeps backtests, jobs, completed reports, attempts and access
+history. A backtest can then be deleted separately if no remaining owner pins it.
+The original candidate membership is retained in the deletion record, not edited.
+Deleted IDs cannot be reused for phase or nested campaigns. A deleted campaign
+URL reopens its receipt, and the original declaration/manifest is downloadable.
+
+The API/source ownership, stale-confirmation, idempotent retry, shared-report,
+source/job-pin and deleted-ID checks passed. Fault injection on deletion of the
+parent row, after all three association tables had been modified, rolled back
+all links and the audit insert. A subsequent retry succeeded. Metadata-only
+inspection/deletion passed with source reads and calculations poisoned.
+Research-access rows were preserved rather than relabeled as untouched.
+
+Final gates: **69 affected backend regressions**, **17 deletion API cases**, and
+**4 browser cases** passed (90 distinct cases). A final receipt wording correction
+also passed the new browser journey again in 44.16 seconds; it is not counted as
+a new unique case. API/browser probes that exposed the missing frozen owner ID
+and an asynchronous dialog test wait remain retained. The earlier complete
+2,315-test gate stays bound to its original snapshot; this is a focused increment
+qualification. Both phase numerical identities and all 33 files per phase still
+match that snapshot. No phase formulas or legacy report meanings changed.
+
+The actual final product library is
+`artifacts/campaign-deletion-20261108/browser-release/data/test_campaign_delete_confirmat0`.
+The copy/start/normal URLs, exact settings, stop command, independent expected
+values, rejected boundaries, gate commands, hashes and inspection are in
+`artifacts/campaign-deletion-20261108/README.md` and `verification.json`.
+The saved example shows source backtest → Configure → Check → Run → a normal
+Funded report with modeled receipts $0/$1,500 at 1/3 MNQ → cancellation preserves
+the campaign → confirmed campaign deletion releases one source link → a separate
+backtest deletion succeeds → the phase report and ZIP remain byte-identical.
+The source input/report downloads and nine access events remain inspectable.
+All three saved reports, 47 components, 50 ZIP members and five downloads were
+independently verified. Desktop and 390 px screenshots show the real controls
+and durable receipt; saved receipt reload makes no POST or DELETE.
+
+The original user campaign was previewed only on a disposable consistent copy
+of its catalogue, opened read-only. It is eligible to release 32 source links
+and retain its completed analysis. No production campaign/backtest was deleted.
+Restart a non-reloading development server to load the new API/schema, then
+refresh the browser and confirm through **Research → Manage campaign**. Every
+automated temporary server stopped and joined. No persistent server was started.

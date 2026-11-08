@@ -301,7 +301,8 @@ class RobustResearchStore(ProcedureStore):
     def create(self, body):
         with self.analyses.lock:
             with self.analyses.connect() as db:
-                if db.execute('SELECT 1 FROM research_campaigns WHERE id=?', (body.campaign_id,)).fetchone():
+                if (db.execute('SELECT 1 FROM research_campaigns WHERE id=?', (body.campaign_id,)).fetchone()
+                        or db.execute('SELECT 1 FROM campaign_deletions WHERE campaign_id=?', (body.campaign_id,)).fetchone()):
                     raise ResearchConflict('This ID belongs to a phase campaign; use a new research ID.')
                 exists = db.execute('SELECT declaration FROM robust_research WHERE id=?', (body.campaign_id,)).fetchone()
             if exists:

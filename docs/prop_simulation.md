@@ -11,8 +11,15 @@ supplied coverage, calendar alignment, cash-share conservation and local frozen
 sizing checks agree. Dynamic contexts reuse the existing causal sizing owner;
 changed numerical source identity withholds conformance. Coverage, external
 strategy behavior and provider payout eligibility remain unverified. The full
-repository acceptance gate remains outstanding. No provider or broker integration
+repository acceptance record is bound to its saved source snapshot; subsequent
+increments record their own validation scope. No provider or broker integration
 is production-qualified. Earlier findings and reports are preserved below.
+
+Unused independent phase campaigns support checked deletion from **Research →
+Manage campaign**. It releases only that campaign's links, preserving backtests,
+completed reports and access history. Frozen, assessed, active and dependent
+campaigns remain pinned. The [deletion contract](research_campaign_api.md#remove-an-unused-phase-campaign)
+documents confirmation, audit downloads, atomic rollback and deleted-ID protection.
 
 Historical 7 November 2026 checkpoint: saved-report prop configuration also exposed nested inner
 research, actual execution-stress reruns, causal market-condition evidence and

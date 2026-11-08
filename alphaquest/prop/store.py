@@ -101,6 +101,25 @@ class AnalysisStore:
                 sources.update(r[0] for r in db.execute('SELECT source_id FROM forward_source_refs'))
             return sources
 
+    def source_references(self, source, *, db=None):
+        """Explain existing deletion pins without changing their ownership."""
+        if db is None:
+            with self.connect() as connection:
+                return self.source_references(source, db=connection)
+        refs = [dict(kind='campaign', id=r[0]) for r in db.execute(
+            'SELECT campaign_id FROM campaign_sources WHERE source_id=? ORDER BY campaign_id', (source,))]
+        refs.extend(dict(kind='running_analysis', id=r[0]) for r in db.execute(
+            "SELECT a.id FROM analyses a WHERE a.status IN ('queued','running') AND "
+            '(a.source_id=? OR EXISTS (SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?)) ORDER BY a.id',
+            (source, source)))
+        refs.extend(dict(kind='lifecycle_comparison', id=r[0]) for r in db.execute(
+            'SELECT DISTINCT p.request_id FROM lifecycle_comparisons p JOIN analysis_sources s '
+            'ON s.analysis_id=p.analysis_id WHERE s.source_id=? ORDER BY p.request_id', (source,)))
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
+            refs.extend(dict(kind='forward_monitor', id=r[0]) for r in db.execute(
+                'SELECT monitor_id FROM forward_source_refs WHERE source_id=? ORDER BY monitor_id', (source,)))
+        return refs
+
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
         import shutil

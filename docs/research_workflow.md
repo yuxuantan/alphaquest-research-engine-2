@@ -33,6 +33,13 @@ includes exact inputs, expected arithmetic and rejection examples.
 
 ## Phase sizing policies
 
+To remove an obsolete independent phase campaign, open **Research → Manage
+campaign → Delete campaign**. Review the number of references being released.
+Source backtests, saved reports and prior-access history are kept. Frozen,
+assessed, active or dependent campaigns remain protected with the blocking IDs
+shown. Once its references are released, use the ordinary backtest delete action
+if you also want to remove a source. See the [deletion contract](research_campaign_api.md#remove-an-unused-phase-campaign).
+
 From **Configure prop analysis**, create an Evaluation or Funded campaign. Each
 source row defaults to the existing fixed-size list. Choose **Compare sizing
 policies** to add fixed contracts, fixed dollar risk or percentage risk. The

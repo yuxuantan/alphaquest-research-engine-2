@@ -1,11 +1,12 @@
 """Phase campaigns use normal phase calculations, reports, security and workers."""
 from uuid import UUID, uuid5
 from typing import Literal
+import sqlite3
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 from .research import ResearchConflict
-from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest, SourceWindowRequest
+from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest, SourceWindowRequest, DeleteCampaignRequest
 from .prop.adapter import canonical
 from .prop.phase_search import CandidateConfirmationRequired
 
@@ -21,6 +22,10 @@ async def call(request, method, *args):
         raise HTTPException(409, str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except sqlite3.Error:
+        detail = ('Could not update the campaign catalogue. No campaign deletion was committed; try again.'
+                  if method == 'delete' else 'Could not read or update the campaign catalogue; try again.')
+        raise HTTPException(500, detail) from None
     except (ValueError, TypeError, OSError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -59,6 +64,16 @@ async def source_window(body: SourceWindowRequest, request: Request):
 @router.get('/{id}')
 async def status(id: UUID, request: Request):
     return await call(request, 'get', id.hex)
+
+
+@router.get('/{id}/deletion')
+async def deletion_preview(id: UUID, request: Request):
+    return await call(request, 'deletion_preview', id.hex)
+
+
+@router.delete('/{id}')
+async def delete(id: UUID, body: DeleteCampaignRequest, request: Request):
+    return await call(request, 'delete', id.hex, body)
 
 
 @router.post('/{id}/check')
@@ -138,6 +153,10 @@ async def assess(id: UUID, body: AssessmentRequest, request: Request):
 
 @router.get('/{id}/exports/{kind}')
 async def export(id: UUID, kind: str, request: Request):
+    if kind == 'deletion_record.json':
+        value = await call(request, 'deletion_record', id.hex)
+        return Response(canonical(value), media_type='application/json',
+            headers={'Content-Disposition': f'attachment; filename="{id.hex}-{kind}"'})
     row = await call(request, 'get', id.hex)
     if kind in ('campaign.json', 'frozen_package.json'):
         value = row if kind == 'campaign.json' else row['frozen']

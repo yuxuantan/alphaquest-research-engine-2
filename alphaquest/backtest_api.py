@@ -454,7 +454,10 @@ def delete_run(run_id: UUID,request: Request):
         with analyses.lock:
             busy=run_id.hex in analyses.active_sources()
             if busy:
-                raise ValueError('This backtest is referenced by a research campaign or a running prop analysis; it cannot be deleted.')
+                refs=analyses.source_references(run_id.hex)
+                owners='; '.join(f"{r['kind'].replace('_',' ')} {r['id']}" for r in refs)
+                raise ValueError('This backtest is referenced by a research campaign or a running prop analysis; it cannot be deleted. '
+                    'Retained references: '+owners)
             deleted=request.app.state.runs.delete(run_id.hex)
     except ValueError as exc:
         raise HTTPException(409,str(exc)) from None

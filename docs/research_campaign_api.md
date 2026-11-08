@@ -8,6 +8,35 @@ minimizes acquisition cost and calendar time with a Pareto frontier. Funded rank
 expected trader receipts within a saved horizon after applying hard empirical risk
 constraints. The two declarations, source sets and calculations are independent.
 
+## Remove an unused phase campaign
+
+In **Research**, choose **Manage campaign**, then **Delete campaign**. The
+confirmation states how many source references will be released and how many
+calculation records will be kept. Cancelling makes no deletion request.
+Deleting the campaign keeps all source backtests, completed reports, calculation
+attempts and research-access history. Backtests can then be deleted separately
+if no other campaign, active analysis, lifecycle comparison or monitor retains
+them. This action does not remove an optimization or its trials.
+
+Frozen selections, any OOS assessment history, queued/running or missing analysis
+records, research procedures/applications, lifecycle bindings and forward-monitor
+dependencies block deletion. The screen identifies their IDs. Nested research
+campaigns are not deleted by this phase-campaign action.
+
+| Method/path | Contract |
+| --- | --- |
+| `GET /api/research-campaigns/{id}/deletion` | Metadata-only eligibility, blocker IDs, exact source/job links, retained analyses, other source owners and `confirmation_sha256`. For a deleted ID, returns its saved receipt. |
+| `DELETE /api/research-campaigns/{id}` | Body `{"confirmation_sha256":"<preview hash>"}`. Rechecks under the analysis lock and one immediate SQLite transaction; rejects changed confirmation or blockers with 409. Returns the deletion receipt. |
+| `GET /api/research-campaigns/{id}/exports/deletion_record.json` | Downloads the saved receipt and original declaration/manifest after deletion. |
+
+Only the campaign and its source/job/analysis association rows are removed.
+The existing catalogue retains an immutable deletion record. Deleted IDs cannot
+be reused for phase or nested campaigns. Retrying the same successful deletion
+returns the same receipt. Catalogue failure rolls back both the record and all
+reference changes. No source-price inspection, simulation or final-data access
+is performed. A deleted campaign URL reopens its receipt; retained analyses keep
+their ordinary report/download URLs. Deletion does not relabel accessed data.
+
 ## Normal product workflow
 
 1. Run an ordinary IS backtest or exhaustive optimization grid. Open a saved

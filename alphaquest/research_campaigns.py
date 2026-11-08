@@ -74,6 +74,10 @@ class AssessmentRequest(StrictModel):
     request_id: str = Field(pattern=r'^[0-9a-f]{32}$')
 
 
+class DeleteCampaignRequest(StrictModel):
+    confirmation_sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
 def initialize(db):
     db.executescript('''
         CREATE TABLE IF NOT EXISTS research_campaigns (
@@ -91,6 +95,8 @@ def initialize(db):
             PRIMARY KEY(campaign_id,optimization_id));
         CREATE TABLE IF NOT EXISTS campaign_assessments (
             id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS campaign_deletions (
+            campaign_id TEXT PRIMARY KEY, deleted TEXT NOT NULL, payload TEXT NOT NULL);
     ''')
 
 
@@ -300,6 +306,8 @@ class CampaignStore:
     def create(self, body):
         with self.analyses.lock:
             with self.analyses.connect() as db:
+                if db.execute('SELECT 1 FROM campaign_deletions WHERE campaign_id=?', (body.campaign_id,)).fetchone():
+                    raise ResearchConflict('This campaign ID was deleted and cannot be reused; use a new ID.')
                 if (db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='robust_research'").fetchone()
                         and db.execute('SELECT 1 FROM robust_research WHERE id=?', (body.campaign_id,)).fetchone()):
                     raise ResearchConflict('This ID belongs to a nested research campaign; use a new phase campaign ID.')
@@ -350,6 +358,99 @@ class CampaignStore:
             rows = db.execute('SELECT a.id FROM analyses a JOIN campaign_analyses c ON c.analysis_id=a.id '
                               'WHERE c.campaign_id=? ORDER BY a.created,a.id', (id,)).fetchall()
         return [self.analyses.get(id) for (id,) in rows]
+
+    def _deletion_preview(self, db, id):
+        """Metadata only, on the same transaction used to release references."""
+        row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
+        if not row:
+            saved = db.execute('SELECT payload FROM campaign_deletions WHERE campaign_id=?', (id,)).fetchone()
+            if saved:
+                return json.loads(saved[0])['receipt']
+            raise KeyError('Phase campaign not found.')
+        blockers = []
+        def block(kind, reference, message):
+            value = dict(kind=kind, id=reference, message=message)
+            if value not in blockers:blockers.append(value)
+        if row[4] is not None:
+            block('frozen_selection', id, f'Campaign {id} has a frozen selection; preserve its package and sources.')
+        sources = [r[0] for r in db.execute('SELECT source_id FROM campaign_sources WHERE campaign_id=? ORDER BY source_id', (id,))]
+        jobs = [r[0] for r in db.execute('SELECT optimization_id FROM campaign_jobs WHERE campaign_id=? ORDER BY optimization_id', (id,))]
+        ids = {r[0] for r in db.execute('SELECT analysis_id FROM campaign_analyses WHERE campaign_id=?', (id,))}
+        if row[3]:ids.add(row[3])
+        analyses = []
+        for aid in sorted(ids):
+            analysis = db.execute('SELECT status FROM analyses WHERE id=?', (aid,)).fetchone()
+            status = analysis[0] if analysis else 'missing'
+            analyses.append(dict(id=aid, status=status))
+            if status in ('queued', 'running', 'missing'):
+                block('analysis', aid, f'Analysis {aid} is {status}; campaign deletion is blocked.')
+        for aid, in db.execute('SELECT id FROM campaign_assessments WHERE campaign_id=? ORDER BY id', (id,)):
+            block('oos_assessment', aid, f'OOS assessment {aid} retains this campaign.')
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, key in (('research_procedures', 'id'), ('research_procedure_applications', 'id')):
+            if table in tables:
+                for reference, in db.execute(f'SELECT {key} FROM {table} WHERE campaign_id=? ORDER BY {key}', (id,)):
+                    block('procedure', reference, f'Research procedure/application {reference} retains this campaign.')
+        # Explicit campaign bindings or retained-report dependencies are checked
+        # without reading outcomes or invoking any calculation owner.
+        for reference, in db.execute("SELECT DISTINCT p.request_id FROM lifecycle_comparisons p,json_tree(p.declaration) j "
+                "WHERE j.key='campaign_id' AND j.value=? ORDER BY p.request_id", (id,)):
+            block('lifecycle_comparison', reference, f'Lifecycle comparison {reference} retains this campaign.')
+        if 'forward_monitors' in tables:
+            for reference, in db.execute("SELECT id FROM forward_monitors m WHERE "
+                    "EXISTS(SELECT 1 FROM json_tree(m.policy) j WHERE j.key='campaign_id' AND j.value=?) OR "
+                    "EXISTS(SELECT 1 FROM json_tree(m.declaration) j WHERE j.key='campaign_id' AND j.value=?) ORDER BY id", (id, id)):
+                block('forward_monitor', reference, f'Forward monitor {reference} retains this campaign.')
+            for reference, aid in db.execute('SELECT monitor_id,analysis_id FROM forward_report_refs ORDER BY monitor_id,analysis_id'):
+                if aid in ids:
+                    block('forward_monitor', reference, f'Forward monitor {reference} retains analysis {aid}.')
+        # Keep other owners' pins. The preview distinguishes released links from
+        # backtests that will still be protected by another workflow.
+        other_pins = []
+        for source in sources:
+            owners = self.analyses.source_references(source, db=db)
+            owners = [owner for owner in owners if not (owner['kind'] == 'campaign' and owner['id'] == id)]
+            if owners:other_pins.append(dict(source_id=source, references=owners))
+        preview = dict(campaign_id=id, phase=json.loads(row[2])['phase'], deleted=False,
+            deletable=not blockers, blockers=blockers, source_ids=sources,
+            source_reference_count=len(sources), optimization_ids=jobs,
+            retained_analyses=analyses, other_source_references=other_pins,
+            interpretation='Deletes only the campaign and its links. Backtests, reports and research-access history are kept.')
+        preview['confirmation_sha256'] = fingerprint(dict(preview=preview, declaration=row[1], manifest=row[2], frozen=row[4]))
+        return preview
+
+    def deletion_preview(self, id):
+        with self.analyses.lock, self.analyses.connect() as db:
+            return self._deletion_preview(db, id)
+
+    def deletion_record(self, id):
+        with self.analyses.connect() as db:
+            row = db.execute('SELECT payload FROM campaign_deletions WHERE campaign_id=?', (id,)).fetchone()
+        if not row:raise KeyError('Campaign deletion record not found.')
+        return json.loads(row[0])
+
+    def delete(self, id, body):
+        with self.analyses.lock, self.analyses.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            preview = self._deletion_preview(db, id)
+            if preview.get('deleted'):
+                if body.confirmation_sha256 != preview['confirmation_sha256']:
+                    raise ResearchConflict('Deletion confirmation differs from the saved deletion record.')
+                return preview
+            if preview['blockers']:
+                raise ResearchConflict('Cannot delete campaign: ' + ' '.join(b['message'] for b in preview['blockers']))
+            if body.confirmation_sha256 != preview['confirmation_sha256']:
+                raise ResearchConflict('Campaign dependencies changed. Review a fresh deletion preview and confirm again.')
+            row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
+            receipt = dict(preview, deleted=True, deletable=False, deleted_at_utc=datetime.now(timezone.utc).isoformat())
+            snapshot = dict(campaign_id=id, created=row[0], declaration=json.loads(row[1]), manifest=json.loads(row[2]),
+                analysis_id=row[3], frozen=None)
+            db.execute('INSERT INTO campaign_deletions VALUES (?,?,?)',
+                (id, receipt['deleted_at_utc'], canonical(dict(receipt=receipt, campaign_snapshot=snapshot))))
+            for table in ('campaign_sources', 'campaign_jobs', 'campaign_analyses'):
+                db.execute(f'DELETE FROM {table} WHERE campaign_id=?', (id,))
+            db.execute('DELETE FROM research_campaigns WHERE id=?', (id,))
+            return receipt
 
     def validate(self, id):
         with self.analyses.lock:
