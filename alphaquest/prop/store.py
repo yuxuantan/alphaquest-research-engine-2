@@ -26,7 +26,10 @@ def seal_report(staged, result, id, created):
     if sum(v['bytes'] for v in files.values())>128*1024*1024:
         raise ValueError('Analysis output exceeds 128 MiB; no completed result was published.')
     result['files']=files
-    (staged/'report.json').write_text(canonical(result),encoding='utf-8')
+    report_text=canonical(result)
+    if sum(v['bytes'] for v in files.values())+len(report_text.encode('utf-8'))>128*1024*1024:
+        raise ValueError('Analysis artifacts and embedded report exceed 128 MiB; no completed result was published. The archive is a separate compressed copy.')
+    (staged/'report.json').write_text(report_text,encoding='utf-8')
     with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
         for p in staged.rglob('*'):
             if p.is_file() and p.name!='analysis.zip':archive.write(p,str(p.relative_to(staged)))
@@ -43,6 +46,10 @@ def sealed_checks(directory):
     return {name:digest(directory/name) for name in ('report.json','analysis.zip')}
 
 
+class AnalysisCancelled(Exception):
+    """A cooperative stop never publishes a partial candidate population."""
+
+
 class AnalysisStore:
     def __init__(self,directory,*,recover_interrupted=True):
         self.root=Path(directory)/'prop_analyses';self.root.mkdir(parents=True,exist_ok=True)
@@ -52,8 +59,10 @@ class AnalysisStore:
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
+            db.execute('CREATE TABLE IF NOT EXISTS lifecycle_comparisons (request_id TEXT PRIMARY KEY, declaration TEXT NOT NULL, checked TEXT NOT NULL, analysis_id TEXT NOT NULL UNIQUE)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
             db.execute('CREATE TABLE IF NOT EXISTS calculation_reuse (key TEXT PRIMARY KEY,engine TEXT NOT NULL,id TEXT NOT NULL,sha256 TEXT NOT NULL)')
             from ..research_campaigns import initialize
@@ -87,7 +96,29 @@ class AnalysisStore:
 
     def active_sources(self):
         with self.connect() as db:
-            return {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') UNION SELECT source_id FROM campaign_sources")}
+            sources = {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') OR EXISTS (SELECT 1 FROM lifecycle_comparisons p WHERE p.analysis_id=a.id) UNION SELECT source_id FROM campaign_sources")}
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
+                sources.update(r[0] for r in db.execute('SELECT source_id FROM forward_source_refs'))
+            return sources
+
+    def source_references(self, source, *, db=None):
+        """Explain existing deletion pins without changing their ownership."""
+        if db is None:
+            with self.connect() as connection:
+                return self.source_references(source, db=connection)
+        refs = [dict(kind='campaign', id=r[0]) for r in db.execute(
+            'SELECT campaign_id FROM campaign_sources WHERE source_id=? ORDER BY campaign_id', (source,))]
+        refs.extend(dict(kind='running_analysis', id=r[0]) for r in db.execute(
+            "SELECT a.id FROM analyses a WHERE a.status IN ('queued','running') AND "
+            '(a.source_id=? OR EXISTS (SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?)) ORDER BY a.id',
+            (source, source)))
+        refs.extend(dict(kind='lifecycle_comparison', id=r[0]) for r in db.execute(
+            'SELECT DISTINCT p.request_id FROM lifecycle_comparisons p JOIN analysis_sources s '
+            'ON s.analysis_id=p.analysis_id WHERE s.source_id=? ORDER BY p.request_id', (source,)))
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
+            refs.extend(dict(kind='forward_monitor', id=r[0]) for r in db.execute(
+                'SELECT monitor_id FROM forward_source_refs WHERE source_id=? ORDER BY monitor_id', (source,)))
+        return refs
 
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
@@ -101,6 +132,10 @@ class AnalysisStore:
                     record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
                     if db.execute('SELECT 1 FROM campaign_analyses WHERE analysis_id=?', (id,)).fetchone():
                         raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
+                    for table in ('forward_assessments', 'forward_report_refs'):
+                        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                            if db.execute(f'SELECT 1 FROM {table} WHERE analysis_id=?', (id,)).fetchone():
+                                raise ValueError('This report is retained by a forward monitor and cannot be deleted.')
                     if record and record[0] in ('queued','running'):
                         raise ValueError('This prop analysis is queued or running. Wait for it to finish before deleting.')
                     if destination.is_symlink() or staged.is_symlink():
@@ -131,77 +166,325 @@ class AnalysisStore:
     def submit_evaluation(self, runs, search):
         return self.submit_phase(runs, search)
 
-    def submit_funded(self, runs, search):
-        return self.submit_phase(runs, search)
-
-    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None):
-        """Additive phase-only dispatch using the existing worker and catalogue."""
-        from .phase_dispatch import module_for_mode
-        module = module_for_mode(search.mode)
-        check_search, search_key = module.check_search, module.search_key
-        phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
+    def submit_native(self, datasets, runs, request):
+        """A native strategy rerun uses this catalogue and its ordinary worker."""
+        from .native_replay import check_replay
+        from ..optimization_cache import digest
         with self.lock:
-            if assessment:
-                from .phase_search import check_candidates
-                checks = check_candidates(runs, search, assessment)
-            else:
-                checks = check_search(runs, search)
-            if campaign_checks is not None:
-                if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
-                    raise ValueError('Campaign source identity changed before queueing.')
-                checks = campaign_checks
-            # Conservative preflight; sealing still enforces the exact output cap.
-            estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if phase == 'Funded'
-                        else sum(c.sampling.chain_simulations*700 + c.simulation.simulations*100 for c in search.candidates))
-            if estimate > 100*1024*1024:
-                raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
-            if phase == 'Funded' and sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days > 50_000_000:
-                raise ValueError('Declared funded search exceeds 50 million path calendar days; narrow the explicit search.')
-            key = search_key(search, checks)
-            if assessment:
-                key = sha256(canonical(dict(search=key, assessment=assessment)).encode()).hexdigest()
+            checks = check_replay(datasets, runs, request)
+            key = digest(dict(request=request.model_dump(), source_check=checks))
             with self.connect() as db:
                 row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
                 if row:
-                    try: valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
-                    except (OSError, ValueError, KeyError): valid = False
-                    if valid: return self.get(row[0])
+                    valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
+                    if valid and row[1] == 'complete':
+                        from ..optimization_cache import artifacts
+                        report = json.loads((self.root/row[0]/'report.json').read_text())
+                        child = runs.get(report['native_backtest_id'])
+                        valid = child is not None and artifacts(runs.root, child) == report['native_backtest_artifacts']
+                    if valid:
+                        return self.get(row[0])
                 id = uuid4().hex
                 db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
-                    (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
-                db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
-                    [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
-            self.worker.submit(self._run_phase, runs, id, search, checks, assessment)
+                    (id, key, request.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued native '+request.phase+' replay', None))
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)', (id, request.source_backtest_id))
+            self.worker.submit(self._run_native, datasets, runs, id, request, checks)
             return self.get(id)
 
-    def _run_phase(self, runs, id, search, checks, assessment=None):
-        from .phase_dispatch import module_for_mode
-        module = module_for_mode(search.mode)
-        optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
-        phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
-        write_report = module.write_report
+    def _run_native(self, datasets, runs, id, request, checks):
+        from .native_replay import run_replay
+        from ..optimization_cache import artifacts
         try:
-            self._update(id, 'running', 'Running independent '+phase+' search')
+            self._update(id, 'running', 'Checking native source and account-control contract')
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
-                with self.runtime.activate():
-                    options = dict(assessment=True) if assessment else {}
-                    calculations = optimize(runs, search, checks,
-                        lambda msg: self._update(id, 'running', msg), **options)
-                if assessment:
-                    calculations['assessment'] = assessment
-                result = write_report(runs, staged, search, checks, calculations)
-                if assessment:
-                    result['assessment'] = assessment
-                    result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
-                    (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
+                result = run_replay(self, datasets, runs, id, request, checks, staged)
+                result['native_backtest_artifacts'] = artifacts(runs.root, result['native_backtest'])
                 seal_report(staged, result, id, self.get(id)['created'])
                 staged.rename(self.root/id)
             with self.connect() as db:
                 db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
-                db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
+                db.execute("UPDATE analyses SET status='complete',progress='Saved native phase replay ready' WHERE id=?", (id,))
+        except Exception as exc:
+            self._update(id, 'error', 'Native phase replay failed', f'{type(exc).__name__}: {exc}')
+
+    def submit_pairs(self, datasets, runs, campaigns, request):
+        """Bind an explicit pair declaration to one normal durable analysis."""
+        from .phase_lifecycle import check_frozen_pairs
+        from ..research import ResearchConflict
+        from ..optimization_cache import digest
+        declaration = canonical(request.model_dump(mode='json'))
+        with self.lock:
+            with self.connect() as db:
+                previous = db.execute('SELECT declaration,checked,analysis_id FROM lifecycle_comparisons WHERE request_id=?',
+                    (request.request_id,)).fetchone()
+            if previous and previous[0] != declaration:
+                raise ResearchConflict('Pair request ID is already bound to another declaration. Use a new request ID for a changed comparison.')
+            checked = check_frozen_pairs(datasets, runs, campaigns, request)
+            captured = canonical(checked)
+            if previous:
+                if captured != previous[1]:
+                    raise ResearchConflict('Frozen pair inputs or implementation changed; the original comparison is preserved.')
+                id = previous[2];record = self.get(id)
+                if record is None:
+                    raise ResearchConflict('This comparison was deleted; its request ID cannot be reused.')
+                if record['status'] in ('queued', 'running'):
+                    return record
+                if record['status'] == 'complete':
+                    if self.fingerprint(id) is None or not self.native_children_unchanged(runs, id):
+                        raise ResearchConflict('Saved comparison or captured native child identity changed.')
+                    return record
+                if (self.root/id).exists():
+                    raise ResearchConflict('An interrupted comparison has retained publication files; inspect them before making a new request.')
+                with self.connect() as db:
+                    db.execute("UPDATE analyses SET status='queued',progress='Queued exact frozen-pair retry',error=NULL WHERE id=?", (id,))
+                    db.execute('UPDATE phase_analysis_control SET stop_requested=0 WHERE analysis_id=?', (id,))
+            else:
+                id = uuid4().hex
+                sources = {policy['source']['id'] for pair in checked['pairs'] for policy in pair['policies'].values()}
+                sources.update(policy['configuration']['source']['source_backtest_id']
+                    for pair in checked['pairs'] for policy in pair['policies'].values())
+                first = request.pairs[0].evaluation.source_backtest_id
+                with self.connect() as db:
+                    db.execute('INSERT INTO lifecycle_comparisons VALUES (?,?,?,?)',
+                        (request.request_id, declaration, captured, id))
+                    db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
+                        (id, digest(dict(request=request.model_dump(mode='json'),check=checked)), first,
+                         datetime.now(timezone.utc).isoformat(), 'queued', 'Queued predefined lifecycle comparison', None))
+                    db.executemany('INSERT INTO analysis_sources VALUES (?,?)', [(id, source) for source in sorted(sources)])
+                    db.execute('INSERT INTO phase_analysis_control(analysis_id) VALUES (?)', (id,))
+            self.worker.submit(self._run_pairs, datasets, runs, campaigns, id, request, checked)
+            return self.get(id)
+
+    def _run_pairs(self, datasets, runs, campaigns, id, request, checked):
+        from .phase_lifecycle import run_frozen_pairs
+        reserved = []
+        def checkpoint():
+            with self.connect() as db:
+                row = db.execute('SELECT stop_requested FROM phase_analysis_control WHERE analysis_id=?', (id,)).fetchone()
+            if row and row[0]:
+                raise AnalysisCancelled('Lifecycle comparison stopped; no partial pair population was published.')
+        def reserve_child(child):
+            with self.lock, self.connect() as db:
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)', (id, child))
+            reserved.append(child)
+        def progress(message):
+            checkpoint();self._update(id, 'running', message)
+        try:
+            progress('Checking frozen pair sources and actual chronological continuation')
+            with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
+                staged = Path(temp)/'report';staged.mkdir()
+                with self.runtime.activate():
+                    calculations = run_frozen_pairs(datasets, runs, campaigns, request, checked,
+                        analysis_id=id, reserve_child=reserve_child, checkpoint=checkpoint, progress=progress)
+                result = dict(format_version=8, model_version='alphaquest-frozen-pair-v1',
+                    engine='AlphaQuest local native strategy and independent phase controllers',
+                    request=request.model_dump(mode='json'), settings=dict(ANALYSIS_MODE=request.mode),
+                    source=dict(backtest=checked['pairs'][0]['policies']['evaluation']['source']),
+                    source_check=checked, calculations=calculations,
+                    implementation=dict(engine_identity=checked['pairs'][0]['binding']['engine_identity']),
+                    production_qualified=False)
+                (staged/'request.json').write_text(canonical(result['request']))
+                (staged/'source_check.json').write_text(canonical(checked))
+                (staged/'results.json').write_text(canonical(calculations))
+                import csv
+                ledger = []
+                for number, pair in enumerate(calculations['pairs'], 1):
+                    folder=staged/'pairs'/str(number);folder.mkdir(parents=True)
+                    for phase in ('evaluation', 'funded'):
+                        (folder/(phase+'_package.json')).write_text(canonical(checked['pairs'][number-1]['policies'][phase]['package']))
+                        (folder/(phase+'_result.json')).write_text(canonical(pair[phase]))
+                    (folder/'pair_binding.json').write_text(canonical(pair['pair_binding']))
+                    (folder/'continuation_binding.json').write_text(canonical(pair['continuation_binding']))
+                    (folder/'cash.json').write_text(canonical(pair['cash']))
+                    ledger.extend(dict(pair_id=pair['id'], **event) for event in pair['cash']['cash_ledger'])
+                (staged/'cash_ledger.json').write_text(canonical(ledger))
+                columns = sorted({key for event in ledger for key in event})
+                with (staged/'cash_ledger.csv').open('w', newline='') as stream:
+                    writer=csv.DictWriter(stream,fieldnames=columns);writer.writeheader();writer.writerows(ledger)
+                self.capture_native_children(runs, staged, result, reserved)
+                with self.lock:
+                    checkpoint()
+                    seal_report(staged, result, id, self.get(id)['created'])
+                    checkpoint()
+                    staged.rename(self.root/id)
+                    with self.connect() as db:
+                        db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
+                        db.execute("UPDATE analyses SET status='complete',progress='Saved predefined lifecycle comparison ready' WHERE id=?", (id,))
+        except AnalysisCancelled as exc:
+            self._update(id, 'cancelled', 'Comparison stopped; retry the exact declaration', str(exc))
+        except Exception as exc:
+            self._update(id, 'error', 'Predefined lifecycle comparison failed', f'{type(exc).__name__}: {exc}')
+        finally:
+            with self.lock, self.connect() as db:
+                for child in reserved:
+                    if runs.get(child) is None:
+                        db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?', (id,child))
+
+    def submit_funded(self, runs, search):
+        return self.submit_phase(runs, search)
+
+    def _reserve_phase(self, runs, search, *, campaign_checks=None, assessment=None,
+                       training_context=None, inline=False, datasets=None):
+        """Shared checked reservation; callers hold the catalogue mutation lock."""
+        from .phase_dispatch import module_for_mode
+        from .phase_search import check_candidates, validate_phase_work
+        if assessment is not None and training_context is not None:
+            raise ValueError('A phase source cannot be both nested training and manual assessment.')
+        module = module_for_mode(search.mode)
+        phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
+        validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
+        if assessment or training_context:
+            checks = check_candidates(runs, search, assessment, training_context=training_context, datasets=datasets)
+        else:
+            checks = module.check_search(runs, search, datasets=datasets)
+        if campaign_checks is not None:
+            if [c['candidate_id'] for c in checks] != [c['candidate_id'] for c in campaign_checks]:
+                raise ValueError('Campaign source identity changed before queueing.')
+            checks = campaign_checks
+        key = module.search_key(search, checks)
+        if assessment:
+            key = sha256(canonical(dict(search=key, assessment=assessment)).encode()).hexdigest()
+        if training_context:
+            key = sha256(canonical(dict(search=key, training_context=training_context)).encode()).hexdigest()
+        with self.connect() as db:
+            row = db.execute("SELECT id,status FROM analyses WHERE request_hash=? AND status IN ('queued','running','complete') ORDER BY created DESC LIMIT 1", (key,)).fetchone()
+            if row:
+                try: valid = row[1] != 'complete' or self.fingerprint(row[0]) is not None
+                except (OSError, ValueError, KeyError): valid = False
+                if valid and row[1]=='complete' and getattr(search,'native_execution',None) is not None:
+                    valid=self.native_children_unchanged(runs,row[0])
+                if valid:
+                    if inline and row[1] != 'complete':
+                        raise ValueError('This internal phase calculation is already active; it cannot be queued behind its parent.')
+                    if training_context:
+                        report = json.loads((self.root/row[0]/'report.json').read_text())
+                        if report.get('training_context') != training_context:
+                            raise ValueError('Saved phase report training context differs from its immutable request.')
+                        db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (training_context['campaign_id'], row[0]))
+                    return self.get(row[0]), checks, False
+            id = uuid4().hex
+            db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',
+                (id, key, search.source_backtest_id, datetime.now(timezone.utc).isoformat(), 'queued', 'Queued '+phase+' search', None))
+            db.executemany('INSERT INTO analysis_sources VALUES (?,?)',
+                [(id, source) for source in sorted({c.source.source_backtest_id for c in search.candidates})])
+            db.execute('INSERT INTO phase_analysis_control(analysis_id) VALUES (?)',(id,))
+            if training_context:
+                db.execute('INSERT INTO campaign_analyses VALUES (?,?)', (training_context['campaign_id'], id))
+        return self.get(id), checks, True
+
+    def cancel_phase(self, id):
+        with self.lock:
+            with self.connect() as db:
+                row=db.execute('SELECT a.status FROM analyses a JOIN phase_analysis_control c ON c.analysis_id=a.id WHERE a.id=?',(id,)).fetchone()
+                if row is None:
+                    raise ValueError('This analysis does not support cooperative phase cancellation.')
+                if row[0] not in ('queued','running'):
+                    raise ValueError('Only queued or running phase analyses can be cancelled.')
+                db.execute('UPDATE phase_analysis_control SET stop_requested=1 WHERE analysis_id=?',(id,))
+                db.execute("UPDATE analyses SET progress='Stop requested; waiting for the next safe calculation boundary' WHERE id=?",(id,))
+            return self.get(id)
+
+    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None, datasets=None):
+        """Public phase dispatch retains the existing worker and request meaning."""
+        with self.lock:
+            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment, datasets=datasets)
+            if fresh:
+                self.worker.submit(self._run_phase, runs, record['id'], search, checks, assessment, datasets=datasets)
+            return record
+
+    def run_phase_inline(self, runs, search, *, training_context, checkpoint=lambda:None,
+                         progress=lambda message:None, datasets=None):
+        """Internal nested child: normal durable report, no same-worker wait."""
+        if not training_context:
+            raise ValueError('Inline nested phase execution requires a server-derived training context.')
+        checkpoint()
+        with self.lock:
+            record, checks, fresh = self._reserve_phase(runs, search, training_context=training_context, inline=True, datasets=datasets)
+        if fresh:
+            self._run_phase(runs, record['id'], search, checks, training_context=training_context,
+                            checkpoint=checkpoint, progress=progress, raise_errors=True, datasets=datasets)
+        checkpoint()
+        return self.get(record['id'])
+
+    def _run_phase(self, runs, id, search, checks, assessment=None, *, training_context=None,
+                   checkpoint=lambda:None, progress=lambda message:None, raise_errors=False, datasets=None):
+        from .phase_dispatch import module_for_mode
+        module = module_for_mode(search.mode)
+        optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
+        phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
+        reserved_children=[]
+        def reserve_child(child_id):
+            with self.lock,self.connect() as db:
+                db.execute('INSERT INTO analysis_sources VALUES (?,?)',(id,child_id))
+                if assessment:
+                    db.execute('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)',(assessment['campaign_id'],child_id))
+            reserved_children.append(child_id)
+        parent_checkpoint=checkpoint
+        def checkpoint():
+            parent_checkpoint()
+            with self.connect() as db:
+                row=db.execute('SELECT stop_requested FROM phase_analysis_control WHERE analysis_id=?',(id,)).fetchone()
+            if row and row[0]:
+                raise AnalysisCancelled('Phase search stopped; no partial result was published. Run again to replay the same complete declaration.')
+        def update(message):
+            checkpoint()
+            self._update(id, 'running', message)
+            progress(message)
+        try:
+            update('Running independent '+phase+' search')
+            with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
+                staged = Path(temp)/'report'; staged.mkdir()
+                with self.runtime.activate():
+                    options = dict(assessment=True) if assessment else {}
+                    if getattr(search, 'native_execution', None) is not None:
+                        if assessment is not None:
+                            options['assessment'] = dict(assessment,analysis_id=id)
+                            options['reserve_child'] = reserve_child
+                        options['datasets'] = datasets
+                        options['checkpoint'] = checkpoint
+                    if training_context is not None:
+                        options['training_context'] = training_context
+                    calculations = optimize(runs, search, checks, update, **options)
+                if assessment:
+                    calculations['assessment'] = assessment
+                result = module.write_report(runs, staged, search, checks, calculations)
+                if reserved_children:
+                    self.capture_native_children(runs, staged, result, reserved_children)
+
+                if assessment:
+                    result['assessment'] = assessment
+                    result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
+                    (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
+                if training_context is not None:
+                    from .phase_search import check_candidates
+                    current = check_candidates(runs, search, training_context=training_context, datasets=datasets)
+                    if [c['candidate_id'] for c in current] != [c['candidate_id'] for c in checks]:
+                        raise ValueError('Nested training source changed during phase calculation.')
+                    result['training_context'] = training_context
+                    (staged/'training_context.json').write_text(canonical(training_context))
+                # Stop admission and completed publication share the same lock:
+                # an accepted cancellation cannot race with a completed report.
+                with self.lock:
+                    checkpoint()
+                    seal_report(staged, result, id, self.get(id)['created'])
+                    staged.rename(self.root/id)
+                    with self.connect() as db:
+                        db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
+                        db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
+        except AnalysisCancelled as exc:
+            self._update(id,'cancelled','Phase search stopped; run again from the saved declaration',str(exc))
+            if raise_errors:raise
         except Exception as exc:
             self._update(id, 'error', phase+' search failed', f'{type(exc).__name__}: {exc}')
+            if raise_errors:
+                raise
+        finally:
+            with self.lock,self.connect() as db:
+                for child_id in reserved_children:
+                    if runs.get(child_id) is None:
+                        db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?',(id,child_id))
+                        if assessment:db.execute('DELETE FROM campaign_sources WHERE campaign_id=? AND source_id=?',(assessment['campaign_id'],child_id))
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
@@ -347,6 +630,43 @@ class AnalysisStore:
             db.execute('DELETE FROM analysis_report_checks WHERE id=?',(prepared['id'],))
             db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(prepared['id'],))
             db.execute('DELETE FROM analyses WHERE id=?',(prepared['id'],))
+
+    def capture_native_children(self, runs, staged, result, children):
+        """One capture contract for actual native children across analysis modes."""
+        import shutil
+        from .adapter import digest
+        from ..optimization_cache import artifacts
+        result['native_backtests']={}
+        for child_id in children:
+            child=runs.get(child_id)
+            if child is None:raise ValueError('Native controlled child was not published.')
+            hashes=artifacts(runs.root,child)
+            folder=staged/'native_backtests'/child_id;folder.mkdir(parents=True)
+            capture={}
+            for name,expected in hashes.items():
+                if name=='shared_holding_day':
+                    from ..market_equity import holding_path
+                    source=holding_path(runs.root/child_id,child['market_benchmark'])
+                    target='shared_holding_day.csv'
+                else:source=runs.root/child_id/name;target=name
+                destination=folder/target;destination.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(source,destination)
+                if digest(destination)!=expected:raise ValueError('Native child changed during report capture.')
+                capture[name]=str(destination.relative_to(staged))
+            (folder/'manifest.json').write_text(canonical(child))
+            result['native_backtests'][child_id]=dict(record=child,artifact_sha256=hashes,captured_files=capture)
+
+    def native_children_unchanged(self, runs, id):
+        """Live child links must still agree with the immutable report capture."""
+        from ..optimization_cache import artifacts
+        try:
+            report=json.loads((self.root/id/'report.json').read_text())
+            return all((child:=runs.get(child_id)) is not None
+                and canonical(child)==canonical(saved['record'])
+                and artifacts(runs.root,child)==saved['artifact_sha256']
+                for child_id,saved in report.get('native_backtests',{}).items())
+        except (OSError,ValueError,KeyError):
+            return False
 
     def fingerprint(self, id):
         from .adapter import digest

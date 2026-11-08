@@ -6,7 +6,16 @@
 
 - [Architecture](architecture.md): requirements, workflow, code map and trade-offs.
 - [Technical reference](architecture_reference.md): current storage and export contracts.
-- [IS/OOS workflow](research_workflow.md): splits, manual OOS, research checks and saved history.
+- [Research workflow](research_workflow.md#first-complete-campaign-a-practical-walkthrough):
+  setup, nested research, complete-procedure freeze, current selection and forward
+  observation, with manual IS/OOS and saved-history instructions.
+- [Robust research execution checklist](robust_research_plan.md): fresh audit,
+  requirements traceability, inner qualification, independent economic selection,
+  chronological reliability, complete-procedure final verification and the
+  searchable research catalogue with drafts/templates, frozen pair comparisons and
+  supplied observation monitoring, declared-scope cash comparisons and frozen
+  sizing arithmetic checks; the final complete suite passed 2,315 tests with no
+  failures or skips. The checklist links source, report and publication evidence.
 
 ## Product guides
 
@@ -31,10 +40,12 @@
 ## Planning and proposals
 
 - [Independent phase optimization](phase_optimization_plan.md): implemented phase optimizers/campaigns
-  and the remaining generation, refinement and frozen OOS plan.
+  with frozen OOS, native sizing and nested selection; dated generation/refinement
+  milestones distinguish implemented controls from remaining optional work.
 - [Prop portfolio plan](prop_portfolio_plan.md): completed phase/cash-ledger
   milestones and optional downstream portfolio work.
 - [Planning costs](planning.md): dated estimates and missing quotes.
-- [Trade export v1](designs/trade_export_v1.md): proposed format, not implemented.
+- [Trade export v1](designs/trade_export_v1.md): supported versioned canonical
+  import contract, source limitations and historical proposal notes.
 
 GitHub links stay within the viewed branch or commit.

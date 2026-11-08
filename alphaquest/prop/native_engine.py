@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from collections import deque
 import numpy as np
 import cython
+from .native_money import money_add, money_sub, money_mul, rule_constant
+from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags
 
 
 @dataclass(frozen=True)
@@ -67,16 +69,71 @@ class FundedAccount:
                    dll=cython.double, size=cython.double, daily_floor=cython.double,
                    net=cython.double, adverse=cython.double, trough=cython.double,
                    profit=cython.double, cycle_profit=cython.double, amount=cython.double)
-    def advance(self, trades, micros, max_micros=40):
+    def advance(self, trades, micros, max_micros=40, sizing_policy=None, sizing_context=None, trace=None):
         """Consume (net, adverse[, ordered adverse frontier]) session trades."""
         if self.outcome != 'open':
             raise ValueError('Cannot advance a closed account.')
+        runtime=resolve_runtime(sizing_policy,sizing_context,trace)
+        if runtime is not None:self.opportunities_consumed=0;self.skipped_trades=0
+        opening, floor, daily_floor, cap = self.begin_session()
+        size = min(micros, cap, max_micros)
+        self.effective_micros = size if runtime is None else None
+        for opportunity_index, trade in enumerate(trades, 1):
+            decision=None
+            if runtime is not None:
+                self.opportunities_consumed+=1
+                decision=before_trade(runtime,trade,self.equity,floor,daily_floor,cap,min(micros,max_micros),'funded',self.day,opportunity_index)
+                size=decision['quantity']
+                if size==0:
+                    self.skipped_trades+=1
+                    finish_trace(runtime,decision,self.equity,0,'skipped')
+                    continue
+                self.effective_micros=size
+            try:
+                self.trades_consumed += 1
+                net, adverse = trade[0], trade[1]
+                trough = self.equity - adverse * size / 10.
+                if len(trade) > 2 and trough <= max(daily_floor, floor):
+                    hit, balance = risk_hit(trade[2], self.equity, size, daily_floor, floor)
+                    if hit:
+                        self.last_hit = hit
+                        self.equity = balance
+                        if hit == 2:
+                            self.outcome = 'blown'
+                            return 0.
+                        break
+                if daily_floor > floor and trough <= daily_floor:
+                    self.last_hit = 1
+                    self.equity = daily_floor
+                    break
+                if daily_floor <= floor and trough <= floor:
+                    self.last_hit = 2
+                    self.outcome = 'blown'
+                    return 0.
+                self.equity += net * size / 10.
+                if daily_floor > floor and self.equity <= daily_floor:
+                    self.last_hit = 1
+                    self.equity = daily_floor
+                    break
+                if daily_floor <= floor and self.equity <= floor:
+                    self.last_hit = 2
+                    self.outcome = 'blown'
+                    return 0.
+            finally:
+                if decision is not None:
+                    finish_trace(runtime,decision,self.equity,self.last_hit,self.outcome)
+        return self.finish_session(opening)
+
+    def begin_session(self):
+        """Shared one-time opening; no trade or fill is consumed."""
+        if self.outcome != 'open':
+            raise ValueError('Cannot begin a closed account session.')
         r = self.rules
         self.last_hit = 0
         self.trades_consumed = 0
         self.day += 1
         opening = self.equity
-        floor = r.lock_profit if self.locked else self.high - r.max_dd
+        floor = r.lock_profit if self.locked else money_sub(self.high,r.max_dd)
         if floor >= r.lock_profit:
             self.locked = True
             floor = r.lock_profit
@@ -84,68 +141,42 @@ class FundedAccount:
         for threshold, level_cap, level_dll in r.levels:
             if opening >= threshold:
                 cap, dll = level_cap, level_dll
-        size = min(micros, cap, max_micros)
-        self.effective_micros = size
-        daily_floor = opening - dll
-        for trade in trades:
-            self.trades_consumed += 1
-            net, adverse = trade[0], trade[1]
-            trough = self.equity - adverse * size / 10.
-            if len(trade) > 2 and trough <= max(daily_floor, floor):
-                hit, balance = risk_hit(trade[2], self.equity, size, daily_floor, floor)
-                if hit:
-                    self.last_hit = hit
-                    self.equity = balance
-                    if hit == 2:
-                        self.outcome = 'blown'
-                        return 0.
-                    break
-            if daily_floor > floor and trough <= daily_floor:
-                self.last_hit = 1
-                self.equity = daily_floor
-                break
-            if daily_floor <= floor and trough <= floor:
-                self.last_hit = 2
-                self.outcome = 'blown'
-                return 0.
-            self.equity += net * size / 10.
-            if daily_floor > floor and self.equity <= daily_floor:
-                self.last_hit = 1
-                self.equity = daily_floor
-                break
-            if daily_floor <= floor and self.equity <= floor:
-                self.last_hit = 2
-                self.outcome = 'blown'
-                return 0.
-        profit = self.equity - opening
+        daily_floor = money_sub(opening,dll)
+        return opening, floor, daily_floor, cap
+
+    def finish_session(self, opening):
+        """Shared EOD qualification, payout and trail finalization."""
+        r = self.rules
+        profit = money_sub(self.equity,opening)
         if profit >= r.inactivity_profit:
             self.activity.append(self.day)
         while self.activity and self.activity[0] <= self.day - r.inactivity_window:
             self.activity.popleft()
         if profit < r.inactivity_profit and self.day >= r.inactivity_window and len(self.activity) < r.inactivity_days:
             self.outcome = 'inactive'
-            return 0.
+            return self.equity - self.equity
         if not self.approval or r.approval_day_counts:
             self.qualifying += profit >= r.qualifying_profit
             self.best_day = max(self.best_day, profit)
         self.approval = False
-        cycle_profit = self.equity - self.cycle_start
-        amount = 0.
+        cycle_profit = money_sub(self.equity,self.cycle_start)
+        amount = self.equity - self.equity
         if (self.qualifying >= r.qualifying_days and cycle_profit > 0
-                and self.best_day <= r.consistency * cycle_profit
-                and self.equity - r.safety_net >= r.ladder[len(self.payouts)]):
+                and self.best_day <= money_mul(r.consistency,cycle_profit)
+                and money_sub(self.equity,r.safety_net) >= r.ladder[len(self.payouts)]):
             amount = r.ladder[len(self.payouts)]
-            self.equity -= amount
+            self.equity = money_sub(self.equity,amount)
             self.payouts.append((self.day, amount))
             self.cycle_start = self.equity
             self.qualifying = 0
-            self.best_day = 0.
+            self.best_day = self.equity - self.equity
             self.approval = True
             if len(self.payouts) == len(r.ladder):
                 self.outcome = 'paid_all'
         # The end-of-day trail observes the balance before a payout withdrawal.
-        self.high = max(self.high, self.equity + amount)
+        self.high = max(self.high, money_add(self.equity,amount))
         return amount
+
 
 
 def sampled_days(rng, length, block):
@@ -179,35 +210,47 @@ def compact_neutral_runs(days):
                opening=cython.double, floor=cython.double, daily_floor=cython.double,
                net=cython.double, adverse=cython.double, trough=cython.double,
                balance=cython.double, hit=cython.longlong, consumed=cython.longlong)
-def evaluation_session(trades, equity, high, size):
+def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_context=None, trace=None, max_micros=40):
     """One Apex evaluation session, shared by sampled and dated replay."""
-    opening = equity
-    floor = min(high - 2000., 3000.)
-    daily_floor = opening - 1000.
+    runtime=resolve_runtime(sizing_policy,sizing_context,trace)
+    sizing_cap=min(size,max_micros)
+    opening, floor, daily_floor = evaluation_opening(equity,high)
     result = 'open'
     hit = consumed = 0
-    for trade in trades:
-        consumed += 1
-        net, adverse = trade[0], trade[1]
-        trough = equity - adverse * size / 10.
-        if len(trade) > 2 and trough <= max(daily_floor, floor):
-            hit, balance = risk_hit(trade[2], equity, size, daily_floor, floor)
-            if hit:
-                equity = balance
-                if hit == 2: result = 'blown'
-                break
-        if daily_floor > floor and trough <= daily_floor:
-            equity = daily_floor; hit = 1; break
-        if daily_floor <= floor and trough <= floor:
-            result = 'blown'; hit = 2; break
-        equity += net * size / 10.
-        if daily_floor > floor and equity <= daily_floor:
-            equity = daily_floor; hit = 1; break
-        if daily_floor <= floor and equity <= floor:
-            result = 'blown'; hit = 2; break
-        if equity >= 3000.:
-            result = 'passed'; break
-    return equity, max(high, equity), result, hit, consumed
+    for opportunity_index, trade in enumerate(trades, 1):
+        decision=None
+        if runtime is not None:
+            decision=before_trade(runtime,trade,equity,floor,daily_floor,60,sizing_cap,'evaluation',sizing_context.get('trace_context',{}).get('session_index') if sizing_context else None,opportunity_index)
+            size=decision['quantity']
+            if size==0:
+                finish_trace(runtime,decision,equity,0,'skipped')
+                continue
+        try:
+            consumed += 1
+            net, adverse = trade[0], trade[1]
+            trough = equity - adverse * size / 10.
+            if len(trade) > 2 and trough <= max(daily_floor, floor):
+                hit, balance = risk_hit(trade[2], equity, size, daily_floor, floor)
+                if hit:
+                    equity = balance
+                    if hit == 2: result = 'blown'
+                    break
+            if daily_floor > floor and trough <= daily_floor:
+                equity = daily_floor; hit = 1; break
+            if daily_floor <= floor and trough <= floor:
+                result = 'blown'; hit = 2; break
+            equity += net * size / 10.
+            if daily_floor > floor and equity <= daily_floor:
+                equity = daily_floor; hit = 1; break
+            if daily_floor <= floor and equity <= floor:
+                result = 'blown'; hit = 2; break
+            if equity >= 3000.:
+                result = 'passed'; break
+        finally:
+            if decision is not None:
+                finish_trace(runtime,decision,equity,hit,result)
+    equity, high, result = evaluation_finish(equity,high,result)
+    return equity, high, result, hit, consumed
 
 
 @cython.locals(equity=cython.double, high=cython.double, size=cython.double,
@@ -215,10 +258,11 @@ def evaluation_session(trades, equity, high, size):
                net=cython.double, adverse=cython.double, trough=cython.double,
                day=cython.longlong, duration=cython.longlong, attempt=cython.longlong)
 def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
-               max_micros=40):
+               max_micros=40, sizing_policy=None, sizing_context=None, trace=None):
+    runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     rng = np.random.RandomState(seed)
     outcomes, durations, attempts = [], [], []
-    for _ in range(sims):
+    for path_index in range(sims):
         duration = 0
         sequence = sampled_days(rng, len(days), block)
         for attempt in range(1, 10001 if chain else 2):
@@ -229,7 +273,7 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
                 # Keep the compiled hot loop unboxed. The Python session
                 # reference below is also used by dated replay. Parity tests
                 # qualify every outcome and MT19937 draw across both paths.
-                if cython.compiled:
+                if cython.compiled and runtime is None:
                     opening = equity
                     floor = min(high - 2000., 3000.)
                     daily_floor = opening - 1000.
@@ -260,7 +304,9 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
                             break
                     high = max(high, equity)
                 else:
-                    equity, high, state, _, _ = evaluation_session(days[next(sequence)], equity, high, size)
+                    source_index=next(sequence)
+                    context=with_tags(sizing_context,path_index=path_index,attempt=attempt,session_index=day,source_session_index=source_index) if runtime is not None else None
+                    equity, high, state, _, _ = evaluation_session(days[source_index], equity, high, size,sizing_policy,context,trace,max_micros)
                     result = 'timeout' if state == 'open' else state
                 if result != 'timeout':
                     break
@@ -275,14 +321,27 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
     return dict(outcomes=np.array(outcomes), days=np.array(durations), attempts=np.array(attempts))
 
 
-def funded(days, micros, sims, seed, block=5, horizon=2000, rules=Rules(), max_micros=40):
+def funded(days, micros, sims, seed, block=5, horizon=2000, rules=Rules(), max_micros=40, sizing_policy=None, sizing_context=None, trace=None):
+    runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     rng = np.random.RandomState(seed)
     accounts = []
-    for _ in range(sims):
+    for path_index in range(sims):
         account = FundedAccount(rules)
         for idx in sampled_days(rng, len(days), block):
-            account.advance(days[idx], micros, max_micros)
+            context=with_tags(sizing_context,path_index=path_index,source_session_index=idx) if runtime is not None else None
+            account.advance(days[idx], micros, max_micros,sizing_policy,context,trace)
             if account.outcome != 'open' or account.day == horizon:
                 break
         accounts.append(account)
     return accounts
+
+
+def evaluation_opening(equity,high):
+    """Shared opening; account state is never restarted per native trade."""
+    floor=min(money_sub(high,rule_constant(high,'2000')),rule_constant(high,'3000'))
+    daily_floor=money_sub(equity,rule_constant(equity,'1000'))
+    return equity,floor,daily_floor
+
+
+def evaluation_finish(equity,high,result):
+    return equity,max(high,equity),result

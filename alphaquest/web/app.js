@@ -133,6 +133,7 @@ function upload(path) {
     filename: selectedFile.name,
     source_timezone: $("#source-timezone").value.trim(),
     progress_id: operationId,
+    disclosure: $("#dataset-metadata-only").checked ? "metadata_only" : "standard",
   });
   if (saving) {
     params.set("name", $("#dataset-name").value.trim());
@@ -325,7 +326,7 @@ function showValidation(dataset) {
     node(
       "p",
       "",
-      "All rows passed the CSV checks. Review the preview, then save this dataset to your library.",
+      dataset.disclosure === "metadata_only" ? "All rows passed the CSV checks. Price previews remain hidden. Save the dataset, then reserve final session dates before accessing prices." : "All rows passed the CSV checks. Review the preview, then save this dataset to your library.",
     ),
   );
   const summary = node("div", "result-summary");
@@ -341,7 +342,7 @@ function showValidation(dataset) {
     node(
       "span",
       "preview-label",
-      `FIRST ${dataset.preview.length} ROWS · ${dataset.columns.includes("Date") ? "SOURCE TIME + UTC" : "UTC"}`,
+      dataset.disclosure === "metadata_only" ? "METADATA ONLY · PRICE ROWS HIDDEN" : `FIRST ${dataset.preview.length} ROWS · ${dataset.columns.includes("Date") ? "SOURCE TIME + UTC" : "UTC"}`,
     ),
     previewTable(dataset),
   );
@@ -618,6 +619,7 @@ function showDetails(dataset) {
     }
   });
   content.append(settingsForm);
+  window.researchReservations.configure(content, dataset);
   warnings(content, dataset);
   const checksum = node("div", "checksum", "Original CSV · SHA-256");
   checksum.append(node("code", "", dataset.sha256));
@@ -626,7 +628,7 @@ function showDetails(dataset) {
     node(
       "p",
       "small muted",
-      `First ${dataset.preview.length} rows. ${dataset.columns.includes("Date") ? "Date and Time match the source; computed datetime is UTC." : "Timestamps shown in UTC."} CSV downloads preserve the original bytes.`,
+      dataset.disclosure === "metadata_only" || dataset.disclosure === "protected_final_sessions" ? "Price rows are hidden. Downloading the original CSV records price access; active final-session reservations block ordinary access." : `First ${dataset.preview.length} rows. ${dataset.columns.includes("Date") ? "Date and Time match the source; computed datetime is UTC." : "Timestamps shown in UTC."} CSV downloads preserve the original bytes.`,
     ),
     previewTable(dataset),
   );
@@ -660,6 +662,7 @@ $("#csv-file").addEventListener("change", (event) =>
 for (const selector of ["#dataset-name", "#symbol"])
   $(selector).addEventListener("input", invalidate);
 $("#source-timezone").addEventListener("change", invalidate);
+$("#dataset-metadata-only").addEventListener("change", invalidate);
 const dropzone = $("#dropzone");
 for (const type of ["dragenter", "dragover"])
   dropzone.addEventListener(type, (event) => {

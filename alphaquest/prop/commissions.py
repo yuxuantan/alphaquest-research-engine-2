@@ -41,6 +41,9 @@ def source_instrument(record):
 
 def adapt(snapshot, rows, settings):
     """Keep source columns immutable and add inspectable simulation amounts."""
+    if snapshot.get('source_kind') == 'external_trade_export':
+        from .external_source import adapt_costs
+        return adapt_costs(snapshot, rows, settings)
     record = snapshot['backtest']
     detected = source_instrument(record)
     instrument = detected if settings['SOURCE_INSTRUMENT'] == 'auto' else settings['SOURCE_INSTRUMENT']

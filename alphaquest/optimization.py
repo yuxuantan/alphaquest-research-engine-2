@@ -150,6 +150,41 @@ class OptimizationStore:
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
         return job
 
+    def cancel_queued(self, job_id):
+        """Cancel only before the coordinator claims execution; retain all results."""
+        with self.runs.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError("Backtest activity not found.")
+            job = json.loads(row[0])
+            if job["status"] == "cancelled":
+                return job
+            if job["status"] != "queued":
+                raise ValueError(f"Only queued activities can be cancelled; this activity is {job['status']}. Refresh to see its current state.")
+            now = datetime.now(timezone.utc).isoformat()
+            job.update(status="cancelled", stage="cancelled", cancelled_at_utc=now,
+                       finished_at_utc=now, cancellation_reason="Cancelled before execution; saved reports retained.",
+                       active_trials=[], worker_pids=[])
+            conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+        return job
+
+    def _claim_queued(self, job_id):
+        # The same write lock as cancellation makes the boundary unambiguous.
+        # A cancelled/deleted queued callback must do nothing, including no
+        # runtime admission, source access, cache reuse or report publication.
+        with self.runs.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                return None
+            job = json.loads(row[0])
+            if job["status"] != "queued":
+                return None
+            job.update(status="running", stage="preparing", started_at_utc=datetime.now(timezone.utc).isoformat())
+            conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+        return job
+
     def resume(self, job_id):
         """Atomically claim an incomplete job; successful trial rows stay untouched."""
         with self.runs.connect() as conn:
@@ -405,6 +440,9 @@ class OptimizationStore:
         return True
 
     def run(self, job, source, definition, config, date_range):
+        job = self._claim_queued(job['id'])
+        if job is None:
+            return
         with self.prop_analyses.runtime.optimization(job['worker_count']):
             return self._run(job,source,definition,config,date_range)
 
@@ -439,9 +477,10 @@ class OptimizationStore:
                 logger.exception("Could not save progress for optimization %s; continuing active trials", job_id)
 
         try:
+            from .research_access import guard_read
+            guard_read(source,job["dataset"]["id"],date_range,kind='strategy_execution',origin='optimization:'+job_id)
             if job.get("engine_identity") and engine_identity() != job["engine_identity"]:
                 raise ValueError("Engine code changed while this job was queued. Start a new optimization.")
-            self.update(job_id, status="running", stage="preparing", started_at_utc=datetime.now(timezone.utc).isoformat())
             with self.runs.connect() as conn:
                 saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
             pending = [(trial, values) for trial, values in enumerate(combinations(job["axes"]), 1)

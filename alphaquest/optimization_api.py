@@ -101,6 +101,19 @@ def delete_activity(job_id: UUID, request: Request):
     return result
 
 
+@router.post("/api/backtests/batches/{job_id}/cancel")
+@router.post("/api/optimizations/{job_id}/cancel")
+def cancel_activity(job_id: UUID, request: Request):
+    try:
+        return request.app.state.optimizations.cancel_queued(job_id.hex)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc.args[0])) from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    except sqlite3.OperationalError as exc:
+        raise HTTPException(503, str(exc)) from None
+
+
 @router.post("/api/backtests/batches/{job_id}/resume", status_code=202)
 @router.post("/api/optimizations/{job_id}/resume", status_code=202)
 def resume(job_id: UUID, request: Request):

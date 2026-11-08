@@ -239,6 +239,10 @@ class DatasetStore:
                 PRIMARY KEY(dataset_id, ordinal)
             )""")
 
+        if (path.parent/'prop_analyses'/'catalog.sqlite3').is_file():
+            from .research_access import attach_existing_access
+            attach_existing_access(self)
+
     def connect(self):
         return connection(self.path)
 
@@ -278,14 +282,21 @@ class DatasetStore:
 
     def list(self) -> list[dict]:
         with self.connect() as conn:
-            return [json.loads(row[0]) for row in conn.execute("SELECT metadata FROM datasets ORDER BY rowid DESC")]
+            values=[json.loads(row[0]) for row in conn.execute("SELECT metadata FROM datasets ORDER BY rowid DESC")]
+        access=getattr(self,'research_access',None)
+        return [access.hidden_projection(value) for value in values] if access else values
 
     def get(self, dataset_id: str, download: bool = False):
         with self.connect() as conn:
             row = conn.execute("SELECT metadata FROM datasets WHERE id=?", (dataset_id,)).fetchone()
         if not row:
             return None
-        return b"".join(self.iter_csv(dataset_id)) if download else json.loads(row[0])
+        if download:
+            from .research_access import guard_read
+            guard_read(self,dataset_id,kind='price_download',origin='dataset_get_download')
+            return b"".join(self.iter_csv(dataset_id))
+        value=json.loads(row[0]);access=getattr(self,'research_access',None)
+        return access.hidden_projection(value) if access else value
 
     def iter_csv(self, dataset_id: str):
         with self.connect() as conn:
@@ -314,5 +325,8 @@ class DatasetStore:
         return dataset
 
     def delete(self, dataset_id: str) -> bool:
+        dataset=self.get(dataset_id)
+        if dataset is not None and getattr(self,'research_access',None) is not None:
+            self.research_access.assert_deletable(dataset)
         with self.connect() as conn:
             return conn.execute("DELETE FROM datasets WHERE id=?", (dataset_id,)).rowcount == 1

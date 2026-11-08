@@ -97,7 +97,8 @@ def test_actual_instrument_commission_workflow_downloads_and_reopen(page,portal,
         # Custom rate: $299 - 2*$0.70 = $297.60 per MNQ.
         assert all(Decimal(r['simulation_net_per_nq'])==Decimal('2976.00') for r in rows)
         assert all(Decimal(r['source_commission'])==Decimal('3.98') for r in rows)
-        report=json.loads(archive.read('report.json'))
+        report_bytes=archive.read('report.json')
+        report=json.loads(report_bytes)
         assert len(report['calculations']['evaluation_sweep'])==40
         assert len(report['calculations']['funded']['sweep'])==40
         assert all(r['simulations']==3000 for r in report['calculations']['evaluation_sweep'])
@@ -108,12 +109,27 @@ def test_actual_instrument_commission_workflow_downloads_and_reopen(page,portal,
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     page.reload();playwright.expect(page.locator('#prop-report')).to_be_visible()
     assert not posts
-    page.locator('#prop-back').click();page.locator('#report-prop-setup').click()
+    page.locator('#prop-back').click()
+    # Configure derives IS defaults from saved metadata; it must not calculate
+    # a campaign or analysis. Opening the saved report itself remains GET-only.
+    with page.expect_response(lambda r:r.url.endswith('/api/research-campaigns/source-window')
+                              and r.request.method=='POST') as window_response:
+        page.locator('#report-prop-setup').click()
+    lookup=window_response.value
+    assert lookup.status==200
+    assert lookup.request.post_data_json==dict(sources=[dict(backtest_id=source_id,sizes=[1])])
+    assert lookup.json()['is_window']==dict(first_session='2026-01-05',last_session='2026-03-27')
+    assert posts==[lookup.url]
+    (tmp_path/'source-window-lookup.json').write_text(json.dumps(dict(method=lookup.request.method,url=lookup.url,request=lookup.request.post_data_json,status=lookup.status,response=lookup.json()),indent=2))
+    posts.clear()
     page.locator(f'#prop-saved a[href$="{id}"]').click()
     playwright.expect(page.locator('#prop-report')).to_be_visible()
     assert not posts
+    with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:
+        assert client.get(f'/api/prop-analyses/{id}/downloads/report.json').content==report_bytes
+        assert sha256(client.get(f'/api/backtests/{source_id}/exports/trades').content).hexdigest()==original_hash
     (tmp_path/'validation.json').write_text(json.dumps(dict(source_id=source_id,analysis_id=id,
         automatic_id=automatic_id,source_trades_sha256=original_hash,source_unchanged=True,
         expected_default_mnq_net='297.98',expected_custom_mnq_net='297.60',
         actual_default_net_per_nq=default_rows[0]['simulation_net_per_nq'],actual_custom_net_per_nq=rows[0]['simulation_net_per_nq'],
-        reload_and_reopen_without_post=True,full_counts=True,synthetic=True),indent=2))
+        reload_and_reopen_without_post=True,configuration_metadata_lookup=True,full_counts=True,synthetic=True),indent=2))

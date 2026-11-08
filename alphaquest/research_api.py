@@ -52,9 +52,14 @@ def preview(body:PreviewRequest,request:Request):
 def selected(request,run_id):
     record=request.app.state.runs.get(run_id.hex)
     if not record:raise HTTPException(404,'Completed backtest not found.')
+    from .trade_imports import external
+    if external(record):
+        raise HTTPException(409,'Imported research declarations do not authorize native OOS replay. Supply a separately identified external OOS export.')
     research=record['run_metadata'].get('research')
     if not research or research['phase']!='is':
         raise HTTPException(409,'Select a declared IS backtest or an individual IS optimisation trial. Legacy and OOS reports cannot launch OOS tests.')
+    if record['run_metadata'].get('execution_scenario') is not None:
+        raise HTTPException(409,'Manual OOS does not support execution-scenario IS sources. Select the original baseline IS report; saved scenario assumptions must not be discarded.')
     return record,research['plan']
 
 
@@ -62,6 +67,9 @@ def selected(request,run_id):
 def selected_status(run_id:UUID,request:Request):
     record=request.app.state.runs.get(run_id.hex)
     if not record:raise HTTPException(404,'Completed backtest not found.')
+    from .trade_imports import external
+    if external(record):
+        raise HTTPException(409,'Imported research declarations have no native OOS plan. The saved exporter declaration remains available in the source report.')
     research=record['run_metadata'].get('research')
     if not research:raise HTTPException(409,'This legacy report has no IS/OOS declaration.')
     plan=research['plan']
@@ -71,6 +79,10 @@ def selected_status(run_id:UUID,request:Request):
 
 @router.post('/api/backtests/{run_id}/oos',status_code=201)
 async def run_oos(run_id:UUID,body:OOSRequest,request:Request,progress_id:UUID|None=None):
+    return await run_oos_impl(run_id,body,request,progress_id)
+
+
+async def run_oos_impl(run_id,body,request,progress_id=None,*,automatic_prop=True):
     from .backtest_api import execute_backtest
     record,plan=await run_in_threadpool(selected,request,run_id)
     saved=record['run_metadata']
@@ -97,9 +109,47 @@ async def run_oos(run_id:UUID,body:OOSRequest,request:Request,progress_id:UUID|N
                                       market_benchmark=record.get('market_benchmark',{}).get('settings',{'contracts':1}),
                                       reuse_results=False,reuse_calculations=False,
                                       research=metadata(plan,'oos',parent_run_id=record['id'],attempt_id=attempt['id'],attempt_number=attempt['number']),
-                                      run_id_override=attempt['run_id'])
+                                      run_id_override=attempt['run_id'],automatic_prop=automatic_prop)
         await run_in_threadpool(request.app.state.research.finish,attempt['id'],'complete')
         return result
     except BaseException as exc:
         await run_in_threadpool(request.app.state.research.finish,attempt['id'],'failed',str(exc))
         raise
+
+
+# These routes disclose only session/time/count identity, never price values.
+from .research_access import ReservationRequest, ReleaseRequest
+
+
+async def reservation_call(request, method, *args):
+    try:
+        return await run_in_threadpool(getattr(request.app.state.research_access, method), *args)
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(404,str(exc)) from exc
+    except (ValueError,TypeError,OSError) as exc:
+        raise HTTPException(422,str(exc)) from exc
+
+
+@router.post('/api/datasets/{dataset_id}/research-reservations/preview')
+async def preview_reservation(dataset_id:str,body:ReservationRequest,request:Request):
+    return await reservation_call(request,'preview',request.app.state.store,dataset_id,body)
+
+
+@router.post('/api/datasets/{dataset_id}/research-reservations',status_code=201)
+async def save_reservation(dataset_id:str,body:ReservationRequest,request:Request):
+    return await reservation_call(request,'reserve',request.app.state.store,dataset_id,body)
+
+
+@router.get('/api/datasets/{dataset_id}/research-reservations')
+async def reservations(dataset_id:str,request:Request):
+    return dict(items=await reservation_call(request,'list',dataset_id))
+
+
+@router.post('/api/datasets/{dataset_id}/research-reservations/{reservation_id}/release')
+async def release_reservation(dataset_id:str,reservation_id:UUID,body:ReleaseRequest,request:Request):
+    saved=await reservation_call(request,'get',reservation_id.hex)
+    if saved['source']['dataset_id']!=dataset_id:
+        raise HTTPException(404,'Reservation does not belong to this dataset.')
+    return await reservation_call(request,'release',reservation_id.hex,body)

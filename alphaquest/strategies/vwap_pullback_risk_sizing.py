@@ -78,7 +78,7 @@ class Parameters:
     entry_start_time: int = integer(900, "Entry start, exclusive, Chicago HHMM.", 0, 2359)
     entry_end_time: int = integer(1700, "Entry end, inclusive, Chicago HHMM.", 0, 2359)
     day_reset_time: int = integer(2300, "Reset only when Time > reset and previous Time <= reset.", 0, 2359)
-    use_eod_flat: bool = boolean(True, "Auto-select the reviewed calendar from the saved instrument; flatten Close buffer minutes before scheduled close, fill next Open and block later entries. Currently NQ only; no future-bar inference.")
+    use_eod_flat: bool = boolean(True, "Auto-select the reviewed calendar from the saved instrument; flatten Close buffer minutes before scheduled close, fill next Open and block later entries. Currently NQ and MNQ; no future-bar inference.")
     eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM; fill next observed Open; scheduled early closes can move the cutoff earlier.", 0, 2359)
     plot_trade_levels: bool = boolean(True, "Log signal-bar entry details through Python logging.")
     max_bars_back: int = integer(42, "Leading history bars before PowerLanguage CurrentBar=1.")
@@ -175,7 +175,7 @@ class VwapPullbackRiskSizing:
         self.active_stop = self.active_target = D(0)
         self.adx_value = D(0)
         self._session_cutoff = None
-        self._calendar = load_calendar() if p.use_eod_flat else None
+        self._calendar = load_calendar(symbol=instrument_symbol) if p.use_eod_flat else None
         self._session_plan = None
         self._pending_entry_day = None
         self._session_digest = hashlib.sha256()
@@ -258,7 +258,15 @@ class VwapPullbackRiskSizing:
             context.prec = 50
             return self._on_bar(bar, position)
 
-    def _on_bar(self, bar, position):
+    def on_bar_controlled(self, bar: Bar, position: Position | None, admit_entry):
+        """Offer a causal entry before changing submission-dependent state."""
+        if not callable(admit_entry):
+            raise TypeError('Controlled entry admission must be callable.')
+        with localcontext() as context:
+            context.prec = 50
+            return self._on_bar(bar, position, admit_entry)
+
+    def _on_bar(self, bar, position, admit_entry=None):
         p = self.parameters
         plan = self._set_session(bar)
         self._history.append(bar)
@@ -362,9 +370,22 @@ class VwapPullbackRiskSizing:
                 continue
             if p.min_rr != 0 and reward < p.min_rr * distance:
                 continue
-            quantity = self._quantity(distance)
-            if quantity < 1:
-                continue
+            if admit_entry is None:
+                quantity = self._quantity(distance)
+                if quantity < 1:
+                    continue
+                intent = EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open", initial_stop=stop,
+                                     exit_deadline_utc=self._session_cutoff if p.use_eod_flat else None)
+            else:
+                # A placeholder never enters the account. The external policy
+                # must accept a real quantity before latches/counters commit.
+                intent = admit_entry(EntryIntent(1, "vwap_pullback", side=side, timing="next_open", initial_stop=stop,
+                                     exit_deadline_utc=self._session_cutoff if p.use_eod_flat else None))
+                if intent is None:
+                    continue
+                if type(intent) is not EntryIntent:
+                    raise TypeError('Controlled admission must return EntryIntent or None.')
+                quantity = intent.contracts
             self.active_stop, self.active_target = stop, target
             self.trades_today += 1
             self._clear_latches()
@@ -372,8 +393,7 @@ class VwapPullbackRiskSizing:
                 LOG.info("%s %s qty=%s close=%s stop=%s target=%s stopDist=%s adx=%s",
                          local.isoformat(), side.upper(), quantity, bar.close, stop, target, distance, self.adx_value)
             self._pending_entry_day = plan.day if plan is not None else None
-            return EntryIntent(quantity, "vwap_pullback", side=side, timing="next_open",
-                               exit_deadline_utc=self._session_cutoff if p.use_eod_flat else None)
+            return intent
         return None
 
     def on_finish(self, last_bar: Bar, position: Position | None):
@@ -394,7 +414,7 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
         "enabled": parameters.use_eod_flat,
         "lookahead": False,
         "mode": "csv_session_calendar_v1",
-        "calendar": (calendar or load_calendar()).metadata() if parameters.use_eod_flat else None,
+        "calendar": (calendar or load_calendar(symbol=instrument_symbol)).metadata() if parameters.use_eod_flat else None,
         "calendar_selection": "instrument_symbol",
         "calendar_id": resolve_calendar(instrument_symbol)["id"] if parameters.use_eod_flat else None,
         "instrument_symbol": instrument_symbol,

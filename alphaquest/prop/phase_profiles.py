@@ -3,7 +3,7 @@
 These are Python component interfaces, not new portal modes or dated optimizers.
 The existing sampler's unit is a trading weekday, including zero-trade weekdays.
 """
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -19,6 +19,96 @@ ProfileId = Literal['apex-50k-eod', 'lucidflex-50k']
 
 
 @dataclass(frozen=True)
+class NativeExecution:
+    """Explicit native candidate law; absence retains the saved-trade model."""
+    horizon_calendar_days: int
+    model: str = 'observed_contiguous_blocks_with_prior_prefix_v1'
+    early_closes: dict = field(default_factory=dict)
+    capture_paths: int = 1
+
+    def __post_init__(self):
+        import re
+        if self.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+            raise ValueError('Unknown native execution law.')
+        if type(self.horizon_calendar_days) is not int or not 1 <= self.horizon_calendar_days <= 365:
+            raise ValueError('Native execution horizon must be 1 through 365 calendar days.')
+        if type(self.capture_paths) is not int or not 1 <= self.capture_paths <= 20:
+            raise ValueError('Native detailed path capture must be 1 through 20.')
+        if type(self.early_closes) is not dict:
+            raise ValueError('Native early closes must map canonical dates to Chicago HH:MM.')
+        for day, close in self.early_closes.items():
+            if (type(day) is not str or date.fromisoformat(day).isoformat()!=day or type(close) is not str
+                    or not re.fullmatch(r'(?:0[0-9]|1[0-5]):[0-5][0-9]',close)):
+                raise ValueError('Native early closes require canonical dates and HH:MM before 16:00.')
+
+
+def equal_stratum_mean(groups):
+    """Conditional Monte Carlo precision for equally weighted start cohorts.
+
+    Replications quantify simulation noise under a declared law, not historical
+    sample size, uncertainty in that law, or a bound on future account outcomes.
+    """
+    from math import fsum, isfinite, sqrt
+    from statistics import fmean, variance
+    samples = [tuple(float(value) for value in group) for group in groups]
+    if not samples or any(not group for group in samples):
+        raise ValueError('Every declared start cohort requires at least one modeled path.')
+    if len({len(group) for group in samples}) != 1:
+        raise ValueError('Native forecast cohorts require equal replication counts.')
+    if any(not isfinite(value) for group in samples for value in group):
+        raise ValueError('Native forecast aggregates require finite path values.')
+    enough = all(len(group) >= 2 for group in samples)
+    return dict(mean=fmean(fmean(group) for group in samples),
+        mc_standard_error=(sqrt(fsum(variance(group)/len(group) for group in samples))/len(samples)
+                           if enough else None),
+        cohort_counts=[len(group) for group in samples], equal_cohort_weights=True,
+        precision_status='conditional_mc_only' if enough else 'insufficient_within_cohort_replication')
+
+
+def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
+    """Validate the shared declared calendar/layout, without running a phase."""
+    from datetime import timedelta, timezone
+    from .cash_ledger import replay_calendar_sessions
+    from .phase_search import PhaseCalendar
+    if forecast.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+        raise ValueError('Unknown native forecast law.')
+    if type(forecast.simulations) is not int or not 2 <= forecast.simulations <= 512:
+        raise ValueError('Native forecasts require 2 through 512 paths.')
+    if type(forecast.capture_paths) is not int or not 1 <= forecast.capture_paths <= min(20, forecast.simulations):
+        raise ValueError('Native forecasts require an explicitly bounded path capture count.')
+    if catalogue.block_sessions != forecast.block_sessions:
+        raise ValueError('Native forecast source block length differs from its declaration.')
+    calendar = PhaseCalendar(**{**forecast.calendar,
+        'start_dates':tuple(forecast.calendar['start_dates']),
+        'closures':tuple(forecast.calendar.get('closures',()))})
+    starts = tuple(sorted(calendar.start_dates))
+    if forecast.simulations % len(starts):
+        raise ValueError('Native forecast cohorts require an equal number of paths.')
+    if set(target_contexts_by_cohort) != set(starts):
+        raise ValueError('Native forecast target contexts must cover every declared start cohort exactly.')
+    allowed = replay_calendar_sessions(calendar)
+    declared_calendar = forecast.target_calendar()
+    result = []
+    for start in starts:
+        first = date.fromisoformat(start)
+        cutoff = first + timedelta(days=forecast.horizon_calendar_days)
+        contexts = target_contexts_by_cohort[start]
+        expected = [day for day in allowed if first <= day < cutoff]
+        if not expected:
+            raise ValueError('Native forecasts with no modeled open sessions are currently unsupported.')
+        if list(contexts) != expected or any(context.kind != 'modeled' or context.session != day
+                                            for day, context in contexts.items()):
+            raise ValueError('Native forecast requires the complete ordered modeled target session inventory.')
+        if any(context.calendar_sha256 != declared_calendar.sha256
+               or context.calendar_version != calendar.version
+               or context.scheduled_close_utc != declared_calendar.plan(day).close.astimezone(timezone.utc)
+               for day, context in contexts.items()):
+            raise ValueError('Native forecast contexts differ from the saved modeled calendar declaration.')
+        result.append((start, first, cutoff, contexts))
+    return calendar, result
+
+
+@dataclass(frozen=True)
 class SavedTradeSource:
     source_backtest_id: str
     trade_file: str = ''  # Explicit only: no discovery of unrelated exports.
@@ -31,6 +121,64 @@ class SourceCosts:
     broker: str | None = None
     per_side: str = ''
     instrument: Literal['auto', 'NQ', 'MNQ'] = 'auto'
+
+
+@dataclass(frozen=True)
+class SizingConfiguration:
+    """An explicit policy and decision-time loss assumptions, never P&L costs."""
+    policy: dict
+    initial_configured_capital: str
+    planning_execution: dict
+
+    def __post_init__(self):
+        from .sizing import SizingPolicy, PlanningExecution, amount
+        policy = SizingPolicy.model_validate(self.policy)
+        planning = PlanningExecution.model_validate(self.planning_execution)
+        if amount(self.initial_configured_capital) != Decimal('50000'):
+            raise ValueError('Supported 50K profiles require initial_configured_capital of 50000; source backtest equity is not the prop account balance.')
+        if planning.tick_size != Decimal('0.25'):
+            raise ValueError('MNQ sizing requires tick_size 0.25 and point_value 2.')
+        object.__setattr__(self, 'policy', policy.model_dump(mode='json'))
+        object.__setattr__(self, 'planning_execution', planning.model_dump(mode='json'))
+        object.__setattr__(self, 'initial_configured_capital', '50000')
+
+    @property
+    def needs_stop(self):
+        return (self.policy['kind'] != 'fixed_contracts' or self.policy['constrain_to_account_cushion']
+                or self.policy['constrain_to_daily_cushion'])
+
+    def kernel_arguments(self, **context):
+        return dict(sizing_policy=self.policy, sizing_context=dict(
+            initial_configured_capital=self.initial_configured_capital,
+            planning_execution=self.planning_execution, trace_context=context))
+
+
+class SizingTrace:
+    """Aggregate every decision; bound only retained detail, never simulation."""
+    def __init__(self, configuration, limit=10000):
+        self.configuration, self.limit = configuration, limit
+        self.decisions = []
+        self.summary = dict(decision_count=0, trade_count=0, skipped_count=0,
+            min_quantity=None, max_quantity=None, quantity_counts={}, reason_counts={})
+
+    def __call__(self, decision):
+        summary = self.summary
+        q = int(decision['quantity'])
+        summary['decision_count'] += 1
+        summary['trade_count' if q else 'skipped_count'] += 1
+        summary['min_quantity'] = q if summary['min_quantity'] is None else min(q, summary['min_quantity'])
+        summary['max_quantity'] = q if summary['max_quantity'] is None else max(q, summary['max_quantity'])
+        summary['quantity_counts'][str(q)] = summary['quantity_counts'].get(str(q), 0)+1
+        for reason in decision['reasons']:
+            summary['reason_counts'][reason] = summary['reason_counts'].get(reason, 0)+1
+        if len(self.decisions) < self.limit:
+            self.decisions.append(decision)
+
+    def result(self):
+        return dict(configuration=asdict(self.configuration) if self.configuration is not None else None, summary=self.summary,
+            decisions=self.decisions, trace_limit=self.limit,
+            trace_complete=self.summary['decision_count'] <= self.limit,
+            interpretation='Every simulated opportunity is aggregated; only the first retained decisions are displayed. Planning costs size quantity and are not deducted from source P&L again. Future gaps and size-dependent execution remain unverified.')
 
 
 @dataclass(frozen=True)
@@ -180,7 +328,36 @@ def profile_settings(profile, costs):
     return resolved_settings(overrides)
 
 
-def prepare_phase_source(runs, source, profile, micros, simulation, period, costs):
+def observed_session_grid(rows, period, observed_sessions):
+    """Use an internally verified inventory without inventing absent sessions.
+
+    This validates membership, not market-data completeness. The internal
+    research context owns evidence that these dates belong to its saved source.
+    Public callers retain the existing weekday convention by omitting it.
+    """
+    if observed_sessions is None:
+        return pd.bdate_range(period.first_session, period.last_session)
+    if type(observed_sessions) not in (list, tuple) or not observed_sessions:
+        raise ValueError('Observed sessions require an explicit nonempty ordered inventory.')
+    for value in observed_sessions:
+        if (type(value) is not str or date.fromisoformat(value).isoformat() != value
+                or not period.first_session <= value <= period.last_session):
+            raise ValueError('Observed session dates must be canonical ISO dates within the research period.')
+    if list(observed_sessions) != sorted(set(observed_sessions)):
+        raise ValueError('Observed session dates must be ordered and unique.')
+    allowed = set(observed_sessions)
+    for row in rows:
+        first = session_date(instant(row['entry_utc'])).isoformat()
+        last = session_date(instant(row['exit_utc'])).isoformat()
+        if (period.first_session <= first <= period.last_session
+                or period.first_session <= last <= period.last_session):
+            if first not in allowed or last not in allowed:
+                raise ValueError('A source trade lies outside the verified observed session inventory.')
+    return pd.DatetimeIndex(observed_sessions)
+
+
+def prepare_phase_source(runs, source, profile, micros, simulation, period, costs, sizing=None,
+                         observed_sessions=None, capture_metadata=False):
     """Reuse cost/risk reconciliation and dated fixed-path suitability once."""
     from .source import prepare_source
     from .commissions import adapt
@@ -190,36 +367,112 @@ def prepare_phase_source(runs, source, profile, micros, simulation, period, cost
     positive_integer('micros', micros, maximum)
     if micros > simulation.max_micros:
         raise ValueError('Position size exceeds the simulation exposure cap.')
-    snapshot, rows = prepare_source(runs, source.source_backtest_id, source.trade_file, source.export_timezone)
+    source_options = {'allow_empty': True} if observed_sessions is not None else {}
+    snapshot, rows = prepare_source(runs, source.source_backtest_id, source.trade_file, source.export_timezone,
+        **source_options)
+    external = snapshot.get('source_kind') == 'external_trade_export'
+    if sizing is not None and not isinstance(sizing, SizingConfiguration):
+        raise ValueError('Sizing requires a validated SizingConfiguration.')
     adapt(snapshot, rows, settings)
-    validate_phase_source(snapshot, rows)
+    if external:
+        snapshot['phase_suitability'] = dict(fixed_quantity=True,
+            instrument=snapshot['commission_simulation']['source_instrument'], risk_covered_trades=len(rows),
+            scaling='Exporter-declared invariant opportunity path with observed ordered mark jumps; size-dependent signals, fills and market impact are not independently verified.')
+    else:
+        validate_phase_source(snapshot, rows)
+        if sizing is not None and sizing.needs_stop:
+            raise ValueError('Native risk-based policies require a strategy rerun with account-state sizing; skipping/resizing a saved native trade path is not established as signal-invariant.')
     # Check all trades, including excluded dates: no hidden invalid source rows.
-    source_grid, source_days, _ = day_book(rows, settings)
+    if rows:
+        source_grid, source_days, _ = day_book(rows, settings)
+    elif observed_sessions is not None:
+        source_grid, source_days = [], []
+    else:
+        raise ValueError('Empty source requires an explicit verified observed session inventory.')
     record = snapshot['backtest']
-    first = session_date(instant(record['period_start_utc']))
-    last = session_date(instant(record['period_end_utc']))
+    if external:
+        sessions = snapshot['canonical_manifest']['coverage']['sessions']
+        first, last = map(date.fromisoformat, (sessions[0], sessions[-1]))
+    else:
+        first = session_date(instant(record['period_start_utc']))
+        last = session_date(instant(record['period_end_utc']))
     if period is None:
         period = ResearchPeriod(first.isoformat(), last.isoformat())
     if not first.isoformat() <= period.first_session <= period.last_session <= last.isoformat():
         raise ValueError('Research period lies outside the saved backtest period.')
-    grid = pd.bdate_range(period.first_session, period.last_session)
+    grid = observed_session_grid(rows, period, observed_sessions)
     if not 1 <= len(grid) <= 20000:
         raise ValueError('Research period requires 1–20,000 session weekdays.')
     book = {stamp.date(): day for stamp, day in zip(source_grid, source_days)}
     days = [book.get(stamp.date(), []) for stamp in grid]
+    if sizing is not None or capture_metadata:
+        add_sizing_metadata(runs, snapshot, rows, grid, days, sizing)
     snapshot['profile_research_period'] = dict(**asdict(period), weekdays=len(grid),
         convention='CME Chicago session dates; zero-trade weekdays retained; no internal reselection or split')
+    if observed_sessions is not None:
+        snapshot['profile_research_period'].update(observed_sessions=list(observed_sessions),
+            session_count=len(grid), convention='Exact internally verified observed CME session inventory; observed zero-trade sessions retained; absent dates are not synthesized')
     return snapshot, days, settings
+
+
+def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
+    """Bind known causal facts to each source opportunity before sampling."""
+    from ..trade_imports import verify_import
+    from .sizing import choose_quantity, AccountSizingState
+    from .sizing_runtime import decision_risk_from_metadata
+    record = snapshot['backtest']
+    external = snapshot.get('source_kind') == 'external_trade_export'
+    canonical_source = verify_import(runs, record) if external else None
+    original = {t['trade_id']: t for t in canonical_source['trades']} if external else {}
+    metadata = {}
+    previous_exit = None
+    needs_stop = sizing is not None and sizing.needs_stop
+    for row in sorted(rows, key=lambda r:(r['entry_utc'], int(r['trade_id']))):
+        t = original.get(row.get('external_trade_id'))
+        item = dict(source_trade_id=t['trade_id'] if t else str(row['trade_id']),
+            side=t['side'] if t else None, entry_time_utc=row['entry_utc'],
+            sizing_decision=t['sizing_decision'] if t else None,
+            initial_stop=t['initial_stop'] if t else None,
+            previous_source_exit_utc=previous_exit)
+        if needs_stop:
+            if not item['sizing_decision'] or not item['initial_stop']:
+                raise ValueError('Risk-based sizing requires a causal decision reference and initial stop for every source trade.')
+            risk = decision_risk_from_metadata(item)
+            # Validate ticks/denominator/cost arithmetic even for excluded dates.
+            choose_quantity(sizing.policy, AccountSizingState(initial_configured_capital='50000',
+                equity_change_from_initial='0', account_floor_from_initial='-2000',
+                provider_max_contracts=60, user_max_contracts=60), risk, sizing.planning_execution)
+        metadata.setdefault(session_date(instant(row['entry_utc'])), []).append(item)
+        previous_exit = row['exit_utc']
+    for stamp, day in zip(grid, days):
+        items = metadata.get(stamp.date(), [])
+        if len(items) != len(day):
+            raise ValueError('Sizing metadata does not match source opportunity membership.')
+        # An empty frontier preserves the legacy extrema fallback when metadata
+        # adds tuple fields; it does not invent an ordered path from MAE.
+        day[:] = [(trade[0], trade[1], (trade[2] or ()) if len(trade)>2 else (),
+                   trade[3] if len(trade)>3 else True, item) for trade, item in zip(day, items)]
+    snapshot['sizing_source_check'] = dict(configuration=asdict(sizing) if sizing is not None else None,
+        source_opportunities=len(rows), complete_causal_stops=needs_stop,
+        actual_entry_fills_used_for_sizing=False,
+        path_assumption='exporter_declared_invariant' if external else 'existing_fixed_quantity_path',
+        status='compatible', native_rerun_required=False if external else needs_stop)
 
 
 def verify_phase_source(runs, source, snapshot):
     """Fail closed if saved inputs mutate or disappear during calculation."""
     from hashlib import sha256
+    if snapshot.get('source_kind') == 'external_trade_export':
+        from ..trade_imports import verify_import
+        verify_import(runs, source_record(runs, source.source_backtest_id))
     if sha256(canonical(source_record(runs, source.source_backtest_id)).encode()).hexdigest() != snapshot['manifest_sha256']:
         raise ValueError('Source manifest changed during phase simulation.')
     paths = [(runs.root / source.source_backtest_id / 'trades.csv', snapshot['trades_sha256'])]
     if snapshot.get('native_risk'):
         paths.append((runs.root / source.source_backtest_id / 'intratrade_risk.csv', snapshot['native_risk']['sha256']))
+    decisions = snapshot['backtest'].get('execution_decisions')
+    if decisions:
+        paths.append((runs.root / source.source_backtest_id / 'execution_decisions.jsonl', decisions['sha256']))
     export = snapshot['excursion_input']
     if export['path']:
         paths.append((Path(export['path']), export['sha256']))
@@ -227,11 +480,195 @@ def verify_phase_source(runs, source, snapshot):
         raise ValueError('Source trades/risk/export changed during phase simulation.')
 
 
+@dataclass(frozen=True)
+class ReplayWindow:
+    """Whole CME sessions and an exclusive civil-date cash horizon."""
+    first_session: str
+    cutoff_date_exclusive: str
+
+    def __post_init__(self):
+        start, end = map(date.fromisoformat, (self.first_session, self.cutoff_date_exclusive))
+        if (start.isoformat() != self.first_session or end.isoformat() != self.cutoff_date_exclusive
+                or not 0 < (end-start).days <= 20000):
+            raise ValueError('Replay requires an ordered finite exclusive date window.')
+
+
+def verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs, sizing,
+                         window, calendar, binding, *, retry=None,
+                         receipt_delay_calendar_days=None, receipt_amount_convention=None):
+    """Verify actual frozen training artifacts and their exact outer mapping.
+
+    The coordinator separately verifies its durable pre-access selection seal.
+    A self-hashed caller dictionary alone is not accepted as a frozen choice:
+    the training report, candidate manifest, inputs and implementation must agree.
+    """
+    from copy import deepcopy
+    from hashlib import sha256
+    import json
+    from uuid import UUID
+    from .phase_dispatch import module_for
+    def fingerprint(value): return sha256(canonical(value).encode()).hexdigest()
+    if type(binding) is not dict or binding.get('schema_version') not in ('nested-phase-freeze-v1','procedure-phase-freeze-v1'):
+        raise ValueError('Chronological replay requires a sealed nested phase binding.')
+    terminal = binding['schema_version']=='procedure-phase-freeze-v1'
+    if terminal and (binding.get('application_role') not in ('final_fit','current_development') or 'outer_fold_index' in binding):
+        raise ValueError('Invalid terminal replay application discriminant.')
+    payload = deepcopy(binding)
+    package_hash = payload.pop('package_sha256', None)
+    if package_hash != fingerprint(payload) or binding.get('phase') != phase:
+        raise ValueError('Frozen replay package hash or phase differs.')
+    package_role = binding.get('package_role', 'selected_policy')
+    if package_role not in ('selected_policy', 'predeclared_reference'):
+        raise ValueError('Unknown frozen replay package role.')
+    reference = package_role == 'predeclared_reference'
+    if type(window) is not ReplayWindow:
+        raise ValueError('Chronological replay requires a ReplayWindow.')
+    expected_window = binding['outer_window']
+    if (window.first_session != expected_window['first_session']
+            or window.cutoff_date_exclusive != expected_window['cutoff_date_exclusive']
+            or canonical(asdict(calendar)) != canonical(binding['calendar'])):
+        raise ValueError('Outer replay dates and calendar are frozen.')
+    analysis_id = binding['training_analysis_id']
+    if not isinstance(analysis_id, str) or UUID(analysis_id).hex != analysis_id:
+        raise ValueError('Invalid frozen training analysis identifier.')
+    directory = runs.root.parent/'prop_analyses'/analysis_id
+    if digest(directory/'report.json') != binding['training_report_sha256']:
+        raise ValueError('Frozen training report changed before outer replay.')
+    report = json.loads((directory/'report.json').read_text())
+    for name, info in report['files'].items():
+        path = (directory/name).resolve()
+        if not path.is_relative_to(directory.resolve()) or digest(path) != info['sha256']:
+            raise ValueError('Frozen training report artifact changed before outer replay.')
+    if (report.get('training_context', {}).get('context_sha256') != binding['training_context_sha256']
+            or report['implementation'] != binding['implementation']
+            or module_for(phase).implementation_identity() != binding['implementation']):
+        raise ValueError('Frozen training context or numerical implementation changed.')
+    context = report['training_context']
+    if canonical(binding.get('native_execution')) != canonical(report['request'].get('native_execution')):
+        raise ValueError('Frozen native execution law or exact horizon differs from its training report.')
+    if terminal and any(context.get(key)!=binding.get(key) for key in ('application_id','procedure_sha256','application_role')):
+        raise ValueError('Frozen terminal application differs from its training report.')
+    if reference:
+        if (context.get('version') != ('procedure-reference-v1' if terminal else 'nested-phase-reference-v1')
+                or binding.get('baseline_id') not in context.get('reference_ids', [])
+                or binding.get('reference_declaration_sha256') != context.get('reference_declaration_sha256')
+                or binding.get('recommendation_eligible') is not False):
+            raise ValueError('Frozen reference is outside its explicit predeclared measurement context.')
+    elif context.get('version') != ('procedure-training-v1' if terminal else 'nested-phase-training-v1'):
+        raise ValueError('A predeclared reference cannot masquerade as a selected qualified policy.')
+    selected = [row for row in report['calculations']['candidates'] if row['candidate_id'] == binding['candidate_id']]
+    if len(selected) != 1:
+        raise ValueError('Frozen candidate is absent or ambiguous in its actual training report.')
+    manifest = selected[0]['manifest']
+    config = binding['configuration']
+    if (fingerprint(manifest) != binding['training_candidate_manifest_sha256']
+            or canonical(manifest['configuration']) != canonical(config)
+            or canonical(manifest['strategy']) != canonical(binding['strategy'])):
+        raise ValueError('Frozen strategy or complete candidate configuration changed.')
+    expected = dict(profile=asdict(profile), micros=micros, costs=asdict(costs),
+        sizing=asdict(sizing) if sizing is not None else None)
+    if any(canonical(config.get(key)) != canonical(value) for key, value in expected.items()):
+        raise ValueError('Outer replay profile, quantity, costs and sizing must match the frozen choice.')
+    if config['simulation']['max_micros'] != max_micros:
+        raise ValueError('Outer replay exposure ceiling is frozen.')
+    if phase == 'evaluation':
+        if retry is None or canonical(asdict(retry)) != canonical(config['retry']):
+            raise ValueError('Outer acquisition retry and activation policy is frozen.')
+    elif (receipt_delay_calendar_days != report['request']['receipt_delay_calendar_days']
+            or receipt_amount_convention != binding.get('receipt_amount_convention', 'kernel_entitlement_unrounded')):
+        raise ValueError('Outer receipt lag and amount convention are frozen.')
+    if phase == 'funded' and (date.fromisoformat(window.cutoff_date_exclusive)-date.fromisoformat(window.first_session)).days != report['request']['horizon_calendar_days']:
+        raise ValueError('Outer funded cash horizon must exactly match its frozen forecast horizon.')
+    record = source_record(runs, source.source_backtest_id)
+    training = manifest['source']['backtest']
+    if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
+        raise ValueError('Nested native outer replay cannot invent an external OOS mapping; a separately verified external frozen-source binding is required.')
+    research = record['run_metadata'].get('research', {})
+    required = dict(phase='outer', role=('final_holdout_reference' if reference else 'final_holdout') if terminal else ('baseline_outer_test' if reference else 'outer_test'), campaign_id=binding['campaign_id'],
+        frozen_package_sha256=package_hash,
+        training_source_id=config['source']['source_backtest_id'], selected_candidate_id=binding['candidate_id'])
+    if terminal:
+        required.update({key:binding[key] for key in ('application_id','procedure_sha256','application_role')})
+        if 'outer_fold' in research:
+            raise ValueError('Terminal source cannot masquerade as a research fold.')
+    else:
+        required['outer_fold']=binding['outer_fold_index']
+    if reference:
+        required.update(baseline_id=binding['baseline_id'], reference_declaration_sha256=binding['reference_declaration_sha256'])
+    if any(research.get(key) != value for key, value in required.items()):
+        raise ValueError('Outer source is outside the sealed campaign/fold/policy mapping.')
+    stable_strategy = lambda value: {key:item for key,item in value.items() if key != 'session_flattening'}
+    if (source.trade_file or config['source']['trade_file']
+            or record['execution_settings'] != training['execution_settings']
+            or stable_strategy(record['run_metadata']['strategy']) != stable_strategy(training['run_metadata']['strategy'])
+            or record['run_metadata']['dataset'] != training['run_metadata']['dataset']):
+        raise ValueError('Outer strategy parameters, dataset and execution must retain the frozen training identity.')
+    if any(research.get('window', {}).get(key) != expected_window[key]
+           for key in ('first_session', 'last_session', 'sessions')):
+        raise ValueError('Outer source session membership differs from its frozen window.')
+    verify_phase_source(runs, SavedTradeSource(config['source']['source_backtest_id'],
+        config['source']['trade_file'], config['source']['export_timezone']), manifest['source'])
+    return manifest
+
+
+def prepare_chronological_source(runs, source, phase, profile, micros, max_micros, costs, sizing,
+        window, calendar, frozen_binding, *, retry=None, receipt_delay_calendar_days=None,
+        receipt_amount_convention=None):
+    """Check a frozen native outer mapping and build its actual-date session book."""
+    from datetime import timedelta
+    from .cash_ledger import replay_calendar_sessions
+    verify_frozen_replay(runs, source, phase, profile, micros, max_micros, costs, sizing,
+        window, calendar, frozen_binding, retry=retry, receipt_delay_calendar_days=receipt_delay_calendar_days,
+        receipt_amount_convention=receipt_amount_convention)
+    start, cutoff = date.fromisoformat(window.first_session), date.fromisoformat(window.cutoff_date_exclusive)
+    if tuple(calendar.start_dates) != (window.first_session,) or date.fromisoformat(calendar.coverage_end) < cutoff:
+        raise ValueError('Chronological replay needs one exact start and complete frozen calendar coverage.')
+    sessions = frozen_binding['outer_window']['sessions']
+    if type(sessions) is not list or not sessions:
+        raise ValueError('Chronological replay needs an explicit nonempty observed session inventory.')
+    expected = [str(day) for day in replay_calendar_sessions(calendar) if start <= day < cutoff]
+    if sessions != expected:
+        raise ValueError('Outer observed inventory omits a declared open date; unknown gaps cannot become zero-trade sessions.')
+    period = ResearchPeriod(window.first_session, str(cutoff-timedelta(days=1)))
+    # The saved report can end before a weekend cash cutoff; only its actual
+    # final observed session belongs in source adaptation.
+    period = ResearchPeriod(period.first_session, sessions[-1])
+    snapshot, days, settings = prepare_phase_source(runs, source, profile, micros,
+        SimulationConfig(simulations=1, max_micros=max_micros), period, costs,
+        sizing, observed_sessions=sessions, capture_metadata=True)
+    snapshot['chronological_replay'] = dict(frozen_package_sha256=frozen_binding['package_sha256'],
+        historical_paths=1, cutoff_date_exclusive=window.cutoff_date_exclusive,
+        fixed_trace_policy_derived=sizing is None,
+        assumptions='Saved fixed-signal-path historical scenario; account pauses and skips are not a strategy rerun or certified execution. No resampling or policy reselection.')
+    return snapshot, dict(zip(sessions, days)), settings
+
+
+def chronological_kernel_arguments(sizing, micros, callback, **tags):
+    """Trace the proven equivalent fixed policy without inventing risk costs."""
+    if sizing is not None:
+        return dict(**sizing.kernel_arguments(**tags), trace=callback)
+    return dict(sizing_policy=dict(kind='fixed_contracts', contracts=micros),
+        sizing_context=dict(initial_configured_capital='50000', trace_context=tags), trace=callback)
+
+
+def frozen_replay_tags(binding):
+    """Preserve the actual provenance discriminant; terminal fits are not folds."""
+    if binding.get('schema_version')=='procedure-phase-freeze-v1':
+        return dict(stage='procedure_chronological',application_id=binding['application_id'],
+            procedure_sha256=binding['procedure_sha256'],application_role=binding['application_role'],
+            candidate_id=binding['candidate_id'])
+    return dict(stage='outer_chronological',outer_fold_index=binding['outer_fold_index'],
+        candidate_id=binding['candidate_id'])
+
+
 def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     from hashlib import sha256
     from .native_analysis import kernel_identity
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
-             'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py']
+             'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
+             'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
+             'native_draws.py', 'native_replay.py', 'native_search.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']
     kernel_file = 'lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py'
@@ -241,7 +678,7 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
         simulation=asdict(simulation), sampling=asdict(sampling),
         account_rule_sha256=sha256(canonical(rule_identity).encode()).hexdigest(),
         kernel=kernel_identity({'ACCOUNT_TYPE':'LucidFlex' if profile.profile_id == 'lucidflex-50k' else 'Apex EOD'}),
-        implementation_sha256={name:digest(Path(__file__).with_name(name)) for name in files},
+        implementation_sha256={name:digest(Path(__file__).parent/name) for name in files},
         rng='MT19937 / RandomState bounded integers; circular weekday blocks',
         time_unit='trading weekdays, not elapsed calendar days',
         uncertainty='Conditional Monte Carlo sampling error, not future uncertainty or verified provider parity',

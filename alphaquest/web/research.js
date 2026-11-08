@@ -51,6 +51,18 @@
     const token=++reportVersion;selected=record;requestId=null;run.hidden=true;resultLink.hidden=true;message.textContent='';
     const research=record.run_metadata.research;
     get('#report-oos-budget').textContent='';get('#report-oos-budget').classList.remove('warning');get('#report-oos-parameters').textContent='';
+    if(record.native_account_control||research?.phase==='native_phase_replay'){
+      get('#report-research-title').textContent='Native account-state historical replay';
+      get('#report-research-period').textContent=`Observed CME sessions ${research.period?.first_session||record.period_start_utc} → ${research.period?.last_session||record.period_end_utc}. Actual strategy execution with account-controlled quantities.`;
+      get('#report-oos-budget').textContent='This controlled historical result is not a new IS declaration or an untouched OOS test. Reuse the original saved IS report to configure another replay or a separately declared native forecast. Native phase selection remains unavailable.';
+      return;
+    }
+    if(record.run_metadata.source?.kind==='external_trade_export'||record.capabilities?.controlled_oos===false){
+      get('#report-research-title').textContent='External research declaration';
+      get('#report-research-period').textContent=`Exporter-declared ${(research?.phase||'unspecified').toUpperCase()} · ${record.period_start_utc} → ${record.period_end_utc}. ${research?.declaration||''}`;
+      get('#report-oos-budget').textContent=`Prior access: ${(research?.prior_access||'unknown').replaceAll('_',' ')}. Native OOS execution is unavailable for an imported trade source; this declaration does not establish untouched history.`;
+      return;
+    }
     get('#report-research-title').textContent=research?research.phase==='is'?'In-sample backtest':'Out-of-sample backtest':'Legacy backtest';
     get('#report-research-period').textContent=research?bounds(research.plan):'This report predates required IS/OOS declarations. Its data may already have been inspected; it does not establish an untouched holdout. Declare a split in a new IS backtest to use the controlled workflow.';
     if(!research)return;
@@ -64,7 +76,7 @@
       if(saved){resultLink.href=`#backtests/report/${saved.run_id}`;resultLink.hidden=false;}
     }catch(error){if(token===reportVersion)message.textContent='Could not load OOS history: '+error.message;}
   }
-  window.addEventListener('report-loaded',event=>{void report(event.detail);if(event.detail.run_metadata.research&&dataset===event.detail.run_metadata.dataset.id&&strategy===event.detail.run_metadata.strategy.id)void configure(dataset,strategy,true);});
+  window.addEventListener('report-loaded',event=>{void report(event.detail);if(event.detail.run_metadata.source?.kind!=='external_trade_export'&&['is','oos'].includes(event.detail.run_metadata.research?.phase)&&dataset===event.detail.run_metadata.dataset.id&&strategy===event.detail.run_metadata.strategy.id)void configure(dataset,strategy,true);});
   run.onclick=async()=>{
     if(oosBusy||!selected)return;
     const record=selected,token=reportVersion;

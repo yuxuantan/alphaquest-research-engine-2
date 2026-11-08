@@ -13,6 +13,8 @@ from .prop.source import matching_exports
 from .prop.commissions import catalog, source_instrument
 from .prop.phase_dispatch import module_for_mode
 from .prop.phase_search import CandidateConfirmationRequired, require_candidate_confirmation
+from .prop.native_replay import NativeReplayRequest
+from .prop.frozen_pairs import PairComparisonRequest
 from .research import ResearchConflict
 
 router = APIRouter(prefix='/api/prop-analyses', tags=['Prop analysis'])
@@ -34,6 +36,8 @@ class EvaluationSearchRequest(BaseModel):
     candidates: list[dict] = Field(min_length=1)
     confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
+    native_execution: dict | None = None
+    constraints: dict | None = None
 
 class FundedSearchRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -42,12 +46,14 @@ class FundedSearchRequest(BaseModel):
     candidates: list[dict] = Field(min_length=1)
     confirmed_candidate_count: int | None = Field(default=None, ge=1, strict=True)
     calendar: dict
+    native_execution: dict | None = None
     horizon_calendar_days: int = Field(strict=True)
     receipt_delay_calendar_days: int = Field(strict=True)
     constraints: dict = Field(default_factory=dict)
     bootstrap_replicates: int = Field(default=400, strict=True)
     bootstrap_seed: int = Field(default=137, strict=True)
     near_tie_cash: float = Field(default=0, strict=True)
+    conservative_objective: dict | None = None
 
 def phase_request(body):
     require_candidate_confirmation(len(body.candidates), body.confirmed_candidate_count)
@@ -57,25 +63,47 @@ def phase_request(body):
 @router.get('/defaults')
 def defaults():
     from .prop.automatic import profiles
+    from .prop.native_replay import defaults as native_defaults
     return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog(),
+        native_phase_replay=native_defaults(),
+        predefined_lifecycle_comparison=dict(mode='predefined_lifecycle_comparison', max_pairs=20,
+            source='completed_ordinary_manual_oos', backend='native_strategy',
+            continuation='first_ready_session_until_common_cutoff', replacement='none',
+            ranking=False, budget_supported=False, exclusive_cutoff=True,
+            production_qualified=False),
         profiles=[dict(item,commissions=catalog(item['settings']['PROP_FIRM'])) for item in profiles()])
 
 @router.get('/sources/{source_id}')
 async def source(source_id: str, request: Request, discover_exports: bool = True):
     try:
         record=source_record(request.app.state.runs,source_id)
+        if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
+            from .trade_imports import verify_import
+            from .prop.external_source import capabilities
+            canonical_source = await run_in_threadpool(verify_import, request.app.state.runs, record)
+            # Current admission diagnostics are separate from immutable saved bytes.
+            record = {**record, 'capabilities':capabilities(canonical_source)}
         matches=await run_in_threadpool(matching_exports,request.app.state.runs,source_id) if discover_exports else []
         return dict(source=record,matched_exports=matches,analyses=request.app.state.prop_analyses.list(source_id),commission_source_instrument=source_instrument(record))
     except ValueError as exc:
         raise HTTPException(404,str(exc)) from exc
 
 @router.post('/check')
-async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
+async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest | PairComparisonRequest, request: Request):
     try:
+        if isinstance(body, PairComparisonRequest):
+            from .prop.phase_lifecycle import check_frozen_pairs
+            checked = await run_in_threadpool(check_frozen_pairs, request.app.state.store,
+                request.app.state.runs, request.app.state.campaigns, body)
+            return dict(status='compatible', mode=body.mode, pair_comparison=checked)
+        if isinstance(body, NativeReplayRequest):
+            from .prop.native_replay import check_replay
+            checks = await run_in_threadpool(check_replay, request.app.state.store, request.app.state.runs, body)
+            return dict(status='compatible', mode=body.mode, model_version=checks['model_version'], native=checks)
         if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
             module = module_for_mode(body.mode)
             search = module.parse_request(phase_request(body))
-            checks = await run_in_threadpool(module.check_search, request.app.state.runs, search)
+            checks = await run_in_threadpool(module.check_search, request.app.state.runs, search, datasets=request.app.state.store)
             return dict(status='compatible', mode=search.mode, candidates=checks, model_version=module.MODEL_VERSION)
         from .prop.phase_lifecycle import prepare_request, source_snapshots, dated
         snapshot,rows,settings=await run_in_threadpool(prepare_request,request.app.state.runs,body.model_dump())
@@ -90,12 +118,18 @@ async def check(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRe
         raise HTTPException(422,str(exc)) from exc
 
 @router.post('',status_code=202)
-async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest, request: Request):
+async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchRequest | NativeReplayRequest | PairComparisonRequest, request: Request):
     try:
+        if isinstance(body, PairComparisonRequest):
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_pairs,
+                request.app.state.store, request.app.state.runs, request.app.state.campaigns, body)
+        if isinstance(body, NativeReplayRequest):
+            return await run_in_threadpool(request.app.state.prop_analyses.submit_native,
+                request.app.state.store, request.app.state.runs, body)
         if isinstance(body, (EvaluationSearchRequest, FundedSearchRequest)):
             module = module_for_mode(body.mode)
             return await run_in_threadpool(request.app.state.prop_analyses.submit_phase,
-                request.app.state.runs, module.parse_request(phase_request(body)))
+                request.app.state.runs, module.parse_request(phase_request(body)), datasets=request.app.state.store)
         return await run_in_threadpool(request.app.state.prop_analyses.submit,request.app.state.runs,body.model_dump())
     except CandidateConfirmationRequired as exc:
         raise HTTPException(409, exc.detail) from exc
@@ -104,15 +138,27 @@ async def submit(body: AnalysisRequest | EvaluationSearchRequest | FundedSearchR
     except (ValueError,KeyError,OSError) as exc:
         raise HTTPException(422,str(exc)) from exc
 
+@router.post('/{id}/cancel')
+def cancel(id: str, request: Request):
+    try:
+        return request.app.state.prop_analyses.cancel_phase(id)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from exc
+
+
 @router.get('/{id}')
 def job(id: str,request: Request):
     record=request.app.state.prop_analyses.get(id)
     if not record:
         raise HTTPException(404,'Analysis not found.')
-    return {**record,**(request.app.state.prop_analyses.summary(id,record=record) or {})}
+    with request.app.state.prop_analyses.connect() as db:
+        control=db.execute('SELECT stop_requested FROM phase_analysis_control WHERE analysis_id=?',(id,)).fetchone()
+    return {**record,**(request.app.state.prop_analyses.summary(id,record=record) or {}),
+        'capabilities':dict(cooperative_cancel=control is not None and record['status'] in ('queued','running'),
+            stop_requested=bool(control and control[0]))}
 
 @router.get('/{id}/downloads/{kind}')
-def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip'],request: Request):
+def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv'],request: Request):
     record=job(id,request)
     if record['status']!='complete':
         raise HTTPException(409,'Operation has not published a completed report.')

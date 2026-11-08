@@ -265,6 +265,35 @@ the hardcoded three-attempt strategy/source budget. See
 [the complete research workflow, endpoints and CLI contract](research_workflow.md).
 Historical reports remain readable; undeclared historical jobs cannot resume.
 
+## Cancel a queued backtest activity
+
+`POST /api/backtests/batches/{id}/cancel` (alias
+`POST /api/optimizations/{id}/cancel`) returns the saved activity with HTTP 200.
+Only `queued` activities can transition to `cancelled`. Repeating a successful
+cancellation returns the same record and timestamp. Missing IDs return 404;
+malformed UUIDs return 422. Running, complete, failed, interrupted or deleting
+activities return 409 without mutation. This endpoint does not stop running work.
+
+Cancellation and the worker's queued-to-running claim use the same immediate
+SQLite write transaction. If cancellation wins, the delayed callback exits before
+runtime admission, source access, cache reuse or trial publication. If the worker
+claims first, cancellation rejects; a stale browser control cannot stop it. An
+already-deleted callback also exits harmlessly.
+
+The record retains `cancelled_at_utc`, `finished_at_utc`, `cancellation_reason`,
+its original request and successful trial rows/reports from any earlier attempt.
+It remains visible after restart and can be deleted separately under the normal
+reference protections. Cancellation preserves other activities, source datasets,
+prop analyses, campaign references and research-access history. Cancelled
+activities do not auto-resume and are not accepted by `/resume`; start a new
+activity if you want to run that declaration again. Existing failed/interrupted
+resume behavior is unchanged.
+
+In the app, open **Strategies → Backtest activity** and choose **Cancel queued
+activity** on a queued row, or open its timestamp and use the same action in the
+activity header. Confirming cancels it; dismissing leaves it queued. Running jobs
+have no Cancel button. Refresh shows the authoritative state if it has started.
+
 ## Delete a complete backtest activity
 
 `DELETE /api/backtests/batches/{id}` removes the activity, its saved trial rows,

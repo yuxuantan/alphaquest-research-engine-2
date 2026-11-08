@@ -14,10 +14,19 @@
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_reservations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/trade_import.js?v=ASSET_VERSION" defer></script>
     <script src="/static/market-benchmark.js?v=ASSET_VERSION" defer></script>
     <script src="/static/reports.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaigns.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_visuals.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_workflow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_workspace.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/research_procedure.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/native_replay.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/pair_comparison.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/forward_monitoring.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
   <body>
@@ -43,6 +52,7 @@
           ></a
         >
         <a class="nav-item" href="#strategies" data-screen="strategies" aria-label="Strategies"><span class="nav-icon">↗</span>Strategies</a>
+        <a class="nav-item" href="#backtests/research" data-screen="research" aria-label="Research"><span class="nav-icon">▦</span>Research</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -62,6 +72,7 @@
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
           <a href="#strategies" data-screen="strategies">Strategies</a>
+          <a href="#backtests/research" data-screen="research">Research</a>
         </nav>
       </header>
       <main>
@@ -173,6 +184,11 @@
                 </label>
               </div>
               <p class="field-help">Set both instrument values now or open the saved dataset to set them later. Point value is money per 1.0 price point, per contract.</p>
+              <details>
+                <summary>Protect a possible final research holdout</summary>
+                <label><input id="dataset-metadata-only" type="checkbox" /> Validate and save metadata only · keep price previews hidden</label>
+                <p class="field-help">Dates, counts and schema remain visible. After saving, open the dataset to reserve final session dates before running research or downloading prices. This preserves local access evidence; it does not verify whether the data was inspected elsewhere.</p>
+              </details>
               <div class="form-actions">
                 <span class="small muted" id="form-hint"
                   >Choose a file to get started.</span
@@ -276,7 +292,7 @@
 
           <p id="backtest-delete-status" class="small" role="status" hidden></p>
         <section id="strategies-screen" aria-labelledby="strategies-title" hidden>
-          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose a strategy, then an instrument and full dataset period to compare saved runs.</p></div><div class="report-downloads"><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a id="strategy-new-run" href="#backtests/new" class="button primary">New backtest →</a></div></div>
+          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose a strategy, then an instrument and full dataset period to compare saved runs.</p></div><div class="report-downloads"><a href="#backtests/research" class="button secondary">Research workspace</a><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new?import=external" class="button secondary">Import trades</a><a id="strategy-new-run" href="#backtests/new" class="button primary">New backtest →</a></div></div>
           <p id="strategy-delete-status" class="small" role="status" hidden></p>
           <div id="strategy-picker" class="strategies-layout">
             <section class="panel strategies-instruments" aria-labelledby="strategy-instruments-heading">
@@ -301,6 +317,7 @@
           </section>
         </section>
 
+        <section id="research-workspace-screen" aria-label="Research workspace" hidden></section>
         <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
           <div id="backtest-setup">
           <a href="#strategies" class="eyebrow">← Back to Strategies</a>
@@ -313,6 +330,7 @@
             <button class="button secondary" id="refresh-backtest-choices" type="button">Refresh choices</button>
           </div>
           <div id="backtest-options-status" class="field-help" role="status" aria-live="polite"></div>
+          <section id="external-trade-import" class="panel" aria-label="Import external trades"></section>
           <form id="backtest-form" novalidate>
             <div id="backtest-error" class="validation-box error" role="alert" tabindex="-1" hidden></div>
             <div class="backtest-layout">
@@ -443,7 +461,8 @@
           </section>
           </div>
           <section id="optimization-panel" hidden>
-            <div class="page-heading"><div><a href="#backtests/new" class="eyebrow">← Configure backtests</a><h1 id="optimization-title">Optimizations</h1><p id="optimization-context"></p></div><div class="report-downloads"><a id="optimization-download" class="button secondary" hidden>Results CSV ↓</a><button id="optimization-delete" class="button danger" type="button" hidden>Delete activity and reports</button></div></div>
+            <div class="page-heading"><div><a href="#backtests/new" class="eyebrow">← Configure backtests</a><h1 id="optimization-title">Optimizations</h1><p id="optimization-context"></p></div><div class="report-downloads"><a id="optimization-download" class="button secondary" hidden>Results CSV ↓</a><button id="optimization-cancel" class="button secondary" type="button" hidden>Cancel queued activity</button><button id="optimization-delete" class="button danger" type="button" hidden>Delete activity and reports</button></div></div>
+            <p id="optimization-cancel-status" class="small" role="status" aria-live="polite" hidden></p>
             <p id="optimization-delete-status" class="small" role="status" aria-live="polite" hidden></p>
             <div id="optimization-status" class="validation-box" role="status" aria-live="polite"></div>
             <button id="optimization-resume" class="button primary" type="button" hidden>Resume remaining trials</button>
@@ -487,7 +506,7 @@
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
               <div><a id="report-back-strategies" href="#strategies" class="eyebrow">← Back to Strategies</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
-              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><a id="report-risk-download" class="button secondary" hidden>Intratrade risk CSV ↓</a><button id="report-capture-risk" class="button secondary" type="button" hidden>Capture intratrade risk</button><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
+              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><a id="report-source-download" class="button secondary" hidden>Original source JSON ↓</a><a id="report-canonical-download" class="button secondary" hidden>Normalized source JSON ↓</a><a id="report-risk-download" class="button secondary" hidden>Intratrade risk CSV ↓</a><button id="report-capture-risk" class="button secondary" type="button" hidden>Capture intratrade risk</button><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
             </div>
             <button id="report-delete" class="button danger" type="button">Delete backtest</button>
             <p id="report-storage-note" class="small muted"></p>
@@ -523,7 +542,7 @@
             </section>
             <section class="panel report-panel" aria-labelledby="equity-chart-title">
               <div class="panel-heading"><div><h2 id="equity-chart-title">Trade-close equity · CU</h2></div></div>
-              <div class="chart-content"><p class="small muted">CU = account currency (unspecified). Initial equity and equity after each completed trade, including commissions and slippage. Open-position gains and losses are excluded.</p>
+              <div class="chart-content"><p id="equity-currency-note" class="small muted">CU = account currency (unspecified). Initial equity and equity after each completed trade, including commissions and slippage. Open-position gains and losses are excluded.</p>
                 <p id="chart-equity-summary" class="small"></p>
                 <svg id="equity-chart" viewBox="0 0 1000 300" role="img" aria-label="Trade-close equity in account currency" tabindex="0"></svg>
                 <p id="chart-readout" class="small chart-readout" aria-live="polite"></p><p id="chart-note" class="small muted"></p>
@@ -543,7 +562,7 @@
               </tr></thead><tbody id="report-trades-body"></tbody></table></div>
               <div class="report-pagination"><span id="report-trades-count" role="status"></span><div><button id="trades-previous" class="button secondary" type="button">Previous trades</button><button id="trades-next" class="button secondary" type="button">Next trades</button></div></div>
             </section>
-            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. The saved execution assumption identifies same-close fills or next-bar Open markets with stop-first OHLC brackets. Market and stop fills include adverse slippage; limits fill at their price or a better Open. Gaps are preserved. Open exposure is closed at end of data.</p></details>
+            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p id="report-execution-assumptions" class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. The saved execution assumption identifies same-close fills or next-bar Open markets with stop-first OHLC brackets. Market and stop fills include adverse slippage; limits fill at their price or a better Open. Gaps are preserved. Open exposure is closed at end of data.</p></details>
           </section>
           <section id="completed-runs" class="panel report-panel" aria-labelledby="completed-runs-title">
             <div class="panel-heading"><div><h2 id="completed-runs-title">Completed reports</h2></div><button id="refresh-reports" class="button secondary" type="button">Refresh reports</button></div>
@@ -557,6 +576,9 @@
           <div id="prop-config" hidden>
             <section class="panel prop-panel"><h2>Source backtest</h2><p id="prop-source"></p><p>Uses this saved backtest and its captured trading risk. Checking the source does not rerun the strategy.</p></section>
             <section id="prop-campaigns" class="panel prop-panel"></section>
+            <section id="prop-native-replay" class="panel prop-panel"></section>
+            <section id="prop-pair-comparison" class="panel prop-panel"></section>
+            <section id="prop-robust-research" class="panel prop-panel"></section>
             <form id="prop-form" class="panel prop-panel">
               <h2>Legacy sizing and account replay</h2>
               <div class="prop-fields">
@@ -624,7 +646,7 @@
                   <label>MNQ commission · USD per contract per side<input id="prop-commission-side" type="number" min="0" max="100000" step="any" placeholder="0.51" /></label>
                 </div>
                 <p id="prop-commission-help"></p><p><a id="prop-commission-source" href="https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/" target="_blank" rel="noopener">Apex Rithmic commission schedule</a> · defaults checked 29 October 2026.</p>
-                <h3>Optional source export</h3>
+                <h3 id="prop-source-export-heading">Optional source export</h3>
                 <label>Measured-excursion MultiCharts export · optional local path<input id="prop-trade-file" type="text" maxlength="4096" placeholder="Blank: captured native OHLC risk, or discovery for an older source" /></label>
                 <label>Export timestamps<select id="prop-export-timezone"><option value="America/Chicago">Chicago (exchange)</option><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label>
                 <h3>Risk and analysis settings</h3>

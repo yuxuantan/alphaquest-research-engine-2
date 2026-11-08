@@ -1,0 +1,396 @@
+"""Analytical inner-evidence examples, never runtime qualification fixtures."""
+from copy import deepcopy
+from datetime import date, timedelta
+from decimal import Decimal
+
+import pytest
+
+from alphaquest.edge_qualification import QualificationSettings, effective_configuration_identity, qualify_candidates
+from alphaquest.research_complexity import describe_complexity
+from alphaquest.strategies.registry import get_strategy
+
+
+def candidates(count=3, strategy='signal'):
+    return [dict(id=str(i), strategy_id=strategy, parameters=dict(length=i+1)) for i in range(count)]
+
+
+def evidence(values=(10, 10, 10), sessions=10):
+    start = date(2020, 1, 1)
+    return [dict(fold_index=i, sessions=[dict(session=(start+timedelta(days=i*sessions+j)).isoformat(),
+        net_pnl=str(value[j] if isinstance(value, list) else value), trade_count=1)
+        for j in range(sessions)]) for i, value in enumerate(values)]
+
+
+def settings(**changes):
+    return QualificationSettings(**dict(dict(minimum_sessions=30, minimum_trades=30), **changes))
+
+
+def result(cs=None, es=None, **changes):
+    cs = candidates() if cs is None else cs
+    es = {c['id']: evidence() for c in cs} if es is None else es
+    return qualify_candidates(cs, es, settings(**changes))
+
+
+def test_complete_stable_region_admitted_without_winner_and_exact_cost_units():
+    r = result(additional_round_trip_cost='2')
+    assert r['approved_ids'] == ['0', '1', '2']
+    assert 'winner' not in r
+    assert len(r['candidates']) == 3
+    for row in r['candidates']:
+        assert row['status'] == 'PASS'
+        assert row['metrics']['validation_sessions'] == row['metrics']['validation_trades'] == 30
+        assert row['uncertainty']['lower'] == row['uncertainty']['upper'] == 10
+        assert row['execution_stress']['stressed_mean_session_net'] == '8'
+        assert row['execution_stress']['break_even_additional_round_trip_cost'] == '10'
+    assert r['historical_observation_count'] == 30
+    assert r['settings']['additional_round_trip_cost'] == '2'
+
+
+def test_isolated_lucky_peak_is_not_a_robust_region():
+    r = result(es={'0': evidence((-10, -10, -10)), '1': evidence(), '2': evidence((-10, -10, -10))})
+    assert r['approved_ids'] == []
+    peak = r['candidates'][1]
+    assert peak['status'] == 'FAIL'
+    assert 'unstable_parameter_region' in peak['reasons']
+    assert peak['parameter_stability']['neighbor_ids'] == ['0', '2']
+
+
+def test_disappearing_signal_and_profit_concentration_fail_predeclared_tests():
+    r = result(es={str(i): evidence((100, 1, -5)) for i in range(3)}, minimum_positive_fold_fraction=1.0)
+    assert all(r['status'] == 'FAIL' for r in r['candidates'])
+    assert 'too_few_profitable_inner_folds' in r['candidates'][0]['reasons']
+    assert 'profits_concentrated_in_one_fold' in r['candidates'][0]['reasons']
+
+
+def test_controlled_zero_expectancy_noise_does_not_pass():
+    # Specified deterministic zero expectancy, not a claim about all random draws.
+    noise = [-10, 10]*5
+    r = result(es={str(i): evidence((noise, noise, noise)) for i in range(3)})
+    assert not r['approved_ids']
+    assert all('mean_session_net_below_threshold' in row['reasons'] for row in r['candidates'])
+
+
+def test_sparse_evidence_is_insufficient_and_does_not_become_sample_size_from_bootstrap():
+    r = result(es={str(i): evidence((100, 100), sessions=3) for i in range(3)}, bootstrap_replicates=10000)
+    assert all(row['status'] == 'INSUFFICIENT_EVIDENCE' for row in r['candidates'])
+    assert r['candidates'][0]['metrics']['validation_trades'] == 6
+    assert 'too_few_sessions_for_blocks' in r['candidates'][0]['reasons']
+
+
+def test_missing_candidate_fold_is_insufficient_without_dropping_the_candidate():
+    es = {str(i): evidence() for i in range(3)}
+    es['0'].pop()
+    es['1'] = []
+    r = result(es=es)
+    assert len(r['candidates']) == 3
+    assert r['historical_observation_count'] == 30
+    assert r['candidates'][0]['status'] == 'INSUFFICIENT_EVIDENCE'
+    assert 'missing_declared_inner_folds' in r['candidates'][0]['reasons']
+    assert 'missing_declared_inner_folds' in r['candidates'][1]['reasons']
+
+
+def test_multiplicity_uses_entire_declared_family_including_missing_candidates():
+    cs = candidates(12)
+    r = result(cs=cs, es={c['id']: evidence() for c in cs[:-1]})
+    assert r['multiplicity_family_size'] == 12
+    assert not r['approved_ids']
+    assert 'bootstrap_tail_resolution' in r['candidates'][0]['reasons']
+    assert r['candidates'][0]['uncertainty'] is None
+    assert all(row['status'] == 'INSUFFICIENT_EVIDENCE' for row in r['candidates'])
+    # Increasing computation resolves tail discretization, not future uncertainty.
+    r = result(cs=cs, es={c['id']: evidence() for c in cs}, bootstrap_replicates=5000)
+    assert len(r['approved_ids']) == 12
+    assert r['candidates'][0]['uncertainty']['nominal_candidate_confidence_level'] == pytest.approx(1-.05/12)
+    assert r['candidates'][0]['metrics']['validation_sessions'] == 30
+
+
+def test_reproducible_and_candidate_order_cannot_change_admission():
+    cs = candidates()
+    es = {c['id']: evidence(([1, 20]*5, [2, 30]*5, [3, 40]*5)) for c in cs}
+    a = result(cs=cs, es=es)
+    assert a == result(cs=list(reversed(cs)), es=dict(reversed(list(es.items()))))
+    assert a['input_sha256'] != result(cs=cs, es=es, bootstrap_seed=43)['input_sha256']
+    assert a['settings']['bootstrap_seed'] == 42
+
+
+def test_neighbors_do_not_cross_strategy_or_categorical_strata():
+    cs = candidates(2) + candidates(2, strategy='other')
+    for i, c in enumerate(cs):
+        c['id'] = str(i)
+    cs += [dict(id='4', strategy_id='signal', parameters=dict(length=1, mode='a')),
+           dict(id='5', strategy_id='signal', parameters=dict(length=2, mode='b'))]
+    r = result(cs=cs)
+    assert r['candidates'][0]['parameter_stability']['neighbor_ids'] == ['1']
+    assert r['candidates'][2]['parameter_stability']['neighbor_ids'] == ['3']
+    assert all(row['status'] == 'INSUFFICIENT_EVIDENCE' for row in r['candidates'][4:])
+
+
+def test_declared_decimal_string_axes_form_exact_numeric_regions():
+    cs = [dict(id=str(i), strategy_id='decimal_strategy',
+        parameters=dict(risk=value, fixed='1.00', label='01'), numeric_parameters=['risk', 'fixed'])
+        for i, value in enumerate(['0.10', '0.20', '0.30'])]
+    # Equivalent spelling on an unchanged numeric axis must not split the grid.
+    cs[1]['parameters']['fixed'] = '1.0'
+    r = result(cs=cs)
+    assert r['approved_ids'] == ['0', '1', '2']
+    assert r['candidates'][1]['parameter_stability']['neighbor_ids'] == ['0', '2']
+    assert r['candidates'][0]['parameters']['risk'] == '0.10'
+    assert r['candidates'][1]['numeric_parameters'] == ['fixed', 'risk']
+    # Declaration ordering is administrative, not numerical input.
+    assert r == result(cs=[dict(c, numeric_parameters=['fixed', 'risk']) for c in cs])
+
+
+def test_numeric_looking_category_strings_are_never_silently_converted():
+    cs = [dict(id=str(i), strategy_id='categories', parameters=dict(category=value))
+          for i, value in enumerate(['1', '1.0', '2'])]
+    r = result(cs=cs)
+    assert len(r['candidates']) == 3  # '1' and '1.0' remain distinct categories.
+    assert not r['approved_ids']
+    assert all(row['parameter_stability']['neighbor_ids'] == [] for row in r['candidates'])
+    assert all('too_few_parameter_neighbors' in row['reasons'] for row in r['candidates'])
+
+
+@pytest.mark.parametrize('values', [('1.0', '1.00'), ('0', '-0.000'), ('1e2', '100'),
+                                    ('1.0000000000000000000000000000001', '1.00000000000000000000000000000010')])
+def test_equivalent_declared_numeric_configurations_are_explicit_duplicates(values):
+    cs = [dict(id=str(i), strategy_id='decimal_strategy', parameters=dict(value=value), numeric_parameters=['value'])
+          for i, value in enumerate(values)]
+    with pytest.raises(ValueError, match='Duplicate strategy configurations'):
+        result(cs=cs)
+
+
+def test_high_precision_declared_axis_adjacency_does_not_round_at_28_digits():
+    cs = [dict(id=str(i), strategy_id='decimal_strategy',
+        parameters=dict(value='1.000000000000000000000000000000'+str(i)), numeric_parameters=['value'])
+          for i in range(3)]
+    r = result(cs=cs)
+    assert r['approved_ids'] == ['0', '1', '2']
+    assert r['candidates'][1]['parameter_stability']['neighbor_ids'] == ['0', '2']
+
+
+def test_numeric_spelling_does_not_change_resampling_schedule_or_admission():
+    cs = [dict(id=str(i), strategy_id='decimal_strategy', parameters=dict(value=str(i+1)), numeric_parameters=['value'])
+          for i in range(3)]
+    es = {c['id']: evidence(([1, 20]*5, [2, 30]*5, [3, 40]*5)) for c in cs}
+    a = result(cs=cs, es=es)
+    for c in cs:
+        c['parameters']['value'] += '.00'
+    b = result(cs=cs, es=es)
+    assert [row['uncertainty'] for row in a['candidates']] == [row['uncertainty'] for row in b['candidates']]
+    assert a['approved_ids'] == b['approved_ids']
+    assert a['input_sha256'] != b['input_sha256']  # Raw saved inputs still preserved.
+
+
+@pytest.mark.parametrize('damage', ['missing_name', 'repeated_name', 'nondecimal', 'nonfinite', 'boolean', 'inconsistent'])
+def test_declared_numeric_axes_reject_invalid_or_inconsistent_metadata(damage):
+    cs = [dict(id=str(i), strategy_id='decimal_strategy', parameters=dict(value=str(i)), numeric_parameters=['value'])
+          for i in range(3)]
+    if damage == 'missing_name': cs[0]['numeric_parameters'] = ['unknown']
+    elif damage == 'repeated_name': cs[0]['numeric_parameters'] = ['value', 'value']
+    elif damage == 'nondecimal': cs[0]['parameters']['value'] = 'category'
+    elif damage == 'nonfinite': cs[0]['parameters']['value'] = 'NaN'
+    elif damage == 'boolean': cs[0]['parameters']['value'] = True
+    elif damage == 'inconsistent': cs[0]['numeric_parameters'] = []
+    with pytest.raises(ValueError):
+        result(cs=cs)
+
+
+def test_missing_required_execution_or_regime_assessment_blocks_admission():
+    r = result(required_scenarios=('adverse_limit_fills',), required_regimes=('high_vol',))
+    for row in r['candidates']:
+        assert row['status'] == 'INSUFFICIENT_EVIDENCE'
+        assert 'missing_scenario:adverse_limit_fills' in row['reasons']
+        assert 'missing_regime:high_vol' in row['reasons']
+
+
+def test_specialized_regime_strategy_need_only_pass_its_predeclared_regime():
+    es = {str(i): evidence() for i in range(3)}
+    for fs in es.values():
+        for f in fs:
+            f['regimes'] = [dict(name='trend', observable_at_decision=True, sessions=deepcopy(f['sessions'])),
+                dict(name='range', observable_at_decision=True,
+                     sessions=[dict(s, net_pnl='-1') for s in f['sessions']])]
+    r = result(es=es, required_regimes=('trend',))
+    assert r['approved_ids'] == ['0', '1', '2']
+    for row in r['candidates']:
+        conditions = {item['name']: item for item in row['market_conditions']}
+        assert conditions['trend']['required'] and conditions['trend']['status'] == 'PASS'
+        assert not conditions['range']['required'] and conditions['range']['status'] == 'FAIL'
+    # A hindsight-defined regime cannot become required causal evidence.
+    es['0'][0]['regimes'][0]['observable_at_decision'] = False
+    r = result(es=es, required_regimes=('trend',))
+    assert r['candidates'][0]['status'] == 'INSUFFICIENT_EVIDENCE'
+    assert 'regime_not_observable_at_decision:trend' in r['candidates'][0]['reasons']
+
+
+def test_unknown_classification_and_sparse_regime_sessions_are_not_clean_evidence():
+    es = {str(i): evidence() for i in range(3)}
+    for fs in es.values():
+        for fold in fs:
+            sparse = [dict(s, net_pnl='0', trade_count=0) for s in fold['sessions']]
+            sparse[0] = dict(sparse[0], net_pnl='10', trade_count=1)
+            fold['regimes'] = [dict(name='trend', observable_at_decision=True, sessions=sparse)]
+    r = result(es=es, required_regimes=('trend',), minimum_regime_trades=1)
+    assert all('too_few_regime_observations:trend' in c['reasons'] for c in r['candidates'])
+    assert r['candidates'][0]['market_conditions'][0]['active_sessions'] == 3
+    for fs in es.values():
+        for fold in fs:
+            fold['regimes'][0].update(classification_complete=False, unclassified_trades=1)
+    r = result(es=es, required_regimes=('trend',), minimum_regime_sessions=2, minimum_regime_trades=1)
+    assert all('incomplete_regime_classification:trend' in c['reasons'] for c in r['candidates'])
+
+
+def test_sizing_variants_do_not_create_signal_parameter_neighbors():
+    cs = [dict(id=str(i), strategy_id='signal', parameters=dict(length=2, contracts=i+1),
+               non_signal_parameters=['contracts']) for i in range(3)]
+    r = result(cs=cs)
+    assert r['approved_ids'] == []
+    assert all(c['parameter_stability']['neighbor_ids'] == [] for c in r['candidates'])
+    assert all(c['complexity']['signal_search_dimensions'] == 0 for c in r['candidates'])
+
+
+def vwap_candidate(id, **changes):
+    definition = get_strategy('vwap_pullback_risk_sizing')
+    parameters = {p['name']: p['default'] for p in definition.description()['parameters']}
+    parameters.update(changes)
+    definition.parameters(parameters)  # These are valid native configurations.
+    complexity = describe_complexity('vwap_pullback_risk_sizing', parameters)
+    return dict(id=str(id), strategy_id='vwap_pullback_risk_sizing', parameters=parameters,
+        numeric_parameters=[p['name'] for p in definition.description()['parameters'] if p['type'] in ('int', 'Decimal')],
+        non_signal_parameters=complexity['sizing_parameters'] + complexity['diagnostic_parameters'], complexity=complexity)
+
+
+@pytest.mark.parametrize('axis,values,disabled,enabled', [
+    ('adx_elev_thr', ['10', '20'], dict(use_adx_elev=False), dict(use_adx_elev=True)),
+    ('adx_decay_lb', [1, 2], dict(use_adx_decay=False), dict(use_adx_decay=True)),
+    ('adx_len', [13, 14], dict(use_adx_elev=False, use_adx_decay=False), dict(use_adx_elev=True, use_adx_decay=False)),
+    ('stop_swing_len', [19, 20], dict(stop_mode=2), dict(stop_mode=1)),
+    ('eod_flat_time', [1554, 1555], dict(use_eod_flat=False), dict(use_eod_flat=True)),
+    ('close_buffer_minutes', [4, 5], dict(use_eod_flat=False), dict(use_eod_flat=True)),
+    ('buffer_mode', [1, 2], dict(buffer_amount='0.000'), dict(buffer_amount='1')),
+])
+def test_inactive_settings_cannot_manufacture_stable_parameter_regions(axis, values, disabled, enabled):
+    inactive = [vwap_candidate(i, **disabled, **{axis: value}) for i, value in enumerate(values)]
+    r = result(cs=inactive)
+    assert r['approved_ids'] == []
+    assert all(c['parameter_stability']['neighbor_ids'] == [] for c in r['candidates'])
+    assert all(c['complexity']['signal_search_dimensions'] == 0 for c in r['candidates'])
+    assert effective_configuration_identity(inactive[0]) == effective_configuration_identity(inactive[1])
+    active = [vwap_candidate(i, **enabled, **{axis: value}) for i, value in enumerate(values)]
+    r = result(cs=active)
+    assert r['approved_ids'] == ['0', '1']
+    assert all(c['complexity']['varying_signal_parameters'] == [axis] for c in r['candidates'])
+    assert effective_configuration_identity(active[0]) != effective_configuration_identity(active[1])
+
+
+def test_conditionally_active_roles_can_differ_without_crossing_control_strata():
+    cs = [vwap_candidate(0, use_adx_elev=False, adx_elev_thr='10'),
+          vwap_candidate(1, use_adx_elev=True, adx_elev_thr='10'),
+          vwap_candidate(2, use_adx_elev=True, adx_elev_thr='20')]
+    r = result(cs=cs)
+    assert r['approved_ids'] == ['1', '2']
+    assert r['candidates'][0]['parameter_stability']['neighbor_ids'] == []
+    assert r['candidates'][1]['parameter_stability']['neighbor_ids'] == ['2']
+    assert r['candidates'][2]['parameter_stability']['neighbor_ids'] == ['1']
+    assert all(c['complexity']['varying_signal_parameters'] == ['adx_elev_thr', 'use_adx_elev'] for c in r['candidates'])
+    # Disabled indicators do not make the explicit cold-start length inactive.
+    cs = [vwap_candidate(i, use_adx_elev=False, use_adx_decay=False, max_bars_back=value)
+          for i, value in enumerate([42, 43])]
+    assert result(cs=cs)['approved_ids'] == ['0', '1']
+
+
+def test_effective_source_identity_normalizes_only_declared_numeric_values():
+    a = vwap_candidate(0, mm_risk_pct='2.0', min_rr='1.0')
+    b = vwap_candidate(1, mm_risk_pct='2.00', min_rr='1.00', plot_trade_levels=False)
+    assert effective_configuration_identity(a) == effective_configuration_identity(b)
+    assert a['parameters']['mm_risk_pct'] == '2.0'  # No mutation of source spelling.
+    generic = [dict(id=str(i), strategy_id='unknown', parameters=dict(category=value),
+                    complexity=describe_complexity('unknown', dict(category=value)))
+               for i, value in enumerate(['1', '1.0'])]
+    assert effective_configuration_identity(generic[0]) != effective_configuration_identity(generic[1])
+
+
+@pytest.mark.parametrize('inactive', [['missing'], ['contracts'], ['length', 'length'], ['gate']])
+def test_inactive_role_declarations_must_be_coherent(inactive):
+    cs = candidates()
+    for c in cs:
+        c['parameters'].update(contracts=1, gate=True)
+        c['non_signal_parameters'] = ['contracts']
+        c['complexity'] = dict(status='reviewed', signal_parameters=['length', 'gate'],
+            sizing_parameters=['contracts'], enabled_optional_filters=['gate'],
+            inactive_parameters=inactive, definition='Declared synthetic controls')
+    with pytest.raises(ValueError, match='Inactive parameters|cannot also be inactive'):
+        result(cs=cs)
+
+
+def test_predeclared_complexity_limits_and_simpler_comparison_are_not_a_score():
+    cs = candidates()
+    for i, c in enumerate(cs):
+        c['parameters']['gate'] = i > 0
+        c['complexity'] = dict(status='reviewed', signal_parameters=['length', 'gate'],
+            enabled_optional_filters=['gate'] if i else [], definition='Synthetic declared optional gate')
+    r = result(cs=cs, minimum_neighbors=0, minimum_neighbor_pass_fraction=0.0,
+               maximum_signal_search_dimensions=2, maximum_enabled_optional_filters=0)
+    assert r['approved_ids'] == ['0']
+    assert 'optional_filter_limit_exceeded' in r['candidates'][1]['reasons']
+    assert r['candidates'][1]['complexity']['simpler_configurations'][0]['candidate_id'] == '0'
+    assert 'winner' not in r
+    r = result(cs=cs, maximum_signal_search_dimensions=1)
+    assert all('signal_search_dimension_limit_exceeded' in c['reasons'] for c in r['candidates'])
+    r = result(maximum_signal_search_dimensions=2)
+    assert all('unreviewed_parameter_roles' in c['reasons'] for c in r['candidates'])
+
+
+def test_cost_stress_has_break_even_boundary_and_scenario_rerun_is_distinct():
+    r = result(additional_round_trip_cost='10')
+    assert not r['approved_ids']
+    assert all('additional_cost_stress_failed' in row['reasons'] for row in r['candidates'])
+    es = {str(i): evidence() for i in range(3)}
+    for fs in es.values():
+        for f in fs:
+            f['scenarios'] = {'slower_stop': [dict(s, net_pnl='-1') for s in f['sessions']]}
+    r = result(es=es, required_scenarios=('slower_stop',))
+    assert all('scenario_failed:slower_stop' in row['reasons'] for row in r['candidates'])
+
+
+def test_zero_trade_sessions_are_retained_in_denominator():
+    es = {str(i): evidence() for i in range(3)}
+    for fs in es.values():
+        for f in fs:
+            f['sessions'][0].update(net_pnl='0', trade_count=0)
+    r = result(es=es, minimum_trades=20)
+    assert r['candidates'][0]['metrics']['validation_sessions'] == 30
+    assert r['candidates'][0]['metrics']['validation_trades'] == 27
+    assert Decimal(r['candidates'][0]['metrics']['mean_session_net']) == 9
+
+
+@pytest.mark.parametrize('change', [dict(minimum_folds=True), dict(minimum_sessions=2.5),
+    dict(additional_round_trip_cost='NaN'), dict(additional_round_trip_cost='-1'),
+    dict(confidence_level=1.0), dict(required_regimes=('trend', 'trend')),
+    dict(outer_test_threshold=1), dict(bootstrap_seed=-1)])
+def test_settings_reject_invalid_or_undeclared_fields(change):
+    with pytest.raises(ValueError):
+        settings(**change)
+
+
+@pytest.mark.parametrize('damage', ['scope', 'future_field', 'session_order', 'fold_overlap',
+    'calendar', 'count', 'nan', 'scenario_dates', 'regime_future', 'unknown_id', 'duplicate_id', 'duplicate_configuration'])
+def test_strict_evidence_boundaries(damage):
+    cs = candidates()
+    es = {c['id']: evidence() for c in cs}
+    f = es['0'][0]
+    if damage == 'scope': f['scope'] = 'outer_test'
+    elif damage == 'future_field': f['outer_test_net'] = '100000'
+    elif damage == 'session_order': f['sessions'].reverse()
+    elif damage == 'fold_overlap': es['0'][1]['sessions'] = deepcopy(f['sessions'])
+    elif damage == 'calendar': es['0'][2]['sessions'].pop()
+    elif damage == 'count': f['sessions'][0]['trade_count'] = True
+    elif damage == 'nan': f['sessions'][0]['net_pnl'] = 'Infinity'
+    elif damage == 'scenario_dates': f['scenarios'] = {'stops': f['sessions'][:-1]}
+    elif damage == 'regime_future': f['regimes'] = [dict(name='future', observable_at_decision=True,
+        sessions=[dict(session='2030-01-01', net_pnl='100', trade_count=1)])]
+    elif damage == 'unknown_id': es['outer_test_winner'] = evidence()
+    elif damage == 'duplicate_id': cs[1]['id'] = cs[0]['id']
+    elif damage == 'duplicate_configuration': cs[1]['parameters'] = dict(cs[0]['parameters'])
+    with pytest.raises(ValueError):
+        result(cs=cs, es=es)

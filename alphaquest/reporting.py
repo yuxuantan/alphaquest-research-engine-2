@@ -16,6 +16,7 @@ from tempfile import TemporaryDirectory
 from .decimal_math import add, multiply, subtract
 from .drawdown import Drawdown
 from .intratrade import IntratradeRisk, VERSION as RISK_VERSION
+from .decision_capture import DecisionEvent, DecisionRecorder, SIDE_CAR as DECISION_FILE
 from .execution import EquityPoint, TIMESTAMP_CONVENTION, Trade
 from .strategy import ExecutionConfig
 
@@ -67,7 +68,7 @@ def generate_report(
     on_saving: Callable[[], None] | None = None,
     execution_assumption: str = "same_close_full_fill",
     detail: str = "full", compress: bool = False, capture_risk: bool = False,
-    market_benchmark=None,
+    market_benchmark=None, capture_decisions=False,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -101,6 +102,7 @@ def generate_report(
     saw_exposure = False
     risk_count = ambiguous_risk = cross_session_risk = 0
     drawdown = None
+    decision_capture = decision_summary = None
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
         staging.mkdir()
@@ -121,11 +123,18 @@ def generate_report(
                 risk_csv = stack.enter_context((staging / "intratrade_risk.csv").open("w", encoding="utf-8", newline=""))
                 risk_writer = csv.DictWriter(risk_csv, fieldnames=[f.name for f in fields(IntratradeRisk)])
                 risk_writer.writeheader()
+            if capture_decisions:
+                decision_stream = stack.enter_context((staging / DECISION_FILE).open('w', encoding='utf-8', newline=''))
+                decision_capture = DecisionRecorder(decision_stream, asdict(config))
             trade_writer = csv.DictWriter(trades_csv, fieldnames=TRADE_FIELDS)
             equity_writer = csv.DictWriter(equity_csv, fieldnames=EQUITY_FIELDS)
             trade_writer.writeheader()
             equity_writer.writeheader()
             for event in events:
+                if type(event) is DecisionEvent:
+                    _check(decision_capture is not None, 'Decision events require capture_decisions=True.')
+                    decision_capture.observe(event, pending_trade)
+                    continue
                 if type(event) is IntratradeRisk:
                     _check(capture_risk and pending_trade is not None and event.trade_number == risk_count + 1 == pending_trade.trade_number, "Risk must follow its completed trade exactly once.")
                     _check(all(getattr(event, k) == getattr(pending_trade, k) for k in ("side", "entry_time_utc", "exit_time_utc", "contracts", "net_pnl")), "Risk identity/costs differ from the completed trade.")
@@ -217,6 +226,8 @@ def generate_report(
                     if market_benchmark is not None:
                         market_benchmark.observe(event)
                     last = event
+            if decision_capture is not None:
+                decision_summary = decision_capture.finish(trade_count)
             if detail == "full":
                 trade_array.write("]")
                 equity_array.write("]")
@@ -266,6 +277,10 @@ def generate_report(
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+        if decision_summary is not None:
+            manifest['artifacts']['execution_decisions_jsonl'] = DECISION_FILE
+            manifest['execution_decisions'] = dict(decision_summary, sha256=sha256((staging / DECISION_FILE).read_bytes()).hexdigest(),
+                policy='Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry.')
         if market_benchmark is not None:
             manifest["market_benchmark"] = market_benchmark.finish(staging, summary)
             manifest["artifacts"].update(market_benchmark_json="market_benchmark.json", strategy_equity_day_csv="strategy_equity_day.csv")

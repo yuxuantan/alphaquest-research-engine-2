@@ -83,14 +83,31 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     assert baseline_response.status == 201, baseline_response.text()
     baseline = baseline_response.json()
     assert baseline["summary"] == compact["summary"]
-    for name in ("trades.csv", "equity.csv"):
+    for name in ("trades.csv", "equity.csv", "intratrade_risk.csv", "execution_decisions.jsonl"):
         assert (root / baseline["id"] / name).read_bytes() == (folder / name).read_bytes()
     sizes = lambda path: {p.name: p.stat().st_size for p in path.iterdir()}
     compact_sizes, baseline_sizes = sizes(folder), sizes(root / baseline["id"])
     # Comparison storage is daily in both modes; holding observations are shared.
     comparison_names = {'market_benchmark.json', 'strategy_equity_day.csv'}
     native_size = lambda values: sum(size for name, size in values.items() if name not in comparison_names)
-    assert native_size(compact_sizes) < native_size(baseline_sizes) / 50
+    # The causal decision ledger is mandatory in both modes and intentionally
+    # remains lossless. Its additive bytes do not measure per-bar compression.
+    assert compact['execution_decisions'] == baseline['execution_decisions']
+    assert compact['execution_decisions']['decisions'] == 2
+    assert compact['execution_decisions']['filled_trades'] == 2
+    decision_bytes = (folder / 'execution_decisions.jsonl').read_bytes()
+    assert sha256(decision_bytes).hexdigest() == compact['execution_decisions']['sha256']
+    decision_rows = [json.loads(line) for line in decision_bytes.splitlines()]
+    assert decision_rows[0]['kind'] == 'header'
+    assert decision_rows[-1]['kind'] == 'completion' and decision_rows[-1]['status'] == 'complete'
+    assert len(decision_rows) - 2 == compact['execution_decisions']['events'] == 6
+    for field in ('events', 'decisions', 'filled_trades', 'cancelled_decisions', 'bracket_submissions'):
+        assert decision_rows[-1][field] == compact['execution_decisions'][field]
+    assert sum(row['kind'] == 'entry_decision' for row in decision_rows) == 2
+    causal_capture_names = {'execution_decisions.jsonl'}
+    representation_size = lambda values: native_size(values) - sum(values[name] for name in causal_capture_names)
+    assert representation_size(compact_sizes) < representation_size(baseline_sizes) / 50
+    assert compact_sizes['report.json'] < baseline_sizes['report.json'] / 50
     assert (folder / 'strategy_equity_day.csv').read_bytes() == (root / baseline['id'] / 'strategy_equity_day.csv').read_bytes()
     assert compact['market_benchmark']['storage']['holding_key'] == baseline['market_benchmark']['storage']['holding_key']
     page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
@@ -163,6 +180,11 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
         "detailed_file_bytes": sizes(root / detailed_id),
         "compact_reduction_percent": 100 * (1 - sum(compact_sizes.values()) / sum(baseline_sizes.values())),
         "native_compact_reduction_percent": 100 * (1 - native_size(compact_sizes) / native_size(baseline_sizes)),
+        "compact_representation_reduction_percent": 100 * (1 - representation_size(compact_sizes) / representation_size(baseline_sizes)),
+        "identical_causal_capture_bytes": {name: compact_sizes[name] for name in causal_capture_names},
+        "native_decision_ledger_complete_and_equal": True,
+        "total_native_storage_ratio": native_size(baseline_sizes) / native_size(compact_sizes),
+        "compact_representation_storage_ratio": representation_size(baseline_sizes) / representation_size(compact_sizes),
         "additional_comparison_bytes": {name: compact_sizes[name] for name in comparison_names},
         "compact_report_sha256_unchanged": before, "prop_url": prop_url,
         "expected_prop_source_net_pnl": "26.00", "expected_measured_mae_count": 0,

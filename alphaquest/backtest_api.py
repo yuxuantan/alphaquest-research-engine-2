@@ -53,7 +53,11 @@ class BacktestRequest(BaseModel):
 
 def prepare_backtest_report(store, output, dataset, definition, parameters, config, date_range, progress,
                             *, report_detail="full", compress_report=False, source_run_id=None,
-                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False, market_benchmark=None):
+                            prepared=None, feature_paths=None, automatic_prop=None, timings=None, research=None, risk_replay=False, market_benchmark=None,
+                            execution_scenario=None, capture_decisions=True, account_control=None, control_metadata=None):
+    from .execution_scenarios import resolve_execution_scenario, scenario_metadata
+    saved_scenario = scenario_metadata(config, execution_scenario)
+    config, fill_assumptions = resolve_execution_scenario(config, execution_scenario)
     timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
@@ -73,6 +77,12 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["research"] = research
     if automatic_prop:
         metadata["automatic_prop_analysis"] = automatic_prop
+    if saved_scenario is not None:
+        metadata['execution_scenario'] = saved_scenario
+    if account_control is not None:
+        if report_detail != 'compact' or compress_report or automatic_prop or not control_metadata:
+            raise ValueError('Controlled native replay requires compact capture, explicit provenance and no automatic prop report.')
+        metadata['native_account_control'] = control_metadata
     with ExitStack() as stack:
         with timings.span('source_loading'):
             selected = stack.enter_context(prepared.selected() if prepared else read_selected_bars(store, dataset["id"], date_range))
@@ -99,30 +109,76 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                     last_update=monotonic()
 
         stage("replaying")
-        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True, observe_bar=comparison.set_bar), 'replay')
+        events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True,
+            observe_bar=comparison.set_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
+            account_control=account_control, completion='require_flat' if account_control is not None else 'strategy_finish'), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
                                        execution_assumption=definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
-                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison)
+                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions)
+    if account_control is not None:
+        result = account_control.finish_replay()
+        path = Path(output) / 'native_account_control.json'
+        path.write_text(json.dumps(result, default=json_value, allow_nan=False, sort_keys=True), encoding='utf-8')
+        if path.stat().st_size > 100 * 1024 * 1024:
+            raise ValueError('Native control capture exceeds 100 MiB; narrow the declared session window.')
+        manifest['artifacts']['native_account_control_json'] = path.name
+        manifest['native_account_control'] = dict(version='native-account-control-v1', sha256=file_hash(path),
+            analysis_id=control_metadata['analysis_id'], phase=account_control.phase)
+        (Path(output) / 'report.json').write_text(json.dumps(manifest, default=json_value, allow_nan=False, indent=2) + '\n', encoding='utf-8')
     return manifest, processed, total
 
 
 def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters, config, date_range, progress,
-                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None):
+                 *, compress_report=False, source_record=None, prop_analyses=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,risk_replay=False,market_benchmark=None,
+                 execution_scenario=None, account_control=None, control_metadata=None):
     from . import backtest_cache
+    from .research_access import guard_read, metadata_only
+    guard_read(store,dataset['id'],date_range,kind='strategy_execution',origin='backtest:'+run_id)
+    from .execution_scenarios import parse_execution_scenario, resolve_execution_scenario, restore_scenario_config
+    execution_scenario = parse_execution_scenario(execution_scenario)
+    if source_record and source_record.get('native_account_control'):
+        raise ReportError('This report contains native account control. Use its saved full trades, decision capture and prop analysis; generic detail/risk replay cannot reproduce its account state.')
+    if account_control is not None:
+        if source_record or prop_analyses or execution_scenario is not None:
+            raise ReportError('Native account replay requires its dedicated checked request and saved source execution costs.')
+        reuse_results = False
+    # New native runs retain decision provenance. Reproduction of an earlier
+    # report keeps its capture contract; historical missing stops stay missing.
+    capture_decisions = source_record is None or source_record.get('execution_decisions') is not None
+    if source_record is not None and capture_decisions:
+        from .decision_capture import VERSION as DECISION_VERSION, SIDE_CAR
+        description = source_record['execution_decisions']
+        original_path = runs.root / source_record['id'] / SIDE_CAR
+        if (description.get('version') != DECISION_VERSION
+                or source_record.get('artifacts', {}).get('execution_decisions_jsonl') != SIDE_CAR
+                or original_path.is_symlink() or not original_path.is_file()
+                or file_hash(original_path) != description.get('sha256')):
+            raise ReportError('Saved native decision provenance is missing, changed or unsupported; no replay was published.')
     definition.validate_instrument(parameters, dataset.get("symbol"))
     market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
     if source_record:
         market_benchmark = source_record.get('market_benchmark', {}).get('settings', market_benchmark)
+        saved_scenario = source_record['run_metadata'].get('execution_scenario')
+        if saved_scenario is not None:
+            baseline_config, inherited = restore_scenario_config(saved_scenario)
+            if execution_scenario is not None and execution_scenario != inherited:
+                raise ReportError('Detailed or risk replay cannot override the saved execution scenario.')
+            if resolve_execution_scenario(baseline_config, inherited)[0] != config:
+                raise ReportError('Saved scenario execution settings do not match the requested replay.')
+            config, execution_scenario = baseline_config, inherited
+        elif execution_scenario is not None:
+            raise ReportError('Detailed or risk replay cannot add an execution scenario to an earlier source.')
     reuse_key=None
-    if not source_record:
-        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research,market_benchmark)
+    if not source_record and account_control is None:
+        reuse_key=backtest_cache.key(dataset,definition,parameters,config,date_range,report_detail,compress_report,bool(prop_analyses),research,market_benchmark,
+                                    execution_scenario=execution_scenario)
         if reuse_results:
             reused=backtest_cache.lookup(runs,prop_analyses,reuse_key)
             if reused:
                 from .backtest_data import read_bars
-                with read_bars(store,dataset['id']):pass
+                with metadata_only(),read_bars(store,dataset['id']):pass
                 count=reused['run_metadata']['selection']['row_count']
                 progress('done',count,count)
                 return reused
@@ -143,7 +199,9 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
         manifest, processed, total = prepare_backtest_report(
             store, output, dataset, definition, parameters, config, date_range, progress,
             compress_report=compress_report, source_run_id=source_record["id"] if source_record else None,
-            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark)
+            automatic_prop=automatic, timings=timings, report_detail='full' if source_record and not risk_replay else report_detail,prepared=prepared,feature_paths=features,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
+            execution_scenario=execution_scenario, capture_decisions=capture_decisions,
+            account_control=account_control, control_metadata=control_metadata)
         if source_record:
             if json.loads(json.dumps(manifest["summary"], default=json_value)) != source_record["summary"]:
                 raise ReportError("Detailed replay metrics differ from the saved report. No detailed report was published.")
@@ -151,6 +209,11 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
                 with (runs.root / source_record["id"] / name).open("rb") as original, (output / name).open("rb") as replay:
                     if hashlib.file_digest(original, "sha256").digest() != hashlib.file_digest(replay, "sha256").digest():
                         raise ReportError("Detailed replay trades/equity differ from the saved report. No detailed report was published.")
+            if capture_decisions:
+                from .decision_capture import SIDE_CAR
+                if (manifest.get('execution_decisions') != source_record['execution_decisions']
+                        or file_hash(output / SIDE_CAR) != source_record['execution_decisions']['sha256']):
+                    raise ReportError('Detailed replay decision provenance differs from the saved report. No detailed report was published.')
         prop_result = None
         if (not source_record or risk_replay) and prop_analyses:
             with timings.span('prop_analysis'):
@@ -169,6 +232,64 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
 
 
 router = APIRouter()
+
+
+async def _import_bytes(request):
+    from .canonical_trades import MAX_EXPORT_BYTES
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk)
+        if len(content) > MAX_EXPORT_BYTES:
+            raise HTTPException(422, 'Trade export exceeds the 32 MiB input limit.')
+    return bytes(content)
+
+
+@router.post('/api/backtests/imports/check')
+async def check_trade_import(request: Request, filename: str = Query('trade-export.json', min_length=1, max_length=255)):
+    from .trade_imports import preview_import
+    from .canonical_trades import parse_trade_export
+    raw = await _import_bytes(request)
+    try:
+        normalized=await run_in_threadpool(parse_trade_export,raw)
+        await run_in_threadpool(request.app.state.research_access.observe_external,normalized,origin='external_import_check')
+        return await run_in_threadpool(preview_import, raw, filename)
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+@router.post('/api/backtests/imports')
+async def import_trades(request: Request, filename: str = Query('trade-export.json', min_length=1, max_length=255)):
+    from .trade_imports import ImportConflict, save_import
+    from .canonical_trades import parse_trade_export
+    raw = await _import_bytes(request)
+    try:
+        normalized=await run_in_threadpool(parse_trade_export,raw)
+        await run_in_threadpool(request.app.state.research_access.observe_external,normalized,origin='external_import_save')
+        record, created = await run_in_threadpool(save_import, request.app.state.runs, raw, filename)
+        return JSONResponse(record, status_code=201 if created else 200)
+    except ImportConflict as exc:
+        raise HTTPException(409, str(exc)) from None
+    except ResearchConflict as exc:
+        raise HTTPException(409,str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+def _verify_external(request, record):
+    from .trade_imports import external, verify_import_artifacts
+    if external(record):
+        try:
+            verify_import_artifacts(request.app.state.runs, record)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, str(exc)) from None
+
+
+def _native_replay_only(record):
+    from .trade_imports import external
+    if external(record):
+        raise HTTPException(409, 'Imported trades have no local strategy/price replay. Supply a new external export; no bars or missing risk observations are fabricated.')
 
 
 @router.get("/api/strategies")
@@ -208,7 +329,8 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
-                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None):
+                           *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None,
+                           execution_scenario=None,automatic_prop=True):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -224,7 +346,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
         record = await run_in_threadpool(run_backtest, request.app.state.store, request.app.state.runs, run_id,
                                        dataset, definition, parameters, config, date_range, progress,
                                        compress_report=compress_report, source_record=source_record,
-                                       prop_analyses=request.app.state.prop_analyses, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark)
+                                       prop_analyses=request.app.state.prop_analyses if automatic_prop else None, report_detail=report_detail,reuse_prepared=reuse_prepared,reuse_results=reuse_results,reuse_calculations=reuse_calculations,research=research,risk_replay=risk_replay,market_benchmark=market_benchmark,
+                                       execution_scenario=execution_scenario)
         if record['id']!=run_id:
             if operation_id:
                 count=record['run_metadata']['selection']['row_count']
@@ -244,6 +367,7 @@ async def detailed(run_id: UUID, request: Request, progress_id: UUID | None = No
     record = await run_in_threadpool(request.app.state.runs.get, run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    _native_replay_only(record)
     if record.get('run_metadata',{}).get('research',{}).get('phase') != 'is':
         raise HTTPException(409, 'Only declared IS reports can be replayed for detail. OOS replays require a manual OOS request from IS; legacy reports remain read-only.')
     if record.get("report_storage", {}).get("detail") != "compact":
@@ -268,6 +392,7 @@ async def capture_risk(run_id: UUID, request: Request, progress_id: UUID | None 
     record = await run_in_threadpool(runs.get, run_id.hex)
     if record is None:
         raise HTTPException(404, 'Completed backtest not found.')
+    _native_replay_only(record)
     if record.get('run_metadata', {}).get('research', {}).get('phase') != 'is':
         raise HTTPException(409, 'Risk capture replay requires declared IS. OOS needs a new explicit manual OOS run from IS; legacy reports remain read-only.')
     if record.get('intratrade_risk'):
@@ -285,6 +410,7 @@ async def capture_risk(run_id: UUID, request: Request, progress_id: UUID | None 
 
 
 async def generate_detail(request, record, progress_id, *, risk_replay=False):
+    _native_replay_only(record)
     metadata = record["run_metadata"]
     dataset = await run_in_threadpool(request.app.state.store.get, metadata["dataset"]["id"])
     if dataset is None:
@@ -317,6 +443,7 @@ def completed_run(run_id: UUID, request: Request):
     record = request.app.state.runs.get(run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    _verify_external(request, record)
     return record
 
 
@@ -327,7 +454,10 @@ def delete_run(run_id: UUID,request: Request):
         with analyses.lock:
             busy=run_id.hex in analyses.active_sources()
             if busy:
-                raise ValueError('This backtest is referenced by a research campaign or a running prop analysis; it cannot be deleted.')
+                refs=analyses.source_references(run_id.hex)
+                owners='; '.join(f"{r['kind'].replace('_',' ')} {r['id']}" for r in refs)
+                raise ValueError('This backtest is referenced by a research campaign or a running prop analysis; it cannot be deleted. '
+                    'Retained references: '+owners)
             deleted=request.app.state.runs.delete(run_id.hex)
     except ValueError as exc:
         raise HTTPException(409,str(exc)) from None
@@ -339,6 +469,9 @@ def delete_run(run_id: UUID,request: Request):
 
 
 def result_page(request, run_id, kind, offset, limit):
+    record = request.app.state.runs.get(run_id.hex)
+    if record is not None:
+        _verify_external(request, record)
     page = request.app.state.runs.page(run_id.hex, kind, offset, limit)
     if page is None:
         raise HTTPException(404, "Completed backtest not found.")
@@ -361,9 +494,14 @@ def chart(run_id: UUID, request: Request, max_points: int = Query(1000, ge=16, l
     record = runs.get(run_id.hex)
     if record is None:
         raise HTTPException(404, "Completed backtest not found.")
+    _verify_external(request, record)
     try:
-        return equity_preview(runs.root / run_id.hex / "equity.csv",
-                              record["summary"]["trades_taken"] + 1, max_points)
+        result = equity_preview(runs.root / run_id.hex / "equity.csv",
+                                record["summary"]["trades_taken"] + 1, max_points)
+        from .trade_imports import external
+        if external(record):
+            result['currency'] = record['run_metadata']['instrument']['currency']
+        return result
     except (OSError, ValueError, RuntimeError) as exc:
         raise HTTPException(500, "Saved equity chart could not be read.") from exc
 
@@ -385,6 +523,9 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
         raise HTTPException(404, 'Completed backtest not found.')
     descriptor = record.get('market_benchmark')
     if descriptor is None:
+        from .trade_imports import external
+        if external(record):
+            return dict(unavailable='This imported trade source has no local price bars. No market benchmark or per-bar equity was fabricated.')
         return dict(unavailable='This saved report predates market comparisons. Its results are preserved. Run a new IS backtest to capture a comparison; OOS execution remains a manual action.')
     try:
         folder = runs.root / run_id.hex
@@ -397,8 +538,35 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity") or record is None:
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
+    _verify_external(request, record)
+    if kind == 'native_account_control':
+        description = record.get('native_account_control')
+        path = runs.root / run_id.hex / 'native_account_control.json'
+        if not description:
+            raise HTTPException(404, 'This report has no native account-control capture.')
+        if path.is_symlink() or not path.is_file() or file_hash(path) != description.get('sha256'):
+            raise HTTPException(409, 'Saved native account-control capture is missing or changed.')
+        return FileResponse(path, media_type='application/json', filename=f'{run_id.hex}-native_account_control.json')
+    if kind == 'execution_decisions':
+        from .decision_capture import SIDE_CAR, VERSION as DECISION_VERSION
+        description = record.get('execution_decisions')
+        path = runs.root / run_id.hex / SIDE_CAR
+        if description is None:
+            raise HTTPException(404, 'This historical report has no captured native decision evidence.')
+        if (description.get('version') != DECISION_VERSION
+                or record.get('artifacts', {}).get('execution_decisions_jsonl') != SIDE_CAR
+                or path.is_symlink() or not path.is_file()
+                or file_hash(path) != description.get('sha256')):
+            raise HTTPException(409, 'Saved native decision evidence is missing, changed or unsupported.')
+        return FileResponse(path, media_type='application/x-ndjson', filename=f'{run_id.hex}-{SIDE_CAR}')
+    if kind in ('source', 'canonical_source'):
+        from .trade_imports import external, SOURCE_FILES
+        if not external(record):
+            raise HTTPException(404, 'This report has no preserved external trade export.')
+        return FileResponse(runs.root/run_id.hex/SOURCE_FILES[kind], media_type='application/json',
+                            filename=f'{run_id.hex}-{SOURCE_FILES[kind]}')
     if kind == 'market_equity' and record.get('market_benchmark', {}).get('storage'):
         from .market_equity import equity_csv
         try:

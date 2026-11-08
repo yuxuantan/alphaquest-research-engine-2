@@ -22,6 +22,7 @@ class CandidateSource(StrictModel):
     optimization_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$')
     trials: list[int] | None = Field(default=None, min_length=1)
     sizes: list[int] = Field(min_length=1, max_length=60)
+    sizing_policies: list[dict] | None = Field(default=None, min_length=1, max_length=60)
     trade_file: str = Field(default='', max_length=4096)
     export_timezone: Literal['America/Chicago', 'America/New_York', 'UTC'] = 'America/Chicago'
 
@@ -35,6 +36,11 @@ class CandidateSource(StrictModel):
             raise ValueError('Duplicate trial numbers or sizes are not permitted.')
         if any(size < 1 or size > 60 for size in self.sizes):
             raise ValueError('Sizes must be whole MNQ contracts from 1 to 60; profile caps also apply.')
+        if self.sizing_policies is not None:
+            from .prop.phase_profiles import SizingConfiguration
+            self.sizing_policies = [asdict(SizingConfiguration(**item)) for item in self.sizing_policies]
+            if len({canonical(item) for item in self.sizing_policies}) != len(self.sizing_policies):
+                raise ValueError('Duplicate sizing policies are not permitted.')
         return self
 
 
@@ -68,6 +74,10 @@ class AssessmentRequest(StrictModel):
     request_id: str = Field(pattern=r'^[0-9a-f]{32}$')
 
 
+class DeleteCampaignRequest(StrictModel):
+    confirmation_sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
 def initialize(db):
     db.executescript('''
         CREATE TABLE IF NOT EXISTS research_campaigns (
@@ -85,6 +95,8 @@ def initialize(db):
             PRIMARY KEY(campaign_id,optimization_id));
         CREATE TABLE IF NOT EXISTS campaign_assessments (
             id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS campaign_deletions (
+            campaign_id TEXT PRIMARY KEY, deleted TEXT NOT NULL, payload TEXT NOT NULL);
     ''')
 
 
@@ -125,8 +137,9 @@ def campaign_search_settings(body):
 
 
 class CampaignStore:
-    def __init__(self, runs, analyses, optimizations):
+    def __init__(self, runs, analyses, optimizations, datasets=None):
         self.runs, self.analyses, self.optimizations = runs, analyses, optimizations
+        self.datasets = datasets
 
     def sources(self, kind, query='', offset=0, limit=50):
         """Metadata-only picker; never load OOS outcomes, trades or prop metrics."""
@@ -196,17 +209,25 @@ class CampaignStore:
                 origins.append(dict(optimization_id=source.optimization_id, selected_trials=sorted(selected),
                     total_grid_trials=job['total_trials'], failed_trials=job.get('failed_trials', []),
                     grid=job['request']['parameter_ranges'], strategy=job['strategy']))
-            count += len(refs)*len(source.sizes)
+            count += len(refs)*len(source.sizes)*len(source.sizing_policies or [None])
             expanded.append((source, refs))
         return expanded, origins, count
 
     def source_window(self, body):
         """Intersect declared IS with saved bar coverage, in CME session dates."""
         from .prop.phase_lifecycle import instant, session_date
+        from .prop.phase_search import declared_is_coverage
         expanded, _, _ = self.resolve_sources(body.sources)
         sources = []
         for id in sorted({ref['run_id'] for _, refs in expanded for ref in refs}):
             record = source_record(self.runs, id)
+            declared = declared_is_coverage(record)
+            if record['run_metadata'].get('source', {}).get('kind') == 'external_trade_export':
+                from .trade_imports import verify_import
+                verify_import(self.runs, record)
+                sources.append(dict(source_backtest_id=id, declared_is=declared, saved_coverage=declared,
+                    provenance='Exporter-declared IS session inventory; no native plan or untouched-OOS claim.'))
+                continue
             research = record['run_metadata'].get('research') or {}
             if research.get('phase') != 'is':
                 raise ValueError('The research window requires declared IS backtests; OOS and undeclared sources reject.')
@@ -232,24 +253,28 @@ class CampaignStore:
         for source, refs in expanded:
             for ref in refs:
                 for size in sorted(source.sizes):
-                    candidate = dict(source=dict(source_backtest_id=ref['run_id'], trade_file=source.trade_file,
-                        export_timezone=source.export_timezone), profile=body.profile, micros=size,
-                        simulation=body.simulation, sampling=body.sampling, costs=body.costs, period=body.is_window)
-                    if body.retry is not None:
-                        candidate['retry'] = body.retry
-                    candidates.append(candidate)
+                    for sizing in source.sizing_policies or [None]:
+                        candidate = dict(source=dict(source_backtest_id=ref['run_id'], trade_file=source.trade_file,
+                            export_timezone=source.export_timezone), profile=body.profile, micros=size,
+                            simulation=body.simulation, sampling=body.sampling, costs=body.costs, period=body.is_window)
+                        if sizing is not None:
+                            candidate['sizing'] = sizing
+                        if body.retry is not None:
+                            candidate['retry'] = body.retry
+                        candidates.append(candidate)
         if set(settings) & {'candidates', 'source_backtest_id', 'mode'}:
             raise ValueError('Campaign owns the candidate set, anchor and phase.')
         raw = dict(mode=body.phase+'_optimization', source_backtest_id=min(c['source']['source_backtest_id'] for c in candidates),
                    candidates=candidates, **settings)
         module = module_for(body.phase)
         search = module.parse_request(raw)
-        checks = module.check_search(self.runs, search)
+        checks = module.check_search(self.runs, search, datasets=self.datasets)
         configurations, risk_conventions = set(), set()
         for row in checks:
             strategy = row['manifest']['strategy']
             signature = canonical(dict(strategy_id=strategy['id'], parameters=strategy['parameters'],
-                strategy_source_sha256=strategy['source_sha256'], micros=row['manifest']['configuration']['micros']))
+                strategy_source_sha256=strategy['source_sha256'], micros=row['manifest']['configuration']['micros'],
+                sizing=row['manifest']['configuration'].get('sizing')))
             if signature in configurations:
                 raise ValueError('Duplicate candidate strategy/parameter/size configuration across saved reports or source aliases.')
             configurations.add(signature)
@@ -260,8 +285,9 @@ class CampaignStore:
             raise ValueError('Candidates require compatible source-risk conventions; measured excursions and held-OHLC bounds cannot be mixed.')
         # Pin the entire window to declared IS, not merely to source file bounds.
         for row in checks:
-            plan = row['manifest']['source']['backtest']['run_metadata']['research']['plan']
-            if not plan['is_start'] <= body.is_window['first_session'] <= body.is_window['last_session'] <= plan['is_end']:
+            from .prop.phase_search import declared_is_coverage
+            coverage = declared_is_coverage(row['manifest']['source']['backtest'])
+            if not coverage['first_session'] <= body.is_window['first_session'] <= body.is_window['last_session'] <= coverage['last_session']:
                 raise ValueError('Campaign research window must lie within declared IS.')
         normalized = json.loads(canonical(asdict(search)))
         normalized['candidates'].sort(key=canonical)
@@ -279,6 +305,12 @@ class CampaignStore:
 
     def create(self, body):
         with self.analyses.lock:
+            with self.analyses.connect() as db:
+                if db.execute('SELECT 1 FROM campaign_deletions WHERE campaign_id=?', (body.campaign_id,)).fetchone():
+                    raise ResearchConflict('This campaign ID was deleted and cannot be reused; use a new ID.')
+                if (db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='robust_research'").fetchone()
+                        and db.execute('SELECT 1 FROM robust_research WHERE id=?', (body.campaign_id,)).fetchone()):
+                    raise ResearchConflict('This ID belongs to a nested research campaign; use a new phase campaign ID.')
             previous = self._row(body.campaign_id)
             if previous:
                 if CampaignRequest.model_validate(previous['declaration']).model_dump() != body.model_dump():
@@ -327,12 +359,105 @@ class CampaignStore:
                               'WHERE c.campaign_id=? ORDER BY a.created,a.id', (id,)).fetchall()
         return [self.analyses.get(id) for (id,) in rows]
 
+    def _deletion_preview(self, db, id):
+        """Metadata only, on the same transaction used to release references."""
+        row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
+        if not row:
+            saved = db.execute('SELECT payload FROM campaign_deletions WHERE campaign_id=?', (id,)).fetchone()
+            if saved:
+                return json.loads(saved[0])['receipt']
+            raise KeyError('Phase campaign not found.')
+        blockers = []
+        def block(kind, reference, message):
+            value = dict(kind=kind, id=reference, message=message)
+            if value not in blockers:blockers.append(value)
+        if row[4] is not None:
+            block('frozen_selection', id, f'Campaign {id} has a frozen selection; preserve its package and sources.')
+        sources = [r[0] for r in db.execute('SELECT source_id FROM campaign_sources WHERE campaign_id=? ORDER BY source_id', (id,))]
+        jobs = [r[0] for r in db.execute('SELECT optimization_id FROM campaign_jobs WHERE campaign_id=? ORDER BY optimization_id', (id,))]
+        ids = {r[0] for r in db.execute('SELECT analysis_id FROM campaign_analyses WHERE campaign_id=?', (id,))}
+        if row[3]:ids.add(row[3])
+        analyses = []
+        for aid in sorted(ids):
+            analysis = db.execute('SELECT status FROM analyses WHERE id=?', (aid,)).fetchone()
+            status = analysis[0] if analysis else 'missing'
+            analyses.append(dict(id=aid, status=status))
+            if status in ('queued', 'running', 'missing'):
+                block('analysis', aid, f'Analysis {aid} is {status}; campaign deletion is blocked.')
+        for aid, in db.execute('SELECT id FROM campaign_assessments WHERE campaign_id=? ORDER BY id', (id,)):
+            block('oos_assessment', aid, f'OOS assessment {aid} retains this campaign.')
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, key in (('research_procedures', 'id'), ('research_procedure_applications', 'id')):
+            if table in tables:
+                for reference, in db.execute(f'SELECT {key} FROM {table} WHERE campaign_id=? ORDER BY {key}', (id,)):
+                    block('procedure', reference, f'Research procedure/application {reference} retains this campaign.')
+        # Explicit campaign bindings or retained-report dependencies are checked
+        # without reading outcomes or invoking any calculation owner.
+        for reference, in db.execute("SELECT DISTINCT p.request_id FROM lifecycle_comparisons p,json_tree(p.declaration) j "
+                "WHERE j.key='campaign_id' AND j.value=? ORDER BY p.request_id", (id,)):
+            block('lifecycle_comparison', reference, f'Lifecycle comparison {reference} retains this campaign.')
+        if 'forward_monitors' in tables:
+            for reference, in db.execute("SELECT id FROM forward_monitors m WHERE "
+                    "EXISTS(SELECT 1 FROM json_tree(m.policy) j WHERE j.key='campaign_id' AND j.value=?) OR "
+                    "EXISTS(SELECT 1 FROM json_tree(m.declaration) j WHERE j.key='campaign_id' AND j.value=?) ORDER BY id", (id, id)):
+                block('forward_monitor', reference, f'Forward monitor {reference} retains this campaign.')
+            for reference, aid in db.execute('SELECT monitor_id,analysis_id FROM forward_report_refs ORDER BY monitor_id,analysis_id'):
+                if aid in ids:
+                    block('forward_monitor', reference, f'Forward monitor {reference} retains analysis {aid}.')
+        # Keep other owners' pins. The preview distinguishes released links from
+        # backtests that will still be protected by another workflow.
+        other_pins = []
+        for source in sources:
+            owners = self.analyses.source_references(source, db=db)
+            owners = [owner for owner in owners if not (owner['kind'] == 'campaign' and owner['id'] == id)]
+            if owners:other_pins.append(dict(source_id=source, references=owners))
+        preview = dict(campaign_id=id, phase=json.loads(row[2])['phase'], deleted=False,
+            deletable=not blockers, blockers=blockers, source_ids=sources,
+            source_reference_count=len(sources), optimization_ids=jobs,
+            retained_analyses=analyses, other_source_references=other_pins,
+            interpretation='Deletes only the campaign and its links. Backtests, reports and research-access history are kept.')
+        preview['confirmation_sha256'] = fingerprint(dict(preview=preview, declaration=row[1], manifest=row[2], frozen=row[4]))
+        return preview
+
+    def deletion_preview(self, id):
+        with self.analyses.lock, self.analyses.connect() as db:
+            return self._deletion_preview(db, id)
+
+    def deletion_record(self, id):
+        with self.analyses.connect() as db:
+            row = db.execute('SELECT payload FROM campaign_deletions WHERE campaign_id=?', (id,)).fetchone()
+        if not row:raise KeyError('Campaign deletion record not found.')
+        return json.loads(row[0])
+
+    def delete(self, id, body):
+        with self.analyses.lock, self.analyses.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            preview = self._deletion_preview(db, id)
+            if preview.get('deleted'):
+                if body.confirmation_sha256 != preview['confirmation_sha256']:
+                    raise ResearchConflict('Deletion confirmation differs from the saved deletion record.')
+                return preview
+            if preview['blockers']:
+                raise ResearchConflict('Cannot delete campaign: ' + ' '.join(b['message'] for b in preview['blockers']))
+            if body.confirmation_sha256 != preview['confirmation_sha256']:
+                raise ResearchConflict('Campaign dependencies changed. Review a fresh deletion preview and confirm again.')
+            row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
+            receipt = dict(preview, deleted=True, deletable=False, deleted_at_utc=datetime.now(timezone.utc).isoformat())
+            snapshot = dict(campaign_id=id, created=row[0], declaration=json.loads(row[1]), manifest=json.loads(row[2]),
+                analysis_id=row[3], frozen=None)
+            db.execute('INSERT INTO campaign_deletions VALUES (?,?,?)',
+                (id, receipt['deleted_at_utc'], canonical(dict(receipt=receipt, campaign_snapshot=snapshot))))
+            for table in ('campaign_sources', 'campaign_jobs', 'campaign_analyses'):
+                db.execute(f'DELETE FROM {table} WHERE campaign_id=?', (id,))
+            db.execute('DELETE FROM research_campaigns WHERE id=?', (id,))
+            return receipt
+
     def validate(self, id):
         with self.analyses.lock:
             row = self.get(id)
             module = module_for(row['manifest']['phase'])
             search = module.parse_request(row['manifest']['request'])
-            checks = module.check_search(self.runs, search)
+            checks = module.check_search(self.runs, search, datasets=self.datasets)
             # Access history is provenance, not a new numerical input. Preserve the
             # declaration snapshot and report additional access without inspecting outcomes.
             before = row['manifest']['source_checks']
@@ -346,7 +471,8 @@ class CampaignStore:
         with self.analyses.lock:
             row = self.get(id)
             if row['analysis'] and row['status'] in ('queued', 'running', 'complete'):
-                if row['status'] == 'complete' and not self.analyses.fingerprint(row['analysis_id']):
+                if row['status'] == 'complete' and (not self.analyses.fingerprint(row['analysis_id'])
+                        or not self.analyses.native_children_unchanged(self.runs,row['analysis_id'])):
                     raise ResearchConflict('Saved calculation failed integrity checks; preserve this campaign and create a new one.')
                 return row
             self.validate(id)
@@ -358,7 +484,7 @@ class CampaignStore:
             module = module_for(manifest['phase'])
             search = module.parse_request(manifest['request'])
             # Submit with the original access snapshot, after live source validation.
-            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'])
+            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'], datasets=self.datasets)
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id, analysis['id']))
                 db.execute('UPDATE research_campaigns SET analysis_id=? WHERE id=?', (analysis['id'], id))
@@ -458,7 +584,12 @@ class CampaignStore:
             if previous:
                 if previous[0] != id:
                     raise ResearchConflict('Assessment request ID already belongs to another campaign.')
-                return json.loads(previous[1]), False
+                attempt=json.loads(previous[1])
+                saved=self.analyses.get(attempt['analysis_id']) if attempt.get('analysis_id') else None
+                if saved and saved['status']=='complete' and (not self.analyses.fingerprint(saved['id'])
+                        or not self.analyses.native_children_unchanged(self.runs,saved['id'])):
+                    raise ResearchConflict('Saved assessment or its native backtest capture changed; preserve the failed identity evidence.')
+                return attempt, False
             campaign = self.get(id)
             package = campaign['frozen']
             if not package:
@@ -470,6 +601,9 @@ class CampaignStore:
             access = self.validate(id)
             parents = sorted({r['manifest']['configuration']['source']['source_backtest_id']
                 for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
+            if any(r['manifest']['source'].get('source_kind') == 'external_trade_export'
+                   for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']):
+                raise ValueError('Imported frozen choices need a separately supplied verified external OOS source. Native OOS launch cannot rerun an external strategy; external assessment integration is pending.')
             if any(r['manifest']['configuration']['source']['trade_file'] for r in report['calculations']['candidates']
                    if r['candidate_id'] in package['candidate_ids']):
                 raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
@@ -477,6 +611,7 @@ class CampaignStore:
                 status='launching', package_sha256=package['package_sha256'], parent_source_ids=parents,
                 prior_access=[dict(candidate_id=c['candidate_id'], prior_access=c['prior_access']) for c in access['candidates']],
                 oos_sources={}, analysis_id=None,
+                native_chronological=package['search_settings'].get('native_execution') is not None,
                 interpretation='Manual OOS assessment of the predeclared frozen family. No reranking or reselection. Prior access is retained; no untouched-OOS claim.')
             return self.save_assessment(row), True
 
@@ -502,7 +637,13 @@ class CampaignStore:
                     raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
                 config['source']['source_backtest_id'] = source_id
                 plan = manifest['source']['backtest']['run_metadata']['research']['plan']
-                config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
+                if raw.get('native_execution') is not None:
+                    from .prop.phase_lifecycle import instant,session_date
+                    observed=source_record(self.runs,source_id)
+                    config['period']=dict(first_session=str(session_date(instant(observed['period_start_utc']))),
+                        last_session=str(session_date(instant(observed['period_end_utc']))))
+                else:
+                    config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
                 selected.append(config)
                 mappings.append(dict(source_id=source_id, frozen_candidate_id=row['candidate_id'], frozen_manifest=manifest,
                     name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))
@@ -512,7 +653,7 @@ class CampaignStore:
             # Protect sources before queueing and keep every report in AnalysisStore.
             with self.analyses.connect() as db:
                 db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
-            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context)
+            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context, datasets=self.datasets)
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
             return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))

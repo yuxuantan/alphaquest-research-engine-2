@@ -22,6 +22,7 @@
   let version = 0, timer;
   let resumeBusy = false;
   let deleteBusy = false;
+  let cancelBusy = false;
   let lucidBusy = false;
   let workerState = "idle", workerValue = "";
   const workerHelp = get("#optimization-workers-help").textContent;
@@ -83,16 +84,43 @@
     return typeof error.detail === "string" ? error.detail : Array.isArray(error.detail)
       ? error.detail.map((item) => `${item.loc?.join(" / ")}: ${item.msg}`).join("; ") : error.message || "Request failed. Check the server connection.";
   }
+  function cancellationButton(button, job) {
+    button.hidden = job.status !== "queued";
+    button.disabled = cancelBusy || deleteBusy || resumeBusy;
+    button.dataset.cancelActivity = job.id;
+    button.setAttribute("aria-label", `Cancel queued activity ${job.id}`);
+    button.onclick = () => cancelActivity(job);
+  }
+  async function cancelActivity(job) {
+    if (cancelBusy || deleteBusy || resumeBusy) return;
+    if (!window.confirm("Cancel this queued backtest activity?\n\nIt will not start. Saved reports, datasets and other activities are kept.")) return;
+    cancelBusy = true;
+    ++version;
+    clearTimeout(timer);
+    const notice = get("#optimization-cancel-status");
+    notice.hidden = false;
+    notice.textContent = "Cancelling queued activity…";
+    document.querySelectorAll('[data-cancel-activity], [data-delete-activity], #optimization-delete, #optimization-resume').forEach(button => { button.disabled = true; });
+    try {
+      await read(`/api/backtests/batches/${job.id}/cancel`, {method: "POST"});
+      notice.textContent = "Activity cancelled before execution. Saved reports, datasets and other activities are kept.";
+    } catch (error) {
+      notice.textContent = `Could not cancel activity: ${errorMessage(error)}`;
+    } finally {
+      cancelBusy = false;
+      if (!get("#optimization-panel").hidden) await refresh();
+    }
+  }
   function deletionButton(button, job) {
     const active = ["queued", "running"].includes(job.status);
     button.textContent = job.status === "deleting" ? "Retry Delete activity and reports" : "Delete activity and reports";
-    button.disabled = deleteBusy || resumeBusy || active;
+    button.disabled = deleteBusy || resumeBusy || cancelBusy || active;
     button.title = active ? "Wait for this activity to finish before deleting." : "";
     button.setAttribute("aria-label", `Delete activity and reports ${job.id}`);
     button.onclick = () => deleteActivity(job);
   }
   async function deleteActivity(job) {
-    if (deleteBusy || resumeBusy) return;
+    if (deleteBusy || resumeBusy || cancelBusy) return;
     if (!window.confirm(`Delete this backtest activity and all of its saved backtest reports (${job.completed_trials} saved trials)?\n\nThis includes every results page. Reports shared with other activities, datasets and saved prop analyses are kept. This cannot be undone.`)) return;
     deleteBusy = true;
     ++version;
@@ -411,7 +439,10 @@
           button.type = "button";
           button.dataset.deleteActivity = job.id;
           deletionButton(button, job);
-          actions.append(button);
+          const cancel = node("button", "Cancel queued activity", "button secondary");
+          cancel.type = "button";
+          cancellationButton(cancel, job);
+          actions.append(cancel, button);
           row.append(actions);
           table.tBodies[0].append(row);
         }
@@ -428,6 +459,7 @@
         read(`/api/backtests/batches/${jobId}/prop-refresh`),
       ]);
       if (current !== version) return;
+      cancellationButton(get("#optimization-cancel"), job);
       const deleteButton = get("#optimization-delete");
       deleteButton.hidden = false;
       deletionButton(deleteButton, job);
@@ -446,14 +478,14 @@
       get("#optimization-context").textContent = `${research?`IS only · ${research.plan.is_start} → ${research.plan.is_end} · OOS held out: ${research.plan.oos_start} → ${research.plan.oos_end}. Open an individual IS report to select its parameters for a manual OOS test. `:'Legacy job · no declared holdout. '}${job.dataset.name} · ${label(job.strategy.id)} · ${job.id}${profile ? ` · Historical net: Apex 50K EOD, ${profile.SLOTS} slots, $${profile.EVAL_PRICE} evaluation + $${profile.ACTIVATION_FEE} activation, selected period only. Native close-only excursion fallback.` : ""}`;
       const execution = `${job.worker_count || 1} ${job.worker_count > 1 ? "worker processes" : "worker · serial"}${job.elapsed_seconds == null ? "" : ` · ${job.elapsed_seconds.toFixed(1)}s elapsed`}${job.engine_identity ? ` · ${job.reused_trials || 0} reused · ${job.completed_trials - (job.reused_trials || 0)} computed` : ""}`;
       const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.stage?.startsWith("prop_simulation:") ? trial.stage.slice("prop_simulation: ".length) : `${trial.bars_processed}/${trial.total_bars} bars`})`).join(", ")}` : "";
-      get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD per slot after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses weekday trading days. CSV retains raw account totals and duration seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
+      get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.cancellation_reason ? " · " + job.cancellation_reason : ""}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD per slot after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses weekday trading days. CSV retains raw account totals and duration seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
       const resume = get("#optimization-resume");
       resume.hidden = !["failed", "interrupted"].includes(job.status);
-      resume.disabled = resumeBusy || deleteBusy;
+      resume.disabled = resumeBusy || deleteBusy || cancelBusy;
       resume.textContent = job.completed_trials < job.total_trials
         ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
       get("#optimization-provenance").hidden = false;
-      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, default_prop_profile: job.default_prop_profile, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || []}, null, 2);
+      get("#optimization-settings-used").textContent = JSON.stringify({request: job.request, default_prop_profile: job.default_prop_profile, worker_count: job.worker_count || 1, engine_identity: job.engine_identity, prepared_data: job.prepared_data, cached_feature_series: job.cached_feature_series, preparation_seconds: job.preparation_seconds, temporary_bytes: job.temporary_bytes, reused_trials: job.reused_trials || 0, report_detail: job.report_detail || "Legacy job; see each backtest report for retained detail", axes: job.axes, dataset: job.dataset, strategy: job.strategy, execution_settings: job.execution_settings, previous_attempts: job.previous_attempts || [], cancelled_at_utc: job.cancelled_at_utc, cancellation_reason: job.cancellation_reason}, null, 2);
       results(job, page);
       if (["queued", "running"].includes(job.status)||prop.pending) timer = setTimeout(refresh, 1500);
     } catch (error) {
@@ -477,6 +509,8 @@
     get("#optimization-provenance").hidden = true;
     get("#optimization-download").hidden = true;
     get("#optimization-delete").hidden = true;
+    get("#optimization-cancel").hidden = true;
+    get("#optimization-cancel-status").hidden = true;
     get("#optimization-resume").hidden = true;
     get("#optimization-resume-error").hidden = true;
     get("#optimization-status").textContent = "Loading…";
@@ -515,7 +549,7 @@
     finally{lucidBusy=false;if(jobId===id&&!get('#optimization-panel').hidden)await refresh();}
   };
   get("#optimization-resume").onclick = async () => {
-    if (resumeBusy || deleteBusy || !jobId) return;
+    if (resumeBusy || deleteBusy || cancelBusy || !jobId) return;
     const id = jobId;
     resumeBusy = true;
     get("#optimization-resume").disabled = true;

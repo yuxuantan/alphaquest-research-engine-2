@@ -46,12 +46,27 @@ def test_parse_once_and_date_range_has_identical_metadata_metrics_and_csv(client
         calls.append(1)
         return original(*args)
     monkeypatch.setattr(backtest_data, "parse_csv_row", parse)
+    from alphaquest import research_folds
+    original_inventory = research_folds.inventory_sessions
+    inventory_calls = []
+    def inventory(*args, **kwargs):
+        before = len(calls)
+        result = original_inventory(*args, **kwargs)
+        inventory_calls.append(len(calls) - before)
+        return result
+    monkeypatch.setattr(research_folds, "inventory_sessions", inventory)
     baseline = wait_job(client, start(client, {**request, "prepare_data": False}))
     baseline_calls = len(calls)
+    baseline_inventory_calls = list(inventory_calls)
     calls.clear()
+    inventory_calls.clear()
     accelerated = wait_job(client, start(client, request))
-    assert len(calls) == dataset["row_count"]
-    assert baseline_calls == 3 * (dataset["row_count"] + dataset["row_count"]-1)  # full source + IS oracle rows per trial
+    # One required access-lineage inventory validates the source-local/CME
+    # session intersection before either job reads prices for calculation.
+    # Keep that admission scan separate from the parse-once replay contract.
+    assert inventory_calls == baseline_inventory_calls == [dataset["row_count"]]
+    assert len(calls) - sum(inventory_calls) == dataset["row_count"]
+    assert baseline_calls - sum(baseline_inventory_calls) == 3 * (dataset["row_count"] + dataset["row_count"]-1)  # full source + IS oracle rows per trial
     for left, right in zip(rows(client, baseline), rows(client, accelerated), strict=True):
         assert left["metrics"] == right["metrics"]
         for kind in ("trades", "equity"):

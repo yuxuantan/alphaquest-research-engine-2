@@ -14,6 +14,7 @@
   let chartData;
   const deleting = new Set();
   let tradeTimeZone = "UTC";
+  let reportCurrency = 'CU';
   let tradeTimeFormatter;
   const node = (tag, text, cls) => {
     const item = document.createElement(tag);
@@ -58,6 +59,9 @@
     return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
   }
   function tradeTimezone(record) {
+    reportCurrency = record.run_metadata.source?.kind === 'external_trade_export' ? record.run_metadata.external_manifest?.instrument?.currency || record.run_metadata.dataset.currency || 'Unspecified' : 'CU';
+    get('#equity-chart-title').textContent = `Trade-close equity · ${reportCurrency}`;
+    get('#equity-currency-note').textContent = `${reportCurrency === 'CU' ? 'CU = account currency (unspecified).' : `Amounts use the declared account currency ${reportCurrency}.`} Initial equity and equity after each completed trade, including commissions and slippage. Open-position gains and losses are excluded.`;
     tradeTimeZone = record.run_metadata.dataset.source_timezone || "UTC";
     tradeTimeFormatter = new Intl.DateTimeFormat("en-GB", {
       timeZone: tradeTimeZone, calendar: "iso8601", numberingSystem: "latn", hourCycle: "h23",
@@ -65,8 +69,8 @@
     });
     get("#report-entry-time-header").textContent = `Entry · ${tradeTimeZone}`;
     get("#report-exit-time-header").textContent = `Exit · ${tradeTimeZone}`;
-    get("#report-trade-timezone-note").textContent = `${tradeTimeZone} timestamps · P&L in CU`;
-    get("#report-trade-timezone-hint").textContent = `Entry and exit times use ${tradeTimeZone} (dataset timezone). CSV exports use UTC. Scroll horizontally for all trade fields.`;
+    get("#report-trade-timezone-note").textContent = `${tradeTimeZone} timestamps · P&L in ${reportCurrency}`;
+    get("#report-trade-timezone-hint").textContent = `Entry and exit times use ${tradeTimeZone} (source timezone). CSV exports use UTC. Scroll horizontally for all trade fields.`;
   }
   const moneyClass = (value) => Number(value) < 0 ? "negative" : Number(value) > 0 ? "positive" : "";
   async function read(url, signal) {
@@ -80,7 +84,7 @@
     get("#report-status").textContent = message;
   }
   function duration(value) {
-    if (value === undefined) return "N/A";
+    if (value === undefined || value === null) return "N/A";
     let seconds = Number(value);
     if (!seconds) return "0s";
     const parts = [];
@@ -94,6 +98,7 @@
   }
   function metrics(record) {
     const summary = record.summary;
+    const external = record.run_metadata.source?.kind === 'external_trade_export';
     const holder = get("#report-summary");
     holder.replaceChildren();
     if (record.run_metadata.automatic_prop_analysis) {
@@ -116,10 +121,10 @@
       }
     }
     for (const [title, value, key] of [
-      ["Total net P&L · CU", summary.total_net_pnl, "net"],
+      [`Total net P&L · ${reportCurrency}`, summary.total_net_pnl, "net"],
       ["Trades taken", number.format(summary.trades_taken), "trades"],
       ["Win rate", formatPercentage(summary.win_rate_pct), "win-rate"],
-      ["Max drawdown · CU", summary.max_drawdown_amount ?? "N/A", "drawdown-amount"],
+      [`Max drawdown · ${reportCurrency}`, summary.max_drawdown_amount ?? "N/A", "drawdown-amount"],
       ["Max drawdown · %", formatPercentage(summary.max_drawdown_pct), "drawdown-pct"],
       ["Max drawdown duration", duration(summary.max_drawdown_duration_seconds), "drawdown-duration"],
     ]) {
@@ -133,10 +138,10 @@
       if (key === "win-rate") card.append(node("p", "Winners / all completed trades; breakevens included.", "small muted"));
       if (key === "drawdown-amount") card.append(node("p", "Largest peak-to-trough fall in trade-close equity, after all costs.", "small muted"));
       if (key === "drawdown-pct") card.append(node("p", "Largest percentage fall relative to its prior equity peak.", "small muted"));
-      if (key === "drawdown-duration") card.append(node("p", "Longest elapsed UTC time from a peak to recovery, or dataset end if unrecovered. Initial balance uses the first bar's time.", "small muted"));
+      if (key === "drawdown-duration") card.append(node("p", external ? "Longest elapsed UTC time from a trade-close equity peak to recovery, or declared coverage end if unrecovered. Initial balance uses declared coverage start." : "Longest elapsed UTC time from a peak to recovery, or dataset end if unrecovered. Initial balance uses the first bar's time.", "small muted"));
       holder.append(card);
     }
-    const balances = node("p", `Initial equity ${summary.initial_capital} CU → Final equity ${summary.final_equity} CU. Account currency unspecified.`, "report-balances small");
+    const balances = node("p", `Initial equity ${summary.initial_capital} ${reportCurrency} → Final equity ${summary.final_equity} ${reportCurrency}.${external ? ' Imported completed trades; open-position equity is not reconstructed.' : ' Account currency unspecified.'}`, "report-balances small");
     balances.id = "report-balances";
     holder.append(balances);
   }
@@ -198,6 +203,17 @@
       }
       const report = savedReport || await read(`/api/prop-analyses/${id}/downloads/report.json`, controller.signal);
       if (active !== controller) return;
+      if (report.request?.mode === 'native_phase_replay') {
+        const c=report.calculations, holder=get('#report-prop-metrics');holder.replaceChildren();
+        context.textContent += ` · Native ${report.request.phase} account-state replay · ${report.request.profile.profile_id} · ${report.source.period.first_session} → ${report.source.period.last_session}`;
+        const cards=node('div',undefined,'prop-metric-grid prop-three-metrics');holder.append(cards);
+        propMetric(cards,'native-trading','Actual trading profit · USD',usd(c.trading_profit,2),'Actual native fills and costs; separate from provider withdrawals and trader cash.',c.trading_profit);
+        propMetric(cards,'native-balance','Provider account balance · USD',usd(c.trace?.at(-1)?.state_after?.balance,2),'Provider initial capital, trading results, account resets and gross withdrawals.',c.trace?.at(-1)?.state_after?.balance);
+        if(report.request.phase==='funded')propMetric(cards,'native-cash','Modeled cash received · USD',usd(c.cash_received,2),`Pending receipt: ${usd(c.pending_cash,2)}. Requests and gross deductions are separate ledger events.`,c.cash_received);
+        else propMetric(cards,'native-fees','Actual-date acquisition fees · USD',usd(c.paid_fees,2),`Acquisition ${c.acquisition_completed?'completed':'incomplete'}; observation ${c.censored?'censored':'complete'}. Evaluation trading profit is not trader cash.`,c.paid_fees);
+        status.textContent='One historical native strategy path. '+(report.native_forecast?'A separate native Monte Carlo forecast is saved in the full analysis.':'No native forecast is saved in this report.')+' Native policy selection is unavailable. Provider parity and settlement remain unverified.';
+        return;
+      }
       if (report.format_version !== 3 || !report.calculations) {
         status.textContent = "Historical engine report. Open the full analysis to inspect its original results and model.";
         return;
@@ -256,6 +272,7 @@
     get('#report-performance-body').replaceChildren();
     get('#report-performance-status').textContent='Loading timing diagnostics…';
     get('#report-performance-download').hidden=true;
+    if(record.run_metadata.source?.kind==='external_trade_export') { get('#report-performance-status').textContent='Native execution timing is unavailable for an imported trade source.'; return; }
     try {
       const data=await read(`/api/backtests/${record.id}/performance`,controller.signal);
       if(active!==controller)return;
@@ -319,7 +336,7 @@
     const points = data.items;
     const peak = data.peak;
     const final = points[points.length - 1];
-    get("#chart-equity-summary").textContent = `${peak ? `Peak equity ${peak.equity} CU · ${peak.trade_number ? "after trade " + peak.trade_number : "initial balance"} · ` : ""}Final equity ${final.equity} CU. Values belong to this saved run.`;
+    get("#chart-equity-summary").textContent = `${peak ? `Peak equity ${peak.equity} ${reportCurrency} · ${peak.trade_number ? "after trade " + peak.trade_number : "initial balance"} · ` : ""}Final equity ${final.equity} ${reportCurrency}. Values belong to this saved run.`;
     const values = points.map((point) => Number(point.equity));
     const min = Math.min(...values), max = Math.max(...values);
     // Geometry alone uses Number. Labels, tooltips, exports and metrics retain
@@ -355,7 +372,7 @@
       const point = points[selected];
       cursor.setAttribute("cx", x(point));
       cursor.setAttribute("cy", y(values[selected]));
-      get("#chart-readout").textContent = `${point.trade_number ? tradeStamp(point.exit_time_utc) + " " + tradeTimeZone + " · Trade " + point.trade_number : "Initial balance"} · Equity ${point.equity} CU${point.trade_number ? " · Trade net P&L " + point.net_pnl + " CU" : ""}`;
+      get("#chart-readout").textContent = `${point.trade_number ? tradeStamp(point.exit_time_utc) + " " + tradeTimeZone + " · Trade " + point.trade_number : "Initial balance"} · Equity ${point.equity} ${reportCurrency}${point.trade_number ? " · Trade net P&L " + point.net_pnl + " " + reportCurrency : ""}`;
     }
     svg.onpointermove = (event) => {
       const rect = svg.getBoundingClientRect();
@@ -389,6 +406,7 @@
         row.dataset.trade = trade.trade_number;
         for (const key of ["trade_number", "entry_time_utc", "exit_time_utc", "entry_fill_price", "exit_fill_price", "contracts", "gross_pnl", "total_commissions", "net_pnl", "actual_holding_minutes", "exit_reason"]) {
           const cell = node("td", key.endsWith("time_utc") ? tradeStamp(trade[key]) : String(trade[key]));
+          if(key==='trade_number'&&trade.external_trade_id!==undefined)cell.textContent=`${trade.trade_number} · ${trade.external_trade_id}`;
           cell.dataset.field = key;
           if (key.endsWith("time_utc")) cell.title = `Stored UTC: ${trade[key]}`;
           if (key === "net_pnl") cell.className = moneyClass(trade[key]);
@@ -424,6 +442,8 @@
     try {
       const record = await read(`/api/backtests/${id}`, controller.signal);
       if (active !== controller) return;
+      get('#backtest-completion-title').replaceChildren(document.createTextNode(record.run_metadata.source?.kind === 'external_trade_export' ? 'Imported trade report' : 'Backtest report'), node('span', '.', 'heading-dot'));
+      get('#report-execution-assumptions').hidden = record.run_metadata.source?.kind === 'external_trade_export';
       let back="#strategies";
       try{const context=JSON.parse(sessionStorage.getItem('strategy-report-return'));if(context?.id===record.id&&/^#strategies\/[^/]+\/datasets\/[0-9a-f]{64}$/.test(context.route))back=context.route;}catch{}
       get("#report-back-strategies").href=back;
@@ -466,7 +486,8 @@
       for (const record of page.items) {
         const link = node("a", undefined, "completed-run");
         link.href = `#backtests/report/${record.id}`;
-        link.append(node("strong", record.run_metadata.dataset.name), node("span", `${record.run_metadata.strategy.id} · ${stamp(record.created_at_utc)} UTC`, "small muted"), node("span", `${record.summary.total_net_pnl} CU · ${record.summary.trades_taken} trades`, moneyClass(record.summary.total_net_pnl)), node("code", record.id, "run-identifier small"));
+        const external=record.run_metadata.source?.kind==='external_trade_export',currency=external?record.run_metadata.external_manifest?.instrument?.currency||record.run_metadata.dataset.currency||'Unspecified':'CU';
+        link.append(node("strong", record.run_metadata.dataset.name), node("span", `${external?'Imported trades · ':''}${record.run_metadata.strategy.id} · ${stamp(record.created_at_utc)} UTC`, "small muted"), node("span", `${record.summary.total_net_pnl} ${currency} · ${record.summary.trades_taken} trades`, moneyClass(record.summary.total_net_pnl)), node("code", record.id, "run-identifier small"));
         const row = node("div", undefined, "completed-run-row"); row.dataset.runId = record.id;
         row.append(link, deleteButton(record)); list.append(row);
       }

@@ -42,6 +42,15 @@ def artifacts(root, record):
     names = {"trades.csv", "equity.csv", record["artifacts"]["report"]}
     if record.get("intratrade_risk"):
         names.add("intratrade_risk.csv")
+    if record.get("execution_decisions"):
+        from .decision_capture import SIDE_CAR
+        if record.get("artifacts", {}).get("execution_decisions_jsonl") != SIDE_CAR:
+            raise ValueError("Unsupported native decision artifact.")
+        names.add(SIDE_CAR)
+    if record.get('native_account_control'):
+        if record.get('artifacts', {}).get('native_account_control_json') != 'native_account_control.json':
+            raise ValueError('Unsupported native account-control artifact.')
+        names.add('native_account_control.json')
     if record.get('market_benchmark'):
         names.add('market_benchmark.json')
         if 'storage' in record['market_benchmark']:

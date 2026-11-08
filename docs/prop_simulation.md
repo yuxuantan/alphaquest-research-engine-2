@@ -1,6 +1,163 @@
 # AlphaQuest local prop simulation
 
-## Current behavior and navigation — updated 2026-11-07
+Current implementation (8 November 2026): later sections and the
+[execution checklist](robust_research_plan.md) supersede earlier dated pending
+statements. Native independent optimization, complete-procedure verification,
+the guided workspace and explicit frozen phase-pair lifecycle comparison are
+implemented. Supplied forward observations use the normal durable report workflow
+with exact event/cash reconciliation and advisory recovery. Prospective Funded
+observation plans support a descriptive single-path cash difference when full
+supplied coverage, calendar alignment, cash-share conservation and local frozen
+sizing checks agree. Dynamic contexts reuse the existing causal sizing owner;
+changed numerical source identity withholds conformance. Coverage, external
+strategy behavior and provider payout eligibility remain unverified. The full
+repository acceptance record is bound to its saved source snapshot; subsequent
+increments record their own validation scope. No provider or broker integration
+is production-qualified. Earlier findings and reports are preserved below.
+
+Unused independent phase campaigns support checked deletion from **Research →
+Manage campaign**. It releases only that campaign's links, preserving backtests,
+completed reports and access history. Frozen, assessed, active and dependent
+campaigns remain pinned. The [deletion contract](research_campaign_api.md#remove-an-unused-phase-campaign)
+documents confirmation, audit downloads, atomic rollback and deleted-ID protection.
+
+Historical 7 November 2026 checkpoint: saved-report prop configuration also exposed nested inner
+research, actual execution-stress reruns, causal market-condition evidence and
+durable qualification reports. That initial release stopped before
+prop policy optimization and outer replay; no prop calculations or readiness
+claims are replaced. The [research workflow](research_workflow.md#nested-inner-research)
+explains the increment and the [checklist](robust_research_plan.md) records the
+remaining complete-platform work.
+
+8 November 2026 extension: optional **Economic validation** now carries the full
+inner-qualified set into independent phase forecasts, seals the selected family,
+and replays fixed policies on the actual outer source sequence through the same
+campaign/AnalysisStore workflow. Evaluation feasibility precedes Pareto ranking;
+Funded uses one fresh account and its exact outer cash horizon. Receipt cutoff,
+retry/activation waits, empty observed sessions and abstention remain explicit.
+The [workflow](research_workflow.md#nested-economic-validation) describes the
+current controls. [Provider rule review](provider_rule_review.md) records dated
+source evidence and known discrepancies without changing historical kernels.
+Fixed-signal-path scenarios, sampled forecasts and provider/live qualification
+remain distinct. The following reliability increment adds predeclared reference
+forecasts/replays and fold-based comparison, calibration, coverage and stability
+reports in this same workflow. Families have no implicit aggregate; missing
+forecasts do not erase observed cash, and censored acquisition fees remain paid.
+Optional conservative Funded selection resamples historical sessions and
+re-estimates mean cash, preserving separate numerical-error requirements. It
+does not optimize a single-account payout percentile or claim future confidence.
+At that initial reliability checkpoint, final recommendation and native policy
+handoff were incomplete. The subsequent contracts below implement native
+chronological reruns, forecasts, candidate optimization, frozen campaign handoff
+and the complete-procedure workflow; the current acceptance record is separate.
+
+## Canonical external sources — 2026-11-08
+
+**Strategies → Import trades** validates the versioned
+[`aq-trade-export-v1` contract](designs/trade_export_v1.md) and saves an ordinary
+backtest report. Original bytes, normalized trades/risk events, exporter identity,
+declared research access and exact fee/slippage reconciliation remain inspectable.
+No market dataset, missing sessions, measured excursions or native replay are
+fabricated. Importing is distinct from model admission.
+
+The normal **Configure prop analysis → Check source → Run analysis** journey
+accepts a bounded annualized subset: identified USD NQ/MNQ with constant source
+quantity, actual-fill timestamps, intraday-flat nonoverlapping trades, complete
+ordered marks covering declared extrema, explicit contiguous business-weekday
+inventory including empty edges, and exporter-declared signal-path invariance.
+The declaration is an assumption, not independent proof of tick completeness or
+execution scalability. Other imports remain useful saved reports and explain
+why simulation is unavailable. The first M2a increment admitted annualized
+analysis only; M2b adds the independent phase policies below. External standalone
+dated/budgeted replay remains unavailable.
+
+Actual fills already include slippage. Source fees remain in net returns;
+commission overrides replace the source fee once, using one side while open and
+two at close. Every newly adverse observed mark is a jump, preserving overshoot
+when a threshold is crossed instead of inventing a fill at the threshold. The
+adapted CSV retains original net/costs and ordered events alongside per-NQ
+simulation values (one MNQ is 0.1 NQ). Observed-mark extrema are labelled
+separately from measured companion excursions. Closed-trade or extrema-only
+data cannot establish crossing order and rejects this simulation route.
+
+Ordinary reports/downloads verify saved byte hashes without re-parsing or
+recalculation. New analyses additionally verify source/canonical semantics,
+capture immutable inputs in `analysis.zip`, and include importer/adapter code in
+implementation identity. No Bridge or other external prop engine/results are
+used. [Independent arithmetic, boundary checks and saved product evidence](prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08).
+
+## State-aware independent phase sizing — 2026-11-08
+
+Campaigns can retain legacy fixed size lists or declare `sizing_policies` for each
+source. The latter expands every source/trial × hard MNQ cap × policy into a
+candidate. A direct phase candidate supplies optional `sizing`, containing
+`policy`, `initial_configured_capital: "50000"` and `planning_execution`.
+Omitting it preserves the existing fixed-size path. In a policy candidate,
+`micros` means the user ceiling; provider tiers and the simulation exposure cap
+still apply. Phase objectives and source membership remain independent.
+
+| Policy | Decision before each source opportunity |
+| --- | --- |
+| `fixed_contracts` | Requested whole `contracts`, constrained by declared/provider caps |
+| `fixed_dollar_risk` | Floor of `risk_dollars` divided by planned loss per MNQ |
+| `percentage_risk` | Floor of named base × `risk_percent / 100` divided by planned loss per MNQ |
+
+Percentage `reference` is exactly `initial_configured_capital`,
+`current_account_balance` or `available_drawdown_cushion`. These mean $50,000,
+$50,000 plus the current account equity change, or current equity minus its
+applicable account floor respectively. Payout account deductions reduce the
+current balance/cushion; evaluation fees never enter funded account state.
+The existing engines retain session-opening tier/daily floors and their current
+EOD trail timing. No implicit funded replacement or acquisition inputs are added.
+
+For the supported MNQ instrument (`tick_size: "0.25"`, `point_value: "2"`):
+
+```text
+planned loss / MNQ = (adverse stop distance from decision reference
+                    + tick size × (entry slip ticks + stop-exit slip ticks)) × 2
+                    + 2 × planning commission / side
+```
+
+Planning inputs must be explicit; actual future entry fills are excluded. This
+amount chooses quantity only and is never charged to the already net source
+P&L. For example, a five-point stop, one entry-slip tick, two stop-slip ticks and
+$0.50 per side imply $12.50 planned loss per MNQ: $50 risk selects four. An
+opt-in cushion constraint at exactly $50 selects three because touching the
+floor counts as a breach. Observed gaps can exceed planned loss despite this
+constraint. Min/max contracts, account/daily cushion guards and skip reasons are
+part of the saved policy; below-minimum quantity consumes no trade, fee or
+activity, while the session/calendar advances normally.
+
+The shared pure contract lives in `prop/sizing.py`; `sizing_runtime.py` maps
+source metadata/current state into it. Both existing account engines call it
+inside their normal evaluation/funded transitions. Python and matching compiled
+kernels support the same decisions; legacy default calculations retain their
+fixed path. Independent Evaluation attempt samples and dated Funded samples save
+complete decision aggregates plus up to 10,000 retained decisions per candidate.
+This limits detail bytes, not candidate membership or simulated opportunities.
+`sizing_summary.json`, `sizing_decisions.csv`, the normal report JSON and ZIP
+remain ordinary AnalysisStore artifacts. Per-trade state uses session floors;
+later EOD updates are represented by the account paths, not invented intratrade
+trail updates. The legacy float account arithmetic is retained; exact Decimal
+budget division uses the represented predecision account state.
+
+Admitted risk-based sources currently require complete canonical external
+ordered marks, causal same-close/next-open initial-stop decisions and explicit
+exporter-declared path invariance. No original future fill or excursion supplies
+the decision stop. Native fixed unguarded policies retain the existing scenario;
+native dynamic/cushion-guarded policies reject until a suitable strategy rerun
+can handle changed position callbacks and signals. New native report sidecars
+capture actual decisions/stops/fills and verify replay/cache identity, but do not
+prove invariance. All planning/source/code hashes are frozen with candidates.
+Older reports remain immutable; incompatible frozen launches fail closed.
+
+An external IS package can be compared, frozen and downloaded. Native OOS launch
+cannot generate an external strategy's outcomes, so it rejects before accessing
+data. Separately supplied external OOS assessment and chronological outer-policy
+replay remain later work. These are local model scenarios, not provider parity,
+tick-completeness certification or live execution readiness.
+
+## Current behavior and navigation — updated 2026-11-08
 
 Use an ordinary saved IS backtest/trial → **Configure prop analysis** → create an
 independent phase campaign → **Check** → **Run** → durable results/downloads →
@@ -1654,3 +1811,233 @@ cache hashes distinguish the new engine; all prior saved reports remain readable
 
 Source: [Apex Rithmic commissions and instruments](https://apextraderfunding.com/help-center/rithmic/rithmic-commissions-instruments/),
 checked 29 October 2026. The schedule is not a live guarantee of future fees.
+
+### Native chronological account-controlled replay — 2026-11-08
+
+The normal prop configuration/check/run workflow also supports
+`mode: "native_phase_replay"`. This mode reruns the actual native strategy over
+an explicit historical IS window and saves a normal RunStore backtest plus an
+AnalysisStore report. It is one historical scenario, not a Monte Carlo estimate,
+phase optimizer, frozen outer assessment or deployment recommendation. The
+subsequent optional native forecast is a separate report component. This
+historical component does not select policies; independent native IS campaigns
+perform selection through the later contract below.
+
+The initial admitted subset is the current VWAP strategy, actual continuous/base
+MNQ prices, tick size 0.25, point value 2, complete one-minute sessions, EOD-flat
+enabled and strategy-local volatility sizing disabled. Source checking validates
+all original dataset bytes, source/risk/cost identity, current strategy identity,
+whole sessions inside the saved IS report, the reviewed exchange calendar and
+every observed minute from 17:01 Chicago through the scheduled close. Maintenance
+gaps may make the dataset's original spacing metadata irregular; the check proves
+minute cadence separately inside sessions. It does not impute missing bars.
+Missing open sessions, sparse or partial sessions, unreviewed dates, NQ relabeling,
+dated-contract expiry, incompatible point values and other strategies reject.
+The first capture contract supports at most 366 calendar days and 510,000 bars.
+
+`KnownDecisionRisk` contains only the completed decision close, causal initial
+stop, timestamp and current account state. The owner accepts a whole-MNQ quantity
+or skips before VWAP commits its entry counter/latches. The existing execution
+engine then fills the accepted order on the actual next open. Actual gap loss may
+exceed planned stop risk. Existing strategy brackets and provider loss floors
+share the ordinary conservative OHLC/gap fill rules. Planning commission and
+entry/stop slippage must match saved actual execution settings; planning loss is
+never deducted from P&L. Session/EOF boundaries require flat actual exposure and
+no pending orders; this mode does not invent end-of-data liquidation.
+
+Evaluation owns fees, sequential provider-account retries, activation and
+censoring. Strategy features continue causally across retries; only provider
+state resets, with prior-attempt trading P&L retained in the ordinary trade
+ledger. Funded starts with one fresh account, has no acquisition inputs or
+replacement, and separately saves requests, gross account deductions, modeled
+trader receipts and pending amounts. The normal backtest retains initial trading
+capital plus actual trade net P&L. A cash bridge translates provider floors and
+withdrawals without subtracting them a second time from trading equity.
+
+The request declares phase/profile, size cap, optional common sizing policy and
+inclusive CME session period. Evaluation accepts only its retry contract. Funded
+requires explicit modeled receipt lag and amount convention. The server derives
+the versioned calendar. Reports capture the request, source check, complete
+session inventory, code identity, provider-rule review, actual child backtest,
+sizing decisions, control events, session states, cash ledger, CSVs and ZIP.
+Controlled results have their own research role and cannot be reused as ordinary
+unconstrained IS paths. Generic detailed/risk reproduction rejects them; their
+original full trade/risk/decision/control artifacts remain downloadable.
+
+MNQ has an explicit `cme_mnq` calendar mapping, separate from instrument price and
+multiplier identity. CME's [Micro E-mini contract fact card](https://www.cmegroup.com/trading/equity-index/files/cme-micro-e-mini-futures-fact-card.pdf)
+specifies MNQ's multiplier/tick and 17:00–16:00 Chicago session. The mapping shares
+the existing reviewed equity-index closure CSV, preserving its checksum and
+coverage; it does not extrapolate later holidays. Its first allowed session is
+6 May 2019, supported by [CME's launch notice](https://www.cmegroup.com/notices/ser/2019/04/SER-8360.html).
+The saved CSV currently ends on 2 November 2026. This is an EOD-close calendar,
+not a complete intraday halt or individual-contract expiration calendar. Provider
+rule equivalence, liquidity, OHLC ordering and settlement remain explicit
+unverified assumptions. Earlier reports and numerical evidence are unchanged.
+
+
+### Native contiguous-block forecasts — 2026-11-08
+
+The same native prop form can optionally add `native_forecast`. The actual
+historical child and its calculation remain separate from all modeled paths.
+`native_draws.py` indexes the immutable admitted source sessions and samples
+complete contiguous blocks of 1, 5 or 10 sessions, retaining loss and no-trade
+blocks. Pools match session lengths, close/cutoff shape and relative calendar
+gaps. A short final draw uses a declared leading prefix of a complete block.
+Missing compatible shapes reject; there is no circular price wrap, price
+rebasing, lucky redraw or discarded execution failure.
+
+Each block creates the normal strategy and warms its features using every
+permitted source bar strictly before that block, with entry admission disabled.
+Warmup has no provider callbacks, trades or fees. The existing engine then
+executes the actual source bars. Strategy state resets at the declared block
+boundary; provider state and actual trading cash persist across blocks. Original
+source timestamps/prices remain intact, with explicit mappings to chronological
+modeled account dates. Source row indices are one-based ordinals of the admitted
+selection, not raw dataset file lines. The report also saves source timestamps,
+dataset bytes/hash, period and original bars for exact identification.
+
+A versioned, explicit America/Chicago target-calendar declaration supplies
+weekdays, full closures and optional early closes. It is labeled modeled and
+exchange-unverified, separately from the reviewed historical source calendar.
+Starts must be after the last admitted IS session. Every start has an exclusive
+calendar-day cutoff and at least one modeled open session. Target coverage must
+include all cutoffs. Total paths are allocated equally across sorted distinct
+start cohorts. Addressed random streams bind seed, phase, path index and draw
+slot, so adding later paths cannot shift earlier draws.
+
+Evaluation retains every attempt, fee, readiness date and censored path. If any
+path has not acquired an account by cutoff, eventual acquisition cost/time means
+remain null; restricted fees/durations and completion probability remain visible.
+Funded starts one fresh account and estimates cash received by the finite cutoff,
+with separate pending cash, gross account deductions and provider equity change.
+No Evaluation inputs or implicit replacement account enter it. All path summaries
+and schedules are retained; only the first declared K paths retain full detail,
+chosen before outcomes. Equal-cohort means and conditional Monte Carlo standard
+errors are separate from account outcome percentiles and future uncertainty.
+Each cohort needs at least two paths for an MC standard error; one-path cohort
+means remain visible with unavailable precision. Historical-law uncertainty and
+provider/settlement qualification are not supplied by these error bars.
+
+Preflight counts source-content validation, feature warmup and actual sampled
+execution, bounded at 10 million bar work, 16 MiB encoded schedules and a 100 MiB
+estimated detail allowance. The estimate does not guarantee encoded size.
+Publication enforces 128 MiB for component files plus embedded `report.json`,
+excluding the separate compressed ZIP. Excess work rejects before job reservation;
+excess encoded output fails publication without dropping paths or truncating
+captures. Rebuilt execution schedules must match the checked plan exactly, and
+source/code identities are rechecked after both actual and modeled calculations.
+A failed forecast does not publish a completed combined report; an already-saved
+actual historical child remains inspectable.
+
+Normal downloads add `native_forecast_plan.json`, `native_forecast.json`,
+`native_forecast_paths.json`, `native_forecast_schedules.json` and
+`native_forecast_captures.json`. At this initial forecast increment, optimizer
+integration, historical refitting and frozen outer application were pending;
+the following contracts now implement them separately. See the
+[saved workflow and independent expected values](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08).
+
+
+# Native independent phase search contract and limits — 8 November 2026
+
+Additive `search_settings.native_execution` selects actual strategy/account-state
+reruns; omission keeps the saved-trade calculation path and existing defaults.
+Its fields are `model: observed_contiguous_blocks_with_prior_prefix_v1`, explicit
+`horizon_calendar_days` (1–365), `early_closes` date-to-HH:MM map (default empty),
+and `capture_paths` (default 1, maximum 20). Candidate `simulation` supplies the
+path count/seed; `sampling.block_weekdays` supplies 1, 5, or 10 source sessions.
+Evaluation's chain count/seed must agree with that single declared path law.
+Funded's horizon must equal the native execution horizon. Both use the existing
+phase calendar; modeled cohort starts follow admitted IS observations. Calendar
+declarations, rules and settlement assumptions retain their verification status.
+
+Native Evaluation and Funded support both local Apex EOD 50K and LucidFlex 50K.
+Lucid Evaluation requires the standard 40% consistency rule and zero activation
+fee. Saved-trade-path Evaluation continues to reject Lucid. Native profile
+availability is exposed separately in ordinary campaigns and nested studies;
+saved choices, fees and timing are retained when a changed execution method is
+incompatible. Check/preview must succeed before execution.
+
+Implementation identities retain all declared numerical source hashes and now
+explicitly include both provider backends, Lucid rules/engine, exact-money
+arithmetic and selected runtime kernel identities. Changed identities reject
+frozen launches; older reports are preserved and remain readable. No provider
+or numerical-reference certification follows from those identity checks.
+
+Admission requires the existing DatasetStore and actual supported continuous
+MNQ VWAP source, original execution costs, compatible session calendars and
+complete source identity. Public selection remains IS only. Private nested and
+terminal training contexts must verify exact source/frozen membership; a public
+request cannot set those contexts. Supplemental saved-trade excursion files,
+unsupported strategies/scaling and incompatible calendars reject explicitly.
+
+Evaluation retains the independent acquisition-cost/calendar-time Pareto
+contract. Eventual acquisition means are unavailable when required paths remain
+censored; fees spent on those paths are still saved. A visible resolved frontier
+does not make an unresolved declared family safe to freeze. Funded retains mean
+cash actually received within the saved horizon, conditional on one fresh
+funded account. No Evaluation fee/pass statistic enters its selection. All
+candidates remain in the saved report, including unresolved and infeasible rows.
+
+Native manual OOS applies the complete frozen family chronologically through
+normal controlled backtests; it does not resample, shorten the frozen horizon,
+rerank or fit new policies. The original source must cover every required actual
+session. Controlled children are pinned before execution and captured within the
+ordinary AnalysisStore result. Reopening reads saved artifacts.
+
+## Optional conservative native expected cash
+
+Use the explicit method `native_origin_block_bootstrap_lower_mean_v1` inside
+`conservative_objective`; the saved-trade method is not silently substituted.
+Chronological blocks of original source-block origins are sampled into frequency
+weights. Each weighted draw still executes its intact original bars with that
+origin's strictly prior original feature prefix. Prices are never spliced into
+a counterfeit history and quantities are never rewritten after execution.
+
+Every refit reruns the same Funded owner. Saved evidence retains origin indices,
+weights/seeds/hashes, individual cash outcomes, schedule hashes, conditional
+means and Monte Carlo standard errors. The lower historical-mean order statistic
+uses nominal family tail `(1-confidence_level)/complete_candidate_count`; at
+least five expected tail replicates and the declared history/block minima are
+required. Every cohort needs at least two inner paths, at most 512 in total.
+A required calendar-shape pool with zero positive weight makes that refit and
+its lower-mean objective unresolved; it is never redrawn, dropped or replaced
+with the point mean. An insufficient family has no conservative winner.
+
+This estimates uncertainty under an explicit origin-frequency/stationarity
+model conditioned on original feature prefixes. Origins overlap; they are not
+independent new histories. More Monte Carlo paths do not increase historical
+sample size. The lower mean is not a single-account payout percentile, a future
+cash guarantee, execution certification or verified provider parity. Conditional
+Monte Carlo error remains a separate diagnostic.
+
+## Bounded complete-family work and saved outputs
+
+Admission checks the entire declared family before running: at most 50,000,000
+bar operations, 16 MiB of complete point-forecast schedules and 100 MiB estimated
+captures/refit metadata. Historical origin capture is limited to 1,000,000
+indices. Conservative refit work is included in the family bound. Bounds never
+truncate candidate membership, pools or outcomes. Final encoded artifacts plus
+embedded report JSON must fit the existing 128 MiB publication limit.
+
+Ordinary downloads include `native_forecasts.json`,
+`native_forecast_paths.json`, `native_forecast_schedules.json`,
+`native_forecast_captures.json`, and (for frozen assessments)
+`native_chronological_replays.json` plus the normal controlled backtest files.
+History refit evidence is saved with the existing conservative objective export.
+
+
+The saved API/browser journey and targeted release evidence are recorded in `prop_simulation_review.md`. Full-goal qualification and provider/live parity are separate.
+
+## Research workspace integration (8 November 2026)
+
+**Backtests → Research** is navigation over existing phase/nested campaigns,
+applications and editable drafts. Draft/template configuration lives in the same
+AnalysisStore catalogue; ordinary source checks, independent numerical owners,
+workers and durable reports remain authoritative. Templates cannot transfer
+source identities or results. Draft revisions prevent stale overwrites; missing
+sources and unsupported policy families are preserved and block fresh execution.
+Saved evidence is shown through actual-session timelines, qualification plots
+and matched Funded forecast/actual receipt plots with complete tables/downloads.
+No new simulation, selector or separate result store is introduced. See the M4
+normal-product journey and expected observations in `prop_simulation_review.md`.

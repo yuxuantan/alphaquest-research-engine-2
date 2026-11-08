@@ -1,9 +1,17 @@
 # Independent Evaluation and Funded optimization
 
+Current extension, 8 November 2026: the [robust research plan](robust_research_plan.md)
+implements nested qualification, independent phase selection, frozen chronological
+outer tests, reliability, complete-procedure verification, current selection and
+supplied forward observations through the existing backtest/AnalysisStore workflow.
+The original 7 November increment implemented inner qualification only. Dated
+findings below retain their original scopes; full repository acceptance remains
+separate from individual feature and provider qualification.
+
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
 Specification and incremental implementation plan, consolidated 2026-11-06.
-Final code baseline: `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus cleanup diff.
+Historical cleanup baseline: `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus cleanup diff.
 The qualification record is [here](prop_simulation_review.md#final-architecture-cleanup--2026-11-06).
 **Implemented: standalone Evaluation/Funded backends, saved-trial campaigns,
 portal visual comparisons, named IS freeze and manual frozen OOS assessment.
@@ -132,9 +140,11 @@ supersede planned choices for this backend version. In particular:
   All source windows/cost protocols must match and sources must be declared IS.
 
 The standalone release implemented the backend portion of P1/P2. Subsequent
-campaign/portal work added UI, saved candidate controls and freeze/OOS; **the full
-original P1/P2 exits remain partial** because simultaneous inference and broader
-research qualification are still pending.
+campaign/portal work added UI, saved candidate controls and freeze/OOS. The
+complete local research workflow is qualified by the 8 November 2026 2,315-test
+acceptance gate. **The original P1/P2 certification exits remain partial**:
+simultaneous dominance inference and provider certification remain outside that
+local point-estimate and workflow verdict.
 See the [review evidence](prop_simulation_review.md#standalone-evaluation-optimizer--2026-11-06)
 for actual normal-backtest → API check/run → saved results/downloads, independent
 arithmetic and limitations. No numerical/provider parity beyond those checks is
@@ -676,7 +686,7 @@ criteria. Prefixes separate this work from portfolio M1/M2.
 
 | Milestone | Concrete artifact and normal user journey | Exit criteria | Verified status / remaining exit |
 | --- | --- | --- | --- |
-| P1: single-candidate Evaluation | Phase contracts, single-source admission, dated acquisition sampler/metrics. Saved IS report → Configure Evaluation → profile/whole MNQ size/timing → Check → Run → durable report. | No funded dependency; every requested evaluation metric or explicit censoring reason; independent chain/cost/calendar cases and invalid-source checks saved. Single candidate is explicitly not yet a search. | Implemented for Apex dated acquisition; Lucid dated Evaluation rejects. Current synthetic arithmetic/browser qualification is linked above; no provider certification. |
+| P1: single-candidate Evaluation | Phase contracts, single-source admission, dated acquisition sampler/metrics. Saved IS report → Configure Evaluation → profile/whole MNQ size/timing → Check → Run → durable report. | No funded dependency; every requested evaluation metric or explicit censoring reason; independent chain/cost/calendar cases and invalid-source checks saved. Single candidate is explicitly not yet a search. | Saved-trade-path dated acquisition supports Apex and rejects Lucid. The later native extension supports Lucid Evaluation through actual strategy reruns; the original fixed-path restriction remains. No provider certification. |
 | P2: Evaluation search and Pareto | Candidate references across saved strategies/jobs, bounded sizes/profiles, comparison and frontier in the same configuration/report. Minimal immutable campaign revision persisted. | Multi-strategy/multi-job fixture, exact within-phase search coverage, all frontier/tie/unresolved candidates, marginal-cost diagnostics and simultaneous uncertainty; no lambda or funded inputs. | Saved-candidate search/UI implemented; simultaneous dominance and precision qualification remain open. Full original exit is partial. |
 | P3: conditional Funded optimization | Independent funded runner, dated settlement, horizon metrics, sizes/profiles and saved candidate set support. Saved IS report → Configure Funded → candidates/profile/size range/horizon → Check → Run → report. | Works with no successful evaluations or evaluation fields; horizon receipt/survival/zero-payout cases, full ranking and missing-precision states; ledger and joint regressions unchanged. Can proceed after P1 shared contracts without depending on P2's selected result. | Apex/Lucid fresh-funded backend, campaigns/UI and receipt boundaries implemented; certified risk/precision and provider settlement verification remain open. |
 | P4: bounded campaign generation | Extend campaign form to declare multiple strategy parameter grids and link ordinary optimization jobs/trials; preserve saved-candidate entry. | Search caps/failed trials/aliases recorded; common IS protocol checked before jobs; deterministic serial/parallel results and resume; every result opens its original trial and phase report. | Saved-job/trial expansion and bounded sizing implemented. Automatic new-grid generation/adaptive refinement/resume orchestration are pending; full milestone incomplete. |
@@ -712,3 +722,86 @@ temporary servers owned by the checks. Test counts alone do not close a mileston
 - Portfolio allocation and monthly-cap optimization remain optional later work.
   Neither completion of this plan nor a best phase estimate establishes the best
   multi-account cash allocation or trading readiness.
+## 8 November 2026: native candidate and complete-procedure integration
+
+Independent campaigns and nested studies now support the explicit native
+contiguous-block execution method. Each admitted candidate reruns the actual
+strategy and phase account owner with its fixed-contract, fixed-dollar or
+percentage policy. Evaluation still selects an acquisition-cost/calendar-time
+Pareto family; Funded still selects finite-horizon receipts from a fresh account.
+All declared members stay in the search; native origin-weight refits provide an
+explicit conservative historical-mean option with separate Monte Carlo precision
+and unresolved-family handling. The previous fixed-path calculation remains the
+default when native execution is omitted.
+
+Native selected families apply to actual outer and manual OOS bars without
+resampling, horizon shortening or reselection. Complete procedures freeze the
+qualification/search algorithm, references and evidence rules, then rerun terminal
+selection on pinned eligible development. Protected final assessment is optional,
+audited and permanently consumed when authorized. A separate current-development
+application produces a research candidate or an explicit no-qualified-candidate
+result; it cannot promote a last-fold winner or use final outcomes to reselect.
+
+Current owners remain the respective phase profiles/optimizers, shared
+admission/capture, strict dispatch, existing campaign worker and AnalysisStore.
+`native_search.py` adapts candidates; `research_access.py` and
+`research_procedure*.py` own local access/complete-procedure orchestration. No
+Bridge runtime, joint selector, second account engine or result database enters
+this path. See current contracts in [prop simulation](prop_simulation.md),
+[campaign API](research_campaign_api.md) and saved product journeys in
+[prop review](prop_simulation_review.md).
+
+This extends the earlier dated findings; it does not erase their evidence. Guided
+catalogue/templates, predefined frozen-pair comparison and supplied timestamped
+monitoring were pending at that checkpoint and are implemented below. A complete
+passing repository acceptance gate was required at that checkpoint and passed
+on 8 November 2026; see the [final record](robust_research_plan.md#final-acceptance-record).
+Provider, broker, numerical-reference and operational readiness are separate
+qualification boundaries; no live integration is declared production-ready.
+
+### M4 workspace integration (8 November 2026)
+
+The existing portal now has a searchable research catalogue and revisioned
+pre-work drafts/settings templates. Complete source membership, source-bound
+baselines and unsupported declarations are preserved; normal preview is required
+before execution. Final/current statuses remain distinct. Numerical phase owners
+and their declared identities are unchanged. Saved report visuals expose actual
+folds, parameter qualification and matched receipt outcomes without selecting
+again. See the M4 journey in `prop_simulation_review.md`. Frozen-pair lifecycle
+comparison and timestamped monitoring were added by the next section; final
+system acceptance remains separately recorded.
+
+### Downstream pair and observation integration (8 November 2026)
+
+The predefined frozen-pair request composes the existing native phase controllers
+on one common observed OOS timeline. Actual Evaluation readiness determines the
+fresh Funded continuation; neither independent optimizer receives the other
+phase's inputs or changes its frozen objective. All named pairs remain in order
+without ranking. The original independent Funded horizon remains distinct from
+the remaining historical continuation. Unsupported budgets/providers/backends
+reject, and legacy joint/datetime/budgeted modes remain supported.
+
+Current-procedure observations resolve their selected package from the normal
+immutable application report. Signals/orders/fills are supplied timestamped
+records, not adapted historical backtests. Separate observed cash, execution
+reconciliation, advisory states and source-access exposure use the existing
+AnalysisStore. Model/provider/platform verification remains explicit and no order
+placement is enabled. Release qualification counts and outstanding full-suite
+acceptance are recorded in `robust_research_plan.md` and the review evidence.
+
+### Native Lucid Evaluation and captured runtime identity
+
+The native method now exposes Lucid Evaluation in ordinary campaigns and nested
+profile controls. Its modeled activation fee is zero; unsupported saved-path
+declarations still reject. Selected profiles, fees and retry/activation timing
+survive draft/template reloads and execution-mode changes without implicit
+substitution. The current local Lucid rule uses 40% best-day consistency; its
+finite native forecast horizon is a censoring boundary, not a provider expiry.
+
+Both phase identities capture the actual selected Apex/Lucid runtime backends
+and their source files, including the exact-money helper. The earlier Evaluation
+identity omitted Lucid files required by freezing; that caused a concrete native
+Lucid freeze failure and is corrected. Identity changes reject future frozen
+launches and cache reuse while old reports/downloads stay readable. No changed
+calculation source is filtered out to preserve old hashes. The implementation
+and qualification record distinguishes these corrections from provider parity.

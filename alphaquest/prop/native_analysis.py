@@ -131,6 +131,8 @@ def prepare(runs, source_id, trade_file=None, settings=None, export_timezone='Am
         if len(matches) == 1:
             trade_file = matches[0]['path']
     snapshot, rows = prepare_source(runs, source_id, trade_file, export_timezone)
+    if snapshot.get('source_kind') == 'external_trade_export' and resolved.get('ANALYSIS_MODE') in ('dated_lifecycle', 'budgeted_lifecycle'):
+        raise ValueError('Imported trade sources currently support annualized EOD analysis. Dated lifecycle integration requires the canonical phase-source milestone; no native research plan is fabricated.')
     from .commissions import adapt as adapt_commissions
     adapt_commissions(snapshot, rows, resolved)
     grid, days, split = day_book(rows, resolved)
@@ -187,7 +189,13 @@ def day_book(rows, settings):
             allowed=closed>=clock_time(18) or closed<=clock_time(15,45)
             trade=(net,mae,trade[2] if len(trade)>2 else None,allowed)
         by_day.setdefault(day, []).append(trade)
-    grid = pd.bdate_range(min(by_day), max(by_day))
+    declared = [json.loads(r['canonical_sessions_json']) for r in rows if 'canonical_sessions_json' in r]
+    if declared:
+        if len(declared) != 1 or not set(map(str, by_day)).issubset(declared[0]):
+            raise ValueError('External session inventory is ambiguous or excludes observed trades.')
+        grid = pd.DatetimeIndex(declared[0])
+    else:
+        grid = pd.bdate_range(min(by_day), max(by_day))
     if len(grid) > 20000:
         raise ValueError('Source exceeds 20,000 weekdays.')
     if len(grid) < 2:
@@ -442,6 +450,9 @@ def run_analysis(runs,request,staged,progress):
     inputs=staged/'inputs';inputs.mkdir()
     import shutil
     export=snapshot['excursion_input']
+    if snapshot.get('source_kind') == 'external_trade_export':
+        from .external_source import capture
+        capture(runs, request['source_backtest_id'], inputs/'external_source')
     if snapshot.get('native_risk'):
         copied=inputs/'intratrade_risk.csv'
         shutil.copyfile(runs.root/request['source_backtest_id']/'intratrade_risk.csv',copied)
@@ -461,6 +472,9 @@ def run_analysis(runs,request,staged,progress):
         raise ValueError('Native risk changed during calculation.')
     if export['path'] and digest(export['path'])!=export['sha256']:
         raise ValueError('Excursion export changed during calculation.')
+    if snapshot.get('source_kind') == 'external_trade_export':
+        from ..trade_imports import verify_import
+        verify_import(runs, snapshot['backtest'])
     (staged/'trades.csv').write_text(csv_text(rows))
     (staged/'commission_reconciliation.json').write_text(json.dumps(snapshot['commission_simulation'],indent=2,allow_nan=False))
     (staged/'evaluation_sizing.csv').write_text(csv_text(result['evaluation_sweep']))
@@ -479,7 +493,14 @@ def run_analysis(runs,request,staged,progress):
     try:
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parents[2],text=True,stderr=subprocess.DEVNULL).strip()
     except (OSError,subprocess.CalledProcessError):commit='unavailable'
+    implementation = {p.name:digest(p) for p in Path(__file__).parent.glob('*.py')}
+    if snapshot.get('source_kind') == 'external_trade_export':
+        implementation.update({str(Path('..')/name):digest(Path(__file__).parent.parent/name)
+                               for name in ('canonical_trades.py', 'trade_imports.py')})
+    contract = ('AlphaQuest computes account transitions, sampling, sizing, economics and charts locally from preserved external trade/fill/risk observations. No external prop outcomes or calculation engine are used; observed-mark liquidation and exporter completeness remain unverified assumptions.'
+                if snapshot.get('source_kind') == 'external_trade_export' else
+                'AlphaQuest local account transitions, random sampling, sizing, economics and charts; no external calculation engine or externally generated result inputs; verified local calculation reuse is recorded.')
     return dict(format_version=3,model_version=model_version(settings),source=snapshot,settings=settings,calculations=result,
-                calculation_contract='AlphaQuest local account transitions, random sampling, sizing, economics and charts; no external calculation engine or externally generated result inputs; verified local calculation reuse is recorded.',
+                calculation_contract=contract,
                 runtime=dict(python=platform.python_version(),numpy=np.__version__,pandas=pd.__version__,native_kernel=kernel_identity(settings),prop_execution=execution_diagnostics(),calculation_key=calculation_key,calculation_reused_from=reused_from),
-                application_commit=commit,implementation_sha256={p.name:digest(p) for p in Path(__file__).parent.glob('*.py')})
+                application_commit=commit,implementation_sha256=implementation)

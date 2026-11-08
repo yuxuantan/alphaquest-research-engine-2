@@ -1,11 +1,12 @@
 """Phase campaigns use normal phase calculations, reports, security and workers."""
 from uuid import UUID, uuid5
 from typing import Literal
+import sqlite3
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 from .research import ResearchConflict
-from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest, SourceWindowRequest
+from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest, SourceWindowRequest, DeleteCampaignRequest
 from .prop.adapter import canonical
 from .prop.phase_search import CandidateConfirmationRequired
 
@@ -21,6 +22,10 @@ async def call(request, method, *args):
         raise HTTPException(409, str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except sqlite3.Error:
+        detail = ('Could not update the campaign catalogue. No campaign deletion was committed; try again.'
+                  if method == 'delete' else 'Could not read or update the campaign catalogue; try again.')
+        raise HTTPException(500, detail) from None
     except (ValueError, TypeError, OSError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -39,7 +44,9 @@ async def history(request: Request, source_id: str | None = Query(default=None, 
 @router.get('/defaults')
 def defaults():
     from .prop.phase_profiles import rule_version
-    return dict(profiles={name:rule_version(name) for name in ('apex-50k-eod', 'lucidflex-50k')})
+    from .prop.native_replay import defaults as native_defaults
+    return dict(profiles={name:rule_version(name) for name in ('apex-50k-eod', 'lucidflex-50k')},
+        native_execution=native_defaults()['native_forecast'])
 
 
 @router.get('/sources')
@@ -59,6 +66,16 @@ async def status(id: UUID, request: Request):
     return await call(request, 'get', id.hex)
 
 
+@router.get('/{id}/deletion')
+async def deletion_preview(id: UUID, request: Request):
+    return await call(request, 'deletion_preview', id.hex)
+
+
+@router.delete('/{id}')
+async def delete(id: UUID, body: DeleteCampaignRequest, request: Request):
+    return await call(request, 'delete', id.hex, body)
+
+
 @router.post('/{id}/check')
 async def check(id: UUID, request: Request):
     return await call(request, 'validate', id.hex)
@@ -67,6 +84,17 @@ async def check(id: UUID, request: Request):
 @router.post('/{id}/run', status_code=202)
 async def run(id: UUID, request: Request):
     return await call(request, 'run', id.hex)
+
+
+@router.post('/{id}/cancel')
+async def cancel(id: UUID, request: Request):
+    campaign=await call(request,'get',id.hex)
+    if not campaign.get('analysis_id'):
+        raise HTTPException(409,'This campaign has no running analysis.')
+    try:
+        return await run_in_threadpool(request.app.state.prop_analyses.cancel_phase,campaign['analysis_id'])
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from exc
 
 
 @router.get('/{id}/candidates')
@@ -98,7 +126,7 @@ async def assessments(id: UUID, request: Request):
 
 @router.post('/{id}/assessments', status_code=202)
 async def assess(id: UUID, body: AssessmentRequest, request: Request):
-    from .research_api import run_oos, OOSRequest
+    from .research_api import run_oos_impl, OOSRequest
     attempt, fresh = await call(request, 'begin_assessment', id.hex, body.request_id)
     if not fresh:
         return attempt
@@ -107,7 +135,8 @@ async def assess(id: UUID, body: AssessmentRequest, request: Request):
         for parent in attempt['parent_source_ids']:
             # The existing manual OOS path enforces dataset/strategy/parameter/
             # execution identity and records unlimited prior-access attempts.
-            result = await run_oos(UUID(parent), OOSRequest(request_id=uuid5(UUID(body.request_id), parent)), request)
+            result = await run_oos_impl(UUID(parent), OOSRequest(request_id=uuid5(UUID(body.request_id), parent)), request,
+                automatic_prop=not attempt.get('native_chronological',False))
             if not isinstance(result, dict):
                 import json
                 result = json.loads(result.body)
@@ -124,6 +153,10 @@ async def assess(id: UUID, body: AssessmentRequest, request: Request):
 
 @router.get('/{id}/exports/{kind}')
 async def export(id: UUID, kind: str, request: Request):
+    if kind == 'deletion_record.json':
+        value = await call(request, 'deletion_record', id.hex)
+        return Response(canonical(value), media_type='application/json',
+            headers={'Content-Disposition': f'attachment; filename="{id.hex}-{kind}"'})
     row = await call(request, 'get', id.hex)
     if kind in ('campaign.json', 'frozen_package.json'):
         value = row if kind == 'campaign.json' else row['frozen']

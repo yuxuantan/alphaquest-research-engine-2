@@ -29,6 +29,65 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
+**Strategies → Import trades** accepts complete, versioned trade/risk
+exports and saves an ordinary report with original bytes, provenance and exact
+cost reconciliation. Eligible ordered-mark sources can continue through
+**Configure prop analysis → Check source → Run analysis** for the existing
+annualized model. No market bars or native strategy replay are invented. See the
+[export contract](docs/designs/trade_export_v1.md),
+[import steps](docs/research_workflow.md#external-trade-imports) and
+[saved demonstration](docs/prop_simulation_review.md#canonical-external-trades-and-local-prop-analysis--2026-11-08).
+Eligible exported IS sources also support independent phase campaigns with
+fixed-contract, fixed-dollar and percentage-risk policies. Every percentage
+policy names its capital/balance/cushion base. Native risk-based resizing requires
+a strategy rerun; captured stops alone do not establish an invariant signal path.
+
+The same saved report's **Configure prop analysis** screen now includes
+**Nested research**: preview rolling/expanding session windows, declare inner
+qualification criteria, run ordinary isolated backtests, and reopen/download
+every candidate's evidence. Named execution scenarios rerun real fills; causal
+market-condition evidence exposes unknown labels and optional versus required
+conditions. Signal neighborhoods exclude quantity/display settings. Optional
+**Economic validation** hands every qualified configuration to independent phase
+searches, freezes the selected family before outer evaluation, and saves modeled
+cash on the actual chronological outer sequence. Forecasts, pending receipts and
+provider-rule gaps remain separate. Predeclared references now run through the
+same phase reports, and consolidated reliability retains every fold, family,
+missing outcome and acquisition censoring. Funded studies may explicitly select
+a historical lower estimate of mean received cash, with history and Monte Carlo
+precision requirements. **Native account-state replay** now reruns complete
+one-minute MNQ/VWAP historical sessions with causal quantity decisions, actual
+fills and separate provider/cash ledgers. Its optional native Monte Carlo forecast
+replays observed contiguous blocks with prior-only feature warmup and a separately
+declared modeled calendar. Independent campaigns and nested studies can use this
+native execution mode for fixed contracts, fixed dollars or percentage risk;
+the selected policies rerun the actual later bars with account control.
+Native Evaluation supports Apex EOD and LucidFlex; Lucid's modeled activation
+fee is zero. The saved-trade-path Evaluation method remains Apex-only. Profile
+choices, fees and timing survive draft reloads and execution-mode changes;
+unsupported combinations require an explicit correction before running.
+Complete research procedures can also be frozen, assessed against a protected
+final window, and rerun on eligible development history for a current research
+candidate. Final assessment cannot select a replacement winner. Metadata-only
+uploads and durable local access history distinguish protected, already accessed
+and unknown-history data. **Research** gathers saved campaigns and
+editable drafts with search, filters and the next available action. Drafts
+preserve source-bound settings; reusable templates require fresh source selection
+and preview. Reports include observed-session fold timelines, parameter
+qualification plots and matched forecast/actual receipt plots with full tables.
+Optional explicit frozen Evaluation/Funded pairs now run on a common finite
+calendar window with separate fees, receipts and pending cash. Current-policy
+reports can launch independent supplied forward observations, reconciliation and
+advisory pause/recovery. These records do not place broker orders. Prospectively
+declared complete Funded observations can show a descriptive forecast/cash
+difference with exact coverage and calendar assumptions. Supplied causal sizing
+contexts are checked against the frozen sizing law. Missing evidence withholds
+comparison; neither check verifies an external platform. Local research qualification passed on 8 November 2026: **2,315 tests**, including
+176 browser cases, with no failures or skips. Provider and live-execution
+qualification remain separate; see the saved acceptance record.
+See the [complete workflow](docs/research_workflow.md#first-complete-campaign-a-practical-walkthrough)
+and [implementation checklist](docs/robust_research_plan.md).
+
 From **Strategies → New backtest**, save an IS grid, open a trial report, then
 **Configure prop analysis → Create Evaluation campaign / Create Funded campaign**.
 Evaluation minimizes acquisition cost and calendar time with a complete estimated
@@ -81,7 +140,9 @@ Results and input/provenance records persist as JSON/CSV/SVG/ZIP downloads.
 For the supplied VWAP backtest, the matching MultiCharts XLSX is selected after
 all trade IDs, directions, UTC entry times, quantities and net costs reconcile.
 Its measured excursions supplement native trade storage. Without a matching
-export, the local model uses an explicitly disclosed close-only fallback.
+export, captured native risk supplies conservative held-OHLC excursion bounds
+when available; otherwise the report discloses a close-only fallback. Bar bounds
+are not measured tick MAE/MFE.
 The retained legacy annualized default uses one source with nonoverlapping trades,
 Apex 50K EOD,
 $49 evaluation + $129 activation, 30% holdout, block 5, 20 slots and standard
@@ -157,7 +218,7 @@ Each immutable `Bar` carries its 1-based data-record number, UTC close timestamp
 
 ## Backtest execution engine
 
-`alphaquest.execution.execute(bars, strategy, config)` yields immutable `Trade` and `EquityPoint` events incrementally. It fills long entries and full closes at the observed Close with adverse slippage, charges commissions on both sides, and calculates cash and mark-to-market equity using exact Decimal monetary arithmetic. Quantity stays fixed for the life of each position. Entry time/price/quantity passed back to the strategy are actual simulated fills. No green-bar counting, holding period, sizing policy, or implicit liquidation sits in the engine.
+`alphaquest.execution.execute(bars, strategy, config)` yields immutable `Trade` and `EquityPoint` events incrementally. The engine supports long and short positions, strategy-declared same-close or next-open market entries/full closes, and next-bar stop/target brackets under explicit OHLC fill assumptions. Market fills apply adverse slippage; commissions are charged on both sides, and cash and mark-to-market equity use exact Decimal arithmetic. Quantity stays fixed for each position; pyramiding and partial closes are unsupported. The strategy receives actual simulated fills. Signals and holding periods remain strategy-owned. Optional native account control admits quantities and enforces account barriers through these same fills and accounting routines.
 
 Consume the execution stream within `read_bars`' context. Write each event to a chosen sink to keep result memory bounded:
 
@@ -169,7 +230,7 @@ with read_bars(store, dataset_id) as bars:
         print(event)
 ```
 
-Same-close execution and bar-close timestamps are explicit simulation assumptions. The stream starts with initial equity, then produces one equity point per bar. It retains one point until the next bar or EOF so the final point includes the strategy's `on_finish` close. An entry on the last bar may therefore close at the same timestamp, with both fills charged. A strategy that leaves exposure open raises an error; earlier emitted results remain provisional until the stream finishes successfully. Unsupported intents and non-chronological input are rejected.
+The sample `consecutive_green_hold` strategy uses long, same-close execution; VWAP declares next-open entries and protective brackets. Recorded fill times use the containing bar's close label, not a measured intrabar timestamp. The stream starts with initial equity and produces one equity point per bar. Under default `strategy_finish` completion, the final point includes an explicit strategy `on_finish` close; a last-bar entry can therefore close at the same timestamp with both fills charged. Native `require_flat` completion rejects open exposure or pending orders without inventing EOF liquidation. Earlier emitted events remain provisional until successful exhaustion. Unsupported intents and non-chronological input reject.
 
 `EntryIntent.exit_deadline_utc` is optional strategy-supplied trade metadata. The engine records it without scheduling an exit. Run the small saved-fixture review with predetermined **test-only** intents (no production strategy or portal changes):
 
@@ -336,8 +397,9 @@ reselection. Previously accessed data is never relabelled untouched. See
 2. Open a completed backtest/trial → **Configure prop analysis** → **Create
    Evaluation campaign** or **Create Funded campaign**. Add saved trials/jobs
    from other strategies with matching source/split/cost protocols.
-3. Choose the profile, explicit MNQ size lists, candidate budget, IS window and
-   simulation/calendar settings. Evaluation compares acquisition cost/time;
+3. Choose the profile, explicit MNQ size/policy lists, IS window and
+   simulation/calendar settings. Checking counts the complete membership; searches
+   above 128 candidates require confirmation of that exact count. Evaluation compares acquisition cost/time;
    Funded compares received cash over its declared horizon with risk limits.
 4. **Save and check candidates → Run campaign**. Inspect progress, all candidate
    metrics, source links, filters and charts. Evaluation shows a Pareto frontier

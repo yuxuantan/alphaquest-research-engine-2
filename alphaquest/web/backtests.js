@@ -260,6 +260,7 @@
 
   function completion(record) {
     reportRecord = record;
+    const external = record.run_metadata.source?.kind === 'external_trade_export';
     const compact = record.report_storage?.detail === "compact";
     const compressed = record.report_storage?.compression === "gzip";
     get("#report-storage-note").textContent = compact
@@ -268,6 +269,25 @@
     if (record.market_benchmark) get("#report-storage-note").textContent += " Aligned strategy/holding bar-close equity is already saved in the Market benchmark CSV; viewing it requires no replay.";
     get("#report-json-download").href = `/api/backtests/${record.id}/exports/report`;
     get("#report-json-download").textContent = compressed ? "Report JSON.gz ↓" : "Report JSON ↓";
+    get('#report-source-download').hidden = get('#report-canonical-download').hidden = !external;
+    get('#report-source-download').href = `/api/backtests/${record.id}/exports/source`;
+    get('#report-canonical-download').href = `/api/backtests/${record.id}/exports/canonical_source`;
+    let decisionsDownload = get('#report-decisions-download');
+    if (!decisionsDownload) {
+      decisionsDownload = element('a', 'button secondary', 'Entry decisions (JSONL) ↓');
+      decisionsDownload.id = 'report-decisions-download';
+      get('#report-risk-download').after(decisionsDownload);
+    }
+    decisionsDownload.hidden = external || !record.execution_decisions;
+    decisionsDownload.href = `/api/backtests/${record.id}/exports/execution_decisions`;
+    if (external) {
+      get('#report-storage-note').textContent = 'Imported trade report · Completed fills, exact costs and trade-close equity are saved. Market bars, per-bar equity and native strategy replay are unavailable. Risk coverage remains the exporter’s declared observation basis.';
+      for (const id of ['report-generate-detail', 'report-capture-risk', 'report-risk-download']) get('#' + id).hidden = true;
+      get('#report-detail-status').hidden = true;
+      window.externalTradeImport.renderPreview({source: record.run_metadata.source, manifest: record.run_metadata.external_manifest, summary: record.summary,
+        validation: record.run_metadata.source_validation, capabilities: record.capabilities, limitations: record.limitations}, get('#backtest-completion-content'));
+      return;
+    }
     get("#report-generate-detail").hidden = !compact || record.run_metadata.research?.phase !== 'is';
     get("#report-generate-detail").disabled = detailedBusy;
     get("#report-capture-risk").hidden = !!record.intratrade_risk || record.run_metadata.research?.phase !== 'is';
@@ -276,9 +296,16 @@
     get("#report-risk-download").href = `/api/backtests/${record.id}/exports/intratrade_risk`;
     if (record.intratrade_risk) get("#report-storage-note").textContent += ` Intratrade risk: ${record.intratrade_risk.trades} trades captured from held OHLC bars; ${record.intratrade_risk.ambiguous_trades} have ambiguous adverse ordering. Uses conservative bounds, not tick measurements.`;
     else get("#report-storage-note").textContent += " Legacy risk coverage: realized close-only fallback. Capture risk from an IS replay to include held-bar excursions.";
+    if (record.execution_decisions) get('#report-storage-note').textContent += ` Entry decisions: ${record.execution_decisions.decisions} captured, ${record.execution_decisions.filled_trades} filled and ${record.execution_decisions.cancelled_decisions} cancelled. Signal-time decisions and actual fills are distinct. A captured decision may have no initial stop; the export preserves that absence. Dynamic native sizing requires a new strategy replay.`;
     get("#report-detail-status").hidden = true;
     const content = get("#backtest-completion-content");
     content.replaceChildren();
+    if (record.native_account_control) {
+      const note=document.createElement('p');note.textContent='Actual native account-controlled replay. These trades reflect strategy eligibility and quantities chosen from provider account state. Trading equity retains the original backtest capital; withdrawals and modeled trader receipts are recorded separately in the prop analysis.';content.append(note);
+      const capture=document.createElement('a');capture.href=`/api/backtests/${record.id}/exports/native_account_control`;capture.textContent='Download native account-control evidence';content.append(capture);
+      const analysisId=record.run_metadata.native_account_control?.analysis_id;
+      if(analysisId){const analysis=document.createElement('a');analysis.href=`#backtests/prop/job/${analysisId}`;analysis.textContent='Open native account-state analysis';content.append(document.createElement('br'),analysis);}
+    }
     const metadata = record.run_metadata;
     const defaults = metadata.dataset.instrument_settings;
     const overrides = metadata.instrument_overrides;
@@ -294,6 +321,7 @@
       ["Strategy", label(metadata.strategy.id)], ["Timestamp convention", record.timestamp_convention === "bar_close" ? "Bar close" : record.timestamp_convention],
       ["Dataset SHA-256", metadata.dataset.sha256], ["Strategy source SHA-256", metadata.strategy.source_sha256],
       ["Execution assumption", record.execution_assumption], ["Currency", "CU · account currency unspecified"],
+      ...(record.execution_decisions ? [["Entry decision evidence", `${record.execution_decisions.version} · ${record.execution_decisions.events} events · ${record.execution_decisions.bracket_submissions} bracket submissions`], ["Entry decision SHA-256", record.execution_decisions.sha256], ["Entry decision limitations", record.execution_decisions.policy]] : [["Entry decision evidence", "Not captured in this saved report. Historical decision times and initial stops are not inferred from later fills."]]),
       ["Dataset default tick size", defaults?.tick_size || "Not recorded"],
       ["Dataset default monetary point value", defaults?.point_value || "Not recorded"],
       ["Instrument overrides", overrides ? Object.entries(overrides).map(([key, value]) => `${executionLabels[key]}: ${value}`).join(" · ") || "None (dataset defaults)"
@@ -343,6 +371,7 @@
   get("#report-capture-risk").onclick = () => replayReport(true);
   async function replayReport(risk) {
     if (detailedBusy || !reportRecord) return;
+    if (reportRecord.run_metadata.source?.kind === 'external_trade_export' || reportRecord.capabilities?.native_replay === false) return;
     const id = reportRecord.id, operationId = crypto.randomUUID();
     const hash = location.hash;
     const status = get("#report-detail-status");
@@ -478,23 +507,24 @@
   window.addEventListener("research-split-changed", controls);
 
   function navigate() {
-    const screen = location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
+    const screen = location.hash.startsWith("#backtests/research") ? "research" : location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
     get("#strategies-screen").hidden=screen!=="strategies";
+    get("#research-workspace-screen").hidden=screen!=="research";
     get("#datasets-screen").hidden = screen !== "datasets";
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || location.hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
-    const title = screen === "datasets" ? "Datasets" : "Strategies";
+    const title = screen === "research" ? "Research" : screen === "datasets" ? "Datasets" : "Strategies";
     get("#current-screen").textContent = title;
     document.title = `${title} · AlphaQuest`;
     get("#backtests-title").textContent = "Run backtests.";
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
-      const active = link.dataset.screen === (screen === "datasets" ? "datasets" : "strategies");
+      const active = link.dataset.screen === (screen === "research" ? "research" : screen === "datasets" ? "datasets" : "strategies");
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : ["backtests", "optimizations"].includes(screen) ? "Backtests · Exhaustive parameter research" : "Dataset management · Component 1 of your research workflow";
+    get("#footer-context").textContent = screen === "research" ? "Research · Saved declarations, evidence and next actions" : screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : ["backtests", "optimizations"].includes(screen) ? "Backtests · Exhaustive parameter research" : "Dataset management · Component 1 of your research workflow";
     if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
   window.addEventListener("hashchange", navigate);

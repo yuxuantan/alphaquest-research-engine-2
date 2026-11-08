@@ -20,6 +20,67 @@ ZERO = Decimal('0.00')
 UTC = timezone.utc
 
 
+def payout_amounts(entitlement, gross_deduction, convention='usd_cents_half_up'):
+    """One cash convention, separate from already-applied account deductions.
+
+    The unrounded convention preserves existing phase forecast semantics. The
+    cents convention is the established budgeted ledger settlement assumption.
+    Neither is evidence of a bank receipt or a verified provider settlement.
+    """
+    raw, gross = Decimal(str(entitlement)), Decimal(str(gross_deduction))
+    if any(not value.is_finite() or value < 0 for value in (raw, gross)) or raw > gross:
+        raise ValueError('Payout entitlement and gross deduction must be finite, nonnegative and reconcile.')
+    if convention == 'usd_cents_half_up':
+        amount = raw.quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+    elif convention == 'kernel_entitlement_unrounded':
+        amount = raw
+    else:
+        raise ValueError('Unknown receipt amount convention.')
+    return dict(raw_trader_entitlement=str(raw), gross_account_deduction=str(gross),
+        trader_amount=str(amount), provider_retained_share=str(gross-raw),
+        rounding_delta=str(amount-raw), amount_convention=convention)
+
+
+def replay_calendar_sessions(calendar):
+    """Saved civil session calendar; no market observations are inferred."""
+    from datetime import date
+    first, end = min(map(date.fromisoformat, calendar.start_dates)), date.fromisoformat(calendar.coverage_end)
+    closed = set(calendar.closures)
+    return [first+timedelta(days=index) for index in range((end-first).days+1)
+            if (first+timedelta(days=index)).weekday() < 5
+            and (first+timedelta(days=index)).isoformat() not in closed]
+
+
+def next_evaluation_purchase(terminal_session, retry_delay_calendar_days):
+    if type(retry_delay_calendar_days) is not int or not 0 <= retry_delay_calendar_days <= 365:
+        raise ValueError('Retry delay must be an explicit whole calendar-day value.')
+    return terminal_session+timedelta(days=1+retry_delay_calendar_days)
+
+
+def acquisition_schedule(pass_session, sessions, activation_delay_sessions, *, allow_pending=False):
+    """Eligibility at session close, then readiness at the next open session."""
+    if type(activation_delay_sessions) is not int or not 0 <= activation_delay_sessions <= 365:
+        raise ValueError('Activation delay must be an explicit whole session count.')
+    index = sessions.index(pass_session)+activation_delay_sessions
+    if index+1 >= len(sessions):
+        if allow_pending:
+            return (sessions[index] if index < len(sessions) else None), None
+        raise ValueError('Frozen calendar does not cover activation eligibility and readiness.')
+    return sessions[index], sessions[index+1]
+
+
+def dated_settlement(request_date, entitlement, gross_deduction, lag, cutoff, convention):
+    """A dated request and its modeled receipt, with an exclusive cash cutoff."""
+    if type(lag) is not int or not 0 <= lag <= 365:
+        raise ValueError('Receipt lag must be an explicit whole calendar-day value.')
+    amounts = payout_amounts(entitlement, gross_deduction, convention)
+    due = request_date+timedelta(days=lag)
+    return dict(request_date=request_date.isoformat(), deduction_date=request_date.isoformat(),
+        receipt_date=due.isoformat(), received_within_horizon=due < cutoff,
+        trader_cash_received=amounts['trader_amount'] if due < cutoff else '0',
+        timing='unverified saved civil-day settlement assumption', **amounts)
+
+
 def cash(value):
     try:
         result = Decimal(str(value))
@@ -231,8 +292,9 @@ def replay(snapshot, rows, settings):
                 # Firm transitions already deducted gross equity and source trading costs.
                 # Preserve kernel precision for the account deduction; model a
                 # USD-cent bank receipt explicitly, without changing trading rules.
-                raw_entitlement=Decimal(str(payout));gross_amount=Decimal(str(gross))
-                amount=raw_entitlement.quantize(Decimal('.01'),rounding=ROUND_HALF_UP)
+                amounts=payout_amounts(payout,gross)
+                raw_entitlement=Decimal(amounts['raw_trader_entitlement']);gross_amount=Decimal(amounts['gross_account_deduction'])
+                amount=Decimal(amounts['trader_amount'])
                 due=(at.astimezone(zone)+timedelta(days=int(settings['PAYOUT_RECEIPT_DAYS']))).astimezone(UTC)
                 payout_id=len(receipts)+1
                 emit(at,'payout_request',amount=amount,payout_id=payout_id,reason='Trader entitlement only; no receipt recorded here.')
@@ -295,3 +357,59 @@ def replay(snapshot, rows, settings):
             'Evaluation profit, account equity and unused allowance are not cash. Source trading costs remain inside net trading results and are never deducted again from this cash ledger.',
             'Open accounts and obligations remain open at the horizon; no terminal value/refund. Earlier annualized and dated models remain unchanged. No additional provider/Bridge numerical parity claim.',
             'Saved fee override note: '+(settings['FEE_OVERRIDE_NOTE'] or 'User-saved prices; not a live provider-price verification.')])
+
+
+# Exact downstream combination; independent phase calculations remain owned above.
+from copy import deepcopy
+from datetime import date
+from decimal import Decimal
+from alphaquest.prop.native_money import money_add,money_sub,money_sum
+
+
+def _pair_cash_money(value):
+    amount=Decimal(str(value))
+    if not amount.is_finite():raise ValueError('Pair cash must be finite exact decimals.')
+    return amount
+
+
+def merge_pair_cash(evaluation,funded,*,first_session,cutoff_date_exclusive,child_ids):
+    """Actual receipts less actual paid fees; equity is never spendable cash."""
+    first,end=date.fromisoformat(first_session),date.fromisoformat(cutoff_date_exclusive)
+    fee=_pair_cash_money(evaluation['paid_evaluation_fees']);activation=_pair_cash_money(evaluation['paid_activation_fees'])
+    paid=money_add(fee,activation)
+    if min(fee,activation)<0 or paid!=_pair_cash_money(evaluation['paid_fees']):
+        raise ValueError('Evaluation fee totals do not reconcile.')
+    received=_pair_cash_money(funded['cash_received']) if funded else Decimal(0)
+    pending=_pair_cash_money(funded['pending_cash']) if funded else Decimal(0)
+    gross=_pair_cash_money(funded['gross_account_deductions']) if funded else Decimal(0)
+    raw=_pair_cash_money(funded['raw_trader_entitlement']) if funded else Decimal(0)
+    share=_pair_cash_money(funded['provider_retained_share']) if funded else Decimal(0)
+    rounding=_pair_cash_money(funded['receipt_rounding_delta']) if funded else Decimal(0)
+    if min(received,pending,gross,raw,share)<0 or gross!=money_add(raw,share) or money_add(received,pending)!=money_add(raw,rounding):
+        raise ValueError('Funded deduction, entitlement and receipt totals do not reconcile.')
+    events=[];totals={phase:Decimal(0) for phase in ('evaluation','funded')}
+    for phase,result in (('evaluation',evaluation),('funded',funded)):
+        for index,item in enumerate((result or {}).get('cash_ledger',[]),1):
+            event=deepcopy(item);day=date.fromisoformat(event['date']);delta=_pair_cash_money(event['cash_delta'])
+            if str(day)!=event['date'] or not first<=day<end:
+                raise ValueError('Actual cash event lies outside the common exclusive cutoff.')
+            if phase=='evaluation' and delta>0 or phase=='funded' and delta<0:
+                raise ValueError('Unsupported cash direction in phase-owned ledger.')
+            if phase=='funded' and delta and event['event']!='trader_receipt':
+                raise ValueError('Only modeled trader receipts can add Funded cash.')
+            totals[phase]=money_add(totals[phase],delta)
+            event.update(phase=phase,owner_sequence=event.pop('sequence',index),
+                native_backtest_id=child_ids[phase],cash_delta=str(delta))
+            events.append(event)
+    if totals['evaluation']!=paid.copy_negate() or totals['funded']!=received:
+        raise ValueError('Phase cash events differ from their owner totals.')
+    events.sort(key=lambda row:(row['date'],0 if row['phase']=='evaluation' else 1,row['owner_sequence']))
+    for index,event in enumerate(events,1):event['sequence']=index
+    net=money_sub(received,paid)
+    if money_sum(totals.values())!=net:raise ValueError('Pair cash ledger does not reconcile.')
+    return dict(paid_evaluation_fees=str(fee),paid_activation_fees=str(activation),paid_fees=str(paid),
+        cash_received=str(received),pending_cash=str(pending),gross_account_deductions=str(gross),
+        raw_trader_entitlement=str(raw),provider_retained_share=str(share),receipt_rounding_delta=str(rounding),
+        net_trader_cash=str(net),cash_ledger=events,
+        conservation=dict(cash_ledger_total=str(net),exact_decimal_cash=True,
+            identity='received_cash - paid_evaluation_fees - paid_activation_fees; provider deductions and account equity are not trader expenses/income'))

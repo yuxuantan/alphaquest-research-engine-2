@@ -15,9 +15,24 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
         vwap=save_vwap_source(client)
         reports={label:report_for(client,phase_request(source,funded)) for label,source,funded in
                  [('same',a,a),('different_parameters',a,b),('different_strategy',a,vwap),('recovering',recover,recover)]}
+    source_originals={record['id']:(portal['app'].state.runs.root/record['id']/'report.json').read_bytes()
+                      for record in (a,b,recover,incompatible,vwap)}
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
+    window_lookups=[]
+    def configure_with_window_lookup(link):
+        # Configure reads existing IS metadata; this is not an analysis launch.
+        url=portal['url']+'/api/research-campaigns/source-window';before=len(posts)
+        with page.expect_response(lambda response:response.url==url and response.request.method=='POST') as checked:
+            link.click()
+        response=checked.value
+        assert response.status==200
+        assert response.request.post_data_json=={'sources':[{'backtest_id':a['id'],'sizes':[1]}]}
+        assert response.json()['is_window']=={'first_session':'2026-01-05','last_session':'2026-02-20'}
+        assert posts[before:]==[url]
+        window_lookups.append(dict(request=response.request.post_data_json,status=response.status,response=response.json()))
     page.goto(portal['url']+'/#backtests/report/'+a['id'])
-    page.locator('#report-prop-setup').click()
+    configure_with_window_lookup(page.locator('#report-prop-setup'))
+    posts.clear()  # Subsequent saved report reads/reloads must make no POST.
     playwright.expect(page.locator('#prop-config')).to_be_visible()
     methods=page.locator('#prop-method option').evaluate_all('(nodes)=>nodes.map(n=>({value:n.value,label:n.textContent}))')
     assert [m['value'] for m in methods]==['annualized','budgeted_lifecycle']
@@ -49,7 +64,8 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
     # Copy a saved two-source report into the remaining fixed-size cash mode.
     legacy=reports['different_parameters']
     page.goto(portal['url']+f'/#backtests/prop/job/{legacy["id"]}')
-    page.get_by_role('link',name='Configure budgeted analysis',exact=True).click()
+    configure_with_window_lookup(page.get_by_role('link',name='Configure budgeted analysis',exact=True))
+    posts.clear()  # Missing cash assumptions must not trigger a submission.
     playwright.expect(page.locator('#prop-config')).to_be_visible()
     playwright.expect(page.locator('#prop-method')).to_have_value('budgeted_lifecycle')
     playwright.expect(page.locator('#prop-status')).to_contain_text('Set the monthly fee cap, dates and timing assumptions')
@@ -104,7 +120,7 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
     before=len(posts);page.reload();playwright.expect(page.locator('#prop-report')).to_be_visible()
     assert len(posts)==before
     page.set_viewport_size(dict(width=390,height=900))
-    page.get_by_role('link',name='Configure new analysis',exact=True).click()
+    configure_with_window_lookup(page.get_by_role('link',name='Configure new analysis',exact=True))
     playwright.expect(page.locator('#prop-config')).to_be_visible()
     playwright.expect(page.locator('#prop-method')).to_have_value('budgeted_lifecycle')
     assert page.locator('#prop-method option').count()==2
@@ -113,6 +129,9 @@ def test_phase_sources_configure_check_run_download_reopen(page,portal,tmp_path)
     for (old_id,kind,name),raw in originals.items():
         assert page.request.get(portal['url']+f'/api/prop-analyses/{old_id}/{kind}/{name}').body()==raw
     assert not any('/api/backtests' in p for p in posts)
+    for source_id,raw in source_originals.items():
+        assert (portal['app'].state.runs.root/source_id/'report.json').read_bytes()==raw
     (tmp_path/'verification.json').write_text(json.dumps(dict(synthetic=True,evaluation_source=a['id'],outcomes=outcomes,
         methods=methods,budgeted_analysis_id=id,expected_cash=totals,legacy_downloads_unchanged=len(originals),
+        metadata_lookups=window_lookups,source_reports_unchanged=len(source_originals),
         temporary_server='Stopped by fixture cleanup; no persistent server.'),indent=2))

@@ -19,7 +19,7 @@ from .adapter import canonical, digest
 from .evaluation_profiles import simulate_evaluation_profile
 from .phase_profiles import (
     EvaluationProfile, EvaluationSamplingConfig, ResearchPeriod, SavedTradeSource,
-    SimulationConfig, SourceCosts, positive_integer,
+    SimulationConfig, SourceCosts, SizingConfiguration, NativeExecution, positive_integer,
     verify_phase_source,
 )
 
@@ -60,6 +60,7 @@ class EvaluationCandidate:
     costs: SourceCosts = field(default_factory=SourceCosts)
     period: ResearchPeriod | None = None
     retry: SequentialRetry = field(default_factory=SequentialRetry)
+    sizing: SizingConfiguration | None = None
 
     def __post_init__(self):
         for name, cls in [('source', SavedTradeSource), ('simulation', SimulationConfig),
@@ -69,6 +70,8 @@ class EvaluationCandidate:
                 raise ValueError(f'Evaluation candidate requires {cls.__name__} for {name}.')
         if self.period is not None and not isinstance(self.period, ResearchPeriod):
             raise ValueError('Evaluation candidate period must be a ResearchPeriod.')
+        if self.sizing is not None and not isinstance(self.sizing, SizingConfiguration):
+            raise ValueError('Evaluation sizing must be a SizingConfiguration.')
         id = self.source.source_backtest_id
         if not isinstance(id, str) or UUID(id).hex != id:
             raise ValueError('Saved source ID must be a lowercase UUID hex string.')
@@ -76,10 +79,22 @@ class EvaluationCandidate:
             raise ValueError('Explicit source trade_file must be a string.')
         if not isinstance(self.profile, EvaluationProfile):
             raise ValueError('Evaluation selection requires only an EvaluationProfile.')
-        if self.profile.profile_id != 'apex-50k-eod':
-            raise ValueError('Dated IID optimization currently supports Apex EOD only; Lucid calendar inactivity requires a dated attempt kernel.')
         if self.sampling.computational_horizon_weekdays is not None:
             raise ValueError('Apex expiry is a provider event, not a configurable computational horizon.')
+
+
+@dataclass(frozen=True)
+class EvaluationConstraints:
+    maximum_cost_per_funded: float | None = None
+    maximum_expected_calendar_days: float | None = None
+    minimum_pass_probability: float | None = None
+
+    def __post_init__(self):
+        for name in ('maximum_cost_per_funded', 'maximum_expected_calendar_days', 'minimum_pass_probability'):
+            value = getattr(self, name)
+            if value is not None and (type(value) not in (int, float) or not np.isfinite(value)
+                    or value < 0 or (name == 'minimum_pass_probability' and value > 1)):
+                raise ValueError(f'Invalid evaluation constraint {name}.')
 
 
 @dataclass(frozen=True)
@@ -88,17 +103,29 @@ class EvaluationSearch:
     candidates: tuple[EvaluationCandidate, ...]
     calendar: AcquisitionCalendar
     mode: str = 'evaluation_optimization'
+    constraints: EvaluationConstraints | None = None
+    native_execution: NativeExecution | None = None
 
     def __post_init__(self):
         if self.mode != 'evaluation_optimization':
             raise ValueError('Unsupported phase search mode.')
+        if self.constraints is not None and type(self.constraints) is not EvaluationConstraints:
+            raise ValueError('Evaluation constraints require an EvaluationConstraints contract.')
+        if self.native_execution is not None and type(self.native_execution) is not NativeExecution:
+            raise ValueError('Native Evaluation requires an explicit NativeExecution contract.')
         if not self.candidates:
             raise ValueError('Declare at least one candidate; no implicit search truncation.')
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
             raise ValueError('The navigation anchor must belong to the candidate set.')
         for c in self.candidates:
-            if (date.fromisoformat(self.calendar.coverage_end) - max(map(date.fromisoformat, self.calendar.start_dates))).days < c.retry.max_calendar_days:
+            if self.native_execution is None and c.profile.profile_id != 'apex-50k-eod':
+                raise ValueError('Dated IID optimization currently supports Apex EOD only; Lucid calendar inactivity requires a native dated strategy rerun.')
+            horizon = self.native_execution.horizon_calendar_days if self.native_execution is not None else c.retry.max_calendar_days
+            if (date.fromisoformat(self.calendar.coverage_end) - max(map(date.fromisoformat, self.calendar.start_dates))).days < horizon:
                 raise ValueError('Calendar coverage must include every chain guard date.')
+            if self.native_execution is not None:
+                if c.simulation.simulations != c.sampling.chain_simulations or c.simulation.seed != c.sampling.chain_seed:
+                    raise ValueError('Native Evaluation has one actual path sample: simulation and chain counts/seeds must agree.')
             if c.sampling.chain_simulations % len(self.calendar.start_dates):
                 raise ValueError('Chain count must be divisible by start cohort size for equal weighting.')
 
@@ -112,35 +139,46 @@ def parse_request(raw):
             item = dict(item)
             for name, cls in [('source', SavedTradeSource), ('profile', EvaluationProfile),
                               ('simulation', SimulationConfig), ('sampling', EvaluationSamplingConfig),
-                              ('costs', SourceCosts), ('period', ResearchPeriod), ('retry', SequentialRetry)]:
+                              ('costs', SourceCosts), ('period', ResearchPeriod), ('retry', SequentialRetry),
+                              ('sizing', SizingConfiguration)]:
                 if item.get(name) is not None:
                     item[name] = cls(**item[name])
             candidates.append(EvaluationCandidate(**item))
         calendar = dict(value.pop('calendar'))
         for name in ('start_dates', 'closures'):
             if name in calendar: calendar[name] = tuple(sorted(calendar[name]))
+        if value.get('constraints') is not None:
+            value['constraints'] = EvaluationConstraints(**value['constraints'])
+        if value.get('native_execution') is not None:
+            value['native_execution'] = NativeExecution(**value['native_execution'])
         return EvaluationSearch(candidates=tuple(candidates), calendar=AcquisitionCalendar(**calendar), **value)
     except (TypeError, KeyError, AttributeError) as exc:
         raise ValueError(f'Invalid evaluation-only search contract: {exc}') from exc
 
 
-def check_search(runs, search):
+def check_search(runs, search, *, training_context=None, datasets=None):
     from .phase_search import check_candidates
-    return check_candidates(runs, search)
+    return check_candidates(runs, search, training_context=training_context, datasets=datasets)
 
 
 def implementation_identity():
     # Include local source changes, including adapters and numerical kernels.
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
-             'native_analysis.py', 'native_engine.py', 'source.py', 'commissions.py',
-             'phase_lifecycle.py', 'adapter.py', 'phase_search.py')
+             'native_analysis.py', 'native_engine.py', 'native_backend.py',
+             'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py', 'commissions.py',
+             'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py',
+             'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
+             'native_draws.py', 'native_replay.py', 'native_search.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
-    return dict(files={name: digest(Path(__file__).with_name(name)) for name in names},
-                kernel=kernel_identity({'ACCOUNT_TYPE': 'Apex EOD'}), numpy=np.__version__)
+    return dict(files={name: digest(Path(__file__).parent/name) for name in names},
+                kernel=kernel_identity({'ACCOUNT_TYPE': 'Apex EOD'}),
+                lucid_kernel=kernel_identity({'ACCOUNT_TYPE': 'LucidFlex'}), numpy=np.__version__)
 
 
 def search_key(search, checks):
     return sha256(canonical(dict(model=MODEL_VERSION, calendar=asdict(search.calendar),
+        constraints=asdict(search.constraints) if search.constraints is not None else None,
         anchor=search.source_backtest_id,
         candidates=[{k:r[k] for k in ('candidate_id','prior_access','origin_trials')} for r in checks],
         implementation=implementation_identity())).encode()).hexdigest()
@@ -288,13 +326,31 @@ def acquisition_metrics(component, profile, retry, calendar, sampling):
             restricted_mean_at_guard=float(np.mean(times)) if not any(r['event']=='attempt_guard' for r in paths) else None))
 
 
-def pareto_sort(rows):
+def apply_constraints(rows, constraints):
+    """Evaluate declared limits before nondominance, retaining every row."""
+    for row in rows:
+        reasons = []
+        for metric, limit, maximum in (
+            ('cost_per_funded', constraints.maximum_cost_per_funded, True),
+            ('expected_calendar_days_to_funded', constraints.maximum_expected_calendar_days, True),
+            ('pass_probability', constraints.minimum_pass_probability, False)):
+            value = row['metrics'].get(metric)
+            if limit is not None and (value is None or not np.isfinite(value)
+                    or (value > limit if maximum else value < limit)):
+                reasons.append(metric)
+        row.update(feasible=row['status'] == 'estimated' and not reasons, constraint_violations=reasons)
+
+
+def pareto_sort(rows, constraints=None):
     """Strict two-objective nondominance; exact ties retain full membership."""
     rows = sorted(rows, key=lambda r: r['candidate_id'])
     def point(row):
         return row['metrics']['cost_per_funded'], row['metrics']['expected_calendar_days_to_funded']
-    resolved = [r for r in rows if r['status'] == 'estimated' and all(x is not None and np.isfinite(x) for x in point(r))]
-    unresolved = [r['candidate_id'] for r in rows if r not in resolved]
+    numerical = [r for r in rows if r['status'] == 'estimated' and all(x is not None and np.isfinite(x) for x in point(r))]
+    unresolved = [r['candidate_id'] for r in rows if r not in numerical]
+    if constraints is not None:
+        apply_constraints(rows, constraints)
+    resolved = [r for r in numerical if constraints is None or r['feasible']]
     for row in rows:
         dominated_by = []
         if row in resolved:
@@ -304,7 +360,7 @@ def pareto_sort(rows):
             dominated=bool(dominated_by) if row in resolved else None,
             estimated_dominated_by=dominated_by, robust_dominated=None,
             pareto_rank=None,
-            dominance_status='estimated_only' if row in resolved else 'unresolved_not_excluded')
+            dominance_status='estimated_only' if row in resolved else 'constraint_excluded' if row in numerical else 'unresolved_not_excluded')
     remaining = {r['candidate_id']:r for r in resolved}
     rank = 0
     while remaining:
@@ -325,7 +381,17 @@ def pareto_sort(rows):
         acceleration_interpretation='USD per calendar day saved between adjacent points, not a lambda or recommendation; nonconvex Pareto points are retained')
 
 
-def optimize_evaluation(runs, search, checks=None, progress=lambda message: None, *, assessment=False):
+def optimize_evaluation(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None, datasets=None, checkpoint=lambda:None, reserve_child=None):
+    if assessment and training_context is not None:
+        raise ValueError('Assessment cannot consume a training context.')
+    if search.native_execution is not None:
+        return optimize_native_evaluation(datasets,runs,search,checks,progress,
+            assessment=assessment,training_context=training_context,checkpoint=checkpoint,reserve_child=reserve_child)
+    if training_context is not None:
+        current = check_search(runs, search, training_context=training_context)
+        if checks is not None and canonical(current) != canonical(checks):
+            raise ValueError('Nested training sources changed after checking.')
+        checks = current
     checks = checks if checks is not None else check_search(runs, search)
     configurations = {canonical(asdict(c)): c for c in search.candidates}
     rows = []
@@ -333,7 +399,9 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
         candidate = configurations[canonical(check['manifest']['configuration'])]
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Evaluating '+check['candidate_id'][:12])
         component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
-            candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs)
+            candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs,
+            **({'sizing':candidate.sizing} if candidate.sizing is not None else {}),
+            **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
         if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
             raise ValueError('Candidate source changed after source checking.')
         result = acquisition_metrics(component, candidate.profile, candidate.retry, search.calendar, candidate.sampling)
@@ -344,13 +412,67 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
         c = configurations[canonical(check['manifest']['configuration'])]
         verify_phase_source(runs, c.source, check['manifest']['source'])
     if assessment:
+        if search.constraints is not None:
+            apply_constraints(rows, search.constraints)
         for row in rows:
             row.update(pareto_member=False, dominated=None, pareto_rank=None)
         return dict(model_version=MODEL_VERSION, phase='evaluation', candidates=rows,
             frontier=[], marginal_acceleration_cost=[], winner=None, certified_frontier=False,
             selection_status='assessment_only_no_reselection',
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
-    return dict(model_version=MODEL_VERSION, phase='evaluation', **pareto_sort(rows))
+    return dict(model_version=MODEL_VERSION, phase='evaluation', **pareto_sort(rows, search.constraints))
+
+
+def optimize_native_evaluation(datasets,runs,search,checks,progress,*,assessment=False,training_context=None,checkpoint=lambda:None,reserve_child=None):
+    from .native_search import prepare_native_candidate,verify_native_candidate
+    from .evaluation_profiles import forecast_native_evaluation,native_acquisition_metrics
+    if assessment:
+        return assess_native_evaluation(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child)
+    current=check_search(runs,search,datasets=datasets,training_context=training_context)
+    if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Native candidate membership changed.')
+    checks=current;rows=[]
+    configurations={canonical(asdict(candidate)):candidate for candidate in search.candidates}
+    for check in checks:
+        candidate=configurations[canonical(check['manifest']['configuration'])]
+        progress(f'Native Evaluation candidate {len(rows)+1}/{len(checks)}')
+        inputs,plan=prepare_native_candidate(datasets,runs,search,candidate,check,private_admission=training_context is not None)
+        forecast=forecast_native_evaluation(**inputs,retry=candidate.retry,progress=progress,checkpoint=checkpoint)
+        if canonical(forecast['schedules'])!=canonical(plan['schedules']):raise ValueError('Native candidate schedule changed.')
+        provenance=dict(source=check['manifest']['source'],rules=forecast['captures'][0]['result']['modeled_rules'],
+            native_execution=asdict(search.native_execution))
+        rows.append(dict(candidate_id=check['candidate_id'],**native_acquisition_metrics(forecast),
+            native_forecast=forecast,manifest=check['manifest'],origin_trials=check['origin_trials'],
+            schedule_sha256=plan['plan_sha256'],provenance=provenance,component=dict(provenance=provenance)))
+    for check in checks:
+        candidate=configurations[canonical(check['manifest']['configuration'])]
+        verify_native_candidate(datasets,runs,search,candidate,check,private_admission=training_context is not None)
+    return dict(model_version=MODEL_VERSION,phase='evaluation',execution_model=search.native_execution.model,
+        **pareto_sort(rows,search.constraints))
+
+
+def assess_native_evaluation(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child):
+    from .phase_search import check_candidates
+    from .native_search import execute_native_assessment
+    current=check_candidates(runs,search,assessment,datasets=datasets)
+    if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Frozen native assessment sources changed.')
+    configurations={canonical(asdict(c)):c for c in search.candidates};rows=[]
+    for check in current:
+        c=configurations[canonical(check['manifest']['configuration'])]
+        execution=execute_native_assessment(datasets,runs,search,c,check,assessment,
+            reserve_child=reserve_child,checkpoint=checkpoint,progress=progress)
+        actual=execution['native_chronological_replay']
+        rows.append(dict(candidate_id=check['candidate_id'],frozen_candidate_id=check['frozen_candidate_id'],
+            **execution,manifest=check['manifest'],origin_trials=check['origin_trials'],
+            status='historical_observation',metrics=dict(observed_paid_fees=actual['paid_fees'],
+                observed_calendar_days_to_funded=actual['calendar_days_to_funded'],acquisition_completed=actual['acquisition_completed']),
+            uncertainty=dict(interpretation='One observed chronological scenario; no Monte Carlo or expected-mean estimate.'),
+            censoring=dict(censored=actual['censored'],outcome=actual['outcome']),assumptions=actual['assumptions'],
+            pareto_member=False,dominated=None,pareto_rank=None,feasible=None,constraint_violations=[],
+            component=dict(provenance=dict(source=check['manifest']['source'],sizing=actual['sizing']))))
+    return dict(model_version=MODEL_VERSION,phase='evaluation',candidates=rows,frontier=[],
+        marginal_acceleration_cost=[],winner=None,certified_frontier=False,
+        selection_status='assessment_only_no_reselection',unresolved_candidates=[],
+        execution_model='native_actual_chronological_frozen_oos')
 
 
 def write_report(runs, staged, search, checks, calculations):
@@ -359,14 +481,21 @@ def write_report(runs, staged, search, checks, calculations):
     staged = Path(staged)
     def save(name, data):
         (staged/name).write_text(canonical(data), encoding='utf-8')
-    from .phase_search import capture_inputs
+    from .phase_search import capture_inputs, write_sizing_artifacts
+    from .rule_provenance import search_review, readiness
+    provider_rules = search_review(search)
+    save('provider_rules.json', provider_rules)
     capture_inputs(runs, staged, search, calculations)
+    from .native_search import write_native_artifacts
+    write_native_artifacts(runs,staged,calculations)
+    write_sizing_artifacts(staged, calculations)
     save('source_checks.json', checks)
     save('phase_candidates.json', [dict(candidate_id=r['candidate_id'], origin_trials=r['origin_trials'],
         **r['manifest']) for r in calculations['candidates']])
     save('phase_metrics.json', [dict(candidate_id=r['candidate_id'], metrics=r['metrics'], status=r['status'],
         uncertainty=r['uncertainty'], censoring=r['censoring'], assumptions=r['assumptions'],
-        pareto_member=r['pareto_member'], dominated=r['dominated'], pareto_rank=r['pareto_rank']) for r in calculations['candidates']])
+        pareto_member=r['pareto_member'], dominated=r['dominated'], pareto_rank=r['pareto_rank'],
+        **({k:r[k] for k in ('feasible','constraint_violations')} if 'feasible' in r else {})) for r in calculations['candidates']])
     save('frontier.json', {k:v for k,v in calculations.items() if k != 'candidates'})
     save('calculations.json', calculations)
     save('request.json', asdict(search))
@@ -381,4 +510,5 @@ def write_report(runs, staged, search, checks, calculations):
     return dict(format_version=4, model_version=MODEL_VERSION, phase='evaluation', source=anchor,
         settings=dict(ANALYSIS_MODE='evaluation_optimization'), calculations=calculations,
         implementation=implementation_identity(), request=asdict(search),
+        provider_rules=provider_rules, deployment_readiness=readiness(provider_rules),
         parity_status='Independent mathematical qualification only; no provider or external-engine numerical parity claimed')

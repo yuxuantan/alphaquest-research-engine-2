@@ -280,3 +280,14 @@ def run_analysis(runs, request, staged, progress):
         calculation_contract='AlphaQuest local dated phase replay; shared account transitions; no external generated inputs.',
         runtime=dict(python=platform.python_version(),pandas=pd.__version__,calculation_backend='Python session reference'),
         implementation_sha256={p.name:digest(p) for p in Path(__file__).parent.glob('*.py')})
+
+
+def check_frozen_pairs(datasets, runs, campaigns, request):
+    """Additive downstream comparison of already frozen independent policies."""
+    from .frozen_pairs import check_frozen_pairs as check
+    return check(datasets, runs, campaigns, request)
+
+
+def run_frozen_pairs(datasets, runs, campaigns, request, checked, **options):
+    from .frozen_pairs import run_frozen_pairs as run
+    return run(datasets, runs, campaigns, request, checked, **options)
