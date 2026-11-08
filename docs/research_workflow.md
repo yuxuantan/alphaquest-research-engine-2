@@ -825,3 +825,20 @@ source files, saved IDs, field values, expected arithmetic, rejection cases and
 startup/shutdown commands. The four-configuration/two-strategy example shows why
 an honest completed campaign can retain eight Funded alternatives and still
 return no qualified candidate.
+
+
+## Cancel queued backtest work
+
+Open **Strategies → Backtest activity** to see queued/running jobs. A queued
+activity has **Cancel queued activity** in its row and detail header. Confirm to
+prevent that activity from starting; dismiss to leave it queued. The saved status
+becomes Cancelled and persists after reload/restart. Other jobs continue in order.
+If it starts before the request is accepted, cancellation is rejected and the
+page refreshes its current state. Running backtests cannot be stopped with this
+action.
+
+Cancellation retains all saved results, including reports from an earlier failed
+attempt whose resume was queued. Deleting those is a separate action with the
+existing campaign/source protections. A cancelled activity is terminal: start a
+new activity to run that declaration again. Do not restart the server to cancel
+one job, since that affects other work.

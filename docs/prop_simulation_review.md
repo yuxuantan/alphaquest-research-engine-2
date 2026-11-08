@@ -9325,3 +9325,60 @@ visually inspected and its temporary server stopped. Finished intermediate data
 was archived losslessly (1,490 verified payloads, 93.3 MB to 8.1 MB), with actual
 tar restoration checks and notices at the original paths. The release product
 libraries remain unpacked.
+
+
+## 8 November 2026 — Cancel queued backtest activities
+
+The existing **Strategies → Backtest activity** list and activity detail header
+now expose **Cancel queued activity** only while a job is queued. Confirmation
+cancels that activity; dismissal leaves it queued. The durable record retains
+its declaration, timestamp/reason and all successful prior-attempt results.
+It remains visible across reload/restart; deletion is a separate, reference-
+protected action. Cancelled activities do not auto-resume. This action does not
+stop running work or release campaign references.
+
+The normal `POST /api/backtests/batches/{id}/cancel` endpoint (optimization alias
+also supported) serializes its status transition with the worker claim using the
+existing SQLite catalogue's immediate write transaction. If cancellation wins,
+the delayed callback exits before runtime admission, source access, cache reuse
+or publication; if execution wins, cancellation returns 409 without mutation.
+Cancelled retries are idempotent. Unknown IDs return 404 and malformed IDs 422.
+Cancelled/deleted stale callbacks were checked with execution and runtime
+admission poisoned. Existing resume, parallelism, caches and report meanings are
+preserved. No new store or execution service was added.
+
+The saved product journey uses normal source/configuration → queued activity →
+detail cancellation → reload → history cancellation → active/next-job completion
+→ retained ordinary report. Its source is labeled **SYNTHETIC queued cancellation
+arithmetic**. The independent oracle uses entry 100.25, exit 101.75, point value
+10 and 2 CU round-trip commissions per contract: 13 CU per contract, hence
+`[13,26,39]` for the 1/2/3-contract trials. Both unaffected jobs produced those
+values and retained six normal reports. Both cancelled jobs stayed at zero
+trials with no start timestamp. There were exactly two cancel POSTs, no DELETEs,
+and dismissing confirmation preserved the queue. A separate queued-resume check
+preserved earlier report and prop-file hashes. No OOS execution was launched.
+
+The intact library is `artifacts/cancel-queued-activity-20261108/browser-release-v2/data/test_cancel_details_and_histor0`. Cancelled IDs are
+`204a740b74794152a127c6c53d428e5d` and `c04858f263fb4a92aa2bbbd821578550`; unaffected active/next IDs
+are `1415b0c2d79946a2a81660cd0fa7210d` and `926d4a2afc0e460cb7cc879abd548173`. Full copy/start/stop commands, normal
+URLs, input arithmetic, expected boundaries, verified downloads and gate
+reproduction are in `artifacts/cancel-queued-activity-20261108/README.md` and
+`verification.json`. Desktop and 390 px evidence was visually inspected,
+including scrolling to the table's action column. All temporary test servers
+stopped/joined; no persistent server was started.
+
+Focused qualification passed **90 distinct cases**: 60 cancellation/API/resume/
+deletion, 27 parallel/cache/compact-report, and three browser cases. Every gate
+had stable production hashes; production sources match across gates, and both
+phase numerical identities still match the earlier complete 2,315-test snapshot.
+The initial final-evidence fixture relabeling was rejected by normal duplicate-
+CSV protection; that failed setup remains preserved. The final labeled input has
+a distinct BOM identity and the final three browser cases pass. This increment
+has focused qualification, not a new full-suite or numerical/provider-parity claim.
+
+A non-reloading running app needs a backend restart before the new endpoint is
+available, followed by a browser refresh. The production catalogue had activities
+marked running and queued during this task; that server and all production jobs,
+files and records were left untouched. Restarting only to cancel one queued job
+can interrupt other work; wait for needed work to finish. Pre-update saved jobs
+retain the existing engine-identity compatibility guard.
