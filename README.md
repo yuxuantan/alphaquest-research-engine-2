@@ -82,8 +82,9 @@ advisory pause/recovery. These records do not place broker orders. Prospectively
 declared complete Funded observations can show a descriptive forecast/cash
 difference with exact coverage and calendar assumptions. Supplied causal sizing
 contexts are checked against the frozen sizing law. Missing evidence withholds
-comparison; neither check verifies an external platform. Final full-suite
-qualification remains pending.
+comparison; neither check verifies an external platform. Local research qualification passed on 8 November 2026: **2,315 tests**, including
+176 browser cases, with no failures or skips. Provider and live-execution
+qualification remain separate; see the saved acceptance record.
 See the [complete workflow](docs/research_workflow.md#first-complete-campaign-a-practical-walkthrough)
 and [implementation checklist](docs/robust_research_plan.md).
 
@@ -217,7 +218,7 @@ Each immutable `Bar` carries its 1-based data-record number, UTC close timestamp
 
 ## Backtest execution engine
 
-`alphaquest.execution.execute(bars, strategy, config)` yields immutable `Trade` and `EquityPoint` events incrementally. It fills long entries and full closes at the observed Close with adverse slippage, charges commissions on both sides, and calculates cash and mark-to-market equity using exact Decimal monetary arithmetic. Quantity stays fixed for the life of each position. Entry time/price/quantity passed back to the strategy are actual simulated fills. No green-bar counting, holding period, sizing policy, or implicit liquidation sits in the engine.
+`alphaquest.execution.execute(bars, strategy, config)` yields immutable `Trade` and `EquityPoint` events incrementally. The engine supports long and short positions, strategy-declared same-close or next-open market entries/full closes, and next-bar stop/target brackets under explicit OHLC fill assumptions. Market fills apply adverse slippage; commissions are charged on both sides, and cash and mark-to-market equity use exact Decimal arithmetic. Quantity stays fixed for each position; pyramiding and partial closes are unsupported. The strategy receives actual simulated fills. Signals and holding periods remain strategy-owned. Optional native account control admits quantities and enforces account barriers through these same fills and accounting routines.
 
 Consume the execution stream within `read_bars`' context. Write each event to a chosen sink to keep result memory bounded:
 
@@ -229,7 +230,7 @@ with read_bars(store, dataset_id) as bars:
         print(event)
 ```
 
-Same-close execution and bar-close timestamps are explicit simulation assumptions. The stream starts with initial equity, then produces one equity point per bar. It retains one point until the next bar or EOF so the final point includes the strategy's `on_finish` close. An entry on the last bar may therefore close at the same timestamp, with both fills charged. A strategy that leaves exposure open raises an error; earlier emitted results remain provisional until the stream finishes successfully. Unsupported intents and non-chronological input are rejected.
+The sample `consecutive_green_hold` strategy uses long, same-close execution; VWAP declares next-open entries and protective brackets. Recorded fill times use the containing bar's close label, not a measured intrabar timestamp. The stream starts with initial equity and produces one equity point per bar. Under default `strategy_finish` completion, the final point includes an explicit strategy `on_finish` close; a last-bar entry can therefore close at the same timestamp with both fills charged. Native `require_flat` completion rejects open exposure or pending orders without inventing EOF liquidation. Earlier emitted events remain provisional until successful exhaustion. Unsupported intents and non-chronological input reject.
 
 `EntryIntent.exit_deadline_utc` is optional strategy-supplied trade metadata. The engine records it without scheduling an exit. Run the small saved-fixture review with predetermined **test-only** intents (no production strategy or portal changes):
 

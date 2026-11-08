@@ -6,6 +6,11 @@ Audit date: 7 November 2026. Base: clean fetched `origin/main` at
 user's complete robust research request, not evidence that planned features work.
 No main commits, merges, force pushes or PR creation are authorized by this plan.
 
+**Current local verdict: complete and qualified, 8 November 2026.** The complete
+2,315-test suite and retained product evidence passed. Live deployment remains
+**not production-qualified**. See the [final acceptance record](#final-acceptance-record);
+the fresh audit and dated milestone records below preserve the earlier gaps.
+
 ## Fresh audit and requirements traceability
 
 Status meanings: **usable** = existing implementation with targeted historical
@@ -62,17 +67,17 @@ are split into coherent commits and pushed at least every one or two commits.
 | Milestone | Dependencies and implementation | Product increment and acceptance | Tests / principal risks | State |
 | --- | --- | --- | --- | --- |
 | M0: audit/plan | Fetched clean main; traceability above | Reviewable plan and documented actual gaps before code | Fresh baseline suite; no datasets/results touched | audit/plan committed; interrupted baseline recorded |
-| M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | implemented; new product gates and stable affected-module regression pass |
-| M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; preserve the entire qualified set for phase selection | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | implemented with saved API/browser evidence and stable targeted regression; phase handoff follows M2/M3 |
-| M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | implemented for canonical imports and eligible annualized local prop analyses; external phases and dynamic sizing remain M2b/M3 dependencies |
-| M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | implemented and qualified for admitted invariant external paths and native fixed policies; native risk-based policies require a suitable strategy rerun |
+| M1a: folds and research execution | Session fold contract; immutable declarations/stage refs in existing campaign catalogue; ordinary backtest runner | From saved report configure nested windows, preview exact dates/work estimate, run inner research, reopen/download actual results | Hand-derived fold dates, embargo, source boundaries, no future features, failure/retry/idempotency | complete; integrated API/browser evidence and final full suite pass |
+| M1b: robust qualification | M1a; saved predeclared qualification/stress/regime/region rules | Explain every admission/rejection/insufficient result; preserve the entire qualified set for phase selection | Stable/noise/disappearing/isolated-peak/large-search controlled cases; future-data mutation cannot change earlier admission | complete; full qualified membership feeds the independent phase owners, with final full-suite evidence |
+| M2a: canonical sources | Existing native and XLSX adapters | Normal import/source-check/report workflow supports complete standalone external trades | Identity/hash/count/time/cost/partial/ordered-event rejection and reopen | complete for strict canonical imports, eligible local prop and independent phase policies; unsupported external native reruns reject |
+| M2b: sizing | M2a; common state-aware policy in existing account owners | Fixed/dollar/percentage policies with named base, skips/caps and saved decisions | Hand math, changing stops/balances/cushion, unsupported sources, unchanged fixed simulations, compiled/reference parity | complete for admitted invariant external paths and supported native fixed/dollar/percentage policies through actual strategy reruns |
 | M3a: frozen economic selection and historical replay | M1/M2; existing phase optimizers and ledger | Select on development only, freeze family, replay actual outer dates including no-trade days and receipts | Phase independence, cutoff/retry/cash conservation, frozen hash guards, no reselect | implemented for supported native fixed-path policies; normal API/browser evidence and focused regression qualified; no provider/live parity claim |
 | Native state-aware execution completion | Causal sizing/capture and existing execution engine | Native risk sizing must rerun strategy eligibility, fills, account halts and deductions consistently in forecast and outer replay | Independent quantity/fill/cash examples, actual changed signal path, no future entry inputs, legacy parity | implemented: native chronological MNQ/VWAP execution, candidate forecasts, independent search, conservative native refits and frozen outer/manual OOS integration; targeted release gates recorded below |
 | M3b1: reliability and references | M3a; predeclared baseline/rules/scenarios | Outer coverage, forecast errors, paired references, stability, conservative historical-mean selection; permit insufficient evidence | Complete/censored/missing/family arithmetic, reference authority, history-versus-MC uncertainty, source/code identity | implemented; release evidence and final gates recorded below |
-| M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | implemented with guarded local-scope access, terminal refit and saved API/browser evidence; full-goal qualification remains pending |
+| M3b2: final procedure | M3b1; full access provenance | Complete procedure freeze, feasible holdout, current development rerun and honest recommendation | Future poisoning, full-procedure identity, holdout access/reservation guards, no last-fold promotion | complete; guarded access, terminal refit, final/current API/browser evidence and final full suite pass |
 | M4: cohesive guided UX | Incremental UI delivered throughout M1–M3 | Review end-to-end first-user journey, templates, timelines/regions/cash charts and decisions; useful cancellation/resume | Desktop/narrow browser journeys, loading/errors, export/reopen byte identity, accessibility | workspace/drafts/templates and visual review implemented at 5308d88 with saved API/browser evidence; forward monitor UI is M5 |
-| M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | implemented with supplied-scope cash comparison, frozen sizing arithmetic and saved API/browser evidence; full-suite acceptance running |
-| M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | first complete run: 2,262 passed, 8 failed; investigated repairs under qualification; a fresh complete passing suite remains required |
+| M5: forward and monitoring | Frozen recommendation/event contract; no broker dependency | Timestamped supplied or explicitly synthetic paper evidence, reconciliation and advisory states/recovery | Misses/duplicates/partial fills/protection/staleness/disconnect/latency, restart and readiness gates | complete within the supplied-event/advisory boundary; comparison, sizing arithmetic, recovery and full-suite evidence pass |
+| M6: final qualification | All earlier milestones | Full Definition of Done with branch/history/docs/evidence/readiness report | Full pytest/browser checks, configured static checks, reproduction and export checks, verify pushed ref/main unchanged | complete; final unchanged 2,315-case suite, retained product verification, documentation and feature-branch publication recorded below |
 
 ## Integration and safety of conclusions
 
@@ -541,19 +546,17 @@ validation passed. Original failed attempts remain preserved.
 ## Current implementation and qualification map
 
 This is the current map, distinct from the initial audit above. **Implemented**
-means the named local capability exists. **Tested** refers to saved targeted
-API/browser/independent-oracle evidence; it does not imply the pending full
-repository gate passed. Provider verification is never inferred from local tests.
-The final forward comparison/conformance evidence is recorded below. Repository
-acceptance remains pending until the complete suite finishes and any failures
-are corrected and revalidated.
+means the named local capability exists. **Tested** now includes the unchanged
+complete 2,315-test gate and the saved API/browser/independent-oracle evidence.
+The final record below binds that result to the exact code and product outputs.
+Provider verification is never inferred from local tests.
 
 | Required stage | Local implementation / normal product entry | Implemented and tested evidence | Provider-verified / remaining boundary |
 | --- | --- | --- | --- |
 | Source identity, research declaration and protected data | `datasets.py`, `research_access.py`, `research.py`; Datasets metadata-only reservation → ordinary IS grid | Strict metadata/cost/split contracts, prior-access overlap and timezone/domain guards, source deletion and failed access history tested | Dataset rights/completeness and externally accessed history are supplied claims; local journal is not a global untouched-data certificate |
 | Nested rolling/expanding research | `research_folds.py`, `robust_research.py`; saved IS report → Configure prop → Nested research | Actual ordinary fold-restricted backtests, purge/embargo, session boundaries, leakage/future mutation, progress/cancellation and restart tested | Model research mechanics; no claim of future edge |
 | Robust configuration regions | `edge_qualification.py`, `research_complexity.py`, `research_regimes.py`; candidate evidence and plots | Complete family, temporal/concentration/region bounds, cost/execution stresses, causal regimes, PASS/FAIL/INSUFFICIENT tested; real market-series properties now 7/7 | Sparse synthetic fixtures are arithmetic demonstrations, not executable market evidence or a universal null classifier |
-| Canonical external trades / MultiCharts | `trade_imports.py`, `canonical_trades.py`, `prop/source.py`; Backtests → Import external trades | Raw-byte/provenance/cost validation, complete versioned export ingestion, ordered risk-event admission, meaningful rejection and durable downloads tested | Supplied MultiCharts-compatible exports supported; exporter/platform parity and missing tick order remain unverified; incomplete measured risk is never fabricated |
+| Canonical external trades / MultiCharts | `trade_imports.py`, `canonical_trades.py`, `prop/source.py`; Strategies → Import trades | Raw-byte/provenance/cost validation, complete versioned export ingestion, ordered risk-event admission, meaningful rejection and durable downloads tested | Supplied MultiCharts-compatible exports supported; exporter/platform parity and missing tick order remain unverified; incomplete measured risk is never fabricated |
 | Fixed, fixed-dollar and explicit percentage risk | `prop/sizing.py`, `sizing_runtime.py`, native control and phase owners; independent campaign sizing controls | Floor/rounding/zero skips/cost reserves/caps/changing balance/cushion, native strategy reruns and captured decisions tested | Native supported complete-minute MNQ/VWAP path only; invariant external paths require an explicit source claim; other source/profile combinations reject |
 | Independent Evaluation | `evaluation_profiles.py`, `evaluation_optimization.py`, `phase_dispatch.py`; Evaluation campaign | Acquisition fees/calendar-time complete Pareto, censoring, full family and phase input isolation tested | Provider rule versions are saved; known discrepancies and dated field-level verification remain in `provider_rule_review.md`; no funded objective is used |
 | Independent Funded | `funded_profiles.py`, `funded_optimization.py`; Funded campaign | Fresh-account finite-horizon receipt selection, uncertainty, all tied alternatives and optional conservative historical mean tested | No Evaluation fees/pass probability/time, replacement account or joint annualized selector; payout settlement is modeled and explicitly unverified |
@@ -564,7 +567,7 @@ are corrected and revalidated.
 | Guided research workspace | `research_workspace.py`, `web/research_workspace.js`, `research_visuals.js`; Research in the main navigation | Search/filter, complete source selection, revisioned drafts, source-free templates, timelines/regions/cash tables, downloads and desktop/390 px journeys tested | Unsupported saved settings remain inspectable and reject rather than being silently converted |
 | Independent forward observations and advisory recovery | `forward_contracts.py`, `forward_policy.py`, `forward_reconcile.py`, `forward_monitoring.py`; current report → Observe current policy | Supplied signal/intents/orders/fills/protection/positions/cash, corrections, exact money, latency/health, latched PAUSED and explicit recovery, immutable snapshots tested | Synthetic/paper/actual-import provenance stays separate; no continuous broker connection, external signal proof, automatic broker pause or order placement |
 | Matched forward forecast scope and sizing conformance | `forward_comparison.py`, `forward_conformance.py`; same monitor/check/import/report workflow | Independent cash/clock/source-identity and fixed/dynamic arithmetic gates pass; complete API/browser demonstrations and immutable downloads verified on release identity | Requires explicit prospective coverage/calendar/account claims. Cash eligibility/request/approval behavior remains unverified; descriptive differences are not broker or statistical certification |
-| Whole-workflow and legacy qualification | Existing pytest/Playwright/static infrastructure; saved normal libraries | Two genuine strategies/four configurations, two independent phases, all outer outcomes and fresh terminal recommendation tested; full uninterrupted suite pending | Complete local acceptance remains required before goal completion; no production-qualified live integration |
+| Whole-workflow and legacy qualification | Existing pytest/Playwright/static infrastructure; saved normal libraries | Two genuine strategies/four configurations, independent phases, frozen outer outcomes, fresh terminal application and all 2,315 tests pass | Local research acceptance complete; no production-qualified live integration |
 
 Current unsupported behavior includes automatic account replacement in independent
 Funded selection; cross-phase weighted objectives; optimizing the predefined
@@ -576,12 +579,104 @@ their original meanings and engines.
 
 ### Final acceptance record
 
-Complete repository acceptance remains **pending**. The first complete suite
-and its investigated repairs are recorded in [M6](#m6-first-complete-suite-and-acceptance-repairs).
-Targeted successes must not be summed into a full-suite claim. Final qualification
-will record the exact source commit/hash,
-command, environment, totals, elapsed time, browser/static results, saved-report
-checks, reproducibility evidence and remote branch/main refs here.
+**Local research workflow: complete and qualified on 8 November 2026.**
+**Live deployment: not production-qualified.** This verdict covers the supported
+local source/model boundaries below; it does not certify future profitability,
+provider settlement, external strategy parity or broker control.
+
+| Acceptance evidence | Actual result |
+| --- | --- |
+| Complete suite | **2,315 passed, zero failures/errors/skips, 24 warnings, 6,497.25 s (1:48:17)**. This includes 176 browser cases. `full-suite-v3/pytest.xml` and `pytest.log` retain every result. |
+| Frozen checkout | `1d9214f8c154a01c85d0bcc1b869ba4fc4b21bfa`; engine `456f68cbf67775382ffe22ac8df819ec53878c4b50c92a47259f68d43048cad4`. All **405 tracked files**, both phase identities and web files are unchanged before/after. `full-suite-v3/qualification-verification.json` records the independent byte check. |
+| Environment | Python 3.12.5, macOS 26.6.2 arm64; NumPy 2.5.4, pandas 3.1.0, Cython 3.3.0, pytest 9.1.1, Playwright 1.64.1, FastAPI 0.162.0, uvicorn 0.54.0, Pydantic 2.14.1. Exact versions and clocks are in the gate's before/after records. |
+| Preserved checkout | `qualified-checkout-1d9214f.tar.gz`; SHA-256 `65b5c959fd4a68a36872e7e9aef3920391fea0e816491557dc08211b348913ab`. The pre-run binding compares every tracked file with the commit. |
+| Normal product evidence | **23 journeys, 74 sealed reports, 1,113 manifest components, 1,187 ZIP members, 302 backtests, 29 dataset records, 42 captured downloads and 46 screenshots**. Original dataset bytes, report seals, exact ZIP contents and independent cash/date/quantity expectations passed. `representative-final-index.json` has SHA-256 `2e4ff8afbb3a031acc84f53b0e948ba9bfb9c2e86df08e6cf2cae4e6a177c1e9`. |
+| Static/documentation | Python compilation, all 19 JavaScript syntax checks and whitespace passed on the same frozen source. Documentation-only corrections were applied after the run; final link/whitespace checks are recorded separately. No production or test edits followed the passing gate. |
+| Earlier failures | V1's eight failures were investigated and repaired; all eight exact cases pass in V3. V1 and the intentionally interrupted V2 remain retained, with their original results. They are not counted as clean gates. |
+| Publication | Feature branch `feature/robust-research-workflow`, remote `https://github.com/yuxuantan/alphaquest-research-engine-2.git`. `publication-final.json` records the final documentation commit and matching remote feature ref; `main` remains `60dbccbda8e97373a3856ea6ee3fdd07313cad4f`. No PR or merge was made. |
+
+All paths in this table are under `artifacts/final-research-acceptance-20261108/`
+unless stated otherwise. The 24 warnings fall into two existing categories: one
+Starlette HTTPX deprecation and 23 pandas day-of-week deprecations in the historical
+notebook.
+They do not include skipped cases. The runner took 6,498.55 seconds including
+capture overhead. Temporary test servers were shut down by their fixtures; no
+persistent server was started.
+
+The exact qualified invocation is saved in `full-suite-v3/command.json`.
+For reproduction, create a fresh retained directory so pytest cannot clear
+any earlier evidence:
+
+```sh
+AQ_GATE=$(mktemp -d "$PWD/artifacts/research-acceptance-RECHECK.XXXXXX")
+ALPHAQUEST_DATA_DIR="$AQ_GATE/default-library" .venv/bin/python -m pytest -q -ra \
+  -o tmp_path_retention_policy=all --basetemp="$AQ_GATE/data" \
+  --junitxml="$AQ_GATE/pytest.xml"
+```
+
+The saved runner `run_full_suite.py` also rejects reuse of its gate directory
+and records the command, PID, source, environment and result. To repeat read-only
+verification of the retained qualified gate, use a new index filename:
+
+```sh
+.venv/bin/python artifacts/final-research-acceptance-20261108/index_representative_release.py \
+  --suite full-suite-v3 --output NEW_INDEX.json \
+  --expected-engine 456f68cbf67775382ffe22ac8df819ec53878c4b50c92a47259f68d43048cad4 \
+  --expected-commit 1d9214f8c154a01c85d0bcc1b869ba4fc4b21bfa --expected-tests 2315
+```
+
+This indexer refuses an existing output; it neither starts a server nor
+recomputes results. The final independent phase inspection confirms all eight
+original failures and all eleven new Lucid/kernel cases passed. The independent
+product inspection viewed 15 final-run screenshots and rechecked 39 downloads,
+117 ZIP members and seven recorded zero-POST saved-report observations across
+seven selected libraries. These overlapping inspections supplement the primary
+23-journey index rather than increasing its totals.
+
+#### Definition of Done cross-check
+
+The stage table above supplies the exact module and normal-screen mapping.
+Every requested local acceptance item is covered as follows:
+
+| Group | Required items | Verdict |
+| --- | --- | --- |
+| Research (6) | Automated nested folds; inner-only qualification; robust regions; leakage tests; frozen outer evaluation; cross-fold aggregation | Local PASS |
+| Optimization (10) | Fixed/dollar/percentage sizing; lifecycle integration; independent Evaluation/Funded; chronological OOS; explicit uncertainty; reliability/references; optional predefined lifecycle comparison | Local PASS |
+| Data/models (5) | Canonical data; standalone complete MultiCharts-compatible exports; execution/risk limits; versioned disclosed rules; reproducible saved inputs/results | Local PASS within admitted source/model boundaries |
+| UX (8) | Complete UI campaign; consistent primary flow; understandable outcomes; rejection/uncertainty reasons; evidence-based visuals; progress/recovery; critical browsers; forward/monitor screens | Local PASS with desktop/390 px evidence |
+| Quality (9) | New tests; complete existing suite; no unexplained regression; product scenarios; docs; incremental history; pushed feature branch; unchanged main; explicit external gaps | PASS; source, artifacts and final publication are separately recorded |
+
+The actual two-strategy example uses four signal configurations and preserves
+all eight Funded alternatives per fold. Its **NO QUALIFIED DEPLOYMENT CANDIDATE**
+outcome is valid completed research, not permission to promote a last-fold winner.
+The native dynamic, external import, frozen pair and Lucid journeys are separate
+normal product examples with their own immutable inputs and expected outcomes.
+
+[Provider review](provider_rule_review.md) retains the exact unresolved Apex
+calendar/consistency/tier/activation and Lucid DLL/operational assumptions.
+Authenticated prices/account applicability, payout approval/denial/bank timing,
+post-termination entitlement, tick execution, installed MultiCharts parity,
+TradingView/PickMyTrade/Tradovate access and broker-enforced controls remain
+unverified. Supplied forward events and context are claims with provenance;
+monitoring states are advisory. Native account-state execution supports the
+documented complete-minute MNQ/VWAP path; unsupported cases reject. Optional
+portfolio allocation, automatic new-grid/adaptive generation, pair ranking and
+Funded replacement remain separate work. Local point-estimate selection is not
+simultaneous statistical certification.
+
+Important pushed implementation milestones: `a9ee180` folds/qualification,
+`bdbfa7e` canonical imports, `8abe6ce` causal sizing, `50df431` frozen outer
+replay, `60a0cd4` reliability/references, `18bbaa1` native account control,
+`35d206f` native forecasts, `79cb5b0` native search/full procedure, `5308d88`
+workspace, `27cf056` frozen pairs/forward monitoring, `4f86c73` matched scope and
+sizing checks, `f2b903d` acceptance repairs and `1d9214f` Lucid/kernel qualification.
+The final documentation commit carries this acceptance record without changing
+qualified code. The [walkthrough](research_workflow.md#first-complete-campaign-a-practical-walkthrough),
+[architecture/developer guide](architecture.md#developer-extension-guide) and
+[final saved demonstrations](prop_simulation_review.md#8-november-2026--complete-local-research-acceptance)
+complete the user and developer handoff.
+
+#### Earlier qualification snapshots
 
 
 M4b/M5 independent artifact closeout: root verified 53 complete saved reports and
@@ -734,7 +829,8 @@ That failed gate is retained. The final passing reader gate confirms rejection
 before any source or cache read across missing, null, non-string and unknown
 timezones, full history, civil dates and CME-session windows.
 
-A fresh complete suite remains required before local acceptance can be completed.
+At this repair checkpoint, a fresh complete suite was still required. The
+subsequent V3 result in the final acceptance record completes that gate.
 
 The repairs were committed and pushed as
 `f2b903d4ca2d482630f6da849a4f0e2924ce56cc`; remote `main` remained
@@ -790,5 +886,5 @@ $299-per-MNQ arithmetic, two-size cost/time frontier, frozen ordinary OOS, cutof
 censoring and rejection cases are in the latest `prop_simulation_review.md` entry.
 The nested draft case performs source preview rather than claiming an economic
 run. The earlier rejected $7.50 Lucid activation-fee probe is preserved alongside
-the supported zero-fee final check. These focused gates do not replace the pending
-complete 2,315-test repository run.
+the supported zero-fee final check. These focused gates were followed by the complete passing
+2,315-test repository run recorded in the final acceptance record.

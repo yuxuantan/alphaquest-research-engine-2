@@ -140,9 +140,11 @@ supersede planned choices for this backend version. In particular:
   All source windows/cost protocols must match and sources must be declared IS.
 
 The standalone release implemented the backend portion of P1/P2. Subsequent
-campaign/portal work added UI, saved candidate controls and freeze/OOS; **the full
-original P1/P2 exits remain partial** because simultaneous inference and broader
-research qualification are still pending.
+campaign/portal work added UI, saved candidate controls and freeze/OOS. The
+complete local research workflow is qualified by the 8 November 2026 2,315-test
+acceptance gate. **The original P1/P2 certification exits remain partial**:
+simultaneous dominance inference and provider certification remain outside that
+local point-estimate and workflow verdict.
 See the [review evidence](prop_simulation_review.md#standalone-evaluation-optimizer--2026-11-06)
 for actual normal-backtest → API check/run → saved results/downloads, independent
 arithmetic and limitations. No numerical/provider parity beyond those checks is
@@ -752,7 +754,8 @@ this path. See current contracts in [prop simulation](prop_simulation.md),
 This extends the earlier dated findings; it does not erase their evidence. Guided
 catalogue/templates, predefined frozen-pair comparison and supplied timestamped
 monitoring were pending at that checkpoint and are implemented below. A complete
-passing repository acceptance gate remains required.
+passing repository acceptance gate was required at that checkpoint and passed
+on 8 November 2026; see the [final record](robust_research_plan.md#final-acceptance-record).
 Provider, broker, numerical-reference and operational readiness are separate
 qualification boundaries; no live integration is declared production-ready.
 

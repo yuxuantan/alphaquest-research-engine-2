@@ -9123,13 +9123,13 @@ The local Lucid Evaluation summary shows the $3,000 target, $2,000 EOD trailing 
 
 Synthetic independent arithmetic: the saved MNQ source has five complete IS sessions, January 5–9, with one 1-MNQ trade per session. Entry 118 to exit 268 earns $300 gross minus $1 round-trip commission, hence $299 net. Separate complete ordinary manual OOS sessions January 26–30 are retained in the source dataset and are not used by the campaign forecast.
 
-In **Configure prop analysis → Create Evaluation campaign**, select native execution, LucidFlex 50K, fixed sizes `3,10`, four paths, seed 1729, block length 1, modeled start January 12, 2026, horizon 7 calendar days and calendar coverage through January 20. Declare evaluation fee $80.50, activation fee $0, retry delay 0 and activation delay 0. This modeled calendar is explicitly synthetic and unverified. Use **Save and check candidates**, inspect the complete two-candidate work preview, then **Run campaign**.
+In **Configure prop analysis → Create Evaluation campaign**, select native execution, LucidFlex 50K, fixed sizes `3,10`, four paths, seed 1729, block length 1, modeled start January 12, 2026, horizon 7 calendar days and calendar coverage through January 20. Keep the derived IS session window at January 5–9, 2026 and retain one detailed forecast path per candidate. Set modeled calendar version `explicit-synthetic-lucid-evaluation-v1` and timezone `America/Chicago`; leave the declared closures and early closes empty for this synthetic example. Declare evaluation fee $80.50, activation fee $0, retry delay 0 calendar days and activation delay 0 eligible sessions. This modeled calendar is explicitly synthetic and unverified. Use **Save and check candidates**, inspect the complete two-candidate work preview, then **Run campaign**.
 
 Expected modeled outcomes: 3 MNQ earns $897 per trading session, passes January 15 and is ready January 16, for $80.50 acquisition cost and 4 calendar days. 10 MNQ earns $2,990 per session; after two sessions its $5,980 profit exceeds the target, but its best day is 50%, so it has not passed. Its third session yields $8,970 total with a one-third best day; it passes January 14 and is ready January 15, for $80.50 and 3 calendar days. All four paths complete in this deterministic synthetic pool. The complete Pareto frontier contains 10 MNQ; there is no hidden weighted cost/time score. Zero simulation variation in this constructed pool is not future precision or provider certification.
 
 Inspect candidate forecasts, source/model date mapping and retained native decisions. Download the normal report and analysis ZIP; every manifest artifact is verified. Reloading the saved campaign must issue no POST and leave report/source bytes unchanged. At 390 px the controls and report remain usable without page-level horizontal overflow.
 
-For nested research, include Evaluation and choose native execution before selecting Lucid. The separate catalogue leaves Lucid disabled for a new saved-path study. Save a draft/template with deliberate non-default fees $90.25/$0 and retry/activation delays 2/0; load it and verify the exact declaration and choices survive. Loading requires fresh preview. Switching to saved-path execution retains Lucid and fees but blocks saving/running; switching back restores a valid native declaration. An explicit new legacy Apex declaration removes the native execution settings without changing the original native draft/template. The draft demonstration performs a real compatibility preview, not an economic run.
+For nested research, include Evaluation and choose native execution before selecting Lucid. The separate catalogue leaves Lucid disabled for a new saved-path study. Save a draft/template with a declared $90.25 evaluation fee, the required $0 activation fee, retry delay 2 calendar days and activation delay 0 eligible sessions; load it and verify the exact declaration and choices survive. Loading requires fresh preview. Switching to saved-path execution retains Lucid and fees but blocks saving/running; switching back restores a valid native declaration. An explicit new legacy Apex declaration removes the native execution settings without changing the original native draft/template. The draft demonstration performs a real compatibility preview, not an economic run.
 
 The final new browser gate passed **2 cases in 59.61 seconds** on frozen engine `456f68cbf67775382ffe22ac8df819ec53878c4b50c92a47259f68d43048cad4`. Production Python, all portal JavaScript, index HTML and the captured test files were identical before and after. The complete command, log, XML, identity snapshots and independent download verification are under `artifacts/native-lucid-evaluation-20261108/browser-final/`. The earlier failed provisional draft deliberately contained an unsupported $7.50 activation fee; the final test now proves that rejection explicitly and then previews the supported $0 declaration. Earlier directories remain unchanged.
 
@@ -9154,3 +9154,62 @@ Five applicable existing browser regressions passed in **169.89 seconds**, separ
 The final API gate passed **6 cases in 243.65 seconds** on the same frozen engine. It includes the two Lucid cases and all four existing native phase campaign cases. The final native Lucid campaign is `24e82a0a69ef4610bd515348c43cae76`, forecast `1d2908113b384f719b9e305375b6eb6a`, frozen ordinary OOS assessment `8e14e58a24fa4ca39eca95faf82e9d29`, chronological child `42e915c25476481c8d4b41b57db5ba69`, and exclusive-cutoff forecast `949d1485626c43179a10172f391b3377`. The exact library, commands, independent arithmetic and normal copy/start/reopen instructions are in `artifacts/native-lucid-evaluation-20261108/final-api-v1/README.md`. Expected ordinary OOS pass is January 28 and readiness January 29; acquisition cost is $80.50 and evaluation profit is not trader cash. At the January 15 exclusive cutoff, readiness is censored and acquisition means remain null while fees are retained.
 
 Actual freeze/OOS qualification exposed a missing Lucid implementation-identity entry. Both phase identities now capture each provider runtime used by native controllers, its source and compiled-kernel identity, and shared decimal arithmetic. These necessary identity changes intentionally prevent incompatible historical frozen packages from launching; saved historical reports and downloads remain readable. No numerical formula changed. The final seven-case identity gate in `artifacts/final-research-acceptance-20261108/phase-kernel-identity-final-v2/` passed in **29.61 seconds**, with no skips in this installed environment. It verifies direct source coverage, both phase cache identities, and an actual $1,500 Funded forecast whose frozen OOS launch rejects either changed provider runtime before OOS execution or access-ledger append. Prior report/ZIP/package bytes remain unchanged.
+
+## 8 November 2026 — Complete local research acceptance
+
+The unchanged complete repository run passed **2,315 tests**, including 176
+browser cases, with zero failures/errors/skips and 24 existing deprecation
+warnings in 6,497.25 seconds. Qualified commit:
+`1d9214f8c154a01c85d0bcc1b869ba4fc4b21bfa`; engine:
+`456f68cbf67775382ffe22ac8df819ec53878c4b50c92a47259f68d43048cad4`.
+All 405 tracked files matched the pre-run archive after completion. Subsequent
+changes only clarify documentation. All eight original full-suite failures pass
+in this run; the earlier failed/interrupted libraries remain preserved.
+
+The artifact-only final index verifies 23 normal product journeys, 74 sealed
+reports, 1,113 manifest components and all 1,187 ZIP members, 302 saved backtests,
+29 dataset records and original bytes, 42 captured downloads and 46 screenshots.
+It checks independent expected outcomes, rather than only test counts. Exact
+source hashes, IDs, normal URLs, seeds/schedules, saved settings, screenshots and
+reopen proof references are in
+`artifacts/final-research-acceptance-20261108/representative-final-index.json`.
+SHA-256: `2e4ff8afbb3a031acc84f53b0e948ba9bfb9c2e86df08e6cf2cae4e6a177c1e9`.
+
+For the final Lucid browser library, copy the saved normal data directory before
+performing experiments:
+
+```sh
+AQ_FINAL_DEMO=$(mktemp -d /tmp/aq-final-research.XXXXXX)
+cp -R "$PWD/artifacts/final-research-acceptance-20261108/full-suite-v3/data/test_native_lucid_evaluation_c0" "$AQ_FINAL_DEMO/library"
+ALPHAQUEST_DATA_DIR="$AQ_FINAL_DEMO/library" .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8777
+```
+
+Open `http://127.0.0.1:8777/#backtests/report/c52b7e62a4aa4a50889199959d196ed2`
+for the source, or
+`http://127.0.0.1:8777/#backtests/prop/campaign/e2b2c0dd49084d9783bcae2ad4c90537`
+for the campaign. Direct analysis is
+`http://127.0.0.1:8777/#backtests/prop/job/ecb4547babe0454581c32c45b7d0e47b`.
+Repeat the exact profile/calendar/fee/sizing declaration in the preceding Lucid
+journey. Expect $299 net per MNQ per source session, $80.50 purchase and zero
+activation fee, 10 MNQ at three acquisition calendar days versus 3 MNQ at four.
+The second 10-MNQ session crosses target but fails 40% consistency; the third
+passes. Saved reload issues no calculation POST and leaves the report bytes
+unchanged. Stop the temporary server with **Ctrl+C**.
+
+To inspect other final libraries, replace the copied directory with the exact
+`library` field in the final index and use that entry's `reopen_urls`. The index
+also gives every named test and independent expectations. The fixed forward
+comparison retains $1,500 modeled receipts versus $50 supplied receipts, a
+−$1,450 difference, $3 trading net and $49,953 account balance; its earlier partial
+snapshot stays NOT_COMPARABLE. The frozen pair retains $70 acquisition fees,
+$1,500 receipts and $1,430 net. The native dynamic observation recalculates
+10 then 9 contracts from 0.8% balance/$40 unit risk, with $80 trading profit and
+$50,080 final equity; a changed supplied quantity remains MISMATCH/PAUSED without
+changing the earlier report. These are explicitly synthetic local-model
+demonstrations, not observations of future returns.
+
+No persistent server was started. All automated server fixtures stopped. The
+full command/environment, warning details, Definition-of-Done mapping and
+publication record are in the [final acceptance record](robust_research_plan.md#final-acceptance-record).
+Local research acceptance is complete. Provider/platform/broker/live readiness
+remains unverified; no order placement or broker-enforced pause is supplied.

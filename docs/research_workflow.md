@@ -112,9 +112,9 @@ reject. Previously accessed development data is disclosed, not called untouched.
 With Economic validation disabled, the run stops at inner qualification and no
 outer test is launched. With it enabled, the following stage runs from the same
 saved declaration. The later native-execution, complete-procedure and forward
-observation sections describe their implemented extensions. Overall repository
-qualification remains pending on the [active checklist](robust_research_plan.md);
-each study reports its own evidence sufficiency and no winner is forced.
+observation sections describe their implemented extensions. Local repository qualification passed the complete 2,315-test suite on 8 November
+2026; see the [acceptance record](robust_research_plan.md#final-acceptance-record).
+Each study still reports its own evidence sufficiency and no winner is forced.
 
 ### Nested economic validation
 

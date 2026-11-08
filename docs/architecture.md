@@ -1,5 +1,12 @@
 # Architecture
 
+Local research acceptance, 8 November 2026: the complete suite passed **2,315
+tests**, including 176 browser cases, with no failures or skips. All 405 tracked
+files remained identical to the qualified commit throughout the run. The
+[acceptance record](robust_research_plan.md#final-acceptance-record) binds code,
+normal product outputs and remaining external limits. Live integration is not
+production-qualified. The dated implementation entries below remain historical.
+
 7 November 2026 additive research increment: `research_folds.py` owns immutable
 CME-session windows; `edge_qualification.py` assesses bounded inner evidence and
 returns the full qualifying set; `robust_research.py` orchestrates ordinary
@@ -143,7 +150,7 @@ research throughput, spending and engineering hours.
 | Separate evaluation/funded sources and fixed targets | Implemented in dated lifecycle and budgeted replay. This is separate phase configuration, not independent optimization. Standalone dated mode remains API/report compatible but is no longer a new portal choice. |
 | Exact cash ledger and hard monthly acquisition cap | Portfolio milestones 1–2 complete per the existing progress/evidence logs. One observed path and one initially unfunded slot; modeled settlement assumptions remain explicit. |
 | Independent simulation profile components | Implemented as Python APIs in `evaluation_profiles.py` and `funded_profiles.py`, with frozen contracts in `phase_profiles.py`. Single saved source per phase; existing kernels/cost/risk checks. Weekday and modeled payout-time semantics; no new portal mode or independent selector. |
-| Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. Campaign UI is now available; Lucid dated attempts and robust simultaneous dominance remain deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
+| Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. Campaign UI is available. This saved-trade-path method remains Apex-only; the later native strategy-rerun extension supports Lucid Evaluation, including dated acquisition and frozen OOS assessment. Robust simultaneous dominance remains deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
 | Independent Funded optimizer | Implemented backend/API, 6 November 2026: saved IS candidate ranking by received cash over a declared calendar horizon, fresh funded accounts, native Apex/Lucid transitions, explicit settlement lag, hard empirical constraints and censored lifetime. No evaluation inputs or joint score. Campaign UI and IS freeze are implemented by the subsequent campaign increment. [Contract](prop_simulation.md#standalone-funded-optimizer--2026-11-06). |
 | Cross-job/strategy campaigns and phase package freeze | Implemented, 6 November 2026: saved grid/trial expansion, complete size/policy membership with explicit large-search confirmation, IS compatibility, independent phase execution, immutable source/report references, browser controls and freeze. [Campaign API](research_campaign_api.md). |
 | Frozen OOS phase assessment | Implemented: manual ordinary OOS backtests from frozen IS parents, fixed phase settings, append-only assessment reports in AnalysisStore; no OOS ranking/reselection. |
@@ -453,8 +460,9 @@ or rebinds them. Actual preview, execution, freeze and access authority stay wit
 the existing owners. The catalogue verifies bounded saved report bytes before
 showing readiness and retains separate current/final application statuses.
 
-`web/research_workspace.js` integrates these records into **Backtests → Research**
-and the existing prop form. `web/research_visuals.js` renders actual-session fold
+`web/research_workspace.js` integrates these records into the current top-level
+**Research** navigation and the existing prop form. The original M4 entry used
+the **Backtests → Research** label. `web/research_visuals.js` renders actual-session fold
 timelines, parameter qualification and comparable Funded forecast/actual values
 with full tables. Neither module selects a policy or creates calculation results.
 The Evaluation and Funded declared numerical implementation identities remain

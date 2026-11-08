@@ -14,7 +14,8 @@
   chronological reliability, complete-procedure final verification and the
   searchable research catalogue with drafts/templates, frozen pair comparisons and
   supplied observation monitoring, declared-scope cash comparisons and frozen
-  sizing arithmetic checks; final full-suite qualification remains pending.
+  sizing arithmetic checks; the final complete suite passed 2,315 tests with no
+  failures or skips. The checklist links source, report and publication evidence.
 
 ## Product guides
 
