@@ -1,8 +1,12 @@
 # Editable IS / OOS research workflow
 
+Start with the [complete campaign walkthrough](#first-complete-campaign-a-practical-walkthrough).
+The [acceptance checklist](robust_research_plan.md#final-acceptance-record) records
+current repository qualification separately from each study's evidence.
+
 ## External trade imports
 
-Open **Backtests → Import external trades**, select a complete
+Open **Strategies → Import trades**, select a complete
 [`aq-trade-export-v1` JSON export](designs/trade_export_v1.md), and **Check import**.
 Review counts, exact cost reconciliation, original hash, time/session conventions,
 research declaration and risk coverage before **Save imported report**. Saving
@@ -157,9 +161,10 @@ separate. A receipt at the exclusive cutoff remains pending. The unrounded
 entitlement convention matches the phase forecast; neither convention verifies
 bank settlement.
 
-These are fixed-signal-path account scenarios. Account pauses/skips can alter a
-native strategy's future eligibility, so they do not certify a full strategy
-rerun or live execution. Inspect **Provider rule review** and its dated primary
+The saved-trade-path execution mode produces fixed-signal-path account scenarios.
+Account pauses/skips can alter a native strategy's future eligibility; that mode
+does not establish a full strategy rerun. The native method described below
+reruns supported strategy paths, while live execution remains unverified. Inspect **Provider rule review** and its dated primary
 sources; unresolved discrepancies block production-qualified claims. No selected
 outer-fold policy is a current deployment recommendation.
 
@@ -324,9 +329,10 @@ viewed data is not made untouched by changing a split.
 ## Campaign budgets and computation
 
 Generate candidate strategies/parameters with ordinary IS grids, optionally
-unchecking automatic legacy prop reports. Campaigns reuse saved trades/risk;
-they do not repeat the backtest. Explicit saved-source/job/trial membership ×
-whole-MNQ sizes are counted before execution; searches above 128 require explicit
+unchecking automatic legacy prop reports. Saved-trade-path campaigns reuse saved
+trades/risk; native campaigns rerun the supported strategy for each declared
+account path. Complete saved-source/job/trial × size/policy membership is counted
+before execution; searches above 128 require explicit
 confirmation of the exact count (128 is not a hard cap). Duplicates,
 incomplete jobs, mismatched splits/costs and unsupported sources reject before
 execution. Legacy Historical net is not a candidate pruning criterion. Failed or
@@ -394,8 +400,10 @@ report/API for manual OOS execution. CLI split settings are editable on each run
 
 ## Current qualification
 
-See `docs/prop_simulation_review.md`, Editable declarations and manual unlimited
-OOS (2026-10-29), for saved product evidence and exact reproduction steps.
+See the [active acceptance record](robust_research_plan.md#final-acceptance-record)
+for current repository qualification. The dated Editable declarations and manual
+unlimited OOS entry (2026-10-29) in [the review log](prop_simulation_review.md)
+retains that earlier product evidence and its reproduction steps.
 
 ## Campaign checks
 
@@ -441,10 +449,10 @@ Before search, save the following. Values remain **unset** until supplied.
 | --- | --- | --- |
 | Plan | All required values set/versioned/frozen before assessment; spending, hours and trials within limits. | Phase calculation inputs are now saved by campaigns; owner/resource/operations acceptance values still require a declaration. |
 | Data | Zero unexplained invalid rows, duplicates, time-order or identity errors; required fields/sessions/history, rights and feature-availability times checked; exclusions recorded. | CSV checks exist; campaign coverage/rights need evidence. |
-| Mechanics/exports | 100% of deterministic cases match; zero unexplained signal/order differences; IDs, quantities and UTC instants match. Native money exact; companion net within USD 1e-8. | Current worksheet limits apply; v1 remains proposed. |
+| Mechanics/exports | 100% of deterministic cases match; zero unexplained signal/order differences; IDs, quantities and UTC instants match. Native money exact; companion net within USD 1e-8. | Canonical `aq-trade-export-v1` import is implemented; worksheet/canonical admission limits apply. External platform equivalence still needs independent evidence. |
 | Prop/reports | All independent lifecycle/first-breach cases match, including recovering winners, gaps and cost boundaries. Random simulations meet preset tolerances; reopen keeps hashes unchanged without recalculation. | Past evidence applies only to the tested model/version; no live approval. |
 | Research | Frozen package passes cash, loss, spending, sample and precision limits on clean final data; cost/data/block-length stress tests pass. | Internal holdout is not final OOS; annual sizing cannot prove cash-by-deadline performance. |
-| Operations | Rejection, duplicate, partial-fill, disconnect, stale-data, protection, forced-flatten and restart tests meet timing/exposure limits; no unexplained orders/positions; broker records match. | NOT TESTED here. First prove installed platform/bridge compatibility and account/API permissions. |
+| Operations | Rejection, duplicate, partial-fill, disconnect, stale-data, protection, forced-flatten and restart tests meet timing/exposure limits; no unexplained orders/positions; broker records match. | Supplied-event reconciliation and advisory recovery are tested locally. Installed platform/broker compatibility, account/API permissions and connected operational behavior remain unverified. |
 
 ### Cash horizons versus retained legacy objective
 
@@ -579,6 +587,17 @@ currently admits complete one-minute MNQ sessions from the supported EOD-flat
 VWAP strategy with its local volatility sizing disabled. Unsupported strategies,
 instruments, incomplete sessions or unavailable block shapes reject at checking.
 
+Native Evaluation and Funded campaigns support the local Apex EOD 50K and
+LucidFlex 50K models. Lucid Evaluation requires native execution and zero
+activation fee; its saved-trade-path counterpart remains unsupported. Its model
+uses a $3,000 target, 40% best-day consistency and no evaluation expiry. Fees,
+provider rules and timing retain their disclosed verification status. The
+Evaluation form names retry delay in calendar days and activation delay in
+eligible sessions; their defaults are 0 and 1. Changing execution mode retains
+your selected profiles, fees and timing and blocks an unsupported combination
+instead of substituting another profile. Nested drafts/templates preserve the
+same choices and still require fresh preview.
+
 Native checking shows the complete candidate population, source and target
 calendars, simulation work and retained paths. Running saves every candidate's
 paths, schedules and forecast in the existing analysis. The Funded point-mean
@@ -590,8 +609,10 @@ uncertainty.
 
 In nested research, choose the same native method under **Economic validation**.
 Every configuration that passes the inner qualification enters the phase search
-with every declared policy. The full selected family is sealed before any outer
-prices are used. Each outer application runs actual bars once, without sampling
+with every declared policy. The full selected family is frozen before outer
+strategy execution. Metadata/inventory preparation may parse and hash source
+bytes; this is not a claim that those bytes were never read. Each outer
+application runs actual bars once, without sampling
 or reselection, and links its ordinary controlled backtest. Fixed-path campaigns
 keep their earlier meanings and calculations. A frozen native campaign's manual
 OOS action also uses actual chronology, requires its full declared horizon and
@@ -605,6 +626,10 @@ Completed report reopening and downloads do not recalculate. Source, code,
 captured artifact and controlled child catalogue changes prevent incompatible
 reuse. Final-procedure controls below apply to the entire research algorithm,
 not just these selected-policy manual OOS checks.
+
+Both phase identities capture the provider source files, exact-money helpers
+and selected Apex/Lucid runtimes. A changed identity rejects a new frozen
+launch before OOS access. Saved reports and downloads remain readable unchanged.
 
 
 ## Complete-procedure freeze and terminal applications (M3b2)
@@ -633,11 +658,12 @@ The guard uses market/instrument information lineage and session coverage, with 
 ### Current boundaries
 
 
-This does not establish external absence of prior access, official provider parity, future profitability, live execution readiness or automatic trading authorization. A holdout can be infeasible/previously accessed/unknown; that status is retained. Missing or partial evidence cannot produce a forced winner. A single final outcome does not estimate or prove a future mean. Strategy draft/catalogue completion and forward timestamped monitoring remain subsequent milestones.
+This does not establish external absence of prior access, official provider parity, future profitability, live execution readiness or automatic trading authorization. A holdout can be infeasible/previously accessed/unknown; that status is retained. Missing or partial evidence cannot produce a forced winner. A single final outcome does not estimate or prove a future mean. The [research workspace](#research-workspace-drafts-and-templates-m4) and supplied forward observations are implemented; see the [complete workflow](#first-complete-campaign-a-practical-walkthrough) and [matched-scope observation guide](prop_simulation_review.md#complete-supplied-funded-scope-and-causal-sizing-diagnostics). Neither establishes live broker integration.
 
 ## Research workspace, drafts and templates (M4)
 
-Open **Backtests → Research** to find phase campaigns, nested research and saved
+Open **Research** in the main navigation, or **Strategies → Research workspace**,
+to find phase campaigns, nested research and saved
 pre-work drafts. Search matches names, identifiers, strategy names and dataset
 names; filter by kind, phase or status, and sort without changing any numerical
 result. **New research** starts from an ordinary saved IS source. The catalogue
@@ -753,6 +779,10 @@ coverage you have checked. A passing calculation is not a trading recommendation
    if several policies remain. A no-qualified result permits only an unbound,
    labeled synthetic diagnostic. Import timestamped events, assess at an explicit
    UTC clock, inspect discrepancies/cash and follow the recorded recovery steps.
+   Use **Check current policy and observation declaration → Create declared
+   observation monitor**, then **Check selected event bytes → Import these reviewed
+   event bytes → Save a new observation assessment**. The [observation guide](prop_simulation_review.md#complete-supplied-funded-scope-and-causal-sizing-diagnostics)
+   explains optional complete coverage, calendar translation and sizing events.
    Monitoring is advisory and does not stop broker orders.
 10. **Keep the evidence.** Download normal JSON/CSV/ZIP artifacts and reopen saved
     reports without recomputation. Record the source, assumptions and remaining

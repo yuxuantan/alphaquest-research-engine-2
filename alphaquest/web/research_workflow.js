@@ -189,22 +189,40 @@
       const fields = node('fieldset'); fields.id = `robust-economic-${phase}-fields`; fields.disabled = true; fields.hidden = true; fields.append(node('legend', phaseLabel(phase))); entry.append(fields);
       const prefix = `robust-economic-${phase}-`, inputs = [], profileInputs = [];
       const profiles = node('div', undefined, 'prop-fields'); fields.append(profiles);
-      for (const profile of defaults.economic_profiles?.[phase] || template.profiles) {
+      const tradeProfiles = defaults.economic_profiles?.[phase] || template.profiles;
+      const nativeProfiles = defaults.economic_native_profiles?.[phase] || tradeProfiles;
+      const allProfiles = [...new Map([...tradeProfiles, ...nativeProfiles].map(profile => [profile.profile_id, profile])).values()];
+      for (const profile of allProfiles) {
         const wrapper = node('fieldset'), legend = node('legend'), chosen = node('input'); chosen.type = 'checkbox';
         chosen.id = prefix + profile.profile_id; chosen.checked = template.profiles.some(item => item.profile_id === profile.profile_id);
-        const title = node('label', undefined, 'robust-source-choice'); title.append(chosen, node('span', profile.profile_id)); legend.append(title); wrapper.append(legend);
+        const nativeOnly = !tradeProfiles.some(item => item.profile_id === profile.profile_id);
+        const title = node('label', undefined, 'robust-source-choice'); title.append(chosen, node('span', `${profile.profile_id}${nativeOnly ? ' · native execution only' : ''}`)); legend.append(title); wrapper.append(legend);
         wrapper.append(node('p', `Local rule version: ${profile.rule_version}. These are saved model rules, not newly verified provider terms.`));
+        wrapper.append(node('p', window.phaseCampaigns.profileRuleSummary(phase, profile.profile_id)));
         const fees = {};
         if (phase === 'evaluation') for (const [key, text] of [['evaluation_price', 'Evaluation fee · USD'], ['activation_fee', 'Activation fee · USD']]) {
           const input = field(wrapper, text, prefix + profile.profile_id + '-' + key, profile[key]); input.min = 0; input.step = '0.01'; fees[key] = input;
         }
         const sync = () => { Object.values(fees).forEach(input => { input.disabled = !chosen.checked; }); };
-        chosen.onchange = () => { sync(); changed(); }; sync(); profiles.append(wrapper); profileInputs.push({profile, chosen, fees});
+        chosen.onchange = () => { syncProfiles(); changed(); }; sync(); profiles.append(wrapper); profileInputs.push({profile, chosen, fees});
       }
       const quantities = field(fields, 'Fixed MNQ quantities to compare · comma-separated whole numbers', prefix + 'quantities', template.policies.map(policy => policy.micros).join(', '), 'text');
       fields.append(node('p', 'Requested quantities remain subject to the saved account size ceiling, phase size tiers and daily account rules.'));
       const execution = select(fields, 'Forecast and outer execution', prefix + 'execution', [['trade_path', 'Saved trade-path scenarios · existing'], ['native', 'Actual native strategy reruns · MNQ']]);
       execution.options[1].disabled = !defaults.native_execution;
+      const profileStatus = node('p'); profileStatus.id = prefix + 'profile-status'; profileStatus.setAttribute('role', 'status'); fields.append(profileStatus);
+      function syncProfiles() {
+        const available = execution.value === 'native' ? nativeProfiles : tradeProfiles, blocked = [];
+        for (const {profile, chosen, fees} of profileInputs) {
+          const supported = available.some(item => item.profile_id === profile.profile_id);
+          chosen.disabled = !supported && !chosen.checked;
+          Object.values(fees).forEach(input => { input.disabled = !chosen.checked || !supported; });
+          if (chosen.checked && !supported) blocked.push(profile.profile_id);
+        }
+        const reason = blocked.length ? `${blocked.join(', ')} requires actual native strategy reruns. The selected profiles and fees are retained; choose native execution or explicitly deselect those profiles.` : '';
+        execution.setCustomValidity(reason); profileStatus.textContent = reason; return blocked;
+      }
+      syncProfiles();
       const nativeFields = node('fieldset'); nativeFields.id = prefix + 'native-fields'; nativeFields.disabled = nativeFields.hidden = true; fields.append(nativeFields);
       nativeFields.append(node('legend', 'Native account-state policy comparison'), node('p', 'The fixed quantities above remain separate policies. Every additional dollar or percentage policy is compared at every hard cap below. Every qualified strategy and selected profile enters the complete membership.'));
       const riskCaps = field(nativeFields, 'Hard MNQ caps for additional risk policies', prefix + 'risk-caps', '40', 'text');
@@ -261,7 +279,9 @@
       const sampling = node('div', undefined, 'prop-fields'); advanced.append(sampling); fields.append(advanced);
       const addInput = (container, group, key, title, minimum = 0) => {
         if (template[group]?.[key] === undefined || template[group][key] === null) return;
-        const input = field(container, title, prefix + key, template[group][key]); input.min = minimum; input.step = '1'; inputs.push({group, key, input});
+        const input = field(container, title, prefix + key, template[group][key]); input.min = minimum; input.step = '1';
+        if (group === 'retry' && ['retry_delay_calendar_days', 'activation_delay_sessions'].includes(key)) input.max = 365;
+        inputs.push({group, key, input});
       };
       addInput(sampling, 'simulation', 'simulations', 'Forecast paths per candidate', 2);
       addInput(sampling, 'simulation', 'seed', 'Simulation seed');
@@ -306,7 +326,7 @@
       const nativeMode = () => execution.value === 'native';
       const syncNativePaths = () => { if (!nativeMode()) return; for (const [key, sourceKey] of [['chain_simulations', 'simulations'], ['chain_seed', 'seed']]) { const target = inputs.find(item => item.key === key), source = inputs.find(item => item.key === sourceKey); if (target && source) target.input.value = source.input.value; } };
       execution.onchange = () => {
-        executionInputs[previousExecution] = Object.fromEntries(inputs.map(({key, input}) => [key, input.value]));
+        executionInputs[previousExecution] = Object.fromEntries(inputs.filter(({group}) => ['simulation', 'sampling'].includes(group)).map(({key, input}) => [key, input.value]));
         const active = nativeMode(), saved = executionInputs[execution.value];
         for (const {key, input} of inputs) {
           const initial = {simulations: defaults.native_execution?.simulations, seed: defaults.native_execution?.seed, block_weekdays: defaults.native_execution?.block_sessions, max_micros: 40};
@@ -317,13 +337,14 @@
           if (key === 'block_weekdays') { input.max = active ? '10' : ''; input.closest('label').firstChild.textContent = active ? 'Contiguous observed source sessions per block · 1, 5 or 10' : 'Resampling block · weekdays'; }
         }
         previousExecution = execution.value; nativeFields.disabled = nativeFields.hidden = !active; quantities.required = !active;
-        syncNativePaths(); changed();
+        syncNativePaths(); syncProfiles(); changed();
       };
       for (const {key, input} of inputs) if (['simulations', 'seed'].includes(key)) input.addEventListener('input', syncNativePaths);
       enabled.onchange = () => { fields.disabled = !enabled.checked; fields.hidden = !enabled.checked; changed(); };
       let loadedStudy = null;
       studies.push(() => {
         if (!enabled.checked) return null;
+        if (syncProfiles().length) throw Error(profileStatus.textContent);
         const study = structuredClone(loadedStudy || template);
         study.profiles = profileInputs.filter(item => item.chosen.checked).map(({profile, fees}) => ({...profile, ...Object.fromEntries(Object.entries(fees).map(([key, input]) => [key, input.value]))}));
         if (!study.profiles.length) throw Error(`Choose at least one ${phase} account profile.`);
@@ -340,7 +361,7 @@
             study.policies.push(...caps.flatMap(value => policies.map(sizing => ({micros: Number(value), sizing}))));
           }
           study.search_settings.native_execution = {model: defaults.native_execution.model, capture_paths: Number(capture.value), early_closes: readEarlyCloses()};
-        }
+        } else delete study.search_settings.native_execution;
         if (!study.policies.length) throw Error(`Declare at least one ${phase} fixed quantity or risk policy.`);
         study.selector = {...study.selector, mode: mode.value, tie_policy: ties.value};
         for (const [key, setting] of optional) {
@@ -364,8 +385,9 @@
         const canonical = window.researchWorkspace.canonical;
         for (const saved of value.profiles) {
           const available = profileInputs.find(item => item.profile.profile_id === saved.profile_id);
+          const supported = (value.search_settings?.native_execution ? nativeProfiles : tradeProfiles).some(profile => profile.profile_id === saved.profile_id);
           const comparable = profile => Object.fromEntries(Object.entries(profile).filter(([key]) => !['evaluation_price', 'activation_fee'].includes(key)));
-          if (!available || canonical(comparable(saved)) !== canonical(comparable(available.profile))) throw Error(`Saved ${phase} profile ${saved.profile_id} has rules unsupported by this form. Its declaration is preserved; no current profile is substituted.`);
+          if (!supported || !available || canonical(comparable(saved)) !== canonical(comparable(available.profile))) throw Error(`Saved ${phase} profile ${saved.profile_id} has rules or an execution method unsupported by this form. Its declaration is preserved; no current profile is substituted.`);
         }
         const fixed = value.policies.filter(policy => !policy.sizing), risk = value.policies.filter(policy => policy.sizing);
         const caps = [...new Set(risk.map(policy => policy.micros))], unique = [...new Map(risk.map(policy => [canonical(policy.sizing), policy.sizing])).values()];
@@ -390,7 +412,7 @@
         if (native) { if (native.model !== defaults.native_execution.model || native.horizon_calendar_days !== undefined) throw Error('Saved nested native law or explicit horizon is unsupported by this form; the derived-window law will not replace it.'); capture.value = native.capture_paths; readEarlyCloses.load(native.early_closes || {}); }
         else readEarlyCloses.load({});
         for (const [key, input] of Object.entries(historicalInputs)) input.value = value.search_settings.conservative_objective?.[key] ?? defaults.conservative_objective[key];
-        loadedStudy = structuredClone(value); syncSelector(); syncNativePaths();
+        loadedStudy = structuredClone(value); syncSelector(); syncNativePaths(); syncProfiles();
       });
     }
     const read = () => studies.map(read => read()).filter(Boolean);
@@ -745,7 +767,7 @@
     const assumptions = node('details'); assumptions.append(node('summary', 'Research assumptions and prior access')); list(assumptions, plan.limitations); parent.append(assumptions);
     parent.append(node('p', plan.economic_plan?.enabled
       ? 'Qualification → independent training forecasts → saved frozen family → chronological outer strategy execution and account replay. No qualified or feasible policy means abstention. Historical evidence does not authorize deployment.'
-      : 'This increment runs inner qualification only. The outer periods remain reserved; economic selection, outer replay and deployment recommendation are pending.', 'robust-notice'));
+      : 'This report contains inner qualification only. The outer periods remain reserved; economic selection, outer replay and deployment recommendation are pending.', 'robust-notice'));
   }
   function showResult(parent, record, includeDownloads = true) {
     const result = record.result;

@@ -1,16 +1,17 @@
 # Independent Evaluation and Funded optimization
 
-Additive work, 7 November 2026: the [robust research plan](robust_research_plan.md)
-extends the existing phase architecture. Its first implementation executes
-session-aware inner research and qualification through normal backtests and
-AnalysisStore. It does not yet feed qualified sets into phase selection or run
-chronological frozen outer tests. The independent objectives and numerical
-owners below remain unchanged; retain all dated evidence and legacy paths.
+Current extension, 8 November 2026: the [robust research plan](robust_research_plan.md)
+implements nested qualification, independent phase selection, frozen chronological
+outer tests, reliability, complete-procedure verification, current selection and
+supplied forward observations through the existing backtest/AnalysisStore workflow.
+The original 7 November increment implemented inner qualification only. Dated
+findings below retain their original scopes; full repository acceptance remains
+separate from individual feature and provider qualification.
 
 [Home](../README.md) / [Docs](README.md) / [Architecture](architecture.md)
 
 Specification and incremental implementation plan, consolidated 2026-11-06.
-Final code baseline: `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus cleanup diff.
+Historical cleanup baseline: `445c14030c0e060d5844cfaa3bcf6564dd13a981` plus cleanup diff.
 The qualification record is [here](prop_simulation_review.md#final-architecture-cleanup--2026-11-06).
 **Implemented: standalone Evaluation/Funded backends, saved-trial campaigns,
 portal visual comparisons, named IS freeze and manual frozen OOS assessment.
@@ -683,7 +684,7 @@ criteria. Prefixes separate this work from portfolio M1/M2.
 
 | Milestone | Concrete artifact and normal user journey | Exit criteria | Verified status / remaining exit |
 | --- | --- | --- | --- |
-| P1: single-candidate Evaluation | Phase contracts, single-source admission, dated acquisition sampler/metrics. Saved IS report → Configure Evaluation → profile/whole MNQ size/timing → Check → Run → durable report. | No funded dependency; every requested evaluation metric or explicit censoring reason; independent chain/cost/calendar cases and invalid-source checks saved. Single candidate is explicitly not yet a search. | Implemented for Apex dated acquisition; Lucid dated Evaluation rejects. Current synthetic arithmetic/browser qualification is linked above; no provider certification. |
+| P1: single-candidate Evaluation | Phase contracts, single-source admission, dated acquisition sampler/metrics. Saved IS report → Configure Evaluation → profile/whole MNQ size/timing → Check → Run → durable report. | No funded dependency; every requested evaluation metric or explicit censoring reason; independent chain/cost/calendar cases and invalid-source checks saved. Single candidate is explicitly not yet a search. | Saved-trade-path dated acquisition supports Apex and rejects Lucid. The later native extension supports Lucid Evaluation through actual strategy reruns; the original fixed-path restriction remains. No provider certification. |
 | P2: Evaluation search and Pareto | Candidate references across saved strategies/jobs, bounded sizes/profiles, comparison and frontier in the same configuration/report. Minimal immutable campaign revision persisted. | Multi-strategy/multi-job fixture, exact within-phase search coverage, all frontier/tie/unresolved candidates, marginal-cost diagnostics and simultaneous uncertainty; no lambda or funded inputs. | Saved-candidate search/UI implemented; simultaneous dominance and precision qualification remain open. Full original exit is partial. |
 | P3: conditional Funded optimization | Independent funded runner, dated settlement, horizon metrics, sizes/profiles and saved candidate set support. Saved IS report → Configure Funded → candidates/profile/size range/horizon → Check → Run → report. | Works with no successful evaluations or evaluation fields; horizon receipt/survival/zero-payout cases, full ranking and missing-precision states; ledger and joint regressions unchanged. Can proceed after P1 shared contracts without depending on P2's selected result. | Apex/Lucid fresh-funded backend, campaigns/UI and receipt boundaries implemented; certified risk/precision and provider settlement verification remain open. |
 | P4: bounded campaign generation | Extend campaign form to declare multiple strategy parameter grids and link ordinary optimization jobs/trials; preserve saved-candidate entry. | Search caps/failed trials/aliases recorded; common IS protocol checked before jobs; deterministic serial/parallel results and resume; every result opens its original trial and phase report. | Saved-job/trial expansion and bounded sizing implemented. Automatic new-grid generation/adaptive refinement/resume orchestration are pending; full milestone incomplete. |
@@ -749,8 +750,9 @@ this path. See current contracts in [prop simulation](prop_simulation.md),
 [prop review](prop_simulation_review.md).
 
 This extends the earlier dated findings; it does not erase their evidence. Guided
-catalogue/templates, optional predefined frozen-pair lifecycle comparison,
-timestamped forward monitoring and full-suite final acceptance remain pending.
+catalogue/templates, predefined frozen-pair comparison and supplied timestamped
+monitoring were pending at that checkpoint and are implemented below. A complete
+passing repository acceptance gate remains required.
 Provider, broker, numerical-reference and operational readiness are separate
 qualification boundaries; no live integration is declared production-ready.
 
@@ -763,7 +765,8 @@ before execution. Final/current statuses remain distinct. Numerical phase owners
 and their declared identities are unchanged. Saved report visuals expose actual
 folds, parameter qualification and matched receipt outcomes without selecting
 again. See the M4 journey in `prop_simulation_review.md`. Frozen-pair lifecycle
-comparison, timestamped monitoring and final system acceptance remain pending.
+comparison and timestamped monitoring were added by the next section; final
+system acceptance remains separately recorded.
 
 ### Downstream pair and observation integration (8 November 2026)
 
@@ -782,3 +785,20 @@ reconciliation, advisory states and source-access exposure use the existing
 AnalysisStore. Model/provider/platform verification remains explicit and no order
 placement is enabled. Release qualification counts and outstanding full-suite
 acceptance are recorded in `robust_research_plan.md` and the review evidence.
+
+### Native Lucid Evaluation and captured runtime identity
+
+The native method now exposes Lucid Evaluation in ordinary campaigns and nested
+profile controls. Its modeled activation fee is zero; unsupported saved-path
+declarations still reject. Selected profiles, fees and retry/activation timing
+survive draft/template reloads and execution-mode changes without implicit
+substitution. The current local Lucid rule uses 40% best-day consistency; its
+finite native forecast horizon is a censoring boundary, not a provider expiry.
+
+Both phase identities capture the actual selected Apex/Lucid runtime backends
+and their source files, including the exact-money helper. The earlier Evaluation
+identity omitted Lucid files required by freezing; that caused a concrete native
+Lucid freeze failure and is corrected. Identity changes reject future frozen
+launches and cache reuse while old reports/downloads stay readable. No changed
+calculation source is filtered out to preserve old hashes. The implementation
+and qualification record distinguishes these corrections from provider parity.

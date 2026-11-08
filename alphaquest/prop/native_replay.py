@@ -291,7 +291,7 @@ def check_replay(datasets, runs, request, *, admitted_record=None):
             complete_minute_sessions=True, historical_paths=1, recommendation=False,
             limitations=['Continuous/base MNQ, one-minute complete sessions, VWAP EOD-flat only.',
                 'Strategy starts cold at the first retained source bar; prior source results do not enter sizing.',
-                'The historical replay is one observed path. An optional native forecast is saved separately; native policy selection remains unsupported.',
+                'The historical replay is one observed path and does not select a policy. Optional native forecasts are separate; independent native IS campaigns perform policy selection.',
                 'Provider rules, OHLC ordering and payout settlement assumptions remain unverified.']))
     make_controller(request, result)
     if request.native_forecast is not None:
@@ -401,7 +401,7 @@ def prepare_native_forecast(datasets, request, check):
             'Actual source prices/timestamps are preserved. Signal state resets once per block with prior-only original-source feature warmup.',
             'Provider state and original trading cash continue across blocks; no redraw is allowed after an execution failure.',
             'Monte Carlo error conditions on this fitted block law and excludes historical-law, execution, provider and future uncertainty.',
-            'Native policy selection, historical-mean refitting and final procedure qualification remain separate unfinished work.'])
+            'This forecast estimates the supplied candidate. Independent native IS campaigns own selection and historical-mean refitting; frozen procedure qualification is a separate workflow.'])
     plan['plan_sha256'] = digest(plan)
     return plan, catalogue, cohorts
 

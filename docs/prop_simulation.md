@@ -14,9 +14,9 @@ strategy behavior and provider payout eligibility remain unverified. The full
 repository acceptance gate remains outstanding. No provider or broker integration
 is production-qualified. Earlier findings and reports are preserved below.
 
-7 November 2026: saved-report prop configuration also exposes nested inner
+Historical 7 November 2026 checkpoint: saved-report prop configuration also exposed nested inner
 research, actual execution-stress reruns, causal market-condition evidence and
-durable qualification reports. These reports currently stop before
+durable qualification reports. That initial release stopped before
 prop policy optimization and outer replay; no prop calculations or readiness
 claims are replaced. The [research workflow](research_workflow.md#nested-inner-research)
 explains the increment and the [checklist](robust_research_plan.md) records the
@@ -39,13 +39,14 @@ forecasts do not erase observed cash, and censored acquisition fees remain paid.
 Optional conservative Funded selection resamples historical sessions and
 re-estimates mean cash, preserving separate numerical-error requirements. It
 does not optimize a single-account payout percentile or claim future confidence.
-Final recommendation remains incomplete. Subsequent increments below implement
-native chronological account-controlled reruns and optional native forecasts;
-native candidate optimization and frozen campaign handoff remain pending.
+At that initial reliability checkpoint, final recommendation and native policy
+handoff were incomplete. The subsequent contracts below implement native
+chronological reruns, forecasts, candidate optimization, frozen campaign handoff
+and the complete-procedure workflow; the current acceptance record is separate.
 
 ## Canonical external sources — 2026-11-08
 
-**Backtests → Import external trades** validates the versioned
+**Strategies → Import trades** validates the versioned
 [`aq-trade-export-v1` contract](designs/trade_export_v1.md) and saves an ordinary
 backtest report. Original bytes, normalized trades/risk events, exporter identity,
 declared research access and exact fee/slippage reconciliation remain inspectable.
@@ -1811,8 +1812,9 @@ The normal prop configuration/check/run workflow also supports
 an explicit historical IS window and saves a normal RunStore backtest plus an
 AnalysisStore report. It is one historical scenario, not a Monte Carlo estimate,
 phase optimizer, frozen outer assessment or deployment recommendation. The
-subsequent optional native forecast is a separate report component; native
-optimizer/campaign integration remains pending.
+subsequent optional native forecast is a separate report component. This
+historical component does not select policies; independent native IS campaigns
+perform selection through the later contract below.
 
 The initial admitted subset is the current VWAP strategy, actual continuous/base
 MNQ prices, tick size 0.25, point value 2, complete one-minute sessions, EOD-flat
@@ -1923,9 +1925,10 @@ actual historical child remains inspectable.
 
 Normal downloads add `native_forecast_plan.json`, `native_forecast.json`,
 `native_forecast_paths.json`, `native_forecast_schedules.json` and
-`native_forecast_captures.json`. Native optimizer/campaign integration,
-conservative historical refitting and frozen native outer application remain
-pending. See the [saved workflow and independent expected values](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08).
+`native_forecast_captures.json`. At this initial forecast increment, optimizer
+integration, historical refitting and frozen outer application were pending;
+the following contracts now implement them separately. See the
+[saved workflow and independent expected values](prop_simulation_review.md#native-contiguous-block-forecasts--2026-11-08).
 
 
 # Native independent phase search contract and limits — 8 November 2026
@@ -1940,6 +1943,19 @@ Evaluation's chain count/seed must agree with that single declared path law.
 Funded's horizon must equal the native execution horizon. Both use the existing
 phase calendar; modeled cohort starts follow admitted IS observations. Calendar
 declarations, rules and settlement assumptions retain their verification status.
+
+Native Evaluation and Funded support both local Apex EOD 50K and LucidFlex 50K.
+Lucid Evaluation requires the standard 40% consistency rule and zero activation
+fee. Saved-trade-path Evaluation continues to reject Lucid. Native profile
+availability is exposed separately in ordinary campaigns and nested studies;
+saved choices, fees and timing are retained when a changed execution method is
+incompatible. Check/preview must succeed before execution.
+
+Implementation identities retain all declared numerical source hashes and now
+explicitly include both provider backends, Lucid rules/engine, exact-money
+arithmetic and selected runtime kernel identities. Changed identities reject
+frozen launches; older reports are preserved and remain readable. No provider
+or numerical-reference certification follows from those identity checks.
 
 Admission requires the existing DatasetStore and actual supported continuous
 MNQ VWAP source, original execution costs, compatible session calendars and

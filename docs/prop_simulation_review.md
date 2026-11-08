@@ -1,6 +1,9 @@
 # Prop simulation review and evidence
 
-Current [architecture cleanup and regression qualification](#final-architecture-cleanup--2026-11-06) ·
+Current [acceptance record](robust_research_plan.md#final-acceptance-record) ·
+[Final acceptance repairs](#8-november-2026--final-acceptance-repairs-and-readable-sizing-explanations) ·
+[Complete product walkthrough](research_workflow.md#first-complete-campaign-a-practical-walkthrough) ·
+Historical [architecture cleanup and regression qualification](#final-architecture-cleanup--2026-11-06) ·
 [Phase campaigns](#phase-research-campaigns--2026-11-06) ·
 [Portal / frozen OOS](#phase-campaign-portal-and-frozen-oos--2026-11-06) ·
 [Current contracts](prop_simulation.md) · [Module ownership](architecture.md#final-module-ownership-and-retention).
@@ -9109,3 +9112,45 @@ the test declaration follows the actual policy seal and chooses a compatible
 later observation window. Reopening these reports does not create genuine
 future observations or a present broker-health claim. All automated temporary
 servers stopped. A fresh complete passing suite remains the final release gate.
+
+## 8 November 2026 — Native Lucid campaigns and provider identity qualification
+
+### Native Lucid Evaluation profile in the existing research workflow
+
+This increment exposes the already implemented native Lucid Evaluation controller in ordinary phase campaigns and nested economic studies. Lucid Evaluation is available only with **Actual native strategy reruns · MNQ**. Saved trade-path Evaluation remains Apex-only. Changing execution method retains the selected profile, fees and timing assumptions and blocks an unsupported declaration until the user chooses a supported execution method or explicitly changes profiles.
+
+The local Lucid Evaluation summary shows the $3,000 target, $2,000 EOD trailing drawdown, 40% best-day consistency, no modeled evaluation expiry, the local $1,200 soft daily stop and 30-calendar-day activity rule, and the required zero activation fee. These are model rules; provider parity and deployment authorization remain unverified. Evaluation retry delay is entered in calendar days and activation delay in eligible sessions, each an integer 0–365. Defaults remain 0 and 1. Source trading commissions are charged once; account purchase/activation fees are separate explicit assumptions.
+
+Synthetic independent arithmetic: the saved MNQ source has five complete IS sessions, January 5–9, with one 1-MNQ trade per session. Entry 118 to exit 268 earns $300 gross minus $1 round-trip commission, hence $299 net. Separate complete ordinary manual OOS sessions January 26–30 are retained in the source dataset and are not used by the campaign forecast.
+
+In **Configure prop analysis → Create Evaluation campaign**, select native execution, LucidFlex 50K, fixed sizes `3,10`, four paths, seed 1729, block length 1, modeled start January 12, 2026, horizon 7 calendar days and calendar coverage through January 20. Declare evaluation fee $80.50, activation fee $0, retry delay 0 and activation delay 0. This modeled calendar is explicitly synthetic and unverified. Use **Save and check candidates**, inspect the complete two-candidate work preview, then **Run campaign**.
+
+Expected modeled outcomes: 3 MNQ earns $897 per trading session, passes January 15 and is ready January 16, for $80.50 acquisition cost and 4 calendar days. 10 MNQ earns $2,990 per session; after two sessions its $5,980 profit exceeds the target, but its best day is 50%, so it has not passed. Its third session yields $8,970 total with a one-third best day; it passes January 14 and is ready January 15, for $80.50 and 3 calendar days. All four paths complete in this deterministic synthetic pool. The complete Pareto frontier contains 10 MNQ; there is no hidden weighted cost/time score. Zero simulation variation in this constructed pool is not future precision or provider certification.
+
+Inspect candidate forecasts, source/model date mapping and retained native decisions. Download the normal report and analysis ZIP; every manifest artifact is verified. Reloading the saved campaign must issue no POST and leave report/source bytes unchanged. At 390 px the controls and report remain usable without page-level horizontal overflow.
+
+For nested research, include Evaluation and choose native execution before selecting Lucid. The separate catalogue leaves Lucid disabled for a new saved-path study. Save a draft/template with deliberate non-default fees $90.25/$0 and retry/activation delays 2/0; load it and verify the exact declaration and choices survive. Loading requires fresh preview. Switching to saved-path execution retains Lucid and fees but blocks saving/running; switching back restores a valid native declaration. An explicit new legacy Apex declaration removes the native execution settings without changing the original native draft/template. The draft demonstration performs a real compatibility preview, not an economic run.
+
+The final new browser gate passed **2 cases in 59.61 seconds** on frozen engine `456f68cbf67775382ffe22ac8df819ec53878c4b50c92a47259f68d43048cad4`. Production Python, all portal JavaScript, index HTML and the captured test files were identical before and after. The complete command, log, XML, identity snapshots and independent download verification are under `artifacts/native-lucid-evaluation-20261108/browser-final/`. The earlier failed provisional draft deliberately contained an unsupported $7.50 activation fee; the final test now proves that rejection explicitly and then previews the supported $0 declaration. Earlier directories remain unchanged.
+
+The normal campaign library is `artifacts/native-lucid-evaluation-20261108/browser-final/data/test_native_lucid_evaluation_c0`. Saved source: `d84f2b1e3ab740b2911b76bceca4bdf0`; campaign: `140a33935dff49ba9935b98c0a106b86`; normal analysis: `de501fd20637460e999b3d063fdab224`. Its saved research split is IS `2026-01-04`–`2026-01-09`, OOS `2026-01-25`–`2026-01-30`; the actual CME session dates are January 5–9 and January 26–30 respectively. Each interval contains 6,900 complete observed synthetic minute bars. Dataset symbol MNQ, source timezone UTC, tick size 0.25 and point value 2 are saved in `source-report.json`; the exact strategy parameters and $0.50 commission per side are there too.
+
+To inspect and reproduce through the product while preserving the evidence library, run from the repository root:
+
+```sh
+AQ_LUCID_DEMO=$(mktemp -d /tmp/aq-lucid-evaluation.XXXXXX)
+cp -R "$PWD/artifacts/native-lucid-evaluation-20261108/browser-final/data/test_native_lucid_evaluation_c0" "$AQ_LUCID_DEMO/library"
+ALPHAQUEST_DATA_DIR="$AQ_LUCID_DEMO/library" .venv/bin/python -m uvicorn alphaquest.app:create_app --factory --host 127.0.0.1 --port 8017
+```
+
+Open `http://127.0.0.1:8017/#backtests/report/d84f2b1e3ab740b2911b76bceca4bdf0` for the saved source and follow the configuration steps above to create a new campaign in the disposable copy. The already saved result is at `http://127.0.0.1:8017/#backtests/prop/campaign/140a33935dff49ba9935b98c0a106b86`; direct normal analysis is `http://127.0.0.1:8017/#backtests/prop/job/de501fd20637460e999b3d063fdab224`. Opening or reloading the existing report issues no calculation POST. Stop the server with **Ctrl+C**. No persistent server was started for this gate; both temporary test servers stopped and joined successfully.
+
+The separate nested settings library is `artifacts/native-lucid-evaluation-20261108/browser-final/data/test_native_lucid_nested_draft0`. Copy that directory instead in the same startup command to inspect source `6bc6cd4458f44cc9b1666df23f20a0f4`, draft `334e4605063d4d1dabc33675f2423942`, template `5857b346740d4c208a2e263a6dca4959`, and explicit legacy Apex draft `430aeb8bd5a744c58aaf5a117e467fc6`. Open `http://127.0.0.1:8017/#backtests/research?draft=334e4605063d4d1dabc33675f2423942`; review the native Lucid profile, $90.25/$0 fees and 2/0 timing, then preview compatibility. This library contains no nested research execution result; it demonstrates exact settings restoration, source checks and rejection boundaries.
+
+The final campaign `report.json` SHA-256 is `8c8fa8be09ac238591213de14314fbb4c9207e77a00f62404f9f9111d4e1d614`; `analysis.zip` is `db6845362ebfcbd039bd81e6702119303c589f9b0cfc758f3ba33b09eb4ffcfc`; the exact saved dataset CSV is `3de6309cfef611c1f4b391ca64b99188f4cd14a65e0837213f312a4c11c58d71`. All 10 downloaded files across the two journeys and all 17 ZIP members were independently verified. The screenshots retain the source/model clocks, explicit unsupported-profile message, native forecast metrics and narrow decision/form views. Report/source bytes remained unchanged on reopening.
+
+Five applicable existing browser regressions passed in **169.89 seconds**, separately under `artifacts/native-lucid-evaluation-20261108/browser-regression/`: all four native campaign cases and the native policy draft round-trip/membership guard. All five temporary servers stopped and joined, and the before/after production, web and captured test hashes remained identical. All 21 retained downloads and 78 report ZIP members in these regression libraries were independently checked. The full set is recorded in `browser-regression/verification.json`. This is a focused product gate, not a claim that the full repository suite or provider parity is complete.
+
+The final API gate passed **6 cases in 243.65 seconds** on the same frozen engine. It includes the two Lucid cases and all four existing native phase campaign cases. The final native Lucid campaign is `24e82a0a69ef4610bd515348c43cae76`, forecast `1d2908113b384f719b9e305375b6eb6a`, frozen ordinary OOS assessment `8e14e58a24fa4ca39eca95faf82e9d29`, chronological child `42e915c25476481c8d4b41b57db5ba69`, and exclusive-cutoff forecast `949d1485626c43179a10172f391b3377`. The exact library, commands, independent arithmetic and normal copy/start/reopen instructions are in `artifacts/native-lucid-evaluation-20261108/final-api-v1/README.md`. Expected ordinary OOS pass is January 28 and readiness January 29; acquisition cost is $80.50 and evaluation profit is not trader cash. At the January 15 exclusive cutoff, readiness is censored and acquisition means remain null while fees are retained.
+
+Actual freeze/OOS qualification exposed a missing Lucid implementation-identity entry. Both phase identities now capture each provider runtime used by native controllers, its source and compiled-kernel identity, and shared decimal arithmetic. These necessary identity changes intentionally prevent incompatible historical frozen packages from launching; saved historical reports and downloads remain readable. No numerical formula changed. The final seven-case identity gate in `artifacts/final-research-acceptance-20261108/phase-kernel-identity-final-v2/` passed in **29.61 seconds**, with no skips in this installed environment. It verifies direct source coverage, both phase cache identities, and an actual $1,500 Funded forecast whose frozen OOS launch rejects either changed provider runtime before OOS execution or access-ledger append. Prior report/ZIP/package bytes remain unchanged.

@@ -30,6 +30,14 @@
     const label=p.kind==='fixed_contracts'?`${p.contracts} fixed MNQ`:p.kind==='fixed_dollar_risk'?`$${p.risk_dollars} planned risk`:`${p.risk_percent}% of ${(referenceLabels[p.reference]||p.reference).toLowerCase()}`;
     return `${label} · cap ${config.micros} MNQ`;
   }
+  function profileRuleSummary(phase,profileId){
+    if(phase==='evaluation')return profileId==='lucidflex-50k'
+      ?'LucidFlex Evaluation: $3,000 profit target; $2,000 EOD trailing drawdown; 40% best-day consistency; no modeled evaluation expiry. The local model requires zero activation fee and uses a $1,200 soft daily stop and 30-calendar-day activity rule. Declared forecast and retry guards can still censor acquisition.'
+      :'Apex Evaluation: $3,000 profit target; $2,000 EOD trailing drawdown; $1,000 daily loss limit; 21-session expiry.';
+    return profileId==='apex-50k-eod'
+      ?'Fresh funded account: $2,000 trailing drawdown; $2,100 safety net; five qualifying days at $250; 50% payout consistency; six modeled payout caps ($1,500/$1,500/$2,000/$2,500/$2,500/$3,000). Size tiers and daily stops still apply.'
+      :'Fresh LucidFlex funded account: $2,000 drawdown; five winning days at $150; no funded consistency requirement; 50% withdrawal limit, $500 minimum/$2,000 maximum gross request; 90% trader share; five modeled payouts; $1,200 daily stop and 20/30/40-MNQ tiers.';
+  }
   function sizingControls(row,sizes,options={}){
     const native=options.native===true,prefix=options.prefix||(native?'native-':'campaign-'),maximumContracts=options.maximumContracts||(native?40:60);
     const mode=select(row,native?'Sizing mode':'Sizing comparison','',native?[['legacy','Fixed MNQ quantity'],['policies','Account-state sizing policy']]:options.riskOnly?[['legacy','No additional risk policies'],['policies','Compare dollar and percentage policies']]:[['legacy','Fixed MNQ sizes · existing'],['policies','Compare sizing policies']]);mode.className=prefix+'sizing-mode';
@@ -91,12 +99,20 @@
     const execution=select(form,'Forecast execution','campaign-execution',[['trade_path','Saved trade-path scenarios · existing'],['native','Actual native strategy reruns · MNQ']]);
     execution.options[1].disabled=external||!defaults.native_execution;
     form.append(node('p','Native forecasts rerun strategy opportunities, sizing and fills for every account path. Source admission checks the supported strategy, actual MNQ instrument, causal stops and complete observed sessions. Existing trade-path scenarios retain their saved execution assumptions.'));
-    const profile=select(form,'Account profile','campaign-profile',[['apex-50k-eod','Apex 50K EOD'],['lucidflex-50k','LucidFlex 50K · funded only']]);
+    const profile=select(form,'Account profile','campaign-profile',[['apex-50k-eod','Apex 50K EOD'],['lucidflex-50k','LucidFlex 50K']]);
     const entry=node('div');panel.insertBefore(entry,d);
     for(const [value,title]of [['evaluation','Create Evaluation campaign'],['funded','Create Funded campaign']])button(entry,title,'campaign-new-'+value).onclick=()=>{d.open=true;phase.value=value;phase.dispatchEvent(new Event('change',{bubbles:true}));phase.focus();};
-    const ruleNote=node('p');form.append(ruleNote);
-    const ruleSummary=()=>phase.value==='evaluation'?'Evaluation: $3,000 profit target; $2,000 EOD trailing drawdown; $1,000 daily loss limit; 21-session expiry.':profile.value==='apex-50k-eod'?'Fresh funded account: $2,000 trailing drawdown; $2,100 safety net; five qualifying days at $250; 50% payout consistency; six modeled payout caps ($1,500/$1,500/$2,000/$2,500/$2,500/$3,000). Size tiers and daily stops still apply.':'Fresh LucidFlex funded account: $2,000 drawdown; five winning days at $150; no funded consistency requirement; 50% withdrawal limit, $500 minimum/$2,000 maximum gross request; 90% trader share; five modeled payouts; $1,200 daily stop and 20/30/40-MNQ tiers.';
-    const showRule=()=>{ruleNote.textContent=`Local rule snapshot: ${profile.value} · ${defaults.profiles[profile.value]}. ${ruleSummary()} These are local model rules, not newly verified provider terms. Source parameters, costs, sizes and the research window are saved by the compatibility check.`;};profile.addEventListener('change',showRule);showRule();
+    const ruleNote=node('p');ruleNote.id='campaign-rule-summary';form.append(ruleNote);
+    const profileStatus=node('p');profileStatus.id='campaign-profile-status';profileStatus.setAttribute('role','status');form.append(profileStatus);
+    const showRule=()=>{ruleNote.textContent=`Local rule snapshot: ${profile.value} · ${defaults.profiles[profile.value]}. ${profileRuleSummary(phase.value,profile.value)} These are local model rules, not newly verified provider terms. Fees remain your explicit declarations. Source parameters, costs, sizes and the research window are saved by the compatibility check.`;};
+    function syncProfile(){
+      const unavailable=phase.value==='evaluation'&&execution.value!=='native';
+      profile.options[1].disabled=unavailable;profile.options[1].textContent=unavailable?'LucidFlex 50K · Evaluation requires native reruns':'LucidFlex 50K';
+      const blocked=unavailable&&profile.value==='lucidflex-50k';
+      const reason=blocked?'LucidFlex Evaluation requires actual native strategy reruns. Your profile and fees are retained; choose native execution or explicitly choose another profile.':'';
+      profile.setCustomValidity(reason);profileStatus.textContent=reason;showRule();
+    }
+    profile.addEventListener('change',syncProfile);syncProfile();
     const sources=node('div');sources.id='campaign-sources';form.append(sources);
     const anchor={id:source.id,created_at:source.created_at_utc,status:source.status,
       strategy_id:source.run_metadata.strategy.id,parameters:source.run_metadata.strategy.parameters,
@@ -176,14 +192,16 @@
       const note=node('p','Native account size ceiling: 40 MNQ, with lower user, policy and provider limits still applied. Total paths are divided equally across declared start dates. Every start must follow the admitted source IS window. Capture limits affect retained detail only; all paths enter candidate metrics. Evaluation acquisition means remain unresolved when any path is censored.');note.style.gridColumn='1 / -1';nativeFields.append(note);
     }
     const evalFields=node('div');evalFields.className='prop-fields';form.append(evalFields);
-    field(evalFields,'Evaluation price · USD','campaign-price','30','number');field(evalFields,'Activation fee · USD','campaign-activation','40','number');
+    for(const [label,id,value]of [['Evaluation price · USD','campaign-price','30'],['Activation fee · USD','campaign-activation','40']]){const input=field(evalFields,label,id,value,'number');input.min='0';input.step='0.01';}
+    field(evalFields,'Retry delay after failure · calendar days','campaign-retry-delay','0','number');
+    field(evalFields,'Activation delay after pass · eligible sessions','campaign-activation-delay','1','number');
     field(evalFields,'Acquisition chains','campaign-chains','1000','number');field(evalFields,'Acquisition seed','campaign-chain-seed','45','number');
     const fundedFields=node('div');fundedFields.className='prop-fields';form.append(fundedFields);
     field(fundedFields,'Receipt horizon · calendar days','campaign-horizon','90','number');field(fundedFields,'Receipt delay · calendar days','campaign-delay','0','number');
     field(fundedFields,'Maximum breach probability (0–1)','campaign-breach','1','number').step='any';
     const note=node('p','Uses captured source costs. Fixed sizes preserve the existing linear MNQ scenarios; explicit sizing policies use causal stop and account state subject to source admission. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts.');form.append(note);
-    const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';profile.options[1].disabled=phase.value==='evaluation';if(phase.value==='evaluation')profile.value='apex-50k-eod';showRule();};phase.onchange=changePhase;changePhase();
-    for(const [id,min,max]of [['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1]]){const input=$('#'+id);input.min=min;input.max=max;}
+    const changePhase=()=>{evalFields.hidden=phase.value!=='evaluation';fundedFields.hidden=phase.value!=='funded';syncProfile();};phase.onchange=changePhase;changePhase();
+    for(const [id,min,max]of [['campaign-paths',1,20000],['campaign-chains',1,20000],['campaign-horizon',1,3650],['campaign-delay',0,365],['campaign-breach',0,1],['campaign-retry-delay',0,365],['campaign-activation-delay',0,365]]){const input=$('#'+id);input.min=min;input.max=max;}
     let previousExecution='trade_path';const executionValues={};
     function nativeMode(){return execution.value==='native';}
     function synchronizeNativePaths(){if(nativeMode()){$('#campaign-chains').value=$('#campaign-paths').value;$('#campaign-chain-seed').value=$('#campaign-seed').value;}}
@@ -196,7 +214,7 @@
       $('#campaign-paths').min=active?'2':'1';$('#campaign-paths').max=active?'512':'20000';
       $('#campaign-block').closest('label').firstChild.textContent=active?'Contiguous observed source sessions per block':'Resampling block · weekdays';
       note.textContent=active?'Actual native strategy reruns use the declared policy at each causal opportunity. Source costs are charged once; planning costs must match the admitted source. Modeled target calendar and settlement assumptions remain unverified.':'Uses captured source costs. Fixed sizes preserve the existing linear MNQ scenarios; explicit sizing policies use causal stop and account state subject to source admission. The declared weekday calendar, prices and settlement delays are assumptions, not verified provider forecasts.';
-      synchronizeNativePaths();
+      synchronizeNativePaths();syncProfile();
     }
     execution.addEventListener('change',changeExecution);$('#campaign-paths').addEventListener('input',synchronizeNativePaths);$('#campaign-seed').addEventListener('input',synchronizeNativePaths);
     const count=node('p','Candidate count will be calculated from the selected saved trials and sizes.');count.id='campaign-count';form.append(count);
@@ -246,7 +264,8 @@
         const body={campaign_id:crypto.randomUUID().replaceAll('-',''),phase:phase.value,profile:p,
           sources:selectedSources(),
           is_window:{first_session:$('#campaign-is-start').value,last_session:$('#campaign-is-end').value},
-          simulation:{simulations:number('campaign-paths'),seed:number('campaign-seed'),...(nativeMode()?{max_micros:40}:{})},sampling,costs:{mode:'source'},search_settings};
+          simulation:{simulations:number('campaign-paths'),seed:number('campaign-seed'),...(nativeMode()?{max_micros:40}:{})},sampling,costs:{mode:'source'},search_settings,
+          ...(isEval?{retry:{retry_delay_calendar_days:number('campaign-retry-delay'),activation_delay_sessions:number('campaign-activation-delay')}}:{})};
         status.textContent='Counting candidates and checking saved source identity, costs and risk…';
         let c;
         try{c=await api('/api/research-campaigns',body);}
@@ -483,5 +502,5 @@
       await new Promise(resolve=>setTimeout(resolve,700));
     }
   }
-  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview,sizingControls};
+  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview,sizingControls,profileRuleSummary};
 })();

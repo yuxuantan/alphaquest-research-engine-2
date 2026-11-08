@@ -366,6 +366,11 @@ def study_defaults():
     profiles = dict(
         evaluation=[asdict(EvaluationProfile('apex-50k-eod',rule_version('apex-50k-eod'),'30','40'))],
         funded=[asdict(FundedProfile(name,rule_version(name))) for name in ('apex-50k-eod','lucidflex-50k')])
+    native = native_defaults()
+    native_profiles = dict(
+        evaluation=[profiles['evaluation'][0], next(profile for profile in native['profiles']['evaluation']
+                                                   if profile['profile_id'] == 'lucidflex-50k')],
+        funded=profiles['funded'])
     common=dict(policies=[dict(micros=1),dict(micros=3)],simulation=dict(simulations=256,seed=42,max_micros=40),
                 costs=dict(mode='source'),selector={})
     calendar=dict(closures=[],timezone='America/Chicago',version='user-declared-weekdays-v1')
@@ -378,9 +383,10 @@ def study_defaults():
                              bootstrap_replicates=100,bootstrap_seed=137,near_tie_cash=0),
         selector=FundedSelector().model_dump(mode='json'))
     return dict(economic_studies=dict(evaluation=evaluation,funded=funded),economic_profiles=profiles,
+        economic_native_profiles=native_profiles,
         baseline=dict(id='One MNQ reference',policy=dict(micros=1),required=True),
         conservative_objective=asdict(FundedHistoricalMean()),
-        native_execution=native_defaults()['native_forecast'])
+        native_execution=native['native_forecast'])
 
 
 def resolved_study(study, outer):

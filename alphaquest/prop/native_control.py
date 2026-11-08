@@ -363,7 +363,7 @@ class NativeControlBase:
             readiness='HISTORICAL_SCENARIO_ONLY',native_forecast_available=False,
             assumptions=['Actual native strategy callbacks and fills; quantity is admitted at the completed decision bar without the next open.',
                 'Provider rules, OHLC intrabar ordering, execution liquidity and modeled settlement remain unverified assumptions.',
-                'This component contains one historical path. Optional native forecasts are separate; native policy selection remains unsupported.'])
+                'This component contains one historical path and does not select a policy. Optional native forecasts are separate; independent native IS campaigns perform policy selection.'])
         if self.context_kind=='modeled':
             result.pop('historical_paths',None);result.pop('native_forecast_available',None)
             result['mode']='native_modeled_path';result['observation_kind']='modeled'

@@ -540,7 +540,8 @@ and each fold's `baseline_results`. Additional normal exports are
 `historical_mean_cash.json` through their existing file/ZIP routes. Reopening
 uses immutable saved artifacts. `INSUFFICIENT_EVIDENCE` and
 `ASSESSABLE_WITH_LIMITATIONS` describe research evidence only; neither makes
-`production_qualified` true or supplies the unfinished final deployment package.
+`production_qualified` true or itself creates a current-policy recommendation.
+The complete-procedure workflow below owns that separate application.
 
 ## Native historical phase replay
 

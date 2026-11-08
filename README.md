@@ -29,7 +29,7 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
-**Backtests → Import external trades** accepts complete, versioned trade/risk
+**Strategies → Import trades** accepts complete, versioned trade/risk
 exports and saves an ordinary report with original bytes, provenance and exact
 cost reconciliation. Eligible ordered-mark sources can continue through
 **Configure prop analysis → Check source → Run analysis** for the existing
@@ -62,11 +62,15 @@ replays observed contiguous blocks with prior-only feature warmup and a separate
 declared modeled calendar. Independent campaigns and nested studies can use this
 native execution mode for fixed contracts, fixed dollars or percentage risk;
 the selected policies rerun the actual later bars with account control.
+Native Evaluation supports Apex EOD and LucidFlex; Lucid's modeled activation
+fee is zero. The saved-trade-path Evaluation method remains Apex-only. Profile
+choices, fees and timing survive draft reloads and execution-mode changes;
+unsupported combinations require an explicit correction before running.
 Complete research procedures can also be frozen, assessed against a protected
 final window, and rerun on eligible development history for a current research
 candidate. Final assessment cannot select a replacement winner. Metadata-only
 uploads and durable local access history distinguish protected, already accessed
-and unknown-history data. **Backtests → Research** gathers saved campaigns and
+and unknown-history data. **Research** gathers saved campaigns and
 editable drafts with search, filters and the next available action. Drafts
 preserve source-bound settings; reusable templates require fresh source selection
 and preview. Reports include observed-session fold timelines, parameter
@@ -80,7 +84,7 @@ difference with exact coverage and calendar assumptions. Supplied causal sizing
 contexts are checked against the frozen sizing law. Missing evidence withholds
 comparison; neither check verifies an external platform. Final full-suite
 qualification remains pending.
-See the [workflow](docs/research_workflow.md#nested-inner-research)
+See the [complete workflow](docs/research_workflow.md#first-complete-campaign-a-practical-walkthrough)
 and [implementation checklist](docs/robust_research_plan.md).
 
 From **Strategies → New backtest**, save an IS grid, open a trial report, then
@@ -135,7 +139,9 @@ Results and input/provenance records persist as JSON/CSV/SVG/ZIP downloads.
 For the supplied VWAP backtest, the matching MultiCharts XLSX is selected after
 all trade IDs, directions, UTC entry times, quantities and net costs reconcile.
 Its measured excursions supplement native trade storage. Without a matching
-export, the local model uses an explicitly disclosed close-only fallback.
+export, captured native risk supplies conservative held-OHLC excursion bounds
+when available; otherwise the report discloses a close-only fallback. Bar bounds
+are not measured tick MAE/MFE.
 The retained legacy annualized default uses one source with nonoverlapping trades,
 Apex 50K EOD,
 $49 evaluation + $129 activation, 30% holdout, block 5, 20 slots and standard
@@ -390,8 +396,9 @@ reselection. Previously accessed data is never relabelled untouched. See
 2. Open a completed backtest/trial → **Configure prop analysis** → **Create
    Evaluation campaign** or **Create Funded campaign**. Add saved trials/jobs
    from other strategies with matching source/split/cost protocols.
-3. Choose the profile, explicit MNQ size lists, candidate budget, IS window and
-   simulation/calendar settings. Evaluation compares acquisition cost/time;
+3. Choose the profile, explicit MNQ size/policy lists, IS window and
+   simulation/calendar settings. Checking counts the complete membership; searches
+   above 128 candidates require confirmation of that exact count. Evaluation compares acquisition cost/time;
    Funded compares received cash over its declared horizon with risk limits.
 4. **Save and check candidates → Run campaign**. Inspect progress, all candidate
    metrics, source links, filters and charts. Evaluation shows a Pareto frontier

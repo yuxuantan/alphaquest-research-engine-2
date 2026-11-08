@@ -145,7 +145,7 @@ research throughput, spending and engineering hours.
 | Independent simulation profile components | Implemented as Python APIs in `evaluation_profiles.py` and `funded_profiles.py`, with frozen contracts in `phase_profiles.py`. Single saved source per phase; existing kernels/cost/risk checks. Weekday and modeled payout-time semantics; no new portal mode or independent selector. |
 | Standalone Evaluation optimizer | Implemented backend/API, 6 November 2026: explicit comparable saved IS candidates, local Apex EOD empirical IID retries, declared calendars, censoring and complete estimated Pareto frontier. No funded selection inputs or implicit winner. Campaign UI is now available; Lucid dated attempts and robust simultaneous dominance remain deferred. [Exact formulas and assumptions](prop_simulation.md#standalone-evaluation-optimizer--2026-11-06). |
 | Independent Funded optimizer | Implemented backend/API, 6 November 2026: saved IS candidate ranking by received cash over a declared calendar horizon, fresh funded accounts, native Apex/Lucid transitions, explicit settlement lag, hard empirical constraints and censored lifetime. No evaluation inputs or joint score. Campaign UI and IS freeze are implemented by the subsequent campaign increment. [Contract](prop_simulation.md#standalone-funded-optimizer--2026-11-06). |
-| Cross-job/strategy campaigns and phase package freeze | Implemented, 6 November 2026: saved grid/trial expansion, size budgets, IS compatibility, independent phase execution, immutable source/report references, browser controls and freeze. [Campaign API](research_campaign_api.md). |
+| Cross-job/strategy campaigns and phase package freeze | Implemented, 6 November 2026: saved grid/trial expansion, complete size/policy membership with explicit large-search confirmation, IS compatibility, independent phase execution, immutable source/report references, browser controls and freeze. [Campaign API](research_campaign_api.md). |
 | Frozen OOS phase assessment | Implemented: manual ordinary OOS backtests from frozen IS parents, fixed phase settings, append-only assessment reports in AnalysisStore; no OOS ranking/reselection. |
 | Predefined frozen policy-pair comparison | Implemented downstream historical comparison through the normal prop API/AnalysisStore. Explicit Evaluation/Funded freezes and ordinary OOS parents, actual acquisition/retries, fresh Funded continuation until the common cutoff, no replacement, winner or reselection. |
 | Timestamped forward observation | Implemented strict supplied-event check/import, exact reconciliation, advisory state/recovery and immutable normal reports. Synthetic, paper and supplied actual-import records remain distinct. No broker order placement, connected strategy verification, continuous-health claim or matched forecast calibration. |
@@ -169,11 +169,14 @@ does not place live orders. See [product steps](strategies_navigation.md) and
 [prop model details](prop_simulation.md).
 
 For independent research in step 4, create an Evaluation or Funded campaign,
-select saved IS sources/jobs and explicit sizes within a budget, check and run,
+select saved IS sources/jobs and explicit size/policy lists, confirm the exact
+count when it exceeds 128 candidates, check and run,
 inspect the full frontier/ranking, then freeze named choices. **Launch OOS with
 frozen settings** creates ordinary OOS backtests and an assessment-only phase
 report; it cannot rank OOS or change the IS package. The
-[campaign guide](research_campaign_api.md) describes the available controls.
+[campaign guide](research_campaign_api.md) describes the available controls. For
+the full nested research → procedure freeze → current selection → supplied
+observation path, follow the [complete campaign walkthrough](research_workflow.md#first-complete-campaign-a-practical-walkthrough).
 
 ## Code architecture
 
@@ -404,7 +407,7 @@ flowchart TD
 | `prop/evaluation_profiles.py`, `prop/funded_profiles.py` | Own actual account state, native forecasts and historical mean refits for their separate phases. Funded receives no acquisition inputs. |
 | Respective `*_optimization.py` modules | Own candidate metrics, constraints, Evaluation frontier and Funded selections; native execution is an explicit additive request mode. |
 | `prop/store.py`, `research_campaigns.py` | Reuse existing workers/catalogue/reports; cooperative phase cancellation, complete population publication, child capture and reuse integrity. |
-| `research_phase_selection.py`, `robust_research.py` | Freeze the full phase family before outer prices; invoke the phase owners for one actual outer path and retain every alternative without hidden weights. |
+| `research_phase_selection.py`, `robust_research.py` | Freeze the full phase family before outer strategy execution; metadata/inventory preparation may already parse/hash source bytes. Invoke the phase owners for one actual outer path and retain every alternative without hidden weights. |
 | `research_access.py` | Append-only local price/outcome access and reservation records in the existing AnalysisStore database. App and existing CLI readers enforce protected windows before normal price/cache access. |
 | `research_procedure.py`, `research_procedure_store.py` | Validate the full algorithm and terminal law, bind an authoritative immutable freeze, orchestrate guarded final application and separate current development rerun through existing fold/backtest/phase owners. |
 | Existing portal plus `research_reservations.js`, `research_procedure.js` | Metadata-only upload/reservation and complete-procedure controls within dataset and robust report views. No new application, execution engine or result store. |
