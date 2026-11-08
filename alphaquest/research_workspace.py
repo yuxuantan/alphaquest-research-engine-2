@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from dataclasses import fields
 from hashlib import sha256
 import json
+import re
 import sqlite3
 from typing import Literal
 from uuid import UUID, uuid4
@@ -336,15 +337,36 @@ class ResearchWorkspace:
                 json_extract(r.manifest,'$.run_metadata.strategy.id') strategy_id,r.id source_exists
             FROM entries e LEFT JOIN source_catalogue.runs r ON r.id=e.source_id
         ) '''
-        where = "WHERE (?='' OR kind=?) AND (?='' OR phase=? OR (phase='both' AND ? IN ('evaluation','funded'))) AND (?='' OR status=?) AND instr(lower(name||' '||id||' '||coalesce(source_id,'')||' '||coalesce(source_name,'')||' '||coalesce(strategy_id,'')),lower(?))>0"
-        args = (kind, kind, phase, phase, phase, status, status, query.strip())
+        # One search accepts IDs/links as well as readable strategy names. Look
+        # through every retained source/job/report association, not only the
+        # representative source shown on a card. These are metadata joins only.
+        term = query.strip()
+        identifiers = re.findall(r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|\b[0-9a-f]{32}\b', term, re.I)
+        if len({UUID(value).hex for value in identifiers}) == 1:term = UUID(identifiers[0]).hex
+        term = term.lower().replace('_', ' ')
+        where = """WHERE (:kind='' OR p.kind=:kind)
+            AND (:phase='' OR p.phase=:phase OR (p.phase='both' AND :phase IN ('evaluation','funded')))
+            AND (:status='' OR p.status=:status) AND (
+                instr(lower(replace(p.name||' '||p.id||' '||coalesce(p.source_id,'')||' '||coalesce(p.source_name,'')||' '||coalesce(p.strategy_id,''),'_',' ')),:q)>0
+                OR EXISTS (SELECT 1 FROM campaign_sources s LEFT JOIN source_catalogue.runs sr ON sr.id=s.source_id
+                    WHERE s.campaign_id=p.id AND instr(lower(replace(s.source_id||' '||coalesce(json_extract(sr.manifest,'$.run_metadata.dataset.name'),'')||' '||coalesce(json_extract(sr.manifest,'$.run_metadata.strategy.id'),''),'_',' ')),:q)>0)
+                OR EXISTS (SELECT 1 FROM campaign_jobs j WHERE j.campaign_id=p.id AND instr(lower(j.optimization_id),:q)>0)
+                OR EXISTS (SELECT 1 FROM campaign_analyses a WHERE a.campaign_id=p.id AND instr(lower(a.analysis_id),:q)>0)
+                OR EXISTS (SELECT 1 FROM research_workspace_documents d,json_tree(d.payload) j WHERE d.id=p.id
+                    AND j.key IN ('source_backtest_id','backtest_id','optimization_id') AND instr(lower(cast(j.value AS TEXT)),:q)>0))"""
+        args = dict(kind=kind, phase=phase, status=status, q=term, limit=limit, offset=offset)
         ordering = {'newest':'updated_at DESC,id', 'oldest':'updated_at,id', 'name':'name COLLATE NOCASE,id'}[sort]
         with self.analyses.connect() as db:
             db.execute('ATTACH DATABASE ? AS source_catalogue', (str(self.runs.path),))
-            total = db.execute(cte+'SELECT COUNT(*) FROM projected '+where, args).fetchone()[0]
+            total = db.execute(cte+'SELECT COUNT(*) FROM projected p '+where, args).fetchone()[0]
             db.row_factory = sqlite3.Row
-            rows = [dict(row) for row in db.execute(cte+'SELECT * FROM projected '+where+
-                ' ORDER BY '+ordering+' LIMIT ? OFFSET ?', (*args, limit, offset))]
+            rows = [dict(row) for row in db.execute(cte+'''SELECT p.*,
+                (SELECT count(*) FROM campaign_sources s WHERE s.campaign_id=p.id) source_count,
+                (SELECT count(*) FROM campaign_jobs j WHERE j.campaign_id=p.id) activity_count,
+                (SELECT json_group_array(DISTINCT json_extract(sr.manifest,'$.run_metadata.strategy.id'))
+                    FROM campaign_sources s JOIN source_catalogue.runs sr ON sr.id=s.source_id
+                    WHERE s.campaign_id=p.id) strategies
+                FROM projected p '''+where+' ORDER BY '+ordering+' LIMIT :limit OFFSET :offset', args)]
         items = []
         for row in rows:
             primary = row['primary_analysis_id']
@@ -356,6 +378,8 @@ class ResearchWorkspace:
                 'open_report' if primary and row['status']=='complete' else 'open_campaign')
             items.append(dict(schema_version=VERSION,id=row['id'],kind=row['kind'],name=row['name'],
                 source=dict(id=row['source_id'],name=row['source_name'],available=row['source_exists'] is not None),
+                strategy_id=row['strategy_id'], strategies=json.loads(row['strategies'] or '[]'),
+                source_count=row['source_count'], activity_count=row['activity_count'],
                 phase=row['phase'],backend=row['backend'],status=row['status'],campaign_status=row['campaign_status'],stage=row['stage'],
                 created_at=row['created_at'],updated_at=row['updated_at'],analysis_id=row['analysis_id'],
                 procedure=dict(procedure_sha256=row['procedure_sha256']) if row['procedure_sha256'] else None,

@@ -669,15 +669,38 @@ This does not establish external absence of prior access, official provider pari
 
 ## Research workspace, drafts and templates (M4)
 
-Open **Research** in the main navigation, or **Strategies → Research workspace**,
-to find phase campaigns, nested research and saved
-pre-work drafts. Search matches names, identifiers, strategy names and dataset
-names; filter by kind, phase or status, and sort without changing any numerical
-result. **New research** starts from an ordinary saved IS source. The catalogue
-shows the latest calculation attempt, with final verification and current
-selection visible separately. A later failed assessment does not disappear behind
-an earlier completed campaign. Open completed reports without rerunning them.
+Open **Research** in the main navigation, or **Strategies → Research workspace**.
+This is the library of saved campaigns, strategy studies and drafts. A campaign
+compares saved backtests under one set of assumptions: Evaluation compares
+acquisition cost/time, while Funded compares modeled trader receipts. Strategy
+studies test choices across historical training and test windows. Expand **What
+is this page for?** for these definitions.
 
+Start with **Search saved research**; no filter is required. Enter a name,
+strategy or dataset, or paste a campaign ID, any linked backtest ID, an activity
+ID, a report ID, or a link containing one ID. Search includes every retained
+campaign source and activity, including sources other than the representative
+backtest on the card. Readable strategy names such as `consecutive green hold`
+work as well as stored identifiers. Use **Campaigns**, **Strategy studies** or
+**Drafts** to narrow the library. **More filters** reveals phase, run status and
+order; active filters remain visible when collapsed. **Clear search and filters**
+returns to all saved work.
+
+Each card shows its purpose, strategy, dataset, full campaign ID and linked
+backtest/activity counts. **View results** opens a durable completed report;
+**Manage campaign** opens campaign details and deletion eligibility. A completed
+run can still have no qualified candidate; evidence outcomes and limitations
+remain distinct from run status. **Details and limitations** reveals the saved
+stage, frozen procedure identity and evidence reasons. The catalogue follows the
+latest calculation attempt, with final verification and current development
+visible separately. A later failed assessment does not disappear behind an
+earlier completed campaign. Browsing/searching never starts a run.
+
+To create work, choose **Start new research**, find an in-sample backtest and
+**Open source report**. From that ordinary report choose **Configure prop
+analysis**, then configure and check sources before explicitly running. The
+source picker loads only when requested. If no source exists, choose **Run a new
+backtest first**.
 Inside the existing nested configuration, expand **Save a draft or reuse declared settings**. Save a
 named draft, resume it from Research, or save a separate copy. Drafts retain the
 complete declared source set, baselines and settings. They are editable pre-work,

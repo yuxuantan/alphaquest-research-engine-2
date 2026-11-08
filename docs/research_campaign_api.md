@@ -731,6 +731,15 @@ For source lineage, local access scope, terminal selection and recommendation se
 and editable drafts. Parameters: `q` (maximum 200 characters), `kind`
 (`phase|nested|draft`), `phase` (`evaluation|funded`), `status`, `sort`
 (`newest|oldest|name`), `offset` and `limit` (1–100). Empty filters are permitted.
+Search matches names, dataset/strategy metadata, every linked campaign backtest,
+optimization activity and analysis ID, plus draft source/job references. A query
+containing exactly one unique UUID (compact or hyphenated) extracts that ID from
+a pasted link or log line. Strategy underscores and spaces are equivalent.
+Filters combine with search; no filter is required. The additive metadata fields
+`strategy_id`, `strategies`, `source_count` and `activity_count` describe linked
+saved sources without reading prices. Counts describe retained campaign links;
+drafts do not pin sources.
+
 The response has `items,total,offset,limit,sort`. Each item includes the source,
 phase/backend, original campaign status, latest attempt status/stage, separate
 `final_application` and `current_application`, bounded saved-readiness projection

@@ -9262,3 +9262,66 @@ and retain its completed analysis. No production campaign/backtest was deleted.
 Restart a non-reloading development server to load the new API/schema, then
 refresh the browser and confirm through **Research → Manage campaign**. Every
 automated temporary server stopped and joined. No persistent server was started.
+
+
+## 8 November 2026 — Research library purpose and simple campaign search
+
+The existing Research page now leads with its purpose and one search field.
+Campaigns, strategy studies and drafts have one-click category buttons; optional
+phase/status/order controls are collapsed under More filters. Active filters
+remain visible, with a single clear action. Cards show purpose, human-readable
+strategy, dataset, full campaign ID, linked counts and View results / Manage
+campaign actions. Saved stage, hashes and limitations are available on demand;
+completed execution remains distinct from qualification. New-research source
+selection loads only when requested and opens the ordinary backtest report.
+
+Search now inspects every retained campaign source, activity and analysis link,
+plus draft source/job references, rather than only its representative source.
+Readable strategy names, compact/hyphenated UUIDs and a pasted link/log containing
+one unique UUID are supported. Filtering/pagination remain metadata-only, with
+execution and source-price reads poisoned in the API regression. No new store,
+calculation, phase-selection rule or production-data migration was introduced.
+
+The saved normal-product journey is report → Configure prop analysis → whole-grid
+source check → Funded run → durable report → Research search by activity and both
+source IDs → management/results → optional-filter empty state → clear → recovery
+from a failed read → new-research source report. Independent synthetic net
+outcomes are $300/$100 per MNQ per session at sizes 1/3; expected receipts under
+the saved 14-day horizon and four-day lag are `[0,0,0,1500]`. The winning path's
+second $1,500 stays pending beyond the horizon. All three downloaded payloads
+and 15 manifest components plus the ZIP report were independently verified.
+Saved browsing/reopening made no POST, PUT or DELETE and preserved report bytes.
+
+The intact final library is `artifacts/research-page-ux-20261108/release/data/test_find_campaign_by_activity0`. Campaign
+`736aea3f4a4a41a7bfa5759a8f379235` can be found by activity
+`47054089e48d49798f5c68988358cd68`, either linked backtest or its URL. Exact copy/start/stop
+commands, source IDs, normal URLs, settings, independent expected outcomes,
+boundary/recovery checks, screenshots and gate reproduction are in
+`artifacts/research-page-ux-20261108/README.md` and `verification.json`.
+Desktop and 390 px screenshots were visually inspected; no horizontal overflow
+was observed. Temporary test servers stopped and joined; no persistent server
+was started. Existing user campaigns/backtests/results remain unchanged.
+
+The final focused gate passed **40 cases** (34 API and six browser) in 101.66 s,
+with zero failures/skips and one existing deprecation warning. Source hashes
+were stable throughout; both phase numerical identities still exactly match
+the earlier complete 2,315-test snapshot. This is a focused UX/catalogue
+qualification, not a new full-suite or numerical/provider parity claim.
+
+A metadata search on consistent disposable backups of the user's current
+catalogues also found campaign `cc0fb9e5ecc5425bad4db20839eae37d` from activity
+`19687121020d4487b9a3498ce416143f` and backtest
+`739b88028ef846fdb8891ecb307ed574`, each with exactly one match, 32 linked backtests
+and one activity. Original databases were opened read-only; no campaign was
+deleted. The saved record is `artifacts/research-page-ux-20261108/actual-campaign-search.json`.
+Restart an existing non-reloading app server once for the expanded backend
+search, then refresh Research to load the new controls.
+
+A separate saved-state browser probe reopens a disposable copy of the completed
+procedure library, shows No qualified candidate prominently, and verifies distinct
+Final verification / Current development statuses and the final-report backlink.
+It records zero writes in `saved-assessment-states.json`; its screenshot was
+visually inspected and its temporary server stopped. Finished intermediate data
+was archived losslessly (1,490 verified payloads, 93.3 MB to 8.1 MB), with actual
+tar restoration checks and notices at the original paths. The release product
+libraries remain unpacked.

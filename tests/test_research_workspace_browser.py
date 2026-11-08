@@ -47,7 +47,7 @@ def test_draft_revision_template_fresh_preview_and_saved_research(page, portal, 
     copy=next(row for row in drafts if row['name']=='SYNTHETIC preserved independent draft')
     assert copy['declaration']['qualification']['bootstrap_replicates']==800
     page.goto(portal['url']+'/#backtests/research')
-    page.locator('#workspace-kind').select_option('draft')
+    page.locator('#workspace-show-draft').click()
     playwright.expect(page.locator('#workspace-items article')).to_have_count(2)
     page.locator('#workspace-items').screenshot(path=str(tmp_path/'draft-catalogue.png'))
     page.locator(f'#workspace-items article[data-id="{copy["id"]}"]').get_by_role('link',name='Continue draft').click()
@@ -81,10 +81,10 @@ def test_draft_revision_template_fresh_preview_and_saved_research(page, portal, 
     for fold in record['result']['folds']:
         assert sorted(float(candidate['metrics']['mean_session_net']) for candidate in fold['qualification']['candidates'])==[100,300]
     page.goto(portal['url']+'/#backtests/research')
-    page.locator('#workspace-kind').select_option('nested')
+    page.locator('#workspace-show-nested').click()
     playwright.expect(page.locator('#workspace-items article')).to_have_count(1)
     page.locator('#workspace-items').screenshot(path=str(tmp_path/'saved-research-catalogue.png'))
-    page.get_by_role('link',name='Open saved report',exact=True).click()
+    page.get_by_role('link',name='View results',exact=True).click()
     playwright.expect(page.locator('#prop-heading-title')).to_contain_text('Nested research')
     page.locator('#prop-report-content').get_by_text('Outer fold 1 · parameter qualification plot',exact=True).click()
     page.locator('#prop-report-content .research-parameter-controls').first.screenshot(path=str(tmp_path/'saved-parameter-evidence.png'))

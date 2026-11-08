@@ -382,3 +382,31 @@ def test_imported_trade_source_stays_inspectable_but_is_not_selectable_for_nativ
         assert client.get('/api/backtests/'+imported['id']).json()==imported
         response=client.post(ROBUST+'/preview',json=dict(draft['declaration'],campaign_id=uuid4().hex))
         assert response.status_code in (409,422),response.text
+
+
+def test_catalogue_finds_any_linked_source_activity_report_and_pasted_link(tmp_path,monkeypatch):
+    from test_research_campaigns import create,run
+    with TestClient(create_app(tmp_path/'datasets.sqlite3')) as client:
+        dataset,job,records=save_grid(client)
+        body=phase_declaration(records[0],phase='funded')
+        body['sources']=[dict(optimization_id=job['id'],sizes=[1,3])]
+        campaign=create(client,body);cid=campaign['campaign_id']
+        saved=run(client,cid);aid=saved['analysis_id']
+        job_draft=created(client,'/drafts',draft_body('Activity source draft',declaration={key:value for key,value in declaration(job,records).items() if key!='campaign_id'}))
+        draft=created(client,'/drafts',draft_body(declaration=draft_declaration(job,records)))
+        forbid_execution(client,monkeypatch)
+        queries=[*[record['id'] for record in records],job['id'],aid,cid,str(UUID(cid)),cid.upper(),
+                 f'http://localhost:8000/#backtests/report/{records[1]["id"]}',
+                 f'DELETE /api/backtests/{records[1]["id"]} HTTP/1.1',
+                 'consecutive green hold','consecutive_green_hold',dataset['name']]
+        for q in queries:
+            response=client.get(BASE,params=dict(q=q,kind='phase'))
+            assert response.status_code==200,response.text
+            row,=response.json()['items']
+            assert row['id']==cid,q
+            assert row['source_count']==2 and row['activity_count']==1
+            assert row['strategies']==['consecutive_green_hold']
+        assert client.get(BASE,params=dict(q=job['id'],kind='phase',phase='evaluation')).json()['total']==0
+        assert client.get(BASE,params=dict(q=records[1]['id'],kind='draft')).json()['items'][0]['id']==draft['id']
+        assert client.get(BASE,params=dict(q=job['id'],kind='draft')).json()['items'][0]['id']==job_draft['id']
+        assert client.get(BASE,params=dict(q='nonexistent research',kind='phase')).json()['total']==0
