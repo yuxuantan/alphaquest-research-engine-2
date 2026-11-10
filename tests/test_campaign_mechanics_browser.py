@@ -43,6 +43,10 @@ def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path)
     result=page.request.get(prefix).json()
     assert result['declaration']['default_parameters']==dict(green_bar_count=3,hold_minutes=20,contracts=1)
     assert float(result['report']['summary']['total_net_pnl'])==78
+    playwright.expect(page.locator('#mechanic-metrics tbody tr')).to_have_count(10)
+    for key in ['initial_capital','final_equity','ending_position_contracts','max_drawdown_pct','max_drawdown_duration_seconds']:
+        playwright.expect(page.locator(f'#mechanic-metrics tr[data-metric="{key}"]')).to_have_count(0)
+        assert key in result['report']['summary']
     assert [s['trade']['trade_number'] for s in result['trade_samples']]==[1,6,2,3,4]
     playwright.expect(page.locator('#mechanic-confirm')).to_be_disabled()
     page.evaluate('scrollTo(0,0)')

@@ -27,6 +27,10 @@ from .strategies.registry import get_strategy
 PHASES = ("mechanic_validation", "is_broad", "is_narrow", "oos")
 PHASE_LABELS = ("Mechanic validation", "IS Broad", "IS Narrow", "OOS")
 VERSION = "campaign-mechanics-v1"
+EXCLUDED_PARITY_METRICS = frozenset({
+    'initial_capital', 'final_equity', 'ending_position_contracts',
+    'max_drawdown_pct', 'max_drawdown_duration_seconds',
+})
 
 
 def now():
@@ -55,7 +59,7 @@ def sample_trades(trades):
 
 def review_rows(runs, record):
     metrics = [dict(id=key, label=key.replace('_', ' ').capitalize(), value=value)
-               for key, value in record['summary'].items()]
+               for key, value in record['summary'].items() if key not in EXCLUDED_PARITY_METRICS]
     with runs.connect() as db:
         trades = [json.loads(row[0]) for row in db.execute(
             'SELECT payload FROM run_trades WHERE run_id=? ORDER BY ordinal', (record['id'],))]
@@ -205,6 +209,12 @@ class CampaignWorkflowStore:
 
     def public(self, saved, include_results=True):
         result = dict(saved)
+        if saved['review'] and saved['status'] == 'review_required':
+            # Project pending legacy checklists without rewriting saved reviews
+            # on reads. Confirmed historical attestations remain intact.
+            result['review'] = dict(saved['review'], metric_checks={
+                key: value for key, value in saved['review']['metric_checks'].items()
+                if key not in EXCLUDED_PARITY_METRICS})
         passed = saved['status'] == 'passed'
         result['phases'] = [dict(id=phase, label=label, status=(saved['status'] if i == 0 else
                            'ready' if i == 1 and passed else 'locked'), implemented=i == 0)
@@ -234,6 +244,8 @@ class CampaignWorkflowStore:
             review = saved['review']
             if review['revision'] != body.revision:
                 raise ValueError('Review changed in another tab. Reload before confirming these results.')
+            review['metric_checks'] = {key: value for key, value in review['metric_checks'].items()
+                                       if key not in EXCLUDED_PARITY_METRICS}
             if confirm:
                 groups = [review[key] for key in ('metric_checks', 'trade_parity', 'trade_correctness')]
                 if not all(groups) or not all(all(group.values()) for group in groups):

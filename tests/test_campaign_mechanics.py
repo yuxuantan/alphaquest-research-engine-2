@@ -51,6 +51,23 @@ def test_default_run_exact_samples_review_gate_and_durable_reopen(client, tmp_pa
         assert client.post(prefix+'/phases/'+phase+'/run').status_code==409
     result=run_validation(client,workflow)
     report=result['report'];summary=report['summary']
+    removed={'initial_capital','final_equity','ending_position_contracts','max_drawdown_pct','max_drawdown_duration_seconds'}
+    assert not removed.intersection(row['id'] for row in result['metrics'])
+    assert not removed.intersection(result['review']['metric_checks'])
+    assert removed <= summary.keys() # these are still ordinary report metrics
+    assert len(result['metrics'])==10
+    # Reopen an older pending checklist with unchecked obsolete rows. Reads
+    # preserve its stored evidence; subsequent saves require only visible rows.
+    store=client.app.state.campaign_workflows
+    with client.app.state.runs.connect() as db:
+        legacy=store.raw(workflow['id'],db)
+        legacy['review']['metric_checks'].update({key:False for key in removed})
+        legacy['review']['metric_checks']['trades_taken']=True
+        store.write(db,legacy)
+    result=client.get(prefix).json()
+    assert result['review']['metric_checks']['trades_taken'] is True
+    assert not removed.intersection(result['review']['metric_checks'])
+    assert removed <= store.raw(workflow['id'])['review']['metric_checks'].keys()
     assert report['run_metadata']['strategy']['parameters']==dict(green_bar_count=3,hold_minutes=20,contracts=1)
     assert report['run_metadata']['selection']['row_count']==24
     assert report['summary']['trades_taken']==6
@@ -80,6 +97,14 @@ def test_default_run_exact_samples_review_gate_and_durable_reopen(client, tmp_pa
     assert client.get(prefix+'/phases/oos').status_code==409
     assert client.get(prefix+'/phases/unknown').status_code==404
     assert client.patch(prefix+'/review',json=checks(confirmed,False)).status_code==409
+    # Historical confirmed checklists retain all previously attested rows.
+    with client.app.state.runs.connect() as db:
+        historical=store.raw(workflow['id'],db)
+        historical['review']['metric_checks'].update({key:True for key in removed})
+        store.write(db,historical)
+    confirmed=client.get(prefix).json()
+    assert confirmed['review']==historical['review']
+    assert not removed.intersection(row['id'] for row in confirmed['metrics'])
     before={p:sha256(p.read_bytes()).hexdigest() for p in client.app.state.runs.root.joinpath(report['id']).iterdir() if p.is_file()}
     assert client.post(prefix+'/run').json()['run_id']==report['id']
     assert client.get('/api/backtests').json()['total']==1

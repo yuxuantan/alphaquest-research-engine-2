@@ -10128,3 +10128,45 @@ ALPHAQUEST_DATA_DIR="$PWD/artifacts/job-history-20261110/product-verified/test_r
 Open `http://127.0.0.1:8017/#jobs`; stop this optional inspection server with
 Ctrl-C. The portable CSV and saved JSON exports also support reproduction when
 this ignored test library is unavailable in another checkout.
+
+## 2026-11-10 — Shorter mechanic outcome parity checklist
+
+Mechanic validation now omits **Initial capital, Final equity, Ending position
+contracts, Max drawdown pct, and Max drawdown duration seconds** from its outcome
+parity table and required checks. The current report has **10** remaining outcome
+rows. Underlying backtest summaries, numerical results, trade samples, report
+files and earlier saved evidence retain those values. No backtest rerun is
+needed to reopen an already completed mechanic validation with the shorter table.
+
+For an existing incomplete review, reload the workflow. Retained checked rows
+stay checked; the five removed rows are no longer confirmation requirements.
+Reads do not rewrite stored review evidence. The next explicit save/confirmation
+uses the reduced checklist. Confirmed historical reviews keep their original
+stored attestations and remain read-only; their visible outcome table uses the
+shorter list. Every remaining metric and each sampled trade's MC parity and
+execution correctness still requires confirmation before IS Broad unlocks.
+
+Reproduce through the existing Campaigns → dataset → mechanic validation flow,
+or reopen one of its completed jobs through Job history. Expect the five named
+rows to be absent and 10 outcome rows on the saved synthetic example. Open the
+ordinary backtest report or download the review JSON: its nested report summary
+still contains all five values. The synthetic example remains **6 trades**, net
+**78**, maximum drawdown **37**, and five sampled trades. No measured MultiCharts
+parity is claimed by the automated checkbox exercise.
+
+Saved evidence: `artifacts/mechanics-parity-metrics-20261110/evidence/` contains
+the updated unreviewed screenshot, ordinary report JSON and saved review JSON.
+Earlier screenshots and immutable reports remain unchanged.
+
+Focused validation: **one backend contract passed in 1.54s**, including legacy
+pending/confirmed review handling and report-file preservation; **one existing
+product browser journey passed in 6.95s**, including upload, real default replay,
+10-row checklist, confirmation, reload and phase gates. `git diff --check` passed.
+Temporary test servers stopped; no persistent server was started. To reproduce:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics.py::test_default_run_exact_samples_review_gate_and_durable_reopen
+mkdir -p artifacts/mechanics-parity-metrics-REVIEW
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
+  --basetemp=artifacts/mechanics-parity-metrics-REVIEW/browser
+```
