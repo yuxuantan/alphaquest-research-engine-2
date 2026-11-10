@@ -20,7 +20,9 @@
       let state=data.state,job=data.job,preview=null,busy=false,sort='trial',direction='asc',offset=0;
       parent.replaceChildren();
       if(state.archived){const archived=node('section',undefined,'panel broad-panel');archived.id='broad-archived';archived.append(node('h2','Earlier IS Broad run'),node('p','This saved run is read-only. Its results and downloads stay available; selections belong to the current run.'));action(archived,'Open current IS Broad →',`#campaigns/workflows/${workflow.id}/is_broad`);parent.append(archived);}
-      if(data.legacy)parent.append(node('p',state.confirmed_at_utc?'Historical selection: confirmed under the earlier profitability-only rule. Preserved unchanged; it is not certified against the six new criteria.':'This earlier grid has no six-criterion evidence. Calculate and run a new grid before selecting configurations.','broad-legacy-note'));
+      if(data.legacy)parent.append(node('p',state.confirmed_at_utc?'Historical selection: confirmed under the earlier profitability-only rule. Preserved unchanged; it is not certified against the current five criteria.':'This earlier grid has no measured screening evidence. Calculate and run a new grid before selecting configurations.','broad-legacy-note'));
+      if(data.reassessed)parent.append(node('p','This saved grid was measured under the earlier six-rule policy. Selection now uses the five current rules from those saved measurements; the original reports and verdicts remain unchanged.','broad-legacy-note'));
+      if(state.confirmed_at_utc&&state.screening_policy?.version==='is-broad-v2'&&!state.selection_policy)parent.append(node('p','Historical selection: confirmed under the earlier six-rule policy and preserved unchanged.','broad-legacy-note'));
       const config=node('section',undefined,'panel broad-panel');config.id='broad-config';
       config.append(node('h2','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
       const form=node('form'),fieldset=node('fieldset');form.append(fieldset);
@@ -151,10 +153,10 @@
             for(const [key] of headers){const td=node('td');td.dataset.column=key;
               if(key==='select'){const input=node('input');input.type='checkbox';input.dataset.selectTrial=row.trial;input.dataset.eligible=String(row.qualifies);input.setAttribute('aria-label',`Select trial ${row.trial}`);input.checked=state.selected_trials.includes(row.trial);input.onchange=()=>select(row.trial,input.checked);td.append(input);}
               else if(key==='eligible'){
-                const info=node('details',undefined,'broad-row-criteria'),measured=row.screening;
-                info.append(node('summary',row.legacy_screening?'Historical rule':!measured?'Not qualified · rerun required':measured.status==='insufficient_evidence'?'Insufficient evidence':row.qualifies?'Qualified · 6 / 6 passed':`Not qualified · ${measured.checks.filter(c=>c.passed).length} / 6 passed`));
+                const info=node('details',undefined,'broad-row-criteria'),measured=row.admission||row.screening;
+                info.append(node('summary',row.legacy_screening?'Historical rule':!measured?'Not qualified · rerun required':measured.status==='insufficient_evidence'?'Insufficient evidence':row.qualifies?`Qualified · ${measured.checks.length} / ${measured.checks.length} passed`:`Not qualified · ${measured.checks.filter(c=>c.passed).length} / ${measured.checks.length} passed`));
                 if(measured){const list=node('ul');for(const check of measured.checks){const item=node('li',`${check.passed?'PASS':'FAIL'} · ${check.label}: ${check.actual}. Required: ${check.required}`);item.dataset.passed=String(check.passed);list.append(item);}info.append(list);}
-                else info.append(node('p','This historical grid only checked positive net profit. New selections require a new grid with all six criteria.'));
+                else info.append(node('p','This historical grid only checked positive net profit. New selections require a grid with measured screening evidence.'));
                 td.append(info);
               }
               else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}

@@ -264,3 +264,54 @@ def test_legacy_pending_grid_requires_rerun_and_confirmed_history_is_preserved(c
     assert client.get(prefix+'/broad/results').json()['items'][0]['legacy_screening']
     assert selection(client,prefix,[]).status_code==409
     assert before=={p:sha256(p.read_bytes()).hexdigest() for p in before}
+
+
+def test_pending_six_rule_grid_uses_saved_evidence_for_five_rule_selection(client):
+    from alphaquest.campaign_broad import BroadGrid, candidate, prepare
+    from alphaquest.research import metadata,dates_for
+    from alphaquest.workflow_criteria import PREVIOUS_VERSION,policy
+    from types import SimpleNamespace
+    _,_,workflow=passed_mechanics(client);store=client.app.state.campaign_workflows
+    prefix='/api/campaign-workflows/'+workflow['id']
+    saved,dataset,definition,config,axes,total,request,_=prepare(
+        SimpleNamespace(app=client.app),workflow['id'],BroadGrid.model_validate(broad_grid(3,20,1)))
+    original_policy=policy(PREVIOUS_VERSION)
+    job=client.app.state.optimizations.create(request,dataset,definition,config,axes,total,
+        metadata(saved['declaration']['plan'],workflow_id=workflow['id'],workflow_phase='is_broad',screening_policy=original_policy))
+    client.app.state.optimizations.run(job,client.app.state.store,definition,config,dates_for(saved['declaration']['plan']))
+    state=dict(job_id=job['id'],revision=1,selected_trials=[],selection=[],confirmed_at_utc=None,
+               criterion='All six IS Broad criteria must pass.',screening_policy=original_policy)
+    with store.runs.connect() as db:
+        db.execute('INSERT INTO campaign_broad_jobs VALUES (?,?)',(job['id'],workflow['id']))
+        db.execute('INSERT INTO campaign_broad_state VALUES (?,?)',(workflow['id'],json.dumps(state)))
+        previous=json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?',(job['id'],)).fetchone()[0])
+        previous['engine_identity']='prior-policy-engine-snapshot'
+        db.execute('UPDATE optimizations SET payload=? WHERE id=?',(json.dumps(previous),job['id']))
+        original_choice=candidate(store,workflow['id'],job['id'],1,db,target_policy=original_policy)
+        historical=dict(state,selected_trials=[1],selection=[original_choice],confirmed_at_utc='2026-11-10T00:00:00+00:00')
+        db.execute('UPDATE campaign_broad_state SET payload=? WHERE workflow_id=?',(json.dumps(historical),workflow['id']))
+    assert client.get(prefix+'/phases/is_narrow').status_code==200
+    assert not client.get(prefix+'/broad').json()['reassessed']
+    assert 'admission' not in client.get(prefix+'/broad/results').json()['items'][0]
+    with store.runs.connect() as db:
+        db.execute('UPDATE campaign_broad_state SET payload=? WHERE workflow_id=?',(json.dumps(state),workflow['id']))
+    before={p:sha256(p.read_bytes()).hexdigest() for p in store.runs.root.glob('*/*') if p.is_file()}
+    assert client.get(prefix+'/broad').json()['reassessed']
+    row=client.get(prefix+'/broad/results').json()['items'][0]
+    assert row['screening']['policy']==original_policy and len(row['screening']['checks'])==6
+    assert row['admission']['qualifies'] and len(row['admission']['checks'])==5 and row['qualifies']
+    assert 'annual_profit_dd' not in [check['id'] for check in row['admission']['checks']]
+    artifact=store.runs.root/row['run_id']/'is_screening.json';original=artifact.read_bytes()
+    artifact.write_bytes(original+b'\n')
+    assert selection(client,prefix,[1]).status_code==409
+    artifact.write_bytes(original)
+    chosen=selection(client,prefix,[1]);assert chosen.status_code==200,chosen.text
+    assert chosen.json()['selection_policy']==policy()
+    confirmed=client.post(prefix+'/broad/confirm',json=dict(job_id=job['id'],revision=chosen.json()['revision']))
+    assert confirmed.status_code==200,confirmed.text
+    assert client.get(prefix+'/phases/is_narrow').status_code==200
+    assert client.get('/api/backtests/batches').json()['total']==1
+    assert before=={p:sha256(p.read_bytes()).hexdigest() for p in before}
+    archived=client.get(prefix+'/broad/results').json()['items'][0]
+    assert archived['admission']['qualifies'] and archived['screening']['policy']==original_policy
+    assert client.get(prefix+'/broad').json()['reassessed']

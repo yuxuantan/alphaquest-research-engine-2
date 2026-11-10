@@ -16,9 +16,9 @@ from .optimization_cache import artifacts, digest, engine_identity
 from .research import SplitDeclaration, dates_for, metadata
 from .strategies.registry import get_strategy
 from .worker_limits import MAX_WORKERS
-from .workflow_criteria import policy, stage_criteria, verified_screening
+from .workflow_criteria import PREVIOUS_VERSION, policy, stage_criteria, verified_screening
 
-CRITERION = 'All six IS Broad criteria must pass; insufficient evidence cannot qualify.'
+CRITERION = 'All five IS Broad criteria must pass; insufficient evidence cannot qualify.'
 
 
 class BroadGrid(BaseModel):
@@ -45,14 +45,17 @@ class ConfirmSelection(BaseModel):
     revision: StrictInt = Field(ge=0)
 
 
-def eligible(row):
+def eligible(row, target_policy=None):
     try:
         from .workflow_criteria import evaluate
         measured = row['screening']
-        if measured['policy'] != policy():
+        if measured['policy'] not in (policy(PREVIOUS_VERSION),policy()):
             return False
-        checked = evaluate(measured['metrics'], measured['closed_trades'], measured['total_net_pnl'], measured['policy'])
-        return checked['qualifies'] and checked['checks'] == measured['checks'] and not row.get('backtest_deleted',False)
+        original = evaluate(measured['metrics'], measured['closed_trades'], measured['total_net_pnl'], measured['policy'])
+        if any(measured[key] != original[key] for key in original):
+            return False
+        admission = evaluate(measured['metrics'], measured['closed_trades'], measured['total_net_pnl'], target_policy or policy())
+        return admission['qualifies'] and not row.get('backtest_deleted',False)
     except (KeyError,InvalidOperation,ValueError,TypeError):
         return False
 
@@ -146,7 +149,7 @@ def state_and_job(request, workflow_id, job_id=None):
     return saved,state,job
 
 
-def candidate(store, workflow_id, job_id, trial, db, legacy=False):
+def candidate(store, workflow_id, job_id, trial, db, legacy=False, target_policy=None):
     found = db.execute('SELECT payload FROM optimization_trials WHERE optimization_id=? AND trial=?',(job_id,trial)).fetchone()
     if not found:
         raise ValueError('Selected configuration is not a member of this IS Broad job.')
@@ -158,8 +161,8 @@ def candidate(store, workflow_id, job_id, trial, db, legacy=False):
     stress = None
     if not legacy:
         measured, stress = verified_screening(store.runs, report)
-        if measured != row.get('screening') or not eligible(row):
-            raise ValueError('Only configurations passing all six IS Broad criteria may be selected.')
+        if measured != row.get('screening') or not eligible(row,target_policy):
+            raise ValueError('Only configurations passing the saved IS Broad selection criteria may be selected.')
     if (Decimal(str(report['summary']['total_net_pnl'])) <= 0 or
         Decimal(str(report['summary']['total_net_pnl'])) != Decimal(str(row['metrics']['total_net_pnl']))):
         raise ValueError('The selected report must have matching, positive net IS profit.')
@@ -184,7 +187,8 @@ def validate_frozen(store, workflow_id, state):
         if not state['confirmed_at_utc'] or not 1 <= len(state['selection']) <= 2:
             raise ValueError('Confirm one or two eligible IS Broad configurations first.')
         for frozen in state['selection']:
-            if candidate(store,workflow_id,state['job_id'],frozen['trial'],db,legacy=not state.get('screening_policy')) != frozen:
+            if candidate(store,workflow_id,state['job_id'],frozen['trial'],db,legacy=not state.get('screening_policy'),
+                         target_policy=state.get('selection_policy') or state.get('screening_policy')) != frozen:
                 raise ValueError('A frozen IS Broad report changed; the selection cannot advance.')
 
 
@@ -202,17 +206,19 @@ def save_selection(request, workflow_id, body, confirm=False):
         count=db.execute('SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?',(job['id'],)).fetchone()[0]
         if job['status']!='complete' or count!=job['total_trials'] or count!=job['completed_trials']:
             raise ValueError('Wait for the entire IS Broad grid to complete before selecting configurations.')
-        if state.get('screening_policy') != policy():
-            raise ValueError('This pending grid used the earlier profitability-only rule. Run a new IS Broad grid for the six agreed criteria.')
-        if job['engine_identity']!=engine_identity():
+        if state.get('screening_policy') not in (policy(PREVIOUS_VERSION),policy()):
+            raise ValueError('This pending grid lacks measured IS Broad screening evidence. Run a new grid.')
+        if (job.get('research') or {}).get('screening_policy') != state['screening_policy']:
+            raise ValueError('Saved IS Broad policy differs from its optimizer job.')
+        if state['screening_policy']==policy() and job['engine_identity']!=engine_identity():
             raise ValueError('Calculation code changed since this grid; run a new grid before confirming choices.')
         trials=state['selected_trials'] if confirm else body.trials
         if len(trials)!=len(set(trials)) or len(trials)>2 or (confirm and not trials):
-            raise ValueError('Select one or two distinct configurations passing all six IS Broad criteria.')
-        chosen=[candidate(store,workflow_id,job['id'],trial,db) for trial in trials]
+            raise ValueError('Select one or two distinct configurations passing all five IS Broad criteria.')
+        chosen=[candidate(store,workflow_id,job['id'],trial,db,target_policy=policy()) for trial in trials]
         if len({digest(c['parameters']) for c in chosen})!=len(chosen):
             raise ValueError('Selected parameter configurations must be distinct.')
-        state.update(selected_trials=trials,revision=state['revision']+1)
+        state.update(selected_trials=trials,revision=state['revision']+1,selection_policy=policy())
         if confirm:
             state.update(confirmed_at_utc=now(),selection=chosen,engine_identity=job['engine_identity'])
         db.execute('UPDATE campaign_broad_state SET payload=? WHERE workflow_id=?',(json.dumps(state),workflow_id))
@@ -241,7 +247,10 @@ async def detail(workflow_id:UUID,request:Request,job_id:UUID|None=None):
     saved,state,job=await invoke(state_and_job,request,workflow_id.hex,job_id.hex if job_id else None)
     definition=get_strategy(saved['declaration']['strategy_id']).description()
     return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,criterion=CRITERION,
-                criteria=stage_criteria(),legacy=bool(job and not state.get('screening_policy')))
+                criteria=stage_criteria(),legacy=bool(job and not state.get('screening_policy')),
+                reassessed=bool(job and state.get('screening_policy')==policy(PREVIOUS_VERSION)
+                                and not state.get('archived') and
+                                (not state.get('confirmed_at_utc') or state.get('selection_policy')==policy())))
 
 
 @router.post('/api/campaign-workflows/{workflow_id}/broad/preview')
@@ -264,8 +273,18 @@ async def results(workflow_id:UUID,request:Request,sort:str='trial',direction:st
     if not job:
         return dict(items=[],total=0,offset=offset,limit=limit)
     page=await invoke(request.app.state.optimizations.page,job,sort,direction,offset,limit,0)
+    if state.get('archived'):
+        selection_policy = state.get('screening_policy')
+    elif state.get('confirmed_at_utc'):
+        selection_policy = state.get('selection_policy') or state.get('screening_policy')
+    else:
+        selection_policy = policy()
     for row in page['items']:
-        row['qualifies']=eligible(row)
+        row['qualifies']=eligible(row,selection_policy)
+        if row.get('screening') and state.get('screening_policy')==policy(PREVIOUS_VERSION) and selection_policy==policy():
+            from .workflow_criteria import evaluate
+            measured=row['screening']
+            row['admission']=evaluate(measured['metrics'],measured['closed_trades'],measured['total_net_pnl'],policy())
         if state['confirmed_at_utc'] and not state.get('screening_policy'):
             row['legacy_screening'] = True
             row['qualifies'] = Decimal(str(row['metrics']['total_net_pnl'])) > 0 and not row.get('backtest_deleted')
