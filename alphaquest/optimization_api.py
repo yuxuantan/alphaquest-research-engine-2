@@ -51,7 +51,7 @@ async def start(body: OptimizationRequest, request: Request):
             values = {name: axis[0] for name, axis in axes.items()}
             if "use_eod_flat" in values:
                 values["use_eod_flat"] = enabled
-            definition.validate_instrument(definition.parameters(values), dataset.get("symbol"))
+            definition.validate_source(definition.parameters(values), dataset)
         config = body.execution_settings.execution_config(dataset)
         plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
         await run_in_threadpool(request.app.state.research.claim, plan)

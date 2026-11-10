@@ -67,6 +67,21 @@ class RiskCapture:
 
     def observe_bar(self, bar, phase='held', reference=None):
         self.cross_session |= session(bar.timestamp_utc) != session(self.position.entry_time_utc)
+        if self.entry_phase == 'entry_stop' and bar.bar_number == self.position.entry_bar_number:
+            # The Open and some extrema precede this intrabar stop entry.
+            # Only entry and Close are known held prices; extrema are bounds.
+            if phase == 'held':
+                self.observe_price(bar.high, bounded=True)
+                self.observe_price(bar.low, bounded=True)
+                self.observe_price(bar.close)
+            elif phase in ('stop', 'target'):
+                # Same-bar protection can exit before the Close and before
+                # prices beyond the exit. Those prices are not known held.
+                uncertain = (bar.high if self.position.side == 'long' else bar.low) if phase == 'stop' else (
+                    bar.low if self.position.side == 'long' else bar.high)
+                self.observe_price(uncertain, bounded=True)
+                self.observe_price(reference)
+            return
         self.observe_price(bar.open, gap=True)
         if phase == 'held':
             self.observe_price(bar.high)

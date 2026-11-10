@@ -1,4 +1,28 @@
-# VWAP pullback in AQ and MultiCharts .NET
+# MultiCharts .NET signals
+
+[Twin Continuation](../docs/strategies/twin_continuation.md) is implemented in
+[`Twin_Continuation.cs`](Twin_Continuation.cs): the supplied Swing Breakout and
+Morning Momentum signal, with setup-owned exits and all original Inputs.
+`ImmediateProtection=true` now prepares native fill-relative TP/SL and
+conditional BO swing stops before entry; entries/indicators stay at bar close.
+Set it false only to reproduce the original delayed mode. Python exposes the
+matching `immediate_protection` flag, also true by default.
+Its guide covers installation, matching Python configuration, compiled-core
+checks, saved product examples and the remaining MultiCharts qualification.
+
+To inspect entries directly on the price chart, set the signal's single
+`ShowTradeValidation=true` Input. It draws confirmed open swing levels and
+one compact three-line summary.
+For full BO/MO eligibility, frozen risk values and order/fill context, open
+**View → Expert Commentary** in MultiCharts .NET and click a chart bar.
+The signal adds no historical text labels; native MC trade markers remain.
+Set `ValidationHistoryLimit=0` for current swing lines only, a positive count
+for bounded history, or `-1` for every segment across loaded history. See the
+[validation instructions](../docs/strategies/twin_continuation.md#chart-trade-validation).
+Set `ShowTradeValidation=false` for live use. No separate indicator is required; its former
+source has been removed. Previously saved qualification artifacts are retained.
+
+## VWAP pullback in AQ and MultiCharts .NET
 
 The repository contains the two maintained implementations of this strategy:
 

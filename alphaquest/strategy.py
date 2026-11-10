@@ -97,10 +97,36 @@ class ExecutionConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class EntryProtection:
+    """Conditional exits prepared before entry; distances resolve from actual fill.
+
+    Exactly one stop basis is required. No completed entry-bar prices are used
+    to construct this plan. None target disables the profit-taking leg.
+    """
+
+    stop_price: Decimal | None = None
+    stop_distance: Decimal | None = None
+    target_distance: Decimal | None = None
+    max_stop_distance: Decimal | None = None
+
+    def __post_init__(self):
+        if (self.stop_price is None) == (self.stop_distance is None):
+            raise ValueError("Entry protection requires exactly one stop basis.")
+        if self.stop_price is not None:
+            _decimal("stop_price", self.stop_price)
+        for name in ("stop_distance", "max_stop_distance"):
+            if getattr(self, name) is not None:
+                _decimal(name, getattr(self, name), positive=True)
+        if self.target_distance is not None:
+            _decimal("target_distance", self.target_distance, nonnegative=True)
+
+
+@dataclass(frozen=True, slots=True)
 class EntryIntent:
     """Request one entry; defaults preserve long, same-close execution.
 
-    The engine records the deadline but never schedules or triggers an exit.
+    The engine records the deadline but never schedules an exit from it.
+    Optional protection is a separate precommitted, fill-activated exit plan.
     No price/fill/cost arithmetic belongs here.
     """
 
@@ -110,8 +136,11 @@ class EntryIntent:
     side: Literal["long", "short"] = "long"
     timing: Literal["same_close", "next_open"] = "same_close"
     initial_stop: Decimal | None = None
+    protection: EntryProtection | None = None
 
     def __post_init__(self):
+        if self.protection is not None and (type(self.protection) is not EntryProtection or self.timing != "next_open"):
+            raise ValueError("Attached entry protection requires a next-bar entry and an EntryProtection plan.")
         if self.initial_stop is not None:
             _decimal("initial_stop", self.initial_stop)
         _positive_integer("contracts", self.contracts)
@@ -137,18 +166,43 @@ class CloseIntent:
 
 @dataclass(frozen=True, slots=True)
 class BracketIntent:
-    """Full-position OCO stop/limit, active for the next observed bar only."""
+    """Full-position stop and optional OCO limit, active for the next bar only."""
 
     stop_price: Decimal
-    target_price: Decimal
+    target_price: Decimal | None = None
 
     def __post_init__(self):
         _decimal("stop_price", self.stop_price)
-        _decimal("target_price", self.target_price)
+        if self.target_price is not None:
+            _decimal("target_price", self.target_price)
+
+
+@dataclass(frozen=True, slots=True)
+class StopEntriesIntent:
+    """Flat-only OCO entry stops, active for the next observed bar only.
+
+    Entries retain their own direction, quantity and reason. If both stops
+    touch after the Open, OHLC cannot determine the winner: execution rejects.
+    """
+
+    orders: tuple[tuple[EntryIntent, Decimal], ...]
+
+    def __post_init__(self):
+        if type(self.orders) is not tuple or not 1 <= len(self.orders) <= 2:
+            raise ValueError("Stop entries require one or two immutable orders.")
+        sides = set()
+        for order in self.orders:
+            if type(order) is not tuple or len(order) != 2:
+                raise ValueError("Each stop entry requires an EntryIntent and trigger price.")
+            entry, price = order
+            if type(entry) is not EntryIntent or entry.timing != "next_open" or entry.side in sides:
+                raise ValueError("Stop entries require distinct sides and next-bar entries.")
+            _decimal("entry stop price", price)
+            sides.add(entry.side)
 
 
 class Strategy(Protocol):
-    def on_bar(self, bar: Bar, position: Position | None) -> EntryIntent | CloseIntent | BracketIntent | None:
+    def on_bar(self, bar: Bar, position: Position | None) -> EntryIntent | CloseIntent | BracketIntent | StopEntriesIntent | None:
         """Inspect only the current completed bar and position; return at most one intent."""
         ...
 

@@ -1,0 +1,74 @@
+{
+  "source_sha256": "4c6b70b7bba26932ef886438219f75e9962a4dba29e3467b557ff01db4b1ba11",
+  "source_sheet": "List of Trades",
+  "chart_timezone": "America/Chicago",
+  "timezone_basis": "MC entry/exit labels reconcile to saved source prices and source Momentum 14:50 next-bar exits.",
+  "price_point_value": "20",
+  "quantity": "1",
+  "profit_contract": "Each exported Profit ($) equals signed price difference * 20; Settings were cancelled, so broker cost configuration is not established.",
+  "trades": [
+    {
+      "trade": 79,
+      "entry": {
+        "row": 160,
+        "type": "EntryLong",
+        "signal": "BO-L",
+        "time": "2021-09-06 02:20:00",
+        "price": "15699",
+        "quantity": "1",
+        "profit": "45"
+      },
+      "exit": {
+        "row": 161,
+        "type": "ExitLong",
+        "signal": "End of Day Exit",
+        "time": "2021-09-06 12:00:00",
+        "price": "15701.25",
+        "quantity": "1",
+        "profit": ""
+      }
+    },
+    {
+      "trade": 429,
+      "entry": {
+        "row": 860,
+        "type": "EntryLong",
+        "signal": "BO-L",
+        "time": "2024-06-18 19:01:00",
+        "price": "20223.25",
+        "quantity": "1",
+        "profit": "155"
+      },
+      "exit": {
+        "row": 861,
+        "type": "ExitLong",
+        "signal": "End of Day Exit",
+        "time": "2024-06-19 12:00:00",
+        "price": "20231",
+        "quantity": "1",
+        "profit": ""
+      }
+    },
+    {
+      "trade": 436,
+      "entry": {
+        "row": 874,
+        "type": "EntryShort",
+        "signal": "MO-S",
+        "time": "2024-07-04 09:21:00",
+        "price": "20377",
+        "quantity": "1",
+        "profit": "-85"
+      },
+      "exit": {
+        "row": 875,
+        "type": "ExitShort",
+        "signal": "End of Day Exit",
+        "time": "2024-07-04 12:00:00",
+        "price": "20381.25",
+        "quantity": "1",
+        "profit": ""
+      }
+    }
+  ]
+}

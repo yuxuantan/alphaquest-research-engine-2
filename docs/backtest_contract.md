@@ -7,6 +7,18 @@ brackets. Its guide defines fill prices, ambiguous-bar policy, chart history,
 fill-bar timestamp labels, and terminal handling. Reports record which
 execution assumption applies; v1 sample fixtures remain unchanged.
 
+The [Twin Continuation port](strategies/twin_continuation.md) also uses
+one-bar OCO stop entries and stop-only exits. Opening gaps take priority;
+two entry stops touched without a determining Open reject as ambiguous.
+Twin now defaults to a precommitted fill-activated `EntryProtection` plan;
+`immediate_protection=false` retains the original delayed model. Market/Open
+entry protection can use the remaining bar range; uncertain post-stop-entry
+SL timing/order rejects. An adverse extreme is not automatically after entry.
+Other strategies without attached plans retain their existing timing. Native
+decision capture/phase-controlled replay reject attached plans.
+Intrabar entry-bar extrema remain excursion bounds. Its guide records
+source timing, session assumptions and native decision-capture limitations.
+
 The VWAP EOD option resolves the shared calendar from the saved instrument
 symbol (currently NQ only), and applies editable `close_buffer_minutes=5` before
 scheduled close, capped by `eod_flat_time`, without future-bar inference.

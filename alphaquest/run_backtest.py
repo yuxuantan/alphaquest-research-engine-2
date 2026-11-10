@@ -36,7 +36,7 @@ def run_saved_dataset(store: DatasetStore, dataset_id: str, output_directory: Pa
     from .market_benchmark import BenchmarkSettings
     market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
     definition = get_strategy(strategy_id)
-    definition.validate_instrument(parameters, dataset.get('symbol'))
+    definition.validate_source(parameters, dataset)
     from .research import ResearchStore,SplitDeclaration,dates_for,metadata
     if from_date is not None or to_date is not None:
         raise ValueError('Declare an IS/OOS split instead of from_date/to_date.')

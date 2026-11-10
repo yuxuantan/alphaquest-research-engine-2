@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType
 from decimal import Decimal, InvalidOperation
 
-from . import consecutive_green_hold, vwap_pullback_risk_sizing, vwap_features
+from . import consecutive_green_hold, vwap_pullback_risk_sizing, vwap_features, twin_continuation
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +41,12 @@ class StrategyDefinition:
         if validate is not None:
             validate(parameters, symbol)
 
+    def validate_source(self, parameters, dataset):
+        self.validate_instrument(parameters, dataset.get("symbol"))
+        validate = getattr(self.module, "validate_dataset", None)
+        if validate is not None:
+            validate(dataset)
+
     def create(self, parameters, config, *, instrument_symbol="NQ"):
         if self.accepts_instrument:
             return self.factory(parameters, execution_config=config, instrument_symbol=instrument_symbol)
@@ -72,6 +78,7 @@ STRATEGIES = {
     consecutive_green_hold.STRATEGY_ID: StrategyDefinition(consecutive_green_hold, consecutive_green_hold.ConsecutiveGreenHold),
     vwap_pullback_risk_sizing.STRATEGY_ID: StrategyDefinition(vwap_pullback_risk_sizing, vwap_pullback_risk_sizing.VwapPullbackRiskSizing,
                                                           acceleration=vwap_features, accepts_execution_config=True, accepts_instrument=True),
+    twin_continuation.STRATEGY_ID: StrategyDefinition(twin_continuation, twin_continuation.TwinContinuation, accepts_instrument=True),
 }
 
 

@@ -1663,6 +1663,11 @@ costs once. Analysis normalizes source quantity once, with no extra cost debit.
 
 Same-close entries exclude earlier entry-bar OHLC; next-open entries include their
 entry bar. Next-open and bracket-gap exits exclude later exit-bar prices. An
+intrabar stop entry (`entry_phase=entry_stop`, used by
+[Twin Continuation](strategies/twin_continuation.md)) includes its fill and Close
+as known held prices; entry-bar extrema contribute upper bounds because their
+ordering relative to entry is unknown. Source admission retains those bounds
+and net costs without inventing measured excursions. An
 intrabar stop excludes prices beyond the stop after exit. A target exit cannot
 establish whether the adverse bar extreme preceded the target; lower/upper bounds
 retain that ambiguity. Prop analysis uses the conservative adverse upper bound.

@@ -228,7 +228,7 @@ def _native_risk(runs, source_id, record, native):
             if not loss.is_finite() or loss <= previous:raise ValueError('Adverse path is not a finite increasing frontier.')
             previous = loss
         if previous != values[1]:raise ValueError('Adverse path does not reconcile to its MAE upper bound.')
-        if r['cross_session'] not in ('True', 'False') or r['entry_phase'] not in ('open', 'close') or r['exit_phase'] not in ('open', 'close', 'stop', 'target') or int(r['full_bars']) < 0:
+        if r['cross_session'] not in ('True', 'False') or r['entry_phase'] not in ('open', 'close', 'entry_stop') or r['exit_phase'] not in ('open', 'close', 'stop', 'target') or int(r['full_bars']) < 0:
             raise ValueError('Invalid native risk holding interval.')
         ambiguous += values[0] != values[1]
         crossed += r['cross_session'] == 'True'
