@@ -10582,3 +10582,62 @@ The earlier job is `ff78862bee70406299870af5b044183d`; the workflow is
 `55a105ed8906460cabe6ba89833f5f24`. Stop this optional inspection server with
 Ctrl-C. Portable exports and the synthetic source remain available when the
 ignored test database is absent from another checkout.
+
+## 2026-11-11 — IS Narrow campaign stage (normal product workflow)
+
+This campaign workflow increment uses the existing native optimizer, job history,
+backtest catalogue, phase navigation and downloads. It does not run prop
+simulation and does not claim provider parity. The implemented screening policy
+and exact method are in `docs/workflow_screening.md`; OOS execution remains a
+future stage.
+
+### Saved normal-product evidence
+
+`docs/evidence/is_narrow/` contains the labeled synthetic source uploaded by the
+browser journey, a screenshot of the final Narrow page, saved Narrow results JSON,
+a saved confirmed Narrow package and `journey.json` with the workflow/job
+identity. The browser fixture starts a temporary Uvicorn server and stops it in
+teardown; no persistent server was left running. Recreate the package and
+screenshot with:
+
+```sh
+ALPHAQUEST_NARROW_EVIDENCE_DIR=docs/evidence/is_narrow \
+  .venv/bin/python -m pytest -q tests/test_campaign_narrow_browser.py
+.venv/bin/python -m pytest -q tests/test_campaign_narrow.py
+```
+
+To inspect through the actual portal, start the ordinary app in a separate
+local data directory and open `http://127.0.0.1:8000`:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/data/narrow-review" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000
+```
+
+Stop it with Ctrl-C after review. Upload
+`docs/evidence/is_narrow/SYNTHETIC-source.csv` as a UTC
+synthetic dataset (tick size 0.25, point value 10), choose Consecutive Green
+Hold, use IS 2024-01-01 through 2025-12-31 and OOS 2026-01-01, with 10,000 CU
+initial capital, one tick slippage, and one CU commission per contract per side.
+Complete the mechanic validation checklist only after your own parity review;
+the automated fixture marks these checks as a synthetic UI exercise and does
+not claim a MultiCharts comparison. Run Broad with `green_bar_count=3`,
+`hold_minutes=20`, `contracts=1..2 step 1`, confirm both passing rows. In Narrow,
+select Broad trial 1 and vary `hold_minutes=20..21 step 1`, keeping
+`green_bar_count=3` and `contracts=1` fixed. Repeat for Broad trial 2 with
+`contracts=2`. The portal prevents changing the Broad-varied `contracts`
+value. Wait for both jobs to finish, inspect all nine checks per row, select
+trial 1 from each branch, and confirm each. The OOS step becomes navigable.
+
+Independent fixture arithmetic: six trades per active source date earn 78 CU
+net at one contract. The 120 active IS dates earn 9,360 CU total, 2,340 CU in
+each of four calendar periods, and 8,970 CU after subtracting the best
+complete 390 CU month. The two-contract branch doubles these amounts. Two
+Broad plus four Narrow configurations yield a Bonferroni family of six.
+The native +1-tick cost-stress report, daily equity, monthly screening and
+neighboring trial are checked before a row can be selected. Direct requests
+to alter a frozen Broad input, select before both branches finish, or use a
+changed neighboring result are rejected. Both selected packages and their
+native reports reopen after app restart without resimulation; deleting their
+native jobs or screening reports is rejected. The original source and OOS holdout
+remain unchanged.

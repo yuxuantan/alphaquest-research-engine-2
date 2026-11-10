@@ -104,7 +104,7 @@ def generate_report(
     drawdown = None
     screening = None
     research = (metadata or {}).get('research') or {}
-    if research.get('workflow_phase') == 'is_broad' and research.get('screening_policy'):
+    if research.get('workflow_phase') in ('is_broad', 'is_narrow') and research.get('screening_policy'):
         from .workflow_criteria import ScreeningCapture
         screening = ScreeningCapture(config.initial_capital, research, metadata['dataset']['source_timezone'])
     decision_capture = decision_summary = None

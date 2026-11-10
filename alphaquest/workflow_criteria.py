@@ -42,13 +42,13 @@ def stage_criteria():
             'Longest mark-to-market drawdown < 25% of the IS period, including any unresolved drawdown through IS end.',
             'A native rerun with one extra tick of slippage per fill remains net profitable, with identical parameters.',
             'All five tests must pass before selecting and permanently confirming one or two configurations.']),
-        dict(id='is_narrow', label='IS Narrow', implemented=False, rules=[
+        dict(id='is_narrow', label='IS Narrow', implemented=True, rules=[
             'Retain all five IS Broad criteria.',
             'At least 70% of valid immediate parameter neighbors are profitable, using the predeclared grid steps and every applicable direction.',
             'At least three of four consecutive, approximately equal IS calendar periods are profitable, including the most recent.',
             'Total net profit remains positive after excluding the single best complete calendar month.',
             'The 95% lower confidence bound on mean net daily P&L is above zero, preserving time dependence and adjusting for all Broad/Narrow configurations tried, including reruns.',
-            'Freeze the selected configurations before final OOS. These additional checks are agreed requirements; execution is not implemented yet.']),
+            'Select and permanently confirm one or two passing configurations per Broad selection, up to four total, before final OOS.']),
         dict(id='oos', label='OOS', implemented=False, rules=[
             'Assess frozen choices without parameter reselection or using OOS to select IS candidates.',
             'Execution and final acceptance thresholds will be implemented separately; no OOS pass is currently available.'])]
@@ -122,7 +122,7 @@ def verified_screening(runs, report):
     if (stress['execution_settings'] != expected or right['dataset'] != left['dataset'] or
             right['strategy'] != left['strategy'] or right['selection'] != left['selection'] or
             right['research'].get('source_candidate_run_id') != paired_candidate or
-            right['research'].get('workflow_phase') != 'is_broad_cost_stress' or
+            right['research'].get('workflow_phase') != left['research'].get('workflow_phase') + '_cost_stress' or
             right['research'].get('workflow_id') != left['research']['workflow_id'] or
             right['research']['plan'] != left['research']['plan'] or
             right['research']['phase'] != 'is' or

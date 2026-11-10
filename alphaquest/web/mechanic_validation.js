@@ -10,7 +10,7 @@
   };
   const labels = {consecutive_green_hold:'Consecutive Green Hold',vwap_pullback_risk_sizing:'ORB + VWAP pullback',twin_continuation:'Twin continuation'};
   let token = 0, current, saving = false, timer;
-  const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)(?:\?job=([a-f0-9]{32}))?$/);
+  const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)(?:\?(?:job=([a-f0-9]{32})|broad_trial=(\d+)))?$/);
   const endpoint = id => `/api/campaign-workflows/${id}`;
   const read = async (url, method = 'GET', body) => {
     const response = await fetch(url, {method, cache:'no-store', ...(body === undefined ? {} : {headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
@@ -107,17 +107,14 @@
       window.campaignBroad.render(host,workflow,{isCurrent:()=>active===token,jobId:route()?.[3]});
       return;
     }
+    if (phase === 'is_narrow') {
+      const active=token;
+      window.campaignNarrow.render(host,workflow,{isCurrent:()=>active===token,broadTrial:route()?.[4]});
+      return;
+    }
     if (phase !== 'mechanic_validation') {
       const intro = node('section',undefined,'panel mechanic-results');
       intro.append(node('h2',workflow.phases.find(p => p.id === phase).label),node('p','Navigation is ready. Running and passing this phase will be added in a later update.'));
-      if(phase==='is_narrow') {
-        intro.append(node('h3','Confirmed IS Broad configurations'));
-        for(const chosen of workflow.broad.selection) {
-          const card=node('div',undefined,'workflow-input-card');
-          card.append(node('strong',`Trial ${chosen.trial} · IS net ${chosen.total_net_pnl} CU`),node('pre',JSON.stringify(chosen.parameters,null,2)));
-          link(card,'Open selected IS report',`#backtests/report/${chosen.run_id}`);intro.append(card);
-        }
-      }
       host.append(intro); return;
     }
     if (!workflow.review) {
@@ -184,7 +181,7 @@
     }
   }
   async function navigate() {
-    const active = ++token; clearTimeout(timer); saving=false; window.campaignBroad?.dispose();
+    const active = ++token; clearTimeout(timer); saving=false; window.campaignBroad?.dispose(); window.campaignNarrow?.dispose();
     const match = route();
     if (!match) {
       if (location.hash.startsWith('#campaigns/workflows/')) {

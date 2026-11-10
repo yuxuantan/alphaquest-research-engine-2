@@ -1,8 +1,7 @@
 # Campaign stage passing criteria
 
-User-approved policy, updated 2026-11-11, on `epic/revamp-workflow`. IS Broad is
-implemented. IS Narrow's additional requirements below are agreed and reserved
-for a later implementation; displaying them does not execute or pass them.
+User-approved policy, updated 2026-11-11, on `epic/revamp-workflow`. IS Broad and
+IS Narrow are implemented. OOS execution remains a later stage.
 The portal's **Passing criteria by stage** panel shows the same server-owned
 rules, including while later phases remain locked.
 
@@ -130,7 +129,7 @@ normal campaign routes; the browser fixture starts and stops a temporary app:
   tests/test_campaign_broad_browser.py::test_saved_six_rule_grid_uses_five_rule_portal_without_rerun
 ```
 
-## IS Narrow — agreed requirements, execution not implemented
+## IS Narrow — implemented, policy `is-narrow-v1`
 
 Retain **all five IS Broad requirements** and add:
 
@@ -152,12 +151,68 @@ Retain **all five IS Broad requirements** and add:
    unsuccessful searches and reruns. An ordinary winner-only interval does not
    satisfy this condition.
 
-The later implementation must declare and save the time-block boundaries,
-neighbor definitions, dependence-aware uncertainty method and tuning choices,
-multiple-search correction, seeds and complete trial history before launching
-Narrow. Missing/unsupported evidence must not be treated as a pass. Freeze the
-selected configurations before accessing final OOS. The currently displayed
-Narrow inputs are the locked Broad selections, not a completed Narrow search.
+For each confirmed Broad configuration, choose a Narrow grid. Every parameter
+that varied in Broad is fixed at the selected Broad value. The other strategy
+parameters can vary. At least one Narrow parameter must vary so every row has
+an immediate neighbor. The native exhaustive optimizer validates coupled
+strategy constraints before launch. Each Broad selection has its own durable
+Narrow job; all branches must finish before any Narrow row becomes selectable.
+Up to two rows per Broad branch can be confirmed, at most four total. Each
+confirmation is immutable. OOS navigation unlocks only when all branches have
+confirmed selections; OOS execution and acceptance rules remain unimplemented.
+
+The Narrow job saves its Broad selection identity, frozen parameters, IS plan,
+source and cost identity, all grid axes, five-rule screening policy, and the
+`is-narrow-v1` policy before launch. Native baseline and +1-tick cost-stress
+reports are saved in the usual report store. Missing reports, changed measured
+artifacts or changed neighboring evidence make a row ineligible. Results show
+all nine checks per row, sortable metrics, visible/frozen varied parameter
+columns, report links, and CSV/package downloads. Fixed inputs start hidden.
+
+The four period boundaries divide the declared inclusive IS dates into four
+consecutive ranges with nearly equal calendar-day counts. Period P&L uses
+last-observed daily native mark-to-market equity in the source timezone. The
+best complete month's net P&L comes from the original native screening
+capture; the full-period net less that one month must remain positive.
+
+The confidence gate uses the saved native daily equity series, at least 100
+observed source-local dates, and a predeclared **five-observation Bartlett
+HAC** long-run variance estimate. It calculates a one-sided normal lower bound
+for mean net P&L per observed trading day. The one-sided tail probability is
+`0.05 / N`, where `N` is the sum of planned trial counts in every retained
+Broad and Narrow job for this workflow, including failed/incomplete attempts
+and replacement searches. This Bonferroni correction includes unsuccessful
+trials. The estimator is deterministic; no random seed is used. Its normal
+approximation is an uncertainty check on this historical IS sample, not a
+guarantee about future returns. The full method and observed family size are
+shown on the page and saved with the selection. If there are fewer than 100
+observed dates or inconsistent daily/source evidence, this check fails.
+
+### Reproduce the Narrow journey
+
+Run the focused API and browser checks (the browser fixture starts and stops a
+temporary server):
+
+```sh
+.venv/bin/python -m pytest -q tests/test_campaign_narrow.py
+.venv/bin/python -m pytest -q tests/test_campaign_narrow_browser.py
+```
+
+The labeled synthetic source and saved browser/API results are in
+`docs/evidence/is_narrow/`. The test uploads that source through the normal
+dataset route, completes mechanic validation, runs a two-config Broad grid,
+confirms both Broad rows, runs two two-config Narrow grids, and confirms one
+passing row from each branch. The fixture's six trades earn **78 CU per source
+day** at one contract; 120 active days give **9,360 CU** net, four equal
+calendar periods give **2,340 CU** each, and removing the best 390 CU month
+leaves **8,970 CU**. The two-contract Broad branch doubles those amounts.
+The full attempted family is six configs (two Broad + four Narrow). The
+browser shows the Broad `contracts` value disabled in each Narrow form, the
+varied `hold_minutes` column visible and frozen, and OOS locked until both
+branches are confirmed. Direct requests that vary `contracts`, select before
+both jobs finish, or use changed neighboring evidence are rejected. No
+MultiCharts parity is asserted by this synthetic exercise; the mechanic
+confirmation is a labeled user-attestation fixture.
 
 ## OOS — future execution
 

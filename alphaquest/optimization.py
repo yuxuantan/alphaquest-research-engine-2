@@ -229,6 +229,9 @@ class OptimizationStore:
                 if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_broad_jobs'").fetchone():
                     if conn.execute('SELECT 1 FROM campaign_broad_jobs WHERE job_id=?',(job_id,)).fetchone():
                         raise ValueError('This IS Broad job is retained by a campaign workflow and cannot be deleted.')
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_narrow_jobs'").fetchone():
+                    if conn.execute('SELECT 1 FROM campaign_narrow_jobs WHERE job_id=?',(job_id,)).fetchone():
+                        raise ValueError('This IS Narrow job is retained by a campaign workflow and cannot be deleted.')
                 row = conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()
                 if row is None:
                     return None

@@ -28,7 +28,9 @@
   const workerHelp = get("#optimization-workers-help").textContent;
   const pageSize = () => jobId ? 50 : 25;
   const campaignRoute = job => job.research?.workflow_phase==='is_broad'&&job.research.workflow_id
-    ? `#campaigns/workflows/${job.research.workflow_id}/is_broad?job=${job.id}` : null;
+    ? `#campaigns/workflows/${job.research.workflow_id}/is_broad?job=${job.id}`
+    : job.research?.workflow_phase==='is_narrow'&&job.research.workflow_id
+    ? `#campaigns/workflows/${job.research.workflow_id}/is_narrow?broad_trial=${job.research.broad_trial}` : null;
   const resultScroll = get("#optimization-results-scroll");
   const frozenColumns = new window.OptimizationColumns(get("#optimization-results"), resultScroll, get("#optimization-freeze"));
   const pinHeaders = () => frozenColumns.layout();

@@ -62,10 +62,10 @@ def compute_trial(context, trial, values, run_id, progress):
     timings = Performance()
     research = context.research
     cost_stress = None
-    if research and research.get('workflow_phase') == 'is_broad' and research.get('screening_policy'):
+    if research and research.get('workflow_phase') in ('is_broad', 'is_narrow') and research.get('screening_policy'):
         stress_id = uuid4().hex
         stress_config = replace(context.config, slippage_ticks=context.config.slippage_ticks + research['screening_policy']['extra_slippage_ticks_per_fill'])
-        stress_research = dict(research, workflow_phase='is_broad_cost_stress', source_candidate_run_id=run_id)
+        stress_research = dict(research, workflow_phase=research['workflow_phase'] + '_cost_stress', source_candidate_run_id=run_id)
         stress_manifest, _, _ = prepare_backtest_report(
             FrozenSource(context.dataset, context.snapshot), context.output_root / stress_id,
             context.dataset, definition, definition.parameters(values), stress_config,

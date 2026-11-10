@@ -100,6 +100,13 @@ class CampaignWorkflowStore:
                     workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id));
                 CREATE TABLE IF NOT EXISTS campaign_broad_state (
                     workflow_id TEXT PRIMARY KEY REFERENCES campaign_workflows(id),payload TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS campaign_narrow_jobs (
+                    job_id TEXT PRIMARY KEY REFERENCES optimizations(id),
+                    workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id), broad_trial INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS campaign_narrow_state (
+                    workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id),
+                    broad_trial INTEGER NOT NULL, payload TEXT NOT NULL,
+                    PRIMARY KEY(workflow_id,broad_trial));
             ''')
             # Earlier workflows recorded only their latest execution. Import only
             # known timestamps; report creation is not an inferred start time.
@@ -223,12 +230,21 @@ class CampaignWorkflowStore:
         passed = saved['status'] == 'passed'
         broad = self.broad_state(saved['id'])
         broad_passed = bool(broad.get('confirmed_at_utc'))
+        from .campaign_narrow import branches
+        narrow = branches(self, saved['id']) if broad_passed else []
+        narrow_passed = bool(narrow) and all(branch['confirmed_at_utc'] for branch in narrow)
+        narrow_status = ('passed' if narrow_passed else
+                         'running' if any(branch['status'] in ('queued','running') for branch in narrow) else
+                         'review_required' if any(branch['status']=='review_required' for branch in narrow) else
+                         'ready')
         statuses = [saved['status'], broad['status'] if passed else 'locked',
-                    'ready' if passed and broad_passed else 'locked', 'locked']
+                    narrow_status if passed and broad_passed else 'locked',
+                    'ready' if narrow_passed else 'locked']
         result['broad'] = broad
-        result['phases'] = [dict(id=phase, label=label, status=statuses[i], implemented=i <= 1)
+        result['narrow'] = narrow
+        result['phases'] = [dict(id=phase, label=label, status=statuses[i], implemented=i <= 2)
                            for i, (phase, label) in enumerate(zip(PHASES, PHASE_LABELS))]
-        result['latest_phase'] = 'is_narrow' if passed and broad_passed else 'is_broad' if passed else 'mechanic_validation'
+        result['latest_phase'] = 'oos' if narrow_passed else 'is_narrow' if passed and broad_passed else 'is_broad' if passed else 'mechanic_validation'
         if include_results and saved['review']:
             result.update(self.results(saved))
         return result
@@ -293,6 +309,9 @@ class CampaignWorkflowStore:
         if index >= 2:
             from .campaign_broad import validate_frozen
             validate_frozen(self, saved['id'], saved['broad'])
+        if index >= 3:
+            from .campaign_narrow import validate_frozen as validate_narrow
+            validate_narrow(self, saved['id'], saved['narrow'])
         return saved, saved['phases'][index]
 
 
