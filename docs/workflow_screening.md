@@ -78,6 +78,14 @@ IS Broad is the sole results page for campaign grids. Job history links to the
 specific saved run; old batch/optimization URLs redirect there. Earlier runs
 remain inspectable read-only inside IS Broad after a replacement grid. The
 generic batch viewer continues to serve standalone legacy jobs.
+In the IS Broad results table, each parameter with more than one value in that
+saved run's grid starts visible and frozen beside Select and Trial. Fixed input
+parameters start hidden, while all result metrics remain visible. Numeric result
+cells display two decimal places; saved values, sorting, criteria and CSV retain
+their original precision. **Columns** can change visibility, freezing and order;
+choices are stored in this browser for the specific run, and **Reset layout**
+restores its defaults. Opening another saved grid derives new defaults from its
+own axes.
 
 Report/artifact identities are captured at publication and rechecked on
 selection, confirmation, carry-forward and saved evidence downloads. Missing or

@@ -2,6 +2,8 @@
 (() => {
   const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const label=value=>value.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
+  const twoDecimals=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});
+  const displayMetric=value=>value==null||value===''?'N/A':Number.isFinite(Number(value))?twoDecimals.format(value):String(value);
   const read=async(url,method='GET',body)=>{const response=await fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Check the parameter grid and saved selection.');return data;};
   let generation=0,timer,columns;
   function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;}
@@ -87,7 +89,7 @@
       }
       resume.onclick=()=>jobAction('resume');cancel.onclick=()=>jobAction('cancel');
       const panel=node('details',undefined,'optimization-freeze');panel.id='broad-columns';
-      panel.innerHTML='<summary>Columns <span class="optimization-column-count small muted"></span><span class="optimization-freeze-count small muted"></span></summary><div class="optimization-freeze-body"><p class="field-help">Show, hide, freeze or reorder columns. Column layout is saved in this browser.</p><div class="optimization-freeze-actions"><label>Find a column<input type="search" placeholder="Search columns…" /></label><button class="button secondary" type="button" data-columns="all">Show all</button><button class="button secondary" type="button" data-columns="hide">Hide all</button><button class="button secondary" type="button" data-columns="reset">Reset layout</button><button class="button secondary" type="button" data-freeze="none">Unfreeze all</button></div><p id="broad-column-status" role="status" class="field-help"></p><div class="optimization-column-choices" role="group" aria-label="IS Broad column layout"></div><p class="optimization-column-empty field-help" hidden>No matching columns.</p></div>';
+      panel.innerHTML='<summary>Columns <span class="optimization-column-count small muted"></span><span class="optimization-freeze-count small muted"></span></summary><div class="optimization-freeze-body"><p class="field-help">Varied parameters are shown and frozen by default; fixed parameters are hidden. Show, hide, freeze or reorder columns. Choices are saved for this run in this browser.</p><div class="optimization-freeze-actions"><label>Find a column<input type="search" placeholder="Search columns…" /></label><button class="button secondary" type="button" data-columns="all">Show all</button><button class="button secondary" type="button" data-columns="hide">Hide all</button><button class="button secondary" type="button" data-columns="reset">Reset layout</button><button class="button secondary" type="button" data-freeze="none">Unfreeze all</button></div><p id="broad-column-status" role="status" class="field-help"></p><div class="optimization-column-choices" role="group" aria-label="IS Broad column layout"></div><p class="optimization-column-empty field-help" hidden>No matching columns.</p></div>';
       const empty=node('p','No columns selected. Open Columns to choose what to show.');empty.hidden=true;
       const scroll=node('div',undefined,'optimization-scroll');scroll.id='broad-results-scroll';scroll.tabIndex=0;scroll.setAttribute('aria-label','IS Broad results, scroll horizontally or vertically');
       const table=node('table',undefined,'library-table');table.id='broad-results';table.innerHTML='<thead></thead><tbody></tbody>';scroll.append(table);outputs.append(panel,empty,scroll);
@@ -137,6 +139,7 @@
           links.replaceChildren();
           if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Broad package ↓',forRun('/download'));}
           if(!job){panel.hidden=true;table.tHead.replaceChildren();table.tBodies[0].replaceChildren();previous.disabled=next.disabled=true;pageInfo.textContent='No results yet';selectionState();return;}
+          const varying=Object.keys(job.axes).filter(name=>job.axes[name].length>1);
           const headers=[['select','Select'],['eligible','Eligibility'],['trial','Trial'],...Object.keys(job.axes).map(name=>['param.'+name,label(name)]),...job.metric_columns.map(name=>[name,label(name)]),['run_id','Backtest report']];
           const head=node('tr');
           for(const [key,title] of headers){const th=node('th');th.dataset.column=key;th.scope='col';
@@ -153,9 +156,11 @@
                 td.append(info);
               }
               else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
-              else td.textContent=String(key==='trial'?row.trial:key.startsWith('param.')?row.parameters[key.slice(6)]:row.metrics[key]??'N/A');tr.append(td);
+              else td.textContent=key==='trial'?String(row.trial):key.startsWith('param.')?String(row.parameters[key.slice(6)]):displayMetric(row.metrics[key]);tr.append(td);
             }table.tBodies[0].append(tr);}
-          columns.configure('campaign-broad:'+workflow.declaration.strategy_id,headers);
+          columns.defaultFrozen=['select','trial',...varying.map(name=>'param.'+name)];
+          columns.configure('campaign-broad:'+workflow.declaration.strategy_id+':'+job.id,headers,
+            headers.filter(([key])=>!key.startsWith('param.')||varying.includes(key.slice(6))).map(([key])=>key));
           previous.disabled=!offset;next.disabled=offset+page.items.length>=page.total;pageInfo.textContent=page.total?`${offset+1}–${offset+page.items.length} of ${page.total}`:'No saved results yet';
           frozen.replaceChildren();
           if(state.confirmed_at_utc){frozen.append(node('p','Selection is confirmed and locked.'));for(const item of state.selection){frozen.append(node('pre',JSON.stringify(item.parameters,null,2)));}action(frozen,'Continue to IS Narrow →',`#campaigns/workflows/${workflow.id}/is_narrow`);}

@@ -1,5 +1,6 @@
 """Real IS Broad grid, existing column controls, manual profitable selection and carry-forward."""
 import json
+import re
 from hashlib import sha256
 
 import httpx
@@ -34,9 +35,30 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE · 18 / 18 trials',timeout=30000)
     playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
     playwright.expect(page.locator('#broad-results tr.broad-ineligible')).to_have_count(15)
+    varied=['param.green_bar_count','param.hold_minutes','param.contracts']
+    frozen=page.locator('#broad-results thead th.optimization-frozen-column')
+    playwright.expect(frozen).to_have_count(5)
+    assert frozen.evaluate_all('cells => cells.map(cell => cell.dataset.column)')==['select','trial',*varied]
+    for key in varied:
+        playwright.expect(page.locator(f'#broad-results th[data-column="{key}"]')).to_be_visible()
+    scroll=page.locator('#broad-results-scroll')
+    before=frozen.evaluate_all('cells => cells.map(cell => cell.getBoundingClientRect().x)')
+    assert scroll.evaluate('el => el.scrollWidth > el.clientWidth')
+    scroll.evaluate('el => {el.scrollLeft = 400}')
+    page.wait_for_function("() => document.querySelector('#broad-results-scroll').scrollLeft > 0")
+    after=frozen.evaluate_all('cells => cells.map(cell => cell.getBoundingClientRect().x)')
+    assert all(abs(left-right)<1 for left,right in zip(before,after))
+    scroll.evaluate('el => {el.scrollLeft = 0}')
     playwright.expect(page.get_by_role('checkbox',name='Select trial 4',exact=True)).to_be_disabled()
     playwright.expect(page.get_by_role('checkbox',name='Select trial 10',exact=True)).to_be_disabled()
     first=page.locator('#broad-results tr[data-trial="1"]')
+    metrics=page.request.get(prefix+'/broad').json()['job']['metric_columns']
+    for key in metrics:
+        displayed=first.locator(f'td[data-column="{key}"]').inner_text()
+        assert displayed=='N/A' or re.fullmatch(r'-?\d+\.\d{2}',displayed),(key,displayed)
+    playwright.expect(first.locator('td[data-column="total_net_pnl"]')).to_have_text('1872.00')
+    playwright.expect(first.locator('td[data-column="trades_taken"]')).to_have_text('144.00')
+    assert str(page.request.get(prefix+'/broad/results').json()['items'][0]['metrics']['trades_taken'])=='144'
     first.locator('.broad-row-criteria summary').click()
     playwright.expect(first.locator('.broad-row-criteria li')).to_have_count(6)
     playwright.expect(first.locator('.broad-row-criteria')).to_contain_text('24 months; 144 closed trades')
@@ -53,8 +75,17 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
     before={p:sha256(p.read_bytes()).hexdigest() for p in portal['app'].state.runs.root.glob('*/*') if p.is_file()}
     page.locator('#broad-columns > summary').click()
+    page.get_by_role('checkbox',name='Freeze Green bar count',exact=True).uncheck()
+    playwright.expect(page.locator('#broad-columns .optimization-freeze-count')).to_have_text('4 frozen')
+    page.reload()
+    playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
+    page.locator('#broad-columns > summary').click()
+    playwright.expect(page.get_by_role('checkbox',name='Freeze Green bar count',exact=True)).not_to_be_checked()
+    page.get_by_role('button',name='Reset layout',exact=True).click()
+    playwright.expect(page.get_by_role('checkbox',name='Freeze Green bar count',exact=True)).to_be_checked()
+    playwright.expect(page.locator('#broad-columns .optimization-freeze-count')).to_have_text('5 frozen')
     page.get_by_role('checkbox',name='Show Total gross pnl',exact=True).uncheck()
-    page.get_by_role('checkbox',name='Freeze Contracts',exact=True).check()
+    playwright.expect(page.get_by_role('checkbox',name='Freeze Contracts',exact=True)).to_be_checked()
     playwright.expect(page.locator('#broad-results th[data-column="total_gross_pnl"]')).to_be_hidden()
     playwright.expect(page.locator('#broad-results th[data-column="param.contracts"]')).to_have_class(__import__('re').compile('optimization-frozen-column'))
     page.locator('#broad-columns > summary').click()
@@ -114,6 +145,9 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     page.goto(portal['url']+'/#backtests/batches/'+earlier['id'])
     playwright.expect(page.locator('#broad-archived')).to_be_visible()
     playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(1)
+    playwright.expect(page.locator('#broad-columns .optimization-freeze-count')).to_have_text('2 frozen')
+    for key in varied:
+        playwright.expect(page.locator(f'#broad-results th[data-column="{key}"]')).to_be_hidden()
     playwright.expect(page.locator('#broad-results td[data-column="total_net_pnl"]')).to_have_text('1872.00')
     playwright.expect(page.get_by_role('checkbox',name='Select trial 1',exact=True)).to_be_disabled()
     playwright.expect(page.locator('#broad-confirm')).to_be_disabled()
@@ -204,6 +238,15 @@ def test_queued_cancel_and_failed_run_resume_live_on_is_broad(page,portal,tmp_pa
         page.locator('#broad-resume').click()
         playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE',timeout=30000)
         playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(2)
+        assert page.locator('#broad-results thead th.optimization-frozen-column').evaluate_all(
+            'cells => cells.map(cell => cell.dataset.column)')==['select','trial','param.contracts']
+        for key in ['param.green_bar_count','param.hold_minutes']:
+            playwright.expect(page.locator(f'#broad-results th[data-column="{key}"]')).to_be_hidden()
+        page.locator('#broad-columns > summary').click()
+        page.get_by_role('checkbox',name='Show Green bar count',exact=True).check()
+        playwright.expect(page.locator('#broad-results th[data-column="param.green_bar_count"]')).to_be_visible()
+        page.get_by_role('button',name='Reset layout',exact=True).click()
+        playwright.expect(page.locator('#broad-results th[data-column="param.green_bar_count"]')).to_be_hidden()
         playwright.expect(page.locator('#broad-resume')).to_be_hidden()
         playwright.expect(page.get_by_role('checkbox',name='Select trial 2',exact=True)).to_be_enabled()
         assert client.get(prefix+'/broad').json()['job']['id']==failed
