@@ -358,12 +358,26 @@ Select **Strategies** in the portal, choose an instrument to browse saved backte
 ## Verify
 
 ```bash
-python -m pytest
+.venv/bin/python -m pytest -q
 ```
 
-Chromium browser checks are optional: install `.[dev,browser]` with `requirements.lock` constraints, run `python -m playwright install chromium`, then `python -m pytest tests/test_backtests_browser.py -q`.
+During `epic/revamp-workflow`, the default run temporarily selects only the six
+fast mechanic-validation checks. Other tests are preserved but excluded from
+default discovery; select a file or test explicitly when its behavior changes.
+For the current UI, opt into the two mechanic journeys and three navigation
+checks:
 
-Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter. Report checks compare every summary/trade/equity field and CSV row with independent expectations, verify reconciliations and precision, and exercise failure cleanup and bounded-memory export.
+```sh
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py tests/test_workflow_navigation_browser.py
+```
+
+Chromium checks require `.[dev,browser]` with `requirements.lock` constraints and
+`python -m playwright install chromium`. The older suite remains available with
+`.venv/bin/python -m pytest tests`; this explicit command runs all tests and is
+not the routine workflow-revamp check. Restore `testpaths = ["tests"]` in
+`pyproject.toml` to restore full default discovery.
+
+The preserved full regression suite covers datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter. Report checks compare every summary/trade/equity field and CSV row with independent expectations, verify reconciliations and precision, and exercise failure cleanup and bounded-memory export.
 
 ## Structure
 
