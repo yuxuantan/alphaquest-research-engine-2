@@ -6,8 +6,11 @@ Start the existing local server from this checkout:
 .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open `http://127.0.0.1:8000/`, select **Campaigns**, then **New backtest**, or go
-directly to `http://127.0.0.1:8000/#backtests/new`. Mobile navigation is in the top
+Open `http://127.0.0.1:8000/`. **Campaigns → New backtest** opens the ordered
+mechanic-validation workflow using default strategy parameters. For the existing
+editable exhaustive backtest workflow described below, choose **Campaigns →
+Saved runs → New backtest**, or go directly to
+`http://127.0.0.1:8000/#backtests/new`. Mobile navigation is in the top
 bar. For existing results, select **Campaigns → Saved runs**. Choose a strategy, then an instrument and full dataset period to see saved
 IS/OOS runs; the report link opens the exact results. New backtests always use
 the exhaustive parameter grid. Keep start and end equal on every row for one
@@ -41,7 +44,7 @@ correctly unavailable rather than borrowing OOS bars.
 1. In **Datasets**, choose `artifacts/SYNTHETIC-arithmetic-IS-OOS-NEW.csv`.
    Keep the source timezone **UTC**, validate the CSV, then save it. If already
    saved, use its existing library entry. Open the dataset, set **Tick size 0.25** and **Monetary point value 10**, then click **Save instrument settings**. These values may also be supplied during upload.
-2. Open **Campaigns → New backtest** and select that saved dataset. Its eight source bars (seven IS plus one reserved), filename,
+2. Open **Campaigns → Saved runs → New backtest** and select that saved dataset. Its eight source bars (seven IS plus one reserved), filename,
    UTC range, and saved source timezone appear beneath the controls.
 3. Select **Consecutive green hold**. This is selected automatically when it is
    the only available strategy. Read its description. Three parameter rows come

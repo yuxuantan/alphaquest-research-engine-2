@@ -14,6 +14,7 @@
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/workflow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/mechanic_validation.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research_reservations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
@@ -327,9 +328,16 @@
           <div class="panel workflow-empty"><span class="workflow-empty-icon" aria-hidden="true">▦</span><h2>No research theses yet</h2><p>Research theses and summaries will live here. Campaigns will reference the research behind each strategy.</p><span class="pill neutral">Coming in a future workflow update</span></div>
         </section>
         <section id="campaigns-screen" aria-labelledby="campaigns-title" hidden>
-          <div class="page-heading"><div><div class="eyebrow">FROM THESIS TO STRATEGY</div><h1 id="campaigns-title">Campaigns<span class="heading-dot">.</span></h1><p>One campaign for each strategy code. Follow its logic, datasets and latest phase.</p></div><div class="report-downloads"><a href="#strategies" class="button secondary">Saved runs</a><a href="#backtests/new" class="button primary">New backtest →</a></div></div>
-          <p class="workflow-notice">Illustrative campaign details, dataset periods and stages. These examples do not describe saved runs.</p>
+          <div class="page-heading"><div><div class="eyebrow">FROM THESIS TO STRATEGY</div><h1 id="campaigns-title">Campaigns<span class="heading-dot">.</span></h1><p>One campaign for each strategy code. Follow its logic, datasets and latest phase.</p></div><div class="report-downloads"><a href="#strategies" class="button secondary">Saved runs</a><a href="#backtests/new?workflow=mechanic" id="campaign-new-backtest" class="button primary">New backtest →</a></div></div>
+          <p class="workflow-notice">Campaign descriptions are illustrative. Datasets, saved runs and validation stages below come from your workspace.</p>
           <div class="workflow-campaign-layout"><nav id="workflow-campaign-list" class="panel workflow-campaign-list" aria-label="Campaign list"></nav><div id="workflow-campaign-detail" class="panel workflow-campaign-detail" aria-live="polite"></div></div>
+        </section>
+        <section id="mechanic-screen" aria-label="Campaign dataset workflow" hidden>
+          <a id="mechanic-back" href="#campaigns" class="eyebrow">← Campaign datasets</a>
+          <div class="page-heading"><div><h1 id="mechanic-title">Mechanic validation</h1><p id="mechanic-source"></p></div></div>
+          <nav id="mechanic-phases" class="mechanic-phases" aria-label="Campaign phases"></nav>
+          <p id="mechanic-status" role="status" aria-live="polite"></p>
+          <div id="mechanic-content"></div>
         </section>
         <section id="prop-sim-screen" aria-labelledby="prop-sim-title" hidden>
           <div class="page-heading"><div><div class="eyebrow">STRATEGIES TO ACCOUNT OUTCOMES</div><h1 id="prop-sim-title">Prop Sim<span class="heading-dot">.</span></h1><p>Compare evaluation sizing, funded sizing and simulated cash outcomes.</p></div><span class="pill neutral">Workflow preview</span></div>
@@ -371,6 +379,7 @@
                       <option value="">Choose a saved dataset</option>
                     </select>
                     <p class="field-help" id="backtest-dataset-info">Upload and save a CSV in Datasets first.</p>
+                    <a id="backtest-upload-dataset" href="#datasets" class="workflow-inline-link">Upload a new dataset →</a>
                     <dl id="backtest-instrument-settings" class="backtest-run-details"></dl>
                     <div class="backtest-execution-grid">
                       <label>Tick size for this run

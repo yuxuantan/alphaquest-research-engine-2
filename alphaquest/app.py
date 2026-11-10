@@ -90,6 +90,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.store = DatasetStore(dataset_path)
         app.state.runs = RunStore(app.state.store.path.parent)
         app.state.research = ResearchStore(app.state.runs)
+        from .campaign_workflow import CampaignWorkflowStore
+        app.state.campaign_workflows = CampaignWorkflowStore(app.state.runs)
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
         from .research_access import ResearchAccess
         app.state.research_access=ResearchAccess(app.state.prop_analyses,fresh_scope=fresh_scope)
@@ -128,6 +130,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from .forward_api import router as forward_router
     app.include_router(forward_router)
     app.include_router(strategy_library_router)
+    from .campaign_workflow import router as workflow_router
+    app.include_router(workflow_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

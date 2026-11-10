@@ -9854,3 +9854,162 @@ execution/downloads, and the retained saved-study catalogue. JavaScript syntax,
 unchanged Dataset markup and `git diff --check` also passed. The verification
 manifest and screenshot checksums are saved in `evidence/verification.json`.
 This is targeted UI/workflow verification, not a full-suite or provider-parity claim.
+
+## 2026-11-10 — Real campaign datasets and mechanic validation (workflow revamp 2)
+
+This increment on `epic/revamp-workflow` replaces the preceding revision's
+illustrative campaign datasets/stages with saved workspace sources and durable
+workflow state. The campaign list now includes every registered or archived
+strategy code. The two narrative descriptions remain illustrative; all displayed
+dataset periods, saved results and mechanic-validation status are real. Prop Sim
+remains the previously labeled placeholder and no prop calculation was changed.
+
+The four research phases are **Mechanic validation → IS Broad → IS Narrow →
+OOS**. This increment implements mechanic validation and ordered navigation.
+IS Broad becomes navigable only after the saved mechanic review passes; its
+screen states that execution is not implemented. IS Narrow and OOS stay locked.
+No endpoint in this increment can mark those later phases passed. Existing
+backtests and independent Evaluation/Funded reports remain available through
+their original routes; these research phases do not replace those account-phase
+optimizers.
+
+The normal product journey is Campaigns → New backtest → existing backtest setup
+with a saved dataset or **Upload a new dataset** → ordinary Dataset validation
+and save → **Continue to backtest** → declare IS/OOS and costs → **Open mechanic
+validation** → **Run validation · default parameters** → ordinary local backtest
+report plus mechanic review. Configuration does not run a backtest. The initial
+mechanic page has one run action, with saved settings in a collapsed disclosure.
+It runs the declared IS range with the current strategy's defaults, using the
+user's saved instrument/cost settings. It never reads OOS prices for this run.
+Unsupported default strategy/source combinations reject instead of changing the
+parameters. Automatic prop reports are omitted for this validation-only run.
+
+Every outcome row comes from the real saved summary. Trade samples are selected
+from actual completed trades: first, last, greatest positive **net** P&L, most
+negative net P&L, and shortest elapsed holding duration. All rankings use exact
+decimals; ties use the earliest trade number. Overlap produces one row containing
+all selection reasons, so there are at most five rows. A run without wins or
+losses explicitly discloses the missing category. No trade is fabricated.
+
+Every metric needs an MC-parity check. Every sampled trade needs both MC-parity
+and execution-correctness checks. Each click saves an optimistic review revision;
+reload resumes it. Confirmation requires all the exact server-defined rows,
+matching saved results, and at least one closed trade. A zero-trade run remains
+inspectable and cannot pass mechanics. Final confirmation is a durable **user
+attestation**, not an automatic/independently measured MultiCharts comparison.
+Confirmed reviews are immutable. Saved workflow JSON, report JSON and trades
+CSV are downloadable through the normal product routes.
+
+The API enforces ordered phase admission, incomplete/stale review rejection,
+strict boolean checks, source/code/instrument binding, and idempotent run
+submission. A lost response reopens the saved run; interrupted requests can be
+retried without overwriting an earlier report. RunStore retains referenced
+validation reports, including deletion through an activity. Reviewed report or
+trade changes fail closed. Opening a mechanic report in the ordinary report UI
+cannot bypass the campaign gate through its old manual OOS action. Workflow
+metadata/reviews use tables in the existing backtest catalogue; numerical
+results remain in RunStore, with no new engine, service, database or result store.
+Existing conservative engine identity includes this production code change;
+earlier reports and qualification evidence remain unchanged.
+
+### Reproduce the saved synthetic demonstration
+
+Evidence/downloads are in `artifacts/campaign-mechanics-20261110/evidence/`:
+ready/unreviewed/confirmed/mobile screenshots, `SYNTHETIC-mechanics.csv`, the
+ordinary `report.json`, `trades.csv`, `mechanic-review.json`, and `journey.json`.
+The browser exercised confirmations on synthetic rows to test the workflow;
+this evidence does **not** establish measured MultiCharts parity. The independent
+expected values are analytical test oracles in `tests/test_campaign_mechanics.py`,
+not product fixtures or a separate test dashboard.
+
+Start this checkout:
+
+```sh
+.venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+1. Open `http://127.0.0.1:8017/#campaigns/consecutive_green_hold`. Choose **New
+   backtest**, then **Upload a new dataset**. Upload the saved
+   `SYNTHETIC-mechanics.csv` with name **SYNTHETIC mechanics review**, source
+   timezone **UTC**, symbol **SYNTHETIC**, tick size **0.25**, point value **10**.
+   Validate/save using the ordinary Dataset page. The source has **25 rows**.
+2. Select **Continue to backtest**. Expect the new dataset selected and the
+   parameter grid hidden. Set initial capital **10000**, slippage **1 tick per
+   fill**, commission **1 per contract per side**. Use explicit dates: IS
+   **2026-01-05 → 2026-01-05**, OOS **2026-01-06 → 2026-01-06**. Review the split,
+   then choose **Open mechanic validation**. Expect no results yet and three
+   locked later phases. Saved defaults must be `green_bar_count=3`,
+   `hold_minutes=20`, `contracts=1`.
+3. Choose **Run validation · default parameters**. Expect **6** completed trades
+   from **24 IS rows**, initial equity **10000**, final equity **10078**, gross
+   after slippage **90**, commissions **12**, net **78**, slippage cost **30**,
+   and maximum drawdown **37**. Each entry fills **100.25**. The six net P&Ls
+   are **3, 43, -37, 13, 23, 33**. These come from entry reference price 100,
+   exit reference prices 101/105/97/102/103/104, point value 10, a 0.25 adverse
+   price adjustment at each fill, and 2 commission per round trip. No costs are
+   deducted twice. The reserved 900-price OOS bar does not enter these outcomes.
+4. Expect sample rows **1, 6, 2, 3, 4**, respectively first/last/biggest win/
+   biggest loss/shortest duration. Holding durations in trade order are
+   **21, 24, 25, 20, 23, 22 minutes**. Open **All recorded execution fields** to
+   inspect exact source bar numbers, reference/fill prices, costs and reasons.
+5. Before real confirmation, compare the same data, timezone, parameters, dates,
+   execution assumptions and costs in MultiCharts and check trade execution.
+   Tick one metric and reload: that check remains saved. Leave any metric or
+   either trade check unticked: confirmation stays disabled and a direct confirm
+   API request returns **409**. When legitimately reviewed, check every row and
+   confirm. Expect a user-attested pass timestamp and **IS Broad ready**.
+6. Open **IS Broad**: expect a navigation-only placeholder, with no run action.
+   IS Narrow/OOS remain locked. A forged workflow `/oos` hash or phase API call
+   returns the previous-phases rejection. The ordinary mechanic report also
+   hides manual OOS and its OOS POST returns **409**, including after mechanics
+   is confirmed. No OOS attempt is recorded.
+7. Return to Campaigns and click the real saved dataset or **Inspect validation
+   results**. Expect the same run and checks, with no new backtest. An existing
+   historical dataset without a workflow opens setup; **Inspect saved results**
+   opens its original report browser. New validation does not inherit a historical
+   report's arbitrary parameters or treat its existence as a passed phase.
+8. Download **Saved review JSON**, **Trades CSV**, or open the ordinary backtest
+   report. At 390px, phase navigation is arranged in two columns; the tables
+   scroll horizontally to reveal all values and checkboxes without page overflow.
+   Stop the optional manual server with **Ctrl-C**.
+
+For a clean automated reproduction, keep the earlier artifacts and use a fresh
+output directory:
+
+```sh
+mkdir -p artifacts/campaign-mechanics-REVIEW
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics.py
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py \
+  --basetemp=artifacts/campaign-mechanics-REVIEW/browser
+```
+
+These browser tests use isolated normal dataset/backtest libraries and stop
+their temporary servers. No persistent server was started for this increment.
+
+Validation: **143 distinct backend checks passed**, covering native backtests,
+splits/OOS isolation, both deletion paths, instrument settings, phase-owner
+compatibility and the new mechanics contracts. The first run passed 141 checks;
+two multiprocessing cases hit sandbox socket denials, then both passed outside
+the sandbox. **37 product/browser checks passed** across the new journey, main
+navigation, existing backtests, instrument/date settings, deletion and saved
+strategy datasets. The final two mechanics journeys were repeated to save the
+one-trade overlap demonstration: default one-contract arithmetic run nets **13**
+and has one sample row with first/last/biggest-win/shortest-duration reasons, with
+no fabricated biggest loss. `05-overlap.png` and `overlap-review.json` retain it.
+JavaScript syntax and `git diff --check` passed. Exact source/download hashes and
+run scopes are recorded in `evidence/verification.json`. This is targeted
+workflow qualification, not a full-suite or MultiCharts/provider parity claim.
+
+The saved synthetic library can also be reopened without resimulation:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/campaign-mechanics-20261110/demonstration/test_upload_default_run_review0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+Open the `workflow_hash_route` in `evidence/journey.json`, or navigate to
+Campaigns → Consecutive Green Hold → SYNTHETIC mechanics product review. Expect
+one saved validation run, its synthetic user-attested checks and IS Broad ready.
+Stop this optional inspection server with **Ctrl-C**. The portable source CSV
+and exported review/report allow reproducing the journey if the ignored test
+library is unavailable in another checkout.

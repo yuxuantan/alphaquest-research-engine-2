@@ -32,17 +32,21 @@
     return state.datasets.find((item) => item.id === datasetSelect.value);
   }
 
+  const mechanicSetup = () => new URLSearchParams(location.hash.split("?")[1] || "").get("workflow") === "mechanic";
+
   function controls() {
+    const mechanic = mechanicSetup();
+    get("#optimization-settings").hidden = mechanic;
     const calendarUnavailable = renderCalendar();
     for (const fieldset of form.querySelectorAll("fieldset")) fieldset.disabled = state.busy || state.loading;
-    for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = state.busy || state.loading;
-    get("#optimization-workers").disabled = state.busy || state.loading || !window.optimizations.workersReady();
+    for (const input of get("#optimization-settings").querySelectorAll("input, select")) input.disabled = state.busy || state.loading || mechanic;
+    get("#optimization-workers").disabled = mechanic || state.busy || state.loading || !window.optimizations.workersReady();
     get("#optimization-workers-retry").disabled = state.busy || state.loading;
-    get("#optimization-automatic-prop").disabled = state.busy || state.loading;
+    get("#optimization-automatic-prop").disabled = mechanic || state.busy || state.loading;
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
-    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || calendarUnavailable || !window.researchSplit.ready() || !window.optimizations.workersReady();
-    start.textContent = state.busy ? "Submitting / running…" : "Start backtests →";
+    start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || calendarUnavailable || !window.researchSplit.ready() || (!mechanic && !window.optimizations.workersReady());
+    start.textContent = state.busy ? "Submitting / running…" : mechanic ? "Open mechanic validation →" : "Start backtests →";
     form.setAttribute("aria-busy", String(state.busy));
   }
 
@@ -53,7 +57,7 @@
     if (!calendar) return false;
     const twin = state.strategy?.id === "twin_continuation";
     const enabled = get(`#optimization-ranges [data-parameter='${twin ? "use_session_calendar" : "use_eod_flat"}']`);
-    const usesCalendar = enabled && Array.from(enabled.querySelectorAll("select")).some((input) => input.value === "true");
+    const usesCalendar = mechanicSetup() ? state.strategy?.parameters.find(p => p.name === (twin ? "use_session_calendar" : "use_eod_flat"))?.default : enabled && Array.from(enabled.querySelectorAll("select")).some((input) => input.value === "true");
     if (!usesCalendar) {
       status.textContent = twin ? "Session calendar: disabled · earlier fixed-clock Twin session model." : "Session calendar: disabled · Use EOD Flat is off.";
       return false;
@@ -63,6 +67,7 @@
     status.textContent = supported
       ? `Session calendar: Auto → ${calendar.instrument} · ${calendar.file.split("/").pop()} · saved symbol ${symbol} · ${calendar.timezone}. ${twin ? "Held positions exit at the scheduled closing bar Close, including holiday early closes." : "Set Close buffer minutes below; default 5."}`
       : `No reviewed session calendar for saved symbol ${symbol || "(not set)"}. ${twin ? "Twin calendar exits support explicit NQ/MNQ symbols; select a supported dataset or disable Use session calendar." : "Calendar EOD flattening currently supports NQ only. Select a dataset with an explicit supported symbol, or turn Use EOD Flat off."}`;
+    if (!supported && mechanicSetup()) status.textContent = `Default-parameter mechanic validation requires a reviewed calendar for this strategy. Choose a supported NQ/MNQ dataset; calendar defaults cannot be disabled for validation.`;
     return !supported;
   }
 
@@ -107,6 +112,11 @@
       : strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
       ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, the instrument's reviewed calendar sets the cutoff using Close buffer minutes (default 5), bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
+    let defaults = get('#mechanic-default-parameters');
+    if (!defaults) { defaults = element('details'); defaults.id = 'mechanic-default-parameters'; get('#strategy-description').after(defaults); }
+    defaults.hidden = !mechanicSetup();
+    defaults.replaceChildren(element('summary', '', 'Default strategy parameters for mechanic validation'));
+    defaults.append(element('pre', '', JSON.stringify(Object.fromEntries(strategy?.parameters.map(p => [p.name,p.default]) || []),null,2)));
     window.optimizations.configure(state.strategy);
     window.researchSplit.configure(datasetSelect.value,strategySelect.value);
     controls();
@@ -180,6 +190,7 @@
         ? "No supported saved datasets. Upload and save a nine-column CSV in Datasets first."
         : !strategies.length ? "No strategies are available on this server." : "";
       get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately. Automatic legacy Apex and Lucid prop reports are enabled by default; uncheck the automatic-report option to skip them.";
+      if (mechanicSetup()) get("#backtest-form-hint").textContent = "Save the dataset, IS/OOS split and execution costs. The next page runs one backtest using default strategy parameters, then requires your MC parity and execution review.";
       renderStrategy();
       renderDataset(previousDataset !== datasetSelect.value || !state.instrumentEdited);
     } catch (error) {
@@ -193,7 +204,7 @@
   }
 
   function configuration() {
-    const parameters = window.optimizations.fixedParameters();
+    const parameters = mechanicSetup() ? Object.fromEntries(state.strategy.parameters.map(p => [p.name, p.default])) : window.optimizations.fixedParameters();
     for (const input of form.querySelectorAll("input")) {
       if (input.disabled || input.closest("#optimization-settings")) continue;
       input.setCustomValidity("");
@@ -422,6 +433,18 @@
     get("#backtest-error").hidden = true;
     const payload = configuration();
     if (!payload) return;
+    if (mechanicSetup()) {
+      state.busy = true;
+      controls();
+      try {
+        const {strategy_parameters, ...declaration} = payload;
+        const response = await fetch('/api/campaign-workflows', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(declaration)});
+        const workflow = await readResponse(response);
+        location.hash = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
+      } catch (error) { showError(error, 'Could not configure mechanic validation'); }
+      finally { state.busy = false; controls(); }
+      return;
+    }
     if (payload.strategy_parameters === null || !get("#optimization-automatic-prop").checked) {
       get("#backtest-progress").hidden = true;
       state.busy = true;
@@ -517,22 +540,23 @@
     const hash = location.hash;
     const screen = hash === "#research" ? "research"
       : hash.startsWith("#backtests/research") ? "research-workspace"
+      : hash.startsWith("#campaigns/workflows/") ? "mechanic"
       : hash.startsWith("#campaigns") ? "campaigns"
       : hash === "#prop-sim" ? "prop-sim"
       : hash.startsWith("#strategies") ? "strategies"
       : hash.startsWith("#optimizations") ? "optimizations"
       : hash.startsWith("#backtests") ? "backtests" : "datasets";
-    for (const name of ["datasets", "strategies", "research", "research-workspace", "campaigns", "prop-sim"]) {
+    for (const name of ["datasets", "strategies", "research", "research-workspace", "campaigns", "mechanic", "prop-sim"]) {
       get(`#${name}-screen`).hidden = screen !== name;
     }
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !hash.startsWith("#backtests/prop/");
     const navigation = hash.startsWith("#backtests/prop/") || screen === "research-workspace" ? "prop-sim"
-      : ["strategies", "backtests", "optimizations"].includes(screen) ? "campaigns" : screen;
+      : ["strategies", "backtests", "optimizations", "mechanic"].includes(screen) ? "campaigns" : screen;
     const title = {datasets: "Datasets", research: "Research", campaigns: "Campaigns", "prop-sim": "Prop Sim"}[navigation];
     get("#current-screen").textContent = title;
     document.title = `${title} · AlphaQuest`;
-    get("#backtests-title").textContent = "Run backtests.";
+    get("#backtests-title").textContent = mechanicSetup() ? "Configure mechanic validation." : "Run backtests.";
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
       const active = link.dataset.screen === navigation;
@@ -548,6 +572,13 @@
     }[navigation];
     if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
+  get('#backtest-upload-dataset').onclick = () => {
+    try {
+      const [path,query] = location.hash.split('?');
+      const params = new URLSearchParams(query || ''); params.set('strategy',strategySelect.value);
+      sessionStorage.setItem('backtest-upload-return', `${path}?${params}`);
+    } catch {}
+  };
   window.addEventListener("hashchange", navigate);
   navigate();
 })();

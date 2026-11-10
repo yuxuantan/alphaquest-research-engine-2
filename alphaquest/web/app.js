@@ -380,6 +380,18 @@ async function saveDataset() {
       node("span", "small muted", `${fmt.format(saved.row_count)} bars saved`),
       open,
     );
+    try {
+      const pending = sessionStorage.getItem('backtest-upload-return');
+      if (pending?.startsWith('#backtests/new')) {
+        const [route, query] = pending.split('?');
+        const params = new URLSearchParams(query || '');
+        params.set('dataset', saved.id);
+        const back = node('a', 'button primary', 'Continue to backtest →');
+        back.href = `${route}?${params}`;
+        actions.append(back);
+        sessionStorage.removeItem('backtest-upload-return');
+      }
+    } catch {}
     box.append(actions);
     await loadLibrary();
     $("#form-hint").textContent = "Saved. Choose another CSV to continue.";

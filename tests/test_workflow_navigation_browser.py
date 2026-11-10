@@ -24,8 +24,8 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     page.get_by_role('link', name='Twin continuation twin_continuation', exact=True).click()
     detail = page.locator('#workflow-campaign-detail')
     playwright.expect(detail).to_contain_text('Confirmed swing breakouts and morning momentum')
-    playwright.expect(detail.locator('.workflow-dataset')).to_have_count(2)
-    playwright.expect(detail).to_contain_text('Latest phase: IS broad · 1 pass')
+    playwright.expect(detail.locator('.workflow-dataset')).to_have_count(0)
+    playwright.expect(detail).to_contain_text('No saved datasets for this campaign')
     detail.get_by_text('Source code', exact=True).click()
     playwright.expect(detail.locator('code')).to_have_text('alphaquest/strategies/twin_continuation.py')
     page.screenshot(path=str(tmp_path/'campaigns.png'), full_page=True)
@@ -39,7 +39,7 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     playwright.expect(page.locator('#research-screen')).to_be_visible()
     assert mutations == []
     assert page.request.get(portal['url']+'/api/datasets').json() == before
-    (tmp_path/'navigation.json').write_text(json.dumps({'destinations':['Dataset','Research','Campaigns','Prop Sim'], 'campaigns':2, 'datasets_unchanged':True, 'mutation_requests':mutations}, indent=2))
+    (tmp_path/'navigation.json').write_text(json.dumps({'destinations':['Dataset','Research','Campaigns','Prop Sim'], 'campaigns':3, 'datasets_unchanged':True, 'mutation_requests':mutations}, indent=2))
 
 
 def test_prop_preview_selection_empty_boundary_and_mobile(page, portal, tmp_path):

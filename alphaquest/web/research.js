@@ -66,6 +66,11 @@
     get('#report-research-title').textContent=research?research.phase==='is'?'In-sample backtest':'Out-of-sample backtest':'Legacy backtest';
     get('#report-research-period').textContent=research?bounds(research.plan):'This report predates required IS/OOS declarations. Its data may already have been inspected; it does not establish an untouched holdout. Declare a split in a new IS backtest to use the controlled workflow.';
     if(!research)return;
+    if(research.workflow_id){
+      message.textContent='This is a campaign mechanic-validation report. Continue its ordered phases from the campaign dataset workflow; OOS remains locked until every previous phase passes.';
+      const link=document.createElement('a');link.href=`#campaigns/workflows/${research.workflow_id}/mechanic_validation`;link.textContent=' Return to mechanic validation →';message.append(link);
+      return;
+    }
     get('#report-oos-parameters').textContent='Selected parameters: '+Object.entries(record.run_metadata.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ');
     const source=research.phase==='is'?record.id:research.parent_run_id;
     try{

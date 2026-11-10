@@ -1,6 +1,6 @@
 "use strict";
 
-// Presentation-only examples for the first workflow revision. No result storage or runs.
+// Campaign narratives plus real dataset/run navigation. Prop Sim remains a preview.
 (() => {
   const get = (selector) => document.querySelector(selector);
   const node = (tag, text, className) => {
@@ -16,7 +16,6 @@
       logic: ["Entry: opening-range break, then VWAP retest and reclaim.", "Stop: confirmed pivot or pullback extreme, with a configurable buffer.", "Take profit: confirmed pivot target, subject to reward/risk criteria."],
       broad: ["Stop mode · 1: confirmed pivot; 2: pullback extreme.", "Retest mode · 1: touch VWAP; 2: close through VWAP, then reclaim."],
       narrow: ["ADX length and elevation threshold", "Stop / target swing strength", "Entry window and minimum reward/risk"],
-      stages: ["IS narrow · 2 passes", "Mechanic validation"],
     },
     {
       id: "twin_continuation", name: "Twin continuation",
@@ -24,18 +23,16 @@
       logic: ["Entry: six-hour confirmed swing breakout or ten-minute morning momentum.", "Stop: setup-owned protection; momentum uses a fixed point distance.", "Take profit: breakout target multiple; momentum uses its scheduled exit."],
       broad: ["Breakout setup · enabled / disabled", "Momentum setup · enabled / disabled", "Immediate protection · enabled / disabled"],
       narrow: ["Breakout target multiple and ATR period", "Momentum trigger and stop distance", "Momentum entry window"],
-      stages: ["Mechanic validation", "IS broad · 1 pass"],
     },
   ];
   const list = get("#workflow-campaign-list");
-  list.append(node("h2", "Campaigns"), node("p", "2 example campaigns", "muted small"));
-  for (const campaign of campaigns) {
-    const link = node("a", undefined, "workflow-campaign-link");
-    link.href = `#campaigns/${campaign.id}`;
-    link.dataset.campaign = campaign.id;
-    link.append(node("strong", campaign.name), node("small", campaign.id));
-    list.append(link);
-  }
+  let catalogue, definitions, generation = 0;
+  const read = async (url) => {
+    const response = await fetch(url, {cache:'no-store'});
+    const body = await response.json();
+    if (!response.ok) throw Error(typeof body.detail === 'string' ? body.detail : 'Could not load campaign datasets.');
+    return body;
+  };
   function section(parent, title, values) {
     const host = node("section", undefined, "workflow-detail-section");
     host.append(node("h3", title));
@@ -44,45 +41,75 @@
     host.append(bullets);
     parent.append(host);
   }
-  function renderCampaign() {
-    if (!location.hash.startsWith("#campaigns")) return;
-    const id = location.hash === "#campaigns" ? campaigns[0].id : location.hash.slice("#campaigns/".length);
-    const campaign = campaigns.find((item) => item.id === id);
+  const action = (parent, title, href) => {
+    const link = node('a', title, 'workflow-inline-link'); link.href = href; parent.append(link); return link;
+  };
+  async function renderCampaign() {
+    const current = ++generation;
+    if (!/^#campaigns(?:\/[^/]+)?$/.test(location.hash)) return;
     const host = get("#workflow-campaign-detail");
-    host.replaceChildren();
-    for (const link of list.querySelectorAll("a")) {
-      if (link.dataset.campaign === campaign?.id) link.setAttribute("aria-current", "true");
-      else link.removeAttribute("aria-current");
+    host.replaceChildren(node('p', 'Loading campaigns and datasets…'));
+    try {
+      [catalogue, definitions] = await Promise.all([read('/api/strategies/library'), read('/api/strategies')]);
+      if (current !== generation) return;
+      const id = location.hash === '#campaigns' ? catalogue.items.find(item => item.id === 'vwap_pullback_risk_sizing')?.id || catalogue.items[0]?.id : location.hash.slice('#campaigns/'.length);
+      list.replaceChildren(node('h2', 'Campaigns'), node('p', `${catalogue.items.length} strategy codes`, 'muted small'));
+      for (const item of catalogue.items) {
+        const name = campaigns.find(c => c.id === item.id)?.name || item.name;
+        const link = node('a', undefined, 'workflow-campaign-link');
+        link.href = `#campaigns/${encodeURIComponent(item.id)}`;
+        if (item.id === id) link.setAttribute('aria-current','true');
+        link.append(node('strong',name),node('small',item.id)); list.append(link);
+      }
+      host.replaceChildren();
+      const item = catalogue.items.find(c => c.id === id);
+      if (!item) { host.append(node('h2','Campaign not found'),node('p','Choose a campaign from the list.')); return; }
+      const definition = definitions.find(c => c.id === id);
+      const campaign = campaigns.find(c => c.id === id) || {id, name:item.name, hypothesis:definition?.description || 'Archived strategy code.', logic:[], broad:[], narrow:[]};
+      get('#campaign-new-backtest').href = `#backtests/new?${new URLSearchParams({workflow:'mechanic', strategy:id})}`;
+      get('#campaign-new-backtest').hidden = !definition;
+      host.append(node('div','CAMPAIGN DETAILS','eyebrow'),node('h2',campaign.name),node('h3','Hypothesis'),node('p',campaign.hypothesis));
+      const research = node('p','Linked research: '); action(research,'No research linked yet','#research'); host.append(research);
+      section(host,'Shared logic',campaign.logic.length ? campaign.logic : [definition?.description || 'Open a saved report to inspect its recorded logic.']);
+      const params = node('div',undefined,'workflow-parameter-layout');
+      section(params,'Broad parameters',campaign.broad.length ? campaign.broad : ['Not classified yet']);
+      section(params,'Narrow parameters',campaign.narrow.length ? campaign.narrow : ['Not classified yet']); host.append(params);
+      const source = node('details',undefined,'workflow-source');
+      source.append(node('summary','Source code'),node('code',definition ? `alphaquest/strategies/${id}.py` : 'No current local strategy code. Inspect the saved report for recorded provenance.'));
+      action(source,'Browse existing saved runs →',`#strategies/${encodeURIComponent(id)}`); host.append(source);
+      const datasets = node('section',undefined,'workflow-datasets');
+      datasets.append(node('h3','Datasets'),node('p','Saved sources and their current validation phase','muted small')); host.append(datasets);
+      const [workflows, groups] = await Promise.all([read(`/api/campaign-workflows?${new URLSearchParams({strategy_id:id})}`), read(`/api/strategies/${encodeURIComponent(id)}/datasets?limit=100`)]);
+      if (current !== generation) return;
+      const seen = new Set();
+      for (const workflow of workflows.items) {
+        const saved = workflow.declaration, dataset = saved.dataset;
+        seen.add(dataset.id);
+        const card = node('div',undefined,'workflow-dataset workflow-real-dataset');
+        const heading = node('a',dataset.name,'workflow-inline-link');
+        heading.href = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
+        card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
+        card.append(node('span',workflow.status === 'passed' ? 'Mechanic validation passed · IS Broad ready' : `Mechanic validation · ${workflow.status.replaceAll('_',' ')}`,'workflow-stage'));
+        action(card,workflow.run_id && workflow.review ? 'Inspect validation results →' : 'Resume backtest →',heading.href);
+        datasets.append(card);
+      }
+      for (const group of groups.items) {
+        if (seen.has(group.available_dataset_id)) continue;
+        const d = group.dataset, card = node('div',undefined,'workflow-dataset workflow-real-dataset');
+        const start = group.available_dataset_id && definition ? `#backtests/new?${new URLSearchParams({workflow:'mechanic',strategy:id,dataset:group.available_dataset_id})}` : `#strategies/${id}/datasets/${group.id}`;
+        action(card, d.name, start);
+        card.append(node('span',`${group.instrument} · ${d.start_date || 'Unknown start'} → ${d.end_date || 'Unknown end'}`),node('span','Mechanic validation · not started','workflow-stage'));
+        action(card,'Inspect saved results →',`#strategies/${id}/datasets/${group.id}`);
+        datasets.append(card);
+      }
+      if (!workflows.items.length && !groups.items.length) datasets.append(node('p','No saved datasets for this campaign. Choose New backtest to select or upload a dataset.'));
+      if (groups.total > groups.items.length) action(datasets,'Browse all saved datasets →',`#strategies/${id}`);
+    } catch (error) {
+      if (current === generation) {
+        host.replaceChildren(node('p',error.message));
+        const retry = node('button','Retry','button secondary'); retry.onclick = renderCampaign; host.append(retry);
+      }
     }
-    if (!campaign) {
-      host.append(node("h2", "Campaign not found"), node("p", "Choose an example campaign from the list."));
-      return;
-    }
-    host.append(node("div", "CAMPAIGN DETAILS", "eyebrow"), node("h2", campaign.name), node("h3", "Hypothesis"), node("p", campaign.hypothesis));
-    const research = node("p", "Linked research: ");
-    const researchLink = node("a", "No research linked yet", "workflow-inline-link");
-    researchLink.href = "#research";
-    research.append(researchLink);
-    host.append(research);
-    section(host, "Shared logic", campaign.logic);
-    const params = node("div", undefined, "workflow-parameter-layout");
-    section(params, "Broad parameters", campaign.broad);
-    section(params, "Narrow parameters", campaign.narrow);
-    host.append(params);
-    const source = node("details", undefined, "workflow-source");
-    source.append(node("summary", "Source code"), node("code", `alphaquest/strategies/${campaign.id}.py`));
-    const saved = node("a", "Browse existing saved runs →", "workflow-inline-link");
-    saved.href = `#strategies/${campaign.id}`;
-    source.append(node("p", "Strategy code in this checkout."), saved);
-    host.append(source);
-    const datasets = node("section", undefined, "workflow-datasets");
-    datasets.append(node("h3", "Datasets"), node("p", "Example periods and latest phases", "muted small"));
-    for (const [index, symbol] of ["ES", "NQ"].entries()) {
-      const card = node("div", undefined, "workflow-dataset");
-      card.append(node("strong", symbol), node("span", "2021-01-01 → 2024-12-31"), node("span", `Latest phase: ${campaign.stages[index]}`, "workflow-stage"));
-      datasets.append(card);
-    }
-    host.append(datasets);
   }
 
   const examples = [

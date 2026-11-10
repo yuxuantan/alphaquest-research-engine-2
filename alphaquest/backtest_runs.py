@@ -99,6 +99,9 @@ class RunStore:
                         run_id=UUID(run_id).hex
                         if run_id in self.detail_active:
                             raise ValueError('Full detail is being generated for this backtest. Wait for it to finish before deleting.')
+                        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_workflows'").fetchone():
+                            if conn.execute("SELECT 1 FROM campaign_workflows WHERE json_extract(payload,'$.run_id')=?", (run_id,)).fetchone():
+                                raise ValueError('This backtest is retained by a campaign mechanic validation review and cannot be deleted.')
                         destination=self.root/run_id
                         staged=self.root/('.deleted-'+run_id)
                         exists=conn.execute('SELECT 1 FROM runs WHERE id=?',(run_id,)).fetchone()
