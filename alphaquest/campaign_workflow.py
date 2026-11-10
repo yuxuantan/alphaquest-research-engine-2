@@ -4,12 +4,15 @@ Workflow declarations and attestations live in the existing backtest catalogue.
 Reports, summary values and trades remain owned by RunStore and the local engine.
 """
 from datetime import datetime, timezone
+import asyncio
 from decimal import Decimal
 import json
+import logging
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
 
@@ -81,7 +84,24 @@ class CampaignWorkflowStore:
                     workflow_id TEXT PRIMARY KEY REFERENCES campaign_workflows(id),
                     run_id TEXT UNIQUE NOT NULL REFERENCES runs(id));
                 CREATE INDEX IF NOT EXISTS workflow_strategy ON campaign_workflows(strategy_id);
+                CREATE TABLE IF NOT EXISTS mechanic_job_attempts (
+                    id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id),
+                    recorded_at TEXT NOT NULL, started_at TEXT, finished_at TEXT,
+                    status TEXT NOT NULL, error TEXT, total_bars INTEGER);
+                CREATE INDEX IF NOT EXISTS mechanic_jobs_recorded ON mechanic_job_attempts(recorded_at DESC);
+                CREATE INDEX IF NOT EXISTS mechanic_runs_by_workflow ON runs
+                    (json_extract(manifest,'$.run_metadata.research.workflow_id'));
             ''')
+            # Earlier workflows recorded only their latest execution. Import only
+            # known timestamps; report creation is not an inferred start time.
+            for workflow_id, raw in db.execute('SELECT id,payload FROM campaign_workflows').fetchall():
+                saved = json.loads(raw)
+                for run_id, created in db.execute("SELECT id,created_at FROM runs WHERE json_extract(manifest,'$.run_metadata.research.workflow_id')=?", (workflow_id,)).fetchall():
+                    db.execute("INSERT OR IGNORE INTO mechanic_job_attempts VALUES (?,?,?,NULL,NULL,'complete',NULL,NULL)", (run_id,workflow_id,created))
+                if saved.get('run_id'):
+                    state = 'complete' if saved.get('review') else saved['status']
+                    db.execute('INSERT OR IGNORE INTO mechanic_job_attempts VALUES (?,?,?,NULL,NULL,?,?,NULL)',
+                               (saved['run_id'],workflow_id,saved['updated_at_utc'],state,saved.get('error')))
             pending = [json.loads(row[0]) for row in db.execute(
                 "SELECT payload FROM campaign_workflows WHERE json_extract(payload,'$.status')='running'")]
         for saved in pending:
@@ -89,7 +109,7 @@ class CampaignWorkflowStore:
             if record:
                 self.finish(saved['id'], record)
             else:
-                self.fail(saved['id'], 'Application restarted before the validation completed. Run validation again.')
+                self.fail(saved['id'], 'Application restarted before the validation completed. Run validation again.', interrupted=True)
 
     def raw(self, workflow_id, db=None):
         if db is None:
@@ -127,6 +147,9 @@ class CampaignWorkflowStore:
                 return saved, False
             saved.update(status='running', run_id=uuid4().hex, error=None)
             self.write(db, saved)
+            timestamp = now()
+            db.execute("INSERT INTO mechanic_job_attempts VALUES (?,?,?,?,NULL,'running',NULL,NULL)",
+                       (saved['run_id'], workflow_id, timestamp, timestamp))
             return saved, True
 
     def finish(self, workflow_id, record):
@@ -150,6 +173,8 @@ class CampaignWorkflowStore:
         with self.runs.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self.raw(workflow_id, db)
+            db.execute("UPDATE mechanic_job_attempts SET status='complete',finished_at=CASE WHEN started_at IS NOT NULL THEN COALESCE(finished_at,?) ELSE finished_at END,error=NULL,total_bars=? WHERE id=?",
+                       (now(), record['run_metadata']['selection']['row_count'], record['id']))
             if current['run_id'] == record['id'] and current['status'] in ('review_required', 'passed'):
                 return  # A reload can recover the saved result before the request returns.
             if current['status'] != 'running' or current['run_id'] != record['id']:
@@ -158,10 +183,12 @@ class CampaignWorkflowStore:
             current.update(status='review_required', review=review, error=None)
             self.write(db, current)
 
-    def fail(self, workflow_id, error):
+    def fail(self, workflow_id, error, interrupted=False):
         with self.runs.connect() as db:
             saved = self.raw(workflow_id, db)
             if saved['status'] == 'running':
+                db.execute('UPDATE mechanic_job_attempts SET status=?,finished_at=?,error=? WHERE id=?',
+                           ('interrupted' if interrupted else 'failed', now(), error, saved['run_id']))
                 saved.update(status='failed', error=error)
                 self.write(db, saved)
 
@@ -307,7 +334,7 @@ async def get(workflow_id: UUID, request: Request):
 
 
 @router.post('/api/campaign-workflows/{workflow_id}/run')
-async def run(workflow_id: UUID, request: Request):
+async def run(workflow_id: UUID, request: Request, background: bool = False):
     from .backtest_api import execute_backtest
     saved = await call(request, 'raw', workflow_id.hex)
     if saved['status'] in ('review_required', 'passed', 'running'):
@@ -326,16 +353,28 @@ async def run(workflow_id: UUID, request: Request):
     saved, fresh = await call(request, 'reserve', workflow_id.hex)
     if not fresh:
         return await call(request, 'get', workflow_id.hex)
-    try:
-        plan = declaration['plan']
-        await run_in_threadpool(request.app.state.research.claim, plan)
-        record = await execute_backtest(request, dataset, definition, parameters, config, dates_for(plan), None,
-            reuse_results=False, research=metadata(plan, workflow_id=workflow_id.hex, workflow_phase='mechanic_validation'),
-            run_id_override=saved['run_id'], market_benchmark=declaration['market_benchmark'], automatic_prop=False)
-        await call(request, 'finish', workflow_id.hex, record)
-    except Exception as exc:
-        await call(request, 'fail', workflow_id.hex, str(getattr(exc, 'detail', exc)))
-        raise
+    async def execute_validation():
+        try:
+            plan = declaration['plan']
+            await run_in_threadpool(request.app.state.research.claim, plan)
+            record = await execute_backtest(request, dataset, definition, parameters, config, dates_for(plan), UUID(saved['run_id']),
+                reuse_results=False, research=metadata(plan, workflow_id=workflow_id.hex, workflow_phase='mechanic_validation'),
+                run_id_override=saved['run_id'], market_benchmark=declaration['market_benchmark'], automatic_prop=False)
+            await call(request, 'finish', workflow_id.hex, record)
+        except Exception as exc:
+            await call(request, 'fail', workflow_id.hex, str(getattr(exc, 'detail', exc)))
+            if not background:
+                raise
+    if background:
+        task = asyncio.create_task(execute_validation())
+        request.app.state.mechanic_tasks.add(task)
+        def finished(completed):
+            request.app.state.mechanic_tasks.discard(completed)
+            if not completed.cancelled() and (error := completed.exception()):
+                logging.getLogger(__name__).error('Mechanic job bookkeeping failed', exc_info=error)
+        task.add_done_callback(finished)
+        return JSONResponse(request.app.state.campaign_workflows.public(saved), status_code=202)
+    await execute_validation()
     return await call(request, 'get', workflow_id.hex)
 
 

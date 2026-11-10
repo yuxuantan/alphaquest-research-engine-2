@@ -1,0 +1,519 @@
+{
+  "id": "e70544caa94b4d96acdc1b7fce23fab0",
+  "identity": "c47edadf30b26c01b61a95ab953e4d26a16aa041875b68ebfc06dffd494904b4",
+  "declaration": {
+    "version": "campaign-mechanics-v1",
+    "strategy_id": "consecutive_green_hold",
+    "dataset": {
+      "id": "51c23aed519f470288326fc8521c687a",
+      "name": "SYNTHETIC mechanics",
+      "sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+      "bytes": 1062,
+      "row_count": 25,
+      "source_timezone": "UTC",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      },
+      "symbol": "SYNTHETIC",
+      "start": "2026-01-05T09:00:00Z",
+      "end": "2026-01-06T09:00:00Z"
+    },
+    "default_parameters": {
+      "green_bar_count": 3,
+      "hold_minutes": 20,
+      "contracts": 1
+    },
+    "strategy_source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+    "engine_identity": "d0019da8c0bc97e23ecd763819bc70975561f2613977a34b328e5ee17f669721",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "plan": {
+      "strategy_id": "consecutive_green_hold",
+      "source_sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+      "source_timezone": "UTC",
+      "is_start": "2026-01-05",
+      "is_end": "2026-01-05",
+      "oos_start": "2026-01-06",
+      "oos_end": "2026-01-06",
+      "is_bars": 24,
+      "oos_bars": 1,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "market_benchmark": {
+      "contracts": 1
+    }
+  },
+  "status": "review_required",
+  "run_id": "7c64c290e8f246f2a0efd17cb17bfe56",
+  "review": {
+    "revision": 0,
+    "result_identity": "13c7f0a34d34a4c2f5683b64dd495194c897c7441c2e2b0f43e564bccbcedb3a",
+    "metric_checks": {
+      "initial_capital": false,
+      "final_equity": false,
+      "trades_taken": false,
+      "winning_trades": false,
+      "losing_trades": false,
+      "breakeven_trades": false,
+      "win_rate_pct": false,
+      "total_gross_pnl": false,
+      "total_slippage_cost": false,
+      "total_commissions": false,
+      "total_net_pnl": false,
+      "ending_position_contracts": false,
+      "max_drawdown_amount": false,
+      "max_drawdown_pct": false,
+      "max_drawdown_duration_seconds": false
+    },
+    "trade_parity": {
+      "1": false,
+      "6": false,
+      "2": false,
+      "3": false,
+      "4": false
+    },
+    "trade_correctness": {
+      "1": false,
+      "6": false,
+      "2": false,
+      "3": false,
+      "4": false
+    },
+    "confirmed_at_utc": null,
+    "attestation": "User confirms MultiCharts parity and execution correctness; no automated MC comparison."
+  },
+  "error": null,
+  "created_at_utc": "2026-11-10T08:29:59.587975+00:00",
+  "updated_at_utc": "2026-11-10T08:30:00.906623+00:00",
+  "phases": [
+    {
+      "id": "mechanic_validation",
+      "label": "Mechanic validation",
+      "status": "review_required",
+      "implemented": true
+    },
+    {
+      "id": "is_broad",
+      "label": "IS Broad",
+      "status": "locked",
+      "implemented": false
+    },
+    {
+      "id": "is_narrow",
+      "label": "IS Narrow",
+      "status": "locked",
+      "implemented": false
+    },
+    {
+      "id": "oos",
+      "label": "OOS",
+      "status": "locked",
+      "implemented": false
+    }
+  ],
+  "latest_phase": "mechanic_validation",
+  "metrics": [
+    {
+      "id": "initial_capital",
+      "label": "Initial capital",
+      "value": "10000"
+    },
+    {
+      "id": "final_equity",
+      "label": "Final equity",
+      "value": "10078.00"
+    },
+    {
+      "id": "trades_taken",
+      "label": "Trades taken",
+      "value": 6
+    },
+    {
+      "id": "winning_trades",
+      "label": "Winning trades",
+      "value": 5
+    },
+    {
+      "id": "losing_trades",
+      "label": "Losing trades",
+      "value": 1
+    },
+    {
+      "id": "breakeven_trades",
+      "label": "Breakeven trades",
+      "value": 0
+    },
+    {
+      "id": "win_rate_pct",
+      "label": "Win rate pct",
+      "value": "83.33333333333333333333333333"
+    },
+    {
+      "id": "total_gross_pnl",
+      "label": "Total gross pnl",
+      "value": "90.00"
+    },
+    {
+      "id": "total_slippage_cost",
+      "label": "Total slippage cost",
+      "value": "30.00"
+    },
+    {
+      "id": "total_commissions",
+      "label": "Total commissions",
+      "value": "12"
+    },
+    {
+      "id": "total_net_pnl",
+      "label": "Total net pnl",
+      "value": "78.00"
+    },
+    {
+      "id": "ending_position_contracts",
+      "label": "Ending position contracts",
+      "value": 0
+    },
+    {
+      "id": "max_drawdown_amount",
+      "label": "Max drawdown amount",
+      "value": "37.00"
+    },
+    {
+      "id": "max_drawdown_pct",
+      "label": "Max drawdown pct",
+      "value": "0.3683057933505872984272347203"
+    },
+    {
+      "id": "max_drawdown_duration_seconds",
+      "label": "Max drawdown duration seconds",
+      "value": "14280"
+    }
+  ],
+  "trade_samples": [
+    {
+      "id": "1",
+      "reasons": [
+        "First trade"
+      ],
+      "trade": {
+        "trade_number": 1,
+        "side": "long",
+        "entry_bar_number": 3,
+        "exit_bar_number": 4,
+        "entry_time_utc": "2026-01-05T09:02:00Z",
+        "exit_time_utc": "2026-01-05T09:23:00Z",
+        "exit_deadline_utc": "2026-01-05T09:22:00Z",
+        "contracts": 1,
+        "entry_reference_price": "100",
+        "exit_reference_price": "101",
+        "entry_fill_price": "100.25",
+        "exit_fill_price": "100.75",
+        "entry_commission": "1",
+        "exit_commission": "1",
+        "total_commissions": "2",
+        "reference_gross_pnl": "10",
+        "slippage_cost": "5.00",
+        "gross_pnl": "5.00",
+        "net_pnl": "3.00",
+        "actual_holding_minutes": "21",
+        "entry_reason": "consecutive_green",
+        "exit_reason": "hold_elapsed"
+      }
+    },
+    {
+      "id": "6",
+      "reasons": [
+        "Last trade"
+      ],
+      "trade": {
+        "trade_number": 6,
+        "side": "long",
+        "entry_bar_number": 23,
+        "exit_bar_number": 24,
+        "entry_time_utc": "2026-01-05T14:02:00Z",
+        "exit_time_utc": "2026-01-05T14:24:00Z",
+        "exit_deadline_utc": "2026-01-05T14:22:00Z",
+        "contracts": 1,
+        "entry_reference_price": "100",
+        "exit_reference_price": "104",
+        "entry_fill_price": "100.25",
+        "exit_fill_price": "103.75",
+        "entry_commission": "1",
+        "exit_commission": "1",
+        "total_commissions": "2",
+        "reference_gross_pnl": "40",
+        "slippage_cost": "5.00",
+        "gross_pnl": "35.00",
+        "net_pnl": "33.00",
+        "actual_holding_minutes": "22",
+        "entry_reason": "consecutive_green",
+        "exit_reason": "hold_elapsed"
+      }
+    },
+    {
+      "id": "2",
+      "reasons": [
+        "Biggest win"
+      ],
+      "trade": {
+        "trade_number": 2,
+        "side": "long",
+        "entry_bar_number": 7,
+        "exit_bar_number": 8,
+        "entry_time_utc": "2026-01-05T10:02:00Z",
+        "exit_time_utc": "2026-01-05T10:26:00Z",
+        "exit_deadline_utc": "2026-01-05T10:22:00Z",
+        "contracts": 1,
+        "entry_reference_price": "100",
+        "exit_reference_price": "105",
+        "entry_fill_price": "100.25",
+        "exit_fill_price": "104.75",
+        "entry_commission": "1",
+        "exit_commission": "1",
+        "total_commissions": "2",
+        "reference_gross_pnl": "50",
+        "slippage_cost": "5.00",
+        "gross_pnl": "45.00",
+        "net_pnl": "43.00",
+        "actual_holding_minutes": "24",
+        "entry_reason": "consecutive_green",
+        "exit_reason": "hold_elapsed"
+      }
+    },
+    {
+      "id": "3",
+      "reasons": [
+        "Biggest loss"
+      ],
+      "trade": {
+        "trade_number": 3,
+        "side": "long",
+        "entry_bar_number": 11,
+        "exit_bar_number": 12,
+        "entry_time_utc": "2026-01-05T11:02:00Z",
+        "exit_time_utc": "2026-01-05T11:27:00Z",
+        "exit_deadline_utc": "2026-01-05T11:22:00Z",
+        "contracts": 1,
+        "entry_reference_price": "100",
+        "exit_reference_price": "97",
+        "entry_fill_price": "100.25",
+        "exit_fill_price": "96.75",
+        "entry_commission": "1",
+        "exit_commission": "1",
+        "total_commissions": "2",
+        "reference_gross_pnl": "-30",
+        "slippage_cost": "5.00",
+        "gross_pnl": "-35.00",
+        "net_pnl": "-37.00",
+        "actual_holding_minutes": "25",
+        "entry_reason": "consecutive_green",
+        "exit_reason": "hold_elapsed"
+      }
+    },
+    {
+      "id": "4",
+      "reasons": [
+        "Shortest duration"
+      ],
+      "trade": {
+        "trade_number": 4,
+        "side": "long",
+        "entry_bar_number": 15,
+        "exit_bar_number": 16,
+        "entry_time_utc": "2026-01-05T12:02:00Z",
+        "exit_time_utc": "2026-01-05T12:22:00Z",
+        "exit_deadline_utc": "2026-01-05T12:22:00Z",
+        "contracts": 1,
+        "entry_reference_price": "100",
+        "exit_reference_price": "102",
+        "entry_fill_price": "100.25",
+        "exit_fill_price": "101.75",
+        "entry_commission": "1",
+        "exit_commission": "1",
+        "total_commissions": "2",
+        "reference_gross_pnl": "20",
+        "slippage_cost": "5.00",
+        "gross_pnl": "15.00",
+        "net_pnl": "13.00",
+        "actual_holding_minutes": "20",
+        "entry_reason": "consecutive_green",
+        "exit_reason": "hold_elapsed"
+      }
+    }
+  ],
+  "report": {
+    "id": "7c64c290e8f246f2a0efd17cb17bfe56",
+    "format_version": 2,
+    "status": "complete",
+    "created_at_utc": "2026-11-10T08:30:00.887595Z",
+    "period_start_utc": "2026-01-05T09:00:00Z",
+    "period_end_utc": "2026-01-05T14:24:00Z",
+    "timestamp_convention": "bar_close",
+    "execution_assumption": "same_close_full_fill",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "run_metadata": {
+      "dataset": {
+        "id": "51c23aed519f470288326fc8521c687a",
+        "name": "SYNTHETIC mechanics",
+        "sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+        "source_timezone": "UTC",
+        "row_count": 25,
+        "instrument_settings": {
+          "tick_size": ".25",
+          "point_value": "10"
+        }
+      },
+      "instrument": {
+        "symbol": "SYNTHETIC",
+        "interval_seconds": null,
+        "interval_kind": "irregular"
+      },
+      "strategy": {
+        "id": "consecutive_green_hold",
+        "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+        "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+        "execution_assumption": "same_close_full_fill",
+        "parameters": {
+          "green_bar_count": 3,
+          "hold_minutes": 20,
+          "contracts": 1
+        }
+      },
+      "instrument_overrides": {},
+      "full_dataset": {
+        "id": "51c23aed519f470288326fc8521c687a",
+        "name": "SYNTHETIC mechanics",
+        "sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+        "source_timezone": "UTC",
+        "row_count": 25,
+        "start": "2026-01-05T09:00:00Z",
+        "end": "2026-01-06T09:00:00Z",
+        "symbol": "SYNTHETIC"
+      },
+      "research": {
+        "phase": "is",
+        "plan": {
+          "strategy_id": "consecutive_green_hold",
+          "source_sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+          "source_timezone": "UTC",
+          "is_start": "2026-01-05",
+          "is_end": "2026-01-05",
+          "oos_start": "2026-01-06",
+          "oos_end": "2026-01-06",
+          "is_bars": 24,
+          "oos_bars": 1,
+          "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+          "version": 1
+        },
+        "workflow_id": "e70544caa94b4d96acdc1b7fce23fab0",
+        "workflow_phase": "mechanic_validation"
+      },
+      "selection": {
+        "from_date": "2026-01-05",
+        "to_date": "2026-01-05",
+        "source_timezone": "UTC",
+        "warmup": "none",
+        "start_utc": "2026-01-05T09:00:00Z",
+        "first_source_bar_number": 1,
+        "end_utc": "2026-01-05T14:24:00Z",
+        "last_source_bar_number": 24,
+        "row_count": 24
+      }
+    },
+    "summary": {
+      "initial_capital": "10000",
+      "final_equity": "10078.00",
+      "trades_taken": 6,
+      "winning_trades": 5,
+      "losing_trades": 1,
+      "breakeven_trades": 0,
+      "win_rate_pct": "83.33333333333333333333333333",
+      "total_gross_pnl": "90.00",
+      "total_slippage_cost": "30.00",
+      "total_commissions": "12",
+      "total_net_pnl": "78.00",
+      "ending_position_contracts": 0,
+      "max_drawdown_amount": "37.00",
+      "max_drawdown_pct": "0.3683057933505872984272347203",
+      "max_drawdown_duration_seconds": "14280"
+    },
+    "reconciliation": {
+      "total_net_equals_sum_trade_net": true,
+      "gross_minus_commissions_equals_net": true,
+      "final_equity_equals_initial_plus_net": true,
+      "equity_equals_cash_plus_unrealized_at_every_point": true,
+      "realized_net_equals_cash_minus_initial_at_every_point": true,
+      "final_position_flat": true,
+      "observed_bar_count": 24,
+      "expected_bar_count": 24
+    },
+    "artifacts": {
+      "report": "report.json",
+      "trades_csv": "trades.csv",
+      "equity_csv": "equity.csv",
+      "intratrade_risk_csv": "intratrade_risk.csv",
+      "execution_decisions_jsonl": "execution_decisions.jsonl",
+      "market_benchmark_json": "market_benchmark.json",
+      "strategy_equity_day_csv": "strategy_equity_day.csv"
+    },
+    "intratrade_risk": {
+      "version": "held-ohlc-equity-bounds-v1",
+      "sha256": "84a97f36248ae19022f7959f5238dff7daefec938e8bbe6c8c102a5aa3c51ec4",
+      "trades": 6,
+      "ambiguous_trades": 0,
+      "cross_session_trades": 0,
+      "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements."
+    },
+    "execution_decisions": {
+      "version": "native-entry-decisions-v1",
+      "events": 18,
+      "decisions": 6,
+      "filled_trades": 6,
+      "cancelled_decisions": 0,
+      "bracket_submissions": 0,
+      "quantity_path_policy": "native_rerun_required",
+      "sha256": "0e778fc734ec403455776780313d93c5a4892c9e7b65c6913d7e8e22166d3a39",
+      "policy": "Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry."
+    },
+    "market_benchmark": {
+      "version": "price-series-holding-v1",
+      "settings": {
+        "contracts": 1
+      },
+      "observed_bar_count": 24,
+      "sha256": "7669ddbf1475f3fd6765c0f337627e0b72f542b85df3878ee37f6bcbc3131f1b",
+      "equity_sha256": "16359b7dbffbcf454f9acd1933c4f3f9b8810515968bc3b42bf66be0d34c9f61",
+      "storage": {
+        "version": "daily-shared-v1",
+        "granularity": "DAY",
+        "timezone": "UTC",
+        "day_boundary": "last_selected_bar_of_source_calendar_date",
+        "observed_day_count": 1,
+        "strategy_sha256": "f1f170659c24d034539cc77286e52a8ffa2a8a8972e0a4a1431eb4e739356b84",
+        "holding_key": "eeb5aab55a213dc8cb6ebaf54c91bdac9a74d4e038fcef89116ef6515eb75e7e",
+        "holding_sha256": "6483d46a46672cbcea955fbb1e69177f99e4c39c6e1f4029af8f297a2ba7c743"
+      }
+    },
+    "report_storage": {
+      "detail": "compact",
+      "compression": "none",
+      "per_bar_equity_retained": false,
+      "trades": "all",
+      "equity_csv": "initial_and_trade_close"
+    }
+  },
+  "missing_samples": []
+}

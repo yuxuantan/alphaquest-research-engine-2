@@ -1,6 +1,7 @@
 """One local server: static portal and dataset API."""
 
 import hashlib
+import asyncio
 import os
 import time
 from collections import OrderedDict
@@ -92,6 +93,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.research = ResearchStore(app.state.runs)
         from .campaign_workflow import CampaignWorkflowStore
         app.state.campaign_workflows = CampaignWorkflowStore(app.state.runs)
+        app.state.mechanic_tasks = set()
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
         from .research_access import ResearchAccess
         app.state.research_access=ResearchAccess(app.state.prop_analyses,fresh_scope=fresh_scope)
@@ -113,6 +115,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
         app.state.progress = ProgressTracker()
         yield
+        if app.state.mechanic_tasks:
+            await asyncio.gather(*list(app.state.mechanic_tasks), return_exceptions=True)
         await run_in_threadpool(app.state.optimizations.close)
         app.state.prop_analyses.close()
 
@@ -132,6 +136,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(strategy_library_router)
     from .campaign_workflow import router as workflow_router
     app.include_router(workflow_router)
+    from .job_history import router as jobs_router
+    app.include_router(jobs_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

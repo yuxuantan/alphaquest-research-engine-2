@@ -10013,3 +10013,118 @@ one saved validation run, its synthetic user-attested checks and IS Broad ready.
 Stop this optional inspection server with **Ctrl-C**. The portable source CSV
 and exported review/report allow reproducing the journey if the ignored test
 library is unavailable in another checkout.
+
+## 2026-11-10 — Running/completed job history (workflow revamp 3)
+
+**Job history** is now available in the top bar at `/#jobs`. The four primary
+navigation buttons remain Dataset, Research, Campaigns and Prop Sim. History
+combines mechanic-validation attempts, existing backtest batches, saved standalone
+backtests and prop-analysis jobs from their existing catalogues. It supports
+running/queued, completed, failed/stopped and type filters; strategy/dataset/job-ID
+search; 25-row paging; refresh; and automatic updates. Click a recorded timestamp
+or View action to open `/#jobs/{kind}/{id}`. The detail view links directly to the
+normal mechanic review, backtest report, batch progress/results or prop report.
+
+UI-started mechanic validation now submits a server-owned background task and
+returns HTTP **202**. Leaving the initiating page, navigating to Job history or
+reloading the browser does not cancel it. The original synchronous API remains
+available for existing callers. Native execution still uses the existing local
+backtest function and ordinary RunStore publication. No new calculation engine,
+service, database or numerical result store was added. Each mechanic attempt
+stores only job metadata in the existing backtest catalogue; a failed attempt
+remains visible after a successful retry. Progress comes from the existing
+server tracker, with completed bar counts reconciled to the saved report.
+Unknown totals do not produce a percentage. Batches show completed/total trials;
+prop analyses show their recorded progress text. Completed standalone backtests
+appear once saved; their older in-flight HTTP executions are not registered as
+background jobs. Batch trial reports and mechanic reports are not listed twice
+as standalone jobs.
+
+**Completed** means that execution produced its result. It does not mean that
+MC parity or execution correctness was reviewed, nor does it unlock IS Broad.
+The existing row checks, immutable user confirmation and ordered phase gates
+remain in force. History polling does not load numerical report files or rerun
+calculations. Earlier reports, source inputs and saved review evidence stay
+unchanged. Earlier mechanic runs are backfilled from recorded metadata; unknown
+start/finish times display **Not recorded**. A server/process interruption is
+recorded as interrupted rather than silently rerunning the calculation. Graceful
+shutdown waits for owned background validations. The older batch/prop result
+and recovery behavior remains with its existing owner.
+
+### Product demonstration and expected observations
+
+Saved outputs are in `artifacts/job-history-20261110/evidence/`: running history
+and detail screenshots, completed history/detail and mobile screenshots,
+`running-jobs.json`, `completed-job.json`, `completed-jobs.json`, ordinary
+`workflow.json`, the downloaded `SYNTHETIC-source.csv`, and `journey.json`.
+The browser test pauses before the real native replay solely to make navigation
+and reload during execution reproducible; it does not fabricate measured
+progress or trade outcomes. The visible preparing/zero-known-bars snapshot is
+real tracker state before replay. The later 24 bars and 78 net come from the
+ordinary saved native report.
+
+```sh
+.venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+1. Open the normal Campaigns → New backtest workflow. For the synthetic check,
+   upload `evidence/SYNTHETIC-source.csv` through Dataset validation/save with
+   timezone UTC, tick size 0.25 and point value 10. Choose Consecutive Green Hold,
+   initial capital 10000, slippage 1 tick/fill and commission 1/contract/side.
+   Set IS to 2026-01-05 and OOS to 2026-01-06; open mechanic validation. Configuration
+   alone does not appear as an executed job in history.
+2. Click Run validation and immediately choose **Job history** in the top bar.
+   While running, expect the mechanic job and its actual stage/counts. On this
+   tiny source the job may finish before a manual click; larger real sources
+   naturally remain active longer. Do not expect artificial delays in production.
+3. Click the job and reload during execution. Expect it to continue and update
+   to Completed, **24 / 24 bars**. Open mechanic validation: expect the real
+   **6 trades**, net **78**, and the five deduplicated sample rows described in
+   revision 2. Confirm remains disabled until the user reviews the rows. Merely
+   opening a completed job must not mark any check or phase as passed.
+4. Choose Completed, then the Mechanic validation type filter, or search using
+   the job ID. Expect one matching job. An unmatched search shows an empty state.
+   A missing job ID returns 404; unsupported status/type filters return 422.
+5. Existing batch jobs appear in the same list. The saved demonstration also
+   executes a two-trial native batch (1 and 2 contracts, automatic prop disabled).
+   Expect **2** history jobs total—one mechanic attempt and one batch—with **3**
+   underlying backtest reports. Click the batch, then Open batch progress/results
+   to reach its original results screen. The trial reports are not duplicate
+   history rows. Expected trial net P&Ls for this synthetic source are 78 and 156.
+6. On mobile, the top-bar shortcut remains accessible and the history table
+   scrolls horizontally without widening the page. Stop the optional inspection
+   server with Ctrl-C. Test servers stop through fixture teardown; this work
+   starts no persistent server.
+
+Focused reproduction:
+
+```sh
+.venv/bin/python -m pytest -q
+mkdir -p artifacts/job-history-REVIEW
+.venv/bin/python -m pytest -q tests/test_job_history_browser.py \
+  --basetemp=artifacts/job-history-REVIEW/browser
+```
+
+Validation: **9 fast default checks passed in 5.10 seconds** (six mechanics,
+three history contracts), and **2 affected browser journeys passed in 12.27
+seconds** (new history/navigation/reload/result path and the existing full
+mechanics review journey). Covered boundaries include retry retention, old-run
+backfill without invented start times, interruption, exact paging/filtering,
+missing IDs, source-report immutability and deduplication across catalogues.
+JavaScript syntax and `git diff --check` passed. No broad legacy suite was run.
+The manifest records exact scope and source/export hashes; this is workflow
+qualification, not MultiCharts/provider or full-repository certification.
+
+A fresh application lifespan also reopened the demonstration catalogues with
+**2 completed jobs** and actual batch net P&Ls **78 / 156**, with byte-identical
+saved backtest artifacts. `batch-results.json` and `reopened-history.json` retain
+those ordinary API outputs. To inspect that saved normal-product library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/job-history-20261110/product-verified/test_running_job_survives_navi0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+Open `http://127.0.0.1:8017/#jobs`; stop this optional inspection server with
+Ctrl-C. The portable CSV and saved JSON exports also support reproduction when
+this ignored test library is unavailable in another checkout.

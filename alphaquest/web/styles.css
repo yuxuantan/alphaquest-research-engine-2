@@ -1892,3 +1892,28 @@ dialog::backdrop {
   .mechanic-phase { padding:16px 12px; }
   .mechanic-launch,.mechanic-results,.mechanic-confirmation { padding:16px; }
 }
+
+/* Job history is a workspace utility; the four primary destinations stay intact. */
+.topbar-actions { display:flex; align-items:center; gap:20px; }
+.job-history-link { padding:8px 12px; border:1px solid var(--line); border-radius:6px; font-size:12px; color:var(--accent-dark); }
+.jobs-filters { display:flex; gap:16px; flex-wrap:wrap; align-items:end; margin-bottom:20px; }
+.jobs-filters label { display:grid; gap:8px; min-width:150px; }
+.jobs-filters label:nth-child(3) { flex:1; }
+.jobs-filters input,.jobs-filters select { width:100%; }
+.jobs-table-panel { padding:8px 0; min-width:0; }
+.jobs-table-scroll { overflow-x:auto; }
+.jobs-table-panel table { min-width:850px; }
+.jobs-table-panel td { vertical-align:top; }
+.jobs-table-panel td:nth-child(2),.jobs-table-panel td:nth-child(4) { white-space:normal; min-width:200px; max-width:340px; overflow-wrap:anywhere; line-height:1.7; }
+.jobs-table-panel small { display:block; margin-top:4px; }
+.jobs-detail-panel { padding:28px; margin:20px 0; }
+.jobs-detail-panel p { line-height:1.7; overflow-wrap:anywhere; }
+.jobs-detail-panel progress { width:100%; margin-bottom:20px; }
+.jobs-error-status { color:#a43b32; }
+@media(max-width:750px) {
+  .jobs-filters { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .jobs-filters label { min-width:0; }
+  .jobs-filters label:nth-child(3) { grid-column:1/-1; }
+  .topbar-actions { gap:8px; }
+  .jobs-detail-panel { padding:18px; }
+}

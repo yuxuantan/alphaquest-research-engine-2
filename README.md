@@ -357,18 +357,28 @@ Select **Strategies** in the portal, choose an instrument to browse saved backte
 
 ## Verify
 
+**Job history** in the top bar (`/#jobs`) lists running/queued jobs, completed
+jobs and failures. Filter by status, type or strategy/dataset/ID; click a job for
+progress and links to its normal result page. Mechanic validations run in a
+server-owned background task, so leaving or reloading the browser does not stop
+them. Each retry retains its earlier attempt. A completed run still needs the
+separate mechanics review before IS Broad unlocks. Existing batches, saved
+backtests and prop analyses appear from their original catalogues. Legacy
+standalone backtests appear once saved; their in-flight HTTP executions are not
+registered jobs. A server/process interruption is recorded rather than silently
+resuming computation.
+
 ```bash
 .venv/bin/python -m pytest -q
 ```
 
-During `epic/revamp-workflow`, the default run temporarily selects only the six
-fast mechanic-validation checks. Other tests are preserved but excluded from
+During `epic/revamp-workflow`, the default run temporarily selects only the nine
+fast mechanics/job-history checks. Other tests are preserved but excluded from
 default discovery; select a file or test explicitly when its behavior changes.
-For the current UI, opt into the two mechanic journeys and three navigation
-checks:
+For UI changes, opt into only the affected browser journey, for example:
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py tests/test_workflow_navigation_browser.py
+.venv/bin/python -m pytest -q tests/test_job_history_browser.py
 ```
 
 Chromium checks require `.[dev,browser]` with `requirements.lock` constraints and

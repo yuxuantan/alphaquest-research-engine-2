@@ -96,12 +96,14 @@
       const run = node('button',workflow.status === 'running' ? 'Running default-parameter backtest…' : 'Run validation · default parameters →','button primary');
       run.id = 'mechanic-run'; run.disabled = workflow.status === 'running'; run.onclick = () => runValidation(workflow);
       intro.append(run); host.append(intro);
+      if (workflow.run_id) { const actions=node('div',undefined,'mechanic-downloads');link(actions,'View job progress / history',`#jobs/mechanic_validation/${workflow.run_id}`);host.append(actions); }
       if (workflow.error) intro.append(node('p',workflow.error,'mechanic-error'));
       const settings = node('details',undefined,'mechanic-settings'); settings.append(node('summary','Saved source, default parameters and execution settings'));
       settings.append(node('pre',JSON.stringify({dataset:saved.dataset,parameters:saved.default_parameters,costs:saved.execution_settings,split:saved.plan},null,2))); host.append(settings);
       return;
     }
     const outputs = node('div',undefined,'mechanic-downloads');
+    link(outputs,'Job progress / history',`#jobs/mechanic_validation/${workflow.run_id}`);
     link(outputs,'Open backtest report',`#backtests/report/${workflow.run_id}`);
     link(outputs,'Trades CSV ↓',`/api/backtests/${workflow.run_id}/exports/trades`);
     link(outputs,'Saved review JSON ↓',endpoint(workflow.id)+'/download'); host.append(outputs);
@@ -139,20 +141,15 @@
     host.append(footer);
   }
   async function runValidation(workflow) {
-    const active = token; get('#mechanic-run').disabled = true; message('Running the local backtest using saved default parameters…');
-    let runTimer;
-    const poll = async () => {
-      if (active !== token) return;
-      try { const state = await read(endpoint(workflow.id)); if (active === token) message(`Validation: ${state.status.replaceAll('_',' ')}`); } catch {}
-      if (active === token) runTimer=setTimeout(poll,1000);
-    };
-    runTimer=setTimeout(poll,1000);
+    const active = token; get('#mechanic-run').disabled = true; message('Starting the local validation job…');
     try {
-      const saved = await read(endpoint(workflow.id)+'/run','POST');
-      clearTimeout(runTimer);
-      if (active === token) { current = saved; render(saved,'mechanic_validation'); message(saved.status === 'running' ? 'Validation is running. Reopen this workflow to inspect its result.' : 'Backtest saved. Review the outcomes and trade samples below.'); }
+      const saved = await read(endpoint(workflow.id)+'/run?background=true','POST');
+      if (active === token) {
+        current=saved; render(saved,'mechanic_validation');
+        message(saved.status === 'running' ? 'Job started. You can leave this page and follow it in Job history.' : 'Backtest saved. Review the outcomes and trade samples below.');
+        if (saved.status === 'running') timer=setTimeout(navigate,500);
+      }
     } catch (error) {
-      clearTimeout(runTimer);
       if (active === token) { message(error.message+' Reload the saved workflow to check its status before retrying.'); recovery(workflow.id); }
     }
   }

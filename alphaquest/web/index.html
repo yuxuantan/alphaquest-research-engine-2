@@ -15,6 +15,7 @@
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/workflow.js?v=ASSET_VERSION" defer></script>
     <script src="/static/mechanic_validation.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/jobs.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research_reservations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
@@ -72,7 +73,7 @@
         <span
           >Workspace <span class="breadcrumb-slash">/</span>
           <strong id="current-screen">Datasets</strong></span
-        ><span class="version">ALPHAQUEST <span>02</span></span>
+        ><div class="topbar-actions"><a class="job-history-link" href="#jobs">Job history</a><span class="version">ALPHAQUEST <span>02</span></span></div>
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Dataset</a>
           <a href="#research" data-screen="research">Research</a>
@@ -331,6 +332,20 @@
           <div class="page-heading"><div><div class="eyebrow">FROM THESIS TO STRATEGY</div><h1 id="campaigns-title">Campaigns<span class="heading-dot">.</span></h1><p>One campaign for each strategy code. Follow its logic, datasets and latest phase.</p></div><div class="report-downloads"><a href="#strategies" class="button secondary">Saved runs</a><a href="#backtests/new?workflow=mechanic" id="campaign-new-backtest" class="button primary">New backtest →</a></div></div>
           <p class="workflow-notice">Campaign descriptions are illustrative. Datasets, saved runs and validation stages below come from your workspace.</p>
           <div class="workflow-campaign-layout"><nav id="workflow-campaign-list" class="panel workflow-campaign-list" aria-label="Campaign list"></nav><div id="workflow-campaign-detail" class="panel workflow-campaign-detail" aria-live="polite"></div></div>
+        </section>
+        <section id="jobs-screen" aria-labelledby="jobs-title" hidden>
+          <div class="page-heading"><div><div class="eyebrow">WORKSPACE ACTIVITY</div><h1 id="jobs-title">Job history<span class="heading-dot">.</span></h1><p>Follow running jobs and reopen saved results.</p></div><button id="jobs-refresh" class="button secondary" type="button">Refresh</button></div>
+          <div id="jobs-list-view">
+            <form id="jobs-filters" class="jobs-filters" aria-label="Filter jobs">
+              <label>Status<select id="jobs-filter-status"><option value="all">All statuses</option><option value="active">Running / queued</option><option value="completed">Completed</option><option value="attention">Failed / stopped</option></select></label>
+              <label>Job type<select id="jobs-filter-kind"><option value="all">All job types</option><option value="mechanic_validation">Mechanic validation</option><option value="backtest_batch">Backtest batches</option><option value="backtest">Saved backtests</option><option value="prop_analysis">Prop analyses</option></select></label>
+              <label>Find a job<input id="jobs-search" type="search" maxlength="200" placeholder="Strategy, dataset or job ID" /></label><button class="button secondary" type="submit">Search</button>
+            </form>
+            <p id="jobs-list-status" role="status" aria-live="polite"></p>
+            <section class="panel jobs-table-panel"><div class="jobs-table-scroll" tabindex="0" aria-label="Job history, scroll horizontally"><table class="library-table"><thead><tr><th>Recorded</th><th>Job / source</th><th>Status</th><th>Progress</th><th>Actions</th></tr></thead><tbody id="jobs-rows"></tbody></table></div></section>
+            <div class="report-pagination"><button id="jobs-previous" class="button secondary" type="button">Previous</button><span id="jobs-page"></span><button id="jobs-next" class="button secondary" type="button">Next</button></div>
+          </div>
+          <section id="jobs-detail-view" hidden><a href="#jobs" class="workflow-inline-link">← All jobs</a><p id="jobs-detail-status" role="status" aria-live="polite"></p><div id="jobs-detail-content"></div></section>
         </section>
         <section id="mechanic-screen" aria-label="Campaign dataset workflow" hidden>
           <a id="mechanic-back" href="#campaigns" class="eyebrow">← Campaign datasets</a>

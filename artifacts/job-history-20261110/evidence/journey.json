@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "validation_job_id": "7c64c290e8f246f2a0efd17cb17bfe56",
+  "workflow_id": "e70544caa94b4d96acdc1b7fce23fab0",
+  "batch_id": "1d2be8bdebf1406f832a632a385ad6c4",
+  "expected_native_net": 78,
+  "expected_validation_bars": 24,
+  "expected_history_jobs": 2,
+  "expected_saved_backtests": 3,
+  "background_submission_status": 202,
+  "navigation_and_reload_during_run": true,
+  "gate_was_held_before_real_replay": "Test synchronization only; no fabricated measured progress or outcomes.",
+  "server": "Stopped by fixture teardown."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "7c64c290e8f246f2a0efd17cb17bfe56",
+  "kind": "mechanic_validation",
+  "recorded_at_utc": "2026-11-10T08:30:00.330526+00:00",
+  "status": "complete",
+  "strategy_id": "consecutive_green_hold",
+  "dataset_name": "SYNTHETIC mechanics",
+  "started_at_utc": "2026-11-10T08:30:00.330526+00:00",
+  "finished_at_utc": "2026-11-10T08:30:00.906267+00:00",
+  "error": null,
+  "progress": {
+    "stage": "complete",
+    "completed": 24,
+    "total": 24,
+    "unit": "bars"
+  },
+  "links": [
+    {
+      "label": "Open mechanic validation",
+      "href": "#campaigns/workflows/e70544caa94b4d96acdc1b7fce23fab0/mechanic_validation"
+    },
+    {
+      "label": "Open backtest report",
+      "href": "#backtests/report/7c64c290e8f246f2a0efd17cb17bfe56"
+    }
+  ],
+  "href": "#jobs/mechanic_validation/7c64c290e8f246f2a0efd17cb17bfe56",
+  "workflow_id": "e70544caa94b4d96acdc1b7fce23fab0",
+  "review_status": "review_required"
+}

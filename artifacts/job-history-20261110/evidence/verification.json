@@ -1,0 +1,66 @@
+{
+  "branch": "epic/revamp-workflow",
+  "base_commit": "8f8a020974b9b20ada2b96b655af4636b6daa6bc",
+  "scope": "Unified metadata-only job history and background mechanic validation using existing calculation/report owners.",
+  "checks": {
+    "default_passed": 9,
+    "default_seconds": 5.1,
+    "browser_cases": [
+      "test_job_history_browser.py",
+      "test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock"
+    ],
+    "browser_passed": 2,
+    "browser_seconds": 12.27,
+    "broad_legacy_suite_run": false,
+    "syntax_and_diff": "passed"
+  },
+  "synthetic_expected": {
+    "native_net": 78,
+    "native_bars": 24,
+    "history_jobs": 2,
+    "underlying_backtests": 3,
+    "batch_trials": 2,
+    "background_submission_status": 202,
+    "mechanics_review_auto_confirmed": false
+  },
+  "server": "Temporary servers stopped by fixture cleanup; no persistent server started.",
+  "source_sha256": {
+    "AGENTS.md": "63d3e75413ecd2e167194bde164d3fd6af2f228282e46bb041b95f65f74b34c1",
+    "README.md": "3105c9c5d00f36acf4c7ad67a2a867a50ca4eae5205732a9ba0a22573aa96f76",
+    "alphaquest/app.py": "e90f3308095449bb81920fa22661430c371bf06c6ef64031796879ff454db91d",
+    "alphaquest/campaign_workflow.py": "4cc81c70e9f3bb05894820ab65ec94dd536a081bac6b31489176349ec30598b6",
+    "alphaquest/web/backtests.js": "9d0154ce643b2f4eae242493d15d5e435ab8b4136a39a35e69f9abc181e500ba",
+    "alphaquest/web/index.html": "9780885a5fdee310bd87ef25c38b04f6878b6c49fcdfceab1d659ca3ffb53710",
+    "alphaquest/web/mechanic_validation.js": "ff41ef9228dd1138f8a70d2f257f7d9d2732ef79bcf16211545ef185f9ca1131",
+    "alphaquest/web/styles.css": "b946e8dbd83a6bda96ec3e7340582888dcae9d54f7a76306cac4683da5aed9c2",
+    "docs/prop_simulation_review.md": "4bb473953ca35923fa762f1fc2d2b747cd3ad71ced88d3b26d736372d7f40102",
+    "pyproject.toml": "42f16468f172d65b96e22f5e9fa68e265868b6d5d7a2e850b901858a65caaeef",
+    "alphaquest/job_history.py": "c3d301db92935f669b7d5241f0cfd408390c48c4003a142a6ae5e7f555f976c6",
+    "alphaquest/web/jobs.js": "3b9a1547aad961fe3e35e60880fa02c56810ba3f7b26ffb452e6c735e2f1b511",
+    "tests/test_job_history.py": "0dc73f1c1ddbec456d8f80c8c3a2502f0d48865d03032fdcbd4634d343f6d411",
+    "tests/test_job_history_browser.py": "57cccb15aeaa5d010ab8f8c5beefefe0def3f85c5415a351b94a9b4ee6fe16e1"
+  },
+  "evidence_sha256": {
+    "workflow.json": "ab0bb2cebb91676ae8d8a72101f1e561bf8d25bf8cc79c8f5854c8fa025f0e95",
+    "02-running-detail.png": "cd05d25d5978fec03e414933a55c4cca13d96d15a211ec9fdf36dd862f8ed3e6",
+    "SYNTHETIC-source.csv": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+    "04-completed-history.png": "e5bb0e922ea2d6ce6e35405c4baff9453d356e49271a933c615e017dd1690c42",
+    "running-jobs.json": "e1bf5769525442d3027a3fb9013a342d45767dabf533da40420e014a1c42b063",
+    "journey.json": "4dd907ff5cbe15398126e1b27055a0d5e101f584b9473154de22d3b599691cd9",
+    "completed-job.json": "042086771ccb55de8cc697f7445678d8481a44435cbd78c4ce259e27ba797516",
+    "01-running-history.png": "481d040ed3b13148e6f522c73cec551b30ae00d0919915d937253c89575b318e",
+    "completed-jobs.json": "d61749c19c4d2fdf322bebbe8caefa7c673341ae4729eed99fb6fad6e50d157f",
+    "reopened-history.json": "3af66f3c425aaa00f04ddc9a38cb645b60b06ce8291ffa93ced69f81980211bb",
+    "03-completed-detail.png": "f291edb45b3f6d124c312014b71bb62d082c6ffaedadc914f9082f3449ac4f51",
+    "batch-results.json": "75bf9ca3ede341a4ba46fa16addabf7a314fa9ae4b780c058b4b3fae2d6c6d01",
+    "05-mobile.png": "fd67727f45724a35d35fa1b2ceadbf4b43933217e839b6c25aa8655accc1f4f8"
+  },
+  "reopen_check": {
+    "fresh_app_lifespan_completed_jobs": 2,
+    "actual_batch_net": [
+      78,
+      156
+    ],
+    "saved_report_files_byte_identical": true
+  }
+}

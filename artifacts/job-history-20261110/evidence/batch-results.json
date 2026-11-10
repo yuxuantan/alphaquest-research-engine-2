@@ -1,0 +1,80 @@
+{
+  "items": [
+    {
+      "trial": 1,
+      "run_id": "954c706935ab44ad8b378d7aa776f31c",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "metrics": {
+        "total_net_pnl": "78.00",
+        "total_gross_pnl": "90.00",
+        "total_commissions": "12",
+        "total_slippage_cost": "30.00",
+        "final_equity": "10078.00",
+        "trades_taken": 6,
+        "winning_trades": 5,
+        "losing_trades": 1,
+        "breakeven_trades": 0,
+        "win_rate_pct": "83.33333333333333333333333333",
+        "max_drawdown_amount": "37.00",
+        "max_drawdown_pct": "0.3683057933505872984272347203",
+        "max_drawdown_duration_seconds": "14280"
+      },
+      "execution": {
+        "worker_pid": 39017,
+        "started_at_utc": "2026-11-10T08:30:02.851794+00:00",
+        "finished_at_utc": "2026-11-10T08:30:02.862834+00:00",
+        "elapsed_seconds": 0.011046583007555455,
+        "prepared_data": true,
+        "cached_features": 0,
+        "reused": false
+      },
+      "display_metrics": {
+        "max_drawdown_duration_trading_days": 0
+      }
+    },
+    {
+      "trial": 2,
+      "run_id": "81d3f8c31ddd4cd092d5fbfe44dbb26c",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 2
+      },
+      "metrics": {
+        "total_net_pnl": "156.00",
+        "total_gross_pnl": "180.00",
+        "total_commissions": "24",
+        "total_slippage_cost": "60.00",
+        "final_equity": "10156.00",
+        "trades_taken": 6,
+        "winning_trades": 5,
+        "losing_trades": 1,
+        "breakeven_trades": 0,
+        "win_rate_pct": "83.33333333333333333333333333",
+        "max_drawdown_amount": "74.00",
+        "max_drawdown_pct": "0.7332540626238604835513277844",
+        "max_drawdown_duration_seconds": "14280"
+      },
+      "execution": {
+        "worker_pid": 39017,
+        "started_at_utc": "2026-11-10T08:30:02.870305+00:00",
+        "finished_at_utc": "2026-11-10T08:30:02.882757+00:00",
+        "elapsed_seconds": 0.01246212498517707,
+        "prepared_data": true,
+        "cached_features": 0,
+        "reused": false
+      },
+      "display_metrics": {
+        "max_drawdown_duration_trading_days": 0
+      }
+    }
+  ],
+  "total": 2,
+  "offset": 0,
+  "limit": 50,
+  "prop_revision": 0
+}

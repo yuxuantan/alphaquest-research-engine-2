@@ -540,22 +540,23 @@
     const hash = location.hash;
     const screen = hash === "#research" ? "research"
       : hash.startsWith("#backtests/research") ? "research-workspace"
+      : /^#jobs(?:[/?]|$)/.test(hash) ? "jobs"
       : hash.startsWith("#campaigns/workflows/") ? "mechanic"
       : hash.startsWith("#campaigns") ? "campaigns"
       : hash === "#prop-sim" ? "prop-sim"
       : hash.startsWith("#strategies") ? "strategies"
       : hash.startsWith("#optimizations") ? "optimizations"
       : hash.startsWith("#backtests") ? "backtests" : "datasets";
-    for (const name of ["datasets", "strategies", "research", "research-workspace", "campaigns", "mechanic", "prop-sim"]) {
+    for (const name of ["datasets", "strategies", "research", "research-workspace", "campaigns", "mechanic", "jobs", "prop-sim"]) {
       get(`#${name}-screen`).hidden = screen !== name;
     }
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !hash.startsWith("#backtests/prop/");
     const navigation = hash.startsWith("#backtests/prop/") || screen === "research-workspace" ? "prop-sim"
-      : ["strategies", "backtests", "optimizations", "mechanic"].includes(screen) ? "campaigns" : screen;
+      : ["strategies", "backtests", "optimizations", "mechanic", "jobs"].includes(screen) ? "campaigns" : screen;
     const title = {datasets: "Datasets", research: "Research", campaigns: "Campaigns", "prop-sim": "Prop Sim"}[navigation];
-    get("#current-screen").textContent = title;
-    document.title = `${title} · AlphaQuest`;
+    get("#current-screen").textContent = screen === "jobs" ? "Job history" : title;
+    document.title = `${screen === "jobs" ? "Job history" : title} · AlphaQuest`;
     get("#backtests-title").textContent = mechanicSetup() ? "Configure mechanic validation." : "Run backtests.";
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
