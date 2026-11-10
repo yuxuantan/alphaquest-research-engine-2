@@ -58,7 +58,7 @@ def test_strategy_registry_lists_script_owned_definitions_and_defaults(client):
     response = client.get("/api/strategies")
     assert response.status_code == 200
     strategies = response.json()
-    assert {item["id"] for item in strategies} == {sample.STRATEGY_ID, "vwap_pullback_risk_sizing"}
+    assert {item["id"] for item in strategies} == {sample.STRATEGY_ID, "vwap_pullback_risk_sizing", "twin_continuation"}
     strategy = strategies[0]
     assert strategy["id"] == sample.STRATEGY_ID
     assert strategy["description"] == sample.DESCRIPTION

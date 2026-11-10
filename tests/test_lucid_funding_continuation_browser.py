@@ -1,4 +1,5 @@
 """Slow valid funding through the normal saved report/configure/check/run UI."""
+from prop_setup_helpers import open_prop_task
 import json
 from datetime import date, timedelta
 
@@ -31,11 +32,13 @@ def test_long_evaluation_calibrates_funded_results_and_reopens_with_same_setting
     page.goto(portal['url'] + '/#backtests/report/' + record['id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     page.locator('#prop-model').select_option('1')
     page.locator('#prop-commission-mode').select_option('source')
     page.locator('#prop-max-nq').fill('0.1')
     page.locator('#prop-slots').fill('4')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     page.screenshot(path=str(tmp_path / 'source-check.png'), full_page=True)
@@ -69,6 +72,7 @@ def test_long_evaluation_calibrates_funded_results_and_reopens_with_same_setting
     playwright.expect(page.locator('#prop-max-nq')).to_have_value('0.1')
     playwright.expect(page.locator('#prop-slots')).to_have_value('4')
     playwright.expect(page.locator('#prop-commission-mode')).to_have_value('source')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     page.locator('#prop-run').click()

@@ -1,4 +1,5 @@
 """Opt-out research grid → existing report → phase campaign → saved downloads."""
+from prop_setup_helpers import open_prop_task
 import json
 import re
 
@@ -58,6 +59,7 @@ def test_opt_out_grid_to_independent_campaign(page, portal, tmp_path, phase):
     assert len(rows) == 2 and all('prop_analysis' not in row for row in rows)
     page.locator('#optimization-results tbody td[data-column="run_id"] a').first.click()
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     page.locator('#campaign-paths').fill('8')
     page.locator('#campaign-block').select_option('1')

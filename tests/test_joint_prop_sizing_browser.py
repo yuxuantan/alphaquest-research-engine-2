@@ -1,4 +1,5 @@
 """Normal product journey with independently derived joint sizing and cash."""
+from prop_setup_helpers import open_prop_task
 import csv
 from decimal import Decimal
 import io
@@ -39,13 +40,16 @@ def test_joint_sizing_actual_backtest_configure_check_run_download_and_reopen(pa
         assert joint['selected']['funded_simulations']==20000
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     page.goto(portal['url']+'/#backtests/report/'+record['id'])
-    page.locator('#report-prop-setup').click();page.locator('#prop-model').select_option('1')
+    page.locator('#report-prop-setup').click();open_prop_task(page, 'legacy');page.locator('#prop-model').select_option('1')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-slots').fill('6');page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-status')).to_contain_text('SLOTS must be an integer from 1 to 5')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
     page.locator('#prop-slots').fill('5')
     with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as check:
+        open_prop_task(page, 'legacy', close_outer=False)
         page.locator('#prop-check').click()
     assert check.value.status==200
     (tmp_path/'source-check.json').write_text(json.dumps(check.value.json(),indent=2))

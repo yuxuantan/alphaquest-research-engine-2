@@ -3,13 +3,13 @@
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from decimal import Context, Decimal
+from decimal import Context, Decimal, localcontext, ROUND_CEILING, ROUND_FLOOR
 from typing import Literal
 from contextlib import nullcontext
 
 from .decimal_math import add as _add, multiply as _mul, subtract as _sub
 from .intratrade import IntratradeRisk, RiskCapture
-from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, Strategy
+from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, StopEntriesIntent, Strategy
 from .execution_scenarios import FillAssumptions
 from .decision_capture import DecisionEvent
 from .prop.native_control import (EntryAcceptance, ExecutionSnapshot, KnownEntryProposal,
@@ -170,7 +170,8 @@ class _Account:
 
     def apply(self, intent: EntryIntent | CloseIntent | None, bar: Bar, *, finishing: bool = False,
               reference: Decimal | None = None, limit: bool = False, phase: str = "close",
-              stop_exit: bool = False, risk_reference: Decimal | None = None) -> Trade | None:
+              stop_exit: bool = False, risk_reference: Decimal | None = None,
+              entry_fill_exit: bool = False) -> Trade | None:
         if intent is None:
             return None
         reference = bar.close if reference is None else reference
@@ -229,7 +230,7 @@ class _Account:
             entry_reason=entry.reason, exit_reason=intent.reason,
         )
         if self.risk is not None:
-            if phase in ("open", "stop", "target"):
+            if not entry_fill_exit and phase in ("open", "stop", "target"):
                 self.risk.observe_bar(bar, phase, reference if risk_reference is None else risk_reference)
             self.closed_risk = self.risk.finish(trade, phase)
             self.risk = None
@@ -367,10 +368,12 @@ def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=
     if not include_range:
         return None,None
     if bracket is not None:
-        penetration=_mul(account.config.tick_size,Decimal(account.fill_assumptions.limit_penetration_ticks))
-        target=(_add if position.side=='long' else _sub)(bracket.target_price,penetration)
-        gap=((bar.open<=bracket.stop_price or bar.open>=target) if position.side=='long' else
-             (bar.open>=bracket.stop_price or bar.open<=target))
+        target=bracket.target_price
+        if target is not None:
+            penetration=_mul(account.config.tick_size,Decimal(account.fill_assumptions.limit_penetration_ticks))
+            target=(_add if position.side=='long' else _sub)(target,penetration)
+        gap=((bar.open<=bracket.stop_price or (target is not None and bar.open>=target)) if position.side=='long' else
+             (bar.open>=bracket.stop_price or (target is not None and bar.open<=target)))
         if gap:
             return _fill_bracket(account,bracket,bar),None
     floor=orders.account_floor_engine_equity;trigger='account'
@@ -400,18 +403,96 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
     long = position.side == "long"
     assumptions = account.fill_assumptions
     trigger = target
-    if assumptions.limit_penetration_ticks:
+    if target is not None and assumptions.limit_penetration_ticks:
         penetration = _mul(account.config.tick_size, Decimal(assumptions.limit_penetration_ticks))
         trigger = (_add if long else _sub)(target, penetration)
     if (bar.open <= stop if long else bar.open >= stop):
         return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open, phase="open", stop_exit=True)
-    if (bar.open >= trigger if long else bar.open <= trigger):
+    if trigger is not None and (bar.open >= trigger if long else bar.open <= trigger):
         reference = bar.open if assumptions.limit_price_improvement else target
         return account.apply(CloseIntent("take_profit"), bar, reference=reference, limit=True, phase="open")
     if (bar.low <= stop if long else bar.high >= stop):
         return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop", stop_exit=True)
-    if (bar.high >= trigger if long else bar.low <= trigger):
+    if trigger is not None and (bar.high >= trigger if long else bar.low <= trigger):
         return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True, phase="target", risk_reference=trigger)
+    return None
+
+
+def _fill_entry_stops(account, orders, bar, strategy):
+    allow_entry = getattr(strategy, "allow_entry_fill", None)
+    if allow_entry is not None and not allow_entry(bar):
+        return
+    gaps = [(entry, bar.open, "open") for entry, price in orders.orders
+            if (bar.open >= price if entry.side == "long" else bar.open <= price)]
+    hits = gaps or [(entry, price, "entry_stop") for entry, price in orders.orders
+                    if (bar.high >= price if entry.side == "long" else bar.low <= price)]
+    if len(hits) > 1:
+        raise ExecutionError("Both OCO entry stops touched: one-minute OHLC cannot determine entry order; supply finer data or remove the ambiguity.")
+    if hits:
+        entry, reference, phase = hits[0]
+        account.apply(entry, bar, reference=reference, phase=phase)
+        return _protect_entry(account, entry, bar, strategy, reference, phase)
+
+
+def _protect_entry(account, entry, bar, strategy, reference, phase):
+    """Activate a precommitted bracket at fill without invoking on_bar twice.
+
+    Market/open fills may use the remaining bar range. For an intrabar stop
+    entry, an adverse extreme may precede entry: ambiguous stop timing rejects.
+    """
+    plan = entry.protection
+    if plan is None:
+        return None
+    if account.capture_decisions:
+        raise ExecutionError("Attached entry protection is not supported by native decision capture.")
+    filled = getattr(strategy, "on_entry_fill", None)
+    if filled is not None:
+        filled(entry, account.position)
+    position = account.position
+    long = position.side == "long"
+    fill = position.entry_fill_price
+    with localcontext() as ctx:
+        ctx.prec = 50
+        stop = plan.stop_price if plan.stop_price is not None else fill + (-plan.stop_distance if long else plan.stop_distance)
+        if plan.max_stop_distance is not None:
+            cap = fill + (-plan.max_stop_distance if long else plan.max_stop_distance)
+            stop = max(stop, cap) if long else min(stop, cap)
+        # MC special stop amounts normalize to an adverse tick; special targets
+        # normalize to a favourable tick. Absolute swing prices already lie on
+        # the instrument's tick grid.
+        stop = (stop / account.config.tick_size).to_integral_value(
+            rounding=ROUND_FLOOR if long else ROUND_CEILING) * account.config.tick_size
+        target = None
+        if plan.target_distance is not None:
+            target = fill + (plan.target_distance if long else -plan.target_distance)
+            target = (target / account.config.tick_size).to_integral_value(
+                rounding=ROUND_CEILING if long else ROUND_FLOOR) * account.config.tick_size
+    bracket = BracketIntent(stop, target)
+    if phase == "open":
+        return _fill_bracket(account, bracket, bar)
+    # A very tight cap can already be breached at the known entry reference
+    # after adverse entry slippage. Close at that known price, not at the Open
+    # which preceded this stop entry.
+    if (reference <= stop if long else reference >= stop):
+        return account.apply(CloseIntent("stop_loss"), bar, reference=reference, phase="stop", stop_exit=True, entry_fill_exit=True)
+    trigger = target
+    if trigger is not None and account.fill_assumptions.limit_penetration_ticks:
+        penetration = _mul(account.config.tick_size, Decimal(account.fill_assumptions.limit_penetration_ticks))
+        trigger = (_add if long else _sub)(trigger, penetration)
+    target_hit = trigger is not None and (bar.high >= trigger if long else bar.low <= trigger)
+    stop_in_range = bar.low <= stop if long else bar.high >= stop
+    stop_after_entry = bar.close <= stop if long else bar.close >= stop
+    if stop_in_range and (target_hit or not stop_after_entry):
+        raise ExecutionError(
+            f"Immediate entry protection is ambiguous on bar {bar.bar_number} ({bar.timestamp_utc.isoformat()}): "
+            "the adverse extreme may precede the stop-entry fill, or SL/TP order is unknown. "
+            "One-minute OHLC cannot establish the post-entry path; finer-grained intrabar execution support is required to resolve it. "
+            "immediate_protection=false explicitly reproduces the earlier delayed strategy.")
+    if stop_in_range:
+        return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop", stop_exit=True)
+    if target_hit:
+        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True,
+                             phase="target", risk_reference=trigger)
     return None
 
 
@@ -484,7 +565,9 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         risk_checked=False
         if next_order is not None:
             trigger=None
-            if type(next_order) is BracketIntent:
+            if type(next_order) is StopEntriesIntent:
+                trade = _fill_entry_stops(account, next_order, bar, strategy)
+            elif type(next_order) is BracketIntent:
                 if control is not None:
                     trade,trigger=_controlled_fill(account,next_order,bar,control)
                     risk_checked=True
@@ -502,6 +585,10 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                         if control is not None and type(next_order) is CloseIntent else (None,None))
                     if trade is None:
                         trade = account.apply(next_order, bar, reference=bar.open, phase="open")
+                        if type(next_order) is EntryIntent and next_order.protection is not None:
+                            if control is not None:
+                                raise ExecutionError("Controlled native replay does not support attached entry protection.")
+                            trade = _protect_entry(account, next_order, bar, strategy, bar.open, "open")
                         if control is not None and type(next_order) is EntryIntent:
                             control.entry_filled(bar)
             if trade is not None:
@@ -524,13 +611,21 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             account.risk.observe_bar(bar)
         intent = control.strategy_bar(strategy,bar) if control is not None else strategy.on_bar(bar, account.position)
         if type(intent) is EntryIntent:
+            if intent.protection is not None and (capture_decisions or control is not None):
+                raise ExecutionError("Attached entry protection is unsupported by decision capture and controlled native replay.")
             account.record_decision(intent, bar)
             yield from account.drain_decisions()
         next_order = None
-        if type(intent) is BracketIntent:
+        if type(intent) is StopEntriesIntent:
+            if account.position is not None:
+                raise ExecutionError("StopEntriesIntent requires a flat account.")
+            if capture_decisions or control is not None:
+                raise ExecutionError("OCO stop entry decision capture and controlled native replay are not supported.")
+            next_order = intent
+        elif type(intent) is BracketIntent:
             if account.position is None:
                 raise ExecutionError("BracketIntent while flat is inconsistent.")
-            if ((account.position.side == "long" and intent.stop_price >= intent.target_price)
+            if intent.target_price is not None and ((account.position.side == "long" and intent.stop_price >= intent.target_price)
                     or (account.position.side == "short" and intent.stop_price <= intent.target_price)):
                 raise ExecutionError("Bracket stop and target order is inconsistent with position side.")
             account.record_bracket(intent, bar)

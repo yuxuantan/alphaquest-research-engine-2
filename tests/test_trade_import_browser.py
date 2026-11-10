@@ -1,4 +1,5 @@
 """Canonical file -> existing saved report -> prop source checks and downloads."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 from decimal import Decimal
 import csv
@@ -91,6 +92,7 @@ def test_import_review_rejection_saved_report_catalogue_and_source_check(page, p
     playwright.expect(page.locator('#prop-source')).to_contain_text('Imported external trades')
     playwright.expect(page.locator('#robust-configure')).to_have_count(0)
     playwright.expect(page.locator('#campaign-configure')).to_have_count(0)
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('invariance', ignore_case=True)
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
@@ -145,12 +147,14 @@ def test_supported_external_source_runs_normal_prop_and_reopens_saved_evidence(p
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
     playwright.expect(page.locator('#prop-method option[value="budgeted_lifecycle"]')).to_have_js_property('disabled', True)
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     page.locator('#prop-commission-mode').select_option('source')
     page.locator('#prop-slots').fill('1')
     page.locator('#prop-max-nq').fill('0.1')
     page.locator('#prop-block').select_option('1')
     with page.expect_response(lambda response: response.url.endswith('/api/prop-analyses/check') and response.request.method == 'POST') as checking:
+        open_prop_task(page, 'legacy', close_outer=False)
         page.locator('#prop-check').click()
     check_response = checking.value
     assert check_response.status == 200, check_response.text()

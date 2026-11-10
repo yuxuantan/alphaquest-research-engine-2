@@ -1,4 +1,5 @@
 """Normal saved report → exact large-search confirmation → durable full results."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 import json
 
@@ -15,6 +16,7 @@ def test_large_campaign_confirmation_from_saved_report(page,portal,tmp_path,phas
         source,job,rows=saved_large_grid(client)
     page.goto(portal['url']+'/#backtests/report/'+source['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     assert page.locator('#campaign-budget').count() == 0
     page.locator('#campaign-paths').fill('8')

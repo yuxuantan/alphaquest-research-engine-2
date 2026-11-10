@@ -105,8 +105,8 @@ class DecisionRecorder:
             require(event.trade_number == self.fill.trade_number and (event.side,event.contracts)==(self.fill.side,self.fill.contracts), 'active trade identity/quantity differs')
             require(event.execution_timing is None, 'only the entry decision declares entry timing')
             if event.kind == 'bracket_submission':
-                require(event.stop_price is not None and event.target_price is not None and event.reference_price is not None and event.fill_price is None and event.net_pnl is None, 'bracket has incomplete or future fields')
-                require(event.stop_price < event.target_price if event.side == 'long' else event.stop_price > event.target_price, 'bracket order conflicts with side')
+                require(event.stop_price is not None and event.reference_price is not None and event.fill_price is None and event.net_pnl is None, 'bracket has incomplete or future fields')
+                require(event.target_price is None or (event.stop_price < event.target_price if event.side == 'long' else event.stop_price > event.target_price), 'bracket order conflicts with side')
                 self.brackets += 1
             else:
                 require(trade is not None, 'close evidence must follow its completed trade')

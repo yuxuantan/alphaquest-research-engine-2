@@ -27,6 +27,7 @@
     <script src="/static/native_replay.js?v=ASSET_VERSION" defer></script>
     <script src="/static/pair_comparison.js?v=ASSET_VERSION" defer></script>
     <script src="/static/forward_monitoring.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop_setup.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
   <body>
@@ -574,7 +575,7 @@
           <div class="page-heading"><div><a id="prop-back" href="#backtests" class="eyebrow">← Back to backtest report</a><h1><span id="prop-heading-title">Prop analysis</span><span class="heading-dot">.</span></h1><p id="prop-heading-note">AlphaQuest · Apex 50K EOD analysis</p></div></div>
           <p id="prop-status" role="status" aria-live="polite"></p><button id="prop-delete" type="button" class="button danger" hidden>Delete prop report</button><p id="prop-delete-status" class="small" role="status" hidden></p>
           <div id="prop-config" hidden>
-            <section class="panel prop-panel"><h2>Source backtest</h2><p id="prop-source"></p><p>Uses this saved backtest and its captured trading risk. Checking the source does not rerun the strategy.</p></section>
+            <section id="prop-source-card" class="panel prop-panel"><h2>Saved source backtest</h2><p id="prop-source"></p><p>Uses this saved backtest and its captured trading risk. Checking the source does not rerun the strategy.</p></section>
             <section id="prop-campaigns" class="panel prop-panel"></section>
             <section id="prop-native-replay" class="panel prop-panel"></section>
             <section id="prop-pair-comparison" class="panel prop-panel"></section>
@@ -665,7 +666,7 @@
               <div class="prop-actions"><button id="prop-check" type="button" class="button secondary">Check source</button><button id="prop-run" type="submit" class="button primary" disabled>Run analysis</button></div>
               <div id="prop-check-output" aria-live="polite"></div>
             </form>
-            <section class="panel prop-panel"><h2>Saved analyses for this backtest</h2><div id="prop-saved"></div></section>
+            <details id="prop-previous" class="panel prop-panel"><summary>Previous analyses for this backtest</summary><div id="prop-saved"></div></details>
           </div>
           <div id="prop-report" hidden><div id="prop-downloads" class="report-downloads"></div><div id="prop-report-content"></div></div>
         </section>

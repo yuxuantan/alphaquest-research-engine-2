@@ -19,6 +19,8 @@
 
 ## Product guides
 
+- [Guided prop configuration](prop_setup.md): choose a goal, confirm sources, configure only relevant settings, review/check/run, restore drafts and inspect previous work.
+
 - [Strategies](strategies_navigation.md): browse and run backtests.
 - [Backtests](backtests_portal.md): configure runs and read reports.
 - [Optimizations](optimization.md): parameter searches and downloads.
@@ -34,6 +36,7 @@
 - [Report identity/deletion](strategy_navigation.md): pairing and preservation rules.
 - [Strategy features](strategy_features.md): preparation and reuse.
 - [VWAP strategy](strategies/vwap_pullback_risk_sizing.md): parameters, data and execution.
+- [Twin Continuation](strategies/twin_continuation.md): supplied PowerLanguage signal ported to Python and MultiCharts .NET, execution assumptions and saved examples.
 - [NQ closure calendar](../calendars/README.md): 2016–2026 CSV, sources,
   date semantics, structural validation and manual maintenance.
 

@@ -1,5 +1,7 @@
 # Editable IS / OOS research workflow
 
+The prop configuration page now uses a [goal-led guided flow](prop_setup.md), with the existing all-settings view available for dated examples.
+
 Start with the [complete campaign walkthrough](#first-complete-campaign-a-practical-walkthrough).
 The [acceptance checklist](robust_research_plan.md#final-acceptance-record) records
 current repository qualification separately from each study's evidence.
@@ -40,7 +42,7 @@ assessed, active or dependent campaigns remain protected with the blocking IDs
 shown. Once its references are released, use the ordinary backtest delete action
 if you also want to remove a source. See the [deletion contract](research_campaign_api.md#remove-an-unused-phase-campaign).
 
-From **Configure prop analysis**, create an Evaluation or Funded campaign. Each
+From **Configure prop analysis → Compare qualified candidates**, choose Evaluation or Funded in Accounts and sizing. Each
 source row defaults to the existing fixed-size list. Choose **Compare sizing
 policies** to add fixed contracts, fixed dollar risk or percentage risk. The
 same size list becomes hard MNQ caps; checking expands every declared source,
@@ -79,7 +81,7 @@ launch a native OOS rerun for an external strategy.
 ## Nested inner research
 
 Implementation increment, 7 November 2026: open a completed IS backtest,
-**Configure prop analysis → Nested research → Configure nested research**.
+**Configure prop analysis → Find a robust strategy, size and account**. Use the Sources and Research design steps; **Show all settings for this task** exposes the named nested sections used in older examples.
 Choose saved IS reports or whole saved grids to declare the candidate parameter
 set. Existing full-period performance does not enter qualification. All sources
 must share dataset identity and execution costs; duplicates and OOS candidates
@@ -556,8 +558,7 @@ before/after preservation evidence under `artifacts/is-oos-20261028/`.
 
 ### Native historical account-state replay
 
-From an ordinary MNQ VWAP IS report, open **Configure prop analysis → Configure
-native account-state replay**. Select Evaluation or fresh Funded, the profile
+From an ordinary MNQ VWAP IS report, open **Configure prop analysis → Inspect one strategy/account policy**. Select Evaluation or fresh Funded, the profile
 and common sizing policy, then Check native source and Run native replay. The
 first supported subset requires complete one-minute sessions, EOD-flat enabled
 and strategy-local volatility sizing disabled. Results link the actual controlled
@@ -774,7 +775,7 @@ coverage you have checked. A passing calculation is not a trading recommendation
    same dataset/costs to compare hypotheses. You can disable automatic legacy
    prop reports for these new grids while retaining later manual research.
 3. **Start research from a report.** Open an ordinary IS trial, then Configure
-   prop analysis → Nested research. Select all intended IS configurations/grids,
+   prop analysis → Find a robust strategy, size and account. Select all intended IS configurations/grids,
    name the study and save a draft. The Research workspace can reopen it later.
 4. **Declare the evidence rules first.** Set training/validation/test lengths,
    purge/embargo, minimum observations, neighboring-parameter requirements and

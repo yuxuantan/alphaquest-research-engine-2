@@ -1,4 +1,5 @@
 """Actual backtest → prop campaign → check/run → durable selection/freeze."""
+from prop_setup_helpers import open_prop_task
 import json
 from hashlib import sha256
 from research_fixtures import ResearchHTTPClient
@@ -14,6 +15,7 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
     page.goto(portal['url']+'/#backtests/report/'+a['id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-configure > summary').click()
     page.locator('#campaign-phase').select_option('funded')
     page.locator('#campaign-paths').fill('8')
@@ -105,6 +107,7 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
     # Independently configure Evaluation through the same product controls.
     page.goto(portal['url']+'/#backtests/prop/new/'+a['id'])
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-configure > summary').click()
     page.locator('#campaign-paths').fill('8')
     page.locator('#campaign-chains').fill('8')
@@ -158,6 +161,7 @@ def test_campaign_optimization_job_dropdown(page,portal,tmp_path):
         trials,jobs=make_jobs(client)
     page.goto(portal['url']+'/#backtests/prop/new/'+trials[0]['id'])
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-configure > summary').click()
     page.locator('#campaign-phase').select_option('funded')
     page.locator('#campaign-paths').fill('8')

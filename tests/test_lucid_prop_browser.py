@@ -1,4 +1,5 @@
 """Two automatic models through the real report/configure/check/run workflow."""
+from prop_setup_helpers import open_prop_task
 import io,json,zipfile
 from hashlib import sha256
 from research_fixtures import ResearchHTTPClient
@@ -43,6 +44,7 @@ def test_both_automatic_models_actual_product_download_and_reopen(page,portal,tm
     playwright.expect(page.locator('#report-prop-companions')).to_contain_text('LucidFlex 50K')
     page.screenshot(path=str(tmp_path/'two-account-backtest-report.png'),full_page=True)
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     page.locator('#prop-model').select_option('1')
     playwright.expect(page.locator('#prop-eval-fee')).to_have_value('80.5')
@@ -52,11 +54,13 @@ def test_both_automatic_models_actual_product_download_and_reopen(page,portal,tm
     playwright.expect(page.locator('#prop-commission-source')).to_have_attribute('href','https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions')
     page.locator('#prop-trade-file').fill('')
     # Boundary rejection occurs in the same source check, not a test-only page.
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-slots').fill('6');page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-status')).to_contain_text('SLOTS must be an integer from 1 to 5')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
     page.locator('#prop-slots').fill('5')
     with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as check:
+        open_prop_task(page, 'legacy', close_outer=False)
         page.locator('#prop-check').click()
     assert check.value.status==200
     checked=check.value.json();assert checked['matched_trades']==60
@@ -126,7 +130,8 @@ def test_known_nq_source_provider_commissions_and_renewal_cash(page,portal,tmp_p
     page.goto(portal['url']+'/#backtests/report/'+record['id'])
     playwright.expect(page.locator('#report-lucid-historical-net')).to_have_text('$88,792',timeout=30000)
     page.screenshot(path=str(tmp_path/'priced-nq-two-model-summary.png'),full_page=True)
-    page.locator('#report-prop-setup').click();page.locator('#prop-advanced > summary').click();page.locator('#prop-model').select_option('1');page.locator('#prop-trade-file').fill('')
+    page.locator('#report-prop-setup').click();open_prop_task(page, 'legacy');page.locator('#prop-advanced > summary').click();page.locator('#prop-model').select_option('1');page.locator('#prop-trade-file').fill('')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     playwright.expect(page.locator('#prop-check-output')).to_contain_text('Lucid · NQ source → MNQ orders')
     page.locator('#prop-run').click();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=30000)

@@ -1,4 +1,5 @@
 """Existing dataset/report workflow freezes a procedure, not a last-fold winner."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 from hashlib import sha256
 import io
@@ -100,6 +101,7 @@ def source_grid(client, dataset):
 def configure_research(page, portal, records):
     page.goto(portal['url'] + '/#backtests/report/' + records[0]['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     page.locator('#robust-name').fill('SYNTHETIC complete procedure with protected final evidence')
     page.locator('#robust-source-search').fill(records[1]['id'][:8])

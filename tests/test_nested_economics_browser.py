@@ -1,4 +1,5 @@
 """Normal native report -> declared nested economics -> frozen outer evidence."""
+from prop_setup_helpers import open_prop_task
 from datetime import date, timedelta
 from hashlib import sha256
 import json
@@ -12,6 +13,7 @@ from test_prop_phases import save_source
 def configure_nested(page, portal, source, *, neighbor=None, name='SYNTHETIC nested economic validation'):
     page.goto(portal['url'] + '/#backtests/report/' + source['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     page.locator('#robust-name').fill(name)
     if neighbor:

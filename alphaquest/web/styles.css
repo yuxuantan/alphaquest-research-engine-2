@@ -1742,3 +1742,52 @@ dialog::backdrop {
   .research-card-heading { flex-wrap:wrap; }
   .research-card-actions .button { flex:1 1 auto; text-align:center; }
 }
+
+/* Goal-led prop configuration; existing form owners retain all execution logic. */
+.setup-guided [data-setup-visible="false"] { display:none !important; }
+.setup-guided:not(.setup-all-settings) #campaign-configure > summary,
+.setup-guided:not(.setup-all-settings) #robust-configure > summary,
+.setup-guided:not(.setup-all-settings) #native-configure > summary,
+.setup-guided:not(.setup-all-settings) #pair-configure > summary { display:none; }
+.prop-setup { min-width:0; }
+.setup-goals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.setup-goal-card { background:white; border:1px solid var(--line); border-radius:10px; padding:20px; min-width:0; }
+.setup-goal-card .button { width:100%; white-space:normal; text-align:left; justify-content:flex-start; font-size:14px; line-height:1.5; min-height:60px; }
+.setup-goal-card p { line-height:1.6; font-size:13px; }
+.setup-goals .button[aria-pressed="true"] { background:var(--mint); border-color:var(--accent); color:var(--accent-dark); }
+.setup-recommended { display:block; font-size:11px; font-weight:600; color:var(--accent-dark); margin-bottom:10px; }
+#setup-other-tools { margin:18px 0; }
+#setup-other-tools summary,.setup-compatibility summary,#prop-previous > summary { cursor:pointer; font-weight:600; padding:10px 0; }
+#setup-other-tools .button { margin:6px 10px 6px 0; }
+.setup-compatibility { border-left:3px solid var(--accent); background:var(--mint); padding:14px 18px; margin:20px 0; overflow-wrap:anywhere; }
+.setup-compatibility h3 { margin-top:0; }
+.setup-compatibility p { line-height:1.6; margin:8px 0; }
+.setup-source-evidence { margin:10px 0!important; }
+.setup-workspace { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:24px; align-items:start; }
+.setup-main { min-width:0; }
+.setup-summary { position:sticky; top:24px; min-width:0; background:white; border:1px solid var(--line); border-radius:10px; padding:20px; font-size:12px; overflow-wrap:anywhere; }
+.setup-summary p,.setup-summary li { line-height:1.6; }
+.setup-summary ul { padding-left:18px; }
+.setup-steps { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+.setup-steps .button[aria-current="step"] { color:var(--accent-dark); border-color:var(--accent); background:var(--mint); }
+.setup-show-all { display:flex; gap:8px; align-items:center; font-size:12px; margin:18px 0; }
+.setup-show-all input,#setup-qualification-choice input { width:16px; height:16px; flex:none; }
+#setup-message { line-height:1.6; overflow-wrap:anywhere; }
+#setup-stage-help { line-height:1.6; color:#53616b; }
+.setup-footer { display:flex; justify-content:space-between; gap:12px; padding:16px 0; position:sticky; bottom:0; background:var(--bg); z-index:3; border-top:1px solid var(--line); }
+#setup-review { background:white; border:1px solid var(--line); border-radius:10px; padding:18px; margin:18px 0; overflow-wrap:anywhere; }
+#setup-review summary,.setup-context-details > summary,.setup-expert-json > summary { cursor:pointer; padding:10px 0; font-weight:600; }
+#setup-review dl { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px 18px; font-size:12px; }
+#setup-review dd { margin:0; white-space:pre-wrap; }
+#setup-qualification-choice { display:flex; align-items:flex-start; gap:8px; background:white; border:1px solid var(--line); border-radius:8px; padding:14px; margin:14px 0; }
+.setup-limitation { color:#805516; line-height:1.6; }
+.setup-context-details { grid-column:1/-1; }
+.setup-context-details label { margin:10px 0; }
+@media(max-width:1100px) { .setup-goals { grid-template-columns:1fr; } .setup-workspace { grid-template-columns:minmax(0,1fr); } .setup-summary { position:static; } }
+@media(max-width:600px) { .setup-goal-card { padding:16px; } .setup-steps .button { flex:1 1 120px; white-space:normal; } #setup-review dl { grid-template-columns:1fr; gap:5px; } #setup-review dd { margin-bottom:12px; } }
+#setup-goal-picker > summary,#setup-compatibility-details > summary,.setup-summary > summary,#prop-previous details > summary { cursor:pointer; padding:12px 0; font-weight:600; }
+#prop-screen .setup-show-all { display:flex; align-items:center; }
+#prop-screen .setup-show-all input,#prop-screen #setup-qualification-choice input { width:16px; height:16px; }
+.setup-footer { position:static; }
+.setup-main { padding-bottom:12px; }
+@media(max-width:1100px) { .setup-workspace > .setup-summary { grid-row:1; } .setup-workspace > .setup-main { grid-row:2; } }

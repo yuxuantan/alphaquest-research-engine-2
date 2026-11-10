@@ -51,17 +51,18 @@
     const calendar = state.strategy?.session_calendar;
     status.hidden = !calendar;
     if (!calendar) return false;
-    const enabled = get("#optimization-ranges [data-parameter='use_eod_flat']");
+    const twin = state.strategy?.id === "twin_continuation";
+    const enabled = get(`#optimization-ranges [data-parameter='${twin ? "use_session_calendar" : "use_eod_flat"}']`);
     const usesCalendar = enabled && Array.from(enabled.querySelectorAll("select")).some((input) => input.value === "true");
     if (!usesCalendar) {
-      status.textContent = "Session calendar: disabled · Use EOD Flat is off.";
+      status.textContent = twin ? "Session calendar: disabled · earlier fixed-clock Twin session model." : "Session calendar: disabled · Use EOD Flat is off.";
       return false;
     }
     const symbol = String(selectedDataset()?.symbol || "").trim().toUpperCase();
     const supported = new RegExp(`^(?:${calendar.symbol_pattern})$`).test(symbol);
     status.textContent = supported
-      ? `Session calendar: Auto → ${calendar.instrument} · ${calendar.file.split("/").pop()} · saved symbol ${symbol} · ${calendar.timezone}. Set Close buffer minutes below; default 5.`
-      : `No reviewed session calendar for saved symbol ${symbol || "(not set)"}. Calendar EOD flattening currently supports NQ only. Select a dataset with an explicit supported symbol, or turn Use EOD Flat off.`;
+      ? `Session calendar: Auto → ${calendar.instrument} · ${calendar.file.split("/").pop()} · saved symbol ${symbol} · ${calendar.timezone}. ${twin ? "Held positions exit at the scheduled closing bar Close, including holiday early closes." : "Set Close buffer minutes below; default 5."}`
+      : `No reviewed session calendar for saved symbol ${symbol || "(not set)"}. ${twin ? "Twin calendar exits support explicit NQ/MNQ symbols; select a supported dataset or disable Use session calendar." : "Calendar EOD flattening currently supports NQ only. Select a dataset with an explicit supported symbol, or turn Use EOD Flat off."}`;
     return !supported;
   }
 
@@ -101,7 +102,9 @@
       state.strategy = null;
       showError({ message: "This strategy uses a parameter type this screen does not support." });
     }
-    get("#backtest-fill-assumption").textContent = strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
+    get("#backtest-fill-assumption").textContent = strategy?.id === "twin_continuation"
+      ? "Use full-session one-minute close-labelled bars. Momentum enters at the next observed Open; Breakout uses next-bar OCO entry stops. Immediate protection defaults on: SL/TP activate at fill, including the entry bar. Uncertain post-stop-entry SL timing or SL/TP order rejects; one-minute OHLC cannot resolve those paths. Open-entry and later held-bar conflicts use stop first. Turning Immediate protection off explicitly restores delayed, following-bar brackets. Both entry stops touched without an opening trigger also rejects. With Use session calendar on, held positions close at the scheduled NQ/MNQ session-close bar Close, including early holidays. Missing held closing bars and calendar coverage reject. Native phase-controlled replay and entry-decision capture remain unsupported."
+      : strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_stop_first")
       ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar; ambiguous bars use stop first. With EOD flatten enabled, the instrument's reviewed calendar sets the cutoff using Close buffer minutes (default 5), bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     window.optimizations.configure(state.strategy);
@@ -340,7 +343,11 @@
       const nextOpen = flatten.order_timing === "next_open";
       const cutoff = String(metadata.strategy.parameters.eod_flat_time ?? 1555).padStart(4, "0");
       const fill = nextOpen ? "submit at cutoff; fill next observed bar Open" : "cutoff Close fill (earlier execution model)";
-      if (flatten.mode === "csv_session_calendar_v1") {
+      if (flatten.mode === "twin_csv_session_close_v2") {
+        const calendar = flatten.calendar || {};
+        pair.append(element("dt", "", "Scheduled session-close exits · no bar lookahead"), element("dd", "",
+          `Auto calendar ${flatten.calendar_id} for ${flatten.instrument_symbol} · ${calendar.file}. Held positions fill at the scheduled closing bar Close, including holiday early closes; no next-Open buffer. Existing bracket fills on that bar retain priority. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Missing held closing bars reject; EOF liquidation remains labelled end_of_data.`));
+      } else if (flatten.mode === "csv_session_calendar_v1") {
         const calendar = flatten.calendar || {};
         pair.append(element("dt", "", "Calendar-based session exits · no bar lookahead"), element("dd", "",
           `${flatten.calendar_selection === "instrument_symbol" ? `Auto calendar ${flatten.calendar_id} for ${flatten.instrument_symbol} · ${calendar.file}. ` : ""}Scheduled close minus ${flatten.minutes_before_close} minutes; ${fill}, order cutoff at/before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened, ${flatten.closed_sessions ?? 0} closed. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Truncation does not change the cutoff.`));

@@ -1,4 +1,5 @@
 """Actual report → phase campaign → deletion → released backtest and retained report."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 import json
 from research_fixtures import ResearchHTTPClient
@@ -15,6 +16,7 @@ def test_campaign_delete_confirmation_release_and_durable_report(page,portal,tmp
     page.on('request',lambda request:deletes.append(request.url) if request.method=='DELETE' else None)
     page.goto(portal['url']+'/#backtests/report/'+sid)
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-configure > summary').click()
     page.locator('#campaign-phase').select_option('funded')
     page.locator('#campaign-paths').fill('8');page.locator('#campaign-block').select_option('1')

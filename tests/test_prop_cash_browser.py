@@ -1,4 +1,5 @@
 """Milestone 2 normal-workflow product demonstration with inspectable saved outputs."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 import json
 
@@ -34,11 +35,13 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
     page.goto(portal['url']+'/#backtests/report/'+evaluation['id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-method').select_option('budgeted_lifecycle')
     timezone=page.locator('#prop-budget-timezone')
     assert timezone.evaluate('(node)=>node.tagName')=='SELECT'
     playwright.expect(timezone).to_have_value('America/Chicago')
     assert timezone.locator('option').evaluate_all('(nodes)=>nodes.map(n=>n.value)')==['America/Chicago','America/New_York','Asia/Singapore','UTC']
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     page.locator('#prop-payout-preset').select_option('custom')
     page.locator('#prop-activation-preset').select_option('custom')
@@ -52,6 +55,7 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
         'prop-fee-note':'SYNTHETIC explicit evaluation $30 / activation $40 overrides; not current provider prices.'}
     for field,value in fields.items():page.locator('#'+field).fill(value)
     page.locator('#prop-payout-assumption').fill('')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click();playwright.expect(page.locator('#prop-status')).to_contain_text('Describe when trader cash is received')
     playwright.expect(page.locator('#prop-run')).to_be_disabled()
     playwright.expect(page.locator('#prop-check-output [role=alert]')).to_contain_text('Describe when trader cash is received')
@@ -69,7 +73,9 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
             page.get_by_role('link',name='Configure new analysis',exact=True).click()
             playwright.expect(page.locator('#prop-config')).to_be_visible()
             playwright.expect(page.locator('#prop-method')).to_have_value('budgeted_lifecycle')
+            open_prop_task(page, 'budget')
         for field,value in changes.items():page.locator('#'+field).fill(value)
+        open_prop_task(page, 'legacy', close_outer=False)
         with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as check:page.locator('#prop-check').click()
         assert check.value.status==200,check.value.text()
         assert check.value.json()['settings']['BUDGET_TIMEZONE']=='America/Chicago'
@@ -79,6 +85,7 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
             timezone.select_option('Asia/Singapore')
             playwright.expect(page.locator('#prop-run')).to_be_disabled()
             timezone.select_option('America/Chicago')
+            open_prop_task(page, 'legacy', close_outer=False)
             page.locator('#prop-check').click()
             playwright.expect(page.locator('#prop-run')).to_be_enabled()
         (tmp_path/(label+'-check.json')).write_text(json.dumps(check.value.json(),indent=2))
@@ -122,11 +129,13 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
     page.goto(portal['url']+f'/#backtests/prop/new/{evaluation["id"]}/from/{custom_id}')
     playwright.expect(page.locator('#prop-config')).to_be_visible()
     playwright.expect(timezone).to_have_value('Australia/Sydney')
+    open_prop_task(page, 'legacy', close_outer=False)
     with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as check:page.locator('#prop-check').click()
     assert check.value.status==200 and check.value.json()['settings']['BUDGET_TIMEZONE']=='Australia/Sydney'
     page.screenshot(path=str(tmp_path/'saved-custom-timezone.png'),full_page=True)
     page.goto(portal['url']+'/#backtests/prop/new/'+evaluation['id'])
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-method').select_option('budgeted_lifecycle')
     playwright.expect(timezone).to_have_value('America/Chicago')
     page.screenshot(path=str(tmp_path/'timezone-dropdown-default.png'),full_page=True)
@@ -138,6 +147,7 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
     page.locator('#prop-use-observed').click()
     playwright.expect(page.locator('#prop-start-date')).to_have_value('2026-01-05')
     playwright.expect(page.locator('#prop-horizon-end')).to_have_value('2026-02-20')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-check-output [role=alert]')).to_contain_text('Choose a payout receipt modeling assumption')
     playwright.expect(page.locator('#prop-payout-preset')).to_be_focused()
@@ -145,6 +155,7 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
     page.locator('#prop-activation-preset').select_option('immediate7')
     playwright.expect(page.locator('#prop-payout-custom')).to_be_hidden()
     playwright.expect(page.locator('#prop-activation-custom')).to_be_hidden()
+    open_prop_task(page, 'legacy', close_outer=False)
     with page.expect_response(lambda r:r.url.endswith('/api/prop-analyses/check')) as check:page.locator('#prop-check').click()
     assert check.value.status==200,check.value.text()
     preset_settings=check.value.json()['settings']
@@ -165,6 +176,7 @@ def test_budget_configuration_cash_downloads_and_durable_report(page,portal,tmp_
     playwright.expect(page.locator('#prop-config')).to_be_visible()
     playwright.expect(page.locator('#prop-payout-preset')).to_have_value('custom')
     playwright.expect(page.locator('#prop-payout-assumption')).to_have_value(preset_settings['PAYOUT_TIMING_ASSUMPTION'])
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click();playwright.expect(page.locator('#prop-run')).to_be_enabled()
     page.locator('#prop-run').click();playwright.expect(page.locator('#prop-report')).to_be_visible(timeout=30000)
     assert page.url.endswith('/'+preset_id)

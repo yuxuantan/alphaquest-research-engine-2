@@ -1,4 +1,5 @@
 """Portal charts, filters, frozen manual OOS and honest incomplete/error states."""
+from prop_setup_helpers import open_prop_task
 import json
 from hashlib import sha256
 from threading import Event
@@ -19,6 +20,7 @@ def test_campaign_portal_frozen_oos_and_charts(page,portal,tmp_path,phase):
         a=saved_is(client);b=saved_is(client,2)
     page.goto(portal['url']+'/#backtests/report/'+a['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-'+phase).click()
     page.locator('#campaign-paths').fill('8');page.locator('#campaign-block').select_option('1')
     if phase=='evaluation':
@@ -165,6 +167,7 @@ def test_configuration_shows_chosen_local_account_rules(page,portal,tmp_path):
     with ResearchHTTPClient(base_url=portal['url'],timeout=300) as client:
         source=save_source(client,days=8)
     page.goto(portal['url']+'/#backtests/prop/new/'+source['id'])
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-evaluation').click()
     playwright.expect(page.locator('#campaign-form')).to_contain_text('$3,000 profit target')
     playwright.expect(page.locator('#campaign-form')).to_contain_text('21-session expiry')

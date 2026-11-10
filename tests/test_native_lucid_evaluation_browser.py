@@ -1,4 +1,5 @@
 """Lucid Evaluation uses the existing native campaign and nested research forms."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 from hashlib import sha256
 import io
@@ -34,6 +35,7 @@ def test_native_lucid_evaluation_configuration_results_download_and_reopen(page,
     source_before = page.request.get(source_url).body()
     page.goto(portal['url'] + '/#backtests/report/' + original['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'compare', close_outer=True)
     page.locator('#campaign-new-evaluation').click()
     assert page.locator('#campaign-profile option[value="lucidflex-50k"]').evaluate('(option) => option.disabled')
     playwright.expect(page.locator('#campaign-retry-delay')).to_have_value('0')
@@ -133,6 +135,7 @@ def test_native_lucid_nested_draft_template_and_explicit_execution_switch(page, 
     original = _source(portal)
     page.goto(portal['url'] + '/#backtests/report/' + original['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     for key, value in dict(outer_train_sessions=3, outer_test_sessions=1, inner_train_sessions=1,
             inner_validation_sessions=1, purge_sessions=0, embargo_sessions=0,
@@ -167,6 +170,7 @@ def test_native_lucid_nested_draft_template_and_explicit_execution_switch(page, 
     assert 'native_execution' in study['search_settings']
     page.goto(portal['url'] + '/#backtests/research?draft=' + draft['id'])
     playwright.expect(page.locator('#workspace-form-status')).to_contain_text('revision 1 loaded', timeout=30000)
+    open_prop_task(page, 'research')
     playwright.expect(page.locator('#robust-run')).to_be_disabled()
     # The form reads the saved declaration; the catalogues do not upgrade legacy Lucid.
     defaults = page.request.get(portal['url'] + '/api/research-campaigns/robust/defaults').json()
@@ -198,6 +202,7 @@ def test_native_lucid_nested_draft_template_and_explicit_execution_switch(page, 
     template, = page.request.get(portal['url'] + '/api/research-workspace/templates').json()['items']
     assert template['settings']['economic_studies'] == draft['declaration']['economic_studies']
     page.goto(portal['url'] + '/#backtests/prop/new/' + original['id'])
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     open_controls(page)
     page.locator('#workspace-template-select').select_option(template['id'])

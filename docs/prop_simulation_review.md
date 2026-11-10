@@ -9382,3 +9382,395 @@ marked running and queued during this task; that server and all production jobs,
 files and records were left untouched. Restarting only to cancel one queued job
 can interrupt other work; wait for needed work to finish. Pre-update saved jobs
 retain the existing engine-identity compatibility guard.
+
+## Guided prop configuration — 2026-11-09
+
+All eight configuration UX recommendations are implemented in the existing
+backtest report → Configure prop analysis → check → run → durable report journey:
+
+1. A goal-first landing recommends full robustness research, with separate saved
+   candidate comparison and single-policy inspection choices. Legacy joint,
+   budgeted cash-ledger and frozen-pair tools are explicit alternatives.
+2. Sources → Research design → Accounts and sizing → Review and run shows only
+   relevant settings. Tasks without research design omit that step.
+3. Preliminary saved-source compatibility appears before detailed configuration;
+   known unsupported native choices explain their requirements. Authoritative
+   owner admission remains mandatory, and no execution is silently substituted.
+4. Evaluation and Funded objectives/settings stay independent. Inactive phase
+   controls are disabled so irrelevant validation cannot block the active phase.
+5. Position sizing uses plain-language questions over existing fixed, dollar and
+   percentage policies, bases and hard caps. Source costs are never charged twice.
+6. Human labels and explanatory headings replace setup jargon; legacy JSON is
+   an expert disclosure. Existing calculation meanings remain intact.
+7. A desktop study summary and expandable mobile summary show declarations and
+   check status; Review exposes every enabled setting plus authoritative checks.
+8. Contextual window/sampling/seed controls, a selected-task all-settings view
+   and separate previous-work history reduce the default form's density.
+
+`docs/prop_setup.md` documents the workflow. Exact copy/start/stop commands,
+source/campaign/analysis IDs, settings, normal URLs, downloads, expected boundaries
+and screenshots are in `artifacts/prop-setup-ux-20261108/README.md`. The final
+examples are intact normal product libraries, with SYNTHETIC source labels.
+There is no separate demo page, API, database, simulation or evidence store.
+
+Three normal-product demonstrations were executed through the guided controls:
+
+- **Compare qualified candidates:** saved MNQ source, Funded Apex, fixed sizes
+  1/3, 8 paths, block 1, 14 calendar days and 4-day receipt lag. The independent
+  $300/$900-session paths produce modeled received cash `[0,1500]`; the next
+  payout remains outside the horizon. Campaign `9a32a49effbe4395907f9fd75ab543c8`,
+  analysis `18b0ea3355c847fea3a75116b0c68645` reopens without simulation.
+- **Full robustness research:** two saved strategy sources, rolling 8/2 outer
+  and 2/2 inner windows, 1/1 purge/embargo, qualification declared before work,
+  optional independent Funded study at quantities 10/20. Every inner fold's
+  qualification means are $100/$300 per session, matching independent synthetic
+  arithmetic. Campaign `d71b087aece04a1d94a6fc7c498a26b8`, analysis
+  `e1381e845e7c4ea1a5b1fea45a6755cb` saves research/reliability and remains
+  **INCOMPLETE**, production_qualified false; this is not a deployment claim.
+- **Inspect one native policy:** supported MNQ VWAP source, Funded Apex, fixed
+  size 3. Independent unit nets `[-10,20,20]` imply `[-30,60,60]`, three trades,
+  $90 trading profit, $50,090 provider balance and $0 trader receipts. Analysis
+  `e7ed7d0006aa4bef99d8bb894348f001` and controlled backtest
+  `d954b2da480847c7932577a1bd385a5a` are durable. Source report bytes are unchanged.
+  The native JSON/ZIP are direct downloads, with every manifest component checked.
+  This is one historical path, without a forecast or optimizer selection.
+
+The guided checks exercise lazy loading without unrelated POSTs, preserved values
+across steps/goals, remounting after report navigation, edit invalidation of Run,
+inactive-phase validation, native compatibility, explicit qualification-only
+intent, and recoverable defaults failure without a browser exception. Existing
+Lucid restrictions still reject unsupported execution. Desktop and 390 px views
+were inspected, including the mobile summary above the form and no page overflow.
+Existing freeze, final manual OOS, drafts/templates, native campaigns/replays,
+legacy economics, commission and historical report assertions remain in scope;
+legacy detailed tests select their explicit goal/all-settings view.
+
+The final primary browser sweep passed 21 cases and failed one old navigation
+assumption: after restoring a draft to Sources, its test attempted to open the
+hidden Accounts section. The test now follows the explicit navigation and that
+exact native Lucid restoration case passes. Earlier diagnostic/interrupted
+sweeps and their logs remain preserved; they are not claimed as clean gates.
+The compatibility sweep passed 39 cases before stopping at three old navigation
+assumptions: collapsed ordinary reports, reopened cash configuration at Sources,
+and lazily loaded research history. Tests now select the applicable task/step or
+open Previous analyses before accessing those controls; original arithmetic and
+immutable-report assertions remain. A focused follow-up includes all three plus
+the three cases not reached by that sweep. Final gate details and qualified case
+membership are saved in `verification.json`. The follow-up passed all six cases.
+Final qualification covers **113 distinct cases**: 46 backend contracts and 67
+browser cases, counting each case once after its navigation correction. All
+production hashes match across gates and current files; both phase identities
+match the earlier full-suite snapshot. Native ZIP verification covers all 11
+manifest components and the report itself. The sandbox-only Chromium launch
+failure is retained separately; the permitted localhost browser follow-up passes.
+This increment has focused qualification, not a fresh full-suite or numerical/
+provider-parity claim. Production Python calculations were not changed.
+
+All temporary servers stopped/joined. No persistent server was started and the
+user's existing app/jobs, datasets, backtests and results were left untouched.
+Refresh the browser to load this static UI change. Finished intermediate libraries
+are losslessly compressed only after SHA-256 membership checks and full standard
+`tar` restoration verification; original locations retain restore instructions.
+Final examples remain unpacked, and prior evidence/reports are preserved.
+
+## Twin Continuation strategy port — 2026-11-09
+
+Delivered the supplied signal as the registered Python strategy
+`alphaquest/strategies/twin_continuation.py` and the MultiCharts .NET signal
+`multicharts/Twin_Continuation.cs`. The original is preserved in
+`docs/strategies/twin_continuation.pl`. The
+[strategy guide](strategies/twin_continuation.md) specifies all Inputs, chart
+properties, execution assumptions, costs and the remaining platform checks.
+This increment adds next-bar OCO entry stops and stop-only exits to the shared
+backtester. Intrabar entry-bar extrema remain bounds; the existing prop source
+adapter now admits their explicit `entry_stop` phase without changing account
+transition/selection formulas or ignoring calculation hashes.
+
+Saved **synthetic** normal-product evidence:
+
+- `artifacts/twin-continuation-final-20261109/verification.json` records exact
+  source/backtest/analysis IDs, parameters, IS/OOS splits and observations.
+- Single-session MO backtest `2985e1f1faf841fab52ec2745cad4625`: entry 112.25,
+  exit 119.75, `(119.75 - 112.25) * 20 - 2 = 148 CU` net.
+- Single-session BO backtest `3c36c8fa0de2455fa8464a0319c3d1c0`: confirmed swing
+  high/low 110/90, ATR 8, entry 110.25, target 126.25,
+  `(126.25 - 110.25) * 20 - 2 = 318 CU` net. The analytical tests also independently
+  check source MAE bounds 6 to 226 CU, with no measured MAE/MFE.
+- Two-session MO backtest `abbc00df96444cb19643a1175a707071`: two source-driven
+  trades of 148 CU each, total 296 CU. The second session contains explicitly
+  synthetic leading flat bars to warm the continuing oscillator; Jan 17 is a
+  zero-trade weekday. Its local prop analysis is
+  `453e1af6d64f4afaa1a4d5108bb79f92`.
+- Each source has its CSV, configuration/report screenshots, downloaded trade
+  and equity CSVs, and report JSON. The two-session case additionally retains
+  `momentum-prop-source-check.json`, source-check/report screenshots,
+  `momentum-prop-prop-report.json` and `momentum-prop-analysis.zip`.
+- `artifacts/twin-csharp-final-20261109/` retains a successful C# 5 core build,
+  six input schedules, actual C# JSONL outputs and `verification.json`:
+  **18,556 evaluated bars**, 15 state fields per bar and effective owned orders
+  agree with Python. Cases include both directions/setups, missing boundaries,
+  session volatility and ClockShift. This is a compiled-core comparison,
+  not an installed MultiCharts backtest or SDK adapter compilation.
+
+Reproduce with a **new** output directory:
+
+```sh
+.venv/bin/python tests/review_twin_continuation.py --output artifacts/twin-product-NEW
+.venv/bin/python tests/review_twin_csharp.py --dotnet /path/to/dotnet --output artifacts/twin-csharp-NEW
+```
+
+The browser script uses Datasets → save a labelled synthetic source → Backtests
+→ Twin continuation → declare IS/OOS → configure → Run → ordinary durable
+report/downloads → Configure prop analysis → explicit legacy analysis form →
+Check source → Run → durable local prop report/downloads. No separate surface,
+result store, external engine or OOS launch is used. Backtest/source bytes and
+reports are verified after reload. Owned temporary servers stop on exit.
+Earlier review directories and reports remain unchanged.
+
+Expected observations and rejection checks:
+
+1. MO enters at the next observed Open, then exits at the next Open after the
+   14:50 submission. Its entry-bar Low cannot trigger a stop before that stop
+   has been submitted. BO's entry-bar High cannot retroactively fill its target.
+2. The single-session examples reach the ordinary prop source check and reject
+   with **At least two session weekdays are needed for separate training and
+   validation**. Run remains disabled; rejection JSON/screenshots are saved.
+   Insufficient research history is not bypassed or silently duplicated.
+3. The separate two-session source passes the normal check: two native OHLC
+   risk records, zero measured MAE/MFE, source net 296 CU and commissions 4 CU
+   reconcile. Its saved local analysis reports zero validation passes and no
+   funded result; the report explains that no training/validation evaluation
+   passed. These are labelled synthetic model outputs, not forecasts or provider
+   parity evidence. Reloading reopens the same report bytes without replay.
+4. Automated boundaries cover both directions, equal pivots, partial/late
+   buckets, the half-day heuristic, disabled MO consuming its opportunity,
+   setup ownership, disabled BO target, pending-stop expiry, entry gaps,
+   ambiguous two-sided stops, malformed Inputs and missing held session-close
+   data. Known regular non-minute data rejects before research claims.
+5. Twin reports omit the currently unsupported single-pending native entry
+   decision sidecar; controlled native phase replay remains unsupported and
+   rejects. The Backtests form and strategy guide disclose this boundary.
+
+To inspect the saved library manually:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/twin-continuation-final-20261109" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8001
+```
+
+Open `http://127.0.0.1:8001/#backtests/report/abbc00df96444cb19643a1175a707071`
+or `http://127.0.0.1:8001/#backtests/prop/job/453e1af6d64f4afaa1a4d5108bb79f92`.
+Download the stored artifacts; use `verification.json` for the other reports.
+Stop this optional server with Ctrl-C. No persistent server was left running.
+Matching original PowerLanguage and .NET exports from the installed Windows
+platform remain necessary before claiming platform/trade-for-trade parity.
+
+Validation: the focused execution/risk/native-decision/API/reuse/VWAP/grid/phase
+identity/prop-analysis regression run passed **376 tests**. The final Twin suite
+passed **30 tests**, including four additional stop-only evidence, invalid OCO,
+setup-owned timed exit and disabled-target cases added after the broader run
+was collected. The compiled-core comparison and browser journeys above also
+passed. This is targeted validation; no full-repository or Windows-host pass
+is claimed.
+
+## Twin session-close failure diagnosis — 2026-11-09
+
+A reported Twin backtest stopped with a generic HTTP 500 message after its
+last displayed progress snapshot near 235,000 of 1,415,817 IS bars. Read-only
+inspection found the saved Twin research window to be 2021-01-01–2024-12-31,
+with source timezone America/New_York. Replaying the verified internal prepared
+IS stream with **default Twin Inputs** and saved NQ instrument settings reproduces
+a rejection at selected bar **239,337**, 2021-09-06 17:01 Chicago time. The
+original failed HTTP request's Inputs were not persisted, so the reproduction
+records its parameter/cost assumptions explicitly rather than claiming to have
+recovered that request.
+
+At that point a BO long remains open from 02:20 Chicago, entry price 15699.
+The previous source close label is 12:00; the next observed label is 17:01.
+The repository calendar's 2021-09-06 row is a noon early close. Twin's current
+fixed BO flatten/session-close clocks are 15:45/16:00, so the guard rejects the
+held position crossing 16:00 without an observed liquidation price. This
+reflects missing holiday-close handling in this strategy port; the observed
+noon gap is consistent with the saved calendar and does not by itself establish
+corrupt data. No price-bar lookahead or invented close fill was added.
+
+The guard previously raised an ordinary ValueError during replay. The fixed-run
+API classified it as an unexpected error and returned only **Backtest failed;
+no completed run was saved**. It now raises the existing handled DatasetReadError,
+returning HTTP **422** with the configured close, last/next observed timestamps,
+selected bar, held setup/side and a shortened-session/source-coverage explanation.
+The trading rejection and numerical exit policy remain unchanged. Completing
+this historical run still requires an explicitly specified shortened-session
+exit policy, with corresponding Python/.NET integration and validation.
+
+Saved evidence:
+
+- `artifacts/twin-backtest-failure-20261109/{before-diagnostic.json,after-diagnostic.json,verification.json}`:
+  actual IS failure state, source/cache hashes, default Inputs/costs and an
+  unchanged failure bar, held position and 78 earlier completed trades.
+  Source dataset/backtest databases were opened read-only. No OOS strategy
+  replay or production report write occurred.
+- The same directory includes the corrected strategy snapshot and a diagnostic
+  reproduction script. From the repository root run
+  `PYTHONPATH="$PWD" .venv/bin/python artifacts/twin-backtest-failure-20261109/reproduce.py`.
+  It reads and checksums the existing internal cache, stops within the first
+  240,000 IS bars, and writes its diagnostic to
+  `/private/tmp/aq-twin-session-diagnostic-reproduced.json`. It requires that
+  existing cache to remain available; no source data is recreated or changed.
+- `artifacts/twin-session-rejection-review-20261109/` retains a labelled synthetic
+  normal Datasets → Backtests → Twin → Run rejection demonstration, source CSV,
+  configuration/error screenshots and `verification.json`. The visible error
+  names the 16:00 configured close and observed 12:00 → 17:01 gap. The API's
+  failed progress snapshot retains the same message; zero completed reports
+  are published and source CSV bytes remain unchanged.
+
+Reproduce the normal-product rejection in a new isolated library:
+
+```sh
+.venv/bin/python tests/review_twin_session_rejection.py --output artifacts/twin-rejection-NEW
+.venv/bin/python -m pytest tests/test_twin_continuation.py tests/test_twin_continuation_api.py tests/test_backtest_api.py -q
+```
+
+The targeted run passed **84 tests**. The browser check passed with no browser
+errors and stopped its owned temporary server. Existing user processes,
+datasets/backtests/results and earlier evidence remain untouched. Reload the
+backend code to receive the detailed rejection; this diagnostic change does not
+make an unsupported holiday-close policy pass silently.
+
+## Twin MC session-close parity — 2026-11-09
+
+Implemented the measured MultiCharts session-close behavior in
+`alphaquest/strategies/twin_continuation.py`, exposed through the existing
+Backtests calendar controls/settings and saved report downloads. The supplied
+workbook is preserved byte-for-byte at
+`artifacts/twin-mc-early-close-parity-20261109/mc-reference.xlsx`. Its trade list
+contains 685 paired trades through 2026-07-07; qualification and the new native
+replay use only the 499 trades in the saved **2021–2024 IS**. No AlphaQuest OOS
+run was launched. The provided workbook contains later outcomes and must not
+be represented as untouched OOS evidence.
+
+The `Strategy Analysis` and `Settings` sheets say **Export cancelled by user**.
+The available `List of Trades` rows are complete paired entries/exits. Every
+reported Profit ($) equals signed price change × contracts × 20. The zero-cost
+comparison matches that exported arithmetic; it does not establish the missing
+MC commission/slippage configuration or code/build identity. The export is a
+development qualification oracle; no production report loads its trades or
+requires MultiCharts.
+
+Measured independent early-close expectations (Chicago close labels):
+
+| MC trade / source rows | Entry | End of Day Exit | Expected reported P&L |
+| --- | --- | --- | --- |
+| 79 / 160–161 | BO long, 2021-09-06 02:20, 15699 | 2021-09-06 12:00, 15701.25 | `(15701.25-15699)*20 = 45` |
+| 429 / 860–861 | BO long, 2024-06-18 19:01, 20223.25 | 2024-06-19 12:00, 20231 | `(20231-20223.25)*20 = 155` |
+| 436 / 874–875 | MO short, 2024-07-04 09:21, 20377 | 2024-07-04 12:00, 20381.25 | `(20377-20381.25)*20 = -85` |
+
+The local versioned NQ/MNQ calendar now supplies scheduled session-close
+liquidation for both setups by default (`use_session_calendar=true`). It fills
+at the **closing bar Close**, with configured market slippage/commission once;
+it does not use the VWAP port's five-minute buffer or next-Open exit. Existing
+price orders on that bar retain priority. Missing held closing bars and dates
+outside reviewed coverage reject. Truncated data cannot establish an earlier
+scheduled close. Custom BO session clocks require the explicitly labelled
+fixed-clock mode; supported calendar mode uses 1700/1600. Calendar/code hashes
+participate in normal report/cache/frozen compatibility. Earlier reports,
+source exports, diagnostics and evidence remain unchanged.
+
+The first corrected calendar replay completed all 499 trades and matched all
+entry/exit timestamps, but found 214 fractional BO target-price differences.
+The MC export consistently normalizes long sell-limit targets upward and short
+buy-to-cover targets downward to 0.25 ticks. Applying the execution instrument's
+outward target normalization resolves all 214. The final **normal saved report**
+now matches **499/499** in entry/exit timestamps, directions, quantities,
+entry/exit prices and reported trade P&L, with zero price/time/money tolerance.
+Both sides total **165005 CU** under the zero-cost comparison. All 1,415,817
+selected IS bars were replayed; the final position is flat.
+
+Real product report in the existing library:
+
+- Backtest: `1ae741ad99bd4ac5a0e1caf09595f93f`.
+- URL: `http://127.0.0.1:8000/#backtests/report/1ae741ad99bd4ac5a0e1caf09595f93f`.
+- Existing normal automatic Apex/Lucid report IDs:
+  `7d21a46240c84005a829dc8b9e266964` and
+  `327fcf893b10440ca82024812c697409`.
+- `artifacts/twin-mc-early-close-parity-20261109/alphaquest-report` is a shortcut
+  to that canonical normal backtest directory, not a second result store.
+- `qualified-comparison/{verification.json,all-is-trades.csv,early-close-trades.csv}`
+  seals the workbook/source/code identities, complete membership, exact values,
+  timezone mapping, cost limitations and the three early-close matches.
+- The analytical fixture oracle lives only in
+  `tests/fixtures/twin_continuation/mc_early_close_reference.json`.
+
+Exact reproduction with the existing saved source, matching the reference's
+reported price-change arithmetic (choose a new output shortcut):
+
+```sh
+.venv/bin/python -m alphaquest.run_backtest \
+  --database data/datasets.sqlite3 \
+  --dataset-id 094287965d4444f69cb7eefe0d2f054c \
+  --output artifacts/twin-mc-repeat-NEW \
+  --strategy-id twin_continuation \
+  --initial-capital 10000 --slippage-ticks 0 \
+  --commission-per-contract-per-side 0 \
+  --is-start 2021-01-01 --is-end 2024-12-31 \
+  --oos-start 2025-01-01 --oos-end 2026-07-07
+
+.venv/bin/python tests/review_twin_mc_reference.py \
+  --reference artifacts/twin-mc-early-close-parity-20261109/mc-reference.xlsx \
+  --report artifacts/twin-mc-repeat-NEW \
+  --output artifacts/twin-mc-comparison-NEW
+```
+
+Expected: 499 trades, 343 winners / 156 losers, 165005 gross/net with these zero
+costs, and all 499 qualification rows marked exact. Default source Inputs plus
+`max_bars_back=5` and `use_session_calendar=true` apply. The starting capital is
+an explicit AlphaQuest comparison setting, not recovered MC Settings. In the
+portal select the saved NQ dataset and Twin, leave each parameter start=end,
+review the saved IS/OOS dates, keep Use session calendar on, and enter these
+costs. Before Run, the existing calendar panel identifies the CSV and same-Close
+policy. In the report, inspect **Dataset, strategy & settings used**: mode
+`twin_csv_session_close_v2`, calendar SHA-256, zero-minute buffer, 1034 observed
+sessions / 36 shortened sessions. Download ordinary trade/equity/risk CSVs and
+report JSON; inspect the three rows above. Reopening reads the saved result.
+
+Saved normal-product browser demonstration:
+
+`artifacts/twin-calendar-product-verified-20261109/verification.json` records a
+clearly labelled synthetic source, backtest `e6f805119c984d52855b68dbfcd925f8`,
+one-trial grid `b54343c2ce0546d4bfa09cea25902695` with `automatic_prop=false`,
+and manual local analysis `0eb7dff26b89401397ef5dad783a0563`. The journey is
+Datasets → save → Backtests → Twin/calendar → declare IS/OOS → Run → ordinary
+report/downloads → Configure prop analysis → Check source → Run → saved local
+report/ZIP → reload unchanged. It uses existing product surfaces/stores. The
+manual demonstration explicitly sets Total NQ limit 0.1 and retains source
+costs; it does not alter the user's strategy or real report configuration.
+
+Independent synthetic expectations: two MO long entries fill 112.25; the
+2024-06-19 and 2024-07-04 noon closing prices fill 119.75 after one adverse tick.
+Each nets `(119.75-112.25)*20-2=148`, total **296 CU**. The normal source check
+reconciles two native risk records, net 296 and commission 4 with zero measured
+MAE/MFE. The saved local analysis exposes no training/validation pass and no
+funded estimate, rather than inventing acquisition cash. Source bytes, report
+JSON and prop downloads are verified after reload. Screenshots, CSV/JSON and
+analysis ZIP are retained. Earlier failed review attempts remain preserved;
+the verified directory above is the completed demonstration.
+
+```sh
+.venv/bin/python tests/review_twin_calendar.py --output artifacts/twin-calendar-NEW
+```
+
+Its temporary server stops automatically. To inspect this isolated synthetic
+library later, optionally start
+`ALPHAQUEST_DATA_DIR="$PWD/artifacts/twin-calendar-product-verified-20261109" .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8001`
+and open its recorded report paths; stop with Ctrl-C. No persistent server was
+started for this work; the user's existing server remains available.
+
+Validation: **198 targeted tests passed**, covering the new MC-based oracles,
+source admission/coverage, missing/truncated early closes, bracket priority,
+source costs once, outward target ticks, fixed-clock compatibility, existing
+execution/VWAP/API/reuse and phase identity. The existing compiled C# core
+comparison also passed 18,556 bars with 15 state fields/effective orders
+(`artifacts/twin-csharp-calendar-20261109/verification.json`). Numerical parity
+here is for the supplied historical IS trade fields under stated settings;
+other Inputs, capped fractional stops, live fills, actual MC cost settings,
+provider certification and later OOS remain outside this qualification.

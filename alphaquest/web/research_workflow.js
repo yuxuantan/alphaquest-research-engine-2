@@ -910,7 +910,7 @@
       panel.append(node('p', 'Open a declared in-sample backtest to configure chronological research.')); return;
     }
     panel.append(node('p', 'Check whether strategy configurations remain credible across earlier training and later validation periods. Research settings and thresholds are saved before any work starts.'));
-    const history = node('div'), disclosure = node('details'); disclosure.id = 'robust-configure';
+    const history = node('div'), disclosure = node('details'); history.dataset.setupHistory='research'; disclosure.id = 'robust-configure';
     disclosure.append(node('summary', 'Configure nested research'));
     panel.append(history, disclosure);
     const loading = node('p', 'Loading research settings…'); disclosure.append(loading);
@@ -939,7 +939,7 @@
       const entries = new Map([...selected, ...matches.map(item => [`${kind.value}:${item.id}`, {kind: kind.value, id: item.id, item}])]);
       for (const [key, entry] of entries) {
         const label = node('label', undefined, 'robust-source-choice'), check = node('input');
-        check.type = 'checkbox'; check.checked = selected.has(key); check.disabled = !entry.item.selectable && !selected.has(key);
+        check.type = 'checkbox'; check.dataset.strategyId=entry.item.strategy_id||''; check.checked = selected.has(key); check.disabled = !entry.item.selectable && !selected.has(key);
         check.setAttribute('aria-label', `${candidateLabel(entry.item)} ${entry.id.slice(0, 8)}`);
         const text = node('span', `${candidateLabel(entry.item)} · ${entry.item.dataset_name || ''}${entry.kind === 'optimization_id' ? (entry.item.total_trials === undefined ? ' · saved optimization job' : ` · ${entry.item.total_trials} trials`) : ''} · ${entry.id.slice(0, 8)}${entry.item.reason ? ` · ${entry.item.reason}` : ''}`);
         check.onchange = () => { if (check.checked) selected.set(key, entry); else selected.delete(key); invalidate(); };
@@ -1223,7 +1223,7 @@
     };
     drawSources(); await Promise.all([loadSources(true), refreshHistory()]);
     if (window.researchWorkspace) { controller.markClean(); await window.researchWorkspace.attachDraftControls(form, controller, {draftId: options.draftId || null}); }
-    if (options.researchId) await watch(options.researchId);
+    if (options.researchId) void watch(options.researchId);
 
   }
   window.robustResearch = {configure, renderAnalysis, showEconomicSelection, showBaselines, showChronologicalFamily, policyLabel};

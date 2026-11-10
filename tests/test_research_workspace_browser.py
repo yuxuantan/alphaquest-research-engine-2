@@ -1,4 +1,5 @@
 """Existing portal drafts/templates preserve declarations before real research."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 import io
 import json
@@ -52,6 +53,7 @@ def test_draft_revision_template_fresh_preview_and_saved_research(page, portal, 
     page.locator('#workspace-items').screenshot(path=str(tmp_path/'draft-catalogue.png'))
     page.locator(f'#workspace-items article[data-id="{copy["id"]}"]').get_by_role('link',name='Continue draft').click()
     playwright.expect(page.locator('#workspace-form-status')).to_contain_text('revision 1 loaded',timeout=15000)
+    open_prop_task(page, 'research')
     playwright.expect(page.locator('#robust-run')).to_be_disabled()
     playwright.expect(page.locator('#robust-qualification-bootstrap_replicates')).to_have_value('800')
     page.locator('#workspace-save-name').fill('SYNTHETIC reusable declaration settings')
@@ -61,6 +63,7 @@ def test_draft_revision_template_fresh_preview_and_saved_research(page, portal, 
     assert not {'sources','source_backtest_id','campaign_id','baselines','confirmed_backtest_count'} & template['settings'].keys()
     # Reuse settings on a different chosen source, then explicitly add its neighbor.
     page.goto(portal['url']+'/#backtests/prop/new/'+records[1]['id'])
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click();open_controls(page)
     page.locator('#workspace-template-select').select_option(template['id'])
     page.locator('#workspace-template-apply').click()
@@ -149,6 +152,7 @@ def test_baseline_draft_missing_source_and_explicit_rebind(page,portal,tmp_path)
     playwright.expect(page.locator('#workspace-rebind-open')).to_be_enabled(timeout=15000)
     page.locator('#workspace-rebind-open').click()
     playwright.expect(page.locator('#workspace-form-status')).to_contain_text('revision 1 loaded',timeout=15000)
+    open_prop_task(page, 'research')
     for original in records:page.get_by_role('checkbox',name=re.compile(original['id'][:8])).uncheck()
     page.locator('#robust-preview').click()
     playwright.expect(page.locator('#robust-status')).to_contain_text('Plan needs attention')
@@ -171,6 +175,7 @@ def test_native_policy_draft_roundtrip_and_unsupported_membership_block(page,por
         original=source(client,days=7,payout=True)
     page.goto(portal['url']+'/#backtests/report/'+original['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     for key,value in dict(outer_train_sessions=4,outer_test_sessions=1,inner_train_sessions=1,
             inner_validation_sessions=1,purge_sessions=0,embargo_sessions=0,
@@ -198,6 +203,7 @@ def test_native_policy_draft_roundtrip_and_unsupported_membership_block(page,por
     assert [p['sizing']['policy']['kind'] for p in policies[2:]]==['fixed_dollar_risk','percentage_risk']*2
     page.goto(portal['url']+'/#backtests/research?draft='+draft['id'])
     playwright.expect(page.locator('#workspace-form-status')).to_contain_text('revision 1 loaded',timeout=15000)
+    open_prop_task(page, 'research')
     playwright.expect(page.locator('#robust-run')).to_be_disabled()
     playwright.expect(second.locator('.'+prefix+'policy-reference')).to_have_value('current_account_balance')
     page.locator('#workspace-draft-save').click()
@@ -217,6 +223,7 @@ def test_native_policy_draft_roundtrip_and_unsupported_membership_block(page,por
     unsupported=response.json()
     page.goto(portal['url']+'/#backtests/research?draft='+unsupported['id'])
     playwright.expect(page.locator('#workspace-form-status')).to_contain_text('No combinations were added or removed',timeout=15000)
+    open_prop_task(page, 'research')
     playwright.expect(page.locator('#robust-preview')).to_be_disabled()
     playwright.expect(page.locator('#robust-run')).to_be_disabled()
     assert page.request.get(portal['url']+'/api/research-workspace/drafts/'+unsupported['id']).json()['declaration']==unsupported['declaration']

@@ -58,6 +58,10 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
     from .execution_scenarios import resolve_execution_scenario, scenario_metadata
     saved_scenario = scenario_metadata(config, execution_scenario)
     config, fill_assumptions = resolve_execution_scenario(config, execution_scenario)
+    if not getattr(definition.module, 'SUPPORTS_DECISION_CAPTURE', True):
+        # Paired entry stops require a future multi-pending decision contract.
+        # Retain ordinary trade/risk reports without inventing that evidence.
+        capture_decisions = False
     timings = timings or Performance()
     processed = 0
     total = 0 if date_range and date_range.active else dataset["row_count"]
@@ -156,7 +160,7 @@ def run_backtest(store, runs: RunStore, run_id, dataset, definition, parameters,
                 or original_path.is_symlink() or not original_path.is_file()
                 or file_hash(original_path) != description.get('sha256')):
             raise ReportError('Saved native decision provenance is missing, changed or unsupported; no replay was published.')
-    definition.validate_instrument(parameters, dataset.get("symbol"))
+    definition.validate_source(parameters, dataset)
     market_benchmark = BenchmarkSettings.model_validate(market_benchmark or {}).model_dump()
     if source_record:
         market_benchmark = source_record.get('market_benchmark', {}).get('settings', market_benchmark)
@@ -316,7 +320,7 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
     if dataset.get("columns") != COLUMNS:
         raise HTTPException(422, "Unsupported dataset schema. Backtests require: " + ",".join(COLUMNS))
     try:
-        definition.validate_instrument(parameters, dataset.get("symbol"))
+        definition.validate_source(parameters, dataset)
         config = body.execution_settings.execution_config(dataset)
         plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
         await run_in_threadpool(request.app.state.research.claim, plan)

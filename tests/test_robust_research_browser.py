@@ -1,4 +1,5 @@
 """Actual saved-report -> nested qualification -> durable AnalysisStore report."""
+from prop_setup_helpers import open_prop_task
 from hashlib import sha256
 import json
 import re
@@ -14,6 +15,7 @@ def test_nested_research_preview_qualification_download_reopen(page, portal, tmp
         neighbor = save_source(client, days=20, green=2)
     page.goto(portal['url'] + '/#backtests/report/' + first['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     playwright.expect(page.locator('#robust-form')).to_be_visible()
     page.locator('#robust-name').fill('SYNTHETIC neighboring configurations · inner research')
@@ -80,11 +82,13 @@ def test_nested_research_preview_qualification_download_reopen(page, portal, tmp
     report_reopen_posts = list(posts)
     assert not report_reopen_posts
     page.locator('#prop-back').click()
+    open_prop_task(page, 'research')
+    page.locator('#prop-previous > summary').click()
+    page.locator('[data-setup-task-history=research] > summary').click()
     page.get_by_role('button', name='SYNTHETIC neighboring configurations · inner research · complete').click()
     playwright.expect(page.locator('#robust-result')).to_contain_text('Readiness: INCOMPLETE')
-    # Opening the existing prop configuration performs its read-only common-
-    # source-window POST. Neither report/history reopen may start calculations.
-    assert all(url.endswith('/api/research-campaigns/source-window') for url in posts)
+    # Research history initializes only after choosing its goal; reopening is GET-only.
+    assert not posts
     with ResearchHTTPClient(base_url=portal['url'], timeout=300) as client:
         for kind, content in snapshots.items():
             assert client.get(f'/api/research-campaigns/robust/{id}/exports/{kind}').content == content
@@ -103,6 +107,7 @@ def test_execution_scenarios_and_required_regime_evidence(page, portal, tmp_path
         source = save_source(client, days=20)
     page.goto(portal['url'] + '/#backtests/report/' + source['id'])
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'research', close_outer=True)
     page.locator('#robust-configure > summary').click()
     page.locator('#robust-name').fill('SYNTHETIC execution and causal regime checks')
     for key, value in dict(outer_train_sessions=10, outer_test_sessions=3,

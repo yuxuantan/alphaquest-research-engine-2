@@ -1,4 +1,5 @@
 """Actual report -> configure -> check -> run -> saved calibration/downloads."""
+from prop_setup_helpers import open_prop_task
 import csv
 from datetime import date,timedelta
 import io,json
@@ -13,8 +14,10 @@ def open_native(page,portal,record):
     page.goto(portal['url']+'/#backtests/report/'+record['id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-config')).to_be_visible()
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-advanced > summary').click()
     page.locator('#prop-trade-file').fill('')
+    open_prop_task(page, 'legacy', close_outer=False)
     page.locator('#prop-check').click()
     playwright.expect(page.locator('#prop-run')).to_be_enabled()
     page.locator('#prop-run').click()

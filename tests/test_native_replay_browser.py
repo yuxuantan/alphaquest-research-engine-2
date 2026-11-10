@@ -1,4 +1,5 @@
 """Real MNQ bars -> saved source -> native account control -> durable product evidence."""
+from prop_setup_helpers import open_prop_task
 from decimal import Decimal
 from hashlib import sha256
 import io
@@ -18,6 +19,7 @@ def configure(page, portal, record, phase='funded', kind='percentage_risk', risk
     page.goto(portal['url']+'/#backtests/report/'+record['id'])
     playwright.expect(page.locator('#report-prop-setup')).to_be_visible()
     page.locator('#report-prop-setup').click()
+    open_prop_task(page, 'inspect', close_outer=True)
     page.locator('#native-configure > summary').click()
     page.locator('#native-phase').select_option(phase)
     page.locator('#native-micros').fill(cap)
