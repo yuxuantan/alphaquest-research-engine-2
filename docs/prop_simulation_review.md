@@ -9774,3 +9774,83 @@ comparison also passed 18,556 bars with 15 state fields/effective orders
 here is for the supplied historical IS trade fields under stated settings;
 other Inputs, capped fractional stops, live fills, actual MC cost settings,
 provider certification and later OOS remain outside this qualification.
+
+## 2026-11-10 — Main navigation workflow preview
+
+This increment on `epic/revamp-workflow` changes the existing main page to four
+navigation destinations, in order: **Dataset, Research, Campaigns, Prop Sim**.
+The Dataset screen markup is unchanged. Research now contains only a thesis and
+summary placeholder. The former research catalogue is detached from the main
+Research tab; existing `#backtests/research` bookmarks and report links remain
+available under Prop Sim, alongside prop draft helpers and saved backend records.
+
+Campaigns contains two hardcoded examples, **ORB + VWAP pullback** and **Twin
+continuation**, each mapped to one strategy code. Selecting a campaign shows its
+hypothesis, linked-research placeholder, shared entry/stop/target logic, broad
+and narrow parameters, source file path, and example ES/NQ periods and stages.
+These are labeled illustrative, not inferred from saved runs. **Saved runs** and
+**New backtest** retain access to the existing product routes.
+
+Prop Sim is a requested presentation placeholder in the main page, not a new
+calculation path or report store. It shows APEX 50K EOD, a checkbox dropdown with
+four example parameter sets, separate Evaluation and Funded sizing sections,
+an evaluation-profile selector, and a three-year cash table. Risk examples are
+$0/$200/$300/$50; no optimality or numerical parity is claimed. Annual costs,
+trader receipts and net remain `—`, because no source check or calculation ran.
+Existing backtest → configure → check → run → durable report paths and all
+calculation owners are unchanged. This prompt does not implement simulation or
+change source, account, selection or settlement behavior.
+
+Reproduce from this checkout:
+
+```sh
+.venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+1. Open `http://127.0.0.1:8017/`. Expect the four navigation buttons in the
+   specified order. Dataset upload, validation and library remain as before.
+2. Select **Research**. Expect “No research theses yet”, without WFA controls or
+   a saved campaign/study catalogue. `/#research` opens this empty thesis screen;
+   older `/#backtests/research` bookmarks still open saved studies under Prop Sim.
+3. Select **Campaigns**, then **Twin continuation**. Expect Twin-specific logic,
+   `twin_continuation.py` under **Source code**, and two illustrative datasets
+   dated 2021-01-01 → 2024-12-31. ES shows “Mechanic validation”; NQ shows
+   “IS broad · 1 pass”. Reload preserves the chosen campaign URL. Browser Back
+   restores ORB; `/#campaigns/missing` shows “Campaign not found”.
+4. Select **Prop Sim**. Expect four example inputs and separate sizing lists.
+   Select the first Twin Evaluation choice: the example profile reads **$300**.
+   Open **Choose strategy inputs**, uncheck every choice: both lists show the
+   empty state and the prior evaluation selection clears. Recheck one choice:
+   both lists contain just that choice. The three-year table always contains
+   nine `—` cells, with no fabricated cash outcomes. **+ Add inputs** reopens the
+   dropdown. These interactions send no mutation requests.
+5. At a 390px viewport, expect all four buttons in the top navigation, stacked
+   campaign/sizing sections, and no horizontal page overflow. From Campaigns,
+   **Saved runs** opens the retained browser and **New backtest** opens setup.
+6. Stop the optional manual server with **Ctrl-C**.
+
+Automated reproduction (use a fresh output directory to retain earlier evidence):
+
+```sh
+mkdir -p artifacts/workflow-nav-REVIEW
+.venv/bin/python -m pytest -q tests/test_workflow_navigation_browser.py \
+  --basetemp=artifacts/workflow-nav-REVIEW/browser
+```
+
+Saved browser evidence: `artifacts/workflow-nav-20261110/evidence/`
+contains desktop Research/Campaigns/Prop Sim screenshots, mobile Campaigns/Prop
+Sim screenshots, and `navigation.json`. Tests use an isolated synthetic library
+and stop their temporary servers. No persistent server is started by this work.
+The screenshots and JSON document UI behavior, not simulated performance.
+Earlier dated numerical findings and evidence remain unchanged. Existing saved-run
+browser journeys now enter via Campaigns → Saved runs.
+The old saved-study route is retained separately from the new thesis tab.
+
+Validation: **52 affected browser checks passed** (51 in the affected-module run,
+plus the saved-run navigation/reload check), including
+Dataset upload/edit/download/delete, backtest input persistence, report reopening,
+automatic prop reports, optimization results, compact-report → prop-analysis
+execution/downloads, and the retained saved-study catalogue. JavaScript syntax,
+unchanged Dataset markup and `git diff --check` also passed. The verification
+manifest and screenshot checksums are saved in `evidence/verification.json`.
+This is targeted UI/workflow verification, not a full-suite or provider-parity claim.

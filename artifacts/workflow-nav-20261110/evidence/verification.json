@@ -1,0 +1,53 @@
+{
+  "branch": "epic/revamp-workflow",
+  "base_commit": "a43cadda5174dd3d3772a192c2451cbfd1421cae",
+  "browser_tests": {
+    "passed": 52,
+    "failed": 0,
+    "duration_seconds": 263.79,
+    "modules": [
+      "test_workflow_navigation_browser",
+      "test_backtests_browser",
+      "test_dataset_instrument_browser",
+      "test_backtest_date_range_browser",
+      "test_automatic_prop_browser",
+      "test_optimization_browser",
+      "test_optimization_compact_browser",
+      "test_research_workspace_find_browser",
+      "test_strategies_browser::test_two_column_instrument_library_opens_saved_reports_and_survives_reload"
+    ],
+    "runs": [
+      {
+        "passed": 51,
+        "duration_seconds": 257.75
+      },
+      {
+        "passed": 1,
+        "duration_seconds": 6.04
+      }
+    ]
+  },
+  "static_checks": [
+    "node --check alphaquest/web/workflow.js",
+    "node --check alphaquest/web/backtests.js",
+    "git diff --check",
+    "Dataset screen markup byte-identical to base commit"
+  ],
+  "scope": "Main-page navigation and clearly labeled illustrative previews; no calculation changes.",
+  "temporary_servers": "Stopped by fixture teardown; no persistent server started.",
+  "file_sha256": {
+    "alphaquest/web/index.html": "13aae2fc444f94649e6b831da86805fe116d939caee17fc7b5950eb65583928d",
+    "alphaquest/web/backtests.js": "d53f41ff4b59ff1d5ca8824a3fb68a99d192c88da2bd0c3054c5679c6ec7fa04",
+    "alphaquest/web/styles.css": "cb29e3c94f8259ccef9e72e4312dcb9708d6c60b35b3709bf49bdbf26c104f68",
+    "alphaquest/web/workflow.js": "b4e56990b81bc14852de2ceda7f4031b6994a2d9f80efc1641b7e0e755e0b3a1",
+    "tests/test_workflow_navigation_browser.py": "3dde0e63cf17aaa71230951c749695f660f4b2eed93fe455709099dde3730c99"
+  },
+  "evidence_sha256": {
+    "navigation.json": "464e6987877c3a55921963c16b1bb34c8f4b536d795712a7b0eea9f22291e976",
+    "prop-sim-mobile.png": "c453d232cd43655014b0a0f40d8caa23553eac3364de982625825cc14cc11060",
+    "campaigns-mobile.png": "f7b1bba2f66de89ca8bc1f7b3a3851dc68baed4f80d3fee8467f1e6b3c111d75",
+    "campaigns-desktop.png": "9ec8836cd3af09c96eb686969cbe948b4a66c36cea96bd08ecf66d42d2e702e9",
+    "prop-sim-desktop.png": "435bcb20a7125c229748699b1f1cccd7f94f6738271b2a488a2de9bd7ee7b962",
+    "research-desktop.png": "e1738259af75ec42d6f69542255d6b652bd92b9d69877ca911f0d1833b757cdf"
+  }
+}

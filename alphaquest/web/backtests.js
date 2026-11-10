@@ -514,24 +514,38 @@
   window.addEventListener("research-split-changed", controls);
 
   function navigate() {
-    const screen = location.hash.startsWith("#backtests/research") ? "research" : location.hash.startsWith("#strategies") ? "strategies" : location.hash.startsWith("#optimizations") ? "optimizations" : location.hash.startsWith("#backtests") ? "backtests" : "datasets";
-    get("#strategies-screen").hidden=screen!=="strategies";
-    get("#research-workspace-screen").hidden=screen!=="research";
-    get("#datasets-screen").hidden = screen !== "datasets";
-    get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || location.hash.startsWith("#backtests/prop/");
-    get("#prop-screen").hidden = !location.hash.startsWith("#backtests/prop/");
-    const title = screen === "research" ? "Research" : screen === "datasets" ? "Datasets" : "Strategies";
+    const hash = location.hash;
+    const screen = hash === "#research" ? "research"
+      : hash.startsWith("#backtests/research") ? "research-workspace"
+      : hash.startsWith("#campaigns") ? "campaigns"
+      : hash === "#prop-sim" ? "prop-sim"
+      : hash.startsWith("#strategies") ? "strategies"
+      : hash.startsWith("#optimizations") ? "optimizations"
+      : hash.startsWith("#backtests") ? "backtests" : "datasets";
+    for (const name of ["datasets", "strategies", "research", "research-workspace", "campaigns", "prop-sim"]) {
+      get(`#${name}-screen`).hidden = screen !== name;
+    }
+    get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || hash.startsWith("#backtests/prop/");
+    get("#prop-screen").hidden = !hash.startsWith("#backtests/prop/");
+    const navigation = hash.startsWith("#backtests/prop/") || screen === "research-workspace" ? "prop-sim"
+      : ["strategies", "backtests", "optimizations"].includes(screen) ? "campaigns" : screen;
+    const title = {datasets: "Datasets", research: "Research", campaigns: "Campaigns", "prop-sim": "Prop Sim"}[navigation];
     get("#current-screen").textContent = title;
     document.title = `${title} · AlphaQuest`;
     get("#backtests-title").textContent = "Run backtests.";
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
-      const active = link.dataset.screen === (screen === "research" ? "research" : screen === "datasets" ? "datasets" : "strategies");
+      const active = link.dataset.screen === navigation;
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = screen === "research" ? "Research · Saved declarations, evidence and next actions" : screen === "strategies" ? "Strategies · Datasets and IS/OOS runs" : ["backtests", "optimizations"].includes(screen) ? "Backtests · Exhaustive parameter research" : "Dataset management · Component 1 of your research workflow";
+    get("#footer-context").textContent = {
+      research: "Research · Theses and summaries",
+      campaigns: "Campaigns · Strategy logic, datasets and phases",
+      "prop-sim": "Prop Sim · Evaluation, funded sizing and cash outcomes",
+      datasets: "Dataset management · Component 1 of your research workflow",
+    }[navigation];
     if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
   window.addEventListener("hashchange", navigate);

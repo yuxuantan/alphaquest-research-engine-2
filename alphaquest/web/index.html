@@ -13,6 +13,7 @@
     <script src="/static/optimization-columns.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/workflow.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research_reservations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
@@ -45,15 +46,16 @@
       </div>
       <p class="nav-label">WORKSPACE</p>
       <nav aria-label="Main navigation">
-        <a class="nav-item active" href="#datasets" data-screen="datasets" aria-label="Datasets" aria-current="page"
-          ><span class="nav-icon">▤</span>Datasets<span
+        <a class="nav-item active" href="#datasets" data-screen="datasets" aria-label="Dataset" aria-current="page"
+          ><span class="nav-icon">▤</span>Dataset<span
             class="nav-count"
             id="nav-count"
             >0</span
           ></a
         >
-        <a class="nav-item" href="#strategies" data-screen="strategies" aria-label="Strategies"><span class="nav-icon">↗</span>Strategies</a>
-        <a class="nav-item" href="#backtests/research" data-screen="research" aria-label="Research"><span class="nav-icon">▦</span>Research</a>
+        <a class="nav-item" href="#research" data-screen="research" aria-label="Research"><span class="nav-icon">▦</span>Research</a>
+        <a class="nav-item" href="#campaigns" data-screen="campaigns" aria-label="Campaigns"><span class="nav-icon">↗</span>Campaigns</a>
+        <a class="nav-item" href="#prop-sim" data-screen="prop-sim" aria-label="Prop Sim"><span class="nav-icon">◈</span>Prop Sim</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -71,9 +73,10 @@
           <strong id="current-screen">Datasets</strong></span
         ><span class="version">ALPHAQUEST <span>02</span></span>
         <nav class="mobile-nav" aria-label="Mobile navigation">
-          <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
-          <a href="#strategies" data-screen="strategies">Strategies</a>
-          <a href="#backtests/research" data-screen="research">Research</a>
+          <a href="#datasets" data-screen="datasets" aria-current="page">Dataset</a>
+          <a href="#research" data-screen="research">Research</a>
+          <a href="#campaigns" data-screen="campaigns">Campaigns</a>
+          <a href="#prop-sim" data-screen="prop-sim">Prop Sim</a>
         </nav>
       </header>
       <main>
@@ -318,7 +321,29 @@
           </section>
         </section>
 
-        <section id="research-workspace-screen" aria-label="Research workspace" hidden></section>
+        <section id="research-workspace-screen" aria-label="Saved research workspace" hidden></section>
+        <section id="research-screen" aria-labelledby="research-title" hidden>
+          <div class="page-heading"><div><div class="eyebrow">IDEAS BEFORE EXPERIMENTS</div><h1 id="research-title">Research<span class="heading-dot">.</span></h1><p>A home for research theses and their summaries.</p></div></div>
+          <div class="panel workflow-empty"><span class="workflow-empty-icon" aria-hidden="true">▦</span><h2>No research theses yet</h2><p>Research theses and summaries will live here. Campaigns will reference the research behind each strategy.</p><span class="pill neutral">Coming in a future workflow update</span></div>
+        </section>
+        <section id="campaigns-screen" aria-labelledby="campaigns-title" hidden>
+          <div class="page-heading"><div><div class="eyebrow">FROM THESIS TO STRATEGY</div><h1 id="campaigns-title">Campaigns<span class="heading-dot">.</span></h1><p>One campaign for each strategy code. Follow its logic, datasets and latest phase.</p></div><div class="report-downloads"><a href="#strategies" class="button secondary">Saved runs</a><a href="#backtests/new" class="button primary">New backtest →</a></div></div>
+          <p class="workflow-notice">Illustrative campaign details, dataset periods and stages. These examples do not describe saved runs.</p>
+          <div class="workflow-campaign-layout"><nav id="workflow-campaign-list" class="panel workflow-campaign-list" aria-label="Campaign list"></nav><div id="workflow-campaign-detail" class="panel workflow-campaign-detail" aria-live="polite"></div></div>
+        </section>
+        <section id="prop-sim-screen" aria-labelledby="prop-sim-title" hidden>
+          <div class="page-heading"><div><div class="eyebrow">STRATEGIES TO ACCOUNT OUTCOMES</div><h1 id="prop-sim-title">Prop Sim<span class="heading-dot">.</span></h1><p>Compare evaluation sizing, funded sizing and simulated cash outcomes.</p></div><span class="pill neutral">Workflow preview</span></div>
+          <p class="workflow-notice">Placeholder values only. No source check, optimization or simulation is run from this preview. Risk amounts are illustrative; profits are not calculated.</p>
+          <section class="panel workflow-inputs" aria-labelledby="prop-preview-inputs-title">
+            <label for="prop-preview-account">Account profile</label><select id="prop-preview-account"><option>APEX › 50K EOD</option></select>
+            <h2 id="prop-preview-inputs-title">Strategy inputs</h2><p class="muted">Select one or more example parameter sets.</p>
+            <details id="prop-preview-picker"><summary>Choose strategy inputs <span id="prop-preview-count"></span></summary><div id="prop-preview-options"></div></details>
+            <div id="prop-preview-selected" class="workflow-selected-inputs" aria-live="polite"></div>
+            <button id="prop-preview-add" class="button secondary" type="button">+ Add inputs</button>
+          </section>
+          <div class="workflow-sizing-layout"><section class="panel workflow-sizing" aria-labelledby="prop-preview-eval-title"><h2 id="prop-preview-eval-title">Optimal sizing · Evaluation</h2><p class="muted">Illustrative frontier · choose an evaluation profile</p><div id="prop-preview-evaluation"></div></section><section class="panel workflow-sizing" aria-labelledby="prop-preview-funded-title"><h2 id="prop-preview-funded-title">Optimal sizing · Funded</h2><p class="muted">Illustrative funded choices · no ranking calculated</p><div id="prop-preview-funded"></div></section></div>
+          <section class="panel workflow-profits" aria-labelledby="prop-preview-profits-title"><h2 id="prop-preview-profits-title">Simulated profits</h2><p id="prop-preview-profile" aria-live="polite"></p><p class="muted">A future update will apply the selected evaluation profile and best funded choice.</p><div class="workflow-table-scroll"><table class="library-table"><caption>Placeholder annual cash outcomes · no simulation results</caption><thead><tr><th>Year</th><th>Cost</th><th>Trader receipts</th><th>Net</th></tr></thead><tbody><tr><td>Year 1</td><td>—</td><td>—</td><td>—</td></tr><tr><td>Year 2</td><td>—</td><td>—</td><td>—</td></tr><tr><td>Year 3</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div></section>
+        </section>
         <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
           <div id="backtest-setup">
           <a href="#strategies" class="eyebrow">← Back to Strategies</a>

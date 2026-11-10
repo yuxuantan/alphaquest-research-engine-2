@@ -1,0 +1,11 @@
+{
+  "destinations": [
+    "Dataset",
+    "Research",
+    "Campaigns",
+    "Prop Sim"
+  ],
+  "campaigns": 2,
+  "datasets_unchanged": true,
+  "mutation_requests": []
+}

@@ -33,9 +33,9 @@ def test_two_column_instrument_library_opens_saved_reports_and_survives_reload(p
     requests=[];page.on('request',lambda r:requests.append(r.url))
     page.goto(portal['url']+'/#strategies')
     nav=page.get_by_role('navigation',name='Main navigation')
-    assert nav.get_by_role('link').evaluate_all('links => links.map(n=>n.getAttribute("aria-label"))')==['Datasets','Strategies','Research']
-    playwright.expect(nav.get_by_role('link',name='Research',exact=True)).to_have_attribute('href','#backtests/research')
-    playwright.expect(page.locator('#strategy-groups a')).to_have_text(['Consecutive Green Hold','Vwap Pullback Risk Sizing'])
+    assert nav.get_by_role('link').evaluate_all('links => links.map(n=>n.getAttribute("aria-label"))')==['Dataset','Research','Campaigns','Prop Sim']
+    playwright.expect(nav.get_by_role('link',name='Research',exact=True)).to_have_attribute('href','#research')
+    playwright.expect(page.locator('#strategy-groups a')).to_have_text(['Consecutive Green Hold','Twin Continuation','Vwap Pullback Risk Sizing'])
     playwright.expect(page.locator('#strategy-results')).to_be_empty()
     assert not any('/datasets/' in url and '/backtests' in url for url in requests)
     playwright.expect(page.locator('#strategy-datasets-status')).to_contain_text('Select a strategy')
