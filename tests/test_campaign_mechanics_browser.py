@@ -34,6 +34,7 @@ def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path)
     assert page.locator('#mechanic-content button').count()==1
     assert page.locator('#mechanic-metrics').count()==0
     playwright.expect(page.locator('#mechanic-phases button:disabled')).to_have_count(3)
+    playwright.expect(page.locator('#mechanic-phases .mechanic-step-index')).to_have_text(['01','02','03','04'])
     page.evaluate('scrollTo(0,0)')
     page.screenshot(path=str(tmp_path/'01-ready.png'),full_page=True)
     page.locator('#mechanic-run').click()
@@ -79,6 +80,7 @@ def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path)
     assert result['status']=='passed' and result['review']['confirmed_at_utc']
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
     playwright.expect(page.locator('#mechanic-content')).to_contain_text('Running and passing this phase will be added')
+    page.locator('#mechanic-phases').screenshot(path=str(tmp_path/'phase-sequence.png'))
     page.goto(workflow_url.rsplit('/',1)[0]+'/oos')
     playwright.expect(page.locator('#mechanic-status')).to_contain_text('Previous phases must all pass')
     page.goto(portal['url']+'/#campaigns/consecutive_green_hold')

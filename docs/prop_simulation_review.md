@@ -10182,3 +10182,25 @@ opens the normal workflow. Saved screenshot:
 `artifacts/campaign-link-removal-20261110/evidence/campaign-navigation.png`.
 The one affected browser journey passed in **6.92s**; JavaScript syntax and
 `git diff --check` passed. Its temporary server stopped after the check.
+
+## 2026-11-10 — Sequential phase navigation
+
+The four phases now use numbered **01 → 02 → 03 → 04** chevrons to make their
+order explicit. The current phase is filled teal; passed phases show a checkmark;
+locked phases use subdued styling and remain disabled. The helper text reads
+“Complete each phase to unlock the next.” Desktop uses a left-to-right sequence;
+mobile uses downward-pointing segments in one column, preserving the same order.
+Buttons expose their step number, phase and state to assistive technology.
+
+To inspect, open a campaign dataset's mechanic page. Expect step 01 current and
+02–04 locked. After the normal row-by-row review and confirmation, expect 01
+passed and 02 ready. Open IS Broad: step 02 becomes current, with 03/04 still
+locked. At 390px, expect steps 01–04 stacked vertically without page overflow.
+Earlier saved reports and review evidence remain intact.
+
+Screenshots: `artifacts/phase-chevron-nav-20261110/evidence/phase-sequence.png`,
+`01-ready.png` and `04-mobile.png`. The one affected normal-product browser
+journey passed in **8.32s**, including phase ordering, disabled-state enforcement,
+confirmation and mobile layout. JavaScript syntax and `git diff --check` passed.
+Its temporary server stopped; no persistent server was started. Refresh the app
+page to load the updated frontend assets.

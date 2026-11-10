@@ -76,9 +76,15 @@
     get('#mechanic-source').textContent = `${saved.dataset.name} · ${saved.dataset.symbol || 'Unspecified instrument'} · IS ${saved.plan.is_start} → ${saved.plan.is_end} · ${saved.dataset.source_timezone}`;
     get('#mechanic-back').href = `#campaigns/${saved.strategy_id}`;
     const navigation = get('#mechanic-phases'); navigation.replaceChildren();
-    for (const item of workflow.phases) {
+    for (const [index,item] of workflow.phases.entries()) {
       const button = node('button',undefined,'mechanic-phase'); button.type = 'button'; button.dataset.phase = item.id;
-      button.append(node('strong',item.label),node('span',item.status.replaceAll('_',' ')));
+      button.dataset.status = item.status;
+      const number = node('span',String(index+1).padStart(2,'0'),'mechanic-step-index');
+      number.setAttribute('aria-hidden','true');
+      const copy = node('span',undefined,'mechanic-phase-copy');
+      copy.append(node('strong',item.label),node('span',item.status.replaceAll('_',' '),'mechanic-phase-state'));
+      button.append(number,copy);
+      button.setAttribute('aria-label',`Step ${index+1} of ${workflow.phases.length}: ${item.label}, ${item.status.replaceAll('_',' ')}`);
       button.disabled = item.status === 'locked';
       if (phase === item.id) button.setAttribute('aria-current','step');
       button.onclick = () => { location.hash = `#campaigns/workflows/${workflow.id}/${item.id}`; };
