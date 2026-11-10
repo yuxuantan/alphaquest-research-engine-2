@@ -14,6 +14,7 @@
       let data=await read(base);if(!alive())return;
       let state=data.state,job=data.job,preview=null,busy=false,sort='trial',direction='asc',offset=0;
       parent.replaceChildren();
+      if(data.legacy)parent.append(node('p',state.confirmed_at_utc?'Historical selection: confirmed under the earlier profitability-only rule. Preserved unchanged; it is not certified against the six new criteria.':'This earlier grid has no six-criterion evidence. Calculate and run a new grid before selecting configurations.','broad-legacy-note'));
       const config=node('section',undefined,'panel broad-panel');config.id='broad-config';
       config.append(node('h2','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
       const form=node('form'),fieldset=node('fieldset');form.append(fieldset);
@@ -60,7 +61,7 @@
       function requestGrid(){return {parameter_ranges:values(),workers:Number(workers.value)};}
       calculate.onclick=async()=>{
         if(!form.reportValidity()||busy)return;busy=true;calculate.disabled=true;
-        try{preview=await read(base+'/preview','POST',requestGrid());if(!alive())return;for(const [name,r] of ranges)r.count.textContent=preview.step_counts[name];count.textContent=`${preview.total_trials.toLocaleString()} iterations · IS only`;run.disabled=false;notice.textContent='Grid validated. Ready to run.';}
+        try{preview=await read(base+'/preview','POST',requestGrid());if(!alive())return;for(const [name,r] of ranges)r.count.textContent=preview.step_counts[name];count.textContent=`${preview.total_trials.toLocaleString()} iterations · IS only`;run.disabled=false;notice.textContent='Grid validated. Each configuration runs at normal costs and with +1 tick of slippage per fill.';}
         catch(error){if(alive()){preview=null;run.disabled=true;notice.textContent=error.message;}}
         finally{busy=false;if(alive())calculate.disabled=false;}
       };
@@ -70,7 +71,7 @@
         catch(error){if(alive())notice.textContent=error.message;}
         finally{busy=false;if(alive())fieldset.disabled=!!state.confirmed_at_utc||['queued','running'].includes(job?.status);}
       };
-      const outputs=node('section',undefined,'panel broad-panel');outputs.append(node('h2','IS Broad results'),node('p',`Eligibility: ${data.criterion}. Choose one or two eligible configurations, then confirm to continue.`));parent.append(outputs);
+      const outputs=node('section',undefined,'panel broad-panel');outputs.append(node('h2','IS Broad results'),node('p',`Eligibility: ${data.criterion} Choose one or two qualified configurations, then confirm to continue. Open a row’s eligibility details to see every measured check.`));parent.append(outputs);
       const progress=node('p');progress.id='broad-progress';progress.setAttribute('role','status');outputs.append(progress);
       const links=node('div',undefined,'mechanic-downloads');outputs.append(links);
       const panel=node('details',undefined,'optimization-freeze');panel.id='broad-columns';
@@ -128,8 +129,14 @@
           for(const row of page.items){const tr=node('tr');tr.dataset.trial=row.trial;if(!row.qualifies)tr.className='broad-ineligible';
             for(const [key] of headers){const td=node('td');td.dataset.column=key;
               if(key==='select'){const input=node('input');input.type='checkbox';input.dataset.selectTrial=row.trial;input.dataset.eligible=String(row.qualifies);input.setAttribute('aria-label',`Select trial ${row.trial}`);input.checked=state.selected_trials.includes(row.trial);input.onchange=()=>select(row.trial,input.checked);td.append(input);}
-              else if(key==='eligible')td.textContent=row.qualifies?'Profitable IS':'Not eligible · IS net must be > 0';
-              else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else action(td,'Open report',`#backtests/report/${row.run_id}`);}
+              else if(key==='eligible'){
+                const info=node('details',undefined,'broad-row-criteria'),measured=row.screening;
+                info.append(node('summary',row.legacy_screening?'Historical rule':!measured?'Not qualified · rerun required':measured.status==='insufficient_evidence'?'Insufficient evidence':row.qualifies?'Qualified · 6 / 6 passed':`Not qualified · ${measured.checks.filter(c=>c.passed).length} / 6 passed`));
+                if(measured){const list=node('ul');for(const check of measured.checks){const item=node('li',`${check.passed?'PASS':'FAIL'} · ${check.label}: ${check.actual}. Required: ${check.required}`);item.dataset.passed=String(check.passed);list.append(item);}info.append(list);}
+                else info.append(node('p','This historical grid only checked positive net profit. New selections require a new grid with all six criteria.'));
+                td.append(info);
+              }
+              else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
               else td.textContent=String(key==='trial'?row.trial:key.startsWith('param.')?row.parameters[key.slice(6)]:row.metrics[key]??'N/A');tr.append(td);
             }table.tBodies[0].append(tr);}
           columns.configure('campaign-broad:'+workflow.declaration.strategy_id,headers);

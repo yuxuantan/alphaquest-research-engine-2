@@ -22,4 +22,4 @@ alphaquest = ["web/*"]
 [tool.pytest.ini_options]
 # Temporary default while epic/revamp-workflow is being rebuilt one increment at
 # a time. Browser and legacy suites remain runnable by passing their paths.
-testpaths = ["tests/test_campaign_mechanics.py", "tests/test_job_history.py", "tests/test_campaign_broad.py"]
+testpaths = ["tests/test_campaign_mechanics.py", "tests/test_job_history.py", "tests/test_campaign_broad.py", "tests/test_workflow_criteria.py"]

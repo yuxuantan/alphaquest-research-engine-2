@@ -1941,3 +1941,12 @@ dialog::backdrop {
 #broad-frozen pre,.workflow-input-card pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
 #broad-confirm { white-space:normal; text-align:left; }
 @media(max-width:750px) { .broad-panel { padding:16px; } }
+.stage-criteria { padding:20px 24px; margin:20px 0; }
+.stage-criteria summary { cursor:pointer; padding:10px 0; font-weight:650; }
+.stage-criteria li { margin:8px 0; line-height:1.6; }
+.stage-criteria > p { color:var(--muted); line-height:1.6; }
+#broad-results td[data-column=eligible] { min-width:240px; max-width:480px; white-space:normal; }
+.broad-row-criteria summary { cursor:pointer; font-weight:600; }
+.broad-row-criteria li { margin:10px 0; line-height:1.5; overflow-wrap:anywhere; }
+.broad-row-criteria li[data-passed=false] { font-weight:650; }
+.broad-legacy-note { padding:16px; background:#fff4d6; border:1px solid #d6bb6c; border-radius:8px; }

@@ -10327,3 +10327,166 @@ was started. Reproduce only these affected checks with:
   tests/test_optimization_layout_browser.py::test_select_columns_reorder_both_groups_sort_and_persist \
   --basetemp=artifacts/is-broad-REVIEW/browser
 ```
+
+## 2026-11-10 — Six-criterion IS Broad gate and visible stage policies
+
+This increment replaces the profitability-only rule **for new IS Broad grids**
+with the six approved requirements in `docs/workflow_screening.md`. That document
+also preserves the agreed IS Narrow requirements for later implementation.
+Every workflow page now exposes **Passing criteria by stage**: mechanics and
+Broad are implemented; Narrow's additional tests and OOS execution are visibly
+pending. Expanding a future stage's rules does not execute it or unlock it.
+
+Each Broad configuration now runs twice through the existing native strategy
+and execution engine: normal costs and **one additional tick of slippage per
+fill**. Native stress reports use the existing backtest catalogue and files;
+the batch remains one history job, with each candidate linking its base and
+stress reports. The result CSV includes the new screening metrics. Each result
+also links a checked `is_screening.json` download containing the six measured
+verdicts, complete-month P&L, observed coverage, policy and stress provenance.
+
+The new streaming measurement observes every engine bar-close equity point,
+including unrealized P&L. Earlier trade-close summary metrics and old files are
+preserved. Policy snapshots bind the job, run and manual selection. The server
+requires all six checks and sufficient evidence, rechecks native artifact
+identities before confirmation/carry-forward, and blocks modified or missing
+evidence. Cached results include native stress evidence and its integrity checks.
+Both base and stress reports are retained against campaign deletion. No external
+engine, provider oracle or future IS Narrow calculation is invoked.
+
+Earlier **confirmed** profitability-only choices retain their original identities
+and display a historical-rule notice; they are not certified against the new
+six-test policy. Older **unconfirmed** grids display a rerun requirement and
+cannot select configurations until a new grid records the six tests. Saved old
+reports, screenshots, exports and reviews remain unchanged.
+
+Actual product evidence is saved in
+`artifacts/is-screening-20261110/evidence/`: stage/grid/results/Narrow/mobile
+screenshots, insufficient-history and cost-stress rejection screenshots, normal
+results JSON/CSV, frozen package, native screening measurements, labeled source
+CSVs, both selected native baseline/stress report pairs, their shared comparison
+artifacts, focused check logs and a SHA-256 manifest. `report-directories.json`
+maps chosen trials to the original native run IDs. This is synthetic workflow
+qualification; MC checkbox exercise is not measured MultiCharts/provider parity.
+
+### Reproduce the passing grid
+
+1. Restart with the new code. For an isolated inspection library:
+
+   ```sh
+   ALPHAQUEST_DATA_DIR=/tmp/alphaquest-six-criteria-review \
+     .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+   ```
+
+   Open `http://127.0.0.1:8017/`. Upload the saved `SYNTHETIC-source.csv`, using
+   a synthetic name/symbol, UTC timezone, tick size **0.25**, point value **10**.
+   Through Campaigns → Consecutive Green Hold → New backtest, select that source,
+   initial capital **10000**, slippage **1 tick per fill**, commission **1 per
+   contract per side**, IS **2024-01-01 → 2025-12-31**, and reserved OOS
+   **2026-01-01 → 2026-01-01**. The reserved bar's 900 price must not enter any
+   base/stress result or screening measurement.
+2. Run default mechanics and perform the required review/confirmation. The
+   synthetic source has **144 trades and 1872 net profit**. Open IS Broad. Expect
+   all six rules visible, including the 24-month/100-trade floor and cost stress.
+   Expand IS Narrow's rule summary even while it is locked: expect inherited
+   Broad tests, 70% profitable neighbors, three of four profitable time blocks
+   including the last, positive profit excluding the best month, and a
+   dependence/search-adjusted 95% lower daily-profit bound. Its status explicitly
+   says not implemented.
+3. Set green count **3 → 4, step 1**, hold minutes **20 → 60, step 20**, contracts
+   **1 → 3, step 1**, workers **1**. Calculate: expect **18 configurations**. The
+   portal explains that each runs at normal and extra-slippage costs. Run and
+   wait for **COMPLETE · 18 / 18**. Navigation/reload does not cancel execution;
+   Job history links back to Broad. Expect **37 native reports** (mechanics plus
+   18 base and 18 stress runs) and **2 history jobs**, without duplicate stress
+   jobs.
+4. Independent arithmetic: the source repeats the six-trade pattern from the
+   earlier mechanic fixture each month for 24 months. Each month's quote gains
+   sum to **120** per contract. Normal fills subtract **30** slippage and **12**
+   commissions: **78/month × 24 = 1872**. An extra tick per fill costs another
+   **30/month**, leaving **48/month × 24 = 1152** in the actual stress rerun.
+   Two and three contracts scale those exact source results. Thus the native
+   base net profits in trial order are:
+
+   ```text
+   1872, 3744, 5616, -1944, -3888, -5832, -504, -1008, -1512,
+   0, 0, 0, 0, 0, 0, 0, 0, 0
+   ```
+
+   Only trials **1–3** pass all six criteria. For trial 1, expect **24 months**,
+   **144 closed trades**, **24/24 profitable full months**, annual net profit
+   approximately **935.3406** over 731 days, and maximum **MTM drawdown 40.50**.
+   The legacy closed-trade drawdown remains **37**. The MTM low includes the
+   fourth trade's **3.50** entry cost/unrealized loss while still recovering
+   from the third trade's **37** loss. Longest MTM drawdown is **12180 seconds**
+   (11:01 → 14:24 on a pattern day), approximately **0.019285%** of IS. The
+   annual-profit/drawdown ratio is approximately **23.0948**.
+5. Open trial 1's eligibility details: expect six PASS rows and actual values.
+   Open its Cost-stress report: expect **144 trades, 1152 net profit**, with
+   slippage set to **2 ticks**. Download Screening measurements: expect those
+   values, complete monthly marks and the saved policy version `is-broad-v2`.
+   Losing/zero and insufficient-trade configurations remain dark and disabled.
+   Show/hide/freeze columns, then reload: layout preferences and results remain.
+6. Choose trials **2 and 3**, then confirm. IS Narrow displays the exact locked
+   parameters and **3744 / 5616** base profits; its criteria are visible but its
+   search is not implemented. Reload or reopen through Job history: choices
+   stay locked. OOS stays disabled. Downloads and review do not modify saved
+   native result files. Stop the optional server with Ctrl-C.
+
+### Reproduce the rejection cases
+
+- **Insufficient history:** upload `short-SYNTHETIC-source.csv`, using the same
+  instrument/cost settings, IS **2026-01-05**, OOS **2026-01-06**. After mechanics
+  review, run Broad at fixed defaults. Its **6 trades / +78 net** must show
+  **Insufficient evidence**, with history/trade and complete-month failures.
+  It cannot be selected or unlock Narrow despite positive profit.
+- **Cost fragility:** upload `cost-stress-SYNTHETIC-source.csv` and use the same
+  2024–2025 split/settings as the passing source. Run fixed defaults. Only the
+  final exit quote of each month's pattern changes from 104 to 99. This reduces
+  normal monthly net by **50**, giving **28 × 24 = 672**, and stressed net to
+  **−2 × 24 = −48**. Expect **Not qualified · 5 / 6 passed**, with cost stress
+  failing and the other five passing. Selection and confirmation stay disabled;
+  direct API selection also returns 409.
+- **Strict boundaries:** the contract checks cover exactly 24 months/100 trades
+  passing the evidence floor; 23 months/99 trades failing; profit or stress net
+  equal to zero failing; annual profit equal to DD failing; exactly 50%
+  profitable months failing; and drawdown duration exactly 25% failing. Partial
+  months, zero-observation months, source-timezone month boundaries, DST,
+  unresolved DD and padded declarations have independent numerical cases.
+- **Integrity and history:** changing a stress trade file blocks selection and
+  the screening download; changing a frozen base artifact blocks carry-forward.
+  Valid cached base/stress pairs reuse together without extra native reports.
+  Existing confirmed legacy choices reopen with their original rule and hashes;
+  incomplete old grids cannot pass the new gate without rerunning.
+
+Focused verification: **17 default backend checks passed in 35.56s**, **3 focused
+legacy reporting checks passed in 1.86s**, and **3 affected browser journeys
+passed in 28.91s**. The legacy cases prove historical trade-close summaries,
+open-equity reconciliation and compact outputs retain their contracts. The
+browser cases cover the passing grid, both explained rejections and existing
+mechanics review. One additional targeted replay check passed in **7.50s** after
+verifying that a normal full-detail replay can reuse the original candidate's
+bound native stress evidence and download its screening measurements. Original
+selection identity and source files remain unchanged. JavaScript syntax and source whitespace checks passed; raw
+downloaded CSV evidence retains native CRLF bytes. No full/180-test suite was
+run. Temporary browser servers stopped via fixture teardown; no persistent
+server was started.
+
+```sh
+.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -q \
+  tests/test_reporting.py::test_exact_sums_and_final_equity_reconcile_and_open_position_marks_are_preserved \
+  tests/test_reporting.py::test_compact_retains_exact_metrics_and_csvs_without_creating_arrays \
+  tests/test_drawdown.py::test_reporter_uses_closed_equity_after_costs_and_ignores_open_position_dips
+mkdir -p artifacts/is-screening-REVIEW
+.venv/bin/python -m pytest -x -q tests/test_campaign_broad_browser.py \
+  tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
+  --basetemp=artifacts/is-screening-REVIEW/browser
+```
+
+The ignored saved normal-product library is
+`artifacts/is-screening-20261110/browser-final/test_broad_search_columns_prof0`.
+Set `ALPHAQUEST_DATA_DIR` to that directory to reopen the saved workflow
+`/#campaigns/workflows/5699ee9da8344ff7ab0a28cfb722538c/is_broad` without recomputing.
+Portable exports and report artifacts remain available when that local test
+database is absent in another checkout.

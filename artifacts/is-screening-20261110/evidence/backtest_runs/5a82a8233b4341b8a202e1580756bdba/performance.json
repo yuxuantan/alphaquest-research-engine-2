@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "elapsed_seconds": 0.37818704202072695,
+  "phases_seconds": {
+    "source_loading": 0.008594373532105237,
+    "replay": 0.041175265272613615,
+    "report_writing": 0.1346569862216711,
+    "prop_analysis": 1.0829535312950611e-06,
+    "publication": 0.01669170899549499
+  },
+  "details": {}
+}

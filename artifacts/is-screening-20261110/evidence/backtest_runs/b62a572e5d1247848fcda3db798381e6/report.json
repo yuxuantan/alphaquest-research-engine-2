@@ -1,0 +1,455 @@
+{
+  "format_version": 2,
+  "status": "complete",
+  "created_at_utc": "2026-11-10T10:12:07.598338Z",
+  "period_start_utc": "2024-01-01T09:00:00Z",
+  "period_end_utc": "2025-12-31T09:00:00Z",
+  "timestamp_convention": "bar_close",
+  "execution_assumption": "same_close_full_fill",
+  "execution_settings": {
+    "initial_capital": "10000",
+    "tick_size": "0.25",
+    "point_value": "10",
+    "slippage_ticks": 1,
+    "commission_per_contract_per_side": "1"
+  },
+  "run_metadata": {
+    "dataset": {
+      "id": "9f3593076090498abf7dcb0da1e8a69d",
+      "name": "SYNTHETIC 24-month screening",
+      "sha256": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+      "source_timezone": "UTC",
+      "row_count": 579,
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      }
+    },
+    "instrument": {
+      "symbol": "SYNTHETIC",
+      "interval_seconds": null,
+      "interval_kind": "irregular"
+    },
+    "strategy": {
+      "id": "consecutive_green_hold",
+      "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+      "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+      "execution_assumption": "same_close_full_fill",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 2
+      }
+    },
+    "instrument_overrides": {},
+    "full_dataset": {
+      "id": "9f3593076090498abf7dcb0da1e8a69d",
+      "name": "SYNTHETIC 24-month screening",
+      "sha256": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+      "source_timezone": "UTC",
+      "row_count": 579,
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-01-01T09:00:00Z",
+      "symbol": "SYNTHETIC"
+    },
+    "research": {
+      "phase": "is",
+      "plan": {
+        "strategy_id": "consecutive_green_hold",
+        "source_sha256": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+        "source_timezone": "UTC",
+        "is_start": "2024-01-01",
+        "is_end": "2025-12-31",
+        "oos_start": "2026-01-01",
+        "oos_end": "2026-01-01",
+        "is_bars": 578,
+        "oos_bars": 1,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "workflow_id": "5699ee9da8344ff7ab0a28cfb722538c",
+      "workflow_phase": "is_broad",
+      "screening_policy": {
+        "version": "is-broad-v2",
+        "minimum_history_months": 24,
+        "minimum_closed_trades": 100,
+        "annual_profit_dd_ratio_gt": "1",
+        "profitable_months_pct_gt": "50",
+        "longest_dd_period_fraction_lt": "0.25",
+        "extra_slippage_ticks_per_fill": 1,
+        "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+        "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+        "annualization_days": "365.2425"
+      },
+      "cost_stress": {
+        "run_id": "4f414dfd8f1343caa60a3656f52283f6",
+        "summary": {
+          "initial_capital": "10000",
+          "final_equity": "12304.00",
+          "trades_taken": 144,
+          "winning_trades": 96,
+          "losing_trades": 48,
+          "breakeven_trades": 0,
+          "win_rate_pct": "66.66666666666666666666666667",
+          "total_gross_pnl": "2880.00",
+          "total_slippage_cost": "2880.00",
+          "total_commissions": "576",
+          "total_net_pnl": "2304.00",
+          "ending_position_contracts": 0,
+          "max_drawdown_amount": "84.00",
+          "max_drawdown_pct": "0.8339952343129467831612390786",
+          "max_drawdown_duration_seconds": "2664120"
+        },
+        "execution_settings": {
+          "initial_capital": "10000",
+          "tick_size": "0.25",
+          "point_value": "10",
+          "slippage_ticks": 2,
+          "commission_per_contract_per_side": "1"
+        },
+        "artifacts": {
+          "equity.csv": "8a77713b5325718c2cf6096b4344ff52543fcdcf7406790a88476c532734a63e",
+          "execution_decisions.jsonl": "cba54e5da80a7954e45ab54a931f0b4b1d9643665d58a4fbcc59a510f42f9eef",
+          "intratrade_risk.csv": "92b153c595e0e52fc80a599dc5b0c2d2773f685b8bdf3c78f0e05d75675ffa7a",
+          "market_benchmark.json": "cc98fb4dda800359a6a9c8ffb39d754c8a748ee0789b080967a7c91abd06e351",
+          "report.json": "c26a9e924d8de5a2dc515fa39125cea313216972f441f9daa518994842523c1d",
+          "strategy_equity_day.csv": "f87940fae1d3d7d5add85c5afdd6702e61df473b400c4ef02f18238079b18a35",
+          "trades.csv": "4427e786c812bd2d9d5129946f32cf2aa901a6ad2e00aadf8e00a381502ef8b3",
+          "shared_holding_day": "7b666eebd35b96da87b17a40f17fd156c407be7c9580e7679704f2e479c73082"
+        },
+        "report_sha256": "c26a9e924d8de5a2dc515fa39125cea313216972f441f9daa518994842523c1d"
+      }
+    },
+    "selection": {
+      "from_date": "2024-01-01",
+      "to_date": "2025-12-31",
+      "source_timezone": "UTC",
+      "warmup": "none",
+      "start_utc": "2024-01-01T09:00:00Z",
+      "first_source_bar_number": 1,
+      "end_utc": "2025-12-31T09:00:00Z",
+      "last_source_bar_number": 578,
+      "row_count": 578
+    }
+  },
+  "summary": {
+    "initial_capital": "10000",
+    "final_equity": "13744.00",
+    "trades_taken": 144,
+    "winning_trades": 120,
+    "losing_trades": 24,
+    "breakeven_trades": 0,
+    "win_rate_pct": "83.33333333333333333333333333",
+    "total_gross_pnl": "4320.00",
+    "total_slippage_cost": "1440.00",
+    "total_commissions": "576",
+    "total_net_pnl": "3744.00",
+    "ending_position_contracts": 0,
+    "max_drawdown_amount": "74.00",
+    "max_drawdown_pct": "0.7332540626238604835513277844",
+    "max_drawdown_duration_seconds": "14280"
+  },
+  "reconciliation": {
+    "total_net_equals_sum_trade_net": true,
+    "gross_minus_commissions_equals_net": true,
+    "final_equity_equals_initial_plus_net": true,
+    "equity_equals_cash_plus_unrealized_at_every_point": true,
+    "realized_net_equals_cash_minus_initial_at_every_point": true,
+    "final_position_flat": true,
+    "observed_bar_count": 578,
+    "expected_bar_count": 578
+  },
+  "artifacts": {
+    "report": "report.json",
+    "trades_csv": "trades.csv",
+    "equity_csv": "equity.csv",
+    "intratrade_risk_csv": "intratrade_risk.csv",
+    "is_screening_json": "is_screening.json",
+    "execution_decisions_jsonl": "execution_decisions.jsonl",
+    "market_benchmark_json": "market_benchmark.json",
+    "strategy_equity_day_csv": "strategy_equity_day.csv"
+  },
+  "intratrade_risk": {
+    "version": "held-ohlc-equity-bounds-v1",
+    "sha256": "48113db2efc4d464775b9e9e5f2406446ba1efd20fc4300917eb4e7bc51187db",
+    "trades": 144,
+    "ambiguous_trades": 0,
+    "cross_session_trades": 0,
+    "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements."
+  },
+  "is_screening": {
+    "policy": {
+      "version": "is-broad-v2",
+      "minimum_history_months": 24,
+      "minimum_closed_trades": 100,
+      "annual_profit_dd_ratio_gt": "1",
+      "profitable_months_pct_gt": "50",
+      "longest_dd_period_fraction_lt": "0.25",
+      "extra_slippage_ticks_per_fill": 1,
+      "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+      "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+      "annualization_days": "365.2425"
+    },
+    "metrics": {
+      "is_history_months": 24,
+      "is_annual_net_profit": "1870.681149110807113543091655",
+      "is_mtm_max_drawdown": "81.00",
+      "is_annual_profit_dd_ratio": "23.09482900136798905608755130",
+      "is_profitable_months_pct": "100",
+      "is_full_months": 24,
+      "is_longest_dd_pct": "0.01928484572123423012615899073",
+      "is_stress_net_profit": "2304.00"
+    },
+    "closed_trades": 144,
+    "total_net_pnl": "3744.00",
+    "months": [
+      {
+        "month": "2024-01",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-02",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-03",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-04",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-05",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-06",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-07",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-08",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-09",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-10",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-11",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2024-12",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-01",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-02",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-03",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-04",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-05",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-06",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-07",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-08",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-09",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-10",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-11",
+        "net_pnl": "156.00",
+        "complete": true
+      },
+      {
+        "month": "2025-12",
+        "net_pnl": "156.00",
+        "complete": true
+      }
+    ],
+    "observed_start": "2024-01-01",
+    "observed_end": "2025-12-31",
+    "period_start_utc": "2024-01-01T00:00:00+00:00",
+    "period_end_exclusive_utc": "2026-01-01T00:00:00+00:00",
+    "mtm_drawdown_duration_seconds": "12180",
+    "cost_stress": {
+      "run_id": "4f414dfd8f1343caa60a3656f52283f6",
+      "summary": {
+        "initial_capital": "10000",
+        "final_equity": "12304.00",
+        "trades_taken": 144,
+        "winning_trades": 96,
+        "losing_trades": 48,
+        "breakeven_trades": 0,
+        "win_rate_pct": "66.66666666666666666666666667",
+        "total_gross_pnl": "2880.00",
+        "total_slippage_cost": "2880.00",
+        "total_commissions": "576",
+        "total_net_pnl": "2304.00",
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "84.00",
+        "max_drawdown_pct": "0.8339952343129467831612390786",
+        "max_drawdown_duration_seconds": "2664120"
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "10",
+        "slippage_ticks": 2,
+        "commission_per_contract_per_side": "1"
+      },
+      "artifacts": {
+        "equity.csv": "8a77713b5325718c2cf6096b4344ff52543fcdcf7406790a88476c532734a63e",
+        "execution_decisions.jsonl": "cba54e5da80a7954e45ab54a931f0b4b1d9643665d58a4fbcc59a510f42f9eef",
+        "intratrade_risk.csv": "92b153c595e0e52fc80a599dc5b0c2d2773f685b8bdf3c78f0e05d75675ffa7a",
+        "market_benchmark.json": "cc98fb4dda800359a6a9c8ffb39d754c8a748ee0789b080967a7c91abd06e351",
+        "report.json": "c26a9e924d8de5a2dc515fa39125cea313216972f441f9daa518994842523c1d",
+        "strategy_equity_day.csv": "f87940fae1d3d7d5add85c5afdd6702e61df473b400c4ef02f18238079b18a35",
+        "trades.csv": "4427e786c812bd2d9d5129946f32cf2aa901a6ad2e00aadf8e00a381502ef8b3",
+        "shared_holding_day": "7b666eebd35b96da87b17a40f17fd156c407be7c9580e7679704f2e479c73082"
+      },
+      "report_sha256": "c26a9e924d8de5a2dc515fa39125cea313216972f441f9daa518994842523c1d"
+    },
+    "status": "qualified",
+    "qualifies": true,
+    "checks": [
+      {
+        "id": "evidence",
+        "label": "History and trades",
+        "passed": true,
+        "actual": "24 months; 144 closed trades",
+        "required": "\u2265 24 months and \u2265 100 closed trades"
+      },
+      {
+        "id": "net_profit",
+        "label": "Overall profitability",
+        "passed": true,
+        "actual": "3744.00",
+        "required": "Net IS profit > 0"
+      },
+      {
+        "id": "annual_profit_dd",
+        "label": "Annual profit / MTM drawdown",
+        "passed": true,
+        "actual": "Annual net 1870.681149110807113543091655; MTM drawdown 81.00",
+        "required": "Annualized net profit / MTM drawdown > 1"
+      },
+      {
+        "id": "profitable_months",
+        "label": "Profitable months",
+        "passed": true,
+        "actual": "100% of 24 complete months",
+        "required": "> 50% profitable; zero/no-trade months included"
+      },
+      {
+        "id": "drawdown_duration",
+        "label": "Longest MTM drawdown",
+        "passed": true,
+        "actual": "0.01928484572123423012615899073% of IS",
+        "required": "< 25% of IS, including unresolved drawdown"
+      },
+      {
+        "id": "cost_stress",
+        "label": "Extra-slippage native rerun",
+        "passed": true,
+        "actual": "2304.00",
+        "required": "Net profit > 0 with +1 tick per fill"
+      }
+    ],
+    "sha256": "94d4c6e50cf94304004742a55657cda32bd9194c9355ce4ac0fa5649cb78b381"
+  },
+  "execution_decisions": {
+    "version": "native-entry-decisions-v1",
+    "events": 432,
+    "decisions": 144,
+    "filled_trades": 144,
+    "cancelled_decisions": 0,
+    "bracket_submissions": 0,
+    "quantity_path_policy": "native_rerun_required",
+    "sha256": "ca95e1de824568a67c871cebf7a51f0a8f9a8cce72a71820bf08f40a367280f4",
+    "policy": "Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry."
+  },
+  "market_benchmark": {
+    "version": "price-series-holding-v1",
+    "settings": {
+      "contracts": 1
+    },
+    "observed_bar_count": 578,
+    "sha256": "d337218d0ab2705a9641d258b03291e8fcbd39f658544db9f3d32bc95eee4be6",
+    "equity_sha256": "02de4c09b21debf434f410b21b27bb44b6cb6ce168e43502ae8e0fddd8262ef3",
+    "storage": {
+      "version": "daily-shared-v1",
+      "granularity": "DAY",
+      "timezone": "UTC",
+      "day_boundary": "last_selected_bar_of_source_calendar_date",
+      "observed_day_count": 26,
+      "strategy_sha256": "5258aaa9d285f11098f043cc6e362ab1c63c462b13767d6cef1577dd18ed7bba",
+      "holding_key": "49d459ab50fb68a2d050d955943ce1011ce84fc7af12aebd4bb30a0fa401e631",
+      "holding_sha256": "945e0e7ad35c4d92351962faf133bad12cc4e452a20492fb1a15d91c5ec405cc"
+    }
+  },
+  "report_storage": {
+    "detail": "compact",
+    "compression": "none",
+    "per_bar_equity_retained": false,
+    "trades": "all",
+    "equity_csv": "initial_and_trade_close"
+  }
+}

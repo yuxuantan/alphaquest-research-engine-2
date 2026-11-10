@@ -140,6 +140,9 @@ class OptimizationStore:
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()},
                "metric_columns": list(METRICS if request.automatic_prop else BACKTEST_METRICS)}
+        if research and research.get('screening_policy'):
+            from .workflow_criteria import METRICS as SCREENING_METRICS
+            job['metric_columns'].extend(SCREENING_METRICS)
         with (self.runs.connect() if connection is None else nullcontext(connection)) as conn:
             conn.execute("INSERT INTO optimizations VALUES (?, ?, ?)", (job["id"], job["created_at_utc"], json.dumps(job)))
         return job
@@ -360,6 +363,9 @@ class OptimizationStore:
         """Only the coordinator publishes reports and writes the SQLite catalogue."""
         prop = result.get("prop_analysis")
         publishing = time.perf_counter()
+        if result.get('cost_stress'):
+            stress = result['cost_stress']
+            self.runs.complete(stress['run_id'], context.output_root / stress['run_id'], stress['manifest'])
         record = publish_backtest(self.runs, self.prop_analyses, run_id, context.output_root / run_id, result["manifest"],
                                   prop, context.output_root / ("prop-" + prop["id"]) if prop else None)
         if result.get('performance'):
@@ -372,6 +378,11 @@ class OptimizationStore:
                "parameters": record["run_metadata"]["strategy"]["parameters"],
                "metrics": {name: record["summary"][name] for name in BACKTEST_METRICS},
                "execution": result["execution"]}
+        if record.get('is_screening'):
+            row['screening'] = record['is_screening']
+            row['metrics'].update(record['is_screening']['metrics'])
+            stress = self.runs.get(record['is_screening']['cost_stress']['run_id'])
+            row['screening_evidence_identity'] = digest([record, artifacts(self.runs.root, record), stress, artifacts(self.runs.root, stress)])
         if prop:
             row.update(prop_analysis={key: prop[key] for key in ("id", "status", "historical_net", "reason")})
             row['prop_companions']=[{key:item[key] for key in ('id','status','historical_net','reason')} for item in prop.get('companions',[])]
@@ -383,6 +394,9 @@ class OptimizationStore:
             key = trial_key(job, row["parameters"])
             cached = {"row": row, "record_hash": digest(record), "artifacts": artifacts(self.runs.root, record),
                       "optimization_id": job_id}
+            if record.get('is_screening'):
+                stress = self.runs.get(record['is_screening']['cost_stress']['run_id'])
+                cached['stress_identity'] = digest([stress,artifacts(self.runs.root,stress)])
             if prop:
                 cached["prop_fingerprint"] = self.prop_analyses.fingerprint(prop["id"])
                 cached['companion_fingerprints']={item['id']:self.prop_analyses.fingerprint(item['id']) for item in prop.get('companions',[])}
@@ -428,6 +442,11 @@ class OptimizationStore:
         try:
             if not record or digest(record) != cached["record_hash"] or artifacts(self.runs.root, record) != cached["artifacts"]:
                 return False
+            if record.get('is_screening'):
+                from .workflow_criteria import verified_screening
+                _, stress = verified_screening(self.runs, record)
+                if digest([stress,artifacts(self.runs.root,stress)]) != cached.get('stress_identity'):
+                    return False
             if job.get("default_prop_profile"):
                 prop=cached["row"].get("prop_analysis")
                 if not prop or not cached.get("prop_fingerprint") or self.prop_analyses.fingerprint(prop["id"]) != cached.get("prop_fingerprint"):

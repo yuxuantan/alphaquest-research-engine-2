@@ -102,6 +102,11 @@ def generate_report(
     saw_exposure = False
     risk_count = ambiguous_risk = cross_session_risk = 0
     drawdown = None
+    screening = None
+    research = (metadata or {}).get('research') or {}
+    if research.get('workflow_phase') == 'is_broad' and research.get('screening_policy'):
+        from .workflow_criteria import ScreeningCapture
+        screening = ScreeningCapture(config.initial_capital, research, metadata['dataset']['source_timezone'])
     decision_capture = decision_summary = None
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
@@ -225,6 +230,8 @@ def generate_report(
                         drawdown = Drawdown(initial.equity, event.timestamp_utc)
                     if market_benchmark is not None:
                         market_benchmark.observe(event)
+                    if screening is not None:
+                        screening.observe(event)
                     last = event
             if decision_capture is not None:
                 decision_summary = decision_capture.finish(trade_count)
@@ -277,6 +284,12 @@ def generate_report(
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+        if screening is not None:
+            from .workflow_criteria import FILE
+            measurements = json.loads(json.dumps(screening.finish(trade_count, total_net), default=json_value, allow_nan=False))
+            (staging / FILE).write_text(json.dumps(measurements, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+            manifest['is_screening'] = dict(measurements, sha256=sha256((staging / FILE).read_bytes()).hexdigest())
+            manifest['artifacts']['is_screening_json'] = FILE
         if decision_summary is not None:
             manifest['artifacts']['execution_decisions_jsonl'] = DECISION_FILE
             manifest['execution_decisions'] = dict(decision_summary, sha256=sha256((staging / DECISION_FILE).read_bytes()).hexdigest(),

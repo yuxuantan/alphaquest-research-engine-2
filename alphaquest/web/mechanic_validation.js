@@ -91,6 +91,17 @@
       navigation.append(button);
     }
     const host = get('#mechanic-content'); host.replaceChildren();
+    const activeCriteria = token, criteriaHost = get('#workflow-stage-criteria');
+    criteriaHost.replaceChildren(node('h2','Passing criteria by stage'));
+    read('/api/campaign-workflow-criteria').then(data => {
+      if(activeCriteria!==token)return;
+      criteriaHost.append(node('p','Rules are fixed before the search. Insufficient evidence cannot qualify. IS calculations use bar-close equity including open P&L; this is not tick-level drawdown.'));
+      for(const stage of data.stages){
+        const details=node('details');details.dataset.stage=stage.id;details.open=stage.id===phase;
+        details.append(node('summary',`${stage.label} · ${stage.implemented?'Implemented':'Agreed plan · not implemented'}`));
+        const list=node('ol');for(const rule of stage.rules)list.append(node('li',rule));details.append(list);criteriaHost.append(details);
+      }
+    }).catch(error=>{if(activeCriteria===token)criteriaHost.append(node('p',error.message));});
     if (phase === 'is_broad') {
       const active=token;
       window.campaignBroad.render(host,workflow,{isCurrent:()=>active===token});

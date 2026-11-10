@@ -542,9 +542,16 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
 def download(run_id: UUID, kind: str, request: Request):
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control") or record is None:
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control", "is_screening") or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
     _verify_external(request, record)
+    if kind == 'is_screening':
+        from .workflow_criteria import FILE, verified_screening
+        try:
+            verified_screening(runs, record)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return FileResponse(runs.root / run_id.hex / FILE, media_type='application/json', filename=f'{run_id.hex}-{FILE}')
     if kind == 'native_account_control':
         description = record.get('native_account_control')
         path = runs.root / run_id.hex / 'native_account_control.json'

@@ -40,6 +40,11 @@ def trial_key(job, values):
 
 def artifacts(root, record):
     names = {"trades.csv", "equity.csv", record["artifacts"]["report"]}
+    if record.get('is_screening'):
+        from .workflow_criteria import FILE
+        if record['artifacts'].get('is_screening_json') != FILE:
+            raise ValueError('Unsupported IS screening artifact.')
+        names.add(FILE)
     if record.get("intratrade_risk"):
         names.add("intratrade_risk.csv")
     if record.get("execution_decisions"):

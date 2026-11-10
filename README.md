@@ -371,9 +371,12 @@ resuming computation.
 After mechanic review, open **IS Broad** in the campaign's phase navigation.
 Set each parameter's start/end/step, calculate iterations, and run the native
 IS-only optimization. The results retain show/hide, freeze and reorder controls.
-Select one or two configurations with strictly positive net IS profit after
-costs, then confirm to lock them and open IS Narrow with those saved inputs.
-Unprofitable and zero-profit rows cannot be selected. IS Narrow execution and
+Select one or two configurations passing all six agreed IS Broad criteria,
+then confirm to lock them and open IS Narrow with those saved inputs.
+Failed or insufficient-evidence rows cannot be selected. The portal shows the
+rules for every phase and each trial's six measured checks. See
+[the screening policy and future IS Narrow requirements](docs/workflow_screening.md).
+IS Narrow execution and
 OOS remain future work. Job history links back to the broad phase and its saved
 results; confirmed configurations and their source reports are retained.
 
@@ -381,8 +384,8 @@ results; confirmed configurations and their source reports are retained.
 .venv/bin/python -m pytest -q
 ```
 
-During `epic/revamp-workflow`, the default run temporarily selects only the twelve
-fast mechanics/job-history/IS Broad checks. Other tests are preserved but excluded from
+During `epic/revamp-workflow`, the default run temporarily selects only the seventeen
+focused mechanics/job-history/IS Broad criteria checks. Other tests are preserved but excluded from
 default discovery; select a file or test explicitly when its behavior changes.
 For UI changes, opt into only the affected browser journey, for example:
 

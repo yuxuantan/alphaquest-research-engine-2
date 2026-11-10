@@ -27,6 +27,7 @@ SOURCES = '''
         json_extract(r.manifest,'$.run_metadata.dataset.name'),r.manifest FROM runs r
  WHERE NOT EXISTS (SELECT 1 FROM mechanic_job_attempts j WHERE j.id=r.id)
    AND NOT EXISTS (SELECT 1 FROM optimization_trials t WHERE json_extract(t.payload,'$.run_id')=r.id)
+   AND COALESCE(json_extract(r.manifest,'$.run_metadata.research.workflow_phase'),'')<>'is_broad_cost_stress'
  UNION ALL
  SELECT 'prop_analysis',a.id,a.created,CASE a.status WHEN 'error' THEN 'failed' ELSE a.status END,
         COALESCE(json_extract(r.manifest,'$.run_metadata.strategy.id'),''),

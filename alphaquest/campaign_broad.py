@@ -16,8 +16,9 @@ from .optimization_cache import artifacts, digest, engine_identity
 from .research import SplitDeclaration, dates_for, metadata
 from .strategies.registry import get_strategy
 from .worker_limits import MAX_WORKERS
+from .workflow_criteria import policy, stage_criteria, verified_screening
 
-CRITERION = 'IS total_net_pnl > 0 after slippage and commissions'
+CRITERION = 'All six IS Broad criteria must pass; insufficient evidence cannot qualify.'
 
 
 class BroadGrid(BaseModel):
@@ -46,8 +47,12 @@ class ConfirmSelection(BaseModel):
 
 def eligible(row):
     try:
-        net = Decimal(str(row['metrics']['total_net_pnl']))
-        return net.is_finite() and net > 0 and not row.get('backtest_deleted',False)
+        from .workflow_criteria import evaluate
+        measured = row['screening']
+        if measured['policy'] != policy():
+            return False
+        checked = evaluate(measured['metrics'], measured['closed_trades'], measured['total_net_pnl'], measured['policy'])
+        return checked['qualifies'] and checked['checks'] == measured['checks'] and not row.get('backtest_deleted',False)
     except (KeyError,InvalidOperation,ValueError,TypeError):
         return False
 
@@ -81,7 +86,7 @@ def prepare(request, workflow_id, body):
         market_benchmark=declared['market_benchmark'])
     config = body_request.execution_settings.execution_config(dataset)
     token = digest(dict(workflow_identity=saved['identity'],mechanics=saved['review']['result_identity'],
-                        request=body_request.model_dump(),engine=engine_identity()))
+                        request=body_request.model_dump(),engine=engine_identity(),screening_policy=policy()))
     return saved,dataset,definition,config,axes,total,body_request,token
 
 
@@ -113,9 +118,9 @@ def launch(request, workflow_id, body):
         if state['revision'] != body.revision:
             raise ValueError('IS Broad changed in another tab. Reload before starting another grid.')
         job = optimizer.create(request_body,dataset,definition,config,axes,total,
-            metadata(saved['declaration']['plan'],workflow_id=workflow_id,workflow_phase='is_broad'),connection=db)
+            metadata(saved['declaration']['plan'],workflow_id=workflow_id,workflow_phase='is_broad',screening_policy=policy()),connection=db)
         state = dict(job_id=job['id'],revision=state['revision']+1,selected_trials=[],selection=[],
-                     confirmed_at_utc=None,preview_token=token,criterion=CRITERION)
+                     confirmed_at_utc=None,preview_token=token,criterion=CRITERION,screening_policy=policy())
         db.execute('INSERT INTO campaign_broad_jobs VALUES (?,?)',(job['id'],workflow_id))
         db.execute('INSERT INTO campaign_broad_state VALUES (?,?) ON CONFLICT(workflow_id) DO UPDATE SET payload=excluded.payload',
                    (workflow_id,json.dumps(state)))
@@ -129,7 +134,7 @@ def state_and_job(request, workflow_id):
     return saved,state,job
 
 
-def candidate(store, workflow_id, job_id, trial, db):
+def candidate(store, workflow_id, job_id, trial, db, legacy=False):
     found = db.execute('SELECT payload FROM optimization_trials WHERE optimization_id=? AND trial=?',(job_id,trial)).fetchone()
     if not found:
         raise ValueError('Selected configuration is not a member of this IS Broad job.')
@@ -138,8 +143,14 @@ def candidate(store, workflow_id, job_id, trial, db):
     if not raw:
         raise ValueError('Selected backtest report is unavailable.')
     report = json.loads(raw[0]); meta=report['run_metadata'];declared=store.raw(workflow_id,db)['declaration']
-    if (not eligible(row) or Decimal(str(report['summary']['total_net_pnl'])) != Decimal(str(row['metrics']['total_net_pnl']))):
-        raise ValueError('Only configurations with strictly positive IS net P&L after costs may be selected.')
+    stress = None
+    if not legacy:
+        measured, stress = verified_screening(store.runs, report)
+        if measured != row.get('screening') or not eligible(row):
+            raise ValueError('Only configurations passing all six IS Broad criteria may be selected.')
+    if (Decimal(str(report['summary']['total_net_pnl'])) <= 0 or
+        Decimal(str(report['summary']['total_net_pnl'])) != Decimal(str(row['metrics']['total_net_pnl']))):
+        raise ValueError('The selected report must have matching, positive net IS profit.')
     if (meta['strategy']['parameters'] != row['parameters'] or meta['strategy']['id'] != declared['strategy_id']
         or meta['strategy']['source_sha256'] != declared['strategy_source_sha256']
         or meta.get('research',{}).get('workflow_id') != workflow_id or meta['research'].get('workflow_phase') != 'is_broad'
@@ -147,7 +158,12 @@ def candidate(store, workflow_id, job_id, trial, db):
         or report['execution_settings'] != declared['execution_settings']
         or any(meta['dataset'][k] != declared['dataset'][k] for k in ('id','sha256','source_timezone'))):
         raise ValueError('Selected report does not match the saved IS source, parameters, costs and research window.')
-    identity = digest([report,artifacts(store.runs.root,report)])
+    evidence = [report,artifacts(store.runs.root,report)]
+    if stress:
+        evidence.extend([stress,artifacts(store.runs.root,stress)])
+    identity = digest(evidence)
+    if not legacy and identity != row.get('screening_evidence_identity'):
+        raise ValueError('Native IS screening artifacts changed after publication; selection is blocked.')
     return dict(trial=trial,run_id=row['run_id'],parameters=row['parameters'],total_net_pnl=row['metrics']['total_net_pnl'],report_identity=identity)
 
 
@@ -156,7 +172,7 @@ def validate_frozen(store, workflow_id, state):
         if not state['confirmed_at_utc'] or not 1 <= len(state['selection']) <= 2:
             raise ValueError('Confirm one or two eligible IS Broad configurations first.')
         for frozen in state['selection']:
-            if candidate(store,workflow_id,state['job_id'],frozen['trial'],db) != frozen:
+            if candidate(store,workflow_id,state['job_id'],frozen['trial'],db,legacy=not state.get('screening_policy')) != frozen:
                 raise ValueError('A frozen IS Broad report changed; the selection cannot advance.')
 
 
@@ -174,11 +190,13 @@ def save_selection(request, workflow_id, body, confirm=False):
         count=db.execute('SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?',(job['id'],)).fetchone()[0]
         if job['status']!='complete' or count!=job['total_trials'] or count!=job['completed_trials']:
             raise ValueError('Wait for the entire IS Broad grid to complete before selecting configurations.')
+        if state.get('screening_policy') != policy():
+            raise ValueError('This pending grid used the earlier profitability-only rule. Run a new IS Broad grid for the six agreed criteria.')
         if job['engine_identity']!=engine_identity():
             raise ValueError('Calculation code changed since this grid; run a new grid before confirming choices.')
         trials=state['selected_trials'] if confirm else body.trials
         if len(trials)!=len(set(trials)) or len(trials)>2 or (confirm and not trials):
-            raise ValueError('Select one or two distinct profitable parameter configurations.')
+            raise ValueError('Select one or two distinct configurations passing all six IS Broad criteria.')
         chosen=[candidate(store,workflow_id,job['id'],trial,db) for trial in trials]
         if len({digest(c['parameters']) for c in chosen})!=len(chosen):
             raise ValueError('Selected parameter configurations must be distinct.')
@@ -190,6 +208,11 @@ def save_selection(request, workflow_id, body, confirm=False):
 
 
 router=APIRouter()
+
+
+@router.get('/api/campaign-workflow-criteria')
+async def criteria():
+    return dict(stages=stage_criteria())
 
 
 async def invoke(function,*args,**kwargs):
@@ -205,7 +228,8 @@ async def invoke(function,*args,**kwargs):
 async def detail(workflow_id:UUID,request:Request):
     saved,state,job=await invoke(state_and_job,request,workflow_id.hex)
     definition=get_strategy(saved['declaration']['strategy_id']).description()
-    return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,criterion=CRITERION)
+    return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,criterion=CRITERION,
+                criteria=stage_criteria(),legacy=bool(job and not state.get('screening_policy')))
 
 
 @router.post('/api/campaign-workflows/{workflow_id}/broad/preview')
@@ -230,6 +254,9 @@ async def results(workflow_id:UUID,request:Request,sort:str='trial',direction:st
     page=await invoke(request.app.state.optimizations.page,job,sort,direction,offset,limit,0)
     for row in page['items']:
         row['qualifies']=eligible(row)
+        if state['confirmed_at_utc'] and not state.get('screening_policy'):
+            row['legacy_screening'] = True
+            row['qualifies'] = Decimal(str(row['metrics']['total_net_pnl'])) > 0 and not row.get('backtest_deleted')
         row['selected']=row['trial'] in state['selected_trials']
         row['selectable']=row['qualifies'] and job['status']=='complete' and not state['confirmed_at_utc']
     return page

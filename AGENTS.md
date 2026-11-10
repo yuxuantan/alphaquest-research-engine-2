@@ -1,7 +1,7 @@
 # Temporary test scope during the workflow revamp
 
 - Use the smallest test set relevant to the current change. A plain pytest run
-  selects the twelve fast mechanics/job-history/IS Broad checks via `pyproject.toml`.
+  selects the seventeen focused mechanics/job-history/IS Broad criteria checks via `pyproject.toml`.
 - For changes to the current UI, explicitly select the relevant cases in
   `tests/test_campaign_mechanics_browser.py` or
   `tests/test_workflow_navigation_browser.py`, `tests/test_job_history_browser.py`,
@@ -12,6 +12,14 @@
   increment. Run a specific older test only when the change affects its behavior,
   or run a broader suite when the user requests it. Extend the focused default
   as new workflow phases are implemented.
+
+# Agreed campaign screening policy
+
+Follow `docs/workflow_screening.md` for the approved IS Broad criteria and the
+additional IS Narrow criteria reserved for later implementation. The portal
+shares server-owned rules from `alphaquest/workflow_criteria.py`. Preserve policy
+snapshots and historical confirmations; do not relabel an older rule as passing
+a newer one or claim the displayed Narrow plan has been executed.
 
 # Prop simulation deliverables
 

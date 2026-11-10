@@ -1,0 +1,179 @@
+{
+  "format_version": 2,
+  "status": "complete",
+  "created_at_utc": "2026-11-10T10:12:07.417795Z",
+  "period_start_utc": "2024-01-01T09:00:00Z",
+  "period_end_utc": "2025-12-31T09:00:00Z",
+  "timestamp_convention": "bar_close",
+  "execution_assumption": "same_close_full_fill",
+  "execution_settings": {
+    "initial_capital": "10000",
+    "tick_size": "0.25",
+    "point_value": "10",
+    "slippage_ticks": 2,
+    "commission_per_contract_per_side": "1"
+  },
+  "run_metadata": {
+    "dataset": {
+      "id": "9f3593076090498abf7dcb0da1e8a69d",
+      "name": "SYNTHETIC 24-month screening",
+      "sha256": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+      "source_timezone": "UTC",
+      "row_count": 579,
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      }
+    },
+    "instrument": {
+      "symbol": "SYNTHETIC",
+      "interval_seconds": null,
+      "interval_kind": "irregular"
+    },
+    "strategy": {
+      "id": "consecutive_green_hold",
+      "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+      "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+      "execution_assumption": "same_close_full_fill",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 2
+      }
+    },
+    "instrument_overrides": {},
+    "full_dataset": {
+      "id": "9f3593076090498abf7dcb0da1e8a69d",
+      "name": "SYNTHETIC 24-month screening",
+      "sha256": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+      "source_timezone": "UTC",
+      "row_count": 579,
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-01-01T09:00:00Z",
+      "symbol": "SYNTHETIC"
+    },
+    "research": {
+      "phase": "is",
+      "plan": {
+        "strategy_id": "consecutive_green_hold",
+        "source_sha256": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+        "source_timezone": "UTC",
+        "is_start": "2024-01-01",
+        "is_end": "2025-12-31",
+        "oos_start": "2026-01-01",
+        "oos_end": "2026-01-01",
+        "is_bars": 578,
+        "oos_bars": 1,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "workflow_id": "5699ee9da8344ff7ab0a28cfb722538c",
+      "workflow_phase": "is_broad_cost_stress",
+      "screening_policy": {
+        "version": "is-broad-v2",
+        "minimum_history_months": 24,
+        "minimum_closed_trades": 100,
+        "annual_profit_dd_ratio_gt": "1",
+        "profitable_months_pct_gt": "50",
+        "longest_dd_period_fraction_lt": "0.25",
+        "extra_slippage_ticks_per_fill": 1,
+        "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+        "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+        "annualization_days": "365.2425"
+      },
+      "source_candidate_run_id": "b62a572e5d1247848fcda3db798381e6"
+    },
+    "selection": {
+      "from_date": "2024-01-01",
+      "to_date": "2025-12-31",
+      "source_timezone": "UTC",
+      "warmup": "none",
+      "start_utc": "2024-01-01T09:00:00Z",
+      "first_source_bar_number": 1,
+      "end_utc": "2025-12-31T09:00:00Z",
+      "last_source_bar_number": 578,
+      "row_count": 578
+    }
+  },
+  "summary": {
+    "initial_capital": "10000",
+    "final_equity": "12304.00",
+    "trades_taken": 144,
+    "winning_trades": 96,
+    "losing_trades": 48,
+    "breakeven_trades": 0,
+    "win_rate_pct": "66.66666666666666666666666667",
+    "total_gross_pnl": "2880.00",
+    "total_slippage_cost": "2880.00",
+    "total_commissions": "576",
+    "total_net_pnl": "2304.00",
+    "ending_position_contracts": 0,
+    "max_drawdown_amount": "84.00",
+    "max_drawdown_pct": "0.8339952343129467831612390786",
+    "max_drawdown_duration_seconds": "2664120"
+  },
+  "reconciliation": {
+    "total_net_equals_sum_trade_net": true,
+    "gross_minus_commissions_equals_net": true,
+    "final_equity_equals_initial_plus_net": true,
+    "equity_equals_cash_plus_unrealized_at_every_point": true,
+    "realized_net_equals_cash_minus_initial_at_every_point": true,
+    "final_position_flat": true,
+    "observed_bar_count": 578,
+    "expected_bar_count": 578
+  },
+  "artifacts": {
+    "report": "report.json",
+    "trades_csv": "trades.csv",
+    "equity_csv": "equity.csv",
+    "intratrade_risk_csv": "intratrade_risk.csv",
+    "execution_decisions_jsonl": "execution_decisions.jsonl",
+    "market_benchmark_json": "market_benchmark.json",
+    "strategy_equity_day_csv": "strategy_equity_day.csv"
+  },
+  "intratrade_risk": {
+    "version": "held-ohlc-equity-bounds-v1",
+    "sha256": "92b153c595e0e52fc80a599dc5b0c2d2773f685b8bdf3c78f0e05d75675ffa7a",
+    "trades": 144,
+    "ambiguous_trades": 0,
+    "cross_session_trades": 0,
+    "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements."
+  },
+  "execution_decisions": {
+    "version": "native-entry-decisions-v1",
+    "events": 432,
+    "decisions": 144,
+    "filled_trades": 144,
+    "cancelled_decisions": 0,
+    "bracket_submissions": 0,
+    "quantity_path_policy": "native_rerun_required",
+    "sha256": "cba54e5da80a7954e45ab54a931f0b4b1d9643665d58a4fbcc59a510f42f9eef",
+    "policy": "Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry."
+  },
+  "market_benchmark": {
+    "version": "price-series-holding-v1",
+    "settings": {
+      "contracts": 1
+    },
+    "observed_bar_count": 578,
+    "sha256": "cc98fb4dda800359a6a9c8ffb39d754c8a748ee0789b080967a7c91abd06e351",
+    "equity_sha256": "26448fbefbd046004f2e224a7388e5692c36dcef2256586961ebfc1b8629c48f",
+    "storage": {
+      "version": "daily-shared-v1",
+      "granularity": "DAY",
+      "timezone": "UTC",
+      "day_boundary": "last_selected_bar_of_source_calendar_date",
+      "observed_day_count": 26,
+      "strategy_sha256": "f87940fae1d3d7d5add85c5afdd6702e61df473b400c4ef02f18238079b18a35",
+      "holding_key": "611d4a7f402c3e667682f0d23a6d47b03402c77f8cc55635f8bbdac391020e52",
+      "holding_sha256": "7b666eebd35b96da87b17a40f17fd156c407be7c9580e7679704f2e479c73082"
+    }
+  },
+  "report_storage": {
+    "detail": "compact",
+    "compression": "none",
+    "per_bar_equity_retained": false,
+    "trades": "all",
+    "equity_csv": "initial_and_trade_close"
+  }
+}
