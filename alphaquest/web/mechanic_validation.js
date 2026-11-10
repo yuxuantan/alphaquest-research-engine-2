@@ -91,9 +91,22 @@
       navigation.append(button);
     }
     const host = get('#mechanic-content'); host.replaceChildren();
+    if (phase === 'is_broad') {
+      const active=token;
+      window.campaignBroad.render(host,workflow,{isCurrent:()=>active===token});
+      return;
+    }
     if (phase !== 'mechanic_validation') {
       const intro = node('section',undefined,'panel mechanic-results');
       intro.append(node('h2',workflow.phases.find(p => p.id === phase).label),node('p','Navigation is ready. Running and passing this phase will be added in a later update.'));
+      if(phase==='is_narrow') {
+        intro.append(node('h3','Confirmed IS Broad configurations'));
+        for(const chosen of workflow.broad.selection) {
+          const card=node('div',undefined,'workflow-input-card');
+          card.append(node('strong',`Trial ${chosen.trial} · IS net ${chosen.total_net_pnl} CU`),node('pre',JSON.stringify(chosen.parameters,null,2)));
+          link(card,'Open selected IS report',`#backtests/report/${chosen.run_id}`);intro.append(card);
+        }
+      }
       host.append(intro); return;
     }
     if (!workflow.review) {
@@ -160,7 +173,7 @@
     }
   }
   async function navigate() {
-    const active = ++token; clearTimeout(timer); saving=false;
+    const active = ++token; clearTimeout(timer); saving=false; window.campaignBroad?.dispose();
     const match = route();
     if (!match) {
       if (location.hash.startsWith('#campaigns/workflows/')) {

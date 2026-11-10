@@ -102,6 +102,9 @@ class RunStore:
                         if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_workflows'").fetchone():
                             if conn.execute("SELECT 1 FROM campaign_workflows WHERE json_extract(payload,'$.run_id')=?", (run_id,)).fetchone():
                                 raise ValueError('This backtest is retained by a campaign mechanic validation review and cannot be deleted.')
+                        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_broad_jobs'").fetchone():
+                            if conn.execute("SELECT 1 FROM optimization_trials t JOIN campaign_broad_jobs b ON b.job_id=t.optimization_id WHERE json_extract(t.payload,'$.run_id')=?",(run_id,)).fetchone():
+                                raise ValueError('This backtest belongs to a retained campaign IS Broad grid and cannot be deleted.')
                         destination=self.root/run_id
                         staged=self.root/('.deleted-'+run_id)
                         exists=conn.execute('SELECT 1 FROM runs WHERE id=?',(run_id,)).fetchone()

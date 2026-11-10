@@ -95,12 +95,17 @@ class CampaignWorkflowStore:
                 CREATE INDEX IF NOT EXISTS mechanic_jobs_recorded ON mechanic_job_attempts(recorded_at DESC);
                 CREATE INDEX IF NOT EXISTS mechanic_runs_by_workflow ON runs
                     (json_extract(manifest,'$.run_metadata.research.workflow_id'));
+                CREATE TABLE IF NOT EXISTS campaign_broad_jobs (
+                    job_id TEXT PRIMARY KEY REFERENCES optimizations(id),
+                    workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id));
+                CREATE TABLE IF NOT EXISTS campaign_broad_state (
+                    workflow_id TEXT PRIMARY KEY REFERENCES campaign_workflows(id),payload TEXT NOT NULL);
             ''')
             # Earlier workflows recorded only their latest execution. Import only
             # known timestamps; report creation is not an inferred start time.
             for workflow_id, raw in db.execute('SELECT id,payload FROM campaign_workflows').fetchall():
                 saved = json.loads(raw)
-                for run_id, created in db.execute("SELECT id,created_at FROM runs WHERE json_extract(manifest,'$.run_metadata.research.workflow_id')=?", (workflow_id,)).fetchall():
+                for run_id, created in db.execute("SELECT id,created_at FROM runs WHERE json_extract(manifest,'$.run_metadata.research.workflow_id')=? AND COALESCE(json_extract(manifest,'$.run_metadata.research.workflow_phase'),'mechanic_validation')='mechanic_validation'", (workflow_id,)).fetchall():
                     db.execute("INSERT OR IGNORE INTO mechanic_job_attempts VALUES (?,?,?,NULL,NULL,'complete',NULL,NULL)", (run_id,workflow_id,created))
                 if saved.get('run_id'):
                     state = 'complete' if saved.get('review') else saved['status']
@@ -216,13 +221,29 @@ class CampaignWorkflowStore:
                 key: value for key, value in saved['review']['metric_checks'].items()
                 if key not in EXCLUDED_PARITY_METRICS})
         passed = saved['status'] == 'passed'
-        result['phases'] = [dict(id=phase, label=label, status=(saved['status'] if i == 0 else
-                           'ready' if i == 1 and passed else 'locked'), implemented=i == 0)
+        broad = self.broad_state(saved['id'])
+        broad_passed = bool(broad.get('confirmed_at_utc'))
+        statuses = [saved['status'], broad['status'] if passed else 'locked',
+                    'ready' if passed and broad_passed else 'locked', 'locked']
+        result['broad'] = broad
+        result['phases'] = [dict(id=phase, label=label, status=statuses[i], implemented=i <= 1)
                            for i, (phase, label) in enumerate(zip(PHASES, PHASE_LABELS))]
-        result['latest_phase'] = 'is_broad' if passed else 'mechanic_validation'
+        result['latest_phase'] = 'is_narrow' if passed and broad_passed else 'is_broad' if passed else 'mechanic_validation'
         if include_results and saved['review']:
             result.update(self.results(saved))
         return result
+
+    def broad_state(self, workflow_id, db=None):
+        if db is None:
+            with self.runs.connect() as db:
+                return self.broad_state(workflow_id, db)
+        row = db.execute('SELECT payload FROM campaign_broad_state WHERE workflow_id=?',(workflow_id,)).fetchone()
+        state = json.loads(row[0]) if row else dict(job_id=None,revision=0,selected_trials=[],selection=[],confirmed_at_utc=None)
+        raw = db.execute('SELECT payload FROM optimizations WHERE id=?',(state['job_id'],)).fetchone() if state['job_id'] else None
+        job_status = json.loads(raw[0])['status'] if raw else 'ready'
+        state['status'] = ('passed' if state['confirmed_at_utc'] else
+                           'review_required' if job_status == 'complete' else job_status)
+        return state
 
     def get(self, workflow_id):
         saved = self.raw(workflow_id)
@@ -269,6 +290,9 @@ class CampaignWorkflowStore:
         index = PHASES.index(phase)
         if any(p['status'] != 'passed' for p in saved['phases'][:index]):
             raise ValueError('Previous phases must all pass in order before opening this phase.')
+        if index >= 2:
+            from .campaign_broad import validate_frozen
+            validate_frozen(self, saved['id'], saved['broad'])
         return saved, saved['phases'][index]
 
 
@@ -409,6 +433,8 @@ async def phase_view(workflow_id: UUID, phase: str, request: Request):
 @router.post('/api/campaign-workflows/{workflow_id}/phases/{phase}/run')
 async def phase_run(workflow_id: UUID, phase: str, request: Request):
     await call(request, 'phase', workflow_id.hex, phase)
+    if phase == 'is_broad':
+        raise HTTPException(409, 'Calculate a parameter grid using /broad/preview, then submit it through /broad/run.')
     raise HTTPException(409, 'This phase is navigation only; its execution is not implemented in this increment.')
 
 

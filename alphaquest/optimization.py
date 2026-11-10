@@ -1,6 +1,7 @@
 """Exact exhaustive grids and durable optimization jobs using normal backtests."""
 
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait, FIRST_COMPLETED
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from dataclasses import asdict
 from decimal import Decimal, localcontext
@@ -128,7 +129,7 @@ class OptimizationStore:
     def close(self):
         self.executor.shutdown(wait=True)
 
-    def create(self, request, dataset, definition, config, axes, total, research=None):
+    def create(self, request, dataset, definition, config, axes, total, research=None, *, connection=None):
         job = {"id": uuid4().hex, "created_at_utc": datetime.now(timezone.utc).isoformat(),
                "status": "queued", "stage": "queued", "completed_trials": 0, "total_trials": total,
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
@@ -139,7 +140,7 @@ class OptimizationStore:
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()},
                "metric_columns": list(METRICS if request.automatic_prop else BACKTEST_METRICS)}
-        with self.runs.connect() as conn:
+        with (self.runs.connect() if connection is None else nullcontext(connection)) as conn:
             conn.execute("INSERT INTO optimizations VALUES (?, ?, ?)", (job["id"], job["created_at_utc"], json.dumps(job)))
         return job
 
@@ -222,6 +223,9 @@ class OptimizationStore:
                 'Backtest reports removed from the library, but file cleanup failed. '
                 'Retry Delete activity and reports to finish cleanup.'
             ) as (conn, stage):
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_broad_jobs'").fetchone():
+                    if conn.execute('SELECT 1 FROM campaign_broad_jobs WHERE job_id=?',(job_id,)).fetchone():
+                        raise ValueError('This IS Broad job is retained by a campaign workflow and cannot be deleted.')
                 row = conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()
                 if row is None:
                     return None

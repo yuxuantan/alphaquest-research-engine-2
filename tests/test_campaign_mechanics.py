@@ -91,7 +91,7 @@ def test_default_run_exact_samples_review_gate_and_durable_reopen(client, tmp_pa
     saved=client.patch(prefix+'/review',json=checks(saved)).json()
     confirmed=client.post(prefix+'/confirm',json={'revision':saved['review']['revision']}).json()
     assert confirmed['status']=='passed' and confirmed['review']['confirmed_at_utc']
-    assert client.get(prefix+'/phases/is_broad').json()['phase']['implemented'] is False
+    assert client.get(prefix+'/phases/is_broad').json()['phase']['implemented'] is True
     assert client.post(prefix+'/phases/is_broad/run').status_code==409
     assert client.get(prefix+'/phases/is_narrow').status_code==409
     assert client.get(prefix+'/phases/oos').status_code==409

@@ -138,6 +138,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(workflow_router)
     from .job_history import router as jobs_router
     app.include_router(jobs_router)
+    from .campaign_broad import router as broad_router
+    app.include_router(broad_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

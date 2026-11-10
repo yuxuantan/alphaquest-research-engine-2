@@ -1,0 +1,386 @@
+{
+  "workflow_id": "67f26c98bb88489fbce6f33b452d0bb7",
+  "declaration": {
+    "version": "campaign-mechanics-v1",
+    "strategy_id": "consecutive_green_hold",
+    "dataset": {
+      "id": "fe7719a2adcc454b8a83b15696611a7c",
+      "name": "SYNTHETIC mechanics",
+      "sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+      "bytes": 1062,
+      "row_count": 25,
+      "source_timezone": "UTC",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      },
+      "symbol": "SYNTHETIC",
+      "start": "2026-01-05T09:00:00Z",
+      "end": "2026-01-06T09:00:00Z"
+    },
+    "default_parameters": {
+      "green_bar_count": 3,
+      "hold_minutes": 20,
+      "contracts": 1
+    },
+    "strategy_source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+    "engine_identity": "a6e880ef9e90621fff4e7dbd087052b0843a423712d79d1f893c52885a217cde",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "plan": {
+      "strategy_id": "consecutive_green_hold",
+      "source_sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+      "source_timezone": "UTC",
+      "is_start": "2026-01-05",
+      "is_end": "2026-01-05",
+      "oos_start": "2026-01-06",
+      "oos_end": "2026-01-06",
+      "is_bars": 24,
+      "oos_bars": 1,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "market_benchmark": {
+      "contracts": 1
+    }
+  },
+  "state": {
+    "job_id": "88a6a68ccc0842d5bea2912389528ae7",
+    "revision": 6,
+    "selected_trials": [
+      2,
+      3
+    ],
+    "selection": [
+      {
+        "trial": 2,
+        "run_id": "bd52985dcdc442d3a2779ac2fe2e2a9e",
+        "parameters": {
+          "green_bar_count": 3,
+          "hold_minutes": 20,
+          "contracts": 2
+        },
+        "total_net_pnl": "156.00",
+        "report_identity": "4b396d69fc13bbb24ccddac106caac9f6272075853b15157afe5f6e658bb42bf"
+      },
+      {
+        "trial": 3,
+        "run_id": "364c3cdef4794a489b7c7e871793b849",
+        "parameters": {
+          "green_bar_count": 3,
+          "hold_minutes": 20,
+          "contracts": 3
+        },
+        "total_net_pnl": "234.00",
+        "report_identity": "349bcc83ad8295837330348df22b7848dab24c5ef59ecdc33528a10b527f12f8"
+      }
+    ],
+    "confirmed_at_utc": "2026-11-10T09:24:24.440539+00:00",
+    "preview_token": "d1845f905156ce677f8d939f3a05efef99f37ae635362bcef99ac8a358a3ad5e",
+    "criterion": "IS total_net_pnl > 0 after slippage and commissions",
+    "status": "passed",
+    "engine_identity": "a6e880ef9e90621fff4e7dbd087052b0843a423712d79d1f893c52885a217cde"
+  },
+  "job": {
+    "id": "88a6a68ccc0842d5bea2912389528ae7",
+    "created_at_utc": "2026-11-10T09:24:21.923819+00:00",
+    "status": "complete",
+    "stage": "done",
+    "completed_trials": 18,
+    "total_trials": 18,
+    "bars_processed": 0,
+    "total_bars": 0,
+    "active_trials": [],
+    "results_snapshot_rowid": 18,
+    "worker_count": 1,
+    "worker_pids": [
+      41569
+    ],
+    "failed_trials": [],
+    "request": {
+      "dataset_id": "fe7719a2adcc454b8a83b15696611a7c",
+      "strategy_id": "consecutive_green_hold",
+      "method": "exhaustive",
+      "parameter_ranges": {
+        "green_bar_count": {
+          "start": 3,
+          "end": 4,
+          "step": 1
+        },
+        "hold_minutes": {
+          "start": 20,
+          "end": 60,
+          "step": 20
+        },
+        "contracts": {
+          "start": 1,
+          "end": 3,
+          "step": 1
+        }
+      },
+      "workers": 1,
+      "reuse_results": true,
+      "prepare_data": true,
+      "automatic_prop": false,
+      "execution_settings": {
+        "initial_capital": "10000",
+        "slippage_ticks": 1,
+        "commission_per_contract_per_side": "1",
+        "tick_size": "0.25",
+        "point_value": "10"
+      },
+      "sample_split": {
+        "mode": "dates",
+        "is_start": "2026-01-05",
+        "is_end": "2026-01-05",
+        "oos_start": "2026-01-06",
+        "oos_end": "2026-01-06",
+        "is_percent": null
+      },
+      "market_benchmark": {
+        "contracts": 1
+      },
+      "from_date": null,
+      "to_date": null
+    },
+    "axes": {
+      "green_bar_count": [
+        3,
+        4
+      ],
+      "hold_minutes": [
+        20,
+        40,
+        60
+      ],
+      "contracts": [
+        1,
+        2,
+        3
+      ]
+    },
+    "dataset": {
+      "filename": "SYNTHETIC-mechanics.csv",
+      "bytes": 1062,
+      "sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+      "row_count": 25,
+      "start": "2026-01-05T09:00:00Z",
+      "end": "2026-01-06T09:00:00Z",
+      "source_timezone": "UTC",
+      "interval_seconds": null,
+      "interval_kind": "irregular",
+      "columns": [
+        "Date",
+        "Time",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Volume",
+        "UpVol",
+        "DownVol"
+      ],
+      "preview": [
+        {
+          "Date": "01/05/2026",
+          "Time": "09:00",
+          "Open": "97",
+          "High": "98",
+          "Low": "97",
+          "Close": "98",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T09:00:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "09:01",
+          "Open": "98",
+          "High": "99",
+          "Low": "98",
+          "Close": "99",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T09:01:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "09:02",
+          "Open": "99",
+          "High": "100",
+          "Low": "99",
+          "Close": "100",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T09:02:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "09:23",
+          "Open": "101",
+          "High": "101",
+          "Low": "101",
+          "Close": "101",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T09:23:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "10:00",
+          "Open": "97",
+          "High": "98",
+          "Low": "97",
+          "Close": "98",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T10:00:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "10:01",
+          "Open": "98",
+          "High": "99",
+          "Low": "98",
+          "Close": "99",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T10:01:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "10:02",
+          "Open": "99",
+          "High": "100",
+          "Low": "99",
+          "Close": "100",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T10:02:00Z"
+        },
+        {
+          "Date": "01/05/2026",
+          "Time": "10:26",
+          "Open": "105",
+          "High": "105",
+          "Low": "105",
+          "Close": "105",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2026-01-05T10:26:00Z"
+        }
+      ],
+      "warnings": [
+        "Bar spacing varies. Gaps are preserved; no bars are filled or removed."
+      ],
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      },
+      "id": "fe7719a2adcc454b8a83b15696611a7c",
+      "name": "SYNTHETIC mechanics",
+      "symbol": "SYNTHETIC",
+      "created_at": "2026-11-10T09:24:20.732583Z"
+    },
+    "strategy": {
+      "id": "consecutive_green_hold",
+      "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+      "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+      "execution_assumption": "same_close_full_fill",
+      "parameters": [
+        {
+          "name": "green_bar_count",
+          "type": "int",
+          "default": 3,
+          "description": "Consecutive observed bars with Close > Open required while flat.",
+          "minimum": 1
+        },
+        {
+          "name": "hold_minutes",
+          "type": "int",
+          "default": 20,
+          "description": "Elapsed UTC minutes from the actual entry time to the target exit.",
+          "minimum": 1
+        },
+        {
+          "name": "contracts",
+          "type": "int",
+          "default": 1,
+          "description": "Fixed contract quantity requested for each long entry.",
+          "minimum": 1
+        }
+      ]
+    },
+    "report_detail": "compact",
+    "research": {
+      "phase": "is",
+      "plan": {
+        "strategy_id": "consecutive_green_hold",
+        "source_sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+        "source_timezone": "UTC",
+        "is_start": "2026-01-05",
+        "is_end": "2026-01-05",
+        "oos_start": "2026-01-06",
+        "oos_end": "2026-01-06",
+        "is_bars": 24,
+        "oos_bars": 1,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "workflow_id": "67f26c98bb88489fbce6f33b452d0bb7",
+      "workflow_phase": "is_broad"
+    },
+    "engine_identity": "a6e880ef9e90621fff4e7dbd087052b0843a423712d79d1f893c52885a217cde",
+    "reused_trials": 0,
+    "default_prop_profile": null,
+    "prop_unavailable_trials": 0,
+    "prop_error_trials": 0,
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "step_counts": {
+      "green_bar_count": 2,
+      "hold_minutes": 3,
+      "contracts": 3
+    },
+    "metric_columns": [
+      "total_net_pnl",
+      "total_gross_pnl",
+      "total_commissions",
+      "total_slippage_cost",
+      "final_equity",
+      "trades_taken",
+      "winning_trades",
+      "losing_trades",
+      "breakeven_trades",
+      "win_rate_pct",
+      "max_drawdown_amount",
+      "max_drawdown_pct",
+      "max_drawdown_duration_seconds"
+    ],
+    "started_at_utc": "2026-11-10T09:24:21.960426+00:00",
+    "elapsed_seconds": 0.6492651249864139,
+    "preparation_seconds": 0.1053182499599643,
+    "prepared_data": true,
+    "cached_feature_series": 0,
+    "temporary_bytes": 4422,
+    "finished_at_utc": "2026-11-10T09:24:22.611028+00:00"
+  }
+}

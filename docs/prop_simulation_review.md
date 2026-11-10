@@ -10204,3 +10204,126 @@ journey passed in **8.32s**, including phase ordering, disabled-state enforcemen
 confirmation and mobile layout. JavaScript syntax and `git diff --check` passed.
 Its temporary server stopped; no persistent server was started. Refresh the app
 page to load the updated frontend assets.
+
+## 2026-11-10 — IS Broad optimization and locked configuration selection
+
+IS Broad now executes the existing native exhaustive optimizer from the campaign
+workflow after the mechanic review has passed. It uses the workflow's saved
+source, IS dates, strategy and execution costs. The parameter grid supports
+start/end/step, server-validated iteration counts and bounded worker selection.
+Jobs run in the existing background executor and remain accessible through Job
+history after navigation or reload. Automatic legacy prop reports are disabled
+for these grid requests; this increment selects strategy configurations only.
+No production prop calculation, phase optimizer objective or numerical engine
+was changed.
+
+The results table shows every strategy parameter and the ordinary backtest
+metrics, with the existing independent show/hide, freeze and reorder controls,
+sorting, paging, report links and full results CSV. Column preferences persist
+in this browser and never change calculated results. The current admission rule
+is **strictly positive IS total net P&L after slippage and commissions**. Losing
+and zero-profit rows are dark and their selection checkboxes are disabled.
+Choose **one or two** eligible, distinct configurations. Checkbox changes save a
+revisioned draft; **Confirm configs and continue to IS Narrow** permanently
+locks the selection. IS Narrow shows those exact saved parameter sets and source
+reports. Its execution is a later increment; OOS stays locked.
+
+The server independently enforces phase order, grid completion, membership,
+profitability, the two-choice limit and matching source/strategy/cost/IS identity.
+Confirmation freezes selected report/artifact hashes. A modified or missing
+selected artifact blocks carry-forward/download. Stale drafts and code changes
+between preview/run or grid/confirmation reject. After confirmation, selections
+cannot be replaced, unchecked or rerun. Before confirmation, a different grid
+may replace a completed/failed grid; old jobs and reports remain in history.
+Duplicate submissions reuse the existing job. Campaign grid jobs and their
+candidate reports are retained against deletion. State and references live in
+the existing backtest database; trial results and files use their normal store.
+
+Saved demonstration: `artifacts/is-broad-20261110/evidence/` contains desktop
+grid/results/IS Narrow screenshots, mobile navigation, actual results JSON/CSV,
+the downloaded frozen package, the synthetic source CSV, both selected native
+report directories and a SHA-256 manifest. The legacy table control check also
+retains its screenshot and immutability observations. Earlier evidence remains
+unchanged. This is a synthetic workflow/selection qualification: checking the
+synthetic MC attestations does **not** establish measured MultiCharts parity.
+
+To reproduce through the actual product:
+
+1. Restart the app after updating code. For an isolated local review library:
+
+   ```sh
+   ALPHAQUEST_DATA_DIR=/tmp/alphaquest-is-broad-review \
+     .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+   ```
+
+   Open `http://127.0.0.1:8017/`. Upload the saved `SYNTHETIC-source.csv` through
+   Dataset, with a synthetic name/symbol, timezone UTC, tick size 0.25 and point
+   value 10. Choose Campaigns → Consecutive Green Hold → New backtest. Select
+   this dataset, capital 10000, slippage 1 tick per fill, commission 1 per
+   contract per side; declare IS 2026-01-05 through 2026-01-05 and reserved OOS
+   2026-01-06 through 2026-01-06.
+2. Run mechanics at default parameters. Expect six trades and net **78**. Review
+   every visible outcome and sampled trade checkbox, then confirm mechanics.
+   For this labeled synthetic exercise, the checkbox action only tests the
+   attestation flow; real research requires your actual MC comparison. Before
+   mechanics confirmation, direct IS Broad requests return 409.
+3. Open step 02, IS Broad. Set green bar count **3 → 4, step 1**, hold minutes
+   **20 → 60, step 20**, and contracts **1 → 3, step 1**, with one worker. Click
+   Calculate iterations: expect **18**. Run IS Broad. Expect **COMPLETE · 18 / 18**;
+   OOS's reserved 900-price bar must not enter any trial. Leaving the page does
+   not cancel the job. Job history has one mechanic job and one native batch,
+   with links back to IS Broad; the normal backtest library contains 19 reports.
+4. Independent expected arithmetic for one contract: the hold-20 quote gains
+   are `[1,5,-3,2,3,4] × 10 = 120`; subtract 30 slippage and 12 commissions to
+   obtain **78**. Hold 40 exits three trades at the next hour's first close,
+   each `(-2 × 10) - 5 - 2 = -27`, total **-81**. Hold 60 exits three at equal
+   quote prices, each `0 - 5 - 2 = -7`, total **-21**. Quantities 2 and 3 scale
+   each value linearly. Green count 4 never enters and returns zero. Thus trial
+   net P&Ls in trial order must be:
+
+   ```text
+   78, 156, 234, -81, -162, -243, -21, -42, -63,
+   0, 0, 0, 0, 0, 0, 0, 0, 0
+   ```
+
+   Only trials **1–3** qualify; the other 15 are disabled. Net P&L already
+   includes costs; the displayed cost columns are not deducted again.
+5. Open Columns, hide Total gross pnl and freeze Contracts. Expect the saved
+   browser layout on reload. Choose two profitable trials: other unchecked rows
+   become disabled at the cap. Uncheck one before confirmation to change the
+   draft. Losing/zero rows remain disabled even when a slot opens. The backend
+   rejects a forced losing/zero trial, unknown trial, duplicate configuration,
+   third choice, another job's ID, or stale revision. An all-zero grid cannot
+   confirm or unlock IS Narrow; selecting one eligible configuration is valid.
+6. Choose trials **2 and 3** and confirm. Expect IS Narrow to show contracts
+   **2 / 3**, green count **3**, hold minutes **20**, with IS net **156 / 234**.
+   Reload: both inputs remain. Return to IS Broad: choices remain checked and
+   disabled, and rerun is disabled. Download Saved IS Broad package and Results
+   CSV; expect the same IDs/parameters/profits and the recorded confirmation
+   timestamp. Report files stay byte-identical after navigation/review/downloads.
+   OOS stays locked. Stop this optional inspection server with Ctrl-C.
+
+The ignored local test library can also be reopened at
+`artifacts/is-broad-20261110/browser-final/test_broad_search_columns_prof0`
+using the same `ALPHAQUEST_DATA_DIR` startup command. Its workflow URL is
+`/#campaigns/workflows/67f26c98bb88489fbce6f33b452d0bb7/is_broad`. Portable evidence
+exports remain available in another checkout without that local database.
+
+Focused validation: **12 default backend checks passed in 18.61s**, including
+three new broad contracts; **3 affected product browser journeys passed in
+18.59s** (new broad flow, existing mechanics confirmation, existing column
+show/freeze/reorder/sort/persistence). Backend boundaries include concurrent
+duplicate launch, stale previews/revisions, source/report identity, capped and
+positive-only selection, code drift, all-zero results, deletion protection,
+artifact tampering, durable reopen and job-history deduplication. No 180-test or
+full legacy suite was run. JavaScript syntax and `git diff --check` passed.
+Temporary test servers stopped through fixture teardown; no persistent server
+was started. Reproduce only these affected checks with:
+
+```sh
+.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -x -q tests/test_campaign_broad_browser.py \
+  tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
+  tests/test_optimization_layout_browser.py::test_select_columns_reorder_both_groups_sort_and_persist \
+  --basetemp=artifacts/is-broad-REVIEW/browser
+```

@@ -89,7 +89,8 @@
         const heading = node('a',dataset.name,'workflow-inline-link');
         heading.href = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
         card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
-        card.append(node('span',workflow.status === 'passed' ? 'Mechanic validation passed · IS Broad ready' : `Mechanic validation · ${workflow.status.replaceAll('_',' ')}`,'workflow-stage'));
+        const latest=workflow.phases.find(phase=>phase.id===workflow.latest_phase);
+        card.append(node('span',`${latest.label} · ${latest.status.replaceAll('_',' ')}`,'workflow-stage'));
         if (!workflow.review) action(card,'Resume backtest →',heading.href);
         datasets.append(card);
       }

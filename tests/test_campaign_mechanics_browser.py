@@ -79,7 +79,7 @@ def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path)
     result=json.loads((tmp_path/'mechanic-review.json').read_bytes())
     assert result['status']=='passed' and result['review']['confirmed_at_utc']
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
-    playwright.expect(page.locator('#mechanic-content')).to_contain_text('Running and passing this phase will be added')
+    playwright.expect(page.locator('#broad-config')).to_be_visible()
     page.locator('#mechanic-phases').screenshot(path=str(tmp_path/'phase-sequence.png'))
     page.goto(workflow_url.rsplit('/',1)[0]+'/oos')
     playwright.expect(page.locator('#mechanic-status')).to_contain_text('Previous phases must all pass')

@@ -1,10 +1,11 @@
 # Temporary test scope during the workflow revamp
 
 - Use the smallest test set relevant to the current change. A plain pytest run
-  selects the nine fast mechanics/job-history checks via `pyproject.toml`.
+  selects the twelve fast mechanics/job-history/IS Broad checks via `pyproject.toml`.
 - For changes to the current UI, explicitly select the relevant cases in
   `tests/test_campaign_mechanics_browser.py` or
-  `tests/test_workflow_navigation_browser.py`, or `tests/test_job_history_browser.py`.
+  `tests/test_workflow_navigation_browser.py`, `tests/test_job_history_browser.py`,
+  or `tests/test_campaign_broad_browser.py`.
   Browser checks are opt-in; select only the affected journey.
 - Older regressions remain intact but are excluded from default discovery.
   Do not routinely run the previous 180-check set or the full suite for each

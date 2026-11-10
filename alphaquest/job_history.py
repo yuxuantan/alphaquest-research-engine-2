@@ -58,6 +58,10 @@ def public_job(row, tracker):
         result.update(started_at_utc=payload.get('started_at_utc'),finished_at_utc=payload.get('finished_at_utc'))
         result['progress'] = dict(stage=payload.get('stage',status),completed=payload.get('completed_trials'),total=payload.get('total_trials'),unit='trials')
         links.append(dict(label='Open batch progress / results',href=f'#backtests/batches/{id}'))
+        research = payload.get('research') or {}
+        if research.get('workflow_phase') == 'is_broad' and research.get('workflow_id'):
+            result['phase'] = 'is_broad'
+            links.insert(0,dict(label='Open IS Broad',href=f"#campaigns/workflows/{research['workflow_id']}/is_broad"))
     elif kind == 'backtest':
         # Creation time is publication time; old reports do not record start time.
         result['progress'] = dict(stage='complete',completed=payload['summary']['trades_taken'],total=None,unit='trades')

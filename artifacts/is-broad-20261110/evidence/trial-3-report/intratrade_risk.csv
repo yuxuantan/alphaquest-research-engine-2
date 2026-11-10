@@ -1,0 +1,7 @@
+trade_number,side,entry_time_utc,exit_time_utc,contracts,net_pnl,mae_lower,mae_upper,mfe_lower,mfe_upper,entry_phase,exit_phase,full_bars,cross_session,adverse_path
+1,long,2026-01-05T09:02:00Z,2026-01-05T09:23:00Z,3,9.00,10.50,10.50,19.50,19.50,close,close,1,False,"[[""10.50"",true]]"
+2,long,2026-01-05T10:02:00Z,2026-01-05T10:26:00Z,3,129.00,10.50,10.50,139.50,139.50,close,close,1,False,"[[""10.50"",true]]"
+3,long,2026-01-05T11:02:00Z,2026-01-05T11:27:00Z,3,-111.00,111.00,111.00,0,0,close,close,1,False,"[[""10.50"",true],[""100.50"",true],[""111.00"",true]]"
+4,long,2026-01-05T12:02:00Z,2026-01-05T12:22:00Z,3,39.00,10.50,10.50,49.50,49.50,close,close,1,False,"[[""10.50"",true]]"
+5,long,2026-01-05T13:02:00Z,2026-01-05T13:25:00Z,3,69.00,10.50,10.50,79.50,79.50,close,close,1,False,"[[""10.50"",true]]"
+6,long,2026-01-05T14:02:00Z,2026-01-05T14:24:00Z,3,99.00,10.50,10.50,109.50,109.50,close,close,1,False,"[[""10.50"",true]]"
