@@ -4,12 +4,14 @@ from hashlib import sha256
 
 import httpx
 from test_backtests_browser import browser,page,portal,playwright
-from test_campaign_broad import passed_mechanics
+from test_campaign_broad import passed_mechanics,start_grid,broad_grid
 
 
 def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp_path):
     with httpx.Client(base_url=portal['url'],timeout=30) as client:
         dataset,body,workflow=passed_mechanics(client)
+        # A previous completed run must remain inspectable after a replacement.
+        earlier,_=start_grid(client,'/api/campaign-workflows/'+workflow['id'],broad_grid(3,20,1))
     prefix=portal['url']+'/api/campaign-workflows/'+workflow['id']
     page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/mechanic_validation')
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
@@ -29,7 +31,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(page.locator('#broad-count')).to_have_text('18 iterations · IS only')
     page.screenshot(path=str(tmp_path/'01-grid.png'),full_page=True)
     page.locator('#broad-run').click()
-    playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE',timeout=30000)
+    playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE · 18 / 18 trials',timeout=30000)
     playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
     playwright.expect(page.locator('#broad-results tr.broad-ineligible')).to_have_count(15)
     playwright.expect(page.get_by_role('checkbox',name='Select trial 4',exact=True)).to_be_disabled()
@@ -94,10 +96,36 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     state=package['state']
     assert page.request.patch(prefix+'/broad/selection',data={'job_id':state['job_id'],'revision':state['revision'],'trials':[]}).status==409
     assert page.request.get(portal['url']+'/api/backtests').json()['total']==37 # 18 base + 18 native stress + mechanics
-    assert page.request.get(portal['url']+'/api/jobs').json()['total']==2
+    assert page.request.get(portal['url']+'/api/jobs').json()['total']==3
     page.get_by_role('link',name='Job history',exact=True).click()
     page.locator(f'#jobs-rows tr[data-job-id="{state["job_id"]}"]').get_by_role('link',name='View results',exact=True).click()
+    playwright.expect(page.get_by_role('link',name='Open IS Broad',exact=True)).to_be_visible()
+    playwright.expect(page.get_by_role('link',name='Open batch progress / results',exact=True)).to_have_count(0)
+    page.screenshot(path=str(tmp_path/'05-single-job-destination.png'),full_page=True)
     page.get_by_role('link',name='Open IS Broad',exact=True).click()
+    playwright.expect(page.locator('#broad-confirm')).to_have_text('Configurations confirmed')
+    playwright.expect(page.locator('#broad-progress')).to_contain_text('elapsed')
+    playwright.expect(page.locator('#broad-run-settings')).to_contain_text(state['job_id'])
+    page.goto(portal['url']+'/#backtests/batches/'+state['job_id'])
+    playwright.expect(page).to_have_url(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_broad?job='+state['job_id'])
+    playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
+    page.goto(portal['url']+'/#optimizations/'+state['job_id'])
+    playwright.expect(page.locator('#broad-confirm')).to_have_text('Configurations confirmed')
+    page.goto(portal['url']+'/#backtests/batches/'+earlier['id'])
+    playwright.expect(page.locator('#broad-archived')).to_be_visible()
+    playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(1)
+    playwright.expect(page.locator('#broad-results td[data-column="total_net_pnl"]')).to_have_text('1872.00')
+    playwright.expect(page.get_by_role('checkbox',name='Select trial 1',exact=True)).to_be_disabled()
+    playwright.expect(page.locator('#broad-confirm')).to_be_disabled()
+    playwright.expect(page.locator('#broad-run')).to_be_disabled()
+    with page.expect_download() as archived_download:
+        page.get_by_role('link',name='Saved IS Broad package ↓',exact=True).click()
+    archived_download.value.save_as(tmp_path/'earlier-is-broad-package.json')
+    archived=json.loads((tmp_path/'earlier-is-broad-package.json').read_bytes())
+    assert archived['job']['id']==earlier['id'] and archived['state']['archived']
+    page.screenshot(path=str(tmp_path/'06-earlier-run.png'),full_page=True)
+    page.get_by_role('link',name='Open current IS Broad →',exact=True).click()
+    playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
     playwright.expect(page.locator('#broad-confirm')).to_have_text('Configurations confirmed')
     page.set_viewport_size({'width':390,'height':844})
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
@@ -106,7 +134,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
         response=page.request.get(path);assert response.ok
         (tmp_path/name).write_bytes(response.body())
     assert before=={p:sha256(p.read_bytes()).hexdigest() for p in before}
-    (tmp_path/'journey.json').write_text(json.dumps({'workflow_id':workflow['id'],'broad_job_id':state['job_id'],'expected_trials':18,'expected_eligible':[1,2,3],'chosen_trials':[2,3],'chosen_net':[3744,5616],'expected_ineligible':15,'expected_backtests':37,'expected_jobs':2,'mc_parity':'Synthetic user-attestation exercise only; no automated or measured MC comparison','server':'Stopped by fixture teardown.'},indent=2))
+    (tmp_path/'journey.json').write_text(json.dumps({'workflow_id':workflow['id'],'broad_job_id':state['job_id'],'earlier_job_id':earlier['id'],'expected_trials':18,'expected_eligible':[1,2,3],'chosen_trials':[2,3],'chosen_net':[3744,5616],'expected_ineligible':15,'expected_backtests':37,'expected_jobs':3,'single_job_destination':True,'old_batch_urls_redirect':True,'earlier_results_read_only':True,'mc_parity':'Synthetic user-attestation exercise only; no automated or measured MC comparison','server':'Stopped by fixture teardown.'},indent=2))
 
 
 def test_insufficient_history_and_extra_cost_failure_are_explained_and_unselectable(page,portal,tmp_path):
@@ -134,3 +162,53 @@ def test_insufficient_history_and_extra_cost_failure_are_explained_and_unselecta
         page.screenshot(path=str(tmp_path/(name+'-rejection.png')),full_page=True)
         (tmp_path/(name+'-results.json')).write_bytes(page.request.get(prefix+'/broad/results').body())
         (tmp_path/(name+'-SYNTHETIC-source.csv')).write_bytes(page.request.get(portal['url']+'/api/datasets/'+dataset['id']+'/csv').body())
+
+
+def test_queued_cancel_and_failed_run_resume_live_on_is_broad(page,portal,tmp_path,monkeypatch):
+    from threading import Event
+    from test_campaign_broad import preview_body
+    optimizer=portal['app'].state.optimizations
+    with httpx.Client(base_url=portal['url'],timeout=30) as client:
+        _,_,workflow=passed_mechanics(client)
+        prefix='/api/campaign-workflows/'+workflow['id']
+        release=Event();barrier=optimizer.executor.submit(release.wait)
+        try:
+            body=preview_body(client,prefix,broad_grid(3,20,1))
+            response=client.post(prefix+'/broad/run',json=body);assert response.status_code==202,response.text
+            queued=response.json()['id']
+            page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_broad?job='+queued)
+            playwright.expect(page.locator('#broad-cancel')).to_be_visible()
+            page.locator('#broad-cancel').click()
+            playwright.expect(page.locator('#broad-progress')).to_contain_text('CANCELLED')
+            assert client.get('/api/backtests').json()['total']==1 # the queued grid did not execute
+        finally:
+            release.set();barrier.result(timeout=5)
+        publish=optimizer.publish
+        def fail_second(*args,**kwargs):
+            if args[1]==2:raise ValueError('SYNTHETIC publication failure; first trial retained')
+            return publish(*args,**kwargs)
+        monkeypatch.setattr(optimizer,'publish',fail_second)
+        page.get_by_label('Contracts end',exact=True).fill('2')
+        page.locator('#broad-preview').click()
+        playwright.expect(page.locator('#broad-count')).to_have_text('2 iterations · IS only')
+        page.locator('#broad-run').click()
+        playwright.expect(page.locator('#broad-progress')).to_contain_text('FAILED',timeout=30000)
+        failed=client.get(prefix+'/broad').json()['job']['id']
+        assert failed!=queued and 'job='+failed in page.url
+        playwright.expect(page.locator('#broad-resume')).to_have_text('Resume remaining 1 trials')
+        playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(1)
+        row=client.get(prefix+'/broad/results').json()['items'][0]
+        preserved={p:sha256(p.read_bytes()).hexdigest() for p in (optimizer.runs.root/row['run_id']).iterdir() if p.is_file()}
+        page.screenshot(path=str(tmp_path/'failed-with-resume.png'),full_page=True)
+        monkeypatch.setattr(optimizer,'publish',publish)
+        page.locator('#broad-resume').click()
+        playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE',timeout=30000)
+        playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(2)
+        playwright.expect(page.locator('#broad-resume')).to_be_hidden()
+        playwright.expect(page.get_by_role('checkbox',name='Select trial 2',exact=True)).to_be_enabled()
+        assert client.get(prefix+'/broad').json()['job']['id']==failed
+        assert preserved=={p:sha256(p.read_bytes()).hexdigest() for p in preserved}
+        page.screenshot(path=str(tmp_path/'resumed-on-is-broad.png'),full_page=True)
+        (tmp_path/'controls-journey.json').write_text(json.dumps(dict(queued_job=queued,resumed_job=failed,
+            queued_cancel_executed_no_trials=True,resumed_same_job=True,retained_first_report_unchanged=True,
+            expected_net=[1872,3744],results=client.get(prefix+'/broad/results').json()),indent=2))

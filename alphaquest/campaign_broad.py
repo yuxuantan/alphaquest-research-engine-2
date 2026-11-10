@@ -127,10 +127,22 @@ def launch(request, workflow_id, body):
     return job,True,(definition,config,dates_for(saved['declaration']['plan']))
 
 
-def state_and_job(request, workflow_id):
+def state_and_job(request, workflow_id, job_id=None):
     saved,_ = request.app.state.campaign_workflows.phase(workflow_id,'is_broad')
     state = saved['broad']
-    job = request.app.state.optimizations.get(state['job_id']) if state['job_id'] else None
+    if job_id and job_id != state['job_id']:
+        with request.app.state.runs.connect() as db:
+            member = db.execute('SELECT 1 FROM campaign_broad_jobs WHERE workflow_id=? AND job_id=?',(workflow_id,job_id)).fetchone()
+        if not member:
+            raise KeyError('This IS Broad run does not belong to the campaign workflow.')
+        job = request.app.state.optimizations.get(job_id)
+        if not job:
+            raise KeyError('Saved IS Broad run is unavailable.')
+        state = dict(job_id=job_id,revision=0,selected_trials=[],selection=[],confirmed_at_utc=None,
+                     screening_policy=(job.get('research') or {}).get('screening_policy'),
+                     status=job['status'],archived=True)
+    else:
+        job = request.app.state.optimizations.get(state['job_id']) if state['job_id'] else None
     return saved,state,job
 
 
@@ -225,8 +237,8 @@ async def invoke(function,*args,**kwargs):
 
 
 @router.get('/api/campaign-workflows/{workflow_id}/broad')
-async def detail(workflow_id:UUID,request:Request):
-    saved,state,job=await invoke(state_and_job,request,workflow_id.hex)
+async def detail(workflow_id:UUID,request:Request,job_id:UUID|None=None):
+    saved,state,job=await invoke(state_and_job,request,workflow_id.hex,job_id.hex if job_id else None)
     definition=get_strategy(saved['declaration']['strategy_id']).description()
     return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,criterion=CRITERION,
                 criteria=stage_criteria(),legacy=bool(job and not state.get('screening_policy')))
@@ -247,8 +259,8 @@ async def run_grid(workflow_id:UUID,body:BroadLaunch,request:Request):
 
 
 @router.get('/api/campaign-workflows/{workflow_id}/broad/results')
-async def results(workflow_id:UUID,request:Request,sort:str='trial',direction:str='asc',offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=1000)):
-    _,state,job=await invoke(state_and_job,request,workflow_id.hex)
+async def results(workflow_id:UUID,request:Request,sort:str='trial',direction:str='asc',offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=1000),job_id:UUID|None=None):
+    _,state,job=await invoke(state_and_job,request,workflow_id.hex,job_id.hex if job_id else None)
     if not job:
         return dict(items=[],total=0,offset=offset,limit=limit)
     page=await invoke(request.app.state.optimizations.page,job,sort,direction,offset,limit,0)
@@ -258,7 +270,7 @@ async def results(workflow_id:UUID,request:Request,sort:str='trial',direction:st
             row['legacy_screening'] = True
             row['qualifies'] = Decimal(str(row['metrics']['total_net_pnl'])) > 0 and not row.get('backtest_deleted')
         row['selected']=row['trial'] in state['selected_trials']
-        row['selectable']=row['qualifies'] and job['status']=='complete' and not state['confirmed_at_utc']
+        row['selectable']=row['qualifies'] and job['status']=='complete' and not state['confirmed_at_utc'] and not state.get('archived')
     return page
 
 
@@ -273,9 +285,9 @@ async def confirm(workflow_id:UUID,body:ConfirmSelection,request:Request):
 
 
 @router.get('/api/campaign-workflows/{workflow_id}/broad/download')
-async def download(workflow_id:UUID,request:Request):
-    saved,state,job=await invoke(state_and_job,request,workflow_id.hex)
+async def download(workflow_id:UUID,request:Request,job_id:UUID|None=None):
+    saved,state,job=await invoke(state_and_job,request,workflow_id.hex,job_id.hex if job_id else None)
     if state['confirmed_at_utc']:
         await invoke(validate_frozen,request.app.state.campaign_workflows,workflow_id.hex,state)
     return Response(json.dumps(dict(workflow_id=workflow_id.hex,declaration=saved['declaration'],state=state,job=job),indent=2),
-                    media_type='application/json',headers={'Content-Disposition':f'attachment; filename="is-broad-{workflow_id.hex}.json"'})
+                    media_type='application/json',headers={'Content-Disposition':f'attachment; filename="is-broad-{workflow_id.hex}{"-"+job_id.hex if job_id else ""}.json"'})

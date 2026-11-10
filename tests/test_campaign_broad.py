@@ -171,6 +171,17 @@ def test_no_profitable_rows_do_not_advance_retries_are_idempotent_and_one_choice
     assert client.delete('/api/backtests/batches/'+job['id']).status_code==409
     expanded,_=start_grid(client,prefix,broad_grid(3,20,4))
     assert expanded['reused_trials']==3 # native base and cost-stress evidence safely reused together
+    earlier=client.get(prefix+'/broad',params={'job_id':replacement['id']})
+    assert earlier.status_code==200,earlier.text
+    assert earlier.json()['state']['archived'] and earlier.json()['job']['id']==replacement['id']
+    earlier_rows=client.get(prefix+'/broad/results',params={'job_id':replacement['id']}).json()
+    assert earlier_rows['total']==3 and not any(r['selectable'] for r in earlier_rows['items'])
+    package=client.get(prefix+'/broad/download',params={'job_id':replacement['id']}).json()
+    assert package['state']['archived'] and package['job']['id']==replacement['id']
+    assert client.get(prefix+'/broad',params={'job_id':uuid4().hex}).status_code==404
+    assert selection(client,prefix,[1],job_id=replacement['id']).status_code==409
+    detail=client.get('/api/jobs/backtest_batch/'+expanded['id']).json()
+    assert detail['links']==[dict(label='Open IS Broad',href=f"#campaigns/workflows/{workflow['id']}/is_broad?job={expanded['id']}")]
     replacement=expanded
     state=selection(client,prefix,[2]).json()
     confirmed=client.post(prefix+'/broad/confirm',json=dict(job_id=replacement['id'],revision=state['revision'])).json()

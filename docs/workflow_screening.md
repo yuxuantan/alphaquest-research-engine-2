@@ -74,6 +74,10 @@ candidate references its stress report. The results table links both reports
 and a checked `is_screening.json` download with all six verdicts, monthly P&L,
 metrics and stress provenance; normal results CSV includes screening metrics.
 Background progress/history remains on the existing jobs workflow.
+IS Broad is the sole results page for campaign grids. Job history links to the
+specific saved run; old batch/optimization URLs redirect there. Earlier runs
+remain inspectable read-only inside IS Broad after a replacement grid. The
+generic batch viewer continues to serve standalone legacy jobs.
 
 Report/artifact identities are captured at publication and rechecked on
 selection, confirmation, carry-forward and saved evidence downloads. Missing or

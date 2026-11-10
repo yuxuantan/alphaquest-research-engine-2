@@ -379,6 +379,11 @@ rules for every phase and each trial's six measured checks. See
 IS Narrow execution and
 OOS remain future work. Job history links back to the broad phase and its saved
 results; confirmed configurations and their source reports are retained.
+Campaign jobs have a single results destination: **IS Broad**. Earlier campaign
+batch URLs redirect to that run in IS Broad; superseded runs open read-only with
+their original results and downloads. Standalone legacy batches retain their
+existing viewer. Run progress, saved settings, queued cancellation and failed-run
+resume are available on IS Broad.
 
 ```bash
 .venv/bin/python -m pytest -q

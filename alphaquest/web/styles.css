@@ -1950,3 +1950,6 @@ dialog::backdrop {
 .broad-row-criteria li { margin:10px 0; line-height:1.5; overflow-wrap:anywhere; }
 .broad-row-criteria li[data-passed=false] { font-weight:650; }
 .broad-legacy-note { padding:16px; background:#fff4d6; border:1px solid #d6bb6c; border-radius:8px; }
+#broad-run-settings { margin:16px 0; }
+#broad-run-settings summary { cursor:pointer; font-weight:600; }
+#broad-run-settings pre { max-height:360px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }

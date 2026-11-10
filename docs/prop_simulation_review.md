@@ -10490,3 +10490,95 @@ Set `ALPHAQUEST_DATA_DIR` to that directory to reopen the saved workflow
 `/#campaigns/workflows/5699ee9da8344ff7ab0a28cfb722538c/is_broad` without recomputing.
 Portable exports and report artifacts remain available when that local test
 database is absent in another checkout.
+
+## 2026-11-10 — One campaign results destination
+
+Campaign IS Broad jobs now expose only **Open IS Broad** from Job history.
+The duplicate **Open batch progress / results** link is removed for these jobs.
+Both old `/#backtests/batches/{job_id}` and `/#optimizations/{job_id}` bookmarks
+redirect to the corresponding campaign run at
+`/#campaigns/workflows/{workflow_id}/is_broad?job={job_id}`. Generic batch-history
+entries also link to that canonical view. The underlying optimizer, result/export
+APIs, calculations, source files and report storage are unchanged.
+
+IS Broad now includes the useful execution information from the generic view:
+elapsed time, worker count, reuse count, active-trial stage/bar progress, errors,
+saved run/source/grid/cost settings, queued cancellation and failed/interrupted
+run resume. Results CSV, native report links, column controls, screening evidence
+and locked selection remain available. The generic batch viewer continues to
+serve standalone legacy jobs, which have no campaign phase page.
+
+Earlier runs are preserved within IS Broad. A superseded job opens with an
+**Earlier IS Broad run** notice, its original parameters/results/downloads and
+disabled execution/selection controls. **Open current IS Broad** returns to the
+active run. The server verifies that the requested job belongs to this workflow;
+unknown or another workflow's jobs return 404. A direct selection request using
+an older job ID still returns 409. Read-only archive state is projected from the
+existing job catalogue; it does not create another result store or invent an
+earlier confirmation.
+
+Saved evidence is in `artifacts/single-campaign-results-20261110/evidence/`:
+the job-detail screenshot with one destination, consolidated results, an earlier
+run, mobile layout, native failed/resumed controls, original current/earlier
+packages and result downloads, labeled synthetic source, standalone-viewer
+verification, scoped check logs and a SHA-256 manifest. Previous dated evidence
+and native artifacts remain unchanged. This navigation change makes no new
+MultiCharts/provider or future-performance claim.
+
+To reproduce in the normal product:
+
+1. Restart the app and refresh. Open Job history → a campaign's IS Broad job.
+   Expect one result link, **Open IS Broad**, with no generic batch-results link.
+   Open it: expect the correct run, progress/settings and normal result table.
+2. Open that job's former batch URL, then its old optimization alias. Both should
+   land on IS Broad with the same job ID and saved rows. Opening or redirecting
+   must not run any backtests or change a confirmed selection.
+3. For a workflow with an older replaced grid, open the earlier job from history
+   or its old batch URL. Expect **Earlier IS Broad run**, the earlier table and
+   matching downloads, all selection/run controls disabled, and a link to the
+   current run. Returning to current must preserve its confirmed choices.
+4. In the saved synthetic demonstration, the earlier grid contains **one** row
+   with net **1872**; the current grid contains **18** rows, with chosen trials
+   **2/3** retaining **3744/5616**. Exactly **3 history jobs** and **37 native
+   reports** exist: one mechanic run, an earlier one-trial grid, and the later
+   grid, which safely reuses that first base/stress pair. All saved native
+   artifacts remain byte-identical after links, redirects, reviews and downloads.
+5. The focused controls journey cancels a genuinely queued native grid before
+   execution: only its mechanic report should exist. It then runs a two-trial
+   grid with a labeled, injected publication failure on trial 2. Expect trial 1
+   retained and **Resume remaining 1 trials** on IS Broad. Restoring publication
+   and clicking resume finishes the **same job**, with nets **1872/3744** and a
+   byte-identical first report. This is controlled failure qualification, not a
+   claim about an actual provider outage. No generic results page is needed.
+
+Focused validation: **4 backend checks passed in 7.60s**. Three affected browser
+journeys passed: consolidated campaign navigation/archive inspection, queued
+cancellation/actual resume, and retained standalone column/report behavior. The
+final campaign capture passed in **12.22s**, controls in **6.23s**; the original
+combined campaign/standalone check passed in **15.71s**. JavaScript syntax and
+whitespace checks passed. No default/full/180-test suite was run. Temporary test
+servers stopped via fixture teardown; no persistent server was started.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_job_history.py \
+  tests/test_campaign_broad.py::test_no_profitable_rows_do_not_advance_retries_are_idempotent_and_one_choice_is_enough
+mkdir -p artifacts/single-campaign-results-REVIEW
+.venv/bin/python -m pytest -x -q \
+  tests/test_campaign_broad_browser.py::test_broad_search_columns_profit_filter_and_locked_selection \
+  tests/test_campaign_broad_browser.py::test_queued_cancel_and_failed_run_resume_live_on_is_broad \
+  tests/test_optimization_layout_browser.py::test_select_columns_reorder_both_groups_sort_and_persist \
+  --basetemp=artifacts/single-campaign-results-REVIEW/browser
+```
+
+To reopen the ignored saved product library without recomputation:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/single-campaign-results-20261110/browser-final/test_broad_search_columns_prof0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+Open `http://127.0.0.1:8017/#jobs/backtest_batch/c8ded000cffc4ecaa1bf76931f898537`.
+The earlier job is `ff78862bee70406299870af5b044183d`; the workflow is
+`55a105ed8906460cabe6ba89833f5f24`. Stop this optional inspection server with
+Ctrl-C. Portable exports and the synthetic source remain available when the
+ignored test database is absent from another checkout.

@@ -6,14 +6,16 @@
   let generation=0,timer,columns;
   function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;}
   function action(parent,text,href){const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);return a;}
-  async function render(parent,workflow,{isCurrent}) {
+  async function render(parent,workflow,{isCurrent,jobId:requestedJob}) {
     dispose();const version=generation,alive=()=>version===generation&&isCurrent();
     const base=`/api/campaign-workflows/${workflow.id}/broad`;
+    const forRun=(path='',params={})=>{const query=new URLSearchParams({...params,...(requestedJob?{job_id:requestedJob}:{})});return base+path+(query.size?'?'+query:'');};
     parent.replaceChildren(node('p','Loading IS Broad…'));
     try {
-      let data=await read(base);if(!alive())return;
+      let data=await read(forRun());if(!alive())return;
       let state=data.state,job=data.job,preview=null,busy=false,sort='trial',direction='asc',offset=0;
       parent.replaceChildren();
+      if(state.archived){const archived=node('section',undefined,'panel broad-panel');archived.id='broad-archived';archived.append(node('h2','Earlier IS Broad run'),node('p','This saved run is read-only. Its results and downloads stay available; selections belong to the current run.'));action(archived,'Open current IS Broad →',`#campaigns/workflows/${workflow.id}/is_broad`);parent.append(archived);}
       if(data.legacy)parent.append(node('p',state.confirmed_at_utc?'Historical selection: confirmed under the earlier profitability-only rule. Preserved unchanged; it is not certified against the six new criteria.':'This earlier grid has no six-criterion evidence. Calculate and run a new grid before selecting configurations.','broad-legacy-note'));
       const config=node('section',undefined,'panel broad-panel');config.id='broad-config';
       config.append(node('h2','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
@@ -25,7 +27,7 @@
       let draft;
       try {draft=JSON.parse(sessionStorage.getItem('broad-grid:'+workflow.id));}catch{}
       const parameters=data.strategy.parameters;
-      const initial=state.confirmed_at_utc?job?.request.parameter_ranges:draft || job?.request.parameter_ranges;
+      const initial=state.confirmed_at_utc||state.archived?job?.request.parameter_ranges:draft || job?.request.parameter_ranges;
       for(const parameter of parameters) {
         const row=node('tr');row.dataset.parameter=parameter.name;
         const title=node('th',label(parameter.name));title.scope='row';title.append(node('small',parameter.description || '', 'field-help'));row.append(title);
@@ -67,13 +69,23 @@
       };
       form.onsubmit=async event=>{
         event.preventDefault();if(busy||!preview||!form.reportValidity())return;busy=true;fieldset.disabled=true;
-        try{job=await read(base+'/run','POST',{...requestGrid(),preview_token:preview.preview_token,revision:preview.revision});if(!alive())return;preview=null;run.disabled=true;notice.textContent='IS Broad job started. You can leave this page and follow it in Job history.';await refresh();}
+        try{job=await read(base+'/run','POST',{...requestGrid(),preview_token:preview.preview_token,revision:preview.revision});if(!alive())return;preview=null;run.disabled=true;if(requestedJob&&requestedJob!==job.id){location.replace(`#campaigns/workflows/${workflow.id}/is_broad?job=${job.id}`);return;}notice.textContent='IS Broad job started. You can leave this page and follow it in Job history.';await refresh();}
         catch(error){if(alive())notice.textContent=error.message;}
-        finally{busy=false;if(alive())fieldset.disabled=!!state.confirmed_at_utc||['queued','running'].includes(job?.status);}
+        finally{busy=false;if(alive())fieldset.disabled=!!state.archived||!!state.confirmed_at_utc||['queued','running'].includes(job?.status);}
       };
       const outputs=node('section',undefined,'panel broad-panel');outputs.append(node('h2','IS Broad results'),node('p',`Eligibility: ${data.criterion} Choose one or two qualified configurations, then confirm to continue. Open a row’s eligibility details to see every measured check.`));parent.append(outputs);
       const progress=node('p');progress.id='broad-progress';progress.setAttribute('role','status');outputs.append(progress);
       const links=node('div',undefined,'mechanic-downloads');outputs.append(links);
+      const jobControls=node('div',undefined,'mechanic-downloads'),resume=node('button','Resume remaining trials','button secondary'),cancel=node('button','Cancel queued run','button secondary');
+      resume.id='broad-resume';cancel.id='broad-cancel';resume.type=cancel.type='button';resume.hidden=cancel.hidden=true;jobControls.append(resume,cancel);outputs.append(jobControls);
+      const settings=node('details');settings.id='broad-run-settings';settings.append(node('summary','Saved run settings'));const settingsText=node('pre');settings.append(settingsText);outputs.append(settings);
+      async function jobAction(kind){
+        if(busy||state.archived||!job)return;busy=true;fieldset.disabled=true;resume.disabled=cancel.disabled=true;
+        try{await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())notice.textContent=kind==='resume'?'Resuming the saved IS Broad run.':'Queued run cancelled.';}
+        catch(error){if(alive())notice.textContent=error.message;}
+        finally{busy=false;if(alive())await refresh();}
+      }
+      resume.onclick=()=>jobAction('resume');cancel.onclick=()=>jobAction('cancel');
       const panel=node('details',undefined,'optimization-freeze');panel.id='broad-columns';
       panel.innerHTML='<summary>Columns <span class="optimization-column-count small muted"></span><span class="optimization-freeze-count small muted"></span></summary><div class="optimization-freeze-body"><p class="field-help">Show, hide, freeze or reorder columns. Column layout is saved in this browser.</p><div class="optimization-freeze-actions"><label>Find a column<input type="search" placeholder="Search columns…" /></label><button class="button secondary" type="button" data-columns="all">Show all</button><button class="button secondary" type="button" data-columns="hide">Hide all</button><button class="button secondary" type="button" data-columns="reset">Reset layout</button><button class="button secondary" type="button" data-freeze="none">Unfreeze all</button></div><p id="broad-column-status" role="status" class="field-help"></p><div class="optimization-column-choices" role="group" aria-label="IS Broad column layout"></div><p class="optimization-column-empty field-help" hidden>No matching columns.</p></div>';
       const empty=node('p','No columns selected. Open Columns to choose what to show.');empty.hidden=true;
@@ -89,9 +101,9 @@
       let fetching=0,saving=false;
       function selectionState(){
         selected.textContent=`${state.selected_trials.length} / 2 configurations selected${state.selected_trials.length?' · trials '+state.selected_trials.join(', '):''}`;
-        confirm.disabled=!!state.confirmed_at_utc||!state.selected_trials.length||job?.status!=='complete'||saving;
+        confirm.disabled=!!state.archived||!!state.confirmed_at_utc||!state.selected_trials.length||job?.status!=='complete'||saving;
         confirm.textContent=state.confirmed_at_utc?'Configurations confirmed': 'Confirm configs and continue to IS Narrow →';
-        for(const input of table.querySelectorAll('input[data-select-trial]'))input.disabled=saving||!!state.confirmed_at_utc||job?.status!=='complete'||input.dataset.eligible!=='true'||(!input.checked&&state.selected_trials.length>=2);
+        for(const input of table.querySelectorAll('input[data-select-trial]'))input.disabled=!!state.archived||saving||!!state.confirmed_at_utc||job?.status!=='complete'||input.dataset.eligible!=='true'||(!input.checked&&state.selected_trials.length>=2);
       }
       async function select(trial,checked){
         if(saving)return;const chosen=checked?[...state.selected_trials,trial]:state.selected_trials.filter(id=>id!==trial);
@@ -111,15 +123,19 @@
         if(saving){timer=setTimeout(refresh,500);return;}
         const attempt=++fetching;
         try{
-          const updated=await read(base);if(!alive()||attempt!==fetching)return;
+          const updated=await read(forRun());if(!alive()||attempt!==fetching)return;
           state=updated.state;job=updated.job;
-          const page=await read(base+`/results?${new URLSearchParams({sort,direction,offset,limit:50})}`);if(!alive()||attempt!==fetching)return;
-          fieldset.disabled=!!state.confirmed_at_utc||['queued','running'].includes(job?.status);
+          const page=await read(forRun('/results',{sort,direction,offset,limit:50}));if(!alive()||attempt!==fetching)return;
+          fieldset.disabled=!!state.archived||!!state.confirmed_at_utc||['queued','running'].includes(job?.status);
           const phaseButton=document.querySelector('#mechanic-phases [data-phase="is_broad"]');
-          if(phaseButton){phaseButton.dataset.status=state.status;phaseButton.querySelector('.mechanic-phase-state').textContent=state.status.replaceAll('_',' ');}
-          progress.textContent=job?`${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials · ${job.stage}${job.error?' · '+job.error:''}`:'No IS Broad job yet.';
+          if(phaseButton&&!state.archived){phaseButton.dataset.status=state.status;phaseButton.querySelector('.mechanic-phase-state').textContent=state.status.replaceAll('_',' ');}
+          progress.textContent=job?`${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials · ${job.stage} · ${job.worker_count||1} workers${job.elapsed_seconds==null?'':` · ${job.elapsed_seconds.toFixed(1)}s elapsed`} · ${job.reused_trials||0} reused${job.error?' · '+job.error:''}${job.cancellation_reason?' · '+job.cancellation_reason:''}${job.active_trials?.length?' · Active: '+job.active_trials.map(t=>`${t.trial} (${t.stage}, ${t.bars_processed}/${t.total_bars} bars)`).join(', '):''}`:'No IS Broad job yet.';
+          settings.hidden=!job;settingsText.textContent=job?JSON.stringify({run_id:job.id,created_at_utc:job.created_at_utc,started_at_utc:job.started_at_utc,finished_at_utc:job.finished_at_utc,request:job.request,axes:job.axes,execution_settings:job.execution_settings,worker_count:job.worker_count,engine_identity:job.engine_identity,screening_policy:job.research?.screening_policy,previous_attempts:job.previous_attempts||[]},null,2):'';
+          resume.hidden=!!state.archived||!!state.confirmed_at_utc||!['failed','interrupted'].includes(job?.status);resume.disabled=cancel.disabled=busy;
+          resume.textContent=job?.completed_trials<job?.total_trials?`Resume remaining ${job.total_trials-job.completed_trials} trials`:'Finalize saved results';
+          cancel.hidden=!!state.archived||job?.status!=='queued';
           links.replaceChildren();
-          if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Broad package ↓',base+'/download');}
+          if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Broad package ↓',forRun('/download'));}
           if(!job){panel.hidden=true;table.tHead.replaceChildren();table.tBodies[0].replaceChildren();previous.disabled=next.disabled=true;pageInfo.textContent='No results yet';selectionState();return;}
           const headers=[['select','Select'],['eligible','Eligibility'],['trial','Trial'],...Object.keys(job.axes).map(name=>['param.'+name,label(name)]),...job.metric_columns.map(name=>[name,label(name)]),['run_id','Backtest report']];
           const head=node('tr');

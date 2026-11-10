@@ -27,6 +27,8 @@
   let workerState = "idle", workerValue = "";
   const workerHelp = get("#optimization-workers-help").textContent;
   const pageSize = () => jobId ? 50 : 25;
+  const campaignRoute = job => job.research?.workflow_phase==='is_broad'&&job.research.workflow_id
+    ? `#campaigns/workflows/${job.research.workflow_id}/is_broad?job=${job.id}` : null;
   const resultScroll = get("#optimization-results-scroll");
   const frozenColumns = new window.OptimizationColumns(get("#optimization-results"), resultScroll, get("#optimization-freeze"));
   const pinHeaders = () => frozenColumns.layout();
@@ -432,7 +434,7 @@
         table.tBodies[0].replaceChildren();
         for (const job of history.items) {
           const row = node("tr"), cell = node("td"), link = node("a", job.created_at_utc);
-          link.href = `#backtests/batches/${job.id}`;
+          link.href = campaignRoute(job) || `#backtests/batches/${job.id}`;
           cell.append(link);
           row.append(cell, node("td", label(job.strategy.id)), node("td", job.status), node("td", `${job.completed_trials} / ${job.total_trials}`));
           const actions = node("td"), button = node("button", "Delete activity and reports", "button danger");
@@ -452,8 +454,13 @@
         if (history.items.some((job) => ["queued", "running"].includes(job.status))) timer = setTimeout(refresh, 1500);
         return;
       }
-      const [job, page, lucid, prop] = await Promise.all([
-        read(`/api/backtests/batches/${jobId}`),
+      const job = await read(`/api/backtests/batches/${jobId}`);
+      if (current !== version) return;
+      if (campaignRoute(job)) {
+        location.replace(campaignRoute(job));
+        return;
+      }
+      const [page, lucid, prop] = await Promise.all([
         read(`/api/backtests/batches/${jobId}/results?${new URLSearchParams({sort, direction, offset, limit: 50})}`),
         read(`/api/backtests/batches/${jobId}/lucid-refresh`),
         read(`/api/backtests/batches/${jobId}/prop-refresh`),

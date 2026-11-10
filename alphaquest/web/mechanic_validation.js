@@ -10,7 +10,7 @@
   };
   const labels = {consecutive_green_hold:'Consecutive Green Hold',vwap_pullback_risk_sizing:'ORB + VWAP pullback',twin_continuation:'Twin continuation'};
   let token = 0, current, saving = false, timer;
-  const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)$/);
+  const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)(?:\?job=([a-f0-9]{32}))?$/);
   const endpoint = id => `/api/campaign-workflows/${id}`;
   const read = async (url, method = 'GET', body) => {
     const response = await fetch(url, {method, cache:'no-store', ...(body === undefined ? {} : {headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
@@ -104,7 +104,7 @@
     }).catch(error=>{if(activeCriteria===token)criteriaHost.append(node('p',error.message));});
     if (phase === 'is_broad') {
       const active=token;
-      window.campaignBroad.render(host,workflow,{isCurrent:()=>active===token});
+      window.campaignBroad.render(host,workflow,{isCurrent:()=>active===token,jobId:route()?.[3]});
       return;
     }
     if (phase !== 'mechanic_validation') {
