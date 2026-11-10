@@ -10170,3 +10170,15 @@ mkdir -p artifacts/mechanics-parity-metrics-REVIEW
 .venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
   --basetemp=artifacts/mechanics-parity-metrics-REVIEW/browser
 ```
+
+## 2026-11-10 — Remove Campaigns validation-results shortcut
+
+Removed the **Inspect validation results** link from completed workflow cards on
+Campaigns. Dataset-name navigation and unfinished **Resume backtest** links
+remain available. Job history and saved review/report routes remain available.
+To verify, open Campaigns → a campaign with a completed validation: expect its
+dataset name and stage, without the removed shortcut. The dataset name still
+opens the normal workflow. Saved screenshot:
+`artifacts/campaign-link-removal-20261110/evidence/campaign-navigation.png`.
+The one affected browser journey passed in **6.92s**; JavaScript syntax and
+`git diff --check` passed. Its temporary server stopped after the check.

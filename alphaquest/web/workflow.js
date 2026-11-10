@@ -90,7 +90,7 @@
         heading.href = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
         card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
         card.append(node('span',workflow.status === 'passed' ? 'Mechanic validation passed · IS Broad ready' : `Mechanic validation · ${workflow.status.replaceAll('_',' ')}`,'workflow-stage'));
-        action(card,workflow.run_id && workflow.review ? 'Inspect validation results →' : 'Resume backtest →',heading.href);
+        if (!workflow.review) action(card,'Resume backtest →',heading.href);
         datasets.append(card);
       }
       for (const group of groups.items) {
