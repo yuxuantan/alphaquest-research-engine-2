@@ -1,6 +1,7 @@
 """Real IS Broad grid, existing column controls, manual profitable selection and carry-forward."""
 import json
 import re
+from decimal import Decimal, ROUND_HALF_UP
 from hashlib import sha256
 
 import httpx
@@ -58,7 +59,15 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
         assert displayed=='N/A' or re.fullmatch(r'-?\d+\.\d{2}',displayed),(key,displayed)
     playwright.expect(first.locator('td[data-column="total_net_pnl"]')).to_have_text('1872.00')
     playwright.expect(first.locator('td[data-column="trades_taken"]')).to_have_text('144.00')
-    assert str(page.request.get(prefix+'/broad/results').json()['items'][0]['metrics']['trades_taken'])=='144'
+    results=page.request.get(prefix+'/broad/results').json()['items']
+    assert str(results[0]['metrics']['trades_taken'])=='144'
+    longest=max(results,key=lambda row: Decimal(str(row['metrics']['max_drawdown_duration_seconds'])))
+    seconds=Decimal(str(longest['metrics']['max_drawdown_duration_seconds']))
+    assert seconds>86400
+    duration=seconds/Decimal(86400)
+    expected=duration.quantize(Decimal('0.01'),rounding=ROUND_HALF_UP)
+    playwright.expect(page.locator('#broad-results th[data-column="max_drawdown_duration_seconds"]')).to_contain_text('calendar days')
+    playwright.expect(page.locator(f'#broad-results tr[data-trial="{longest["trial"]}"] td[data-column="max_drawdown_duration_seconds"]')).to_have_text(f'{expected:.2f}')
     first.locator('.broad-row-criteria summary').click()
     playwright.expect(first.locator('.broad-row-criteria li')).to_have_count(6)
     playwright.expect(first.locator('.broad-row-criteria')).to_contain_text('24 months; 144 closed trades')

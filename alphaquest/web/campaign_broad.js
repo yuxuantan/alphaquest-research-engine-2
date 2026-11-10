@@ -4,6 +4,8 @@
   const label=value=>value.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
   const twoDecimals=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});
   const displayMetric=value=>value==null||value===''?'N/A':Number.isFinite(Number(value))?twoDecimals.format(value):String(value);
+  const metricLabel=name=>name==='max_drawdown_duration_seconds'?'Max drawdown duration · calendar days':label(name);
+  const metricValue=(name,value)=>name==='max_drawdown_duration_seconds'&&value!=null&&value!==''?displayMetric(Number(value)/86400):displayMetric(value);
   const read=async(url,method='GET',body)=>{const response=await fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Check the parameter grid and saved selection.');return data;};
   let generation=0,timer,columns;
   function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;}
@@ -140,7 +142,7 @@
           if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Broad package ↓',forRun('/download'));}
           if(!job){panel.hidden=true;table.tHead.replaceChildren();table.tBodies[0].replaceChildren();previous.disabled=next.disabled=true;pageInfo.textContent='No results yet';selectionState();return;}
           const varying=Object.keys(job.axes).filter(name=>job.axes[name].length>1);
-          const headers=[['select','Select'],['eligible','Eligibility'],['trial','Trial'],...Object.keys(job.axes).map(name=>['param.'+name,label(name)]),...job.metric_columns.map(name=>[name,label(name)]),['run_id','Backtest report']];
+          const headers=[['select','Select'],['eligible','Eligibility'],['trial','Trial'],...Object.keys(job.axes).map(name=>['param.'+name,label(name)]),...job.metric_columns.map(name=>[name,metricLabel(name)]),['run_id','Backtest report']];
           const head=node('tr');
           for(const [key,title] of headers){const th=node('th');th.dataset.column=key;th.scope='col';
             if(['select','eligible'].includes(key))th.textContent=title;else{const button=node('button',title+(sort===key?(direction==='asc'?' ↑':' ↓'):' ↕'));button.type='button';button.onclick=()=>{direction=sort===key&&direction==='asc'?'desc':'asc';sort=key;offset=0;refresh();};th.append(button);}head.append(th);}
@@ -156,7 +158,7 @@
                 td.append(info);
               }
               else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
-              else td.textContent=key==='trial'?String(row.trial):key.startsWith('param.')?String(row.parameters[key.slice(6)]):displayMetric(row.metrics[key]);tr.append(td);
+              else td.textContent=key==='trial'?String(row.trial):key.startsWith('param.')?String(row.parameters[key.slice(6)]):metricValue(key,row.metrics[key]);tr.append(td);
             }table.tBodies[0].append(tr);}
           columns.defaultFrozen=['select','trial',...varying.map(name=>'param.'+name)];
           columns.configure('campaign-broad:'+workflow.declaration.strategy_id+':'+job.id,headers,
