@@ -22,9 +22,9 @@ from .strategies.registry import get_strategy
 from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
 from .workflow_criteria import evaluate as broad_evaluate, policy, verified_screening
 
-VERSION = 'is-narrow-v1'
+VERSION = 'is-narrow-v2'
 REFINEMENT_VERSION = 'is-narrow-local-refinement-v1'
-POLICY = dict(version=VERSION, neighbor_profit_fraction_gte='0.70', time_periods=4,
+LEGACY_POLICY = dict(version='is-narrow-v1', neighbor_profit_fraction_gte='0.70', time_periods=4,
               profitable_periods_gte=3, latest_period_positive=True,
               best_complete_month_removed_net_gt='0', confidence_level='0.95',
               daily_equity_basis='last observed source-local bar close per calendar date, including open P&L',
@@ -32,6 +32,15 @@ POLICY = dict(version=VERSION, neighbor_profit_fraction_gte='0.70', time_periods
               minimum_observed_days=100, multiple_search_correction='Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs',
               neighbors='all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent',
               seed=None)
+POLICY = dict(version=VERSION, minimum_valid_neighbors=2, neighbor_profit_numerator=2,
+              neighbor_profit_denominator=3, time_periods=4, source_observations_each_period=True,
+              best_complete_month_removed_net_gt='0', confidence_level='0.95',
+              daily_equity_basis=LEGACY_POLICY['daily_equity_basis'],
+              uncertainty_method=LEGACY_POLICY['uncertainty_method'], hac_lag_observations=5,
+              minimum_observed_days=100, multiple_search_correction=LEGACY_POLICY['multiple_search_correction'],
+              neighbors='all valid immediate ordered-numeric axis neighbors; categorical and Boolean axes excluded',
+              advisory=['four_period_profitability', 'latest_period_profitability', 'drawdown_duration',
+                        'drawdown_depth', 'search_adjusted_daily_net_lower_bound'], seed=None)
 
 
 def period_boundaries(plan):
@@ -48,6 +57,13 @@ def parameter_key(parameters):
 
 def same_parameter(left, right):
     return parameter_key({'value': left}) == parameter_key({'value': right})
+
+
+def ordered_axes(fields, axes):
+    definitions = {field['name']: field for field in fields}
+    return {name for name, values in axes.items() if len(values) > 1 and
+            definitions[name]['type'] in ('int', 'Decimal') and
+            definitions[name].get('refinement_kind') != 'categorical'}
 
 
 def refinement_options(fields, broad_axes):
@@ -194,6 +210,9 @@ def prepare(request, workflow_id, body):
                                 selected['parameters'], axes, body.refine_broad_parameters)
     if total < 2:
         raise ValueError('Vary at least one remaining parameter so immediate neighbors can be assessed.')
+    numeric = ordered_axes(definition.description()['parameters'], axes)
+    if sum(min(2, len(axes[name]) - 1) for name in numeric) < POLICY['minimum_valid_neighbors']:
+        raise ValueError('IS Narrow needs at least two distinct ordered-numeric neighbors for a candidate. Use at least three values on one numeric axis or vary two numeric axes.')
     for values in combinations(axes):
         definition.validate_source(definition.parameters(values), dataset)
     plan = declared['plan']
@@ -241,7 +260,7 @@ def launch(request, workflow_id, body):
                 return current, False, None
             if current['status'] in ('queued', 'running'):
                 raise ValueError('This Broad configuration already has a running Narrow grid.')
-            if current['status'] == 'complete':
+            if current['status'] == 'complete' and current['research'].get('narrow_policy') == POLICY:
                 raise ValueError('This Broad configuration already has a completed Narrow grid; saved results are immutable.')
         if state['revision'] != body.revision:
             raise ValueError('Narrow grid changed in another tab. Reload before launching.')
@@ -310,11 +329,16 @@ def confidence(days, family):
                 observed_days=n, family_size=family, hac_lag_observations=lag)
 
 
-def neighbor_check(row, all_rows, axes, runs=None):
+def neighbor_check(row, all_rows, axes, runs=None, *, target_policy=LEGACY_POLICY, fields=None):
+    if target_policy not in (LEGACY_POLICY, POLICY):
+        raise ValueError('Unsupported IS Narrow admission policy.')
+    if target_policy == POLICY and fields is None:
+        raise ValueError('Saved strategy parameter metadata is required for ordered-numeric neighborhood screening.')
+    included = set(axes) if target_policy == LEGACY_POLICY else ordered_axes(fields, axes)
     lookup = {parameter_key(r['parameters']): r for r in all_rows}
     good = total = 0
     for name, values in axes.items():
-        if len(values) < 2:
+        if name not in included or len(values) < 2:
             continue
         current = row['parameters'][name]
         index = next((i for i, value in enumerate(values) if parameter_key({name:value}) == parameter_key({name:current})), None)
@@ -338,11 +362,17 @@ def neighbor_check(row, all_rows, axes, runs=None):
                         raise ValueError('A neighboring trial’s saved screening evidence changed.')
                 total += 1
                 good += Decimal(str(neighbor['metrics']['total_net_pnl'])) > 0
+    minimum = 1 if target_policy == LEGACY_POLICY else target_policy['minimum_valid_neighbors']
+    numerator, denominator = ((7, 10) if target_policy == LEGACY_POLICY else
+                              (target_policy['neighbor_profit_numerator'], target_policy['neighbor_profit_denominator']))
     return dict(profitable=good, valid=total, fraction=good/total if total else None,
-                passed=total > 0 and good * 10 >= 7 * total)
+                passed=total >= minimum and good * denominator >= numerator * total)
 
 
-def assessment(runs, row, all_rows, axes, family, plan):
+def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
+               broad_policy=None, fields=None):
+    if target_policy not in (LEGACY_POLICY, POLICY):
+        raise ValueError('Unsupported IS Narrow admission policy.')
     report = runs.get(row['run_id'])
     if not report:
         raise ValueError('The native Narrow report is missing.')
@@ -352,8 +382,9 @@ def assessment(runs, row, all_rows, axes, family, plan):
     if (Decimal(str(row['metrics']['total_net_pnl'])) != Decimal(str(report['summary']['total_net_pnl'])) or
         digest([report, artifacts(runs.root, report), stress, artifacts(runs.root, stress)]) != row.get('screening_evidence_identity')):
         raise ValueError('The Narrow report or its cost-stress artifacts changed after publication.')
-    base = broad_evaluate(captured['metrics'], captured['closed_trades'], captured['total_net_pnl'], policy())
-    neighbors = neighbor_check(row, all_rows, axes, runs)
+    base = broad_evaluate(captured['metrics'], captured['closed_trades'], captured['total_net_pnl'],
+                          broad_policy or (captured['policy'] if target_policy == LEGACY_POLICY else policy()))
+    neighbors = neighbor_check(row, all_rows, axes, runs, target_policy=target_policy, fields=fields)
     days = daily_net(runs, report)
     boundaries = period_boundaries(plan)
     quarter_pnl = [sum((v for d, v in days if boundaries[i] <= d < boundaries[i+1]), Decimal(0)) for i in range(4)]
@@ -361,19 +392,44 @@ def assessment(runs, row, all_rows, axes, family, plan):
     complete = [Decimal(str(month['net_pnl'])) for month in captured['months'] if month['complete']]
     without_best = Decimal(str(captured['total_net_pnl'])) - max(complete) if complete else None
     bound = confidence(days, family)
+    month_check = dict(id='month_concentration', label='Profit without best complete month',
+                       passed=without_best is not None and without_best > 0,
+                       actual=str(without_best) if without_best is not None else 'No complete month', required='> 0')
+    if target_policy == LEGACY_POLICY:
+        checks = [*base['checks'],
+            dict(id='neighbors', label='Profitable immediate neighbors', passed=neighbors['passed'],
+                 actual=f"{neighbors['profitable']} / {neighbors['valid']}", required='>= 70% of valid immediate neighbors'),
+            dict(id='time_stability', label='Four-period stability', passed=quarter_pass,
+                 actual=', '.join(str(v) for v in quarter_pnl), required='At least 3 positive, including most recent'),
+            month_check,
+            dict(id='search_adjusted_bound', label='Search-adjusted daily net lower bound',
+                 passed=bound is not None and bound['lower_bound'] > 0,
+                 actual=f"{bound['lower_bound']:.4f} CU/day" if bound else 'Insufficient daily evidence',
+                 required=f"95% lower bound > 0, HAC lag 5, Bonferroni family of {family} attempted trials")]
+        return dict(policy=LEGACY_POLICY, qualifies=all(c['passed'] for c in checks), checks=checks,
+                    neighbors=neighbors, quarter_boundaries=[d.isoformat() for d in boundaries],
+                    quarter_net_pnl=[str(v) for v in quarter_pnl], net_without_best_month=str(without_best) if without_best is not None else None,
+                    confidence=bound, family_size=family)
+    observed = [sum(1 for day, _ in days if boundaries[i] <= day < boundaries[i+1]) for i in range(4)]
     checks = [*base['checks'],
-        dict(id='neighbors', label='Profitable immediate neighbors', passed=neighbors['passed'],
-             actual=f"{neighbors['profitable']} / {neighbors['valid']}", required='>= 70% of valid immediate neighbors'),
-        dict(id='time_stability', label='Four-period stability', passed=quarter_pass,
-             actual=', '.join(str(v) for v in quarter_pnl), required='At least 3 positive, including most recent'),
-        dict(id='month_concentration', label='Profit without best complete month', passed=without_best is not None and without_best > 0,
-             actual=str(without_best) if without_best is not None else 'No complete month', required='> 0'),
+        dict(id='period_coverage', label='Observed dates in every IS period', passed=all(observed),
+             actual=', '.join(str(value) for value in observed), required='At least one observed source-local date in each of four periods'),
+        dict(id='neighbors', label='Profitable ordered-numeric neighbors', passed=neighbors['passed'],
+             actual=f"{neighbors['profitable']} / {neighbors['valid']}", required='At least two valid neighbors and at least two-thirds profitable'),
+        month_check]
+    observations = [
+        dict(id='time_stability', label='Four-period net P&L', actual=', '.join(str(value) for value in quarter_pnl),
+             context=f"{sum(value > 0 for value in quarter_pnl)} / 4 positive; latest {'positive' if quarter_pnl[-1] > 0 else 'nonpositive'}"),
+        dict(id='drawdown_duration', label='Longest mark-to-market drawdown',
+             actual=f"{captured['metrics']['is_longest_dd_pct']}% of IS"),
+        dict(id='drawdown_depth', label='Maximum mark-to-market drawdown',
+             actual=f"{captured['metrics']['is_mtm_max_drawdown']} CU"),
         dict(id='search_adjusted_bound', label='Search-adjusted daily net lower bound',
-             passed=bound is not None and bound['lower_bound'] > 0,
              actual=f"{bound['lower_bound']:.4f} CU/day" if bound else 'Insufficient daily evidence',
-             required=f"95% lower bound > 0, HAC lag 5, Bonferroni family of {family} attempted trials")]
-    return dict(policy=POLICY, qualifies=all(c['passed'] for c in checks), checks=checks,
-                neighbors=neighbors, quarter_boundaries=[d.isoformat() for d in boundaries],
+             context=f"95% one-sided; HAC lag 5; Bonferroni family of {family} attempted trials")]
+    return dict(policy=POLICY, qualifies=all(check['passed'] for check in checks), checks=checks,
+                observations=observations, neighbors=neighbors,
+                quarter_boundaries=[d.isoformat() for d in boundaries], period_observed_dates=observed,
                 quarter_net_pnl=[str(v) for v in quarter_pnl], net_without_best_month=str(without_best) if without_best is not None else None,
                 confidence=bound, family_size=family)
 
@@ -397,10 +453,16 @@ def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
         full = all_jobs_complete(request.app.state.campaign_workflows, workflow_id, db)
         family = family_size(db, workflow_id)
         all_rows = [json.loads(r[0]) for r in db.execute('SELECT payload FROM optimization_trials WHERE optimization_id=?', (job['id'],))]
+    source_policy = job['research'].get('narrow_policy')
+    if source_policy not in (LEGACY_POLICY, POLICY) or state.get('policy') != source_policy:
+        raise ValueError('Saved IS Narrow policy differs from its optimizer job.')
+    target = state.get('selection_policy') or (source_policy if state['confirmed_at_utc'] else POLICY)
     for row in page['items']:
         if job['status'] == 'complete':
             try:
-                row['admission'] = assessment(request.app.state.runs, row, all_rows, job['axes'], family, saved['declaration']['plan'])
+                row['admission'] = assessment(request.app.state.runs, row, all_rows, job['axes'], family,
+                                              saved['declaration']['plan'], target_policy=target,
+                                              fields=job['strategy']['parameters'])
                 row['admission']['provisional'] = not full
                 row['qualifies'] = full and row['admission']['qualifies'] and not row.get('backtest_deleted', False)
             except (ValueError, OSError, KeyError, ArithmeticError) as exc:
@@ -411,7 +473,8 @@ def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
             row['qualifies'] = False
         row['selected'] = row['trial'] in state['selected_trials']
         row['selectable'] = row['qualifies'] and not state['confirmed_at_utc']
-    return dict(page, family_size=family, all_branches_complete=full)
+    return dict(page, family_size=family, all_branches_complete=full,
+                source_policy=source_policy, selection_policy=target)
 
 
 def chosen_candidate(store, workflow_id, state, trial, db, family):
@@ -431,6 +494,7 @@ def chosen_candidate(store, workflow_id, state, trial, db, family):
         or meta['strategy']['source_sha256'] != saved['declaration']['strategy_source_sha256']
         or meta['research'].get('workflow_id') != workflow_id or meta['research'].get('workflow_phase') != 'is_narrow'
         or meta['research'].get('broad_trial') != state['broad_trial'] or meta['research'].get('phase') != 'is'
+        or meta['research'].get('narrow_policy') != research.get('narrow_policy')
         or meta['research'].get('plan') != saved['declaration']['plan']
         or meta['research'].get('period_boundaries') != [d.isoformat() for d in period_boundaries(saved['declaration']['plan'])]
         or meta['research'].get('broad_selection_identity') != state['broad_selection_identity']
@@ -454,7 +518,9 @@ def chosen_candidate(store, workflow_id, state, trial, db, family):
     for name, value in meta['research']['frozen_broad_parameters'].items():
         if row['parameters'][name] != value:
             raise ValueError('A frozen Broad parameter changed in the Narrow report.')
-    admission = assessment(store.runs, row, all_rows, job['axes'], family, saved['declaration']['plan'])
+    target = state.get('selection_policy') or (state['policy'] if state['confirmed_at_utc'] else POLICY)
+    admission = assessment(store.runs, row, all_rows, job['axes'], family, saved['declaration']['plan'],
+                           target_policy=target, fields=job['strategy']['parameters'])
     if not admission['qualifies']:
         raise ValueError('Only configurations passing all IS Narrow criteria may advance.')
     _, stress = verified_screening(store.runs, report)
@@ -479,8 +545,11 @@ def save_selection(request, workflow_id, body, confirm=False):
         if not all_jobs_complete(store, workflow_id, db):
             raise ValueError('Complete the Narrow grid for every selected Broad configuration first.')
         job = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (state['job_id'],)).fetchone()[0])
-        if job['engine_identity'] != engine_identity() or job['research'].get('narrow_policy') != POLICY:
-            raise ValueError('Narrow calculation code or declared policy changed; the grid cannot be confirmed.')
+        source_policy = job['research'].get('narrow_policy')
+        if source_policy not in (LEGACY_POLICY, POLICY) or state.get('policy') != source_policy:
+            raise ValueError('Saved Narrow policy differs from its optimizer job.')
+        if source_policy == POLICY and job['engine_identity'] != engine_identity():
+            raise ValueError('Narrow calculation code changed; the current-policy grid cannot be confirmed.')
         family = family_size(db, workflow_id)
         trials = state['selected_trials'] if confirm else body.trials
         if len(trials) != len(set(trials)) or len(trials) > 2 or (confirm and not trials):
@@ -488,7 +557,7 @@ def save_selection(request, workflow_id, body, confirm=False):
         selected = [chosen_candidate(store, workflow_id, state, trial, db, family) for trial in trials]
         if len({digest(s['parameters']) for s in selected}) != len(selected):
             raise ValueError('Selected Narrow parameter configurations must be distinct.')
-        state.update(selected_trials=trials, revision=state['revision']+1)
+        state.update(selected_trials=trials, revision=state['revision']+1, selection_policy=POLICY)
         if confirm:
             state.update(selection=selected, confirmed_at_utc=now(), family_size=family,
                          engine_identity=job['engine_identity'])

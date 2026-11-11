@@ -16,9 +16,9 @@ from .optimization_cache import artifacts, digest, engine_identity
 from .research import SplitDeclaration, dates_for, metadata
 from .strategies.registry import get_strategy
 from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
-from .workflow_criteria import PREVIOUS_VERSION, policy, stage_criteria, verified_screening
+from .workflow_criteria import PREVIOUS_VERSION, DRAWDOWN_VERSION, policy, stage_criteria, verified_screening
 
-CRITERION = 'All five IS Broad criteria must pass; insufficient evidence cannot qualify.'
+CRITERION = 'All four IS Broad criteria must pass; insufficient evidence cannot qualify.'
 
 
 class BroadGrid(BaseModel):
@@ -49,7 +49,7 @@ def eligible(row, target_policy=None):
     try:
         from .workflow_criteria import evaluate
         measured = row['screening']
-        if measured['policy'] not in (policy(PREVIOUS_VERSION),policy()):
+        if measured['policy'] not in (policy(PREVIOUS_VERSION),policy(DRAWDOWN_VERSION),policy()):
             return False
         original = evaluate(measured['metrics'], measured['closed_trades'], measured['total_net_pnl'], measured['policy'])
         if any(measured[key] != original[key] for key in original):
@@ -206,7 +206,7 @@ def save_selection(request, workflow_id, body, confirm=False):
         count=db.execute('SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?',(job['id'],)).fetchone()[0]
         if job['status']!='complete' or count!=job['total_trials'] or count!=job['completed_trials']:
             raise ValueError('Wait for the entire IS Broad grid to complete before selecting configurations.')
-        if state.get('screening_policy') not in (policy(PREVIOUS_VERSION),policy()):
+        if state.get('screening_policy') not in (policy(PREVIOUS_VERSION),policy(DRAWDOWN_VERSION),policy()):
             raise ValueError('This pending grid lacks measured IS Broad screening evidence. Run a new grid.')
         if (job.get('research') or {}).get('screening_policy') != state['screening_policy']:
             raise ValueError('Saved IS Broad policy differs from its optimizer job.')
@@ -214,7 +214,7 @@ def save_selection(request, workflow_id, body, confirm=False):
             raise ValueError('Calculation code changed since this grid; run a new grid before confirming choices.')
         trials=state['selected_trials'] if confirm else body.trials
         if len(trials)!=len(set(trials)) or len(trials)>2 or (confirm and not trials):
-            raise ValueError('Select one or two distinct configurations passing all five IS Broad criteria.')
+            raise ValueError('Select one or two distinct configurations passing all four IS Broad criteria.')
         chosen=[candidate(store,workflow_id,job['id'],trial,db,target_policy=policy()) for trial in trials]
         if len({digest(c['parameters']) for c in chosen})!=len(chosen):
             raise ValueError('Selected parameter configurations must be distinct.')
@@ -248,7 +248,7 @@ async def detail(workflow_id:UUID,request:Request,job_id:UUID|None=None):
     definition=get_strategy(saved['declaration']['strategy_id']).description()
     return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,default_workers=DEFAULT_WORKERS,criterion=CRITERION,
                 criteria=stage_criteria(),legacy=bool(job and not state.get('screening_policy')),
-                reassessed=bool(job and state.get('screening_policy')==policy(PREVIOUS_VERSION)
+                reassessed=bool(job and state.get('screening_policy') in (policy(PREVIOUS_VERSION),policy(DRAWDOWN_VERSION))
                                 and not state.get('archived') and
                                 (not state.get('confirmed_at_utc') or state.get('selection_policy')==policy())))
 
@@ -281,7 +281,7 @@ async def results(workflow_id:UUID,request:Request,sort:str='trial',direction:st
         selection_policy = policy()
     for row in page['items']:
         row['qualifies']=eligible(row,selection_policy)
-        if row.get('screening') and state.get('screening_policy')==policy(PREVIOUS_VERSION) and selection_policy==policy():
+        if row.get('screening') and state.get('screening_policy') in (policy(PREVIOUS_VERSION),policy(DRAWDOWN_VERSION)) and selection_policy==policy():
             from .workflow_criteria import evaluate
             measured=row['screening']
             row['admission']=evaluate(measured['metrics'],measured['closed_trades'],measured['total_net_pnl'],policy())

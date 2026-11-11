@@ -8,8 +8,10 @@ from zoneinfo import ZoneInfo
 from .decimal_math import subtract
 from .drawdown import Drawdown
 
-VERSION = 'is-broad-v3'
+VERSION = 'is-broad-v4'
 PREVIOUS_VERSION = 'is-broad-v2'
+DRAWDOWN_VERSION = 'is-broad-v3'
+SUPPORTED_VERSIONS = (PREVIOUS_VERSION, DRAWDOWN_VERSION, VERSION)
 FILE = 'is_screening.json'
 METRICS = ('is_history_months', 'is_annual_net_profit', 'is_mtm_max_drawdown',
            'is_annual_profit_dd_ratio', 'is_profitable_months_pct', 'is_full_months',
@@ -17,16 +19,18 @@ METRICS = ('is_history_months', 'is_annual_net_profit', 'is_mtm_max_drawdown',
 
 
 def policy(version=VERSION):
-    if version not in (VERSION, PREVIOUS_VERSION):
+    if version not in SUPPORTED_VERSIONS:
         raise ValueError('Unsupported IS Broad screening policy.')
     result = dict(version=version, minimum_history_months=24, minimum_closed_trades=100,
                 profitable_months_pct_gt='50',
-                longest_dd_period_fraction_lt='0.25', extra_slippage_ticks_per_fill=1,
+                extra_slippage_ticks_per_fill=1,
                 equity_basis='every observed bar close, cash plus open-position P&L; not tick/intrabar equity',
                 calendar_basis='source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable',
                 annualization_days='365.2425')
     if version == PREVIOUS_VERSION:
         result['annual_profit_dd_ratio_gt'] = '1'
+    if version in (PREVIOUS_VERSION, DRAWDOWN_VERSION):
+        result['longest_dd_period_fraction_lt'] = '0.25'
     return result
 
 
@@ -39,15 +43,14 @@ def stage_criteria():
             'At least 24 calendar months of observed IS coverage and 100 closed trades.',
             'Total net IS profit > 0 after commissions and slippage.',
             'More than 50% of complete IS calendar months profitable; zero/no-trade months are nonprofitable.',
-            'Longest mark-to-market drawdown < 25% of the IS period, including any unresolved drawdown through IS end.',
             'A native rerun with one extra tick of slippage per fill remains net profitable, with identical parameters.',
-            'All five tests must pass before selecting and permanently confirming one or two configurations.']),
+            'Longest mark-to-market drawdown duration and depth are shown for review, not used as automatic pass/fail checks.',
+            'All four tests must pass before selecting and permanently confirming one or two configurations.']),
         dict(id='is_narrow', label='IS Narrow', implemented=True, rules=[
-            'Retain all five IS Broad criteria.',
-            'At least 70% of valid immediate parameter neighbors are profitable, using the predeclared grid steps and every applicable direction.',
-            'At least three of four consecutive, approximately equal IS calendar periods are profitable, including the most recent.',
+            'Retain all four IS Broad pass criteria, with observed source dates in every one of four consecutive IS calendar periods.',
+            'At least two distinct valid immediate ordered-numeric parameter neighbors, with at least two-thirds profitable after costs; categorical axes do not count.',
             'Total net profit remains positive after excluding the single best complete calendar month.',
-            'The 95% lower confidence bound on mean net daily P&L is above zero, preserving time dependence and adjusting for all Broad/Narrow configurations tried, including reruns.',
+            'Four-period P&L, drawdown duration and depth, and the search-adjusted daily-net confidence bound are shown for review, not used as automatic pass/fail checks.',
             'Select and permanently confirm one or two passing configurations per Broad selection, up to four total, before final OOS.']),
         dict(id='oos', label='OOS', implemented=False, rules=[
             'Assess frozen choices without parameter reselection or using OOS to select IS candidates.',
@@ -79,13 +82,15 @@ def evaluate(metrics, closed_trades, total_net, snapshot):
         dict(id='net_profit', label='Overall profitability', passed=net > 0, actual=str(net), required='Net IS profit > 0'),
         dict(id='profitable_months', label='Profitable months', passed=profitable is not None and profitable > Decimal(p['profitable_months_pct_gt']),
              actual='No complete months' if profitable is None else f'{profitable}% of {full_months} complete months', required='> 50% profitable; zero/no-trade months included'),
-        dict(id='drawdown_duration', label='Longest MTM drawdown', passed=duration_pct < Decimal(p['longest_dd_period_fraction_lt']) * 100,
-             actual=f'{duration_pct}% of IS', required='< 25% of IS, including unresolved drawdown'),
         dict(id='cost_stress', label='Extra-slippage native rerun', passed=stress > 0, actual=str(stress), required='Net profit > 0 with +1 tick per fill')]
+    if p.get('longest_dd_period_fraction_lt'):
+        checks.insert(-1, dict(id='drawdown_duration', label='Longest MTM drawdown',
+                               passed=duration_pct < Decimal(p['longest_dd_period_fraction_lt']) * 100,
+                               actual=f'{duration_pct}% of IS', required='< 25% of IS, including unresolved drawdown'))
     if p == policy(PREVIOUS_VERSION):
         checks.insert(2,dict(id='annual_profit_dd', label='Annual profit / MTM drawdown', passed=annual > dd,
                              actual=f'Annual net {annual}; MTM drawdown {dd}', required='Annualized net profit / MTM drawdown > 1'))
-    elif p != policy():
+    elif p not in (policy(DRAWDOWN_VERSION), policy()):
         raise ValueError('Unsupported IS Broad screening policy.')
     if any(not Decimal(str(value)).is_finite() for key, value in metrics.items() if value is not None):
         raise ValueError('Screening measurements must be finite.')
@@ -97,7 +102,7 @@ def evaluate(metrics, closed_trades, total_net, snapshot):
 def verified_screening(runs, report):
     """Read immutable native evidence and verify the paired cost-stress run."""
     captured = report.get('is_screening')
-    if not captured or captured.get('policy') not in (policy(PREVIOUS_VERSION),policy()):
+    if not captured or captured.get('policy') not in tuple(policy(v) for v in SUPPORTED_VERSIONS):
         raise ValueError('This grid lacks supported IS Broad screening evidence.')
     if report.get('run_metadata',{}).get('research',{}).get('screening_policy') != captured['policy']:
         raise ValueError('Saved IS screening policy differs from its native report.')
@@ -142,7 +147,7 @@ class ScreeningCapture:
     """Bounded streaming measurements of authoritative engine equity, never reconstructed fills."""
     def __init__(self, initial, research, source_timezone):
         self.policy = research['screening_policy']
-        if self.policy not in (policy(PREVIOUS_VERSION),policy()):
+        if self.policy not in tuple(policy(v) for v in SUPPORTED_VERSIONS):
             raise ValueError('Unsupported IS Broad screening policy. Start a new grid.')
         self.plan = research['plan']
         self.zone = ZoneInfo(source_timezone)

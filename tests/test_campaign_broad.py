@@ -6,6 +6,7 @@ from hashlib import sha256
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.testclient import TestClient
+import pytest
 from alphaquest.app import create_app
 from test_research_workflow import client
 from test_campaign_mechanics import create_workflow,run_validation,checks
@@ -266,21 +267,22 @@ def test_legacy_pending_grid_requires_rerun_and_confirmed_history_is_preserved(c
     assert before=={p:sha256(p.read_bytes()).hexdigest() for p in before}
 
 
-def test_pending_six_rule_grid_uses_saved_evidence_for_five_rule_selection(client):
+@pytest.mark.parametrize('historical_version,original_checks', [('is-broad-v2',6), ('is-broad-v3',5)])
+def test_pending_historical_grid_uses_saved_evidence_for_four_rule_selection(client,historical_version,original_checks):
     from alphaquest.campaign_broad import BroadGrid, candidate, prepare
     from alphaquest.research import metadata,dates_for
-    from alphaquest.workflow_criteria import PREVIOUS_VERSION,policy
+    from alphaquest.workflow_criteria import policy
     from types import SimpleNamespace
     _,_,workflow=passed_mechanics(client);store=client.app.state.campaign_workflows
     prefix='/api/campaign-workflows/'+workflow['id']
     saved,dataset,definition,config,axes,total,request,_=prepare(
         SimpleNamespace(app=client.app),workflow['id'],BroadGrid.model_validate(broad_grid(3,20,1)))
-    original_policy=policy(PREVIOUS_VERSION)
+    original_policy=policy(historical_version)
     job=client.app.state.optimizations.create(request,dataset,definition,config,axes,total,
         metadata(saved['declaration']['plan'],workflow_id=workflow['id'],workflow_phase='is_broad',screening_policy=original_policy))
     client.app.state.optimizations.run(job,client.app.state.store,definition,config,dates_for(saved['declaration']['plan']))
     state=dict(job_id=job['id'],revision=1,selected_trials=[],selection=[],confirmed_at_utc=None,
-               criterion='All six IS Broad criteria must pass.',screening_policy=original_policy)
+               criterion=f'All {original_checks} historical IS Broad criteria must pass.',screening_policy=original_policy)
     with store.runs.connect() as db:
         db.execute('INSERT INTO campaign_broad_jobs VALUES (?,?)',(job['id'],workflow['id']))
         db.execute('INSERT INTO campaign_broad_state VALUES (?,?)',(workflow['id'],json.dumps(state)))
@@ -298,9 +300,10 @@ def test_pending_six_rule_grid_uses_saved_evidence_for_five_rule_selection(clien
     before={p:sha256(p.read_bytes()).hexdigest() for p in store.runs.root.glob('*/*') if p.is_file()}
     assert client.get(prefix+'/broad').json()['reassessed']
     row=client.get(prefix+'/broad/results').json()['items'][0]
-    assert row['screening']['policy']==original_policy and len(row['screening']['checks'])==6
-    assert row['admission']['qualifies'] and len(row['admission']['checks'])==5 and row['qualifies']
+    assert row['screening']['policy']==original_policy and len(row['screening']['checks'])==original_checks
+    assert row['admission']['qualifies'] and len(row['admission']['checks'])==4 and row['qualifies']
     assert 'annual_profit_dd' not in [check['id'] for check in row['admission']['checks']]
+    assert 'drawdown_duration' not in [check['id'] for check in row['admission']['checks']]
     artifact=store.runs.root/row['run_id']/'is_screening.json';original=artifact.read_bytes()
     artifact.write_bytes(original+b'\n')
     assert selection(client,prefix,[1]).status_code==409

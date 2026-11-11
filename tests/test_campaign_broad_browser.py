@@ -22,8 +22,8 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(rules.locator('[data-stage="is_broad"]')).to_contain_text('24 calendar months')
     playwright.expect(rules.locator('[data-stage="is_broad"]')).to_contain_text('one extra tick')
     rules.locator('[data-stage="is_narrow"] summary').click()
-    playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('At least 70%')
-    playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('95% lower confidence bound')
+    playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('at least two-thirds')
+    playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('confidence bound are shown for review')
     playwright.expect(rules.locator('[data-stage="is_narrow"] summary')).to_contain_text('IS Narrow · Implemented')
     rules.locator('[data-stage="is_narrow"] summary').click()
     for name,end,step in [('green_bar_count','4','1'),('hold_minutes','60','20'),('contracts','3','1')]:
@@ -69,7 +69,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(page.locator('#broad-results th[data-column="max_drawdown_duration_seconds"]')).to_contain_text('calendar days')
     playwright.expect(page.locator(f'#broad-results tr[data-trial="{longest["trial"]}"] td[data-column="max_drawdown_duration_seconds"]')).to_have_text(f'{expected:.2f}')
     first.locator('.broad-row-criteria summary').click()
-    playwright.expect(first.locator('.broad-row-criteria li')).to_have_count(5)
+    playwright.expect(first.locator('.broad-row-criteria li')).to_have_count(4)
     playwright.expect(first.locator('.broad-row-criteria')).to_contain_text('24 months; 144 closed trades')
     with page.expect_download() as measured:
         first.get_by_role('link',name='Screening measurements ↓',exact=True).click()
@@ -118,7 +118,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(page.locator('#mechanic-phases [data-phase="oos"]')).to_be_disabled()
     page.reload()
     playwright.expect(page.locator('#narrow-chooser')).to_be_visible()
-    playwright.expect(page.locator('#workflow-stage-criteria [data-stage="is_narrow"]')).to_contain_text('Retain all five')
+    playwright.expect(page.locator('#workflow-stage-criteria [data-stage="is_narrow"]')).to_contain_text('Retain all four')
     page.screenshot(path=str(tmp_path/'03-is-narrow-inputs.png'),full_page=True)
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
     playwright.expect(page.locator('#broad-confirm')).to_have_text('Configurations confirmed')
@@ -183,7 +183,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
 def test_insufficient_history_and_extra_cost_failure_are_explained_and_unselectable(page,portal,tmp_path):
     from test_campaign_mechanics import create_workflow,run_validation,checks
     from test_campaign_broad import create_broad_workflow
-    for name,make,expected in [('short',create_workflow,'Insufficient evidence'),('cost-stress',lambda client:create_broad_workflow(client,fragile=True),'Not qualified · 4 / 5 passed')]:
+    for name,make,expected in [('short',create_workflow,'Insufficient evidence'),('cost-stress',lambda client:create_broad_workflow(client,fragile=True),'Not qualified · 3 / 4 passed')]:
         with httpx.Client(base_url=portal['url'],timeout=30) as client:
             dataset,_,workflow=make(client)
             result=run_validation(client,workflow);prefix=portal['url']+'/api/campaign-workflows/'+workflow['id']
@@ -207,7 +207,7 @@ def test_insufficient_history_and_extra_cost_failure_are_explained_and_unselecta
         (tmp_path/(name+'-SYNTHETIC-source.csv')).write_bytes(page.request.get(portal['url']+'/api/datasets/'+dataset['id']+'/csv').body())
 
 
-def test_saved_six_rule_grid_uses_five_rule_portal_without_rerun(page,portal,tmp_path):
+def test_saved_six_rule_grid_uses_four_rule_portal_without_rerun(page,portal,tmp_path):
     from types import SimpleNamespace
     from alphaquest.campaign_broad import BroadGrid,prepare
     from alphaquest.research import metadata,dates_for
@@ -229,14 +229,14 @@ def test_saved_six_rule_grid_uses_five_rule_portal_without_rerun(page,portal,tmp
     before={p:sha256(p.read_bytes()).hexdigest() for p in store.runs.root.glob('*/*') if p.is_file()}
     prefix=portal['url']+'/api/campaign-workflows/'+workflow['id']
     page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_broad')
-    playwright.expect(page.locator('.broad-legacy-note')).to_contain_text('earlier six-rule policy')
-    playwright.expect(page.locator('#broad-results tbody .broad-row-criteria summary')).to_have_text('Qualified · 5 / 5 passed')
+    playwright.expect(page.locator('.broad-legacy-note')).to_contain_text('earlier screening policy')
+    playwright.expect(page.locator('#broad-results tbody .broad-row-criteria summary')).to_have_text('Qualified · 4 / 4 passed')
     assert len(page.request.get(prefix+'/broad/results').json()['items'][0]['screening']['checks'])==6
     page.get_by_role('checkbox',name='Select trial 1',exact=True).check()
     page.locator('#broad-confirm').click()
     playwright.expect(page.locator('#mechanic-phases [data-phase="is_narrow"]')).to_have_attribute('aria-current','step')
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
-    playwright.expect(page.locator('#broad-results tbody .broad-row-criteria summary')).to_have_text('Qualified · 5 / 5 passed')
+    playwright.expect(page.locator('#broad-results tbody .broad-row-criteria summary')).to_have_text('Qualified · 4 / 4 passed')
     assert before=={p:sha256(p.read_bytes()).hexdigest() for p in before}
     assert page.request.get(portal['url']+'/api/backtests/batches').json()['total']==1
     page.screenshot(path=str(tmp_path/'saved-six-rule-reassessed.png'),full_page=True)

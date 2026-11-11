@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal as D
 from types import SimpleNamespace
 
-from alphaquest.workflow_criteria import PREVIOUS_VERSION, ScreeningCapture, evaluate, policy
+from alphaquest.workflow_criteria import PREVIOUS_VERSION, DRAWDOWN_VERSION, ScreeningCapture, evaluate, policy
 
 
 def capture(start='2024-01-01',end='2025-12-31',zone='UTC'):
@@ -63,8 +63,11 @@ def test_strict_thresholds_and_inclusive_minimum_evidence():
     assert evaluate(weaker,100,'1',policy())['qualifies']
     historical=evaluate(weaker,100,'1',policy(PREVIOUS_VERSION))
     assert not historical['qualifies'] and not next(c for c in historical['checks'] if c['id']=='annual_profit_dd')['passed']
+    long_drawdown=dict(metrics,is_longest_dd_pct='25')
+    assert evaluate(long_drawdown,100,'1',policy())['qualifies']
+    assert not evaluate(long_drawdown,100,'1',policy(DRAWDOWN_VERSION))['qualifies']
     for key,value,reason in [('is_history_months',23,'evidence'),
-                             ('is_profitable_months_pct','50','profitable_months'),('is_longest_dd_pct','25','drawdown_duration'),
+                             ('is_profitable_months_pct','50','profitable_months'),
                              ('is_stress_net_profit','0','cost_stress')]:
         result=evaluate(dict(metrics,**{key:value}),100,'1',policy())
         assert not result['qualifies'] and not next(c for c in result['checks'] if c['id']==reason)['passed']
