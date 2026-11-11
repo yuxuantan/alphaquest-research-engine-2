@@ -30,7 +30,9 @@
   const campaignRoute = job => job.research?.workflow_phase==='is_broad'&&job.research.workflow_id
     ? `#campaigns/workflows/${job.research.workflow_id}/is_broad?job=${job.id}`
     : job.research?.workflow_phase==='is_narrow'&&job.research.workflow_id
-    ? `#campaigns/workflows/${job.research.workflow_id}/is_narrow?broad_trial=${job.research.broad_trial}` : null;
+    ? `#campaigns/workflows/${job.research.workflow_id}/is_narrow?broad_trial=${job.research.broad_trial}`
+    : job.research?.workflow_phase==='oos'&&job.research.workflow_id
+    ? `#campaigns/workflows/${job.research.workflow_id}/oos?job=${job.id}` : null;
   const resultScroll = get("#optimization-results-scroll");
   const frozenColumns = new window.OptimizationColumns(get("#optimization-results"), resultScroll, get("#optimization-freeze"));
   const pinHeaders = () => frozenColumns.layout();

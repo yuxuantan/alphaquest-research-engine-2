@@ -67,8 +67,9 @@
     get('#report-research-period').textContent=research?bounds(research.plan):'This report predates required IS/OOS declarations. Its data may already have been inspected; it does not establish an untouched holdout. Declare a split in a new IS backtest to use the controlled workflow.';
     if(!research)return;
     if(research.workflow_id){
-      message.textContent='This is a campaign mechanic-validation report. Continue its ordered phases from the campaign dataset workflow; OOS remains locked until every previous phase passes.';
-      const link=document.createElement('a');link.href=`#campaigns/workflows/${research.workflow_id}/mechanic_validation`;link.textContent=' Return to mechanic validation →';message.append(link);
+      const phase=research.workflow_phase?.startsWith('oos')?'oos':research.workflow_phase?.startsWith('is_narrow')?'is_narrow':research.workflow_phase?.startsWith('is_broad')?'is_broad':'mechanic_validation';
+      message.textContent='Campaign report. Execution and phase acceptance are managed in the campaign workflow; OOS assesses the complete frozen Narrow family.';
+      const link=document.createElement('a');link.href=`#campaigns/workflows/${research.workflow_id}/${phase}`+(phase==='oos'&&research.oos_job_id?'?job='+research.oos_job_id:phase==='is_narrow'&&research.broad_trial?'?broad_trial='+research.broad_trial:'');link.textContent=' Return to campaign phase →';message.append(link);
       return;
     }
     get('#report-oos-parameters').textContent='Selected parameters: '+Object.entries(record.run_metadata.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ');

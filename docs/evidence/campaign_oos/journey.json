@@ -1,0 +1,29 @@
+{
+  "workflow_id": "8d002f97e6b748e6be093da2450c3594",
+  "dataset_id": "5a84a55f2fd54f16825689f490a2cd55",
+  "oos_job_id": "82ae82d8d0bf43dfbfbd07346d417c88",
+  "expected_configurations": 4,
+  "expected_is_net": [
+    9360,
+    9360,
+    18720,
+    18720
+  ],
+  "expected_oos_net": [
+    4680,
+    4680,
+    9360,
+    9360
+  ],
+  "expected_oos_stress_net": [
+    2880,
+    2880,
+    5760,
+    5760
+  ],
+  "all_frozen_candidates_assessed": true,
+  "cartesian_combinations_not_executed": 4,
+  "synthetic": true,
+  "mc_parity": "Synthetic attestation only; no measured MultiCharts comparison",
+  "server": "Stopped by fixture teardown."
+}

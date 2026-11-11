@@ -56,6 +56,7 @@ def selected(request,run_id):
     if workflow_id:
         try:request.app.state.campaign_workflows.phase(workflow_id,'oos')
         except (ValueError,KeyError) as exc:raise HTTPException(409,'Campaign OOS is locked until mechanic validation, IS Broad and IS Narrow have all passed.') from exc
+        raise HTTPException(409,'Run campaign OOS from its OOS phase page to assess the complete frozen Narrow candidate family.')
     from .trade_imports import external
     if external(record):
         raise HTTPException(409,'Imported research declarations do not authorize native OOS replay. Supply a separately identified external OOS export.')

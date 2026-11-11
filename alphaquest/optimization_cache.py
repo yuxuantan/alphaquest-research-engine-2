@@ -45,6 +45,11 @@ def artifacts(root, record):
         if record['artifacts'].get('is_screening_json') != FILE:
             raise ValueError('Unsupported IS screening artifact.')
         names.add(FILE)
+    if record.get('oos_screening'):
+        from .oos_criteria import FILE
+        if record['artifacts'].get('oos_screening_json') != FILE:
+            raise ValueError('Unsupported OOS screening artifact.')
+        names.add(FILE)
     if record.get("intratrade_risk"):
         names.add("intratrade_risk.csv")
     if record.get("execution_decisions"):

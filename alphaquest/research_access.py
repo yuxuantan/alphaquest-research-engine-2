@@ -425,6 +425,15 @@ class ResearchAccess:
         window=dict(sessions=sessions) if sessions else dict(first_session=str(session_date(datetime.fromisoformat(span['start_utc'].replace('Z','+00:00')))),last_session=str(session_date(datetime.fromisoformat(span['end_utc'].replace('Z','+00:00')))))
         return self.observe(dataset,window,kind='strategy_outcome',origin=origin)
 
+    def assessment_history(self, dataset, date_range):
+        """Metadata-only prior access disclosure for a manually launched assessment."""
+        source, _ = self.register(dataset)
+        window = coverage(dataset, date_range)
+        first, last = date.fromisoformat(window['first_session']), date.fromisoformat(window['last_session'])
+        sessions = [(first + timedelta(days=i)).isoformat() for i in range((last-first).days+1)]
+        with self.analyses.lock, self.analyses.connect() as db:
+            return self._preview(db, source, sessions, 'not_declared')
+
     def observe(self,dataset,window,*,kind='price_read',origin='internal',request_id=None):
         if _metadata.get():return None
         source,_=self.register(dataset)

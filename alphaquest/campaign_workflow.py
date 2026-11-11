@@ -108,6 +108,11 @@ class CampaignWorkflowStore:
                     workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id),
                     broad_trial INTEGER NOT NULL, payload TEXT NOT NULL,
                     PRIMARY KEY(workflow_id,broad_trial));
+                CREATE TABLE IF NOT EXISTS campaign_oos_jobs (
+                    job_id TEXT PRIMARY KEY REFERENCES optimizations(id),
+                    workflow_id TEXT NOT NULL REFERENCES campaign_workflows(id), request_id TEXT UNIQUE NOT NULL);
+                CREATE TABLE IF NOT EXISTS campaign_oos_state (
+                    workflow_id TEXT PRIMARY KEY REFERENCES campaign_workflows(id), job_id TEXT NOT NULL);
             ''')
             # Earlier workflows recorded only their latest execution. Import only
             # known timestamps; report creation is not an inferred start time.
@@ -265,12 +270,13 @@ class CampaignWorkflowStore:
                          'running' if any(branch['status'] in ('queued','running') for branch in narrow) else
                          'review_required' if any(branch['status']=='review_required' for branch in narrow) else
                          'ready')
+        from .campaign_oos import phase_status
         statuses = [saved['status'], broad['status'] if passed else 'locked',
                     narrow_status if passed and broad_passed else 'locked',
-                    'ready' if narrow_passed else 'locked']
+                    phase_status(self, saved['id']) if narrow_passed else 'locked']
         result['broad'] = broad
         result['narrow'] = narrow
-        result['phases'] = [dict(id=phase, label=label, status=statuses[i], implemented=i <= 2)
+        result['phases'] = [dict(id=phase, label=label, status=statuses[i], implemented=True)
                            for i, (phase, label) in enumerate(zip(PHASES, PHASE_LABELS))]
         result['latest_phase'] = 'oos' if narrow_passed else 'is_narrow' if passed and broad_passed else 'is_broad' if passed else 'mechanic_validation'
         if include_results and saved['review']:

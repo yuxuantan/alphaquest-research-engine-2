@@ -1,7 +1,7 @@
 # Campaign stage passing criteria
 
-User-approved policy, updated 2026-11-11, on `epic/revamp-workflow`. IS Broad and
-IS Narrow are implemented. OOS execution remains a later stage.
+User-approved policy, updated 2026-11-11, on `epic/revamp-workflow`. IS Broad,
+IS Narrow, and frozen-family OOS assessment are implemented.
 The portal's **Passing criteria by stage** panel shows the same server-owned
 rules, including while later phases remain locked.
 
@@ -214,7 +214,7 @@ attempts recorded so far.
 Up to two rows per Broad branch can be confirmed, at most four total. All four
 may be eligible for later OOS assessment; no primary candidate is required.
 Each confirmation is immutable. OOS navigation unlocks only when all branches
-have confirmed selections. OOS success rules and prop simulation sizing or
+have confirmed selections. OOS assessment now applies the rules below. Prop simulation sizing and
 portfolio selection remain future work.
 
 The Narrow job saves its Broad selection identity, selected Broad anchor values,
@@ -345,14 +345,103 @@ evidence are rejected. No
 MultiCharts parity is asserted by this synthetic exercise; the mechanic
 confirmation is a labeled user-attestation fixture.
 
-## OOS — future execution
+## OOS — implemented, policy `campaign-oos-v1`
 
-Assess frozen choices without parameter reselection or using OOS outcomes for
-IS candidate selection. Final OOS acceptance thresholds are not agreed in this
-increment and no automatic OOS pass is available. Preserve explicit prior-access
-history; a reused holdout must not be described as untouched.
+Run the complete confirmed Narrow family, **one to four configurations**, on
+its frozen OOS window. A single table compares each candidate with **its own
+selected IS report**. Parameters, dataset, sizing inputs, initial capital,
+commissions, baseline slippage, benchmark settings, and research dates remain
+frozen. The native engine starts flat for OOS. It executes only the explicitly
+selected parameter dictionaries, never the Cartesian product of their values.
+The default worker count is four, subject to the shared machine limit.
 
-The cutoffs above are the user's predeclared screening policy, not universal
-statistical standards or evidence of future trading profitability. The product
-demonstration and independent numerical expectations are recorded in
-`docs/prop_simulation_review.md` under the six-criterion screening increment.
+All seven checks must pass **per candidate**:
+
+| Check | Passing condition |
+| --- | --- |
+| Evidence | At least **6 observed calendar months**, **6 complete calendar months**, and **50 closed OOS trades**. |
+| Profitability | Net OOS profit **> 0** after native commissions and slippage. |
+| Annualized profit retention | OOS annualized net profit **≥ 50%** of that candidate's IS annualized net profit. |
+| Profit per trade retention | OOS net profit per closed trade **≥ 50%** of its IS net profit per trade. |
+| MTM drawdown deterioration | OOS maximum bar-close MTM drawdown **≤ 1.5 × IS MTM drawdown**. If IS drawdown is zero, OOS drawdown must also be zero. |
+| Monthly consistency | Profitable complete OOS months **≥ max(40%, IS profitable-month percentage − 15 percentage points)**. |
+| Cost resilience | A second **native OOS replay with +1 tick slippage per fill** remains net profitable. |
+
+These thresholds are a pragmatic screening policy, chosen before this OOS
+execution. They allow up to 50% deterioration in time-normalized earnings and
+per-trade expectancy while limiting drawdown growth and monthly deterioration.
+They are not universal statistical cutoffs, evidence of a future guarantee, or
+a substitute for trading-risk limits. Repeatedly selecting on observed holdout
+results remains subject to overfitting; see the authors' primary paper,
+[The Probability of Backtest Overfitting](https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf).
+
+### Measurements and comparison
+
+All source dates and months use the dataset source timezone. Inclusive dates
+become local-midnight bounds, with durations measured in elapsed UTC time.
+Annualized profit uses the full declared period and **365.2425 days/year** for
+both IS and OOS, so unequal period lengths are normalized. The history floor
+uses observed source coverage, not padded declaration dates. Missing complete
+months carry forward equity and count as zero/nonprofitable. Partial months
+remain in total profit and MTM drawdown but are excluded from the monthly rate.
+
+OOS MTM drawdown is captured from every authoritative native bar-close equity
+point, including open P&L and costs already charged. It is not the historical
+trade-close `max_drawdown_amount`, an intrabar extreme, or a daily approximation.
+No costs are deducted twice. Drawdown durations are displayed in calendar days.
+Profit per trade uses actual net profit divided by actual closed trade count.
+Threshold comparisons use unrounded decimals; table values display two decimals.
+Insufficient history, no trades, and missing/changed source evidence cannot pass.
+
+Each baseline and cost-stress result is a durable ordinary backtest report.
+`oos_screening.json` stores the measured period statistics, matching native
+cost-stress identity, and policy. Frozen IS comparisons, source/artifact hashes,
+family membership, implementation hashes, policy, and pre-launch prior-access
+history are stored in the existing job catalogue. Native reports, JSON/CSV
+assessment downloads, and per-row PASS/FAIL reasons reopen without resimulation.
+
+### Navigation, execution and history
+
+Click OOS after every selected Broad branch has confirmed its Narrow choices.
+Opening the page does not execute OOS. **Run all frozen OOS configurations**
+starts the exact family in the existing batch worker. It continues if the user
+navigates away. Job history links directly to the OOS page and selected attempt;
+older generic batch URLs redirect there as well. The page shows cheap worker
+progress, refreshes measurements when a candidate finishes, and supports
+stopping and resuming remaining configurations under the same engine identity.
+Completed reports survive stopping or a server restart. A code change requires
+another explicit assessment; saved reports and history are retained.
+
+Any number of the four configurations can pass independently; no primary winner
+is named, no candidate is added or retuned from OOS, and IS confirmations remain
+unchanged. The overall OOS phase is marked passed when the full batch completes
+and at least one candidate passes; the table always shows the individual count.
+A completed batch with zero passing rows is not qualified. Prop simulation is
+not implemented by this increment.
+
+Each explicit repeat assessment is appended to history. The existing research
+access ledger records actual OOS reads, and the existing OOS-attempt history
+records each candidate's execution. The page discloses prior attempts and local
+access status before launch. Unknown/external access stays unknown; reused OOS
+is never called untouched. Protected final-session reservations continue to be
+enforced by the normal read guard. Campaign report actions return to the correct
+campaign phase; an individual report cannot bypass the complete-family launch.
+
+### Reproduce OOS acceptance
+
+`docs/evidence/campaign_oos/README.md` contains the normal-product steps, saved
+source/results/screenshots/downloads, and independent expected values. The
+stable synthetic OOS has 60 active days at 78 CU/day: **4,680 CU** per contract,
+with **2,880 CU** after the extra tick per fill. Its matching two-year IS has
+120 active days and **9,360 CU**. The degraded source produces **2,160 CU** OOS
+and **360 CU** after extra slippage; its profit/trade retention is **46.15%**,
+so it fails despite remaining profitable. Two-contract candidates double all
+currency amounts, with unchanged retention percentages.
+
+Focused API checks cover exact family membership rather than an eight-row
+Cartesian expansion, freeze enforcement, closed phases, idempotent launches,
+actual OOS MTM capture, inclusive thresholds and zero-drawdown handling, no-trade
+and short-history rejection, stop/resume, prior access/repeated history,
+report/verdict corruption, deletion protection and reopening without replay.
+Browser checks cover the real single-table portal, column freezing/sorting,
+progress, job-history navigation, acceptance reasons, and durable downloads.

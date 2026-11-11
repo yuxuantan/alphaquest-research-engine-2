@@ -1,11 +1,12 @@
 # Temporary test scope during the workflow revamp
 
 - Use the smallest test set relevant to the current change. A plain pytest run
-  selects the seventeen focused mechanics/job-history/IS Broad criteria checks via `pyproject.toml`.
+  selects the focused mechanics/job-history/IS Broad/OOS criteria checks via `pyproject.toml`.
 - For changes to the current UI, explicitly select the relevant cases in
   `tests/test_campaign_mechanics_browser.py` or
   `tests/test_workflow_navigation_browser.py`, `tests/test_job_history_browser.py`,
-  `tests/test_campaign_broad_browser.py`, or `tests/test_campaign_narrow_browser.py`.
+  `tests/test_campaign_broad_browser.py`, `tests/test_campaign_narrow_browser.py`,
+  or `tests/test_campaign_oos_browser.py`.
   Browser checks are opt-in; select only the affected journey.
 - Older regressions remain intact but are excluded from default discovery.
   Do not routinely run the previous 180-check set or the full suite for each
@@ -15,9 +16,11 @@
 
 # Agreed campaign screening policy
 
-Follow `docs/workflow_screening.md` for the implemented IS Broad and IS Narrow
-criteria. OOS execution remains planned. The portal shares server-owned rules
-from `alphaquest/workflow_criteria.py` and `alphaquest/campaign_narrow.py`.
+Follow `docs/workflow_screening.md` for the implemented IS Broad, IS Narrow,
+and OOS criteria. The portal shares server-owned rules
+from `alphaquest/workflow_criteria.py`, `alphaquest/campaign_narrow.py`, and
+`alphaquest/oos_criteria.py`. OOS runs the complete frozen Narrow family through
+`alphaquest/campaign_oos.py`; it must never tune or reselect IS candidates.
 Preserve policy snapshots and historical confirmations; do not relabel an older
 rule as passing a newer one.
 

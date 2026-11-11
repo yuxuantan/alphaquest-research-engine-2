@@ -10784,3 +10784,59 @@ the actual portal, local Broad refinement, two-branch selection and downloads,
 and qualifying one-sided corners. All temporary test servers stop at teardown.
 These labeled synthetic outputs verify arithmetic and workflow; no external
 MultiCharts parity, statistical edge, or provider qualification is claimed.
+
+## 2026-11-11 — Complete frozen-family OOS assessment
+
+`campaign-oos-v1` now executes every confirmed Narrow candidate (one to four)
+on the frozen OOS window through the ordinary backtest batch worker. It runs
+only those exact dictionaries; no Cartesian parameter expansion or OOS-driven
+IS reselection is permitted. The existing catalogue owns jobs, ordinary native
+reports, cost-stress reports, research-access events and OOS-attempt history.
+No prop simulation, portfolio sizing, separate execution engine, or demo-only
+product surface is added.
+
+The actual OOS page contains one sortable table with frozen varied parameters,
+IS/OOS annual profit, net per trade, MTM depth, retention, monthly profitability,
+extra-slippage profit, durations in calendar days, and seven per-row reasons.
+The gates require six observed and complete months plus 50 trades; positive
+net profit; at least 50% IS annualized and per-trade net profit retention; MTM
+drawdown no more than 1.5 × IS; profitable months at least max(40%, IS minus
+15 percentage points); and positive net in a native +1-tick-per-fill rerun.
+Zero IS drawdown allows only zero OOS drawdown. Each candidate can pass; the
+phase passes after the full batch finishes with at least one eligible row.
+These are frozen pragmatic historical screens, not guarantees or provider
+qualification. Initial positions are flat; sizing parameters and base execution
+settings remain frozen, with actual trade quantities determined by the strategy.
+
+`docs/evidence/campaign_oos/README.md` supplies exact startup/UI/test commands,
+independent arithmetic, saved native outputs and downloads. The stable portal
+journey selects four IS configurations from two Broad branches: hold 16/18 at
+one contract and hold 14/20 at two contracts. Their IS totals are 9,360/18,720 CU;
+OOS totals are 4,680/9,360 CU, with 2,880/5,760 CU under extra slippage. All four
+pass, and the actual worker count is four rather than the eight configurations
+that a Cartesian product would imply. The source has 120 IS and 60 OOS active
+days; six trades/date, 12 price points/date, 30 CU baseline slippage and 12 CU
+commissions independently give 78 CU/date. The degraded native OOS has 7.8
+points/date, giving 36 CU net/date: 2,160 CU baseline and 360 CU stressed per
+contract. It fails retention at 46.15% net/trade despite positive net results.
+Native report, trade/equity CSV and measured sidecars remain inspectable.
+
+Job history opens the exact OOS attempt. Progress uses the lightweight existing
+job record and reloads measurements on candidate completion, not each bar update.
+Jobs continue after leaving the page, support checkpoint stopping, and retain
+completed reports when resuming remaining candidates. Explicit repeats append
+history and disclose previous OOS attempts and local prior access; no untouched
+certificate is claimed. Protected holdout reservations retain their normal read
+guard. Campaign report actions return to the matching phase, and old generic
+batch links redirect to OOS rather than a duplicate results page.
+
+Focused checks exercise stable/degraded native four-worker execution, exact
+membership, frozen parameters and dates, authoritative bar-close MTM capture,
+threshold boundaries and short/no-trade evidence, zero drawdown, phase gates,
+launch idempotence, repeated-history preservation, source/verdict corruption,
+delete protection, reopening without replay, and resuming after one real
+candidate completes. The browser journey covers the real table, column freezing,
+sorting, automatic phase status, history navigation, JSON/CSV downloads and
+reload. Earlier IS evidence and confirmed v1/v2/v3 policies remain unchanged.
+All temporary test servers stop at teardown. Synthetic mechanic attestations do
+not establish MultiCharts parity, statistical edge, or live trading readiness.

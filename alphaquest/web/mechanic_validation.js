@@ -112,6 +112,11 @@
       window.campaignNarrow.render(host,workflow,{isCurrent:()=>active===token,broadTrial:route()?.[4]});
       return;
     }
+    if (phase === 'oos') {
+      const active=token;
+      window.campaignOOS.render(host,workflow,{isCurrent:()=>active===token,jobId:route()?.[3]});
+      return;
+    }
     if (phase !== 'mechanic_validation') {
       const intro = node('section',undefined,'panel mechanic-results');
       intro.append(node('h2',workflow.phases.find(p => p.id === phase).label),node('p','Navigation is ready. Running and passing this phase will be added in a later update.'));
@@ -192,7 +197,7 @@
     }
   }
   async function navigate() {
-    const active = ++token; clearTimeout(timer); saving=false; window.campaignBroad?.dispose(); window.campaignNarrow?.dispose();
+    const active = ++token; clearTimeout(timer); saving=false; window.campaignBroad?.dispose(); window.campaignNarrow?.dispose(); window.campaignOOS?.dispose();
     const match = route();
     if (!match) {
       if (location.hash.startsWith('#campaigns/workflows/')) {

@@ -144,6 +144,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(broad_router)
     from .campaign_narrow import router as narrow_router
     app.include_router(narrow_router)
+    from .campaign_oos import router as oos_router
+    app.include_router(oos_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

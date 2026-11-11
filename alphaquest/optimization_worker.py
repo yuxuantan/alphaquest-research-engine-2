@@ -61,10 +61,18 @@ def compute_trial(context, trial, values, run_id, progress):
     automatic = descriptor() if context.default_prop else None
     timings = Performance()
     research = context.research
+    if research and research.get('workflow_phase') == 'oos':
+        selected = research['frozen_candidates'][trial - 1]
+        if selected['parameters'] != values or selected['oos_run_id'] != run_id:
+            raise ValueError('OOS execution differs from its frozen candidate list.')
+        research = dict(research, parent_run_id=selected['run_id'], attempt_id=selected['attempt_id'],
+                        broad_trial=selected['broad_trial'], narrow_trial=selected['trial'])
     cost_stress = None
-    if research and research.get('workflow_phase') in ('is_broad', 'is_narrow') and research.get('screening_policy'):
+    if research and ((research.get('workflow_phase') in ('is_broad', 'is_narrow') and research.get('screening_policy'))
+                     or (research.get('workflow_phase') == 'oos' and research.get('oos_policy'))):
         stress_id = uuid4().hex
-        stress_config = replace(context.config, slippage_ticks=context.config.slippage_ticks + research['screening_policy']['extra_slippage_ticks_per_fill'])
+        screening_policy = research.get('screening_policy') or research['oos_policy']
+        stress_config = replace(context.config, slippage_ticks=context.config.slippage_ticks + screening_policy['extra_slippage_ticks_per_fill'])
         stress_research = dict(research, workflow_phase=research['workflow_phase'] + '_cost_stress', source_candidate_run_id=run_id)
         stress_manifest, _, _ = prepare_backtest_report(
             FrozenSource(context.dataset, context.snapshot), context.output_root / stress_id,

@@ -35,6 +35,7 @@ def policy(version=VERSION):
 
 
 def stage_criteria():
+    from .oos_criteria import rules as oos_rules
     return [dict(id='mechanic_validation', label='Mechanic validation', implemented=True, rules=[
         'Run the default parameters on IS data.',
         'Review every outcome metric for MultiCharts parity and every sampled trade for parity and execution correctness.',
@@ -53,9 +54,7 @@ def stage_criteria():
             'Total net profit remains positive after excluding the single best complete calendar month.',
             'Four-period P&L, drawdown duration and depth, and the search-adjusted daily-net confidence bound are shown for review, not used as automatic pass/fail checks.',
             'Select and permanently confirm one or two passing configurations per Broad selection, up to four total, before final OOS.']),
-        dict(id='oos', label='OOS', implemented=False, rules=[
-            'Assess frozen choices without parameter reselection or using OOS to select IS candidates.',
-            'Execution and final acceptance thresholds will be implemented separately; no OOS pass is currently available.'])]
+        dict(id='oos', label='OOS', implemented=True, rules=oos_rules())]
 
 
 def next_month(day):
@@ -146,14 +145,20 @@ def verified_screening(runs, report):
 
 class ScreeningCapture:
     """Bounded streaming measurements of authoritative engine equity, never reconstructed fills."""
-    def __init__(self, initial, research, source_timezone):
-        self.policy = research['screening_policy']
-        if self.policy not in tuple(policy(v) for v in SUPPORTED_VERSIONS):
+    def __init__(self, initial, research, source_timezone, *, phase='is'):
+        self.phase = phase
+        self.policy = research['screening_policy'] if phase == 'is' else research['oos_policy']
+        if phase not in ('is','oos'):
+            raise ValueError('Unknown screening period.')
+        if phase == 'is' and self.policy not in tuple(policy(v) for v in SUPPORTED_VERSIONS):
             raise ValueError('Unsupported IS Broad screening policy. Start a new grid.')
+        if phase == 'oos':
+            from .oos_criteria import POLICY
+            if self.policy != POLICY:raise ValueError('Unsupported OOS policy.')
         self.plan = research['plan']
         self.zone = ZoneInfo(source_timezone)
-        self.start_day = date.fromisoformat(self.plan['is_start'])
-        self.end_day = date.fromisoformat(self.plan['is_end']) + timedelta(days=1)
+        self.start_day = date.fromisoformat(self.plan[f'{phase}_start'])
+        self.end_day = date.fromisoformat(self.plan[f'{phase}_end']) + timedelta(days=1)
         self.start = datetime.combine(self.start_day, time(), self.zone).astimezone(ZoneInfo('UTC'))
         self.end = datetime.combine(self.end_day, time(), self.zone).astimezone(ZoneInfo('UTC'))
         self.initial = self.last_equity = initial
@@ -201,8 +206,11 @@ class ScreeningCapture:
                        is_profitable_months_pct=Decimal(profitable) * 100 / len(complete) if complete else None,
                        is_full_months=len(complete), is_longest_dd_pct=dd['max_drawdown_duration_seconds'] * 100 / duration,
                        is_stress_net_profit=self.stress['summary']['total_net_pnl'])
-        return dict(policy=self.policy, metrics=metrics, closed_trades=trades, total_net_pnl=total_net,
+        measured = dict(policy=self.policy, metrics=metrics, closed_trades=trades, total_net_pnl=total_net,
                     months=rows, observed_start=self.first_day.isoformat(), observed_end=self.last_day.isoformat(),
                     period_start_utc=self.start.isoformat(), period_end_exclusive_utc=self.end.isoformat(),
                     mtm_drawdown_duration_seconds=dd['max_drawdown_duration_seconds'], cost_stress=self.stress,
-                    **evaluate(metrics, trades, total_net, self.policy))
+                    **(evaluate(metrics, trades, total_net, self.policy) if self.phase == 'is' else {}))
+        if self.phase == 'oos':
+            measured['metrics'] = {key.replace('is_', 'oos_', 1): value for key,value in metrics.items()}
+        return measured

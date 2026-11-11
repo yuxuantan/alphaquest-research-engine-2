@@ -108,6 +108,25 @@ def combinations(axes):
     return (dict(zip(axes, values)) for values in product(*axes.values()))
 
 
+def trial_parameters(job):
+    return job['candidate_parameters'] if 'candidate_parameters' in job else combinations(job['axes'])
+
+
+def execution_run_id(research, trial):
+    if research and research.get('workflow_phase') == 'oos':
+        return research['frozen_candidates'][trial - 1]['oos_run_id']
+    return uuid4().hex
+
+
+def sync_oos_attempts(db, job):
+    if (job.get('research') or {}).get('workflow_phase') != 'oos':return
+    for candidate in job['research']['frozen_candidates']:
+        exists = db.execute('SELECT 1 FROM runs WHERE id=?', (candidate['oos_run_id'],)).fetchone()
+        status = 'complete' if exists else 'running' if job['status'] in ('queued','running') else 'failed' if job['status']=='complete' else job['status']
+        db.execute('UPDATE oos_attempts SET status=?,error=? WHERE id=?',
+                   (status, None if exists else job.get('error'), candidate['attempt_id']))
+
+
 class OptimizationStore:
     def __init__(self, runs, prop_analyses):
         self.runs = runs
@@ -135,7 +154,11 @@ class OptimizationStore:
     def close(self):
         self.executor.shutdown(wait=True)
 
-    def create(self, request, dataset, definition, config, axes, total, research=None, *, connection=None):
+    def create(self, request, dataset, definition, config, axes, total, research=None, *, connection=None, candidates=None):
+        if candidates is not None:
+            if not research or research.get('workflow_phase') != 'oos' or not 1 <= len(candidates) == total <= 4:
+                raise ValueError('Explicit candidate batches require one to four frozen OOS configurations.')
+            for candidate in candidates:definition.parameters(candidate)
         job = {"id": uuid4().hex, "created_at_utc": datetime.now(timezone.utc).isoformat(),
                "status": "queued", "stage": "queued", "completed_trials": 0, "total_trials": total,
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
@@ -146,9 +169,15 @@ class OptimizationStore:
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()},
                "metric_columns": list(METRICS if request.automatic_prop else BACKTEST_METRICS)}
+        if candidates is not None:
+            job['candidate_parameters'] = candidates
+            job['research'] = dict(research, oos_job_id=job['id'])
         if research and research.get('screening_policy'):
             from .workflow_criteria import METRICS as SCREENING_METRICS
             job['metric_columns'].extend(SCREENING_METRICS)
+        if research and research.get('oos_policy'):
+            from .oos_criteria import METRICS as OOS_METRICS
+            job['metric_columns'].extend(OOS_METRICS)
         with (self.runs.connect() if connection is None else nullcontext(connection)) as conn:
             conn.execute("INSERT INTO optimizations VALUES (?, ?, ?)", (job["id"], job["created_at_utc"], json.dumps(job)))
         return job
@@ -160,6 +189,8 @@ class OptimizationStore:
             if job.get('stop_requested_at_utc') and job['status'] == 'running':
                 job['stage'] = 'stopping'
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            if values.get('status') in ('failed','interrupted','cancelled'):
+                sync_oos_attempts(conn, job)
         return job
 
     def stop_requested(self, job_id):
@@ -189,6 +220,7 @@ class OptimizationStore:
             else:
                 raise ValueError(f"Only queued or running activities can be stopped; this activity is {job['status']}.")
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def finish_execution(self, job_id, failures, elapsed):
@@ -207,6 +239,7 @@ class OptimizationStore:
                 job.update(cancelled_at_utc=job['finished_at_utc'],
                            cancellation_reason='Stopped during execution; completed trials and reports retained.')
             conn.execute('UPDATE optimizations SET payload=? WHERE id=?', (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def cancel_queued(self, job_id):
@@ -226,6 +259,7 @@ class OptimizationStore:
                        finished_at_utc=now, cancellation_reason="Cancelled before execution; saved reports retained.",
                        active_trials=[], worker_pids=[])
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def _claim_queued(self, job_id):
@@ -266,6 +300,7 @@ class OptimizationStore:
             for key in ("error", "started_at_utc", "finished_at_utc", "cancelled_at_utc", "cancellation_reason", "stop_requested_at_utc"):
                 job.pop(key, None)
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def delete(self, job_id):
@@ -288,6 +323,9 @@ class OptimizationStore:
                 if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_narrow_jobs'").fetchone():
                     if conn.execute('SELECT 1 FROM campaign_narrow_jobs WHERE job_id=?',(job_id,)).fetchone():
                         raise ValueError('This IS Narrow job is retained by a campaign workflow and cannot be deleted.')
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_oos_jobs'").fetchone():
+                    if conn.execute('SELECT 1 FROM campaign_oos_jobs WHERE job_id=?',(job_id,)).fetchone():
+                        raise ValueError('This OOS assessment is retained by a campaign workflow and cannot be deleted.')
                 row = conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()
                 if row is None:
                     return None
@@ -442,6 +480,13 @@ class OptimizationStore:
             row['metrics'].update(record['is_screening']['metrics'])
             stress = self.runs.get(record['is_screening']['cost_stress']['run_id'])
             row['screening_evidence_identity'] = digest([record, artifacts(self.runs.root, record), stress, artifacts(self.runs.root, stress)])
+        if record.get('oos_screening'):
+            from .oos_criteria import evaluate, verified_oos
+            captured, stress = verified_oos(self.runs, record)
+            candidate = context.research['frozen_candidates'][trial - 1]
+            row['oos_admission'] = evaluate(captured, candidate['is_reference'])
+            row['metrics'].update(captured['metrics'])
+            row['oos_evidence_identity'] = digest([record, artifacts(self.runs.root, record), stress, artifacts(self.runs.root, stress)])
         if prop:
             row.update(prop_analysis={key: prop[key] for key in ("id", "status", "historical_net", "reason")})
             row['prop_companions']=[{key:item[key] for key in ('id','status','historical_net','reason')} for item in prop.get('companions',[])]
@@ -481,6 +526,7 @@ class OptimizationStore:
             elif row["execution"].get("worker_pid"):
                 current["worker_pids"] = sorted(set(current["worker_pids"]) | {row["execution"]["worker_pid"]})
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(current), job_id))
+            sync_oos_attempts(conn, current)
         return current["completed_trials"]
 
     def _reuse_trial(self, job, trial, values):
@@ -571,7 +617,7 @@ class OptimizationStore:
             with self.runs.connect() as conn:
                 saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
             pending = []
-            for trial, values in enumerate(combinations(job['axes']), 1):
+            for trial, values in enumerate(trial_parameters(job), 1):
                 check_stop()
                 if trial not in saved and not self._reuse_trial(job, trial, values):
                     pending.append((trial, values))
@@ -609,7 +655,7 @@ class OptimizationStore:
                 if workers == 1:
                     for trial, values in trials:
                         check_stop()
-                        run_id = uuid4().hex
+                        run_id = execution_run_id(job.get('research'), trial)
                         try:
                             def serial_progress(stage, processed, total):
                                 check_stop()
@@ -654,7 +700,7 @@ class OptimizationStore:
                         trial, values = next(trials)
                     except StopIteration:
                         return False
-                    run_id = uuid4().hex
+                    run_id = execution_run_id(context.research, trial)
                     try:
                         future = pool.submit(run_trial, trial, values, run_id)
                     except Exception as exc:

@@ -112,6 +112,9 @@ class RunStore:
                                 raise ValueError('This backtest belongs to a retained campaign IS Narrow grid and cannot be deleted.')
                             if conn.execute("SELECT 1 FROM runs WHERE id=? AND json_extract(manifest,'$.run_metadata.research.workflow_phase')='is_narrow_cost_stress'",(run_id,)).fetchone():
                                 raise ValueError('This native cost-stress backtest is retained as IS Narrow screening evidence and cannot be deleted.')
+                        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_oos_jobs'").fetchone():
+                            if conn.execute("SELECT 1 FROM runs WHERE id=? AND json_extract(manifest,'$.run_metadata.research.workflow_phase') IN ('oos','oos_cost_stress')",(run_id,)).fetchone():
+                                raise ValueError('This backtest is retained as campaign OOS assessment evidence and cannot be deleted.')
                         destination=self.root/run_id
                         staged=self.root/('.deleted-'+run_id)
                         exists=conn.execute('SELECT 1 FROM runs WHERE id=?',(run_id,)).fetchone()
