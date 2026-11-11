@@ -86,12 +86,14 @@
         const saved = workflow.declaration, dataset = saved.dataset;
         seen.add(dataset.id);
         const card = node('div',undefined,'workflow-dataset workflow-real-dataset');
-        const heading = node('a',dataset.name,'workflow-inline-link');
-        heading.href = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
-        card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
         const latest=workflow.phases.find(phase=>phase.id===workflow.latest_phase);
+        const pendingNarrow=latest.id==='is_narrow' ? workflow.narrow.find(branch=>!branch.confirmed_at_utc) : null;
+        const destination=`#campaigns/workflows/${workflow.id}/${latest.id}${pendingNarrow?`?broad_trial=${pendingNarrow.broad_trial}`:''}`;
+        const heading = node('a',dataset.name,'workflow-inline-link');
+        heading.href = destination;
+        card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
         card.append(node('span',`${latest.label} · ${latest.status.replaceAll('_',' ')}`,'workflow-stage'));
-        if (!workflow.review) action(card,'Resume backtest →',heading.href);
+        if (!workflow.review) action(card,'Resume backtest →',destination);
         datasets.append(card);
       }
       for (const group of groups.items) {
