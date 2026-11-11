@@ -13,12 +13,13 @@ def test_running_narrow_progress_polls_job_without_reloading_results(page,portal
     with httpx.Client(base_url=portal['url'],timeout=40) as client:
         _,workflow,_=narrow_workflow(client)
         completed=narrow_start(client,'/api/campaign-workflows/'+workflow['id'],1)
+        saved_detail=client.get('/api/campaign-workflows/'+workflow['id']+'/narrow',params={'broad_trial':1}).json()
     job_id=completed['id']
     active=dict(trial=1,stage='cost_stress: replaying',bars_processed=0,total_bars=2400)
-    progress_calls=[];result_calls=[]
+    progress_calls=[];result_calls=[];simulated_status={'value':'running'}
     def narrow_detail(route):
-        body=route.fetch().json()
-        body['job'].update(status='running',stage='running_trials',completed_trials=0,active_trials=[active])
+        body=json.loads(json.dumps(saved_detail))
+        body['job'].update(status=simulated_status['value'],stage='running_trials',completed_trials=0,active_trials=[active])
         route.fulfill(status=200,content_type='application/json',body=json.dumps(body))
     def job_progress(route):
         progress_calls.append(1)
@@ -32,6 +33,15 @@ def test_running_narrow_progress_polls_job_without_reloading_results(page,portal
     playwright.expect(page.locator('#narrow-active-trials')).to_contain_text('2,000 / 2,400 bars',timeout=10000)
     assert len(progress_calls)>=2
     assert len(result_calls)==1
+    simulated_status['value']='interrupted'
+    page.route('**/api/backtests/batches/'+job_id+'/resume',lambda route:route.fulfill(
+        status=422,content_type='application/json',body=json.dumps({
+            'detail':'Engine code has changed since this optimization. Start a new job to keep results consistent.'})))
+    page.reload()
+    playwright.expect(page.locator('#narrow-active-trials')).to_be_hidden()
+    page.locator('#narrow-results').scroll_into_view_if_needed()
+    page.get_by_role('button',name='Resume remaining 4 trials').click()
+    playwright.expect(page.locator('#narrow-job-status')).to_contain_text('Could not resume: Engine code has changed')
 
 
 def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tmp_path):

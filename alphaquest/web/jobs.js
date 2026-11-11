@@ -20,7 +20,7 @@
   }
   function activeTrials(parent,job) {
     const trials=job.progress?.active_trials;
-    if(!trials?.length)return;
+    if(job.status!=='running'||!trials?.length)return;
     const section=node('section',undefined,'jobs-active-trials');
     section.append(node('h3',`Active trials · ${trials.length} of ${job.progress.worker_count || trials.length} workers`));
     const list=node('ul');

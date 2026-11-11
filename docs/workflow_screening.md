@@ -202,6 +202,13 @@ all seven required checks and separate review measurements per row, sortable
 metrics, visible/frozen varied parameter columns, report links, and CSV/package
 downloads. Fixed inputs start hidden.
 
+An interrupted Narrow grid retains its completed trials and offers **Resume
+remaining trials**. Resume requires the saved job's exact conservative engine
+identity; a production Python change rejects the request before modifying the
+job. The portal shows that rejection beside the button, and interrupted trials
+are not shown as active workers. Starting a new grid under changed code creates
+a new job; the earlier completed reports remain inspectable.
+
 The four period boundaries divide the declared inclusive IS dates into four
 consecutive ranges with nearly equal calendar-day counts. Period P&L uses
 last-observed daily native mark-to-market equity in the source timezone. The

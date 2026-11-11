@@ -74,8 +74,9 @@
       const activeTrials=node('section',undefined,'jobs-active-trials');activeTrials.id='narrow-active-trials';activeTrials.hidden=true;outputs.append(activeTrials);
       const links=node('div',undefined,'mechanic-downloads');outputs.append(links);
       const jobControls=node('div',undefined,'mechanic-downloads'),resume=node('button','Resume remaining trials','button secondary'),cancel=node('button','Cancel queued run','button secondary');resume.type=cancel.type='button';resume.hidden=cancel.hidden=true;jobControls.append(resume,cancel);outputs.append(jobControls);
+      const jobNotice=node('p');jobNotice.id='narrow-job-status';jobNotice.setAttribute('role','alert');outputs.append(jobNotice);
       const settings=node('details');settings.append(node('summary','Saved grid, source and statistical method'));const settingsText=node('pre');settings.append(settingsText);outputs.append(settings);
-      async function jobAction(kind){if(busy||!job)return;if(kind==='cancel'&&job.status==='running'&&!window.confirm('Stop this running IS Narrow backtest at the next checkpoint? Completed trials will remain available for resuming.'))return;busy=true;try{const response=await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())notice.textContent=kind==='resume'?'Resuming saved Narrow trials.':response.status==='running'?'Stop requested. Active trials are stopping; completed results are retained.':'Queued run cancelled.';}catch(error){if(alive())notice.textContent=error.message;}finally{busy=false;if(alive())await refresh();}}
+      async function jobAction(kind){if(busy||!job)return;if(kind==='cancel'&&job.status==='running'&&!window.confirm('Stop this running IS Narrow backtest at the next checkpoint? Completed trials will remain available for resuming.'))return;busy=true;jobNotice.textContent=kind==='resume'?'Checking whether this saved job can resume…':'Requesting stop…';paintProgress();try{const response=await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())jobNotice.textContent=kind==='resume'?'Resuming saved Narrow trials.':response.status==='running'?'Stop requested. Active trials are stopping; completed results are retained.':'Queued run cancelled.';}catch(error){if(alive())jobNotice.textContent=`Could not ${kind==='resume'?'resume':'stop'}: ${error.message}`;}finally{busy=false;if(alive())await refresh();}}
       resume.onclick=()=>jobAction('resume');cancel.onclick=()=>jobAction('cancel');
       const panel=node('details',undefined,'optimization-freeze');panel.id='narrow-columns';panel.innerHTML='<summary>Columns <span class="optimization-column-count small muted"></span><span class="optimization-freeze-count small muted"></span></summary><div class="optimization-freeze-body"><p class="field-help">Varied Narrow parameters are shown and frozen by default; fixed inputs are hidden. Show, hide, freeze or reorder columns. Choices are saved for this run in this browser.</p><div class="optimization-freeze-actions"><label>Find a column<input type="search" placeholder="Search columns…" /></label><button class="button secondary" type="button" data-columns="all">Show all</button><button class="button secondary" type="button" data-columns="hide">Hide all</button><button class="button secondary" type="button" data-columns="reset">Reset layout</button><button class="button secondary" type="button" data-freeze="none">Unfreeze all</button></div><p role="status" class="field-help"></p><div class="optimization-column-choices" role="group" aria-label="IS Narrow column layout"></div><p class="optimization-column-empty field-help" hidden>No matching columns.</p></div>';
       const empty=node('p','No columns selected. Open Columns to choose what to show.');empty.hidden=true;
@@ -95,7 +96,7 @@
       function paintProgress(){
         fieldset.disabled=!!job&&['queued','running','complete'].includes(job.status)||!!state.confirmed_at_utc;
         progress.textContent=job?`${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials · ${job.stage} · ${job.worker_count||1} workers${job.error?' · '+job.error:''}`:'No Narrow grid for this Broad configuration yet.';
-        activeTrials.replaceChildren();activeTrials.hidden=!job?.active_trials?.length;
+        activeTrials.replaceChildren();activeTrials.hidden=job?.status!=='running'||!job?.active_trials?.length;
         if(!activeTrials.hidden){
           activeTrials.append(node('h3',`Active trials · ${job.active_trials.length} of ${job.worker_count||job.active_trials.length} workers`));
           const list=node('ul');
@@ -107,7 +108,8 @@
           }
           activeTrials.append(list);
         }
-        resume.hidden=!!state.confirmed_at_utc||(!['failed','interrupted'].includes(job?.status)&&!(job?.status==='cancelled'&&job.stop_requested_at_utc));
+        resume.hidden=!!state.confirmed_at_utc||(!['failed','interrupted'].includes(job?.status)&&!(job?.status==='cancelled'&&job.stop_requested_at_utc));resume.disabled=busy;
+        resume.textContent=job?.completed_trials<job?.total_trials?`Resume remaining ${job.total_trials-job.completed_trials} trials`:'Finalize saved results';
         cancel.hidden=!['queued','running'].includes(job?.status);cancel.disabled=busy||!!job?.stop_requested_at_utc;
         cancel.textContent=job?.stop_requested_at_utc?'Stop requested':job?.status==='running'?'Stop running backtest':'Cancel queued run';
         selectionState();
