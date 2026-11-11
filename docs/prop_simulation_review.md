@@ -10701,3 +10701,45 @@ jobs continue to keep `contracts=1,2` locked. Altering saved refinement
 provenance after confirmation blocks OOS navigation. The synthetic source and its
 OOS holdout are unchanged; this increment does not execute OOS or prop
 simulation.
+
+## 2026-11-11 — IS Narrow fine-grid plateau assessment
+
+The campaign workflow now uses `is-narrow-v3`. Its seven required checks retain
+four Broad gates, four-period source coverage, and best-month removal. The
+parameter-stability gate now requires both local directions on every varied
+ordered numeric axis. Every neighbor must retain at least 70% of candidate net
+IS profit and remain profitable in its own native +1-tick-per-fill run. The
+portal shows the local-step declaration and each neighbor's actual results or
+missing value. It compares saved evidence without starting another replay.
+Integer local steps default to 1; Decimal defaults use the declared grid step.
+An explicit meaningful local step can be frozen before launch. The application
+cannot establish that an arbitrary user-declared increment is economically local.
+
+`docs/evidence/is_narrow_plateau/README.md` gives exact reproduction commands,
+manual normal-product steps, independent expected values, and the evidence
+inventory. The saved normal portal journey runs the synthetic native dataset
+through mechanics, Broad, two Narrow branches, confirmation, and package
+download. Hold-minute values 17..20 with local step 1 earn 9,360 CU at one
+contract and 18,720 CU at two; extra-slippage results are 5,760 and 11,520 CU.
+Interior values 18 and 19 have both sides with 100% retention. Boundary values
+17 and 20 are disabled for missing local evidence despite positive profit.
+Each branch can still choose two rows, at most four total. OOS becomes ready
+only after both branches are confirmed; no OOS or prop simulation is executed.
+
+The separate `is_narrow_plateau/refinement/` evidence contains an actual native
+failure example: explicitly refining Broad hold 20 into Narrow values 18..21
+leaves hold 19 eligible. Hold 20 itself earns 9,360 CU but its higher neighbor
+21 earns only 1,800 CU (19.23% retained) and −1,200 CU under extra slippage.
+The plateau therefore rejects hold 20 even though its own baseline and stressed
+results are profitable. This extends the earlier dated refinement journey;
+the earlier source, results, policy and screenshots remain unchanged.
+
+Unconfirmed older grids are assessed directly from saved reports when their
+local evidence exists. Missing observations are never interpolated. A finer or
+wider replacement can be launched from the same unconfirmed branch; older jobs
+and reports remain in history. Previously confirmed v1/v2 selections retain
+their original measured admission. Focused API tests cover exact retention
+boundaries, cost-stress failure, missing neighbors, policy preservation, and
+replacement without rewriting old files. The browser test uses a temporary
+server and stops it after recording the evidence. Synthetic mechanics
+attestations do not establish external MultiCharts parity or trading readiness.

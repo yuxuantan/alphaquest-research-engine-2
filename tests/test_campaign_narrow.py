@@ -1,6 +1,7 @@
 """Native IS Narrow grids, frozen Broad parameters and independent admission gates."""
 import json
 from hashlib import sha256
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -166,8 +167,8 @@ def test_statistical_bound_counts_all_attempts_and_missing_evidence_fails():
     assert neighbor_check(rows[0],rows,axes)['passed'] is False
 
 
-def test_current_numeric_neighborhood_excludes_categorical_axes_and_one_neighbor():
-    from alphaquest.campaign_narrow import POLICY, neighbor_check
+def test_previous_numeric_neighborhood_excludes_categorical_axes_and_one_neighbor():
+    from alphaquest.campaign_narrow import PREVIOUS_POLICY as POLICY, neighbor_check
     fields=[dict(name='length',type='int'),dict(name='mode',type='int',refinement_kind='categorical')]
     axes=dict(length=[3,4,5],mode=[1,2])
     rows=[dict(parameters=dict(length=length,mode=mode),metrics=dict(total_net_pnl='10'))
@@ -185,14 +186,16 @@ def test_current_numeric_neighborhood_excludes_categorical_axes_and_one_neighbor
         profitable=2,valid=3,fraction=2/3,passed=True)
 
 
-def test_confirmed_v1_narrow_selection_keeps_its_original_admission(client):
+@pytest.mark.parametrize('version', ['is-narrow-v1', 'is-narrow-v2'])
+def test_confirmed_older_narrow_selection_keeps_its_original_admission(client, version):
     from types import SimpleNamespace
-    from alphaquest.campaign_narrow import (LEGACY_POLICY, NarrowGrid, branches, chosen_candidate,
+    from alphaquest.campaign_narrow import (LEGACY_POLICY, PREVIOUS_POLICY, NarrowGrid, branches, chosen_candidate,
                                             family_size, period_boundaries, prepare)
     from alphaquest.optimization_cache import digest
     from alphaquest.research import metadata, dates_for
     from alphaquest.workflow_criteria import DRAWDOWN_VERSION, policy
     _,workflow,_=narrow_workflow(client,refinement=True)
+    original_policy=LEGACY_POLICY if version=='is-narrow-v1' else PREVIOUS_POLICY
     prefix='/api/campaign-workflows/'+workflow['id']
     body=NarrowGrid.model_validate(dict(broad_trial=1,workers=1,parameter_ranges={
         'green_bar_count':dict(start=3,end=3,step=0),
@@ -203,7 +206,7 @@ def test_confirmed_v1_narrow_selection_keeps_its_original_admission(client):
     research=metadata(saved['declaration']['plan'],workflow_id=workflow['id'],
         workflow_phase='is_narrow',broad_trial=1,
         broad_selection_identity=digest(current['broad_selection']),
-        screening_policy=policy(DRAWDOWN_VERSION),narrow_policy=LEGACY_POLICY,
+        screening_policy=policy(DRAWDOWN_VERSION),narrow_policy=original_policy,
         period_boundaries=[day.isoformat() for day in period_boundaries(saved['declaration']['plan'])],
         frozen_broad_parameters={name:current['broad_selection']['parameters'][name] for name in fixed})
     job=client.app.state.optimizations.create(request,dataset,definition,config,axes,total,research)
@@ -211,22 +214,24 @@ def test_confirmed_v1_narrow_selection_keeps_its_original_admission(client):
                                         dates_for(saved['declaration']['plan']))
     state=dict(broad_trial=1,job_id=job['id'],revision=1,selected_trials=[],selection=[],
                confirmed_at_utc='2026-11-10T00:00:00+00:00',
-               broad_selection_identity=research['broad_selection_identity'],policy=LEGACY_POLICY)
+               broad_selection_identity=research['broad_selection_identity'],policy=original_policy)
     with client.app.state.runs.connect() as db:
         db.execute('INSERT INTO campaign_narrow_jobs VALUES (?,?,?)',(job['id'],workflow['id'],1))
         db.execute('INSERT INTO campaign_narrow_state VALUES (?,?,?)',(workflow['id'],1,json.dumps(state)))
         frozen=chosen_candidate(client.app.state.campaign_workflows,workflow['id'],
                                 branches(client.app.state.campaign_workflows,workflow['id'],db)[0],2,db,
                                 family_size(db,workflow['id']))
-        assert frozen['admission']['policy']==LEGACY_POLICY
-        assert len(frozen['admission']['checks'])==9
+        assert frozen['admission']['policy']==original_policy
+        assert len(frozen['admission']['checks'])==(9 if version=='is-narrow-v1' else 7)
+        assert 'plateau' not in frozen['admission']
         state.update(selected_trials=[2],selection=[frozen],family_size=family_size(db,workflow['id']))
         db.execute('UPDATE campaign_narrow_state SET payload=? WHERE workflow_id=? AND broad_trial=1',
                    (json.dumps(state),workflow['id']))
     assert client.get(prefix+'/phases/oos').status_code==200
     result=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
-    assert result['source_policy']==result['selection_policy']==LEGACY_POLICY
+    assert result['source_policy']==result['selection_policy']==original_policy
     assert result['items'][1]['admission']==frozen['admission']|{'provisional':False}
+    assert client.get(prefix+'/narrow/download',params={'broad_trial':1}).json()['policy']==original_policy
 
 
 def test_refinement_eligibility_uses_numeric_spacing_without_campaign_declarations():
@@ -255,7 +260,7 @@ def test_refined_broad_value_runs_native_narrow_grid_and_freezes_choice(client):
     assert detail['refinable_parameters']['hold_minutes']=={'type':'int','broad_min_step':'20'}
     body=dict(broad_trial=1,workers=1,parameter_ranges={
         'green_bar_count':dict(start=3,end=3,step=0),
-        'hold_minutes':dict(start=19,end=21,step=1),
+        'hold_minutes':dict(start=18,end=21,step=1),
         'contracts':dict(start=1,end=1,step=0)})
     def rejected(request):
         result=client.post(prefix+'/narrow/preview',json=request)
@@ -273,22 +278,24 @@ def test_refined_broad_value_runs_native_narrow_grid_and_freezes_choice(client):
     response=client.post(prefix+'/narrow/preview',json=body)
     assert response.status_code==200,response.text
     preview=response.json()
-    assert preview['total_trials']==3 and preview['fixed_parameters']==[]
+    assert preview['total_trials']==4 and preview['fixed_parameters']==[]
     assert preview['refined_parameters']==['hold_minutes']
     changed=dict(body,refine_broad_parameters=[])
     assert client.post(prefix+'/narrow/run',json=dict(changed,revision=preview['revision'],preview_token=preview['preview_token'])).status_code==409
     launched=client.post(prefix+'/narrow/run',json=dict(body,revision=preview['revision'],preview_token=preview['preview_token']))
     assert launched.status_code==202,launched.text
     job=wait_job(client,launched.json()['id'])
-    assert job['axes']['hold_minutes']==[19,20,21]
+    assert job['axes']['hold_minutes']==[18,19,20,21]
     assert job['research']['refined_broad_parameters']==['hold_minutes']
     assert job['research']['broad_anchor_parameters']['hold_minutes']==20
     assert job['research']['frozen_broad_parameters']=={}
     page=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
-    assert page['family_size']==5 and page['all_branches_complete']
-    assert [row['parameters']['hold_minutes'] for row in page['items']]==[19,20,21]
+    assert page['family_size']==6 and page['all_branches_complete']
+    assert [row['parameters']['hold_minutes'] for row in page['items']]==[18,19,20,21]
     eligible=[row for row in page['items'] if row['qualifies']]
     assert eligible,page
+    assert [row['parameters']['hold_minutes'] for row in eligible]==[19]
+    assert page['items'][2]['admission']['plateau']['status']=='failed'
     for row in page['items']:
         report=client.get('/api/backtests/'+row['run_id']).json()
         assert report['run_metadata']['research']['refined_broad_parameters']==['hold_minutes']
@@ -310,3 +317,115 @@ def test_refined_broad_value_runs_native_narrow_grid_and_freezes_choice(client):
     with TestClient(create_app(client.app.state.store.path)) as reopened:
         assert reopened.get(prefix+'/phases/oos').status_code==200
         assert reopened.get(prefix+'/narrow/download',params={'broad_trial':1}).json()==package
+
+
+def test_plateau_requires_both_sides_retention_and_stressed_neighbor_profit():
+    from decimal import Decimal
+    from alphaquest.campaign_narrow import plateau_check
+    fields=[dict(name='stop',type='int'),dict(name='target',type='int'),
+            dict(name='mode',type='int',refinement_kind='categorical')]
+    axes=dict(stop=[3,4,5],target=[9,10,11],mode=[1,2])
+    # Only one coordinate changes at a time. Diagonal/categorical losses cannot
+    # be passed off as nearby numeric evidence or included in a local average.
+    rows=[]
+    for stop in axes['stop']:
+        for target in axes['target']:
+            for mode in axes['mode']:
+                net='100' if mode==1 and (stop==4 or target==10) else '-100'
+                rows.append(dict(trial=len(rows)+1,run_id=str(len(rows)),parameters=dict(stop=stop,target=target,mode=mode),
+                                 metrics=dict(total_net_pnl=net),screening=dict(metrics=dict(is_stress_net_profit='1'))))
+    center=next(row for row in rows if row['parameters']==dict(stop=4,target=10,mode=1))
+    neighbor=next(row for row in rows if row['parameters']==dict(stop=3,target=10,mode=1))
+    neighbor['metrics']['total_net_pnl']='70'
+    result=plateau_check(center,rows,axes,fields)
+    assert result['passed'] and result['required_neighbors']==result['tested_neighbors']==4
+    assert Decimal(result['minimum_retention_pct'])==70
+    assert Decimal(result['lowest_neighbor_profit'])==70
+    assert {entry['parameter'] for entry in result['neighbors']}=={'stop','target'}
+    # Admission compares unrounded decimals, including the exact 70% boundary.
+    neighbor['metrics']['total_net_pnl']='69.99999999999999999999999999999'
+    assert plateau_check(center,rows,axes,fields)['status']=='failed'
+    neighbor['metrics']['total_net_pnl']='70'
+    neighbor['screening']['metrics']['is_stress_net_profit']='0'
+    assert not plateau_check(center,rows,axes,fields)['passed']
+    neighbor['screening']['metrics']['is_stress_net_profit']='1'
+    edge=plateau_check(neighbor,rows,axes,fields)
+    assert edge['status']=='insufficient_evidence' and edge['missing_neighbors']==1
+    with pytest.raises(ValueError,match='neighbor is missing'):
+        plateau_check(center,[row for row in rows if row is not neighbor],axes,fields)
+
+
+def test_plateau_local_steps_are_explicit_and_coarse_grids_are_not_interpolated():
+    from alphaquest.campaign_narrow import local_steps,plateau_check
+    fields=[dict(name='length',type='int')]
+    axes=dict(length=[5,10,15])
+    rows=[dict(trial=i,run_id=str(i),parameters=dict(length=value),metrics=dict(total_net_pnl='100'),
+               screening=dict(metrics=dict(is_stress_net_profit='50'))) for i,value in enumerate(axes['length'],1)]
+    assert plateau_check(rows[1],rows,axes,fields)['missing_neighbors']==2
+    assert plateau_check(rows[1],rows,axes,fields,{'length':'5'})['passed']
+    for invalid in ('0','-1','0.5','NaN','Infinity','1e999999999','bad'):
+        with pytest.raises(ValueError):
+            local_steps(fields,axes,{'length':invalid})
+    with pytest.raises(ValueError,match='only for varied ordered-numeric'):
+        local_steps(fields,axes,{'other':'1'})
+    decimal_fields=[dict(name='length',type='Decimal')]
+    decimal_axes=dict(length=['0.1','0.2','0.3'])
+    decimal_rows=[dict(row,parameters=dict(length=value)) for row,value in zip(rows,decimal_axes['length'])]
+    assert local_steps(decimal_fields,decimal_axes)=={'length':'0.1'}
+    assert plateau_check(decimal_rows[1],decimal_rows,decimal_axes,decimal_fields)['passed']
+    assert plateau_check(decimal_rows[1],decimal_rows,decimal_axes,decimal_fields,{'length':'0.01'})['status']=='insufficient_evidence'
+
+
+def test_old_coarse_grid_requires_local_evidence_and_can_be_replaced_without_deletion(client):
+    from types import SimpleNamespace
+    from alphaquest.campaign_narrow import PREVIOUS_POLICY,POLICY,NarrowGrid,prepare
+    from alphaquest.optimization_cache import digest
+    from alphaquest.research import metadata,dates_for
+    from alphaquest.workflow_criteria import policy
+    _,workflow,_=narrow_workflow(client)
+    prefix='/api/campaign-workflows/'+workflow['id']
+    body=narrow_grid(1);body['parameter_ranges']['hold_minutes']=dict(start=16,end=22,step=2)
+    rejected=client.post(prefix+'/narrow/preview',json=body)
+    assert rejected.status_code==409 and 'no row has both local neighbors at ±1' in rejected.text
+    body['plateau_steps']={'hold_minutes':'2'}
+    saved,dataset,definition,config,axes,total,request,_,current,fixed=prepare(
+        SimpleNamespace(app=client.app),workflow['id'],NarrowGrid.model_validate(body))
+    # Genuine older native reports, not altered report files or fabricated metrics.
+    research=metadata(saved['declaration']['plan'],workflow_id=workflow['id'],workflow_phase='is_narrow',
+        broad_trial=1,broad_selection_identity=digest(current['broad_selection']),
+        screening_policy=policy(),narrow_policy=PREVIOUS_POLICY,
+        frozen_broad_parameters={name:current['broad_selection']['parameters'][name] for name in fixed})
+    from alphaquest.campaign_narrow import period_boundaries
+    research['period_boundaries']=[day.isoformat() for day in period_boundaries(saved['declaration']['plan'])]
+    old=client.app.state.optimizations.create(request,dataset,definition,config,axes,total,research)
+    client.app.state.optimizations.run(old,client.app.state.store,definition,config,dates_for(saved['declaration']['plan']))
+    state=dict(broad_trial=1,job_id=old['id'],revision=1,selected_trials=[2],selection=[],confirmed_at_utc=None,
+               broad_selection_identity=research['broad_selection_identity'],policy=PREVIOUS_POLICY,selection_policy=PREVIOUS_POLICY)
+    with client.app.state.runs.connect() as db:
+        db.execute('INSERT INTO campaign_narrow_jobs VALUES (?,?,?)',(old['id'],workflow['id'],1))
+        db.execute('INSERT INTO campaign_narrow_state VALUES (?,?,?)',(workflow['id'],1,json.dumps(state)))
+    page=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
+    assert page['source_policy']==PREVIOUS_POLICY and page['selection_policy']==POLICY
+    assert all(not row['qualifies'] and row['admission']['plateau']['status']=='insufficient_evidence' for row in page['items'])
+    confirm=client.post(prefix+'/narrow/confirm',json=dict(broad_trial=1,job_id=old['id'],revision=1))
+    assert confirm.status_code==409 and 'passing all IS Narrow criteria' in confirm.text
+    before={path:sha256(path.read_bytes()).hexdigest() for row in page['items']
+            for path in (client.app.state.runs.root/row['run_id']).iterdir() if path.is_file()}
+    new=narrow_start(client,prefix,1)
+    assert new['id']!=old['id'] and new['research']['plateau_steps']=={'hold_minutes':'1'}
+    assert client.app.state.optimizations.get(old['id'])['status']=='complete'
+    assert before=={path:sha256(path.read_bytes()).hexdigest() for path in before}
+    rows=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()['items']
+    assert [row['trial'] for row in rows if row['qualifies']]==[2,3]
+    assert all(row['admission']['policy']==POLICY for row in rows)
+    assert all(row['admission']['plateau']['minimum_retention_pct']=='100' for row in rows)
+    # Changing the declared local scale invalidates a preview before any new job starts.
+    fresh=narrow_grid(1);fresh['parameter_ranges']['hold_minutes']['end']=21
+    preview=client.post(prefix+'/narrow/preview',json=fresh).json()
+    changed=client.post(prefix+'/narrow/run',json=dict(fresh,plateau_steps={'hold_minutes':'2'},revision=preview['revision'],preview_token=preview['preview_token']))
+    assert changed.status_code==409 and 'preview is stale' in changed.text
+    replacement=client.post(prefix+'/narrow/run',json=dict(fresh,revision=preview['revision'],preview_token=preview['preview_token']))
+    assert replacement.status_code==202,replacement.text
+    replaced=wait_job(client,replacement.json()['id'])
+    assert replaced['id']!=new['id']
+    assert client.app.state.optimizations.get(new['id'])['status']=='complete'

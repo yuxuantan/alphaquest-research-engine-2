@@ -1,0 +1,18 @@
+{
+  "workflow_id": "29e61d9abbb546e1bc98a5d848571484",
+  "dataset_id": "1e4edd1b75844dddb885647a9606d4f5",
+  "broad_job_id": "31ce0f34ecb44bbd8f1b312ff5d17613",
+  "narrow_job_id": "7562fa88b5644792b9dc9e2ef7e8bbfa",
+  "selected_broad_hold_minutes": 20,
+  "refined_narrow_hold_minutes": [
+    18,
+    19,
+    20,
+    21
+  ],
+  "chosen_narrow_trial": 2,
+  "expected_oos_navigation": "ready",
+  "synthetic": true,
+  "mc_parity": "Manual attestation in synthetic fixture; no external MultiCharts comparison",
+  "server": "Stopped by fixture teardown."
+}

@@ -1,0 +1,33 @@
+{
+  "workflow_id": "5e41724e01034f889873a5ab2f784b7f",
+  "dataset_id": "546842a4bcb146a7af11aa296da499bb",
+  "broad_trials": [
+    1,
+    2
+  ],
+  "narrow_trials_per_branch": 4,
+  "attempted_family_size": 10,
+  "chosen_narrow_trials": {
+    "1": [
+      2,
+      3
+    ],
+    "2": [
+      2,
+      3
+    ]
+  },
+  "first_branch_confirmed_before_second_grid": true,
+  "first_branch_frozen_family_size": 6,
+  "expected_oos_navigation": "ready",
+  "plateau_policy": "is-narrow-v3",
+  "local_hold_step": 1,
+  "expected_neighbor_retention_pct": 100,
+  "expected_disabled_boundary_trials": [
+    1,
+    4
+  ],
+  "synthetic": true,
+  "mc_parity": "Manual attestation in synthetic fixture; no external MultiCharts comparison",
+  "server": "Stopped by fixture teardown."
+}

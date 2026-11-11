@@ -57,19 +57,39 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     page.get_by_label('Hold minutes start',exact=True).fill('17')
     page.get_by_label('Hold minutes end',exact=True).fill('20')
     page.get_by_label('Hold minutes step',exact=True).fill('1')
+    playwright.expect(page.get_by_label('Hold minutes local plateau step',exact=True)).to_have_value('1')
     page.locator('#narrow-preview').click()
     playwright.expect(page.locator('#narrow-count')).to_have_text('4 iterations · IS only')
     page.locator('#narrow-run').click()
     playwright.expect(page.locator('#narrow-progress')).to_contain_text('COMPLETE · 4 / 4 trials',timeout=30000)
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
     playwright.expect(page.locator('#narrow-selected')).to_contain_text('0 / 2')
+    playwright.expect(page.locator('#narrow-policy-notice')).to_contain_text('Plateau policy is-narrow-v3')
     assert page.request.get(prefix+'/narrow/results?broad_trial=1').json()['all_branches_complete'] is False
     playwright.expect(page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria')).to_contain_text('Qualified · 7 / 7 checks passed')
+    center=page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria')
+    center.locator('summary').click()
+    playwright.expect(center).to_contain_text('Fine-grid parameter plateau')
+    playwright.expect(center).to_contain_text('retains 100.00%')
+    playwright.expect(center).to_contain_text('extra-slippage net')
+    center.locator('summary').click()
+    boundary=page.locator('#narrow-results tr[data-trial="1"] .broad-row-criteria')
+    boundary.locator('summary').click()
+    playwright.expect(boundary).to_contain_text('Insufficient local evidence')
+    playwright.expect(boundary).to_contain_text('MISSING · Hold minutes = 16')
+    boundary.locator('summary').click()
+    for trial in (2,3):
+        with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
+            page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
+    with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
+        page.locator('#narrow-clear-selection').click()
+    playwright.expect(page.locator('#narrow-selected')).to_contain_text('0 / 2')
     for trial in (2,3):
         with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
             page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
     page.locator('#narrow-confirm').click()
     playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
+    playwright.expect(page.locator('#narrow-clear-selection')).to_be_disabled()
     playwright.expect(page.locator('#mechanic-phases [data-phase="oos"]')).to_be_disabled()
     with httpx.Client(base_url=portal['url'],timeout=40) as client:
         second=narrow_start(client,'/api/campaign-workflows/'+workflow['id'],2)
@@ -116,6 +136,8 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     package=json.loads((tmp_path/'is-narrow-package.json').read_text())
     assert package['state']['broad_trial']==2 and package['state']['selected_trials']==[2,3]
     assert len(package['state']['selection'])==2 and package['state']['selection'][0]['admission']['family_size']==10
+    assert package['policy']['version']=='is-narrow-v3'
+    assert package['state']['selection'][0]['admission']['plateau']['passed']
     assert page.request.get(portal['url']+'/api/jobs/backtest_batch/'+second['id']).json()['links'][0]['label']=='Open IS Narrow'
     (tmp_path/'SYNTHETIC-source.csv').write_bytes(page.request.get(portal['url']+'/api/datasets/'+dataset['id']+'/csv').body())
     (tmp_path/'narrow-results.json').write_text(json.dumps(page.request.get(prefix+'/narrow/results?broad_trial=2').json(),indent=2))
@@ -123,8 +145,11 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
         'broad_trials':[1,2],'narrow_trials_per_branch':4,'attempted_family_size':10,
         'chosen_narrow_trials':{'1':[2,3],'2':[2,3]},'first_branch_confirmed_before_second_grid':True,
         'first_branch_frozen_family_size':6,'expected_oos_navigation':'ready',
+        'plateau_policy':'is-narrow-v3','local_hold_step':1,'expected_neighbor_retention_pct':100,
+        'expected_disabled_boundary_trials':[1,4],
         'synthetic':True,'mc_parity':'Manual attestation in synthetic fixture; no external MultiCharts comparison',
         'server':'Stopped by fixture teardown.'},indent=2))
+    page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria summary').click()
     page.screenshot(path=str(tmp_path/'is-narrow-portal.png'),full_page=True)
     if destination:=os.environ.get('ALPHAQUEST_NARROW_EVIDENCE_DIR'):
         folder=Path(destination);folder.mkdir(parents=True,exist_ok=True)
@@ -142,19 +167,19 @@ def test_narrow_portal_explicit_local_refinement_and_saved_result(page,portal,tm
     playwright.expect(refine).not_to_be_checked()
     playwright.expect(page.get_by_label('Hold minutes start',exact=True)).to_be_disabled()
     refine.check()
-    page.get_by_label('Hold minutes start',exact=True).fill('19')
+    page.get_by_label('Hold minutes start',exact=True).fill('18')
     page.get_by_label('Hold minutes end',exact=True).fill('21')
     page.get_by_label('Hold minutes step',exact=True).fill('1')
     page.locator('#narrow-preview').click()
-    playwright.expect(page.locator('#narrow-count')).to_have_text('3 iterations · IS only')
+    playwright.expect(page.locator('#narrow-count')).to_have_text('4 iterations · IS only')
     page.locator('#narrow-run').click()
-    playwright.expect(page.locator('#narrow-progress')).to_contain_text('COMPLETE · 3 / 3 trials',timeout=30000)
-    playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(3)
+    playwright.expect(page.locator('#narrow-progress')).to_contain_text('COMPLETE · 4 / 4 trials',timeout=30000)
+    playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
     assert page.locator('#narrow-results thead th.optimization-frozen-column').evaluate_all('items => items.map(el=>el.dataset.column)')==['select','trial','param.hold_minutes']
     playwright.expect(page.locator('#narrow-results th[data-column="param.contracts"]')).to_be_hidden()
     page.reload()
     playwright.expect(refine).to_be_checked()
-    playwright.expect(page.get_by_label('Hold minutes start',exact=True)).to_have_value('19')
+    playwright.expect(page.get_by_label('Hold minutes start',exact=True)).to_have_value('18')
     playwright.expect(page.get_by_label('Hold minutes end',exact=True)).to_have_value('21')
     results=page.request.get(prefix+'/narrow/results?broad_trial=1').json()
     eligible=next(row['trial'] for row in results['items'] if row['qualifies'])
@@ -175,7 +200,7 @@ def test_narrow_portal_explicit_local_refinement_and_saved_result(page,portal,tm
     (tmp_path/'refined-narrow-results.json').write_text(json.dumps(results,indent=2))
     (tmp_path/'journey.json').write_text(json.dumps({'workflow_id':workflow['id'],'dataset_id':dataset['id'],
         'broad_job_id':broad['id'],'narrow_job_id':package['job']['id'],
-        'selected_broad_hold_minutes':20,'refined_narrow_hold_minutes':[19,20,21],
+        'selected_broad_hold_minutes':20,'refined_narrow_hold_minutes':[18,19,20,21],
         'chosen_narrow_trial':eligible,'expected_oos_navigation':'ready',
         'synthetic':True,'mc_parity':'Manual attestation in synthetic fixture; no external MultiCharts comparison',
         'server':'Stopped by fixture teardown.'},indent=2))

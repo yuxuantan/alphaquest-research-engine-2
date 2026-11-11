@@ -1,6 +1,6 @@
 """IS Narrow searches conditioned on frozen Broad choices, with measured admission."""
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 import math
 from statistics import NormalDist
@@ -14,6 +14,7 @@ from .backtest_requests import ExecutionSettings, OptimizationRequest, Parameter
 from .campaign_broad import candidate as broad_candidate, invoke
 from .campaign_workflow import now
 from .datasets import COLUMNS
+from .decimal_math import add, multiply, subtract
 from .market_equity import equity_rows
 from .optimization import combinations, grid
 from .optimization_cache import artifacts, digest, engine_identity
@@ -22,7 +23,7 @@ from .strategies.registry import get_strategy
 from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
 from .workflow_criteria import evaluate as broad_evaluate, policy, verified_screening
 
-VERSION = 'is-narrow-v2'
+VERSION = 'is-narrow-v3'
 REFINEMENT_VERSION = 'is-narrow-local-refinement-v1'
 LEGACY_POLICY = dict(version='is-narrow-v1', neighbor_profit_fraction_gte='0.70', time_periods=4,
               profitable_periods_gte=3, latest_period_positive=True,
@@ -32,7 +33,7 @@ LEGACY_POLICY = dict(version='is-narrow-v1', neighbor_profit_fraction_gte='0.70'
               minimum_observed_days=100, multiple_search_correction='Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs',
               neighbors='all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent',
               seed=None)
-POLICY = dict(version=VERSION, minimum_valid_neighbors=2, neighbor_profit_numerator=2,
+PREVIOUS_POLICY = dict(version='is-narrow-v2', minimum_valid_neighbors=2, neighbor_profit_numerator=2,
               neighbor_profit_denominator=3, time_periods=4, source_observations_each_period=True,
               best_complete_month_removed_net_gt='0', confidence_level='0.95',
               daily_equity_basis=LEGACY_POLICY['daily_equity_basis'],
@@ -41,6 +42,13 @@ POLICY = dict(version=VERSION, minimum_valid_neighbors=2, neighbor_profit_numera
               neighbors='all valid immediate ordered-numeric axis neighbors; categorical and Boolean axes excluded',
               advisory=['four_period_profitability', 'latest_period_profitability', 'drawdown_duration',
                         'drawdown_depth', 'search_adjusted_daily_net_lower_bound'], seed=None)
+POLICY = dict({key: value for key, value in PREVIOUS_POLICY.items()
+               if key not in ('neighbor_profit_numerator', 'neighbor_profit_denominator', 'neighbors')},
+              version=VERSION, plateau_retention_pct_gte='70',
+              plateau_directions='both sides of every varied ordered-numeric axis; other parameters unchanged',
+              plateau_cost_stress_net_gt='0', integer_local_step_default='1',
+              decimal_local_step_default='declared grid step')
+SUPPORTED_POLICIES = (LEGACY_POLICY, PREVIOUS_POLICY, POLICY)
 
 
 def period_boundaries(plan):
@@ -64,6 +72,32 @@ def ordered_axes(fields, axes):
     return {name for name, values in axes.items() if len(values) > 1 and
             definitions[name]['type'] in ('int', 'Decimal') and
             definitions[name].get('refinement_kind') != 'categorical'}
+
+
+def local_steps(fields, axes, declared=None):
+    """Freeze explicit local perturbations; integer defaults never call a coarse grid fine."""
+    numeric = ordered_axes(fields, axes)
+    declared = declared or {}
+    if set(declared) - numeric:
+        raise ValueError('Declare plateau steps only for varied ordered-numeric parameters.')
+    definitions = {field['name']: field for field in fields}
+    steps = {}
+    for name in axes:
+        if name not in numeric:
+            continue
+        default = '1' if definitions[name]['type'] == 'int' else str(subtract(Decimal(str(axes[name][1])), Decimal(str(axes[name][0]))))
+        raw = str(declared.get(name, default))
+        if len(raw) > 128:
+            raise ValueError(f'{name}: local plateau step is too long.')
+        try:
+            step = Decimal(raw)
+        except InvalidOperation as exc:
+            raise ValueError(f'{name}: enter a numeric local plateau step.') from exc
+        if (not step.is_finite() or step <= 0 or abs(step.adjusted()) > 100 or step.as_tuple().exponent < -100
+                or (definitions[name]['type'] == 'int' and (step != step.to_integral_value() or step > 2**53 - 1))):
+            raise ValueError(f'{name}: use a positive local plateau step (a whole number for integer parameters).')
+        steps[name] = str(step)
+    return steps
 
 
 def refinement_options(fields, broad_axes):
@@ -117,6 +151,7 @@ class NarrowGrid(BaseModel):
     broad_trial: StrictInt = Field(ge=1)
     parameter_ranges: dict[str, ParameterRange]
     refine_broad_parameters: list[StrictStr] = Field(default_factory=list)
+    plateau_steps: dict[str, StrictStr] = Field(default_factory=dict)
     workers: StrictInt = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
 
 
@@ -213,6 +248,11 @@ def prepare(request, workflow_id, body):
     numeric = ordered_axes(definition.description()['parameters'], axes)
     if sum(min(2, len(axes[name]) - 1) for name in numeric) < POLICY['minimum_valid_neighbors']:
         raise ValueError('IS Narrow needs at least two distinct ordered-numeric neighbors for a candidate. Use at least three values on one numeric axis or vary two numeric axes.')
+    steps = local_steps(definition.description()['parameters'], axes, body.plateau_steps)
+    for name, step in steps.items():
+        values = {Decimal(str(value)) for value in axes[name]}
+        if not any(subtract(value, Decimal(step)) in values and add(value, Decimal(step)) in values for value in values):
+            raise ValueError(f'{name}: no row has both local neighbors at ±{step}. Use at least three values with this local step, or explicitly declare a different meaningful local step.')
     for values in combinations(axes):
         definition.validate_source(definition.parameters(values), dataset)
     plan = declared['plan']
@@ -230,16 +270,18 @@ def prepare(request, workflow_id, body):
     token = digest(dict(workflow_identity=saved['identity'], broad_selection=selected,
         mechanics=saved['review']['result_identity'], request=request_body.model_dump(),
         refined_broad_parameters=body.refine_broad_parameters,
+        plateau_steps=steps,
         refinement_policy=REFINEMENT_VERSION,
         engine=engine_identity(), broad_policy=policy(), narrow_policy=POLICY))
     return saved, dataset, definition, config, axes, total, request_body, token, current, fixed
 
 
 def preview(request, workflow_id, body):
-    *_, axes, total, request_body, token, state, fixed = prepare(request, workflow_id, body)
+    _, _, definition, _, axes, total, request_body, token, state, fixed = prepare(request, workflow_id, body)
     return dict(total_trials=total, step_counts={k: len(v) for k, v in axes.items()},
                 preview_token=token, revision=state['revision'], broad_trial=body.broad_trial,
-                fixed_parameters=fixed, refined_parameters=body.refine_broad_parameters, policy=POLICY)
+                fixed_parameters=fixed, refined_parameters=body.refine_broad_parameters,
+                plateau_steps=local_steps(definition.description()['parameters'], axes, body.plateau_steps), policy=POLICY)
 
 
 def launch(request, workflow_id, body):
@@ -260,14 +302,13 @@ def launch(request, workflow_id, body):
                 return current, False, None
             if current['status'] in ('queued', 'running'):
                 raise ValueError('This Broad configuration already has a running Narrow grid.')
-            if current['status'] == 'complete' and current['research'].get('narrow_policy') == POLICY:
-                raise ValueError('This Broad configuration already has a completed Narrow grid; saved results are immutable.')
         if state['revision'] != body.revision:
             raise ValueError('Narrow grid changed in another tab. Reload before launching.')
         research = metadata(saved['declaration']['plan'], workflow_id=workflow_id,
                             workflow_phase='is_narrow', broad_trial=body.broad_trial,
                             broad_selection_identity=digest(state['broad_selection']),
                             screening_policy=policy(), narrow_policy=POLICY,
+                            plateau_steps=local_steps(definition.description()['parameters'], axes, body.plateau_steps),
                             refinement_policy=REFINEMENT_VERSION,
                             refined_broad_parameters=sorted(body.refine_broad_parameters),
                             broad_anchor_parameters=state['broad_selection']['parameters'],
@@ -329,10 +370,24 @@ def confidence(days, family):
                 observed_days=n, family_size=family, hac_lag_observations=lag)
 
 
+def verify_neighbor(neighbor, runs):
+    if runs is None:
+        return
+    native = runs.get(neighbor['run_id'])
+    if not native or native['run_metadata']['strategy']['parameters'] != neighbor['parameters']:
+        raise ValueError('A neighboring native report is unavailable or differs from its grid row.')
+    measured, stress = verified_screening(runs, native)
+    identity = digest([native, artifacts(runs.root, native), stress, artifacts(runs.root, stress)])
+    if (measured != neighbor.get('screening') or
+        Decimal(str(native['summary']['total_net_pnl'])) != Decimal(str(neighbor['metrics']['total_net_pnl'])) or
+        identity != neighbor.get('screening_evidence_identity')):
+        raise ValueError('A neighboring trial’s saved screening evidence changed.')
+
+
 def neighbor_check(row, all_rows, axes, runs=None, *, target_policy=LEGACY_POLICY, fields=None):
-    if target_policy not in (LEGACY_POLICY, POLICY):
+    if target_policy not in (LEGACY_POLICY, PREVIOUS_POLICY):
         raise ValueError('Unsupported IS Narrow admission policy.')
-    if target_policy == POLICY and fields is None:
+    if target_policy != LEGACY_POLICY and fields is None:
         raise ValueError('Saved strategy parameter metadata is required for ordered-numeric neighborhood screening.')
     included = set(axes) if target_policy == LEGACY_POLICY else ordered_axes(fields, axes)
     lookup = {parameter_key(r['parameters']): r for r in all_rows}
@@ -350,16 +405,7 @@ def neighbor_check(row, all_rows, axes, runs=None, *, target_policy=LEGACY_POLIC
                 neighbor = lookup.get(parameter_key(params))
                 if neighbor is None:
                     raise ValueError('A predeclared immediate neighbor is missing from the completed grid.')
-                if runs is not None:
-                    native = runs.get(neighbor['run_id'])
-                    if not native or native['run_metadata']['strategy']['parameters'] != neighbor['parameters']:
-                        raise ValueError('A neighboring native report is unavailable or differs from its grid row.')
-                    measured, stress = verified_screening(runs, native)
-                    identity = digest([native, artifacts(runs.root, native), stress, artifacts(runs.root, stress)])
-                    if (measured != neighbor.get('screening') or
-                        Decimal(str(native['summary']['total_net_pnl'])) != Decimal(str(neighbor['metrics']['total_net_pnl'])) or
-                        identity != neighbor.get('screening_evidence_identity')):
-                        raise ValueError('A neighboring trial’s saved screening evidence changed.')
+                verify_neighbor(neighbor, runs)
                 total += 1
                 good += Decimal(str(neighbor['metrics']['total_net_pnl'])) > 0
     minimum = 1 if target_policy == LEGACY_POLICY else target_policy['minimum_valid_neighbors']
@@ -369,9 +415,51 @@ def neighbor_check(row, all_rows, axes, runs=None, *, target_policy=LEGACY_POLIC
                 passed=total >= minimum and good * denominator >= numerator * total)
 
 
+def plateau_check(row, all_rows, axes, fields, steps=None, runs=None):
+    """Assess saved local axis perturbations, without replay or interpolated performance."""
+    steps = local_steps(fields, axes, steps)
+    lookup = {parameter_key(item['parameters']): item for item in all_rows}
+    net = Decimal(str(row['metrics']['total_net_pnl']))
+    threshold = Decimal(POLICY['plateau_retention_pct_gte'])
+    neighbors = []
+    for name, raw_step in steps.items():
+        current, step = Decimal(str(row['parameters'][name])), Decimal(raw_step)
+        for direction, value in (('lower', subtract(current, step)), ('higher', add(current, step))):
+            neighbor = lookup.get(parameter_key(dict(row['parameters'], **{name: value})))
+            entry = dict(parameter=name, direction=direction, value=str(value), step=raw_step,
+                         trial=None, run_id=None, net_profit=None, cost_stress_net_profit=None,
+                         retention_pct=None, passed=False, missing=neighbor is None)
+            if neighbor is None:
+                # A missing row inside the declared grid is corruption, not permission to ignore it.
+                if any(same_parameter(value, tested) for tested in axes[name]):
+                    raise ValueError('A predeclared local plateau neighbor is missing from the completed grid.')
+                entry['reason'] = 'Not tested; extend the range or use the declared local step.'
+            else:
+                verify_neighbor(neighbor, runs)
+                neighbor_net = Decimal(str(neighbor['metrics']['total_net_pnl']))
+                stress_net = Decimal(str(neighbor['screening']['metrics']['is_stress_net_profit']))
+                retained = net > 0 and multiply(neighbor_net, Decimal(100)) >= multiply(net, threshold)
+                entry.update(trial=neighbor['trial'], run_id=neighbor['run_id'], net_profit=str(neighbor_net),
+                             cost_stress_net_profit=str(stress_net),
+                             retention_pct=str(neighbor_net * 100 / net) if net > 0 else None,
+                             passed=retained and stress_net > 0,
+                             reason='; '.join(reason for condition, reason in (
+                                 (not retained, 'Profit retention below 70% or candidate not profitable'),
+                                 (stress_net <= 0, 'Extra-slippage net profit is not positive')) if condition) or 'Retains at least 70% and survives extra slippage')
+            neighbors.append(entry)
+    observed = [item for item in neighbors if not item['missing']]
+    missing = sum(item['missing'] for item in neighbors)
+    passed = bool(steps) and not missing and all(item['passed'] for item in neighbors)
+    return dict(passed=passed, status='insufficient_evidence' if missing or not steps else 'passed' if passed else 'failed',
+                local_steps=steps, required_neighbors=len(neighbors), tested_neighbors=len(observed),
+                missing_neighbors=missing, neighbors=neighbors,
+                lowest_neighbor_profit=str(min(Decimal(item['net_profit']) for item in observed)) if observed else None,
+                minimum_retention_pct=str(min(Decimal(item['retention_pct']) for item in observed)) if observed and net > 0 else None)
+
+
 def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
-               broad_policy=None, fields=None):
-    if target_policy not in (LEGACY_POLICY, POLICY):
+               broad_policy=None, fields=None, plateau_steps=None):
+    if target_policy not in SUPPORTED_POLICIES:
         raise ValueError('Unsupported IS Narrow admission policy.')
     report = runs.get(row['run_id'])
     if not report:
@@ -384,7 +472,14 @@ def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
         raise ValueError('The Narrow report or its cost-stress artifacts changed after publication.')
     base = broad_evaluate(captured['metrics'], captured['closed_trades'], captured['total_net_pnl'],
                           broad_policy or (captured['policy'] if target_policy == LEGACY_POLICY else policy()))
-    neighbors = neighbor_check(row, all_rows, axes, runs, target_policy=target_policy, fields=fields)
+    plateau = None
+    if target_policy == POLICY:
+        plateau = plateau_check(row, all_rows, axes, fields, plateau_steps, runs)
+        actual_neighbors = [item for item in plateau['neighbors'] if not item['missing']]
+        good, total = sum(Decimal(item['net_profit']) > 0 for item in actual_neighbors), len(actual_neighbors)
+        neighbors = dict(profitable=good, valid=total, fraction=good/total if total else None, passed=plateau['passed'])
+    else:
+        neighbors = neighbor_check(row, all_rows, axes, runs, target_policy=target_policy, fields=fields)
     days = daily_net(runs, report)
     boundaries = period_boundaries(plan)
     quarter_pnl = [sum((v for d, v in days if boundaries[i] <= d < boundaries[i+1]), Decimal(0)) for i in range(4)]
@@ -411,11 +506,19 @@ def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
                     quarter_net_pnl=[str(v) for v in quarter_pnl], net_without_best_month=str(without_best) if without_best is not None else None,
                     confidence=bound, family_size=family)
     observed = [sum(1 for day, _ in days if boundaries[i] <= day < boundaries[i+1]) for i in range(4)]
+    stability = dict(id='neighbors', label='Profitable ordered-numeric neighbors', passed=neighbors['passed'],
+                     actual=f"{neighbors['profitable']} / {neighbors['valid']}", required='At least two valid neighbors and at least two-thirds profitable')
+    if plateau is not None:
+        actual = (f"Insufficient local evidence: {plateau['tested_neighbors']} / {plateau['required_neighbors']} neighbors tested"
+                  if plateau['status'] == 'insufficient_evidence' else
+                  f"Minimum retention {Decimal(plateau['minimum_retention_pct']):.2f}%; lowest neighbor profit {Decimal(plateau['lowest_neighbor_profit']):.2f} CU"
+                  if plateau['minimum_retention_pct'] is not None else 'Candidate must be profitable')
+        stability = dict(id='neighbors', label='Fine-grid parameter plateau', passed=plateau['passed'], actual=actual,
+                         required='Both sides of every varied numeric parameter tested at the declared local step; every neighbor retains ≥ 70% of candidate net profit and remains profitable with +1 tick per fill')
     checks = [*base['checks'],
         dict(id='period_coverage', label='Observed dates in every IS period', passed=all(observed),
              actual=', '.join(str(value) for value in observed), required='At least one observed source-local date in each of four periods'),
-        dict(id='neighbors', label='Profitable ordered-numeric neighbors', passed=neighbors['passed'],
-             actual=f"{neighbors['profitable']} / {neighbors['valid']}", required='At least two valid neighbors and at least two-thirds profitable'),
+        stability,
         month_check]
     observations = [
         dict(id='time_stability', label='Four-period net P&L', actual=', '.join(str(value) for value in quarter_pnl),
@@ -427,11 +530,11 @@ def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
         dict(id='search_adjusted_bound', label='Search-adjusted daily net lower bound',
              actual=f"{bound['lower_bound']:.4f} CU/day" if bound else 'Insufficient daily evidence',
              context=f"95% one-sided; HAC lag 5; Bonferroni family of {family} attempted trials")]
-    return dict(policy=POLICY, qualifies=all(check['passed'] for check in checks), checks=checks,
+    return dict(policy=target_policy, qualifies=all(check['passed'] for check in checks), checks=checks,
                 observations=observations, neighbors=neighbors,
                 quarter_boundaries=[d.isoformat() for d in boundaries], period_observed_dates=observed,
                 quarter_net_pnl=[str(v) for v in quarter_pnl], net_without_best_month=str(without_best) if without_best is not None else None,
-                confidence=bound, family_size=family)
+                confidence=bound, family_size=family, **({'plateau': plateau} if plateau is not None else {}))
 
 
 def context(request, workflow_id, broad_trial):
@@ -458,15 +561,16 @@ def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
     branch_complete = (job['status'] == 'complete' and
                        len(all_rows) == job['total_trials'] == job['completed_trials'])
     source_policy = job['research'].get('narrow_policy')
-    if source_policy not in (LEGACY_POLICY, POLICY) or state.get('policy') != source_policy:
+    if source_policy not in SUPPORTED_POLICIES or state.get('policy') != source_policy:
         raise ValueError('Saved IS Narrow policy differs from its optimizer job.')
-    target = state.get('selection_policy') or (source_policy if state['confirmed_at_utc'] else POLICY)
+    target = (state.get('selection_policy') or source_policy) if state['confirmed_at_utc'] else POLICY
     for row in page['items']:
         if job['status'] == 'complete':
             try:
                 row['admission'] = assessment(request.app.state.runs, row, all_rows, job['axes'], family,
                                               saved['declaration']['plan'], target_policy=target,
-                                              fields=job['strategy']['parameters'])
+                                              fields=job['strategy']['parameters'],
+                                              plateau_steps=job['research'].get('plateau_steps'))
                 row['admission']['provisional'] = not branch_complete
                 row['qualifies'] = branch_complete and row['admission']['qualifies'] and not row.get('backtest_deleted', False)
             except (ValueError, OSError, KeyError, ArithmeticError) as exc:
@@ -499,6 +603,7 @@ def chosen_candidate(store, workflow_id, state, trial, db, family):
         or meta['research'].get('workflow_id') != workflow_id or meta['research'].get('workflow_phase') != 'is_narrow'
         or meta['research'].get('broad_trial') != state['broad_trial'] or meta['research'].get('phase') != 'is'
         or meta['research'].get('narrow_policy') != research.get('narrow_policy')
+        or meta['research'].get('plateau_steps') != research.get('plateau_steps')
         or meta['research'].get('plan') != saved['declaration']['plan']
         or meta['research'].get('period_boundaries') != [d.isoformat() for d in period_boundaries(saved['declaration']['plan'])]
         or meta['research'].get('broad_selection_identity') != state['broad_selection_identity']
@@ -522,9 +627,10 @@ def chosen_candidate(store, workflow_id, state, trial, db, family):
     for name, value in meta['research']['frozen_broad_parameters'].items():
         if row['parameters'][name] != value:
             raise ValueError('A frozen Broad parameter changed in the Narrow report.')
-    target = state.get('selection_policy') or (state['policy'] if state['confirmed_at_utc'] else POLICY)
+    target = (state.get('selection_policy') or state['policy']) if state['confirmed_at_utc'] else POLICY
     admission = assessment(store.runs, row, all_rows, job['axes'], family, saved['declaration']['plan'],
-                           target_policy=target, fields=job['strategy']['parameters'])
+                           target_policy=target, fields=job['strategy']['parameters'],
+                           plateau_steps=research.get('plateau_steps'))
     if not admission['qualifies']:
         raise ValueError('Only configurations passing all IS Narrow criteria may advance.')
     _, stress = verified_screening(store.runs, report)
@@ -551,7 +657,7 @@ def save_selection(request, workflow_id, body, confirm=False):
         if job['status'] != 'complete' or count != job['total_trials'] or count != job['completed_trials']:
             raise ValueError('Complete this Broad configuration’s Narrow grid before selecting.')
         source_policy = job['research'].get('narrow_policy')
-        if source_policy not in (LEGACY_POLICY, POLICY) or state.get('policy') != source_policy:
+        if source_policy not in SUPPORTED_POLICIES or state.get('policy') != source_policy:
             raise ValueError('Saved Narrow policy differs from its optimizer job.')
         if source_policy == POLICY and job['engine_identity'] != engine_identity():
             raise ValueError('Narrow calculation code changed; the current-policy grid cannot be confirmed.')
@@ -655,5 +761,6 @@ async def download(workflow_id: UUID, request: Request, broad_trial: int = Query
         await invoke(validate_branch_download, request.app.state.campaign_workflows,
                      workflow_id.hex, state)
     return Response(json.dumps(dict(workflow_id=workflow_id.hex, declaration=saved['declaration'],
-                                    policy=POLICY, state=state, job=job), indent=2),
+                                    policy=(state.get('selection_policy') or state.get('policy')) if state['confirmed_at_utc'] else POLICY,
+                                    state=state, job=job), indent=2),
                     media_type='application/json', headers={'Content-Disposition':f'attachment; filename="is-narrow-{workflow_id.hex}-{broad_trial}.json"'})

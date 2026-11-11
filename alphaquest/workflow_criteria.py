@@ -48,7 +48,8 @@ def stage_criteria():
             'All four tests must pass before selecting and permanently confirming one or two configurations.']),
         dict(id='is_narrow', label='IS Narrow', implemented=True, rules=[
             'Retain all four IS Broad pass criteria, with observed source dates in every one of four consecutive IS calendar periods.',
-            'At least two distinct valid immediate ordered-numeric parameter neighbors, with at least two-thirds profitable after costs; categorical axes do not count.',
+            'Fine-grid plateau: test both sides of every varied ordered-numeric parameter at its declared local step. Every neighbor must retain at least 70% of the candidate’s net profit and remain profitable with +1 tick per fill. Boolean and categorical axes are excluded.',
+            'Integer local steps default to 1; Decimal local steps default to the grid step. Declare a meaningful local increment before running. Boundary rows or missing local values cannot pass; extend or refine an unconfirmed grid.',
             'Total net profit remains positive after excluding the single best complete calendar month.',
             'Four-period P&L, drawdown duration and depth, and the search-adjusted daily-net confidence bound are shown for review, not used as automatic pass/fail checks.',
             'Select and permanently confirm one or two passing configurations per Broad selection, up to four total, before final OOS.']),
