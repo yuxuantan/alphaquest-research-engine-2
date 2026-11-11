@@ -568,7 +568,7 @@
       : /^#jobs(?:[/?]|$)/.test(hash) ? "jobs"
       : hash.startsWith("#campaigns/workflows/") ? "mechanic"
       : hash.startsWith("#campaigns") ? "campaigns"
-      : hash === "#prop-sim" ? "prop-sim"
+      : hash.split('?')[0] === "#prop-sim" ? "prop-sim"
       : hash.startsWith("#strategies") ? "strategies"
       : hash.startsWith("#optimizations") ? "optimizations"
       : hash.startsWith("#backtests") ? "backtests" : "datasets";

@@ -51,6 +51,79 @@ handoff were incomplete. The subsequent contracts below implement native
 chronological reruns, forecasts, candidate optimization, frozen campaign handoff
 and the complete-procedure workflow; the current acceptance record is separate.
 
+## Campaign-qualified Prop Sim portal — 2026-11-12
+
+**Prop Sim** (`/#prop-sim`) now connects current campaign qualification to the
+existing independent Evaluation/Funded engines. Exactly one saved parameter
+configuration may be selected. Mechanics, frozen IS Broad/IS Narrow, current OOS
+acceptance and the latest current-policy full-period Monte Carlo report must all
+pass. Listing, source checking and every explicit launch independently validate
+server-owned identities and source/report integrity; changing a client verdict
+cannot admit a failed configuration. Unsupported NQ/MNQ source shapes are rejected
+by the existing phase admission checks. No new strategy backtest is needed.
+
+The campaign's native IS report links **Configure prop analysis** to this page;
+legacy ordinary backtests keep their existing configuration route. The new page
+supports one local Apex 50K EOD profile, whole-MNQ size ranges, path count/seed,
+1/5/10-weekday blocks, replacement commission, scenario fees/calendar/closures,
+Funded horizon/receipt delay and an editable Funded breach-probability constraint.
+Defaults are 1–10 MNQ, 1,000 paths per size per phase, five-weekday blocks, seed 42,
+49 USD Evaluation / 129 USD activation, 0.51 USD per MNQ per side, 90 calendar
+Funded days, two calendar receipt-delay days and at most 25% account breach.
+These prices and receipt timing are editable scenarios, not verified quotes.
+
+Sizing uses only the frozen source's IS window. Qualification has already used
+OOS and combined-period Monte Carlo; therefore this is **post-screening research**,
+not a newly untouched holdout. Saved fixed-signal-path trades and conservative
+native held-OHLC adverse bounds are rescaled to whole MNQ. Account pauses do not
+rerun strategy signals; source timing, gap treatment and size scalability remain
+explicit assumptions. Costs replace source commissions once; existing fill
+slippage is preserved. This is not tick-precise provider execution.
+
+Evaluation estimates single-attempt pass probability `p`. Its unlimited
+independent-retry cost is `evaluation_price / p + activation_fee`; expected
+attempts are `1 / p`. Calendar-time estimates use sampled joint attempt
+outcome/duration pairs, retries, activation/readiness waits and the declared
+weekday/closure calendar. Unresolved/censored sizes withhold unconditional means
+and remain visible; the portal retains every resolved cost/time Pareto point
+and does not silently choose an Evaluation winner.
+
+Funded starts a fresh account and independently maximizes mean **cash received**
+within the saved finite horizon, counting every start including zero receipts.
+Daily risk limits, EOD trailing-floor updates, position tiers, inactivity,
+full-cap payout requests, immediate balance deductions and delayed receipts are
+applied by the existing local phase engine. Pending receipts and remaining
+account equity are not cash received. There is no replacement account and no
+Evaluation probability/fee/time in Funded selection. The breach constraint is
+an editable scenario constraint; estimates/near ties do not certify an optimum.
+
+The page exposes local rule snapshots and dated provenance. In particular the
+preserved engine uses 21-session expiry/inactivity clocks and accepts exactly
+50% funded consistency, whereas reviewed provider calendar/boundary rules differ.
+No numerical engine, rule hash, legacy selector or historical report is changed.
+No provider parity or trading readiness is claimed.
+
+`alphaquest/prop_sim.py` orchestrates existing `CampaignStore` requests and the
+normal `AnalysisStore` workers/results. New tables in that same catalogue save
+only the parent declaration, qualification proof and phase references. Each
+phase retains its existing numerical report, cache, source checks and CSV/JSON/ZIP
+exports; referenced campaigns are deletion-protected. Jobs continue after
+navigation, can be stopped/retried and reopen from the page or Job history.
+Progress polls small status records, loading numerical reports only on completion.
+The request's selection array currently enforces exactly one member; multi-source
+portfolio allocation remains future work, with no invented portfolio optimum.
+
+API: `GET /api/prop-sim/candidates`, `GET /api/prop-sim/defaults`,
+`POST /api/prop-sim/check`, `POST /api/prop-sim` (202),
+`GET /api/prop-sim` (history), `GET /api/prop-sim/{id}` (status),
+`GET /api/prop-sim/{id}/results/{evaluation|funded}` and
+`POST /api/prop-sim/{id}/cancel`. Checks and launches take the configuration
+snapshot returned by status, with a new `request_id` for changed settings.
+The same request ID is idempotent; explicit retry rechecks current qualification.
+Previously saved reports reopen without requalification or resimulation.
+
+See the [normal-product evidence and reproduction guide](evidence/qualified_prop_sim/README.md).
+
 ## Canonical external sources — 2026-11-08
 
 **Strategies → Import trades** validates the versioned

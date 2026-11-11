@@ -6,7 +6,8 @@
   `tests/test_campaign_mechanics_browser.py` or
   `tests/test_workflow_navigation_browser.py`, `tests/test_job_history_browser.py`,
   `tests/test_campaign_broad_browser.py`, `tests/test_campaign_narrow_browser.py`,
-  or `tests/test_campaign_oos_browser.py`, `tests/test_campaign_monte_carlo_browser.py`.
+  or `tests/test_campaign_oos_browser.py`, `tests/test_campaign_monte_carlo_browser.py`,
+  `tests/test_prop_sim_browser.py`.
   Browser checks are opt-in; select only the affected journey.
 - Older regressions remain intact but are excluded from default discovery.
   Do not routinely run the previous 180-check set or the full suite for each
@@ -50,6 +51,16 @@ extend it or declare an exceptional field directly if this tag is needed.
 Keep the opt-out eligibility covered in `tests/test_campaign_narrow.py`.
 
 # Prop simulation deliverables
+
+The main Prop Sim tab is orchestrated by `alphaquest/prop_sim.py` and
+`alphaquest/web/prop-sim.js`. Keep campaign mechanics/Broad/Narrow/current OOS/
+latest current-policy Monte Carlo qualification server-owned and rechecked at
+launch. Exactly one configuration is currently supported. Reuse the independent
+phase campaigns/AnalysisStore; do not duplicate their numerical engines or turn
+the parent phase-reference record into another result store. Select
+`tests/test_prop_sim.py` explicitly for admission/orchestration changes and the
+browser journey above for the portal. These exercise the complete qualified
+pipeline, so keep them opt-in when unrelated features change.
 
 For each future prop simulation subtask, deliver:
 

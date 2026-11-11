@@ -361,6 +361,9 @@ class CampaignStore:
 
     def _deletion_preview(self, db, id):
         """Metadata only, on the same transaction used to release references."""
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='workflow_prop_sim_phases'").fetchone():
+            if db.execute('SELECT 1 FROM workflow_prop_sim_phases WHERE campaign_id=?',(id,)).fetchone():
+                raise ResearchConflict('This phase campaign is retained by a saved Prop Sim analysis.')
         row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
         if not row:
             saved = db.execute('SELECT payload FROM campaign_deletions WHERE campaign_id=?', (id,)).fetchone()

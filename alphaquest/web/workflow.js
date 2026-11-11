@@ -1,6 +1,6 @@
 "use strict";
 
-// Campaign narratives plus real dataset/run navigation. Prop Sim remains a preview.
+// Campaign narratives plus real dataset/run navigation. Prop Sim is owned by prop-sim.js.
 (() => {
   const get = (selector) => document.querySelector(selector);
   const node = (tag, text, className) => {
@@ -115,66 +115,6 @@
     }
   }
 
-  const examples = [
-    {id: "orb-1", name: "ORB + VWAP pullback", params: "stop_mode=1, retest_mode=1", risk: 0},
-    {id: "orb-2", name: "ORB + VWAP pullback", params: "stop_mode=2, retest_mode=2", risk: 200},
-    {id: "twin-1", name: "Twin continuation", params: "use_breakout=true, use_momentum=true", risk: 300},
-    {id: "twin-2", name: "Twin continuation", params: "use_breakout=false, mo_trigger=100", risk: 50},
-  ];
-  const selected = new Set(examples.map((item) => item.id));
-  let evaluation = null;
-  function updateProfile() {
-    const choice = examples.find((item) => item.id === evaluation);
-    get("#prop-preview-profile").textContent = choice
-      ? `Example evaluation profile: ${choice.name} · ${choice.params} · $${choice.risk} risk per trade.`
-      : "Select an example evaluation profile above.";
-  }
-  function renderInputs() {
-    const choices = examples.filter((item) => selected.has(item.id));
-    if (!selected.has(evaluation)) evaluation = null;
-    get("#prop-preview-count").textContent = `(${choices.length} selected)`;
-    for (const id of ["selected", "evaluation", "funded"]) get(`#prop-preview-${id}`).replaceChildren();
-    for (const choice of choices) {
-      const card = node("div", undefined, "workflow-input-card");
-      card.append(node("strong", choice.name), node("code", choice.params));
-      get("#prop-preview-selected").append(card);
-      const label = node("label", undefined, "workflow-sizing-row");
-      const radio = node("input");
-      radio.type = "radio";
-      radio.name = "preview-evaluation";
-      radio.value = choice.id;
-      radio.checked = evaluation === choice.id;
-      radio.onchange = () => { evaluation = choice.id; updateProfile(); };
-      const text = node("span", `${choice.name} · ${choice.params}`);
-      text.append(node("strong", `Example risk: $${choice.risk} per trade`));
-      label.append(radio, text);
-      get("#prop-preview-evaluation").append(label);
-      const funded = node("div", undefined, "workflow-sizing-row");
-      const fundedText = node("span", `${choice.name} · ${choice.params}`);
-      fundedText.append(node("strong", `Example risk: $${choice.risk} per trade`));
-      funded.append(fundedText);
-      get("#prop-preview-funded").append(funded);
-    }
-    if (!choices.length) {
-      for (const id of ["selected", "evaluation", "funded"]) get(`#prop-preview-${id}`).append(node("p", "No example inputs selected. Choose strategy inputs above.", "muted"));
-    }
-    updateProfile();
-  }
-  for (const choice of examples) {
-    const label = node("label", undefined, "workflow-input-option");
-    const input = node("input");
-    input.type = "checkbox";
-    input.value = choice.id;
-    input.checked = true;
-    input.onchange = () => { input.checked ? selected.add(choice.id) : selected.delete(choice.id); renderInputs(); };
-    label.append(input, node("span", `${choice.name} · ${choice.params}`));
-    get("#prop-preview-options").append(label);
-  }
-  get("#prop-preview-add").onclick = () => {
-    get("#prop-preview-picker").open = true;
-    get("#prop-preview-options input").focus();
-  };
   window.addEventListener("hashchange", renderCampaign);
   renderCampaign();
-  renderInputs();
 })();

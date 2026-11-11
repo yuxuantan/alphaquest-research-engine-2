@@ -1968,3 +1968,10 @@ dialog::backdrop {
 #monte-carlo-panel { margin-top:24px; }
 #monte-carlo-table tr.broad-ineligible td { background:#303b44; color:#d8dfe4; border-color:#45535e; }
 #monte-carlo-table td:last-child { min-width:280px; max-width:440px; white-space:normal; }
+.prop-sim-settings { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px; margin:20px 0; }
+.prop-sim-settings label, #prop-sim-form > label { display:grid; gap:8px; }
+#prop-sim-form > label { max-width:100%; }
+#prop-sim-form select { min-width:0; max-width:100%; width:100%; }
+#prop-sim-results > section { margin:24px 0; }
+#prop-sim-content pre { max-height:400px; max-width:100%; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+#prop-sim-results td:last-child { min-width:220px; max-width:480px; white-space:normal; }

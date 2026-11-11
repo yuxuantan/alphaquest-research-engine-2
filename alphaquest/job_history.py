@@ -33,7 +33,8 @@ SOURCES = '''
  SELECT CASE WHEN c.analysis_id IS NOT NULL THEN 'monte_carlo' ELSE 'prop_analysis' END,a.id,a.created,CASE a.status WHEN 'error' THEN 'failed' ELSE a.status END,
         COALESCE(json_extract(r.manifest,'$.run_metadata.strategy.id'),''),
         COALESCE(json_extract(r.manifest,'$.run_metadata.dataset.name'),'Saved source '||a.source_id),
-        json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id)
+        json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id,
+            'prop_sim_id',(SELECT s.simulation_id FROM prop_catalog.workflow_prop_sim_phases s JOIN prop_catalog.research_campaigns r ON r.id=s.campaign_id WHERE r.analysis_id=a.id ORDER BY r.created DESC LIMIT 1))
  FROM prop_catalog.analyses a LEFT JOIN runs r ON r.id=a.source_id
  LEFT JOIN prop_catalog.campaign_sanity_jobs c ON c.analysis_id=a.id
 '''
@@ -90,7 +91,10 @@ def public_job(row, tracker):
             result['stop_url'] = f'/api/prop-analyses/{id}/cancel'
     else:
         result['progress'] = dict(stage=payload.get('progress') or status,completed=None,total=None,unit=None)
-        links.append(dict(label='Open prop analysis',href=f'#backtests/prop/job/{id}'))
+        if payload.get('prop_sim_id'):
+            links.append(dict(label='Open Prop Sim',href=f"#prop-sim?analysis={payload['prop_sim_id']}"))
+            if status in ('queued','running'):result['stop_url']=f'/api/prop-analyses/{id}/cancel'
+        else:links.append(dict(label='Open prop analysis',href=f'#backtests/prop/job/{id}'))
     return result
 
 

@@ -63,6 +63,8 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
             from ..campaign_monte_carlo import initialize as initialize_sanity
             initialize_sanity(db)
+            from ..prop_sim import initialize as initialize_prop_sim
+            initialize_prop_sim(db)
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
             db.execute('CREATE TABLE IF NOT EXISTS lifecycle_comparisons (request_id TEXT PRIMARY KEY, declaration TEXT NOT NULL, checked TEXT NOT NULL, analysis_id TEXT NOT NULL UNIQUE)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')

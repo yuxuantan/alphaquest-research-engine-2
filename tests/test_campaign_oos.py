@@ -34,9 +34,9 @@ def oos_csv(degraded=False):
     return ('\n'.join(lines)+'\n').encode()
 
 
-def frozen_workflow(client, degraded=False):
-    raw=oos_csv(degraded)
-    response=client.post('/api/datasets',params=dict(filename='SYNTHETIC-oos.csv',name='SYNTHETIC frozen OOS',symbol='SYNTHETIC',source_timezone='UTC',tick_size='.25',point_value='10'),content=raw)
+def frozen_workflow(client, degraded=False, *, symbol='SYNTHETIC', point_value='10', csv_content=None):
+    raw=csv_content if csv_content is not None else oos_csv(degraded)
+    response=client.post('/api/datasets',params=dict(filename='SYNTHETIC-oos.csv',name='SYNTHETIC frozen OOS',symbol=symbol,source_timezone='UTC',tick_size='.25',point_value=point_value),content=raw)
     assert response.status_code==201,response.text
     dataset=response.json()
     body=dict(dataset_id=dataset['id'],strategy_id='consecutive_green_hold',sample_split=dict(mode='dates',is_start='2024-01-01',is_end='2025-12-31',oos_start='2026-01-01',oos_end='2026-12-31'),execution_settings=dict(initial_capital='10000',slippage_ticks=1,commission_per_contract_per_side='1'))

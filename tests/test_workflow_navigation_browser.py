@@ -1,4 +1,4 @@
-"""Main workflow navigation, example selection, and presentation-only boundaries."""
+"""Main workflow navigation, campaign selection and source-admission boundaries."""
 import json
 
 from research_fixtures import ResearchHTTPClient
@@ -46,28 +46,17 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     (tmp_path/'navigation.json').write_text(json.dumps({'destinations':['Dataset','Research','Campaigns','Prop Sim'], 'campaigns':3, 'datasets_unchanged':True, 'mutation_requests':mutations}, indent=2))
 
 
-def test_prop_preview_selection_empty_boundary_and_mobile(page, portal, tmp_path):
+def test_prop_sim_empty_qualification_boundary_and_mobile(page, portal, tmp_path):
     mutations = []
     page.on('request', lambda r: mutations.append(r.url) if r.method != 'GET' else None)
     page.goto(portal['url']+'/#prop-sim')
     screen = page.locator('#prop-sim-screen')
-    playwright.expect(screen).to_contain_text('Placeholder values only')
-    playwright.expect(page.locator('#prop-preview-account')).to_have_value('APEX › 50K EOD')
-    playwright.expect(page.locator('#prop-preview-selected .workflow-input-card')).to_have_count(4)
-    page.locator('#prop-preview-evaluation input[value="twin-1"]').check()
-    playwright.expect(page.locator('#prop-preview-profile')).to_contain_text('$300 risk per trade')
-    page.evaluate('window.scrollTo(0, 0)')
+    playwright.expect(screen).to_contain_text('No qualified, compatible configurations')
+    playwright.expect(page.locator('#prop-sim-source option')).to_have_count(1)
+    playwright.expect(page.locator('#prop-sim-run')).to_be_disabled()
+    playwright.expect(page.locator('#prop-sim-check')).to_be_disabled()
+    assert page.locator('#prop-preview-selected').count()==0
     page.screenshot(path=str(tmp_path/'prop-sim.png'), full_page=True)
-    page.locator('#prop-preview-add').click()
-    for item in page.locator('#prop-preview-options input').all():
-        item.uncheck()
-    playwright.expect(page.locator('#prop-preview-evaluation')).to_contain_text('No example inputs selected')
-    playwright.expect(page.locator('#prop-preview-profile')).to_have_text('Select an example evaluation profile above.')
-    playwright.expect(page.locator('#prop-preview-evaluation input:checked')).to_have_count(0)
-    page.locator('#prop-preview-options input[value="orb-2"]').check()
-    playwright.expect(page.locator('#prop-preview-selected .workflow-input-card')).to_have_count(1)
-    playwright.expect(page.locator('#prop-preview-funded .workflow-sizing-row')).to_have_count(1)
-    assert page.locator('.workflow-profits tbody td:not(:first-child)').all_text_contents() == ['—'] * 9
     page.set_viewport_size({'width':390,'height':844})
     page.screenshot(path=str(tmp_path/'prop-sim-mobile.png'), full_page=True)
     nav = page.get_by_role('navigation', name='Mobile navigation', exact=True)

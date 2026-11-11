@@ -148,6 +148,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(oos_router)
     from .campaign_monte_carlo import router as monte_carlo_router
     app.include_router(monte_carlo_router)
+    from .prop_sim import router as prop_sim_router
+    app.include_router(prop_sim_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

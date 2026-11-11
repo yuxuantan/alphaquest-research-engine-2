@@ -21,6 +21,20 @@ and product boundary in [prop simulation](prop_simulation.md). The portal extens
 below is implemented; provider rules are not newly verified. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
 
+## Campaign-qualified single-source portal — 2026-11-12
+
+The main **Prop Sim** tab now admits one campaign configuration only after
+mechanics, both IS stages, current OOS and latest current-policy Monte Carlo
+acceptance. It runs the existing independent Evaluation cost/time frontier and
+Funded finite-horizon cash ranking across declared whole-MNQ sizes. Phase inputs,
+cache identities and objectives remain independent. The normal IS backtest
+report, source check, background jobs, durable reports/downloads and Job history
+form one usable journey. This is fixed-signal-path sizing on IS history after
+OOS-based eligibility, with disclosed local-rule/calendar limitations; it is not
+new provider qualification or untouched final OOS. Multiple-source portfolio
+allocation remains pending. See [implementation and assumptions](prop_simulation.md#campaign-qualified-prop-sim-portal--2026-11-12)
+and [saved product evidence](evidence/qualified_prop_sim/README.md).
+
 ## Implemented saved-trial research campaigns — 2026-11-06
 
 [`research_campaigns.py`](../alphaquest/research_campaigns.py) now expands declared

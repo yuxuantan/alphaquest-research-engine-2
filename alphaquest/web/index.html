@@ -14,6 +14,7 @@
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
     <script src="/static/workflow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-sim.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaign_broad.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaign_narrow.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaign_monte_carlo.js?v=ASSET_VERSION" defer></script>
@@ -361,17 +362,8 @@
           <div id="mechanic-content"></div>
         </section>
         <section id="prop-sim-screen" aria-labelledby="prop-sim-title" hidden>
-          <div class="page-heading"><div><div class="eyebrow">STRATEGIES TO ACCOUNT OUTCOMES</div><h1 id="prop-sim-title">Prop Sim<span class="heading-dot">.</span></h1><p>Compare evaluation sizing, funded sizing and simulated cash outcomes.</p></div><span class="pill neutral">Workflow preview</span></div>
-          <p class="workflow-notice">Placeholder values only. No source check, optimization or simulation is run from this preview. Risk amounts are illustrative; profits are not calculated.</p>
-          <section class="panel workflow-inputs" aria-labelledby="prop-preview-inputs-title">
-            <label for="prop-preview-account">Account profile</label><select id="prop-preview-account"><option>APEX › 50K EOD</option></select>
-            <h2 id="prop-preview-inputs-title">Strategy inputs</h2><p class="muted">Select one or more example parameter sets.</p>
-            <details id="prop-preview-picker"><summary>Choose strategy inputs <span id="prop-preview-count"></span></summary><div id="prop-preview-options"></div></details>
-            <div id="prop-preview-selected" class="workflow-selected-inputs" aria-live="polite"></div>
-            <button id="prop-preview-add" class="button secondary" type="button">+ Add inputs</button>
-          </section>
-          <div class="workflow-sizing-layout"><section class="panel workflow-sizing" aria-labelledby="prop-preview-eval-title"><h2 id="prop-preview-eval-title">Optimal sizing · Evaluation</h2><p class="muted">Illustrative frontier · choose an evaluation profile</p><div id="prop-preview-evaluation"></div></section><section class="panel workflow-sizing" aria-labelledby="prop-preview-funded-title"><h2 id="prop-preview-funded-title">Optimal sizing · Funded</h2><p class="muted">Illustrative funded choices · no ranking calculated</p><div id="prop-preview-funded"></div></section></div>
-          <section class="panel workflow-profits" aria-labelledby="prop-preview-profits-title"><h2 id="prop-preview-profits-title">Simulated profits</h2><p id="prop-preview-profile" aria-live="polite"></p><p class="muted">A future update will apply the selected evaluation profile and best funded choice.</p><div class="workflow-table-scroll"><table class="library-table"><caption>Placeholder annual cash outcomes · no simulation results</caption><thead><tr><th>Year</th><th>Cost</th><th>Trader receipts</th><th>Net</th></tr></thead><tbody><tr><td>Year 1</td><td>—</td><td>—</td><td>—</td></tr><tr><td>Year 2</td><td>—</td><td>—</td><td>—</td></tr><tr><td>Year 3</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div></section>
+          <div class="page-heading"><div><div class="eyebrow">QUALIFIED CAMPAIGNS TO ACCOUNT OUTCOMES</div><h1 id="prop-sim-title">Prop Sim<span class="heading-dot">.</span></h1><p>Size a qualified configuration independently for Evaluation and Funded accounts.</p></div></div>
+          <div id="prop-sim-content"></div>
         </section>
         <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
           <div id="backtest-setup">

@@ -10942,3 +10942,62 @@ preserve earlier v1/v2 evidence. The affected browser journey checks primary
 MTM values against native OOS results, collapsed/expanded daily diagnostics,
 two-decimal formatting, saved downloads, reload and history navigation. It uses
 the actual product workflow and shuts its temporary server down at teardown.
+
+
+### 2026-11-12 — Qualified single-configuration Prop Sim, independent phase results
+
+The actual **Prop Sim** tab replaces its former hardcoded preview with current
+campaign admission, editable scenarios, source checking, background Evaluation /
+Funded execution and sealed results. The same native IS backtest report opens
+this configuration screen. Exactly one parameter configuration is supported;
+failed/unconfirmed mechanics, frozen IS stages, current OOS, latest Monte Carlo
+policy/source identities or source-risk compatibility prevent admission. Client
+values cannot assert eligibility. Each explicit launch rechecks current evidence,
+including cached/idempotent launches; reading saved results does not rerun or
+mutate qualification.
+
+The increment reuses independent phase owners and CampaignStore/AnalysisStore.
+Evaluation retains all cost/time Pareto points; Funded ranks mean cash received
+from all fresh starts under its saved horizon and breach constraint. Neither
+phase uses the other's fees, durations, probabilities or objective. Parent records
+hold only declaration/qualification/phase links, with pinned campaign references.
+Existing numerical modules/hashes and historical reports remain unchanged.
+Navigation does not stop jobs; status, cancellation, retries, reopening and
+normal CSV/JSON/ZIP exports are integrated with Job history. Polling does not
+reload completed numerical reports repeatedly.
+
+[Saved synthetic normal-product outputs and exact reproduction](evidence/qualified_prop_sim/README.md)
+include source CSV, both phase reports/CSV/ZIPs, screenshots and journey/config
+snapshots. The labeled synthetic NQ source passes the real campaign and current
+Monte Carlo pipeline; no demonstration-only API, result store or test dashboard
+is added. With three sizes and 32 paths each, Evaluation independently satisfies
+`49 / p + 129`: size 1 has 21/32 passes and 203.6666667 USD expected cost;
+sizes 2 and 3 each have 24/32 passes, 194.3333333 USD cost and 19.25 calendar days,
+and both exact ties remain on the frontier. For each Funded size, all 32 starts
+sum to 58,500 USD received, 2,000 USD pending and 60,500 USD deducted; their means
+are 1,828.125 / 62.5 / 1,890.625 USD. The median/P10 receipts are zero. All three
+cash estimates tie, explicitly shown as tied alternatives rather than evidence
+of a unique optimal size. These are synthetic model outcomes, not future claims.
+
+Focused API checks verify exact cost and all-start receipt arithmetic, phase
+independence under fee/horizon changes, single-selection and forged-evidence
+rejection, source checks, idempotence, download availability, Job history,
+unchanged frozen Narrow choices and application reopening. Tampered latest
+Monte Carlo evidence blocks even cached launch while historical Prop Sim results
+remain readable. Browser checks exercise the actual backtest → configure →
+check → run → navigate away → reopen → download journey plus the empty-source
+and mobile boundaries. Temporary browser servers stop at teardown. The existing
+user server is not restarted by testing; no persistent test server is created.
+
+The user's existing qualified VWAP configuration was also run through the normal
+API, saved as `58d1433331a2429e9a6f0032a6ca108b` on the local workspace (not
+bundled as synthetic evidence). Both phases completed with 1–10 MNQ, 1,000 paths
+per size/phase and the displayed scenario defaults. Numerical values remain in
+the normal durable reports; original campaign/backtests/results are preserved.
+
+Model assumptions remain visible: IS-only sizing after OOS qualification,
+fixed-signal-path exposure scaling, conservative held-OHLC bounds, declared
+weekday calendars, editable fees/receipt delay, 21-session expiry/inactivity
+clocks and the existing exactly-50% consistency boundary. Current provider parity,
+complete strategy resimulation under account pauses and a portfolio allocation
+are not claimed or implemented by this increment.
