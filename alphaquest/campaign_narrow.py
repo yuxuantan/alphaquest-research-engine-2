@@ -23,7 +23,7 @@ from .strategies.registry import get_strategy
 from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
 from .workflow_criteria import evaluate as broad_evaluate, policy, verified_screening
 
-VERSION = 'is-narrow-v3'
+VERSION = 'is-narrow-v4'
 REFINEMENT_VERSION = 'is-narrow-local-refinement-v1'
 LEGACY_POLICY = dict(version='is-narrow-v1', neighbor_profit_fraction_gte='0.70', time_periods=4,
               profitable_periods_gte=3, latest_period_positive=True,
@@ -42,13 +42,19 @@ PREVIOUS_POLICY = dict(version='is-narrow-v2', minimum_valid_neighbors=2, neighb
               neighbors='all valid immediate ordered-numeric axis neighbors; categorical and Boolean axes excluded',
               advisory=['four_period_profitability', 'latest_period_profitability', 'drawdown_duration',
                         'drawdown_depth', 'search_adjusted_daily_net_lower_bound'], seed=None)
-POLICY = dict({key: value for key, value in PREVIOUS_POLICY.items()
+FINE_GRID_POLICY = dict({key: value for key, value in PREVIOUS_POLICY.items()
                if key not in ('neighbor_profit_numerator', 'neighbor_profit_denominator', 'neighbors')},
-              version=VERSION, plateau_retention_pct_gte='70',
+              version='is-narrow-v3', plateau_retention_pct_gte='70',
               plateau_directions='both sides of every varied ordered-numeric axis; other parameters unchanged',
               plateau_cost_stress_net_gt='0', integer_local_step_default='1',
               decimal_local_step_default='declared grid step')
-SUPPORTED_POLICIES = (LEGACY_POLICY, PREVIOUS_POLICY, POLICY)
+POLICY = dict({key: value for key, value in FINE_GRID_POLICY.items()
+               if key not in ('integer_local_step_default', 'decimal_local_step_default')},
+              version=VERSION,
+              plateau_directions='nearest tested lower/higher value on each varied ordered-numeric axis; other parameters unchanged',
+              boundary_handling='use available neighbors; label one-sided assessments',
+              resolution='tested grid spacing only; no claim about smaller untested changes')
+SUPPORTED_POLICIES = (LEGACY_POLICY, PREVIOUS_POLICY, FINE_GRID_POLICY, POLICY)
 
 
 def period_boundaries(plan):
@@ -151,7 +157,6 @@ class NarrowGrid(BaseModel):
     broad_trial: StrictInt = Field(ge=1)
     parameter_ranges: dict[str, ParameterRange]
     refine_broad_parameters: list[StrictStr] = Field(default_factory=list)
-    plateau_steps: dict[str, StrictStr] = Field(default_factory=dict)
     workers: StrictInt = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
 
 
@@ -248,11 +253,6 @@ def prepare(request, workflow_id, body):
     numeric = ordered_axes(definition.description()['parameters'], axes)
     if sum(min(2, len(axes[name]) - 1) for name in numeric) < POLICY['minimum_valid_neighbors']:
         raise ValueError('IS Narrow needs at least two distinct ordered-numeric neighbors for a candidate. Use at least three values on one numeric axis or vary two numeric axes.')
-    steps = local_steps(definition.description()['parameters'], axes, body.plateau_steps)
-    for name, step in steps.items():
-        values = {Decimal(str(value)) for value in axes[name]}
-        if not any(subtract(value, Decimal(step)) in values and add(value, Decimal(step)) in values for value in values):
-            raise ValueError(f'{name}: no row has both local neighbors at ±{step}. Use at least three values with this local step, or explicitly declare a different meaningful local step.')
     for values in combinations(axes):
         definition.validate_source(definition.parameters(values), dataset)
     plan = declared['plan']
@@ -270,7 +270,6 @@ def prepare(request, workflow_id, body):
     token = digest(dict(workflow_identity=saved['identity'], broad_selection=selected,
         mechanics=saved['review']['result_identity'], request=request_body.model_dump(),
         refined_broad_parameters=body.refine_broad_parameters,
-        plateau_steps=steps,
         refinement_policy=REFINEMENT_VERSION,
         engine=engine_identity(), broad_policy=policy(), narrow_policy=POLICY))
     return saved, dataset, definition, config, axes, total, request_body, token, current, fixed
@@ -280,8 +279,7 @@ def preview(request, workflow_id, body):
     _, _, definition, _, axes, total, request_body, token, state, fixed = prepare(request, workflow_id, body)
     return dict(total_trials=total, step_counts={k: len(v) for k, v in axes.items()},
                 preview_token=token, revision=state['revision'], broad_trial=body.broad_trial,
-                fixed_parameters=fixed, refined_parameters=body.refine_broad_parameters,
-                plateau_steps=local_steps(definition.description()['parameters'], axes, body.plateau_steps), policy=POLICY)
+                fixed_parameters=fixed, refined_parameters=body.refine_broad_parameters, policy=POLICY)
 
 
 def launch(request, workflow_id, body):
@@ -308,7 +306,6 @@ def launch(request, workflow_id, body):
                             workflow_phase='is_narrow', broad_trial=body.broad_trial,
                             broad_selection_identity=digest(state['broad_selection']),
                             screening_policy=policy(), narrow_policy=POLICY,
-                            plateau_steps=local_steps(definition.description()['parameters'], axes, body.plateau_steps),
                             refinement_policy=REFINEMENT_VERSION,
                             refined_broad_parameters=sorted(body.refine_broad_parameters),
                             broad_anchor_parameters=state['broad_selection']['parameters'],
@@ -415,12 +412,12 @@ def neighbor_check(row, all_rows, axes, runs=None, *, target_policy=LEGACY_POLIC
                 passed=total >= minimum and good * denominator >= numerator * total)
 
 
-def plateau_check(row, all_rows, axes, fields, steps=None, runs=None):
+def fine_plateau_check(row, all_rows, axes, fields, steps=None, runs=None):
     """Assess saved local axis perturbations, without replay or interpolated performance."""
     steps = local_steps(fields, axes, steps)
     lookup = {parameter_key(item['parameters']): item for item in all_rows}
     net = Decimal(str(row['metrics']['total_net_pnl']))
-    threshold = Decimal(POLICY['plateau_retention_pct_gte'])
+    threshold = Decimal(FINE_GRID_POLICY['plateau_retention_pct_gte'])
     neighbors = []
     for name, raw_step in steps.items():
         current, step = Decimal(str(row['parameters'][name])), Decimal(raw_step)
@@ -457,6 +454,57 @@ def plateau_check(row, all_rows, axes, fields, steps=None, runs=None):
                 minimum_retention_pct=str(min(Decimal(item['retention_pct']) for item in observed)) if observed and net > 0 else None)
 
 
+def plateau_check(row, all_rows, axes, fields, runs=None):
+    """Use real adjacent grid trials; never require or interpolate untested settings."""
+    included = ordered_axes(fields, axes)
+    lookup = {parameter_key(item['parameters']): item for item in all_rows}
+    net = Decimal(str(row['metrics']['total_net_pnl']))
+    threshold = Decimal(POLICY['plateau_retention_pct_gte'])
+    neighbors, one_sided_parameters, spacing = [], [], {}
+    for name, values in axes.items():
+        if name not in included:
+            continue
+        index = next((i for i, value in enumerate(values) if same_parameter(value, row['parameters'][name])), None)
+        if index is None:
+            raise ValueError('Trial parameters do not match the saved Narrow grid.')
+        if index in (0, len(values) - 1):
+            one_sided_parameters.append(name)
+        gaps = []
+        for direction, adjacent in (('lower', index - 1), ('higher', index + 1)):
+            if not 0 <= adjacent < len(values):
+                continue
+            value = values[adjacent]
+            step = abs(subtract(Decimal(str(value)), Decimal(str(values[index]))))
+            if step <= 0:
+                raise ValueError('Saved numeric grid values must be distinct and ordered.')
+            if str(step) not in gaps:
+                gaps.append(str(step))
+            neighbor = lookup.get(parameter_key(dict(row['parameters'], **{name: value})))
+            if neighbor is None:
+                raise ValueError('A predeclared plateau neighbor is missing from the completed grid.')
+            verify_neighbor(neighbor, runs)
+            neighbor_net = Decimal(str(neighbor['metrics']['total_net_pnl']))
+            stress_net = Decimal(str(neighbor['screening']['metrics']['is_stress_net_profit']))
+            retained = net > 0 and multiply(neighbor_net, Decimal(100)) >= multiply(net, threshold)
+            neighbors.append(dict(parameter=name, direction=direction, value=str(value), step=str(step),
+                trial=neighbor['trial'], run_id=neighbor['run_id'], net_profit=str(neighbor_net),
+                cost_stress_net_profit=str(stress_net), retention_pct=str(neighbor_net * 100 / net) if net > 0 else None,
+                passed=retained and stress_net > 0, missing=False,
+                reason='; '.join(reason for condition, reason in (
+                    (not retained, 'Profit retention below 70% or candidate not profitable'),
+                    (stress_net <= 0, 'Extra-slippage net profit is not positive')) if condition) or 'Retains at least 70% and survives extra slippage'))
+        spacing[name] = gaps
+    enough = len(neighbors) >= POLICY['minimum_valid_neighbors']
+    passed = enough and all(item['passed'] for item in neighbors)
+    return dict(passed=passed, status='insufficient_evidence' if not enough else 'passed' if passed else 'failed',
+                basis='existing_grid', grid_steps=spacing, one_sided=bool(one_sided_parameters),
+                one_sided_parameters=one_sided_parameters,
+                required_neighbors=max(POLICY['minimum_valid_neighbors'], len(neighbors)), tested_neighbors=len(neighbors),
+                missing_neighbors=0, neighbors=neighbors,
+                lowest_neighbor_profit=str(min(Decimal(item['net_profit']) for item in neighbors)) if neighbors else None,
+                minimum_retention_pct=str(min(Decimal(item['retention_pct']) for item in neighbors)) if neighbors and net > 0 else None)
+
+
 def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
                broad_policy=None, fields=None, plateau_steps=None):
     if target_policy not in SUPPORTED_POLICIES:
@@ -473,8 +521,9 @@ def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
     base = broad_evaluate(captured['metrics'], captured['closed_trades'], captured['total_net_pnl'],
                           broad_policy or (captured['policy'] if target_policy == LEGACY_POLICY else policy()))
     plateau = None
-    if target_policy == POLICY:
-        plateau = plateau_check(row, all_rows, axes, fields, plateau_steps, runs)
+    if target_policy in (FINE_GRID_POLICY, POLICY):
+        plateau = (fine_plateau_check(row, all_rows, axes, fields, plateau_steps, runs)
+                   if target_policy == FINE_GRID_POLICY else plateau_check(row, all_rows, axes, fields, runs))
         actual_neighbors = [item for item in plateau['neighbors'] if not item['missing']]
         good, total = sum(Decimal(item['net_profit']) > 0 for item in actual_neighbors), len(actual_neighbors)
         neighbors = dict(profitable=good, valid=total, fraction=good/total if total else None, passed=plateau['passed'])
@@ -515,6 +564,14 @@ def assessment(runs, row, all_rows, axes, family, plan, *, target_policy=POLICY,
                   if plateau['minimum_retention_pct'] is not None else 'Candidate must be profitable')
         stability = dict(id='neighbors', label='Fine-grid parameter plateau', passed=plateau['passed'], actual=actual,
                          required='Both sides of every varied numeric parameter tested at the declared local step; every neighbor retains ≥ 70% of candidate net profit and remains profitable with +1 tick per fill')
+        if target_policy == POLICY:
+            actual = (f"Insufficient evidence: {plateau['tested_neighbors']} tested neighbors; need at least two"
+                      if plateau['status'] == 'insufficient_evidence' else
+                      f"{plateau['tested_neighbors']} tested neighbors; {'one-sided boundary' if plateau['one_sided'] else 'both sides tested'}; "
+                      + (f"minimum retention {Decimal(plateau['minimum_retention_pct']):.2f}%; lowest neighbor profit {Decimal(plateau['lowest_neighbor_profit']):.2f} CU"
+                         if plateau['minimum_retention_pct'] is not None else 'candidate must be profitable'))
+            stability = dict(id='neighbors', label='Tested-grid parameter plateau', passed=plateau['passed'], actual=actual,
+                             required='At least two available adjacent numeric grid neighbors; every neighbor retains ≥ 70% of candidate net profit and remains profitable with +1 tick per fill; boundary assessments are one-sided')
     checks = [*base['checks'],
         dict(id='period_coverage', label='Observed dates in every IS period', passed=all(observed),
              actual=', '.join(str(value) for value in observed), required='At least one observed source-local date in each of four periods'),

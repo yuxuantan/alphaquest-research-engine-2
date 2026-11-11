@@ -10743,3 +10743,44 @@ boundaries, cost-stress failure, missing neighbors, policy preservation, and
 replacement without rewriting old files. The browser test uses a temporary
 server and stops it after recording the evidence. Synthetic mechanics
 attestations do not establish external MultiCharts parity or trading readiness.
+
+## 2026-11-11 — IS Narrow plateau using existing tested neighbors
+
+The current campaign policy is `is-narrow-v4`. Seven required checks remain.
+The plateau gate uses the nearest already-tested lower/higher value on each
+varied ordered numeric axis, changing one coordinate at a time. It requires at
+least two available neighbors; every one must retain at least 70% of candidate
+baseline net IS profit and remain positive in its own saved +1-tick-per-fill
+rerun. Boundaries use available directions and are labeled one-sided. The form
+has no additional local plateau step. Assessment schedules no extra backtests
+and reports the actual tested spacing, without claiming robustness to smaller
+untested changes. Historical confirmed v1/v2/v3 policies and evidence remain
+unchanged; v3's two-sided fine-grid reader is retained for those snapshots.
+
+`docs/evidence/is_narrow_tested_grid/README.md` contains exact normal-product
+steps, independent expected values, and evidence/download descriptions. The
+saved two-branch portal journey uses hold values 14,16,18,20, step 2. Each
+one-contract row earns independently expected 9,360 CU and 5,760 CU under extra
+slippage, with 100% neighbor retention. Interior values 16 and 18 qualify;
+one-axis endpoints have only one neighbor and cannot qualify. Two contracts
+double both profit amounts. Confirming two rows in each branch unlocks OOS
+navigation with four frozen candidates; no OOS or prop simulation is executed.
+
+The separate `boundary/` product evidence varies green-bar count 2,3 and hold
+14,16,18,20 at one contract. The green=3 / hold=14 corner earns 9,360 CU and
+qualifies using green=2 / hold=14 (16,560 CU) and green=3 / hold=16 (9,360 CU).
+The retained amounts are 176.92% and 100%. Both axes are one-sided; the page
+labels them explicitly. Green=2 settings fail because their green=3 neighbors
+retain only 56.52%, despite positive baseline and extra-slippage results. Job
+counts are unchanged before and after opening the saved-results page.
+
+Focused API checks also forbid replay/job creation while assessing and
+confirming genuine older coarse v2/v3 grids, then verify native file hashes and
+job counts are unchanged. They cover exact 70% acceptance, positive profit just
+below the retention threshold, zero stressed profit, fewer than two neighbors,
+missing internal grid evidence, unequal Decimal spacings, categorical/diagonal
+exclusions, and preserved v1/v2/v3 confirmations. Three browser journeys check
+the actual portal, local Broad refinement, two-branch selection and downloads,
+and qualifying one-sided corners. All temporary test servers stop at teardown.
+These labeled synthetic outputs verify arithmetic and workflow; no external
+MultiCharts parity, statistical edge, or provider qualification is claimed.

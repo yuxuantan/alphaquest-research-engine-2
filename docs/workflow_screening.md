@@ -130,7 +130,7 @@ normal campaign routes; the browser fixture starts and stops a temporary app:
   tests/test_campaign_broad_browser.py::test_saved_six_rule_grid_uses_four_rule_portal_without_rerun
 ```
 
-## IS Narrow — implemented, policy `is-narrow-v3`
+## IS Narrow — implemented, policy `is-narrow-v4`
 
 Retain **all four current IS Broad pass requirements** and add three checks.
 All seven must pass for a Narrow configuration to be selectable:
@@ -139,38 +139,35 @@ All seven must pass for a Narrow configuration to be selectable:
    calendar periods contains at least one observed source-local date. Block
    observed-day counts and P&L remain visible for review; this check alone does not
    establish balanced activity.
-2. **Fine-grid parameter plateau:** for **every varied ordered-numeric axis**,
-   test one declared local step below and above the candidate, changing only
-   that parameter. **Every neighbor** must retain **at least 70% of the
-   candidate's baseline net IS profit** and have **positive net profit in its
-   own saved native +1-tick-per-fill rerun**. Retention is compared using exact
-   decimals before display rounding. Boolean and `refinement_kind: categorical`
-   axes are excluded. This strengthens the previous neighbor check; the number
-   of required checks remains seven.
+2. **Tested-grid parameter plateau:** use the nearest tested lower/higher value
+   on every varied ordered-numeric axis, holding the other parameters fixed.
+   At least **two distinct available neighbors** are required. **Every neighbor**
+   must retain **at least 70% of the candidate's baseline net IS profit** and
+   have **positive net profit in its own saved native +1-tick-per-fill rerun**.
+   Retention uses exact decimal comparisons before display rounding. Boolean
+   and `refinement_kind: categorical` axes are excluded. All seven checks remain
+   required.
 3. **Profit concentration:** total net IS profit remains **> 0 after removing
    the single best complete calendar month**. This policy targets recurring
    intraday strategies; rare-event or seasonal strategies need a different
    policy declared before searching.
 
-The form's **Local plateau step** defaults to **1 for integer parameters** and
-to the declared grid step for Decimal parameters. An explicit positive step can
-be entered for each varied numeric parameter. Choose the increment before
-running; the application cannot infer whether it is economically local. Preview
-rejects a grid that cannot supply any candidate with both required sides on
-each numeric axis. For example, integer values `5,10,15,20` do not supply ±1
-observations. Refine the grid around promising values, such as `18..22 step 1`,
-rather than interpolating the missing results. A grid using a different
-meaningful unit can explicitly declare that local step. A large declared step
-does not demonstrate robustness to smaller untested changes.
+Plateau assessment reuses the completed Narrow grid and its existing cost-stress
+reports. It does not schedule any additional backtests or require finer values.
+For example, a `5,10,15,20` grid assesses `20/20` against `15/20` and `20/15`.
+Both are already tested. At a grid boundary, only available tested directions
+are used, and the portal labels the assessment **one-sided**. A one-axis
+endpoint has only one neighbor, so it remains insufficient evidence; a two-axis
+corner can qualify with two neighbors if both pass. Missing rows *inside* a
+completed declared grid are inconsistent evidence and still block selection.
 
-Boundary candidates and older coarse grids display **Insufficient local
-evidence** and cannot be selected. With complete evidence, a retention drop
-below 70% or a neighbor's nonpositive stressed net fails the plateau check.
-Expand **Eligibility** to see every required lower/higher value, its native
-report, net profit, retained percentage, extra-slippage net, and any missing
-observation. The check also shows the minimum retention and lowest neighboring
-profit; neither is interpolated or treated as a future guarantee. Assessments
-read saved native results and reruns; they do not launch extra backtests.
+The form no longer has a separate local plateau step. Expand **Eligibility** to
+see the tested spacing, boundary directions, each neighboring native report,
+net profit, retention percentage, and extra-slippage net profit. A drop below
+70% or any nonpositive neighboring stressed net fails the plateau gate. The
+result assesses stability **only at the tested spacing**, with no claim about
+smaller untested changes. Minimum retention and the lowest neighboring profit
+are also shown, without interpolation.
 
 An **unconfirmed** completed branch can launch a finer or wider replacement
 grid using the same form. Earlier jobs and reports remain in Job history;
@@ -203,8 +200,8 @@ registry copies field metadata into the parameter description, and
 checkbox and API opt-in. The current strategy fields do not use this tag;
 binary `1,2` modes are already excluded by the integer-step refinement rule.
 The other strategy parameters can vary. A grid must contain enough ordered
-numeric values for at least one row to have both local neighbors on every
-varied numeric axis.
+numeric values for at least one row to have two available numeric neighbors.
+One numeric axis needs at least three values; two axes can each use two values.
 Categorical axes may vary but do not count as adjacent numeric settings.
 The native exhaustive optimizer validates
 coupled strategy constraints before launch. Each Broad selection has its own durable
@@ -222,8 +219,8 @@ portfolio selection remain future work.
 
 The Narrow job saves its Broad selection identity, selected Broad anchor values,
 explicitly refined and still-frozen parameters, refinement rule version, IS plan,
-source and cost identity, all grid axes and declared local plateau steps,
-four-rule screening policy, and the `is-narrow-v3` policy before launch.
+source and cost identity, all grid axes, four-rule screening policy, and the
+`is-narrow-v4` policy before launch.
 Native baseline and +1-tick cost-stress
 reports are saved in the usual report store. Missing reports, changed measured
 artifacts or changed neighboring evidence make a row ineligible. Results show
@@ -270,21 +267,39 @@ shown on the page and saved with the selection. With fewer than 100 observed
 dates, the diagnostic reports insufficient evidence; a missing or inconsistent
 required daily source artifact still blocks selection.
 
-Previously confirmed `is-narrow-v1` and `is-narrow-v2` selections retain their
-original admission and frozen evidence. Completed, unconfirmed older grids
-are assessed under v3 using saved reports, with default local steps where no
-explicit steps were saved. No rerun is needed if all required local observations
-already exist. When they do not, run a finer or wider replacement grid; the old
-job and native evidence remain inspectable. Historical confirmations are never
-relabeled as v3 passes.
+Previously confirmed `is-narrow-v1`, `is-narrow-v2`, and `is-narrow-v3`
+selections retain their original admission and frozen evidence. The historical
+v3 reader retains its saved explicit local steps and two-sided requirements.
+Completed, unconfirmed older grids use v4 directly from saved adjacent native
+results and cost-stress reports. No grid rerun or additional backtest is needed
+when those artifacts remain intact. Old `plateau_steps` metadata does not change
+v4's neighbor selection. Historical confirmations are never relabeled as v4.
 Use **Clear pending selection** to discard unconfirmed choices, including older
 rows that no longer qualify. Confirmed selections cannot be cleared.
 
-### Fine-grid plateau reproduction
+### Tested-grid plateau reproduction
 
-Use `docs/evidence/is_narrow_plateau/` for the labeled synthetic source,
+`docs/evidence/is_narrow_tested_grid/README.md` provides saved normal portal
+outputs and exact steps. The current two-branch journey tests hold minutes
+`14,16,18,20`: all have 9,360 CU at one contract and 100% retained neighboring
+profit. Interior settings 16 and 18 qualify. The one-axis endpoints are labeled
+one-sided but have fewer than two neighbors. A separate two-axis journey
+varies green-bar count `2,3` and hold minutes `14,16,18,20`. The green=3 / hold=14
+corner qualifies with its two available neighbors, despite neither axis having
+both directions. Its green=2 neighbor earns 16,560 CU; the hold=16 neighbor earns
+9,360 CU. Job counts stay unchanged while the page assesses these saved trials.
+
+Focused checks cover exact 70% retention, positive-but-below-threshold rejection,
+a nonpositive stressed neighbor, categorical and diagonal exclusions, unequal
+Decimal spacings, too few neighbors, missing internal grid rows, preserved
+v1/v2/v3 confirmations, and existing coarse v2/v3 grids assessed and confirmed
+without creating a job or rewriting native reports.
+
+### Historical v3 fine-grid plateau evidence
+
+The historical `docs/evidence/is_narrow_plateau/` snapshot preserves the labeled synthetic source,
 normal portal screenshot, results JSON, selected package, and journey record.
-The ordinary two-branch journey uses `hold_minutes=17,18,19,20`, local step 1.
+That earlier two-branch journey used `hold_minutes=17,18,19,20`, local step 1.
 Every row earns independently expected **9,360 CU** at one contract and survives
 extra slippage; values 18 and 19 have both sides and **100% retention**. The
 boundary rows 17 and 20 are disabled because 16 and 21 were not tested. With two
