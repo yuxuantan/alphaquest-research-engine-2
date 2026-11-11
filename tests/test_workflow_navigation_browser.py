@@ -5,6 +5,7 @@ from research_fixtures import ResearchHTTPClient
 from test_backtests_browser import browser, page, portal, playwright
 from test_campaign_mechanics import create_workflow, run_validation, checks
 from test_campaign_narrow import narrow_workflow, narrow_start
+from alphaquest.worker_limits import DEFAULT_WORKERS
 
 
 def test_main_navigation_and_campaign_details(page, portal, tmp_path):
@@ -111,6 +112,9 @@ def test_campaign_dataset_opens_latest_selectable_phase(page, portal):
         playwright.expect(link).to_have_attribute('href', f'#campaigns/workflows/{workflow["id"]}/is_broad')
         link.click()
         playwright.expect(page).to_have_url(portal['url'] + f'/#campaigns/workflows/{workflow["id"]}/is_broad')
+        playwright.expect(page.locator('#broad-workers')).to_have_value(str(DEFAULT_WORKERS))
+        playwright.expect(page.locator('#broad-workers option:checked')).to_contain_text('default')
+        assert client.get(prefix + '/broad').json()['default_workers'] == DEFAULT_WORKERS
 
         _, narrow, _ = narrow_workflow(client)
         page.goto(campaign)
@@ -122,6 +126,10 @@ def test_campaign_dataset_opens_latest_selectable_phase(page, portal):
         narrow_link.click()
         playwright.expect(page).to_have_url(portal['url'] + '/' + expected)
         playwright.expect(page.locator('#narrow-broad-trial')).to_have_value('1')
+        playwright.expect(page.locator('#narrow-workers')).to_have_value(str(DEFAULT_WORKERS))
+        playwright.expect(page.locator('#narrow-workers option:checked')).to_contain_text('default')
+        assert client.get('/api/campaign-workflows/' + narrow['id'] + '/narrow',
+                          params={'broad_trial': 1}).json()['default_workers'] == DEFAULT_WORKERS
 
         narrow_prefix = '/api/campaign-workflows/' + narrow['id']
         jobs = {trial: narrow_start(client, narrow_prefix, trial) for trial in (1, 2)}
@@ -145,3 +153,5 @@ def test_campaign_dataset_opens_latest_selectable_phase(page, portal):
         narrow_link.click()
         playwright.expect(page).to_have_url(portal['url'] + '/' + remaining)
         playwright.expect(page.locator('#mechanic-content')).to_contain_text('OOS')
+        page.goto(portal['url'] + '/#backtests')
+        playwright.expect(page.locator('#optimization-workers')).to_have_value(str(DEFAULT_WORKERS))

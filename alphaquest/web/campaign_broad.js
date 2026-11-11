@@ -57,7 +57,7 @@
         inputs.count=node('td','—');row.append(inputs.count);grid.tBodies[0].append(row);ranges.set(parameter.name,inputs);
       }
       const workerLabel=node('label','Parallel backtests'),workers=node('select');workers.id='broad-workers';
-      for(let i=1;i<=data.max_workers;i++)workers.add(new Option(String(i),String(i)));workers.value=String(job?.request.workers || 1);workerLabel.append(workers);fieldset.append(workerLabel);
+      for(let i=1;i<=data.max_workers;i++)workers.add(new Option(i===data.default_workers?`${i} · default`:String(i),String(i)));workers.value=String(job?.request.workers ?? data.default_workers);workerLabel.append(workers);fieldset.append(workerLabel);
       workers.onchange=()=>{preview=null;run.disabled=true;count.textContent='Worker setting changed. Calculate iterations again.';};
       const count=node('p','Calculate the number of parameter combinations.','optimization-count');count.id='broad-count';fieldset.append(count);
       const calculate=node('button','Calculate iterations','button secondary');calculate.type='button';calculate.id='broad-preview';

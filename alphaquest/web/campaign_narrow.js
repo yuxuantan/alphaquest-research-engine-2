@@ -57,7 +57,7 @@
         }
         inputs.count=node('td','—');row.append(inputs.count);grid.tBodies[0].append(row);ranges.set(parameter.name,inputs);
       }
-      const workerLabel=node('label','Parallel backtests'),workers=node('select');workers.id='narrow-workers';for(let i=1;i<=detail.max_workers;i++)workers.add(new Option(String(i),String(i)));workers.value=String(job?.request.workers||1);workers.onchange=()=>{preview=null;run.disabled=true;count.textContent='Worker setting changed. Calculate iterations again.';};workerLabel.append(workers);fieldset.append(workerLabel);
+      const workerLabel=node('label','Parallel backtests'),workers=node('select');workers.id='narrow-workers';for(let i=1;i<=detail.max_workers;i++)workers.add(new Option(i===detail.default_workers?`${i} · default`:String(i),String(i)));workers.value=String(job?.request.workers??detail.default_workers);workers.onchange=()=>{preview=null;run.disabled=true;count.textContent='Worker setting changed. Calculate iterations again.';};workerLabel.append(workers);fieldset.append(workerLabel);
       const count=node('p','Calculate the number of Narrow combinations.','optimization-count');count.id='narrow-count';fieldset.append(count);
       const calculate=node('button','Calculate iterations','button secondary');calculate.type='button';calculate.id='narrow-preview';
       const run=node('button','Run IS Narrow →','button primary');run.type='submit';run.id='narrow-run';run.disabled=true;

@@ -15,7 +15,7 @@ from .optimization import grid, combinations
 from .optimization_cache import artifacts, digest, engine_identity
 from .research import SplitDeclaration, dates_for, metadata
 from .strategies.registry import get_strategy
-from .worker_limits import MAX_WORKERS
+from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
 from .workflow_criteria import PREVIOUS_VERSION, policy, stage_criteria, verified_screening
 
 CRITERION = 'All five IS Broad criteria must pass; insufficient evidence cannot qualify.'
@@ -24,7 +24,7 @@ CRITERION = 'All five IS Broad criteria must pass; insufficient evidence cannot 
 class BroadGrid(BaseModel):
     model_config = ConfigDict(extra='forbid')
     parameter_ranges: dict[str, ParameterRange]
-    workers: StrictInt = Field(default=1,ge=1,le=MAX_WORKERS)
+    workers: StrictInt = Field(default=DEFAULT_WORKERS,ge=1,le=MAX_WORKERS)
 
 
 class BroadLaunch(BroadGrid):
@@ -246,7 +246,7 @@ async def invoke(function,*args,**kwargs):
 async def detail(workflow_id:UUID,request:Request,job_id:UUID|None=None):
     saved,state,job=await invoke(state_and_job,request,workflow_id.hex,job_id.hex if job_id else None)
     definition=get_strategy(saved['declaration']['strategy_id']).description()
-    return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,criterion=CRITERION,
+    return dict(state=state,job=job,strategy=definition,max_workers=MAX_WORKERS,default_workers=DEFAULT_WORKERS,criterion=CRITERION,
                 criteria=stage_criteria(),legacy=bool(job and not state.get('screening_policy')),
                 reassessed=bool(job and state.get('screening_policy')==policy(PREVIOUS_VERSION)
                                 and not state.get('archived') and

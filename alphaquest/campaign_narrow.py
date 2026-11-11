@@ -19,7 +19,7 @@ from .optimization import combinations, grid
 from .optimization_cache import artifacts, digest, engine_identity
 from .research import SplitDeclaration, dates_for, metadata
 from .strategies.registry import get_strategy
-from .worker_limits import MAX_WORKERS
+from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
 from .workflow_criteria import evaluate as broad_evaluate, policy, verified_screening
 
 VERSION = 'is-narrow-v1'
@@ -101,7 +101,7 @@ class NarrowGrid(BaseModel):
     broad_trial: StrictInt = Field(ge=1)
     parameter_ranges: dict[str, ParameterRange]
     refine_broad_parameters: list[StrictStr] = Field(default_factory=list)
-    workers: StrictInt = Field(default=1, ge=1, le=MAX_WORKERS)
+    workers: StrictInt = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
 
 
 class NarrowLaunch(NarrowGrid):
@@ -529,7 +529,8 @@ async def detail(workflow_id: UUID, request: Request, broad_trial: int = Query(.
                 strategy=strategy,
                 fixed_parameters=[k for k, axis in broad_job['axes'].items() if len(axis) > 1],
                 refinable_parameters=refinement_options(strategy['parameters'], broad_job['axes']),
-                max_workers=MAX_WORKERS, policy=POLICY, all_branches_complete=complete, family_size=family)
+                max_workers=MAX_WORKERS, default_workers=DEFAULT_WORKERS,
+                policy=POLICY, all_branches_complete=complete, family_size=family)
 
 
 @router.post('/api/campaign-workflows/{workflow_id}/narrow/preview')
