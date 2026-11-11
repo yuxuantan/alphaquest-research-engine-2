@@ -202,6 +202,14 @@ all seven required checks and separate review measurements per row, sortable
 metrics, visible/frozen varied parameter columns, report links, and CSV/package
 downloads. Fixed inputs start hidden.
 
+IS Narrow screening reads and verifies each visible native report, its
+cost-stress evidence, adjacent grid trials, and daily equity. Repeating that
+work on every header click made sorting appear unresponsive. For a fully loaded
+results table, header clicks now request only the saved trial order from the
+existing optimization results route and rearrange the visible rows; no
+backtest or screening rerun occurs. When sorting needs rows outside the loaded
+page, the portal shows a sorting status while it loads them.
+
 An interrupted Narrow grid retains its completed trials and offers **Resume
 remaining trials**. Resume requires the saved job's exact conservative engine
 identity; a production Python change rejects the request before modifying the

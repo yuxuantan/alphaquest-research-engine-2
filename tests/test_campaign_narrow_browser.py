@@ -75,6 +75,17 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
         second=narrow_start(client,'/api/campaign-workflows/'+workflow['id'],2)
     page.reload()
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
+    screened=[]
+    page.on('request',lambda request: screened.append(request.url) if '/narrow/results?' in request.url else None)
+    first_job=page.request.get(prefix+'/narrow?broad_trial=1').json()['job']['id']
+    with page.expect_response(lambda response: f'/api/backtests/batches/{first_job}/results?' in response.url and 'direction=asc' in response.url):
+        page.locator('#narrow-results th[data-column="param.hold_minutes"] button').click()
+    assert page.locator('#narrow-results tbody tr').evaluate_all('rows => rows.map(row => Number(row.dataset.trial))')==[1,2,3,4]
+    with page.expect_response(lambda response: f'/api/backtests/batches/{first_job}/results?' in response.url and 'direction=desc' in response.url):
+        page.locator('#narrow-results th[data-column="param.hold_minutes"] button').click()
+    playwright.expect(page.locator('#narrow-sort-status')).to_contain_text('Sorted by Hold minutes descending.')
+    assert page.locator('#narrow-results tbody tr').evaluate_all('rows => rows.map(row => Number(row.dataset.trial))')==[4,3,2,1]
+    assert screened==[]
     playwright.expect(page.locator('#narrow-results thead th.optimization-frozen-column').first).to_be_visible()
     assert page.locator('#narrow-results thead th.optimization-frozen-column').evaluate_all('items => items.map(el=>el.dataset.column)')==['select','trial','param.hold_minutes']
     playwright.expect(page.locator('#narrow-results th[data-column="param.contracts"]')).to_be_hidden()
