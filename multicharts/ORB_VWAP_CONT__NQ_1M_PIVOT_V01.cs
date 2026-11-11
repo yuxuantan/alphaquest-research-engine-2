@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AlphaQuest.MarketCalendars;
 #if !AQ_CALENDAR_ONLY
+using System.Drawing;
 using PowerLanguage;
 
 namespace PowerLanguage.Strategy
@@ -44,6 +45,25 @@ namespace PowerLanguage.Strategy
         private NqSessionPlan _sessionPlan;
         private DateTime? _pendingEntrySession, _holdingSession;
         private double _previousPosition;
+        private int _lastCalculatedBar;
+        private readonly Queue<ValidationFrame> _validationFrames = new Queue<ValidationFrame>();
+        private readonly Dictionary<int, ValidationFrame> _validationByBar = new Dictionary<int, ValidationFrame>();
+        private ITextObject _validationPanel;
+        private DateTime? _validationVwapTime;
+        private double _validationVwap;
+
+        private sealed class ValidationFrame
+        {
+            public int Bar;
+            public string Text;
+            public readonly List<ITrendLineObject> Lines = new List<ITrendLineObject>();
+            public ITextObject Label;
+            public void Delete()
+            {
+                foreach (ITrendLineObject line in Lines) line.Delete();
+                if (Label != null) Label.Delete();
+            }
+        }
 
         public ORB_VWAP_CONT__NQ_1M_PIVOT_V01(object ctx) : base(ctx)
         {
@@ -78,6 +98,8 @@ namespace PowerLanguage.Strategy
             UseEODFlat = true;
             EODFlatTime = 1555;
             PlotTradeLevels = true;
+            ShowTradeValidation = false;
+            ValidationHistoryBars = 1; // Lightweight live view; increase only for historical inspection.
             SessionCalendarDirectory = @"C:\AlphaQuest\calendars";
             CloseBufferMinutes = 5;
         }
@@ -113,6 +135,8 @@ namespace PowerLanguage.Strategy
         [Input] public bool UseEODFlat { get; set; }
         [Input] public int EODFlatTime { get; set; }
         [Input] public bool PlotTradeLevels { get; set; }
+        [Input] public bool ShowTradeValidation { get; set; }
+        [Input] public int ValidationHistoryBars { get; set; }
         [Input] public string SessionCalendarDirectory { get; set; }
         [Input] public int CloseBufferMinutes { get; set; }
 
@@ -142,6 +166,10 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            ClearValidation();
+            _lastCalculatedBar = -1;
+            if (ShowTradeValidation && ValidationHistoryBars < 1)
+                throw new ArgumentException("ValidationHistoryBars must be positive when ShowTradeValidation is enabled.");
             if (ADX_Len < 1 || ADXDecay_LB < 0 ||
                 StopSwingLen < 1 || TargetSwingLen < 1)
                 throw new ArgumentException("Lengths must be positive; ADXDecay_LB must be >= 0.");
@@ -198,8 +226,22 @@ namespace PowerLanguage.Strategy
 
         protected override void CalcBar()
         {
+            if (ShowTradeValidation)
+            {
+                ExpertCommentary.WriteLine("ORB / VWAP trade validation (completed Chicago bars)");
+                if (Bars.CurrentBar <= _lastCalculatedBar)
+                {
+                    if (ExpertCommentary.AtCommentaryBar)
+                    {
+                        ValidationFrame saved;
+                        ExpertCommentary.WriteLine("{0}", _validationByBar.TryGetValue(Bars.CurrentBar, out saved)
+                            ? saved.Text : "Outside retained validation history. Increase ValidationHistoryBars and recalculate.");
+                    }
+                    return; // Inspection must never replay orders or mutate trading state.
+                }
+            }
             // Evaluate once on completed bars; orders apply to the next bar.
-            if (Bars.Status != EBarState.Close)
+            if (Bars.CurrentBar <= _lastCalculatedBar || Bars.Status != EBarState.Close)
                 return;
 
             DateTime stamp = DateTime.SpecifyKind(Bars.Time[0], DateTimeKind.Unspecified);
@@ -359,6 +401,12 @@ namespace PowerLanguage.Strategy
                 && (MinRR == 0 || (close - shortTarget) / shortDistance >= MinRR);
 
             bool entryAllowed = !UseEODFlat || _sessionPlan.AllowsEntrySignal(stamp);
+            // Capture BEFORE an entry consumes the daily allowance and clears latches.
+            string validation = ShowTradeValidation ? BuildValidation(stamp, position, close,
+                inORB, inEntry, vwapValid, canEnter, entryAllowed, elevOK, decayOK, adxValue,
+                longLatched, shortLatched, longSignal, shortSignal, validLong, validShort,
+                longStop, shortStop, longTarget, shortTarget, longDistance, shortDistance) : null;
+            string submissions = "";
             if (position == 0 && entryAllowed && _tradesToday < MaxTradesPerDay)
             {
                 if (longSignal && validLong && TradeLongs && adxOK)
@@ -370,6 +418,7 @@ namespace PowerLanguage.Strategy
                         _activeTarget = longTarget;
                         _pendingEntrySession = UseEODFlat ? (DateTime?)_sessionPlan.Day : null;
                         _longEntry.Send(quantity);
+                        if (ShowTradeValidation) submissions += "LONG submit qty=" + quantity + "; ";
                         LogEntry(stamp, "LONG", quantity, close, longDistance, adxValue);
                         _tradesToday++;
                         ClearLatches();
@@ -384,6 +433,7 @@ namespace PowerLanguage.Strategy
                         _activeTarget = shortTarget;
                         _pendingEntrySession = UseEODFlat ? (DateTime?)_sessionPlan.Day : null;
                         _shortEntry.Send(quantity);
+                        if (ShowTradeValidation) submissions += "SHORT submit qty=" + quantity + "; ";
                         LogEntry(stamp, "SHORT", quantity, close, shortDistance, adxValue);
                         _tradesToday++;
                         ClearLatches();
@@ -396,22 +446,36 @@ namespace PowerLanguage.Strategy
             int openQuantity = (int)Math.Abs(position);
             if (position > 0)
             {
-                if (flatten) _longFlat.Send(openQuantity); // flatten
+                if (flatten)
+                {
+                    _longFlat.Send(openQuantity);
+                    if (ShowTradeValidation) submissions += "EOD.L flatten submit; ";
+                }
                 else
                 {
                     _longTarget.Send(_activeTarget, openQuantity); // keep sending the target and stop
                     _longStop.Send(_activeStop, openQuantity);
+                    if (ShowTradeValidation) submissions += "Long TP / SL submitted; ";
                 }
             }
             if (position < 0)
             {
-                if (flatten) _shortFlat.Send(openQuantity);
+                if (flatten)
+                {
+                    _shortFlat.Send(openQuantity);
+                    if (ShowTradeValidation) submissions += "EOD.S flatten submit; ";
+                }
                 else
                 {
                     _shortTarget.Send(_activeTarget, openQuantity);
                     _shortStop.Send(_activeStop, openQuantity);
+                    if (ShowTradeValidation) submissions += "Short TP / SL submitted; ";
                 }
             }
+
+            if (ShowTradeValidation)
+                DrawValidation(stamp, position, high, low, inORB, vwapValid, flatten,
+                    validation, submissions);
 
             // These snapshots match the source's prior-bar boolean variables.
             _prevInORB = inORB;
@@ -420,6 +484,136 @@ namespace PowerLanguage.Strategy
             _prevShortLatched = shortLatched;
             _firstBar = false;
             _previousPosition = position;
+            _lastCalculatedBar = Bars.CurrentBar;
+        }
+
+        private string BuildValidation(DateTime stamp, double position, double close,
+            bool inORB, bool inEntry, bool vwapValid, bool canEnter, bool entryAllowed,
+            bool elevOK, bool decayOK, double adx, bool longLatched, bool shortLatched,
+            bool longSignal, bool shortSignal, bool validLong, bool validShort,
+            double longStop, double shortStop, double longTarget, double shortTarget,
+            double longDistance, double shortDistance)
+        {
+            var text = new StringBuilder();
+            text.AppendFormat(CultureInfo.InvariantCulture,
+                "{0:yyyy-MM-dd HH:mm} CT close={1:F2} observed position={2}\n" +
+                "ORB building={3} ready={4} high={5:F2} low={6:F2}; VWAP valid={7} value={8:F2}\n" +
+                "Entry window={9} setup window={10} calendar allows next-bar entry={11}; daily used BEFORE={12}/{13}\n" +
+                "ADX={14:F2} prior[{15}]={16}; elevation enabled={17} >= {18:F2}: {19}; decay enabled={20}: {21}\n",
+                stamp, close, position, inORB, _orbReady, _orbHigh, _orbLow, vwapValid, _nyVwap,
+                inEntry, canEnter, entryAllowed, _tradesToday, MaxTradesPerDay,
+                adx, ADXDecay_LB, UseADXDecay ? _adx[ADXDecay_LB].ToString("F2", CultureInfo.InvariantCulture) : "not read (disabled)",
+                UseADXElev, ADXElev_Thr, elevOK, UseADXDecay, decayOK);
+            AppendSide(text, "LONG", TradeLongs, _longOrbBroken, longLatched, longSignal,
+                validLong, StopMode == 2 || _hasStopLow, _hasTargetHigh, longStop,
+                longTarget, longDistance, longTarget - close);
+            AppendSide(text, "SHORT", TradeShorts, _shortOrbBroken, shortLatched, shortSignal,
+                validShort, StopMode == 2 || _hasStopHigh, _hasTargetLow, shortStop,
+                shortTarget, shortDistance, close - shortTarget);
+            text.AppendFormat(CultureInfo.InvariantCulture,
+                "RetestMode={0} (1 touch, 2 close-through); StopMode={1} (1 pivot, 2 pullback); buffer={2:F2} points\n" +
+                "EOD enabled={3}; cutoff={4}; scheduled close={5}\n",
+                RetestMode, StopMode, BufferMode == 1 ? BufferAmount * _tickSize : BufferAmount,
+                UseEODFlat, _sessionPlan != null && _sessionPlan.Cutoff.HasValue
+                    ? _sessionPlan.Cutoff.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) : "none",
+                _sessionPlan != null && _sessionPlan.ScheduledClose.HasValue
+                    ? _sessionPlan.ScheduledClose.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) : "none");
+            return text.ToString();
+        }
+
+        private void AppendSide(StringBuilder text, string side, bool enabled, bool broken,
+            bool latched, bool signal, bool valid, bool stopKnown, bool targetKnown,
+            double stop, double target, double distance, double reward)
+        {
+            text.AppendFormat(CultureInfo.InvariantCulture,
+                "{0}: enabled={1} ORB broken={2} retest latched={3} reclaim signal={4}; " +
+                "stop known={5} target known={6} risk valid={7}\n" +
+                "  candidate SL={8:F2} TP={9:F2} distance={10:F2} reward={11:F2}; " +
+                "MaxStopPoints={12:F2} MinRR={13:F2} RR={14}; quantity={15}\n",
+                side, enabled, broken, latched, signal, stopKnown, targetKnown, valid,
+                stop, target, distance, reward, MaxStopPoints, MinRR,
+                distance > 0 ? (reward / distance).ToString("F2", CultureInfo.InvariantCulture) : "undefined",
+                valid ? GetQuantity(distance) : 0);
+        }
+
+        private void DrawValidation(DateTime stamp, double position, double high, double low,
+            bool inORB, bool vwapValid, bool flatten, string validation, string submissions)
+        {
+            var frame = new ValidationFrame { Bar = Bars.CurrentBar };
+            string observed = position != _previousPosition
+                ? "Position observed " + _previousPosition + " -> " + position + "; " : "";
+            // Brackets are refreshed every held bar; keep chart labels for discrete events.
+            string events = observed + (submissions.Contains("submit qty=") || submissions.Contains("flatten submit")
+                ? submissions : "");
+            frame.Text = validation + "Observed transition: " + (observed == "" ? "none" : observed) +
+                "\nSubmissions: " + (submissions == "" ? "none" : submissions) +
+                "\nSubmissions are not fills. Position changes are observed at bar close; " +
+                "use native MC trade markers/report for fill prices, times and exit reasons.\n" +
+                "Active SL=" + _activeStop.ToString("F2", CultureInfo.InvariantCulture) +
+                " TP=" + _activeTarget.ToString("F2", CultureInfo.InvariantCulture) +
+                "; bracket submitted=" + (position != 0 && !flatten) +
+                "; flatten submitted=" + (position != 0 && flatten);
+            if (inORB || _orbReady)
+            {
+                ValidationLine(frame, stamp, _orbHigh, Color.DodgerBlue, 1);
+                ValidationLine(frame, stamp, _orbLow, Color.DodgerBlue, 1);
+            }
+            if (vwapValid)
+            {
+                // Join known consecutive closes only; never join across a window/session gap.
+                DateTime start = _validationVwapTime.HasValue && stamp - _validationVwapTime.Value == TimeSpan.FromMinutes(1)
+                    && _prevInVwap ? _validationVwapTime.Value : stamp;
+                var line = DrwTrendLine.Create(new ChartPoint(start, start == stamp ? _nyVwap : _validationVwap),
+                    new ChartPoint(start == stamp ? stamp.AddSeconds(1) : stamp, _nyVwap));
+                line.Color = Color.Goldenrod; line.Size = 2; line.ExtLeft = line.ExtRight = false;
+                frame.Lines.Add(line);
+                _validationVwapTime = stamp; _validationVwap = _nyVwap;
+            }
+            else _validationVwapTime = null;
+            // These are the exact frozen prices sent to MC, not recomputed pivots.
+            if ((position != 0 && !flatten) || submissions.Contains("LONG submit") || submissions.Contains("SHORT submit"))
+            {
+                ValidationLine(frame, stamp, _activeStop, Color.Red, 2);
+                ValidationLine(frame, stamp, _activeTarget, Color.LimeGreen, 2);
+            }
+            if (events != "")
+            {
+                frame.Label = DrwText.Create(new ChartPoint(stamp, high + 4 * _tickSize), events);
+                frame.Label.Color = Color.Goldenrod;
+                frame.Label.HStyle = ETextStyleH.Left; frame.Label.VStyle = ETextStyleV.Above;
+            }
+            _validationFrames.Enqueue(frame); _validationByBar.Add(frame.Bar, frame);
+            while (_validationFrames.Count > ValidationHistoryBars)
+            {
+                ValidationFrame old = _validationFrames.Dequeue();
+                _validationByBar.Remove(old.Bar); old.Delete();
+            }
+            if (ExpertCommentary.AtCommentaryBar) ExpertCommentary.WriteLine("{0}", frame.Text);
+            if (Bars.LastBarOnChart)
+            {
+                string panel = "ORB / VWAP validation: blue ORB, gold VWAP, red SL, green TP\n" +
+                    "position=" + position + "; " + (events == "" ? "no new entry / flatten submission or position change" : events) +
+                    "\nView > Expert Commentary: click a retained bar for all entry / exit gates. Submissions are not fills.";
+                var point = new ChartPoint(stamp, low - 4 * _tickSize);
+                if (_validationPanel == null) _validationPanel = DrwText.Create(point, panel);
+                else { _validationPanel.Location = point; _validationPanel.Text = panel; }
+                _validationPanel.Color = Color.Goldenrod;
+                _validationPanel.HStyle = ETextStyleH.Left; _validationPanel.VStyle = ETextStyleV.Below;
+            }
+        }
+
+        private void ValidationLine(ValidationFrame frame, DateTime stamp, double price, Color color, int width)
+        {
+            var line = DrwTrendLine.Create(new ChartPoint(stamp, price), new ChartPoint(stamp.AddMinutes(1), price));
+            line.Color = color; line.Size = width; line.ExtLeft = line.ExtRight = false;
+            frame.Lines.Add(line);
+        }
+
+        private void ClearValidation()
+        {
+            while (_validationFrames.Count > 0) _validationFrames.Dequeue().Delete();
+            _validationByBar.Clear(); _validationVwapTime = null;
+            if (_validationPanel != null) { _validationPanel.Delete(); _validationPanel = null; }
         }
 
         private void UpdatePivots()

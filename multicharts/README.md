@@ -39,6 +39,91 @@ The original PowerLanguage source remains in `docs/strategies/` as well.
 The active C# retains its original signal, ADX, sizing, order names and brackets,
 with calendar-based entry eligibility and flatten timing added.
 
+## ORB / VWAP chart validation
+
+The ORB signal has a `ShowTradeValidation` Input, default **false**. Enable it
+to inspect its own calculations directly on the price chart; no separate
+indicator is needed. `PlotTradeLevels` retains its existing meaning: Output
+window logging only. It does not control these drawings.
+
+For minimum live overhead, leave `ShowTradeValidation=false`: no drawing API
+calls, per-bar validation text, snapshots or event strings are generated.
+`PlotTradeLevels=false` separately disables the existing trade-level Output
+logging. If visuals are enabled, the default `ValidationHistoryBars=1` keeps
+only the latest completed bar: at most five line segments, one event label and
+one summary. Updates happen once per completed bar, never per tick, and repeat
+callbacks do not redraw. Increase history only for historical review; the
+extra drawings/readouts are bounded by that positive bar count and consume
+more resources. No live-host performance guarantee is implied by local checks.
+
+| Visual | Meaning |
+| --- | --- |
+| Blue lines | Developing opening-range high/low during ORB, then the completed range until the strategy resets it. |
+| Gold line | The signal's HLC3, `Bars.Ticks` weighted VWAP, only within its configured VWAP window. Consecutive closes connect; gaps do not. |
+| Red / green lines | Frozen intended SL / TP at entry submission, and the exact bracket prices submitted on observed-position bars. They do not follow subsequent pivots. |
+| Text above a bar | LONG/SHORT entry submission, EOD flatten submission, or an observed position change. Submissions are not fills. |
+| Summary below latest bar | Color key, observed position and instructions for inspecting individual bars. |
+
+Horizontal segments start at the completed bar where the level is known and
+extend one minute. The entry bar's SL/TP show the intended levels; this signal
+still sends brackets only when it observes an open position. No pivot is drawn
+back on its earlier candidate candle. Flatten-submission bars do not display
+a newly submitted bracket. Chart labels deliberately omit routine bracket
+refreshes, which remain visible in the per-bar readout.
+
+To use and validate:
+
+1. Replace the **entire** signal source with
+   [`ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs`](ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs)
+   in PowerLanguage .NET Editor and compile. Follow the installation steps below
+   for the calendar, Chicago chart time and full-session one-minute bars.
+2. In the chart's **Format Signals**, select the signal, open its Inputs and
+   set `ShowTradeValidation=true`, `ValidationHistoryBars=1000`. Recalculate.
+   This retains the most recent 1000 **calculated bars**, including drawings and
+   commentary. Increase the positive limit and recalculate to inspect older
+   entries. Older drawings are deleted as the limit advances; inspecting an
+   expired bar explicitly reports that its snapshot is unavailable.
+3. Enable **View → Expert Commentary**, then click an entry's **decision bar**,
+   usually one bar before the native entry marker. The readout shows ORB
+   readiness/break, retest latch/reclaim, time/calendar eligibility, enabled
+   directions, ADX elevation/decay, known stop/target, candidate distance/RR,
+   quantity and the daily allowance **before** submission consumes it. This
+   captures the actual local gates before the strategy clears its latches.
+4. Inspect a blocked setup: a failed ADX gate, invalid pivot/risk, zero size,
+   exhausted daily allowance or closed entry/calendar window must show no entry
+   submission. `reclaim signal=True` alone is insufficient. Compare the listed
+   distance/reward with the close and candidate SL/TP. Inspect a successful
+   setup and verify the red/green prices match the submitted bracket readout
+   on the next bar where a position is observed.
+5. Inspect a cutoff bar with an open position: expect `EOD.L` or `EOD.S`
+   flatten submission, `flatten submitted=True`, `bracket submitted=False`.
+   A later observed transition to zero is labeled separately. Use native MC
+   trade markers and the Strategy Performance Report for actual fill time,
+   price and exit order/reason. The overlay does not infer which bracket filled
+   from OHLC touches, including a bar touching both levels or an entry/exit
+   completed between two position observations.
+6. Save/export the MC trades, turn `ShowTradeValidation=false`, recalculate with
+   identical data/settings and compare trades. Expected: identical submissions
+   and trades; owned drawings and saved commentary are cleared. Historical
+   commentary inspection reads snapshots without resending orders or advancing
+   the signal. Leave visuals off during optimization.
+
+The drawing and inspection APIs follow the vendor's
+[signal drawing example](https://www.multicharts.com/discussion/viewtopic.php?t=58967)
+and [Expert Commentary instructions](https://www.multicharts.com/trading-software/index.php?title=Output,_Alerts_and_Expert_Commentary).
+Compile/render and fill behavior must still be checked in the installed Windows
+MultiCharts host. The local check uses explicit **test doubles**, not its SDK:
+
+```sh
+dotnet run --project tests/multicharts_orb_validation/ValidationCheck.csproj -- calendars
+```
+
+It compiles the actual full signal with C# 5 syntax and checks long/short,
+both retest/stop modes, independent HLC3 VWAP, risk sizing and frozen bracket prices, rejected
+entry gates, calendar cutoff/flatten, visual on/off order equality, bounded
+history, cleanup and inspection without state/order changes. These synthetic
+checks do not establish native SDK compatibility, rendering or fill parity.
+
 ## Shared session policy
 
 With `UseEODFlat=true` / `use_eod_flat=true`, load the CSV once when calculation
