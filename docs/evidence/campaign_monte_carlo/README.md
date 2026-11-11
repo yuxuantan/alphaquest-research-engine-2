@@ -1,5 +1,8 @@
 # Final full-period Monte Carlo evidence
 
+This folder preserves the original **v1** policy and evidence. Current v2 removes
+the drawdown rejection gate and adds descriptive metrics; see [v2/README.md](v2/README.md).
+
 The synthetic source and downloaded artifacts in this directory come from the
 normal dataset → mechanics → IS Broad → IS Narrow → OOS → final sanity check
 workflow. They are not market evidence, measured MultiCharts parity, or a claim

@@ -1,0 +1,755 @@
+{
+  "calculation_sha256": "e252f9fc033fbf88fb074b1c7a864c5056be9339aa97437aaa32dcce77769298",
+  "candidates": [
+    {
+      "broad_trial": 1,
+      "candidate": 1,
+      "closed_trades": 1080,
+      "evidence_passed": true,
+      "narrow_trial": 2,
+      "observed": {
+        "closed_trades": 1080,
+        "daily_close_max_drawdown": 0.0,
+        "days": 184,
+        "net_profit": 14040.0
+      },
+      "oos_admission": {
+        "annual_profit_retention_pct": "100.1369863013698630136986301",
+        "checks": [
+          {
+            "actual": "12 months; 12 complete months; 360 trades",
+            "id": "evidence",
+            "label": "OOS history and trades",
+            "passed": true,
+            "required": "\u2265 6 observed months, \u2265 6 complete months and \u2265 50 closed trades"
+          },
+          {
+            "actual": "4680.00 CU",
+            "id": "net_profit",
+            "label": "Net OOS profitability",
+            "passed": true,
+            "required": "> 0 after costs"
+          },
+          {
+            "actual": "100.14% \u00b7 OOS 4683.11 / IS 4676.70 CU/year",
+            "id": "annual_retention",
+            "label": "Annualized net profit retention",
+            "passed": true,
+            "required": "\u2265 50% of IS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "trade_retention",
+            "label": "Net profit per trade retention",
+            "passed": true,
+            "required": "\u2265 50% of IS net profit per trade"
+          },
+          {
+            "actual": "OOS 40.50 / IS 40.50 CU",
+            "id": "drawdown",
+            "label": "MTM drawdown deterioration",
+            "passed": true,
+            "required": "OOS \u2264 1.5 \u00d7 IS; zero IS requires zero OOS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "profitable_months",
+            "label": "Profitable months retention",
+            "passed": true,
+            "required": "\u2265 85.00% (40% floor; at most 15 percentage points below IS)"
+          },
+          {
+            "actual": "2880.00 CU",
+            "id": "cost_stress",
+            "label": "Extra-slippage OOS rerun",
+            "passed": true,
+            "required": "Net profit > 0 with +1 tick per fill"
+          }
+        ],
+        "policy": {
+          "annual_profit_retention_pct_gte": "50",
+          "annualization_days": "365.2425",
+          "drawdown_multiple_lte": "1.5",
+          "equity_basis": "every observed bar close, including open P&L and charged costs",
+          "extra_slippage_ticks_per_fill": 1,
+          "minimum_closed_trades": 50,
+          "minimum_complete_months": 6,
+          "minimum_history_months": 6,
+          "profitable_month_degradation_pp_lte": "15",
+          "profitable_month_floor_pct": "40",
+          "selection": "assess every frozen Narrow candidate independently; no reselection",
+          "trade_profit_retention_pct_gte": "50",
+          "version": "campaign-oos-v1"
+        },
+        "profit_per_trade_retention_pct": "100",
+        "qualifies": true,
+        "status": "passed"
+      },
+      "parameters": {
+        "contracts": 1,
+        "green_bar_count": 3,
+        "hold_minutes": 16
+      },
+      "qualifies": true,
+      "scenarios": [
+        {
+          "checks": [
+            {
+              "actual": 13650.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 5,
+          "net_profit_median": 14040.0,
+          "net_profit_p05": 13650.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        },
+        {
+          "checks": [
+            {
+              "actual": 13728.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 20,
+          "net_profit_median": 14040.0,
+          "net_profit_p05": 13728.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        }
+      ],
+      "sources": [
+        {
+          "artifacts": {
+            "equity.csv": "36b625c846970c01bd630a9696687d2b883faadbcff234e990b5aba41acfbe18",
+            "execution_decisions.jsonl": "1ec6952e3434becc108fe527648f880f47fa495506eaf4193d34c981a0c7c508",
+            "intratrade_risk.csv": "ada434498270fab6af31c141bb3787117a201703bc39b01b4e0c8f1e359a0dee",
+            "is_screening.json": "790d6cca6037fc2c2a79f31cb957132c1876a965dfd793b3a3c902d77086aa6e",
+            "market_benchmark.json": "42e3f913442668374bd909f5d72d9c66e8f6e9a79adafda745799660c27ba19f",
+            "report.json": "e6013846a906d1e999d2997bf154eef92c3c4bc3eb690b10b3f54f5c67293da4",
+            "shared_holding_day": "e352f50d4b8b78e524501268db7c7e04a3ec9d847fd9371387081c34200faada",
+            "strategy_equity_day.csv": "8cd9ffe52c0aa859b1b56c5f9f706520d5ccfab4b1b070e31888ce15da5a32de",
+            "trades.csv": "0041d7dbf508bdbd3294088616b4aeb250ee9b19d659333718ee6a405443cdac"
+          },
+          "manifest_sha256": "6fcce4df24c6a5e0c107f5110ec76fec35499ad9760f8b7ab1068e726a70c9c3",
+          "run_id": "b39a0da43244453c8c22fac21db6ca8d"
+        },
+        {
+          "artifacts": {
+            "equity.csv": "d1dba49840d2c573eebcc42d37976b26dc16a2a0e696dbdf0a3e846296126707",
+            "execution_decisions.jsonl": "0d52e5009fa9bb07659624edd51fa4e85d1daa6146ac68d3c386490a328832f5",
+            "intratrade_risk.csv": "e23e8719d81b342438324201be58a58385a501b43333ee64dc116051b40ae880",
+            "market_benchmark.json": "719d6005e0ca46ae7b2846d4e587855983f27987c5b8497ae2d14bdcac7a5676",
+            "oos_screening.json": "abb49a53d65089ff72508c10d959c4c48baef9922525b5d2cd2a8b9980211c3d",
+            "report.json": "e3ed9ca7098d6dbd03d66ffa58b0b8d0d6af624a565722e1e1c8da32a75e7bbd",
+            "shared_holding_day": "dc3cdc18fee0fb595e027a30e3bf338060e9278ec365d1ea249b0ca1d26f064a",
+            "strategy_equity_day.csv": "c02ea91ccdf69c3b77921142ee3ccdcfc856d780383c059f01d74cb695a596d9",
+            "trades.csv": "f0cf3ac91bcf95c119906178259aadc1f0ab3ce0b5e3e26c137bfaa29c1c634d"
+          },
+          "manifest_sha256": "2b6d1e7d6c86bc60c3a4f6b3dabe084e5dbe4cc87776a8ccfa6cf2cc6cdbb51d",
+          "run_id": "79c9cbd0a8c14ee1937ee342e467b65a"
+        }
+      ]
+    },
+    {
+      "broad_trial": 1,
+      "candidate": 2,
+      "closed_trades": 1080,
+      "evidence_passed": true,
+      "narrow_trial": 3,
+      "observed": {
+        "closed_trades": 1080,
+        "daily_close_max_drawdown": 0.0,
+        "days": 184,
+        "net_profit": 14040.0
+      },
+      "oos_admission": {
+        "annual_profit_retention_pct": "100.1369863013698630136986301",
+        "checks": [
+          {
+            "actual": "12 months; 12 complete months; 360 trades",
+            "id": "evidence",
+            "label": "OOS history and trades",
+            "passed": true,
+            "required": "\u2265 6 observed months, \u2265 6 complete months and \u2265 50 closed trades"
+          },
+          {
+            "actual": "4680.00 CU",
+            "id": "net_profit",
+            "label": "Net OOS profitability",
+            "passed": true,
+            "required": "> 0 after costs"
+          },
+          {
+            "actual": "100.14% \u00b7 OOS 4683.11 / IS 4676.70 CU/year",
+            "id": "annual_retention",
+            "label": "Annualized net profit retention",
+            "passed": true,
+            "required": "\u2265 50% of IS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "trade_retention",
+            "label": "Net profit per trade retention",
+            "passed": true,
+            "required": "\u2265 50% of IS net profit per trade"
+          },
+          {
+            "actual": "OOS 40.50 / IS 40.50 CU",
+            "id": "drawdown",
+            "label": "MTM drawdown deterioration",
+            "passed": true,
+            "required": "OOS \u2264 1.5 \u00d7 IS; zero IS requires zero OOS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "profitable_months",
+            "label": "Profitable months retention",
+            "passed": true,
+            "required": "\u2265 85.00% (40% floor; at most 15 percentage points below IS)"
+          },
+          {
+            "actual": "2880.00 CU",
+            "id": "cost_stress",
+            "label": "Extra-slippage OOS rerun",
+            "passed": true,
+            "required": "Net profit > 0 with +1 tick per fill"
+          }
+        ],
+        "policy": {
+          "annual_profit_retention_pct_gte": "50",
+          "annualization_days": "365.2425",
+          "drawdown_multiple_lte": "1.5",
+          "equity_basis": "every observed bar close, including open P&L and charged costs",
+          "extra_slippage_ticks_per_fill": 1,
+          "minimum_closed_trades": 50,
+          "minimum_complete_months": 6,
+          "minimum_history_months": 6,
+          "profitable_month_degradation_pp_lte": "15",
+          "profitable_month_floor_pct": "40",
+          "selection": "assess every frozen Narrow candidate independently; no reselection",
+          "trade_profit_retention_pct_gte": "50",
+          "version": "campaign-oos-v1"
+        },
+        "profit_per_trade_retention_pct": "100",
+        "qualifies": true,
+        "status": "passed"
+      },
+      "parameters": {
+        "contracts": 1,
+        "green_bar_count": 3,
+        "hold_minutes": 18
+      },
+      "qualifies": true,
+      "scenarios": [
+        {
+          "checks": [
+            {
+              "actual": 13650.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 5,
+          "net_profit_median": 14040.0,
+          "net_profit_p05": 13650.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        },
+        {
+          "checks": [
+            {
+              "actual": 13728.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 20,
+          "net_profit_median": 14040.0,
+          "net_profit_p05": 13728.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        }
+      ],
+      "sources": [
+        {
+          "artifacts": {
+            "equity.csv": "36b625c846970c01bd630a9696687d2b883faadbcff234e990b5aba41acfbe18",
+            "execution_decisions.jsonl": "1ec6952e3434becc108fe527648f880f47fa495506eaf4193d34c981a0c7c508",
+            "intratrade_risk.csv": "ada434498270fab6af31c141bb3787117a201703bc39b01b4e0c8f1e359a0dee",
+            "is_screening.json": "41e84f14384667b34bef3d9c48af4f0b4013ecf664420756407cbaaa13daee15",
+            "market_benchmark.json": "284ea800a3503ae8a5a6f77d7cec9227f127bb1c5f51cf6967f812d168104077",
+            "report.json": "a05687a14d098984a991f78bc3b709329b296eeda05ff50bbabb138c574c5080",
+            "shared_holding_day": "e352f50d4b8b78e524501268db7c7e04a3ec9d847fd9371387081c34200faada",
+            "strategy_equity_day.csv": "8cd9ffe52c0aa859b1b56c5f9f706520d5ccfab4b1b070e31888ce15da5a32de",
+            "trades.csv": "cbbc2368f24d5781d1924b5ea946c93f8ecf3f11856ca15fa17bd2820880f987"
+          },
+          "manifest_sha256": "7802509b6adef4e0d780433ec7a0bc6133e8b1a6858496839811c4ea8daa4e4c",
+          "run_id": "b25504e62f8647178fb835ff48001fcc"
+        },
+        {
+          "artifacts": {
+            "equity.csv": "d1dba49840d2c573eebcc42d37976b26dc16a2a0e696dbdf0a3e846296126707",
+            "execution_decisions.jsonl": "0d52e5009fa9bb07659624edd51fa4e85d1daa6146ac68d3c386490a328832f5",
+            "intratrade_risk.csv": "e23e8719d81b342438324201be58a58385a501b43333ee64dc116051b40ae880",
+            "market_benchmark.json": "e0ed23486d62e88d3a6b13ca5f5951fb763628eebb7d218e1dca9905603fbcd6",
+            "oos_screening.json": "2c9a273dda33767345dd32e06e896e12e898f341763a3fe562668dfd9b4d81e1",
+            "report.json": "121d85249b7e9adb948fd5afe789ba0d5649e7571b050f27949d90995e3d8580",
+            "shared_holding_day": "dc3cdc18fee0fb595e027a30e3bf338060e9278ec365d1ea249b0ca1d26f064a",
+            "strategy_equity_day.csv": "c02ea91ccdf69c3b77921142ee3ccdcfc856d780383c059f01d74cb695a596d9",
+            "trades.csv": "a0c7be83f70f8e198549f88387abee944a3feccc7a63f172287f23d267714ad5"
+          },
+          "manifest_sha256": "51de3164fc2a5d9e35419694cb2bf56d64a21104074250b4a549b9435d899ad7",
+          "run_id": "892a9175a10147128cddbfb96bf850df"
+        }
+      ]
+    },
+    {
+      "broad_trial": 2,
+      "candidate": 3,
+      "closed_trades": 1080,
+      "evidence_passed": true,
+      "narrow_trial": 5,
+      "observed": {
+        "closed_trades": 1080,
+        "daily_close_max_drawdown": 0.0,
+        "days": 184,
+        "net_profit": 28080.0
+      },
+      "oos_admission": {
+        "annual_profit_retention_pct": "100.1369863013698630136986301",
+        "checks": [
+          {
+            "actual": "12 months; 12 complete months; 360 trades",
+            "id": "evidence",
+            "label": "OOS history and trades",
+            "passed": true,
+            "required": "\u2265 6 observed months, \u2265 6 complete months and \u2265 50 closed trades"
+          },
+          {
+            "actual": "9360.00 CU",
+            "id": "net_profit",
+            "label": "Net OOS profitability",
+            "passed": true,
+            "required": "> 0 after costs"
+          },
+          {
+            "actual": "100.14% \u00b7 OOS 9366.22 / IS 9353.41 CU/year",
+            "id": "annual_retention",
+            "label": "Annualized net profit retention",
+            "passed": true,
+            "required": "\u2265 50% of IS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "trade_retention",
+            "label": "Net profit per trade retention",
+            "passed": true,
+            "required": "\u2265 50% of IS net profit per trade"
+          },
+          {
+            "actual": "OOS 81.00 / IS 81.00 CU",
+            "id": "drawdown",
+            "label": "MTM drawdown deterioration",
+            "passed": true,
+            "required": "OOS \u2264 1.5 \u00d7 IS; zero IS requires zero OOS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "profitable_months",
+            "label": "Profitable months retention",
+            "passed": true,
+            "required": "\u2265 85.00% (40% floor; at most 15 percentage points below IS)"
+          },
+          {
+            "actual": "5760.00 CU",
+            "id": "cost_stress",
+            "label": "Extra-slippage OOS rerun",
+            "passed": true,
+            "required": "Net profit > 0 with +1 tick per fill"
+          }
+        ],
+        "policy": {
+          "annual_profit_retention_pct_gte": "50",
+          "annualization_days": "365.2425",
+          "drawdown_multiple_lte": "1.5",
+          "equity_basis": "every observed bar close, including open P&L and charged costs",
+          "extra_slippage_ticks_per_fill": 1,
+          "minimum_closed_trades": 50,
+          "minimum_complete_months": 6,
+          "minimum_history_months": 6,
+          "profitable_month_degradation_pp_lte": "15",
+          "profitable_month_floor_pct": "40",
+          "selection": "assess every frozen Narrow candidate independently; no reselection",
+          "trade_profit_retention_pct_gte": "50",
+          "version": "campaign-oos-v1"
+        },
+        "profit_per_trade_retention_pct": "100",
+        "qualifies": true,
+        "status": "passed"
+      },
+      "parameters": {
+        "contracts": 2,
+        "green_bar_count": 3,
+        "hold_minutes": 14
+      },
+      "qualifies": true,
+      "scenarios": [
+        {
+          "checks": [
+            {
+              "actual": 27300.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 5,
+          "net_profit_median": 28080.0,
+          "net_profit_p05": 27300.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        },
+        {
+          "checks": [
+            {
+              "actual": 27456.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 20,
+          "net_profit_median": 28080.0,
+          "net_profit_p05": 27456.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        }
+      ],
+      "sources": [
+        {
+          "artifacts": {
+            "equity.csv": "184fbf869fc3db9753830c6cd12c99dd462401c2062c955f830bd12cdfbe5c9e",
+            "execution_decisions.jsonl": "d64ffe186553c6818b7b8bb57d10189fcee55a1f050bd88773db2d064b3e050c",
+            "intratrade_risk.csv": "652c7774b6a7f59ef5299aaad313213e6f0fd58b33f8880f872796a15adad48b",
+            "is_screening.json": "47d9e0c42a6c08f48a0bf8b976d27e2075313ba617d69c977fb330c9f1e441e0",
+            "market_benchmark.json": "2b21b93884d40339ae587c095a9d8740400381aab0b4f088de0bd40de105080d",
+            "report.json": "6af6270929fde7bf06c859706dc7f8a5fbf15aee7ff43bc05f59162d5397d9e1",
+            "shared_holding_day": "e352f50d4b8b78e524501268db7c7e04a3ec9d847fd9371387081c34200faada",
+            "strategy_equity_day.csv": "e1eda151dfe2aec2f1b20b758668448c12d553e8503a31bb5edf7cc669fa9dc2",
+            "trades.csv": "277deddb0ecedba56d20c2cdb1649d48adfa14553d03f8de03b078c064567815"
+          },
+          "manifest_sha256": "485cdf60bff380499807ff23c6866e0a8f7f226243a9b1569b61f30dfcf45914",
+          "run_id": "70727642a9e04233bc5967d4e6a01bc0"
+        },
+        {
+          "artifacts": {
+            "equity.csv": "b07c674d4c3fc555e3e367bd768feda9d6e123b827f964b013a9cfe446d84b97",
+            "execution_decisions.jsonl": "3fea40b2d3da8805ff6e8e58f97afa9384be2afe9b9da52261b3c003eccf9f43",
+            "intratrade_risk.csv": "36b2b139ef16de2c79d43f73de62ac22cf3331a379bbd0563e4b852e687cf1bc",
+            "market_benchmark.json": "45794ba3ae3eaf990f072ef2aa831c16e4e8db003ab8fcac10eadc98e9507abb",
+            "oos_screening.json": "abceb136df4981e0e86b33419a8677f66716e1dc7c13d67068615532c65c8d6a",
+            "report.json": "02be59cbe99aae21c88921b5dca7235b8dca171a5f0b9dfe713eb9882404609f",
+            "shared_holding_day": "dc3cdc18fee0fb595e027a30e3bf338060e9278ec365d1ea249b0ca1d26f064a",
+            "strategy_equity_day.csv": "f62c3596ed124d6cbeb85374ffdaaeac1d1a317838dd0134ea863c5fb94f37e7",
+            "trades.csv": "48812cbf4473416e587b42a84fbea4bc74f2fe28aee63462f423895ee8d6a33f"
+          },
+          "manifest_sha256": "2243b3e05c99cc8db8883b692b220e1ac02247f47977e97b2783cf1cb2a5bc03",
+          "run_id": "bf1d150435d24da0bc536b31dc8256a8"
+        }
+      ]
+    },
+    {
+      "broad_trial": 2,
+      "candidate": 4,
+      "closed_trades": 1080,
+      "evidence_passed": true,
+      "narrow_trial": 8,
+      "observed": {
+        "closed_trades": 1080,
+        "daily_close_max_drawdown": 0.0,
+        "days": 184,
+        "net_profit": 28080.0
+      },
+      "oos_admission": {
+        "annual_profit_retention_pct": "100.1369863013698630136986301",
+        "checks": [
+          {
+            "actual": "12 months; 12 complete months; 360 trades",
+            "id": "evidence",
+            "label": "OOS history and trades",
+            "passed": true,
+            "required": "\u2265 6 observed months, \u2265 6 complete months and \u2265 50 closed trades"
+          },
+          {
+            "actual": "9360.00 CU",
+            "id": "net_profit",
+            "label": "Net OOS profitability",
+            "passed": true,
+            "required": "> 0 after costs"
+          },
+          {
+            "actual": "100.14% \u00b7 OOS 9366.22 / IS 9353.41 CU/year",
+            "id": "annual_retention",
+            "label": "Annualized net profit retention",
+            "passed": true,
+            "required": "\u2265 50% of IS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "trade_retention",
+            "label": "Net profit per trade retention",
+            "passed": true,
+            "required": "\u2265 50% of IS net profit per trade"
+          },
+          {
+            "actual": "OOS 81.00 / IS 81.00 CU",
+            "id": "drawdown",
+            "label": "MTM drawdown deterioration",
+            "passed": true,
+            "required": "OOS \u2264 1.5 \u00d7 IS; zero IS requires zero OOS"
+          },
+          {
+            "actual": "100.00%",
+            "id": "profitable_months",
+            "label": "Profitable months retention",
+            "passed": true,
+            "required": "\u2265 85.00% (40% floor; at most 15 percentage points below IS)"
+          },
+          {
+            "actual": "5760.00 CU",
+            "id": "cost_stress",
+            "label": "Extra-slippage OOS rerun",
+            "passed": true,
+            "required": "Net profit > 0 with +1 tick per fill"
+          }
+        ],
+        "policy": {
+          "annual_profit_retention_pct_gte": "50",
+          "annualization_days": "365.2425",
+          "drawdown_multiple_lte": "1.5",
+          "equity_basis": "every observed bar close, including open P&L and charged costs",
+          "extra_slippage_ticks_per_fill": 1,
+          "minimum_closed_trades": 50,
+          "minimum_complete_months": 6,
+          "minimum_history_months": 6,
+          "profitable_month_degradation_pp_lte": "15",
+          "profitable_month_floor_pct": "40",
+          "selection": "assess every frozen Narrow candidate independently; no reselection",
+          "trade_profit_retention_pct_gte": "50",
+          "version": "campaign-oos-v1"
+        },
+        "profit_per_trade_retention_pct": "100",
+        "qualifies": true,
+        "status": "passed"
+      },
+      "parameters": {
+        "contracts": 2,
+        "green_bar_count": 3,
+        "hold_minutes": 20
+      },
+      "qualifies": true,
+      "scenarios": [
+        {
+          "checks": [
+            {
+              "actual": 27300.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 5,
+          "net_profit_median": 28080.0,
+          "net_profit_p05": 27300.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        },
+        {
+          "checks": [
+            {
+              "actual": 27456.0,
+              "label": "Positive lower-tail net profit",
+              "passed": true,
+              "required": "5th percentile > 0"
+            },
+            {
+              "actual": 0.0,
+              "label": "Drawdown resilience",
+              "limit": 0.0,
+              "passed": true,
+              "required": "95th percentile \u2264 2 \u00d7 observed daily-close drawdown"
+            }
+          ],
+          "max_drawdown_p95": 0.0,
+          "mean_block_days": 20,
+          "net_profit_median": 28080.0,
+          "net_profit_p05": 27456.0,
+          "profitable_paths_mc_se_pp": 0.0,
+          "profitable_paths_pct": 100.0,
+          "qualifies": true
+        }
+      ],
+      "sources": [
+        {
+          "artifacts": {
+            "equity.csv": "184fbf869fc3db9753830c6cd12c99dd462401c2062c955f830bd12cdfbe5c9e",
+            "execution_decisions.jsonl": "d64ffe186553c6818b7b8bb57d10189fcee55a1f050bd88773db2d064b3e050c",
+            "intratrade_risk.csv": "652c7774b6a7f59ef5299aaad313213e6f0fd58b33f8880f872796a15adad48b",
+            "is_screening.json": "c445745b7ccbbe59ae59e88bb7a80df4581674c2a56254d6c021fda6c4dbf2bc",
+            "market_benchmark.json": "4f86dbc979324466d0ee653642b5244b66389981acd89ae4717217f7d630baf2",
+            "report.json": "0a62a83ba2b347fd24502f6b0b33cf5e49eaf63a10514392d2513554db5b211d",
+            "shared_holding_day": "e352f50d4b8b78e524501268db7c7e04a3ec9d847fd9371387081c34200faada",
+            "strategy_equity_day.csv": "e1eda151dfe2aec2f1b20b758668448c12d553e8503a31bb5edf7cc669fa9dc2",
+            "trades.csv": "62ab6c29f09c3790855a78965455bfd33280fb5dc20acfd4890aca03f2de86fd"
+          },
+          "manifest_sha256": "1234b35aeb9dd7810c996ca3cd032b581c916d7a0e38d21a2d7959d56eb2206b",
+          "run_id": "d68f962a6b3c4474b3eff8fa681420c7"
+        },
+        {
+          "artifacts": {
+            "equity.csv": "b07c674d4c3fc555e3e367bd768feda9d6e123b827f964b013a9cfe446d84b97",
+            "execution_decisions.jsonl": "3fea40b2d3da8805ff6e8e58f97afa9384be2afe9b9da52261b3c003eccf9f43",
+            "intratrade_risk.csv": "36b2b139ef16de2c79d43f73de62ac22cf3331a379bbd0563e4b852e687cf1bc",
+            "market_benchmark.json": "d61f06ba81ce46a09ee4a6df1890fd2c750bde60906395e66ca9d44647d68773",
+            "oos_screening.json": "bdd616b89fe616d9dbaeafa72efde1d5f07169535b9f0a4d99d9309029796aa4",
+            "report.json": "5ea3876759b96b7217ce7c912c0633777073d04b808622be98dcc23fdcffef89",
+            "shared_holding_day": "dc3cdc18fee0fb595e027a30e3bf338060e9278ec365d1ea249b0ca1d26f064a",
+            "strategy_equity_day.csv": "f62c3596ed124d6cbeb85374ffdaaeac1d1a317838dd0134ea863c5fb94f37e7",
+            "trades.csv": "e397e38c5542a2e7d3e5e6d6b6bc4b47c380c01f5f0a53be578db0c25fcb7fbc"
+          },
+          "manifest_sha256": "36c212b37597a6e4f74abcd3c4fa66c9ae033fe160759acad211077955c64a99",
+          "run_id": "556f5cfb81e143fb9b4664e10fca2a5c"
+        }
+      ]
+    }
+  ],
+  "created_at_utc": "2026-11-11T21:51:33.017631+00:00",
+  "files": {
+    "daily.csv": {
+      "bytes": 17527,
+      "sha256": "e5a6acc9a6e560f1dd6ab65956341d224b6595041320e1cdfc5851a894370a78"
+    },
+    "paths.csv": {
+      "bytes": 891200,
+      "sha256": "2aff3f030bdd21b3a73430717cf336c1dca27d4c98479def3a3ff7f31faec75d"
+    }
+  },
+  "frozen_identity": "c355a8cff80afeafb66d868ed31a3d1741bc4e7046781101c628f2cda998a2b4",
+  "id": "8baf7e0af59c445eb4b2bf2a1fb3c693",
+  "kind": "campaign_monte_carlo",
+  "limitations": "Retrospective sanity check using already observed IS and OOS; not another holdout or proof of a future edge. Bootstrap assumes the pooled daily P&L is representative and sufficiently stationary. Daily-close drawdown excludes intraday excursions and differs from native bar-close MTM drawdown. All observed source dates, including dates without trades, are retained; absent dates are not invented. Paths use fixed frozen size, existing net costs, no compounding, margin rules or prop-account rules. No additional costs are deducted. Results are conditional on the saved observations; Monte Carlo error is not future uncertainty.",
+  "numpy_version": "2.5.4",
+  "oos_job_id": "683d36a29e9f4a1e984df4f9a7be9107",
+  "passed": 4,
+  "plan": {
+    "is_bars": 2882,
+    "is_end": "2025-12-31",
+    "is_start": "2024-01-01",
+    "oos_bars": 1442,
+    "oos_end": "2026-12-31",
+    "oos_start": "2026-01-01",
+    "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+    "source_sha256": "5a5271637b9da6204a70d66a75ccce96ce884991d1c650b9457c407cd65c212a",
+    "source_timezone": "UTC",
+    "strategy_id": "consecutive_green_hold",
+    "version": 1
+  },
+  "policy": {
+    "block_lengths": [
+      5,
+      20
+    ],
+    "day_boundary": "last observed bar of source-local calendar date",
+    "drawdown_multiple": 2,
+    "drawdown_quantile": 0.95,
+    "method": "stationary circular daily P&L bootstrap with replacement",
+    "minimum_closed_trades": 100,
+    "minimum_observed_days": 100,
+    "paths": 5000,
+    "profit_quantile": 0.05,
+    "quantile_method": "linear",
+    "seed": 42,
+    "units": "account currency units; unchanged frozen size",
+    "version": "campaign-full-period-monte-carlo-v1"
+  },
+  "rules": [
+    "At least 100 observed source dates and 100 closed trades across IS + OOS.",
+    "5th-percentile full-period net profit > 0 under both 5-day and 20-day mean block lengths.",
+    "95th-percentile daily-close maximum drawdown \u2264 2 \u00d7 historical full-period daily-close maximum drawdown under both block lengths."
+  ],
+  "status": "complete",
+  "total": 4,
+  "unobserved_split_gap_calendar_days": 0,
+  "workflow_id": "7cb07212928d4e958df66c111c0ac484"
+}

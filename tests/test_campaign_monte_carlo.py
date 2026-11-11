@@ -41,7 +41,7 @@ def test_full_period_native_sources_reconcile_and_saved_check_never_replays(clie
         assert candidate['observed']['days']>=180
         assert candidate['evidence_passed']
         assert len(candidate['scenarios'])==2
-        assert all(len(s['checks'])==2 for s in candidate['scenarios'])
+        assert all(len(s['checks'])==1 for s in candidate['scenarios'])
         assert all(set(s['artifacts']) for s in candidate['sources'])
     assert client.app.state.research.status(dataset,'consecutive_green_hold')['used']==before
     assert client.app.state.campaign_workflows.get(workflow['id'])['narrow']==workflow['narrow']

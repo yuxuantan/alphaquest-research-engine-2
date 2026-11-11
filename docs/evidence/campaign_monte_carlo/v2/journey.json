@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "workflow_id": "7cb07212928d4e958df66c111c0ac484",
+  "oos_job_id": "683d36a29e9f4a1e984df4f9a7be9107",
+  "analysis_id": "938be7dbbb9e41478698caeba8d45b3b",
+  "original_analysis_id": "8baf7e0af59c445eb4b2bf2a1fb3c693",
+  "expected_full_period_net": [
+    14040,
+    14040,
+    28080,
+    28080
+  ],
+  "expected_closed_trades_per_candidate": 1080,
+  "expected_paths_per_candidate": 10000,
+  "expected_candidates_passed": 4,
+  "expected_daily_close_drawdown": 0,
+  "expected_historical_drawdown_percentile_pct": 50,
+  "original_files_unchanged": true,
+  "monte_carlo_replayed_for_policy_update": false,
+  "source": "120 IS + 60 OOS active dates, each 78 CU/day/contract after existing costs. Other observed dates retained with zero net.",
+  "limitations": "Synthetic source and mechanics attestations; no measured MultiCharts parity or future-edge claim.",
+  "server": "Temporary browser server stopped at teardown."
+}

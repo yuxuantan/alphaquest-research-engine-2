@@ -8,6 +8,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -25,16 +26,15 @@ from .market_equity import equity_rows, SourceDate
 from .optimization_cache import artifacts, digest
 
 
-POLICY = dict(version='campaign-full-period-monte-carlo-v1', paths=5000, seed=42,
+POLICY = dict(version='campaign-full-period-monte-carlo-v2', paths=5000, seed=42,
               block_lengths=[5,20], minimum_observed_days=100, minimum_closed_trades=100,
-              profit_quantile=.05, drawdown_quantile=.95, drawdown_multiple=2,
+              profit_quantile=.05, drawdown_quantile=.95,
               method='stationary circular daily P&L bootstrap with replacement',
               quantile_method='linear', units='account currency units; unchanged frozen size',
               day_boundary='last observed bar of source-local calendar date')
 RULES = [
     'At least 100 observed source dates and 100 closed trades across IS + OOS.',
     '5th-percentile full-period net profit > 0 under both 5-day and 20-day mean block lengths.',
-    '95th-percentile daily-close maximum drawdown ≤ 2 × historical full-period daily-close maximum drawdown under both block lengths.',
 ]
 LIMITATIONS = ('Retrospective sanity check using already observed IS and OOS; not another holdout or proof of a future edge. '
               'Bootstrap assumes the pooled daily P&L is representative and sufficiently stationary. '
@@ -42,6 +42,31 @@ LIMITATIONS = ('Retrospective sanity check using already observed IS and OOS; no
               'All observed source dates, including dates without trades, are retained; absent dates are not invented. '
               'Paths use fixed frozen size, existing net costs, no compounding, margin rules or prop-account rules. '
               'No additional costs are deducted. Results are conditional on the saved observations; Monte Carlo error is not future uncertainty.')
+DIAGNOSTICS = ('Mean/median profit and median/95th-percentile drawdown are diagnostics, not pass/fail gates. '
+               'The historical drawdown percentile is the percentage of simulated drawdowns below it, with half weight for ties. '
+               'A low percentile describes a favorable historical drawdown within this model; it is not a p-value or proof of selection luck. '
+               'Drawdown/account-risk limits belong in subsequent sizing and account assessment.')
+SAMPLING_FIELDS = ('paths','seed','block_lengths','method','units','day_boundary')
+
+
+def summarize(observed, totals, losses, block):
+    """One assessment contract for fresh simulations and sealed saved outcomes."""
+    totals,losses = np.asarray(totals,dtype=np.float64),np.asarray(losses,dtype=np.float64)
+    if (len(totals)!=POLICY['paths'] or len(losses)!=POLICY['paths']
+            or not np.isfinite(totals).all() or not np.isfinite(losses).all() or np.any(losses<0)):
+        raise ValueError('Incomplete or invalid saved Monte Carlo path outcomes.')
+    lower = float(np.quantile(totals,POLICY['profit_quantile'],method=POLICY['quantile_method']))
+    probability = float(np.mean(totals>0))
+    historical_dd = observed['daily_close_max_drawdown']
+    upper = float(np.quantile(losses,POLICY['drawdown_quantile'],method=POLICY['quantile_method']))
+    checks = [dict(label='Positive lower-tail net profit',passed=lower>0,actual=lower,required='5th percentile > 0')]
+    return dict(mean_block_days=block,net_profit_p05=lower,net_profit_mean=float(np.mean(totals)),
+                net_profit_median=float(np.median(totals)),max_drawdown_median=float(np.median(losses)),
+                max_drawdown_p95=upper,historical_drawdown_percentile_pct=float(100*(np.mean(losses<historical_dd)+.5*np.mean(losses==historical_dd))),
+                max_drawdown_p95_over_observed=upper/historical_dd if historical_dd>0 else None,
+                profitable_paths_pct=probability*100,
+                profitable_paths_mc_se_pp=100*(probability*(1-probability)/POLICY['paths'])**.5,
+                checks=checks,qualifies=lower>0)
 
 
 def initialize(db):
@@ -84,16 +109,9 @@ def assess(daily, trades, *, progress=lambda *args:None):
             if not np.isfinite(net).all() or not np.isfinite(dd).all():raise ValueError('Simulation arithmetic exceeded supported finite values.')
             totals.extend(net.tolist());losses.extend(dd.tolist())
         progress(block,POLICY['paths'],POLICY['paths'])
-        lower = float(np.quantile(totals,POLICY['profit_quantile'],method=POLICY['quantile_method']))
-        upper = float(np.quantile(losses,POLICY['drawdown_quantile'],method=POLICY['quantile_method']))
-        probability = float(np.mean(np.asarray(totals)>0))
-        checks = [dict(label='Positive lower-tail net profit',passed=lower>0,actual=lower,required='5th percentile > 0'),
-                  dict(label='Drawdown resilience',passed=upper<=POLICY['drawdown_multiple']*observed['daily_close_max_drawdown'],actual=upper,
-                       required=f"95th percentile ≤ {POLICY['drawdown_multiple']} × observed daily-close drawdown",limit=POLICY['drawdown_multiple']*observed['daily_close_max_drawdown'])]
-        scenarios.append(dict(mean_block_days=block,net_profit_p05=lower,net_profit_median=float(np.median(totals)),
-                              max_drawdown_p95=upper,profitable_paths_pct=probability*100,
-                              profitable_paths_mc_se_pp=100*(probability*(1-probability)/POLICY['paths'])**.5,
-                              checks=checks,qualifies=evidence and all(c['passed'] for c in checks)))
+        scenario=summarize(observed,totals,losses,block)
+        scenario['qualifies'] = evidence and scenario['qualifies']
+        scenarios.append(scenario)
         paths.extend(dict(mean_block_days=block,path=i+1,net_profit=net,max_drawdown=dd) for i,(net,dd) in enumerate(zip(totals,losses)))
     return dict(observed=observed,evidence_passed=evidence,scenarios=scenarios,
                 qualifies=evidence and all(s['qualifies'] for s in scenarios)), paths
@@ -145,8 +163,53 @@ def source_snapshot(request, workflow_id, job_id):
                                oos_admission=item['admission']))
     if not candidates:raise ValueError('No verified OOS-passing configurations are available.')
     return dict(workflow_id=workflow_id,oos_job_id=job_id,frozen_identity=identity,policy=POLICY,rules=RULES,
-                limitations=LIMITATIONS,plan=plan,unobserved_split_gap_calendar_days=(date.fromisoformat(plan['oos_start'])-date.fromisoformat(plan['is_end'])).days-1,
+                limitations=LIMITATIONS,diagnostics=DIAGNOSTICS,plan=plan,unobserved_split_gap_calendar_days=(date.fromisoformat(plan['oos_start'])-date.fromisoformat(plan['is_end'])).days-1,
                 numpy_version=np.__version__,calculation_sha256=sha256(Path(__file__).read_bytes()).hexdigest(),candidates=candidates)
+
+
+def reusable_report(store, workflow_id, job_id, snapshot):
+    """Reuse only a sealed population bound to exactly the same native evidence."""
+    with store.connect() as db:
+        ids=[r[0] for r in db.execute("SELECT a.id FROM analyses a JOIN campaign_sanity_jobs c ON c.analysis_id=a.id WHERE c.workflow_id=? AND c.oos_job_id=? AND a.status='complete' ORDER BY a.created DESC",(workflow_id,job_id))]
+    for id in ids:
+        if not store.fingerprint(id):raise ValueError('Saved Monte Carlo population failed its integrity check.')
+        report=json.loads((store.root/id/'report.json').read_text())
+        if report['policy'].get('version') not in ('campaign-full-period-monte-carlo-v1',POLICY['version']):continue
+        if any(report['policy'].get(k)!=POLICY[k] for k in SAMPLING_FIELDS):continue
+        if any(report.get(k)!=snapshot[k] for k in ('frozen_identity','plan')):continue
+        fields=('candidate','broad_trial','narrow_trial','parameters','closed_trades','sources','oos_admission')
+        if ([{k:c[k] for k in fields} for c in report['candidates']]
+                != [{k:c[k] for k in fields} for c in snapshot['candidates']]):continue
+        return report
+    return None
+
+
+def reassess_saved(store, report, staged, checkpoint):
+    """No new random draws: copy immutable input/outcome files and assess them."""
+    id=report['id'];fingerprint=store.fingerprint(id)
+    if not fingerprint:raise ValueError('Saved Monte Carlo population failed its integrity check.')
+    groups={(c['candidate'],b):([],[]) for c in report['candidates'] for b in POLICY['block_lengths']}
+    with (store.root/id/'paths.csv').open(newline='') as stream:
+        for index,row in enumerate(csv.DictReader(stream)):
+            if index%1000==0:checkpoint()
+            key=(int(row['candidate']),int(row['mean_block_days']))
+            if key not in groups:raise ValueError('Saved Monte Carlo path has unexpected membership.')
+            totals,losses=groups[key]
+            if int(row['path'])!=len(totals)+1:raise ValueError('Saved Monte Carlo paths are missing or duplicated.')
+            totals.append(float(row['net_profit']));losses.append(float(row['max_drawdown']))
+    output=[]
+    for candidate in report['candidates']:
+        observed=candidate['observed']
+        evidence=observed['days']>=POLICY['minimum_observed_days'] and observed['closed_trades']>=POLICY['minimum_closed_trades']
+        scenarios=[summarize(observed,*groups[(candidate['candidate'],b)],b) for b in POLICY['block_lengths']]
+        for scenario in scenarios:scenario['qualifies']=evidence and scenario['qualifies']
+        output.append(dict(**{k:v for k,v in candidate.items() if k not in ('evidence_passed','scenarios','qualifies')},
+                           evidence_passed=evidence,scenarios=scenarios,qualifies=evidence and all(s['qualifies'] for s in scenarios)))
+    for name in ('daily.csv','paths.csv'):
+        shutil.copyfile(store.root/id/name,staged/name)
+        if sha256((staged/name).read_bytes()).hexdigest()!=report['files'][name]['sha256']:raise ValueError('Saved Monte Carlo file changed during capture.')
+    if store.fingerprint(id)!=fingerprint:raise ValueError('Saved Monte Carlo population changed during reassessment.')
+    return output
 
 
 def submit(request, workflow_id, job_id):
@@ -159,16 +222,17 @@ def submit(request, workflow_id, job_id):
             if old:
                 if old[1]=='complete' and not store.fingerprint(old[0]):raise ValueError('Saved Monte Carlo artifacts changed; retained results cannot be silently replaced.')
                 return store.get(old[0])
+            reuse=reusable_report(store,workflow_id,job_id,snapshot)
             id=uuid4().hex
-            db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(id,key,snapshot['candidates'][0]['sources'][1]['run_id'],datetime.now(timezone.utc).isoformat(),'queued','Queued full-period Monte Carlo',None))
+            db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(id,key,snapshot['candidates'][0]['sources'][1]['run_id'],datetime.now(timezone.utc).isoformat(),'queued','Queued reassessment of saved Monte Carlo paths' if reuse else 'Queued full-period Monte Carlo',None))
             db.execute('INSERT INTO campaign_sanity_jobs VALUES (?,?,?)',(id,workflow_id,job_id))
             db.executemany('INSERT INTO analysis_sources VALUES (?,?)',[(id,source) for source in sorted({s['run_id'] for c in snapshot['candidates'] for s in c['sources']})])
             db.execute('INSERT INTO phase_analysis_control(analysis_id) VALUES (?)',(id,))
-        store.worker.submit(run,store,id,snapshot)
+        store.worker.submit(run,store,id,snapshot,reuse)
     return store.get(id)
 
 
-def run(store, id, snapshot):
+def run(store, id, snapshot, reuse=None):
     from .prop.store import AnalysisCancelled, seal_report, sealed_checks
     from .prop.adapter import canonical
     def checkpoint():
@@ -179,18 +243,17 @@ def run(store, id, snapshot):
         with TemporaryDirectory(prefix='.pending-',dir=store.root) as temp:
             staged=Path(temp)/'report';staged.mkdir()
             output=[]
-            with (staged/'daily.csv').open('w',newline='') as daily_file,(staged/'paths.csv').open('w',newline='') as paths_file:
-                daily_writer=csv.DictWriter(daily_file,fieldnames=['candidate','date','period','net_pnl']);daily_writer.writeheader()
-                paths_writer=csv.DictWriter(paths_file,fieldnames=['candidate','mean_block_days','path','net_profit','max_drawdown']);paths_writer.writeheader()
-                for index,candidate in enumerate(snapshot['candidates'],1):
-                    def progress(block,done,total):
-                        checkpoint();store._update(id,'running',f"Candidate {index}/{len(snapshot['candidates'])} · mean block {block} days · {done}/{total} paths")
-                    measured,paths=assess(candidate['daily'],candidate['closed_trades'],progress=progress)
-                    daily_writer.writerows(dict(candidate=candidate['candidate'],**r) for r in candidate['daily'])
-                    paths_writer.writerows(dict(candidate=candidate['candidate'],**r) for r in paths)
-                    output.append(dict(**{k:v for k,v in candidate.items() if k!='daily'},**measured))
+            if reuse:
+                store._update(id,'running','Applying current policy to saved Monte Carlo paths; no new simulation')
+                output=reassess_saved(store,reuse,staged,checkpoint)
+            else:
+                output=simulate_candidates(store,id,snapshot,staged,checkpoint)
             result=dict(**{k:v for k,v in snapshot.items() if k!='candidates'},kind='campaign_monte_carlo',candidates=output,
                         passed=sum(c['qualifies'] for c in output),total=len(output))
+            if reuse:
+                result['reused_population']=dict(analysis_id=reuse['id'],policy=reuse['policy'],
+                    calculation_sha256=reuse['calculation_sha256'],numpy_version=reuse['numpy_version'],
+                    files={k:reuse['files'][k] for k in ('daily.csv','paths.csv')})
             # Cancel and publication serialize through the same existing control lock.
             with store.lock:
                 checkpoint();seal_report(staged,result,id,store.get(id)['created']);staged.rename(store.root/id)
@@ -199,6 +262,21 @@ def run(store, id, snapshot):
                     db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?",(f"Final sanity check complete · {result['passed']}/{result['total']} passed",id))
     except AnalysisCancelled:store._update(id,'cancelled','Monte Carlo stopped; rerun uses the same fixed seed and policy.')
     except Exception as exc:store._update(id,'error','Monte Carlo failed',f'{type(exc).__name__}: {exc}')
+
+
+def simulate_candidates(store,id,snapshot,staged,checkpoint):
+    output=[]
+    with (staged/'daily.csv').open('w',newline='') as daily_file,(staged/'paths.csv').open('w',newline='') as paths_file:
+        daily_writer=csv.DictWriter(daily_file,fieldnames=['candidate','date','period','net_pnl']);daily_writer.writeheader()
+        paths_writer=csv.DictWriter(paths_file,fieldnames=['candidate','mean_block_days','path','net_profit','max_drawdown']);paths_writer.writeheader()
+        for index,candidate in enumerate(snapshot['candidates'],1):
+            def progress(block,done,total):
+                checkpoint();store._update(id,'running',f"Candidate {index}/{len(snapshot['candidates'])} · mean block {block} days · {done}/{total} paths")
+            measured,paths=assess(candidate['daily'],candidate['closed_trades'],progress=progress)
+            daily_writer.writerows(dict(candidate=candidate['candidate'],**r) for r in candidate['daily'])
+            paths_writer.writerows(dict(candidate=candidate['candidate'],**r) for r in paths)
+            output.append(dict(**{k:v for k,v in candidate.items() if k!='daily'},**measured))
+    return output
 
 
 def detail(request, workflow_id, job_id):
@@ -213,7 +291,7 @@ def detail(request, workflow_id, job_id):
     if job and job['status']=='complete':
         if not store.fingerprint(job['id']):raise ValueError('Saved Monte Carlo report integrity check failed.')
         report=json.loads((store.root/job['id']/'report.json').read_text())
-    return dict(policy=POLICY,rules=RULES,limitations=LIMITATIONS,job=job,report=report,
+    return dict(policy=POLICY,rules=RULES,limitations=LIMITATIONS,diagnostics=DIAGNOSTICS,job=job,report=report,
                 oos_complete=bool(oos and oos['status']=='complete'),history=[dict(r) for r in rows])
 
 

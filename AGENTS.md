@@ -31,6 +31,10 @@ acceptance. Use the existing AnalysisStore worker/catalogue and sealed reports.
 Keep the seed/policy fixed and retain the daily inputs, source hashes and path
 outcomes. `tests/test_monte_carlo.py` contains fast arithmetic/cancellation checks;
 select the native API/browser journeys explicitly when those surfaces change.
+Current v2 gates are minimum evidence and positive 5th-percentile net profit
+under both block settings. Mean/median profit and all drawdown measurements are
+diagnostics. Preserve historical v1 verdicts; explicit policy updates reuse
+verified saved daily/path CSVs and publish a new sealed assessment.
 
 When adding strategy parameters, check the IS Narrow refinement rule in
 `docs/workflow_screening.md` and `alphaquest/campaign_narrow.py`. Narrow locks

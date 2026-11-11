@@ -480,7 +480,7 @@ allows total profit to change, unlike a shuffle of the same trades. The method
 is based on [Politis and Romano's stationary bootstrap](https://doi.org/10.1080/01621459.1994.10476870);
 its assumptions do not establish that market P&L is stationary.
 
-Policy `campaign-full-period-monte-carlo-v1` fixes seed 42, PCG64 with
+Current policy `campaign-full-period-monte-carlo-v2` fixes seed 42, PCG64 with
 `SeedSequence([42, L])`, 128-path batches, NumPy version and linear quantiles.
 Each candidate uses the same deterministic schedules. An unchanged completed
 check is reopened/reused rather than rerolled. Interrupted/stopped checks can
@@ -489,28 +489,57 @@ changes produce a distinct saved assessment; earlier results remain unchanged.
 
 ### Passing rules
 
-All three rules must pass. Rules 2 and 3 must hold under **both** block settings:
+Both rules must pass. The profit rule must hold under **both** block settings:
 
 | Rule | Threshold |
 | --- | --- |
 | Sufficient input evidence | ≥100 observed source dates and ≥100 closed trades across IS + OOS |
 | Positive lower-tail profit | Empirical 5th percentile of full-period net profit **>0** |
-| Drawdown resilience | Empirical 95th percentile of maximum daily-close drawdown **≤2×** historical combined daily-close maximum drawdown |
 
-Profit is strictly positive; equality at the drawdown limit passes. If historical
-daily-close drawdown is zero, the simulated 95th percentile must also be zero.
-Historical and simulated drawdowns both start at zero cumulative P&L and use
-the same daily-close basis. Do not compare this series to intraday/native
-bar-close MTM drawdown or claim that it measures intraday liquidation risk.
+Profit is strictly positive; equality at zero fails. Drawdown has no pass/fail
+threshold in v2. Historical v1 assessments used a 95th-percentile drawdown limit
+of 2× observed daily-close drawdown; those policies, verdicts and artifacts are
+retained unchanged. No annual profit/drawdown ratio is introduced as a gate.
 
-The positive lower tail asks whether the observed edge survives plausible
-resampling of the full history; the drawdown rule rejects sensitivity to loss
-clustering. The 2× tolerance gives room for unfavorable ordering without
-requiring resamples to reproduce one historical path. These are practical local
-screening thresholds, not a literature-certified guarantee or a substitute for
-a separately chosen capital/drawdown budget. No annual profit/drawdown ratio is
-reintroduced as a gate. Median profit, positive-path frequency and its estimated
-Monte Carlo standard error are diagnostics, not extra gates.
+### Descriptive metrics and historical path favorability
+
+Display mean and median full-period net profit alongside the 5th percentile,
+median and 95th-percentile daily-close maximum drawdown, historical net/drawdown,
+the 95th-percentile drawdown/historical drawdown multiple, positive-path frequency
+and its estimated Monte Carlo standard error. These measurements inform review
+and later sizing; none adds a new eligibility condition.
+
+The original drawdown's percentile within simulated drawdowns is
+`100 × (fraction strictly below + 0.5 × fraction equal)`. This midpoint treatment
+of ties gives 50% when every drawdown is identical. A lower percentile describes
+a more favorable historical drawdown relative to sampled paths. It is a
+retrospective diagnostic, not a p-value or selection-luck test. When historical
+drawdown is zero, the drawdown multiple is undefined and displays N/A.
+
+Both original and simulated drawdown include starting P&L zero and use the same
+daily-close basis. They do not measure intraday liquidation risk or the native
+bar-close MTM drawdown. A strategy with positive lower-tail profit can pass even
+when its drawdown multiple exceeds 2×; acceptable account risk must be assessed
+against an explicit budget and account rules during subsequent sizing.
+
+The bootstrap expected mean net profit is anchored to the historical sample.
+Mean/median profit therefore receive no arbitrary retention thresholds against
+the original result; requiring a positive median would add no protection beyond
+the positive 5th-percentile requirement. The thresholds are retrospective local
+screens, not a literature-certified guarantee of profitability.
+
+### Updating an existing assessment without simulation
+
+A saved v1 report is labeled as a historical policy in the portal. **Apply
+updated policy to saved paths** validates the same frozen IS/OOS evidence and
+sealed Monte Carlo population, then creates a new ordinary AnalysisStore report
+under v2. No strategy replay, random draws, new OOS attempt, or cost deduction
+occurs. The original daily/path CSV files are copied byte-for-byte; the new
+report references their original analysis, policy, implementation, NumPy version
+and checksums. The original JSON/ZIP and verdict remain untouched and downloadable.
+Missing/corrupt path populations cannot be silently treated as passing. Current
+reports with unchanged inputs are reused as before. GET requests never create
+or migrate jobs. Policy updates are explicit and appear in normal job history.
 
 Pooling IS and already accessed OOS reuses selection data. The results are
 conditional on those observations and the bootstrap/stationarity assumptions;
@@ -535,4 +564,4 @@ NumPy/calculation identity and limitations. Corrupt sources cannot launch a new
 check; corrupt Monte Carlo artifacts cannot be presented as passing. A saved
 sealed snapshot remains inspectable even if its live source later changes.
 
-See [the reproducible synthetic journey and independent expected values](evidence/campaign_monte_carlo/README.md).
+See the [historical v1 evidence](evidence/campaign_monte_carlo/README.md) and [current v2 journey and independent expected values](evidence/campaign_monte_carlo/v2/README.md).

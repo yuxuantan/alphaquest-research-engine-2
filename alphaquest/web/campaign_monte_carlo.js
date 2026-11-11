@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
-  const fmt=value=>Number(value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmt=value=>value==null?'N/A':Number(value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   let generation=0,timer;
   function dispose(){++generation;clearTimeout(timer);}
   async function read(url,method='GET',body){
@@ -21,29 +21,34 @@
     const error=node('p',undefined,'mechanic-error');error.setAttribute('role','alert');parent.append(error);
     const actions=node('div',undefined,'mechanic-downloads');parent.append(actions);
     const output=node('div');output.id='monte-carlo-results';parent.append(output);
+    const diagnostics=node('p',undefined,'field-help');diagnostics.id='monte-carlo-diagnostics';parent.append(diagnostics);
     const caveat=node('p',undefined,'field-help');parent.append(caveat);
     let data,busy=false;
     function paint(){
-      const job=data.job,active=['queued','running'].includes(job?.status);
-      run.disabled=busy||active||!eligible||job?.status==='complete';stop.hidden=!active;stop.disabled=busy;
-      run.textContent=job?.status==='complete'?'Saved Monte Carlo check':job?'Run final Monte Carlo check again':'Run final Monte Carlo check';
+      const job=data.job,active=['queued','running'].includes(job?.status),legacy=data.report&&data.report.policy.version!==data.policy.version;
+      run.disabled=busy||active||!eligible||(job?.status==='complete'&&!legacy);stop.hidden=!active;stop.disabled=busy;
+      run.textContent=legacy?'Apply updated policy to saved paths':job?.status==='complete'?'Saved Monte Carlo check':job?'Run final Monte Carlo check again':'Run final Monte Carlo check';
       status.textContent=job?`${job.status.toUpperCase()} · ${job.progress}${job.error?' · '+job.error:''}`:eligible?'Ready. Checks only verified OOS-passing configurations.':'No completed, qualifying OOS configurations are available.';
-      rules.replaceChildren(...data.rules.map(text=>node('li',text)));caveat.textContent=data.limitations;
+      rules.replaceChildren(...data.rules.map(text=>node('li',text)));caveat.textContent=data.limitations;diagnostics.textContent=data.diagnostics;
       actions.replaceChildren();if(job)link(actions,'Monte Carlo job history / progress',`#jobs/monte_carlo/${job.id}`);
       output.replaceChildren();if(!data.report)return;
       const report=data.report;
-      status.textContent=`COMPLETE · ${report.passed} / ${report.total} configurations passed the final sanity check. OOS verdicts and IS selections are unchanged.`;
+      status.textContent=`COMPLETE · ${report.passed} / ${report.total} configurations passed ${legacy?'the historical policy':'the final sanity check'}. OOS verdicts and IS selections are unchanged.`;
+      if(legacy)output.append(node('p','This saved assessment used the earlier drawdown rejection rule. Apply the updated policy above to the same saved paths; no backtest or Monte Carlo rerun is needed. The original report is retained.'));
       for(const [format,label] of [['json','Monte Carlo report JSON ↓'],['zip','Monte Carlo evidence ZIP ↓'],['daily','Full-period daily P&L CSV ↓'],['paths','Simulated path outcomes CSV ↓']])link(actions,label,`${base}/jobs/${job.id}/download?format=${format}`);
+      if(report.reused_population){output.append(node('p','Updated assessment uses the original saved path outcomes. No new simulation was run.'));link(actions,'Original assessment JSON ↓',`${base}/jobs/${report.reused_population.analysis_id}/download`);}
       output.append(node('p',`IS ${report.plan.is_start} → ${report.plan.is_end}; OOS ${report.plan.oos_start} → ${report.plan.oos_end}. Gap between windows: ${report.unobserved_split_gap_calendar_days} calendar days. Paths contain exactly the saved observed dates; missing dates are not filled.`));
       const scroll=node('div',undefined,'optimization-scroll'),table=node('table',undefined,'library-table');table.id='monte-carlo-table';
-      const head=node('tr');for(const text of ['Candidate','Final status','Evidence','Mean block · observed days','5th %ile net profit','Profitable paths %','95th %ile daily-close DD','Historical daily-close DD','DD limit','Checks'])head.append(node('th',text));const thead=node('thead');thead.append(head);table.append(thead);
+      output.append(node('p','Scroll within the table to inspect all metrics. Mean/median profit and all drawdown metrics are diagnostics, not additional gates.','field-help'));
+      const headers=[['candidate','Candidate'],['status','Final status'],['evidence','Evidence'],['block','Mean block · observed days'],['p05','5th %ile net profit'],['historical_net','Historical net profit'],['mean_net','Mean net profit'],['median_net','Median net profit'],['profitable','Profitable paths %'],['median_dd','Median daily-close DD'],['p95_dd','95th %ile daily-close DD'],['historical_dd','Historical daily-close DD'],['dd_multiple','95th %ile DD / historical DD'],['dd_percentile','Historical DD percentile %'],['checks','Required checks']];
+      const head=node('tr');for(const [key,text] of headers){const th=node('th',text);th.dataset.column=key;head.append(th);}const thead=node('thead');thead.append(head);table.append(thead);
       const body=node('tbody');
       for(const candidate of report.candidates)for(const scenario of candidate.scenarios){
         const row=node('tr');row.dataset.candidate=candidate.candidate;
         if(!candidate.qualifies)row.className='broad-ineligible';
-        const values=[String(candidate.candidate),candidate.qualifies?'Passed':'Failed',`${candidate.observed.days} observed dates · ${candidate.observed.closed_trades} trades`,String(scenario.mean_block_days),fmt(scenario.net_profit_p05),`${fmt(scenario.profitable_paths_pct)} (MC SE ${fmt(scenario.profitable_paths_mc_se_pp)} pp)`,fmt(scenario.max_drawdown_p95),fmt(candidate.observed.daily_close_max_drawdown),fmt(scenario.checks[1].limit)];
-        for(const text of values)row.append(node('td',text));
-        const details=node('td'),list=node('ul');list.append(node('li',`${candidate.evidence_passed?'PASS':'FAIL'} · Minimum evidence`));for(const check of scenario.checks)list.append(node('li',`${check.passed?'PASS':'FAIL'} · ${check.label}: ${fmt(check.actual)}. Required: ${check.required}`));details.append(list);row.append(details);body.append(row);
+        const values=[String(candidate.candidate),candidate.qualifies?'Passed':'Failed',`${candidate.observed.days} observed dates · ${candidate.observed.closed_trades} trades`,String(scenario.mean_block_days),fmt(scenario.net_profit_p05),fmt(candidate.observed.net_profit),fmt(scenario.net_profit_mean),fmt(scenario.net_profit_median),`${fmt(scenario.profitable_paths_pct)} (MC SE ${fmt(scenario.profitable_paths_mc_se_pp)} pp)`,fmt(scenario.max_drawdown_median),fmt(scenario.max_drawdown_p95),fmt(candidate.observed.daily_close_max_drawdown),scenario.max_drawdown_p95_over_observed==null?'N/A':fmt(scenario.max_drawdown_p95_over_observed)+'×',fmt(scenario.historical_drawdown_percentile_pct)];
+        values.forEach((text,i)=>{const td=node('td',text);td.dataset.column=headers[i][0];row.append(td);});
+        const details=node('td'),list=node('ul');details.dataset.column='checks';list.append(node('li',`${candidate.evidence_passed?'PASS':'FAIL'} · Minimum evidence`));for(const check of scenario.checks)list.append(node('li',`${check.passed?'PASS':'FAIL'} · ${check.label}: ${fmt(check.actual)}. Required: ${check.required}`));details.append(list);row.append(details);body.append(row);
       }
       table.append(body);scroll.append(table);output.append(scroll);
     }

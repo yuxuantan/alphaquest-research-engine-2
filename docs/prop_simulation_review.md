@@ -10881,3 +10881,41 @@ launches, cooperative cancellation, artifact tampering, immutable downloads and
 application reopening. The Chromium journey starts from the actual OOS page,
 leaves for job history, returns, downloads the ordinary reports and reloads them.
 Temporary test servers stop at teardown; no persistent server is started.
+
+### 2026-11-12 — Monte Carlo v2 diagnostics and saved-population reassessment
+
+Revised the final campaign Monte Carlo policy to require only minimum evidence
+and positive 5th-percentile full-period net profit under both block settings.
+Removed the 2× historical daily-close drawdown rejection rule. Added mean net
+profit, displayed median profit, median drawdown, drawdown multiple and the
+historical drawdown's percentile within simulated outcomes. All these metrics
+are explicitly diagnostic; no mean/median retention gate or prop sizing model
+was added. Percentile ties use half weight; an all-identical population ranks
+at 50%, and a zero historical drawdown gives an undefined multiple displayed N/A.
+
+The normal OOS page labels v1 reports as historical and offers **Apply updated
+policy to saved paths**. This validates the same native source membership and
+sealed population, then publishes a new v2 AnalysisStore report, copying the
+daily/path CSVs byte-for-byte. It adds no strategy replay, random draws, OOS
+attempts, or cost deduction. The original policy/verdict/report/archive remain
+unchanged and are linked from the updated report. GET requests do not mutate
+assessments. Updated jobs continue to use ordinary history, cancellation,
+publication, integrity checking and downloads.
+
+[The v2 product journey and saved evidence](evidence/campaign_monte_carlo/v2/README.md)
+retain the prior evidence folder. The actual synthetic native source still
+produces independently derived totals of 14,040 CU at one contract and 28,080 CU
+at two, with 1,080 trades each. The browser journey starts a normal current
+assessment, then represents its sealed population in a test-only v1 schema and
+uses the real portal update action with simulation disabled. Original files
+retain every checksum; all 40,000 saved outcomes are preserved in the new
+assessment. Updated diagnostics appear in the table and JSON/ZIP downloads and
+reopen unchanged after reload and job-history navigation. The test server stops
+at teardown; no persistent server is started or user server restarted.
+
+Focused arithmetic checks cover positive-tail qualification despite a drawdown
+multiple of 3×, positive mean/median failing a negative lower tail, zero-drawdown
+and percentile-tie handling, insufficient evidence, and cancellation. Native API
+checks retain OOS admission/source verification, frozen IS preservation,
+idempotence, no replay, download integrity and application reopening. No claim
+of measured MultiCharts parity, future robustness or trading readiness is made.
