@@ -9,6 +9,31 @@ from test_backtests_browser import browser,page,portal,playwright
 from test_campaign_narrow import narrow_workflow,narrow_start
 
 
+def test_running_narrow_progress_polls_job_without_reloading_results(page,portal):
+    with httpx.Client(base_url=portal['url'],timeout=40) as client:
+        _,workflow,_=narrow_workflow(client)
+        completed=narrow_start(client,'/api/campaign-workflows/'+workflow['id'],1)
+    job_id=completed['id']
+    active=dict(trial=1,stage='cost_stress: replaying',bars_processed=0,total_bars=2400)
+    progress_calls=[];result_calls=[]
+    def narrow_detail(route):
+        body=route.fetch().json()
+        body['job'].update(status='running',stage='running_trials',completed_trials=0,active_trials=[active])
+        route.fulfill(status=200,content_type='application/json',body=json.dumps(body))
+    def job_progress(route):
+        progress_calls.append(1)
+        job=dict(completed,status='running',stage='running_trials',completed_trials=0,
+                 active_trials=[dict(active,bars_processed=1200 if len(progress_calls)==1 else 2000)])
+        route.fulfill(status=200,content_type='application/json',body=json.dumps(job))
+    page.route('**/api/campaign-workflows/'+workflow['id']+'/narrow?*',narrow_detail)
+    page.route('**/api/optimizations/'+job_id,job_progress)
+    page.on('request',lambda request: result_calls.append(request.url) if '/narrow/results?' in request.url else None)
+    page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_narrow?broad_trial=1')
+    playwright.expect(page.locator('#narrow-active-trials')).to_contain_text('2,000 / 2,400 bars',timeout=10000)
+    assert len(progress_calls)>=2
+    assert len(result_calls)==1
+
+
 def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tmp_path):
     with httpx.Client(base_url=portal['url'],timeout=40) as client:
         dataset,workflow,broad=narrow_workflow(client)

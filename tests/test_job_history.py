@@ -5,8 +5,20 @@ from uuid import uuid4
 from hashlib import sha256
 
 from alphaquest.campaign_workflow import CampaignWorkflowStore
+from alphaquest.job_history import public_job
 from test_research_workflow import client
 from test_campaign_mechanics import create_workflow, run_validation
+
+
+def test_batch_history_exposes_existing_worker_progress_without_recalculation():
+    job_id=uuid4().hex
+    payload=dict(stage='running_trials',completed_trials=0,total_trials=16,worker_count=4,
+                 active_trials=[dict(trial=1,stage='cost_stress: replaying',bars_processed=1200,total_bars=2400)])
+    row=('backtest_batch',job_id,'2026-11-11T00:00:00+00:00','running','synthetic_strategy','synthetic_dataset',json.dumps(payload))
+    item=public_job(row,None)
+    assert item['progress']==dict(stage='running_trials',completed=0,total=16,unit='trials',worker_count=4,
+                                  active_trials=payload['active_trials'])
+    assert item['stop_url']==f'/api/backtests/batches/{job_id}/cancel'
 
 
 def test_failed_attempt_is_retained_after_success_and_filters_are_bounded(client,monkeypatch):

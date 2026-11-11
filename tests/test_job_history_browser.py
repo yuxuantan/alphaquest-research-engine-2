@@ -2,10 +2,26 @@
 import json
 import time
 from threading import Event
+from uuid import uuid4
 
 import httpx
 from test_backtests_browser import browser, page, portal, playwright
 from test_campaign_mechanics import create_workflow
+
+
+def test_batch_detail_shows_saved_active_trial_progress(page,portal):
+    job_id=uuid4().hex
+    job=dict(id=job_id,kind='backtest_batch',status='running',strategy_id='synthetic_strategy',
+             dataset_name='synthetic_dataset',recorded_at_utc='2026-11-11T00:00:00+00:00',
+             started_at_utc='2026-11-11T00:00:00+00:00',finished_at_utc=None,error=None,
+             links=[],stop_requested_at_utc=None,progress=dict(stage='running_trials',completed=0,total=2,
+             unit='trials',worker_count=1,active_trials=[dict(trial=1,stage='cost_stress: replaying',
+             bars_processed=1200,total_bars=2400)]))
+    page.route('**/api/jobs/backtest_batch/'+job_id,
+               lambda route: route.fulfill(status=200,content_type='application/json',body=json.dumps(job)))
+    page.goto(portal['url']+'/#jobs/backtest_batch/'+job_id)
+    playwright.expect(page.locator('.jobs-active-trials')).to_contain_text('Trial 1 · cost stress: replaying · 1,200 / 2,400 bars')
+    playwright.expect(page.get_by_role('progressbar',name='Trial 1 cost stress: replaying progress')).to_have_attribute('value','1200')
 
 
 def test_running_job_survives_navigation_and_history_links_to_results(page,portal,tmp_path,monkeypatch):

@@ -18,6 +18,21 @@
     const known=p.completed!==null && p.completed!==undefined;
     return `${words(p.stage)}${known ? ` · ${p.completed.toLocaleString()}${p.total>0 ? ' / '+p.total.toLocaleString() : ''} ${p.unit || ''}` : ''}`;
   }
+  function activeTrials(parent,job) {
+    const trials=job.progress?.active_trials;
+    if(!trials?.length)return;
+    const section=node('section',undefined,'jobs-active-trials');
+    section.append(node('h3',`Active trials · ${trials.length} of ${job.progress.worker_count || trials.length} workers`));
+    const list=node('ul');
+    for(const trial of trials) {
+      const item=node('li');
+      const completed=Number(trial.bars_processed) || 0,total=Number(trial.total_bars) || 0;
+      item.append(node('span',`Trial ${trial.trial} · ${words(trial.stage)} · ${completed.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ''} bars`));
+      if(total>0){const bar=node('progress');bar.max=total;bar.value=Math.min(completed,total);bar.setAttribute('aria-label',`Trial ${trial.trial} ${words(trial.stage)} progress`);item.append(bar);}
+      list.append(item);
+    }
+    section.append(list);parent.append(section);
+  }
   function status(job) {
     const label=job.status==='complete'?'Completed':job.status==='cancelled'?(job.stop_requested_at_utc?'Stopped':'Cancelled'):job.status==='running'&&job.stop_requested_at_utc?'Stopping':words(job.status);
     const pill=node('span',label,'pill '+(job.status==='complete'?'success':'neutral'));
@@ -63,6 +78,7 @@
         if(p?.total>0 && p.completed!==null && p.completed!==undefined) {
           const bar=node('progress');bar.max=p.total;bar.value=Math.min(p.completed,p.total);bar.setAttribute('aria-label',`Job progress in ${p.unit}`);panel.append(bar);
         }
+        activeTrials(panel,job);
         const facts=node('dl',undefined,'backtest-run-details');
         for(const [label,value] of [['Job ID',job.id],['Recorded',stamp(job.recorded_at_utc)],['Started',stamp(job.started_at_utc)],['Finished',stamp(job.finished_at_utc)]]) {
           const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item);

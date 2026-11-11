@@ -71,6 +71,7 @@
       const outputs=node('section',undefined,'panel broad-panel');outputs.id='narrow-output';outputs.append(node('h2',`IS Narrow results · Broad trial ${trial}`),node('p','A configuration passes only after both Broad and Narrow checks pass. All selected Broad branches must finish before final screening. Select at most two qualifying rows for this Broad configuration.'),node('p','Statistical check: at least 100 observed source dates; a one-sided 95% lower bound on daily net P&L using a five-observation Bartlett HAC variance and Bonferroni correction across all attempted Broad and Narrow trials. Open each row’s eligibility details for measured values.','field-help'));
       parent.append(outputs);
       const progress=node('p');progress.id='narrow-progress';progress.setAttribute('role','status');outputs.append(progress);
+      const activeTrials=node('section',undefined,'jobs-active-trials');activeTrials.id='narrow-active-trials';activeTrials.hidden=true;outputs.append(activeTrials);
       const links=node('div',undefined,'mechanic-downloads');outputs.append(links);
       const jobControls=node('div',undefined,'mechanic-downloads'),resume=node('button','Resume remaining trials','button secondary'),cancel=node('button','Cancel queued run','button secondary');resume.type=cancel.type='button';resume.hidden=cancel.hidden=true;jobControls.append(resume,cancel);outputs.append(jobControls);
       const settings=node('details');settings.append(node('summary','Saved grid, source and statistical method'));const settingsText=node('pre');settings.append(settingsText);outputs.append(settings);
@@ -91,17 +92,43 @@
         confirm.textContent=state.confirmed_at_utc?'Narrow choices confirmed':'Confirm this Broad branch’s Narrow configs →';
         for(const input of table.querySelectorAll('input[data-select-trial]'))input.disabled=saving||!!state.confirmed_at_utc||job?.status!=='complete'||input.dataset.eligible!=='true'||(!input.checked&&state.selected_trials.length>=2);
       }
+      function paintProgress(){
+        fieldset.disabled=!!job&&['queued','running','complete'].includes(job.status)||!!state.confirmed_at_utc;
+        progress.textContent=job?`${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials · ${job.stage} · ${job.worker_count||1} workers${job.error?' · '+job.error:''}`:'No Narrow grid for this Broad configuration yet.';
+        activeTrials.replaceChildren();activeTrials.hidden=!job?.active_trials?.length;
+        if(!activeTrials.hidden){
+          activeTrials.append(node('h3',`Active trials · ${job.active_trials.length} of ${job.worker_count||job.active_trials.length} workers`));
+          const list=node('ul');
+          for(const trial of job.active_trials){
+            const item=node('li'),completed=Number(trial.bars_processed)||0,total=Number(trial.total_bars)||0;
+            item.append(node('span',`Trial ${trial.trial} · ${trial.stage.replaceAll('_',' ')} · ${completed.toLocaleString()}${total?` / ${total.toLocaleString()}`:''} bars`));
+            if(total>0){const bar=node('progress');bar.max=total;bar.value=Math.min(completed,total);bar.setAttribute('aria-label',`Trial ${trial.trial} ${trial.stage} progress`);item.append(bar);}
+            list.append(item);
+          }
+          activeTrials.append(list);
+        }
+        resume.hidden=!!state.confirmed_at_utc||(!['failed','interrupted'].includes(job?.status)&&!(job?.status==='cancelled'&&job.stop_requested_at_utc));
+        cancel.hidden=!['queued','running'].includes(job?.status);cancel.disabled=busy||!!job?.stop_requested_at_utc;
+        cancel.textContent=job?.stop_requested_at_utc?'Stop requested':job?.status==='running'?'Stop running backtest':'Cancel queued run';
+        selectionState();
+      }
+      async function pollProgress(){
+        if(!alive()||!job||!['queued','running'].includes(job.status))return;
+        const attempt=fetching,previous=job;
+        try{
+          const updated=await read(`/api/optimizations/${job.id}`);
+          if(!alive()||attempt!==fetching)return;
+          job=updated;paintProgress();
+          if(updated.completed_trials!==previous.completed_trials||updated.status!==previous.status){await refresh();return;}
+        }catch(error){if(alive()&&attempt===fetching)notice.textContent=`Progress update failed: ${error.message}`;}
+        if(alive()&&attempt===fetching)timer=setTimeout(pollProgress,2500);
+      }
       async function select(rowTrial,checked){if(saving)return;const trials=checked?[...state.selected_trials,rowTrial]:state.selected_trials.filter(t=>t!==rowTrial);if(trials.length>2)return;saving=true;selectionState();try{state=await read(base+'/selection','PATCH',{broad_trial:trial,job_id:job.id,revision:state.revision,trials});if(alive())selectionNotice.textContent='Narrow selection saved.';}catch(error){if(alive())selectionNotice.textContent=error.message;}finally{saving=false;if(alive())await refresh();}}
       confirm.onclick=async()=>{if(saving)return;saving=true;selectionState();try{state=await read(base+'/confirm','POST',{broad_trial:trial,job_id:job.id,revision:state.revision});if(alive()){selectionNotice.textContent='This Narrow selection is confirmed and locked.';await refresh();}}catch(error){if(alive())selectionNotice.textContent=error.message;}finally{saving=false;if(alive())selectionState();}};
       async function refresh(){clearTimeout(timer);if(!alive())return;if(saving){timer=setTimeout(refresh,500);return;}const attempt=++fetching;
-        try{const latest=await read(url());if(!alive()||attempt!==fetching)return;state=latest.state;job=latest.job;detail.all_branches_complete=latest.all_branches_complete;
+        try{const latest=await read(url());if(!alive()||attempt!==fetching)return;state=latest.state;job=latest.job;detail.all_branches_complete=latest.all_branches_complete;paintProgress();
           const page=await read(url('/results',{sort,direction,offset,limit:50}));if(!alive()||attempt!==fetching)return;
-          fieldset.disabled=!!job&&['queued','running','complete'].includes(job.status)||!!state.confirmed_at_utc;
-          progress.textContent=job?`${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials · ${job.stage} · ${job.worker_count||1} workers${job.error?' · '+job.error:''}${job.active_trials?.length?' · Active: '+job.active_trials.map(t=>`${t.trial} (${t.stage}, ${t.bars_processed}/${t.total_bars} bars)`).join(', '):''}`:'No Narrow grid for this Broad configuration yet.';
           settings.hidden=!job;settingsText.textContent=job?JSON.stringify({job_id:job.id,request:job.request,axes:job.axes,research:job.research,engine_identity:job.engine_identity,all_branches_complete:page.all_branches_complete,attempted_family_size:page.family_size,method:latest.policy},null,2):'';
-          resume.hidden=!!state.confirmed_at_utc||(!['failed','interrupted'].includes(job?.status)&&!(job?.status==='cancelled'&&job.stop_requested_at_utc));
-          cancel.hidden=!['queued','running'].includes(job?.status);cancel.disabled=busy||!!job?.stop_requested_at_utc;
-          cancel.textContent=job?.stop_requested_at_utc?'Stop requested':job?.status==='running'?'Stop running backtest':'Cancel queued run';
           links.replaceChildren();if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Narrow package ↓',url('/download'));}
           if(!job){panel.hidden=true;table.tHead.replaceChildren();table.tBodies[0].replaceChildren();previous.disabled=next.disabled=true;pageInfo.textContent='No results yet';selectionState();return;}
           const varying=Object.keys(job.axes).filter(name=>job.axes[name].length>1);
@@ -116,8 +143,9 @@
           previous.disabled=!offset;next.disabled=offset+page.items.length>=page.total;pageInfo.textContent=page.total?`${offset+1}–${offset+page.items.length} of ${page.total}`:'No saved results yet';
           frozen.replaceChildren();if(state.confirmed_at_utc){frozen.append(node('p','This Broad branch’s Narrow configurations are confirmed and locked.'));for(const item of state.selection)frozen.append(node('pre',JSON.stringify(item.parameters,null,2)));}
           const pending=latest.branches.filter(b=>!b.confirmed_at_utc);if(!pending.length){action(frozen,'Continue to OOS →',`#campaigns/workflows/${workflow.id}/oos`);}else if(state.confirmed_at_utc)action(frozen,`Confirm Broad trial ${pending[0].broad_trial} →`,`#campaigns/workflows/${workflow.id}/is_narrow?broad_trial=${pending[0].broad_trial}`);
-          selectionState();if(['queued','running'].includes(job.status))timer=setTimeout(refresh,1000);
+          selectionState();if(['queued','running'].includes(job.status))timer=setTimeout(pollProgress,2500);
         }catch(error){if(alive())notice.textContent=error.message;}}
+      paintProgress();
       await refresh();
     }catch(error){if(alive())parent.replaceChildren(node('p',error.message));}
   }

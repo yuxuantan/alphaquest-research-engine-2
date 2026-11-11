@@ -62,7 +62,8 @@ def public_job(row, tracker):
                 result['progress']['stage'] = 'stopping'
     elif kind == 'backtest_batch':
         result.update(started_at_utc=payload.get('started_at_utc'),finished_at_utc=payload.get('finished_at_utc'))
-        result['progress'] = dict(stage=payload.get('stage',status),completed=payload.get('completed_trials'),total=payload.get('total_trials'),unit='trials')
+        result['progress'] = dict(stage=payload.get('stage',status),completed=payload.get('completed_trials'),total=payload.get('total_trials'),unit='trials',
+                                  worker_count=payload.get('worker_count'),active_trials=payload.get('active_trials') or [])
         if status in ('queued','running'):
             result['stop_url'] = f'/api/backtests/batches/{id}/cancel'
         research = payload.get('research') or {}

@@ -207,7 +207,9 @@
     const [,id,phase] = match; message('Loading saved workflow…'); get('#mechanic-content').replaceChildren();
     try {
       const workflow = await read(endpoint(id));
-      await read(endpoint(id)+'/phases/'+phase);
+      // The Narrow detail request verifies phase access itself. Render its shell
+      // without waiting for a second workflow validation request.
+      if (phase !== 'is_narrow') await read(endpoint(id)+'/phases/'+phase);
       if (active !== token) return;
       current=workflow; render(workflow,phase); message('');
       if (workflow.status === 'running') timer=setTimeout(navigate,1500);
