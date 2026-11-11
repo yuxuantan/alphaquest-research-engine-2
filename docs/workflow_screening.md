@@ -180,7 +180,12 @@ numeric values for at least one row to have two valid numeric neighbors.
 Categorical axes may vary but do not count as adjacent numeric settings.
 The native exhaustive optimizer validates
 coupled strategy constraints before launch. Each Broad selection has its own durable
-Narrow job; all branches must finish before any Narrow row becomes selectable.
+Narrow job. A completed branch can be selected and confirmed while another
+branch is still running, interrupted, or not yet started. Its saved admission
+includes the workflow's attempted-trial count **at that branch's confirmation**;
+the confidence bound is advisory, and later searches on other branches do not
+rewrite the frozen snapshot. The current unconfirmed branch's results show the
+attempts recorded so far.
 Up to two rows per Broad branch can be confirmed, at most four total. All four
 may be eligible for later OOS assessment; no primary candidate is required.
 Each confirmation is immutable. OOS navigation unlocks only when all branches
@@ -208,9 +213,11 @@ The confidence diagnostic uses the saved native daily equity series, at least
 HAC** long-run variance estimate. It calculates a one-sided normal lower bound
 for mean net P&L per observed trading day. The one-sided tail probability is
 `0.05 / N`, where `N` is the sum of planned trial counts in every retained
-Broad and Narrow job for this workflow, including failed/incomplete attempts
-and replacement searches. This Bonferroni correction includes unsuccessful
-trials. The estimator is deterministic; no random seed is used. Its normal
+Broad and Narrow job for this workflow **at the time of assessment**, including
+failed/incomplete attempts and replacement searches already recorded. A
+confirmed branch freezes that count and diagnostic. Later attempts on other
+branches can change the live diagnostic there but do not retroactively change
+an earlier branch's saved assessment. The estimator is deterministic; no random seed is used. Its normal
 approximation is an uncertainty check on this historical IS sample, not a
 guarantee about future returns. The full method and observed family size are
 shown on the page and saved with the selection. With fewer than 100 observed
@@ -236,7 +243,9 @@ temporary server):
 
 The labeled synthetic source and saved browser/API results for v2 are in
 `docs/evidence/is_narrow_v2/`; earlier v1 evidence remains in
-`docs/evidence/is_narrow/`. The test uploads that source through the normal
+`docs/evidence/is_narrow/`. The independent-branch journey and its saved
+source, result, package, screenshot, and step record are in
+`docs/evidence/is_narrow_independent_branches/`. The test uploads that source through the normal
 dataset route, completes mechanic validation, runs a two-config Broad grid,
 confirms both Broad rows, runs two four-config Narrow grids, and confirms two
 passing rows from each branch. The fixture's six trades earn **78 CU per source
@@ -246,8 +255,11 @@ leaves **8,970 CU**. The two-contract Broad branch doubles those amounts.
 The full attempted family is ten configs (two Broad + eight Narrow). The
 browser shows the Broad `contracts` value disabled in each Narrow form, the
 varied `hold_minutes` column visible and frozen, and OOS locked until both
-branches are confirmed. Direct requests that vary `contracts`, select before
-both jobs finish, or use changed neighboring evidence are rejected. No
+branches are confirmed. The first completed branch can be confirmed before
+the second branch starts; its selection remains valid when that later job
+changes the workflow-wide attempted-trial count. Direct requests that vary
+`contracts`, select from an incomplete branch, or use changed neighboring
+evidence are rejected. No
 MultiCharts parity is asserted by this synthetic exercise; the mechanic
 confirmation is a labeled user-attestation fixture.
 

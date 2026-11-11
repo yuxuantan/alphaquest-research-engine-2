@@ -191,8 +191,8 @@ def prepare(request, workflow_id, body):
                         legacy=not saved['broad'].get('screening_policy'),
                         target_policy=saved['broad'].get('selection_policy') or saved['broad'].get('screening_policy'))
         current = next(s for s in branches(store, workflow_id, db) if s['broad_trial'] == body.broad_trial)
-        if current['confirmed_at_utc'] or any(s['confirmed_at_utc'] for s in branches(store, workflow_id, db)):
-            raise ValueError('A Narrow selection is confirmed; grids and choices are frozen.')
+        if current['confirmed_at_utc']:
+            raise ValueError('This Broad configuration’s Narrow choices are confirmed and frozen.')
         broad_job = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (saved['broad']['job_id'],)).fetchone()[0])
     declared = saved['declaration']
     dataset = request.app.state.store.get(declared['dataset']['id'])
@@ -252,8 +252,8 @@ def launch(request, workflow_id, body):
         db.execute('BEGIN IMMEDIATE')
         states = branches(store, workflow_id, db)
         state = next(s for s in states if s['broad_trial'] == body.broad_trial)
-        if any(s['confirmed_at_utc'] for s in states):
-            raise ValueError('Narrow choices are frozen.')
+        if state['confirmed_at_utc']:
+            raise ValueError('This Broad configuration’s Narrow choices are confirmed and frozen.')
         if state['job_id']:
             current = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (state['job_id'],)).fetchone()[0])
             if state.get('preview_token') == token and current['status'] in ('queued', 'running', 'complete'):
@@ -451,8 +451,12 @@ def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
     page = request.app.state.optimizations.page(job, sort, direction, offset, limit, 0)
     with request.app.state.runs.connect() as db:
         full = all_jobs_complete(request.app.state.campaign_workflows, workflow_id, db)
-        family = family_size(db, workflow_id)
+        # A confirmed branch keeps the advisory search-family snapshot used in
+        # its frozen selection. Other Broad branches can add attempts later.
+        family = state.get('family_size') if state['confirmed_at_utc'] else family_size(db, workflow_id)
         all_rows = [json.loads(r[0]) for r in db.execute('SELECT payload FROM optimization_trials WHERE optimization_id=?', (job['id'],))]
+    branch_complete = (job['status'] == 'complete' and
+                       len(all_rows) == job['total_trials'] == job['completed_trials'])
     source_policy = job['research'].get('narrow_policy')
     if source_policy not in (LEGACY_POLICY, POLICY) or state.get('policy') != source_policy:
         raise ValueError('Saved IS Narrow policy differs from its optimizer job.')
@@ -463,8 +467,8 @@ def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
                 row['admission'] = assessment(request.app.state.runs, row, all_rows, job['axes'], family,
                                               saved['declaration']['plan'], target_policy=target,
                                               fields=job['strategy']['parameters'])
-                row['admission']['provisional'] = not full
-                row['qualifies'] = full and row['admission']['qualifies'] and not row.get('backtest_deleted', False)
+                row['admission']['provisional'] = not branch_complete
+                row['qualifies'] = branch_complete and row['admission']['qualifies'] and not row.get('backtest_deleted', False)
             except (ValueError, OSError, KeyError, ArithmeticError) as exc:
                 row['admission'] = dict(qualifies=False, checks=[], error=str(exc))
                 row['qualifies'] = False
@@ -542,9 +546,10 @@ def save_selection(request, workflow_id, body, confirm=False):
             raise ValueError('This Broad configuration’s Narrow choices are already confirmed and locked.')
         if state['revision'] != body.revision or state['job_id'] != body.job_id.hex:
             raise ValueError('Narrow selection changed. Reload before saving.')
-        if not all_jobs_complete(store, workflow_id, db):
-            raise ValueError('Complete the Narrow grid for every selected Broad configuration first.')
         job = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (state['job_id'],)).fetchone()[0])
+        count = db.execute('SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?', (job['id'],)).fetchone()[0]
+        if job['status'] != 'complete' or count != job['total_trials'] or count != job['completed_trials']:
+            raise ValueError('Complete this Broad configuration’s Narrow grid before selecting.')
         source_policy = job['research'].get('narrow_policy')
         if source_policy not in (LEGACY_POLICY, POLICY) or state.get('policy') != source_policy:
             raise ValueError('Saved Narrow policy differs from its optimizer job.')
@@ -568,19 +573,28 @@ def save_selection(request, workflow_id, body, confirm=False):
     return next(s for s in branches(store, workflow_id) if s['broad_trial'] == body.broad_trial)
 
 
+def validate_branch_selection(store, workflow_id, state, db):
+    if not state['confirmed_at_utc'] or not 1 <= len(state['selection']) <= 2:
+        raise ValueError('Confirm one or two eligible Narrow configurations for this Broad selection.')
+    family = state['family_size']
+    for frozen in state['selection']:
+        if chosen_candidate(store, workflow_id, state, frozen['trial'], db, family) != frozen:
+            raise ValueError('A frozen Narrow report or admission changed; OOS is blocked.')
+
+
+def validate_branch_download(store, workflow_id, state):
+    with store.runs.connect() as db:
+        validate_branch_selection(store, workflow_id, state, db)
+
+
 def validate_frozen(store, workflow_id, states):
     with store.runs.connect() as db:
         if not states or not all(s['confirmed_at_utc'] and 1 <= len(s['selection']) <= 2 for s in states):
             raise ValueError('Confirm one or two eligible Narrow configurations for each Broad selection.')
         if not all_jobs_complete(store, workflow_id, db):
             raise ValueError('A Narrow optimization is incomplete.')
-        family = family_size(db, workflow_id)
         for state in states:
-            if family != state['family_size']:
-                raise ValueError('The attempted-search family changed after Narrow confirmation.')
-            for frozen in state['selection']:
-                if chosen_candidate(store, workflow_id, state, frozen['trial'], db, family) != frozen:
-                    raise ValueError('A frozen Narrow report or admission changed; OOS is blocked.')
+            validate_branch_selection(store, workflow_id, state, db)
 
 
 router = APIRouter()
@@ -638,8 +652,8 @@ async def confirm(workflow_id: UUID, body: NarrowConfirm, request: Request):
 async def download(workflow_id: UUID, request: Request, broad_trial: int = Query(..., ge=1)):
     saved, state, job = await invoke(context, request, workflow_id.hex, broad_trial)
     if state['confirmed_at_utc']:
-        await invoke(validate_frozen, request.app.state.campaign_workflows, workflow_id.hex,
-                     branches(request.app.state.campaign_workflows, workflow_id.hex))
+        await invoke(validate_branch_download, request.app.state.campaign_workflows,
+                     workflow_id.hex, state)
     return Response(json.dumps(dict(workflow_id=workflow_id.hex, declaration=saved['declaration'],
                                     policy=POLICY, state=state, job=job), indent=2),
                     media_type='application/json', headers={'Content-Disposition':f'attachment; filename="is-narrow-{workflow_id.hex}-{broad_trial}.json"'})

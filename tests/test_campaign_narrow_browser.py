@@ -54,6 +54,13 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
     playwright.expect(page.locator('#narrow-selected')).to_contain_text('0 / 2')
     assert page.request.get(prefix+'/narrow/results?broad_trial=1').json()['all_branches_complete'] is False
+    playwright.expect(page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria')).to_contain_text('Qualified · 7 / 7 checks passed')
+    for trial in (2,3):
+        with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
+            page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
+    page.locator('#narrow-confirm').click()
+    playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
+    playwright.expect(page.locator('#mechanic-phases [data-phase="oos"]')).to_be_disabled()
     with httpx.Client(base_url=portal['url'],timeout=40) as client:
         second=narrow_start(client,'/api/campaign-workflows/'+workflow['id'],2)
     page.reload()
@@ -65,14 +72,9 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     row=page.locator('#narrow-results tbody tr').first
     row.locator('.broad-row-criteria summary').click()
     playwright.expect(row.locator('.broad-row-criteria')).to_contain_text('Search-adjusted daily net lower bound')
-    playwright.expect(row.locator('.broad-row-criteria')).to_contain_text('Bonferroni family of 10 attempted trials')
+    playwright.expect(row.locator('.broad-row-criteria')).to_contain_text('Bonferroni family of 6 attempted trials')
     playwright.expect(page.get_by_role('checkbox',name='Select Narrow trial 1')).to_be_disabled()
-    for trial in (2,3):
-        with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
-            page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
-    page.locator('#narrow-confirm').click()
-    playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
-    playwright.expect(page.locator('#mechanic-phases [data-phase="oos"]')).to_be_disabled()
+    assert page.request.get(prefix+'/narrow/results?broad_trial=1').json()['family_size']==6
     page.locator('#narrow-broad-trial').select_option('2')
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
     for trial in (2,3):
@@ -93,7 +95,8 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     (tmp_path/'narrow-results.json').write_text(json.dumps(page.request.get(prefix+'/narrow/results?broad_trial=2').json(),indent=2))
     (tmp_path/'journey.json').write_text(json.dumps({'workflow_id':workflow['id'],'dataset_id':dataset['id'],
         'broad_trials':[1,2],'narrow_trials_per_branch':4,'attempted_family_size':10,
-        'chosen_narrow_trials':{'1':[2,3],'2':[2,3]},'expected_oos_navigation':'ready',
+        'chosen_narrow_trials':{'1':[2,3],'2':[2,3]},'first_branch_confirmed_before_second_grid':True,
+        'first_branch_frozen_family_size':6,'expected_oos_navigation':'ready',
         'synthetic':True,'mc_parity':'Manual attestation in synthetic fixture; no external MultiCharts comparison',
         'server':'Stopped by fixture teardown.'},indent=2))
     page.screenshot(path=str(tmp_path/'is-narrow-portal.png'),full_page=True)

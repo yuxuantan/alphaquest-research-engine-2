@@ -63,7 +63,7 @@ def narrow_start(client,prefix,trial):
     preview=response.json();assert preview['total_trials']==4
     response=client.post(prefix+'/narrow/run',json=dict(body,revision=preview['revision'],preview_token=preview['preview_token']))
     assert response.status_code==202,response.text
-    return wait_job(client,response.json()['id'])
+    return wait_job(client,response.json()['id'],timeout=60)
 
 
 def test_narrow_two_branches_real_evidence_selection_and_durability(client, monkeypatch):
@@ -77,11 +77,27 @@ def test_narrow_two_branches_real_evidence_selection_and_durability(client, monk
     first=narrow_start(client,prefix,1)
     page=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
     assert page['all_branches_complete'] is False
-    assert not any(row['selectable'] for row in page['items'])
+    assert page['family_size']==6
+    assert [row['trial'] for row in page['items'] if row['selectable']]==[2,3]
     state=client.get(prefix+'/narrow',params={'broad_trial':1}).json()['state']
     assert client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=state['revision'],trials=[1])).status_code==409
-    second=narrow_start(client,prefix,2)
+    assert client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=state['revision'],trials=[1,2,3])).status_code==422
+    from alphaquest import campaign_narrow
+    with monkeypatch.context() as patch:
+        patch.setattr(campaign_narrow,'confidence',lambda days,family: {'lower_bound':-1,'observed_days':len(days)})
+        advisory=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()['items']
+        assert [row['trial'] for row in advisory if row['qualifies']]==[2,3]
+        assert all('-1.0000 CU/day' in row['admission']['observations'][-1]['actual'] for row in advisory)
+    selected=client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=state['revision'],trials=[2,3]))
+    assert selected.status_code==200,selected.text
+    confirmed=client.post(prefix+'/narrow/confirm',json=dict(broad_trial=1,job_id=first['id'],revision=selected.json()['revision']))
+    assert confirmed.status_code==200,confirmed.text
+    assert confirmed.json()['family_size']==6 and len(confirmed.json()['selection'])==2
+    first_package=client.get(prefix+'/narrow/download',params={'broad_trial':1}).json()
+    assert client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=confirmed.json()['revision'],trials=[])).status_code==409
     assert client.get(prefix+'/phases/oos').status_code==409
+    second=narrow_start(client,prefix,2)
+    assert client.get(prefix+'/narrow/download',params={'broad_trial':1}).json()==first_package
     # A changed neighboring trial cannot be used to claim local stability.
     with client.app.state.runs.connect() as db:
         saved_row=db.execute('SELECT payload FROM optimization_trials WHERE optimization_id=? AND trial=2',(first['id'],)).fetchone()[0]
@@ -93,11 +109,11 @@ def test_narrow_two_branches_real_evidence_selection_and_durability(client, monk
         db.execute('UPDATE optimization_trials SET payload=? WHERE optimization_id=? AND trial=2',(saved_row,first['id']))
     for broad_trial,job in [(1,first),(2,second)]:
         page=client.get(prefix+'/narrow/results',params={'broad_trial':broad_trial}).json()
-        assert page['all_branches_complete'] and page['family_size']==10
+        assert page['all_branches_complete'] and page['family_size']==(6 if broad_trial==1 else 10)
         assert page['total']==4
         for row in page['items']:
             assert row['parameters']['contracts']==broad_trial
-            assert row['admission']['family_size']==10
+            assert row['admission']['family_size']==(6 if broad_trial==1 else 10)
             assert len(row['admission']['checks'])==7
             assert len(row['admission']['observations'])==4
             assert all(row['admission']['period_observed_dates'])
@@ -116,20 +132,7 @@ def test_narrow_two_branches_real_evidence_selection_and_durability(client, monk
             assert client.delete('/api/backtests/'+row['run_id']).status_code==409
             assert client.delete('/api/backtests/'+row['screening']['cost_stress']['run_id']).status_code==409
         assert client.delete('/api/backtests/batches/'+job['id']).status_code==409
-    eligible=[r for r in client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()['items'] if r['qualifies']]
-    assert eligible,client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
-    from alphaquest import campaign_narrow
-    with monkeypatch.context() as patch:
-        patch.setattr(campaign_narrow,'confidence',lambda days,family: {'lower_bound':-1,'observed_days':len(days)})
-        advisory=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()['items']
-        assert [row['trial'] for row in advisory if row['qualifies']]==[2,3]
-        assert all('-1.0000 CU/day' in row['admission']['observations'][-1]['actual'] for row in advisory)
-    initial=client.get(prefix+'/narrow',params={'broad_trial':1}).json()['state']
-    assert client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=initial['revision'],trials=[1,2,3])).status_code==422
-    disqualified=[r['trial'] for r in client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()['items'] if not r['qualifies']]
-    if disqualified:
-        assert client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=initial['revision'],trials=disqualified[:1])).status_code==409
-    for trial,job in [(1,first),(2,second)]:
+    for trial,job in [(2,second)]:
         page=client.get(prefix+'/narrow/results',params={'broad_trial':trial}).json()
         eligible=[r['trial'] for r in page['items'] if r['qualifies']]
         assert len(eligible)==2

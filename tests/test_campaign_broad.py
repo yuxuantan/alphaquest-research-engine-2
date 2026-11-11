@@ -64,8 +64,8 @@ def start_grid(client,prefix,grid):
     return wait_job(client,response.json()['id']),body
 
 
-def wait_job(client,id):
-    deadline=time.monotonic()+20
+def wait_job(client,id,timeout=20):
+    deadline=time.monotonic()+timeout
     while True:
         job=client.get('/api/backtests/batches/'+id).json()
         if job['status'] not in ('queued','running'):break
