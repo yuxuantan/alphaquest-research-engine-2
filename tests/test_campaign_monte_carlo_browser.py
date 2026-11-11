@@ -30,8 +30,18 @@ def test_final_sanity_check_runs_in_oos_and_reopens_from_job_history(page,portal
     playwright.expect(page.locator('#monte-carlo-table tbody tr')).to_have_count(8)
     playwright.expect(page.locator('#monte-carlo-run')).to_be_disabled()
     playwright.expect(page.locator('#monte-carlo-panel')).to_contain_text('not another holdout')
-    for column in ('mean_net','median_net','median_dd','dd_percentile'):
+    for column in ('mean_net','median_net','is_mtm_dd','oos_mtm_dd'):
         assert page.locator(f'#monte-carlo-table th[data-column="{column}"]').count()==1
+    for column in ('median_dd','p95_dd','historical_dd','dd_multiple','dd_percentile'):
+        assert page.locator(f'#monte-carlo-table th[data-column="{column}"]').count()==0
+    playwright.expect(page.locator('#monte-carlo-drawdown-table')).to_be_hidden()
+    page.locator('#monte-carlo-drawdown-details summary').click()
+    playwright.expect(page.locator('#monte-carlo-drawdown-table')).to_be_visible()
+    playwright.expect(page.locator('#monte-carlo-drawdown-table tbody tr')).to_have_count(8)
+    playwright.expect(page.locator('#monte-carlo-drawdown-details')).to_contain_text('not the stitched every-bar MTM')
+    for column in ('median_dd','dd_percentile'):
+        assert page.locator(f'#monte-carlo-drawdown-table th[data-column="{column}"]').count()==1
+    page.locator('#monte-carlo-drawdown-details summary').click()
     assert page.locator('#monte-carlo-table th').filter(has_text='DD limit').count()==0
     playwright.expect(page.locator('#monte-carlo-diagnostics')).to_contain_text('not pass/fail gates')
     # Existing v1 populations can be assessed under v2, with byte-identical paths.
@@ -58,6 +68,10 @@ def test_final_sanity_check_runs_in_oos_and_reopens_from_job_history(page,portal
     assert report['policy']['version']=='campaign-full-period-monte-carlo-v2'
     assert report['reused_population']['analysis_id']==old_id
     assert report['files']['paths.csv']==legacy['files']['paths.csv']
+    oos_results=page.request.get(portal['url']+f'/api/campaign-workflows/{workflow["id"]}/oos/results?job={oos["id"]}').json()
+    first=oos_results['items'][0]
+    playwright.expect(page.locator('#monte-carlo-table td[data-column="is_mtm_dd"]').first).to_have_text(f"{float(first['is_reference']['metrics']['is_mtm_max_drawdown']):,.2f}")
+    playwright.expect(page.locator('#monte-carlo-table td[data-column="oos_mtm_dd"]').first).to_have_text(f"{float(first['metrics']['oos_mtm_max_drawdown']):,.2f}")
     for candidate in report['candidates']:
         assert all(s['max_drawdown_median']==0 and s['historical_drawdown_percentile_pct']==50 for s in candidate['scenarios'])
     daily=list(csv.DictReader((tmp_path/'daily.csv').open()))
@@ -82,9 +96,14 @@ def test_final_sanity_check_runs_in_oos_and_reopens_from_job_history(page,portal
         limitations='Synthetic source and mechanics attestations; no measured MultiCharts parity or future-edge claim.',
         server='Temporary browser server stopped at teardown.'),indent=2))
     playwright.expect(page.locator('#monte-carlo-table td[data-column="mean_net"]').first).to_have_text(f"{report['candidates'][0]['scenarios'][0]['net_profit_mean']:,.2f}")
+    playwright.expect(page.locator('#monte-carlo-drawdown-table')).to_be_hidden()
     page.locator('#monte-carlo-panel').scroll_into_view_if_needed()
     page.locator('#monte-carlo-panel').screenshot(path=str(tmp_path/'monte-carlo-portal.png'))
+    page.locator('#monte-carlo-drawdown-details summary').click()
+    playwright.expect(page.locator('#monte-carlo-drawdown-table td[data-column="historical_dd"]').first).to_have_text('0.00')
+    playwright.expect(page.locator('#monte-carlo-drawdown-table td[data-column="dd_percentile"]').first).to_have_text('50.00')
+    page.locator('#monte-carlo-drawdown-details').screenshot(path=str(tmp_path/'daily-close-diagnostics.png'))
     if destination:=os.environ.get('ALPHAQUEST_MC_EVIDENCE_DIR'):
         folder=Path(destination);folder.mkdir(parents=True,exist_ok=True)
-        for name in ('report.json','original-v1-report.json','daily.csv','paths.csv','analysis.zip','SYNTHETIC-source.csv','journey.json','monte-carlo-portal.png'):
+        for name in ('report.json','original-v1-report.json','daily.csv','paths.csv','analysis.zip','SYNTHETIC-source.csv','journey.json','monte-carlo-portal.png','daily-close-diagnostics.png'):
             shutil.copyfile(tmp_path/name,folder/name)

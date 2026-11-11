@@ -10919,3 +10919,26 @@ and percentile-tie handling, insufficient evidence, and cancellation. Native API
 checks retain OOS admission/source verification, frozen IS preservation,
 idempotence, no replay, download integrity and application reopening. No claim
 of measured MultiCharts parity, future robustness or trading readiness is made.
+
+### 2026-11-12 — Foreground MTM risk and collapse daily-close diagnostics
+
+Updated the normal OOS/Monte Carlo presentation to show separate frozen IS/OOS
+bar-close MTM maximum drawdowns in the primary results table. Values come from
+the already verified OOS results, without another source read, calculation,
+backtest or simulation. They are labeled by period and are not presented as a
+stitched full-period MTM measurement. The existing IS/OOS result tables continue
+to expose their MTM measurements.
+
+Moved all daily-close bootstrap drawdown columns into **Daily-close Monte Carlo
+drawdown diagnostics (optional)**, collapsed by default. Its explanation states
+that source-local daily observations can miss intraday peaks/losses and cannot
+establish intraday account-rule survival. Mean/median profit, lower-tail profit
+and required checks remain in the main table. Existing saved measurements,
+verdicts, policy versions, JSON/CSV/ZIP downloads and report identities remain
+unchanged. There is no migration, strategy replay or Monte Carlo rerun required.
+
+[Presentation evidence and reproduction steps](evidence/campaign_monte_carlo/drawdown_ui/README.md)
+preserve earlier v1/v2 evidence. The affected browser journey checks primary
+MTM values against native OOS results, collapsed/expanded daily diagnostics,
+two-decimal formatting, saved downloads, reload and history navigation. It uses
+the actual product workflow and shuts its temporary server down at teardown.

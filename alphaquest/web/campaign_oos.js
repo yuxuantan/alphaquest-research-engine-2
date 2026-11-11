@@ -75,7 +75,7 @@
         items=data.items.length?data.items:detail.candidates.map((c,i)=>({trial:i+1,broad_trial:c.broad_trial,narrow_trial:c.trial,parameters:c.parameters,is_run_id:c.run_id,is_reference:c.is_reference,status:'pending',qualifies:false}));
         paintTable();if(job?.status==='complete')paintPhase(data.passed?'passed':'not_qualified');outcome.textContent=job?.status==='complete'?`${data.passed} / ${data.total} configurations passed OOS. Each passing configuration remains eligible independently; OOS does not revise the IS selections.`:job?'Completed results remain visible while remaining configurations run.':'Seven checks will be shown per completed configuration.';
         downloads.replaceChildren();if(job){link(downloads,'Job history / progress',`#jobs/backtest_batch/${job.id}`);link(downloads,'OOS assessment JSON ↓',url('/download'));link(downloads,'OOS results CSV ↓',url('/download')+(jobId?'&':'?')+'format=csv');}
-        await window.campaignMonteCarlo.render(monteCarlo,workflow.id,job?.id,{isCurrent:alive,eligible:job?.status==='complete'&&data.passed>0});
+        await window.campaignMonteCarlo.render(monteCarlo,workflow.id,job?.id,{isCurrent:alive,eligible:job?.status==='complete'&&data.passed>0,mtmCandidates:items});
         if(['queued','running'].includes(job?.status))timer=setTimeout(poll,2500);
       }
       async function poll(){try{const previous=job,updated=await read(`/api/optimizations/${job.id}`);if(!alive())return;job=updated;paintProgress();if(job.completed_trials!==previous.completed_trials||job.status!==previous.status){await refresh();return;}}catch(error){if(alive())notice.textContent=`Progress update failed: ${error.message}`;}if(alive()&&['queued','running'].includes(job?.status))timer=setTimeout(poll,2500);}

@@ -9,7 +9,7 @@
     const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Monte Carlo request rejected.');return data;
   }
   function link(parent,text,href){const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);}
-  async function render(parent,workflowId,oosJobId,{isCurrent,eligible}){
+  async function render(parent,workflowId,oosJobId,{isCurrent,eligible,mtmCandidates=[]}){
     dispose();const version=generation,alive=()=>version===generation&&isCurrent(),base=`/api/campaign-workflows/${workflowId}/oos/monte-carlo`;
     parent.replaceChildren(node('h2','Final Monte Carlo sanity check'));
     if(!oosJobId){parent.append(node('p','Complete OOS to check passing configurations across the full IS + OOS period.'));return;}
@@ -39,18 +39,29 @@
       if(report.reused_population){output.append(node('p','Updated assessment uses the original saved path outcomes. No new simulation was run.'));link(actions,'Original assessment JSON ↓',`${base}/jobs/${report.reused_population.analysis_id}/download`);}
       output.append(node('p',`IS ${report.plan.is_start} → ${report.plan.is_end}; OOS ${report.plan.oos_start} → ${report.plan.oos_end}. Gap between windows: ${report.unobserved_split_gap_calendar_days} calendar days. Paths contain exactly the saved observed dates; missing dates are not filled.`));
       const scroll=node('div',undefined,'optimization-scroll'),table=node('table',undefined,'library-table');table.id='monte-carlo-table';
-      output.append(node('p','Scroll within the table to inspect all metrics. Mean/median profit and all drawdown metrics are diagnostics, not additional gates.','field-help'));
-      const headers=[['candidate','Candidate'],['status','Final status'],['evidence','Evidence'],['block','Mean block · observed days'],['p05','5th %ile net profit'],['historical_net','Historical net profit'],['mean_net','Mean net profit'],['median_net','Median net profit'],['profitable','Profitable paths %'],['median_dd','Median daily-close DD'],['p95_dd','95th %ile daily-close DD'],['historical_dd','Historical daily-close DD'],['dd_multiple','95th %ile DD / historical DD'],['dd_percentile','Historical DD percentile %'],['checks','Required checks']];
+      output.append(node('p','IS/OOS drawdowns below use every bar close, including open-position P&L, from the frozen backtests. Daily-close Monte Carlo drawdowns are available in the optional details below. Mean/median profit and drawdown metrics add no Monte Carlo pass/fail gates.','field-help'));
+      const mtmByCandidate=new Map(mtmCandidates.map(item=>[item.trial,item]));
+      const headers=[['candidate','Candidate'],['status','Final status'],['evidence','Evidence'],['block','Mean block · observed days'],['p05','5th %ile net profit'],['is_mtm_dd','IS max drawdown · bar-close MTM'],['oos_mtm_dd','OOS max drawdown · bar-close MTM'],['historical_net','Historical net profit'],['mean_net','Mean net profit'],['median_net','Median net profit'],['profitable','Profitable paths %'],['checks','Required checks']];
       const head=node('tr');for(const [key,text] of headers){const th=node('th',text);th.dataset.column=key;head.append(th);}const thead=node('thead');thead.append(head);table.append(thead);
       const body=node('tbody');
+      const drawdownDetails=node('details',undefined,'optimization-freeze');drawdownDetails.id='monte-carlo-drawdown-details';
+      drawdownDetails.append(node('summary','Daily-close Monte Carlo drawdown diagnostics (optional)'),node('p','These diagnostics sample equity only at the last observed bar of each source-local calendar date. They describe the daily-P&L bootstrap, can miss intraday peaks and losses, and are not the stitched every-bar MTM maximum drawdown. Daily-close risk is not sufficient to assess intraday account-rule breaches.','field-help'));
+      const dailyScroll=node('div',undefined,'optimization-scroll'),dailyTable=node('table',undefined,'library-table');dailyTable.id='monte-carlo-drawdown-table';
+      const dailyHeaders=[['candidate','Candidate'],['block','Mean block · observed days'],['historical_dd','Historical daily-close DD'],['median_dd','Median daily-close DD'],['p95_dd','95th %ile daily-close DD'],['dd_multiple','95th %ile DD / historical DD'],['dd_percentile','Historical DD percentile %']];
+      const dailyHead=node('tr');for(const [key,text] of dailyHeaders){const th=node('th',text);th.dataset.column=key;dailyHead.append(th);}const dailyThead=node('thead');dailyThead.append(dailyHead);dailyTable.append(dailyThead);
+      const dailyBody=node('tbody');
       for(const candidate of report.candidates)for(const scenario of candidate.scenarios){
         const row=node('tr');row.dataset.candidate=candidate.candidate;
         if(!candidate.qualifies)row.className='broad-ineligible';
-        const values=[String(candidate.candidate),candidate.qualifies?'Passed':'Failed',`${candidate.observed.days} observed dates · ${candidate.observed.closed_trades} trades`,String(scenario.mean_block_days),fmt(scenario.net_profit_p05),fmt(candidate.observed.net_profit),fmt(scenario.net_profit_mean),fmt(scenario.net_profit_median),`${fmt(scenario.profitable_paths_pct)} (MC SE ${fmt(scenario.profitable_paths_mc_se_pp)} pp)`,fmt(scenario.max_drawdown_median),fmt(scenario.max_drawdown_p95),fmt(candidate.observed.daily_close_max_drawdown),scenario.max_drawdown_p95_over_observed==null?'N/A':fmt(scenario.max_drawdown_p95_over_observed)+'×',fmt(scenario.historical_drawdown_percentile_pct)];
+        const mtm=mtmByCandidate.get(candidate.candidate);
+        const values=[String(candidate.candidate),candidate.qualifies?'Passed':'Failed',`${candidate.observed.days} observed dates · ${candidate.observed.closed_trades} trades`,String(scenario.mean_block_days),fmt(scenario.net_profit_p05),fmt(mtm?.is_reference?.metrics?.is_mtm_max_drawdown),fmt(mtm?.metrics?.oos_mtm_max_drawdown),fmt(candidate.observed.net_profit),fmt(scenario.net_profit_mean),fmt(scenario.net_profit_median),`${fmt(scenario.profitable_paths_pct)} (MC SE ${fmt(scenario.profitable_paths_mc_se_pp)} pp)`];
         values.forEach((text,i)=>{const td=node('td',text);td.dataset.column=headers[i][0];row.append(td);});
         const details=node('td'),list=node('ul');details.dataset.column='checks';list.append(node('li',`${candidate.evidence_passed?'PASS':'FAIL'} · Minimum evidence`));for(const check of scenario.checks)list.append(node('li',`${check.passed?'PASS':'FAIL'} · ${check.label}: ${fmt(check.actual)}. Required: ${check.required}`));details.append(list);row.append(details);body.append(row);
+        const dailyRow=node('tr');dailyRow.dataset.candidate=candidate.candidate;
+        const dailyValues=[String(candidate.candidate),String(scenario.mean_block_days),fmt(candidate.observed.daily_close_max_drawdown),fmt(scenario.max_drawdown_median),fmt(scenario.max_drawdown_p95),scenario.max_drawdown_p95_over_observed==null?'N/A':fmt(scenario.max_drawdown_p95_over_observed)+'×',fmt(scenario.historical_drawdown_percentile_pct)];
+        dailyValues.forEach((text,i)=>{const td=node('td',text);td.dataset.column=dailyHeaders[i][0];dailyRow.append(td);});dailyBody.append(dailyRow);
       }
-      table.append(body);scroll.append(table);output.append(scroll);
+      table.append(body);scroll.append(table);dailyTable.append(dailyBody);dailyScroll.append(dailyTable);drawdownDetails.append(dailyScroll);output.append(scroll,drawdownDetails);
     }
     async function refresh(){
       clearTimeout(timer);

@@ -556,8 +556,21 @@ verifies artifacts and reads saved measurements without simulation. A cancelled
 job publishes no partial passing population. Frozen IS/OOS reports are retained.
 
 The single results table shows two block scenarios per candidate, combined
-status, evidence counts, lower-tail profit, daily-close drawdown, limits and
-per-rule reasons. Monetary values display two decimals. Download JSON, exact
+status, evidence counts, lower-tail profit, mean/median profit and per-rule
+reasons. It prominently shows the frozen IS and OOS **bar-close MTM maximum
+drawdown** from the existing verified backtest results. These are separate
+period measurements, not a calculated stitched every-bar MTM drawdown.
+
+**Daily-close Monte Carlo drawdown diagnostics (optional)** is collapsed by
+default. It contains historical, median and 95th-percentile daily-close
+drawdown, the drawdown multiple and historical drawdown percentile. Its help
+explains that daily sampling misses intraday peaks/losses and cannot establish
+intraday account-rule survival. Daily-close measurements stay on the same basis
+as the daily-P&L bootstrap and are not substituted for the native MTM values.
+This is a presentation change: numerical policy, saved artifacts, admission and
+downloads are unchanged; existing assessments need no migration or rerun.
+
+Monetary values display two decimals. Download JSON, exact
 daily inputs, all path outcomes and a checksummed ZIP. Store source IDs and
 artifact hashes, parameters, research windows, prior OOS verdict, policy, seed,
 NumPy/calculation identity and limitations. Corrupt sources cannot launch a new
