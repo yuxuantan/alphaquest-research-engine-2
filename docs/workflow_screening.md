@@ -201,6 +201,8 @@ artifacts or changed neighboring evidence make a row ineligible. Results show
 all seven required checks and separate review measurements per row, sortable
 metrics, visible/frozen varied parameter columns, report links, and CSV/package
 downloads. Fixed inputs start hidden.
+The Narrow grid uses the same sortable header, sticky/frozen column, checkbox,
+and eligibility-row styling as IS Broad.
 
 IS Narrow screening reads and verifies each visible native report, its
 cost-stress evidence, adjacent grid trials, and daily equity. Repeating that

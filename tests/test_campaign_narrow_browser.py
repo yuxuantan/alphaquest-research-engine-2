@@ -75,6 +75,11 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
         second=narrow_start(client,'/api/campaign-workflows/'+workflow['id'],2)
     page.reload()
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
+    header_style=page.locator('#narrow-results th[data-column="param.hold_minutes"] button').evaluate(
+        'button => ({border:getComputedStyle(button).borderTopStyle,background:getComputedStyle(button).backgroundColor,padding:getComputedStyle(button).paddingTop})')
+    assert header_style=={'border':'none','background':'rgba(0, 0, 0, 0)','padding':'8px'}
+    assert page.locator('#narrow-results th[data-column="param.hold_minutes"]').evaluate(
+        'cell => getComputedStyle(cell).position')=='sticky'
     screened=[]
     page.on('request',lambda request: screened.append(request.url) if '/narrow/results?' in request.url else None)
     first_job=page.request.get(prefix+'/narrow?broad_trial=1').json()['job']['id']
