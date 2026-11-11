@@ -73,3 +73,57 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
         folder=Path(destination);folder.mkdir(parents=True,exist_ok=True)
         for name in ('SYNTHETIC-source.csv','narrow-results.json','is-narrow-package.json','journey.json','is-narrow-portal.png'):
             shutil.copyfile(tmp_path/name,folder/name)
+
+
+def test_narrow_portal_explicit_local_refinement_and_saved_result(page,portal,tmp_path):
+    with httpx.Client(base_url=portal['url'],timeout=40) as client:
+        dataset,workflow,broad=narrow_workflow(client,refinement=True)
+    prefix=portal['url']+'/api/campaign-workflows/'+workflow['id']
+    page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_narrow')
+    playwright.expect(page.locator('#narrow-chooser')).to_be_visible()
+    refine=page.get_by_role('checkbox',name='Refine Hold minutes in Narrow')
+    playwright.expect(refine).not_to_be_checked()
+    playwright.expect(page.get_by_label('Hold minutes start',exact=True)).to_be_disabled()
+    refine.check()
+    page.get_by_label('Hold minutes start',exact=True).fill('19')
+    page.get_by_label('Hold minutes end',exact=True).fill('21')
+    page.get_by_label('Hold minutes step',exact=True).fill('1')
+    page.locator('#narrow-preview').click()
+    playwright.expect(page.locator('#narrow-count')).to_have_text('3 iterations · IS only')
+    page.locator('#narrow-run').click()
+    playwright.expect(page.locator('#narrow-progress')).to_contain_text('COMPLETE · 3 / 3 trials',timeout=30000)
+    playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(3)
+    assert page.locator('#narrow-results thead th.optimization-frozen-column').evaluate_all('items => items.map(el=>el.dataset.column)')==['select','trial','param.hold_minutes']
+    playwright.expect(page.locator('#narrow-results th[data-column="param.contracts"]')).to_be_hidden()
+    page.reload()
+    playwright.expect(refine).to_be_checked()
+    playwright.expect(page.get_by_label('Hold minutes start',exact=True)).to_have_value('19')
+    playwright.expect(page.get_by_label('Hold minutes end',exact=True)).to_have_value('21')
+    results=page.request.get(prefix+'/narrow/results?broad_trial=1').json()
+    eligible=next(row['trial'] for row in results['items'] if row['qualifies'])
+    with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
+        page.get_by_role('checkbox',name=f'Select Narrow trial {eligible}').check()
+    playwright.expect(page.locator('#narrow-confirm')).to_be_enabled()
+    page.locator('#narrow-confirm').click()
+    playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
+    page.reload()
+    playwright.expect(page.locator('#mechanic-phases [data-phase="oos"]')).to_be_enabled()
+    with page.expect_download() as download:
+        page.get_by_role('link',name='Saved IS Narrow package ↓').click()
+    download.value.save_as(tmp_path/'refined-narrow-package.json')
+    package=json.loads((tmp_path/'refined-narrow-package.json').read_text())
+    assert package['job']['research']['refined_broad_parameters']==['hold_minutes']
+    assert package['state']['selected_trials']==[eligible]
+    (tmp_path/'SYNTHETIC-source.csv').write_bytes(page.request.get(portal['url']+'/api/datasets/'+dataset['id']+'/csv').body())
+    (tmp_path/'refined-narrow-results.json').write_text(json.dumps(results,indent=2))
+    (tmp_path/'journey.json').write_text(json.dumps({'workflow_id':workflow['id'],'dataset_id':dataset['id'],
+        'broad_job_id':broad['id'],'narrow_job_id':package['job']['id'],
+        'selected_broad_hold_minutes':20,'refined_narrow_hold_minutes':[19,20,21],
+        'chosen_narrow_trial':eligible,'expected_oos_navigation':'ready',
+        'synthetic':True,'mc_parity':'Manual attestation in synthetic fixture; no external MultiCharts comparison',
+        'server':'Stopped by fixture teardown.'},indent=2))
+    page.screenshot(path=str(tmp_path/'refined-narrow-portal.png'),full_page=True)
+    if destination:=os.environ.get('ALPHAQUEST_REFINEMENT_EVIDENCE_DIR'):
+        folder=Path(destination);folder.mkdir(parents=True,exist_ok=True)
+        for name in ('SYNTHETIC-source.csv','refined-narrow-results.json','refined-narrow-package.json','journey.json','refined-narrow-portal.png'):
+            shutil.copyfile(tmp_path/name,folder/name)

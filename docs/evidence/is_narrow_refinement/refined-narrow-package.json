@@ -1,0 +1,588 @@
+{
+  "workflow_id": "a088675413f74a398225b81077207adb",
+  "declaration": {
+    "version": "campaign-mechanics-v1",
+    "strategy_id": "consecutive_green_hold",
+    "dataset": {
+      "id": "113464b78ab94c7d951f6875cae58470",
+      "name": "SYNTHETIC 120-day narrow oracle",
+      "sha256": "608027a06dbf4cf2069062baa9475d1d3ee60b1e9b1b218b8c3dd91607298067",
+      "bytes": 116340,
+      "row_count": 2883,
+      "source_timezone": "UTC",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      },
+      "symbol": "SYNTHETIC",
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-01-01T09:00:00Z"
+    },
+    "default_parameters": {
+      "green_bar_count": 3,
+      "hold_minutes": 20,
+      "contracts": 1
+    },
+    "strategy_source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+    "engine_identity": "fcbbd6af955b14a174df2118a3890e67cfff090077aa05bcf2e9dfa78dc276ef",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "plan": {
+      "strategy_id": "consecutive_green_hold",
+      "source_sha256": "608027a06dbf4cf2069062baa9475d1d3ee60b1e9b1b218b8c3dd91607298067",
+      "source_timezone": "UTC",
+      "is_start": "2024-01-01",
+      "is_end": "2025-12-31",
+      "oos_start": "2026-01-01",
+      "oos_end": "2026-01-01",
+      "is_bars": 2882,
+      "oos_bars": 1,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "market_benchmark": {
+      "contracts": 1
+    }
+  },
+  "policy": {
+    "version": "is-narrow-v1",
+    "neighbor_profit_fraction_gte": "0.70",
+    "time_periods": 4,
+    "profitable_periods_gte": 3,
+    "latest_period_positive": true,
+    "best_complete_month_removed_net_gt": "0",
+    "confidence_level": "0.95",
+    "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+    "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+    "hac_lag_observations": 5,
+    "minimum_observed_days": 100,
+    "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+    "neighbors": "all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent",
+    "seed": null
+  },
+  "state": {
+    "broad_trial": 1,
+    "job_id": "ad92f7d9a7314014a12c1e987f85e3b0",
+    "revision": 3,
+    "selected_trials": [
+      1
+    ],
+    "selection": [
+      {
+        "broad_trial": 1,
+        "trial": 1,
+        "run_id": "e08f5b258944443690fd88ad2350c551",
+        "parameters": {
+          "green_bar_count": 3,
+          "hold_minutes": 19,
+          "contracts": 1
+        },
+        "total_net_pnl": "9360.00",
+        "report_identity": "7d28fc200c4376caf57423c7e3e0e30d0541c63866ee12d9816d4bf7efba3335",
+        "admission": {
+          "policy": {
+            "version": "is-narrow-v1",
+            "neighbor_profit_fraction_gte": "0.70",
+            "time_periods": 4,
+            "profitable_periods_gte": 3,
+            "latest_period_positive": true,
+            "best_complete_month_removed_net_gt": "0",
+            "confidence_level": "0.95",
+            "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+            "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+            "hac_lag_observations": 5,
+            "minimum_observed_days": 100,
+            "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+            "neighbors": "all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent",
+            "seed": null
+          },
+          "qualifies": true,
+          "checks": [
+            {
+              "id": "evidence",
+              "label": "History and trades",
+              "passed": true,
+              "actual": "24 months; 720 closed trades",
+              "required": "\u2265 24 months and \u2265 100 closed trades"
+            },
+            {
+              "id": "net_profit",
+              "label": "Overall profitability",
+              "passed": true,
+              "actual": "9360.00",
+              "required": "Net IS profit > 0"
+            },
+            {
+              "id": "profitable_months",
+              "label": "Profitable months",
+              "passed": true,
+              "actual": "100% of 24 complete months",
+              "required": "> 50% profitable; zero/no-trade months included"
+            },
+            {
+              "id": "drawdown_duration",
+              "label": "Longest MTM drawdown",
+              "passed": true,
+              "actual": "0.01928484572123423012615899073% of IS",
+              "required": "< 25% of IS, including unresolved drawdown"
+            },
+            {
+              "id": "cost_stress",
+              "label": "Extra-slippage native rerun",
+              "passed": true,
+              "actual": "5760.00",
+              "required": "Net profit > 0 with +1 tick per fill"
+            },
+            {
+              "id": "neighbors",
+              "label": "Profitable immediate neighbors",
+              "passed": true,
+              "actual": "1 / 1",
+              "required": ">= 70% of valid immediate neighbors"
+            },
+            {
+              "id": "time_stability",
+              "label": "Four-period stability",
+              "passed": true,
+              "actual": "2340.00, 2340.00, 2340.00, 2340.00",
+              "required": "At least 3 positive, including most recent"
+            },
+            {
+              "id": "month_concentration",
+              "label": "Profit without best complete month",
+              "passed": true,
+              "actual": "8970.00",
+              "required": "> 0"
+            },
+            {
+              "id": "search_adjusted_bound",
+              "label": "Search-adjusted daily net lower bound",
+              "passed": true,
+              "actual": "74.6369 CU/day",
+              "required": "95% lower bound > 0, HAC lag 5, Bonferroni family of 5 attempted trials"
+            }
+          ],
+          "neighbors": {
+            "profitable": 1,
+            "valid": 1,
+            "fraction": 1.0,
+            "passed": true
+          },
+          "quarter_boundaries": [
+            "2024-01-01",
+            "2024-07-01",
+            "2024-12-31",
+            "2025-07-02",
+            "2026-01-01"
+          ],
+          "quarter_net_pnl": [
+            "2340.00",
+            "2340.00",
+            "2340.00",
+            "2340.00"
+          ],
+          "net_without_best_month": "8970.00",
+          "confidence": {
+            "mean_net_daily": 76.72131147540983,
+            "lower_bound": 74.63687449814508,
+            "critical_value": 2.3263478740408408,
+            "observed_days": 122,
+            "family_size": 5,
+            "hac_lag_observations": 5
+          },
+          "family_size": 5
+        }
+      }
+    ],
+    "confirmed_at_utc": "2026-11-11T00:12:57.483652+00:00",
+    "preview_token": "99942bc04187b47c78cc59f07a7882827584ddbcb11c0d6a363f121e20291fce",
+    "broad_selection_identity": "955f424324598c9540bd9e05f601828946984cc31f3da0c01050d330c38e79e0",
+    "policy": {
+      "version": "is-narrow-v1",
+      "neighbor_profit_fraction_gte": "0.70",
+      "time_periods": 4,
+      "profitable_periods_gte": 3,
+      "latest_period_positive": true,
+      "best_complete_month_removed_net_gt": "0",
+      "confidence_level": "0.95",
+      "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+      "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+      "hac_lag_observations": 5,
+      "minimum_observed_days": 100,
+      "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+      "neighbors": "all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent",
+      "seed": null
+    },
+    "refinement_policy": "is-narrow-local-refinement-v1",
+    "refined_broad_parameters": [
+      "hold_minutes"
+    ],
+    "family_size": 5,
+    "engine_identity": "fcbbd6af955b14a174df2118a3890e67cfff090077aa05bcf2e9dfa78dc276ef",
+    "status": "passed",
+    "broad_selection": {
+      "trial": 1,
+      "run_id": "fabbbe1d1fe54050a69acdbb58fb6d24",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "total_net_pnl": "9360.00",
+      "report_identity": "c2bb88facce7d95007c490c26229e37085b37a53fb2c3db4e018ae615c4d78f2"
+    }
+  },
+  "job": {
+    "id": "ad92f7d9a7314014a12c1e987f85e3b0",
+    "created_at_utc": "2026-11-11T00:12:50.199863+00:00",
+    "status": "complete",
+    "stage": "done",
+    "completed_trials": 3,
+    "total_trials": 3,
+    "bars_processed": 2882,
+    "total_bars": 2882,
+    "active_trials": [],
+    "results_snapshot_rowid": 5,
+    "worker_count": 1,
+    "worker_pids": [
+      66037
+    ],
+    "failed_trials": [],
+    "request": {
+      "dataset_id": "113464b78ab94c7d951f6875cae58470",
+      "strategy_id": "consecutive_green_hold",
+      "method": "exhaustive",
+      "parameter_ranges": {
+        "green_bar_count": {
+          "start": 3,
+          "end": 3,
+          "step": 0
+        },
+        "hold_minutes": {
+          "start": 19,
+          "end": 21,
+          "step": 1
+        },
+        "contracts": {
+          "start": 1,
+          "end": 1,
+          "step": 0
+        }
+      },
+      "workers": 1,
+      "reuse_results": true,
+      "prepare_data": true,
+      "automatic_prop": false,
+      "execution_settings": {
+        "initial_capital": "10000",
+        "slippage_ticks": 1,
+        "commission_per_contract_per_side": "1",
+        "tick_size": "0.25",
+        "point_value": "10"
+      },
+      "sample_split": {
+        "mode": "dates",
+        "is_start": "2024-01-01",
+        "is_end": "2025-12-31",
+        "oos_start": "2026-01-01",
+        "oos_end": "2026-01-01",
+        "is_percent": null
+      },
+      "market_benchmark": {
+        "contracts": 1
+      },
+      "from_date": null,
+      "to_date": null
+    },
+    "axes": {
+      "green_bar_count": [
+        3
+      ],
+      "hold_minutes": [
+        19,
+        20,
+        21
+      ],
+      "contracts": [
+        1
+      ]
+    },
+    "dataset": {
+      "filename": "SYNTHETIC-narrow.csv",
+      "bytes": 116340,
+      "sha256": "608027a06dbf4cf2069062baa9475d1d3ee60b1e9b1b218b8c3dd91607298067",
+      "row_count": 2883,
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-01-01T09:00:00Z",
+      "source_timezone": "UTC",
+      "interval_seconds": null,
+      "interval_kind": "irregular",
+      "columns": [
+        "Date",
+        "Time",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Volume",
+        "UpVol",
+        "DownVol"
+      ],
+      "preview": [
+        {
+          "Date": "01/01/2024",
+          "Time": "09:00",
+          "Open": "100",
+          "High": "100",
+          "Low": "100",
+          "Close": "100",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-01T09:00:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "09:00",
+          "Open": "97",
+          "High": "98",
+          "Low": "97",
+          "Close": "98",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T09:00:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "09:01",
+          "Open": "98",
+          "High": "99",
+          "Low": "98",
+          "Close": "99",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T09:01:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "09:02",
+          "Open": "99",
+          "High": "100",
+          "Low": "99",
+          "Close": "100",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T09:02:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "09:23",
+          "Open": "101",
+          "High": "101",
+          "Low": "101",
+          "Close": "101",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T09:23:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "10:00",
+          "Open": "97",
+          "High": "98",
+          "Low": "97",
+          "Close": "98",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T10:00:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "10:01",
+          "Open": "98",
+          "High": "99",
+          "Low": "98",
+          "Close": "99",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T10:01:00Z"
+        },
+        {
+          "Date": "01/05/2024",
+          "Time": "10:02",
+          "Open": "99",
+          "High": "100",
+          "Low": "99",
+          "Close": "100",
+          "Volume": "100",
+          "UpVol": "60",
+          "DownVol": "40",
+          "datetime": "2024-01-05T10:02:00Z"
+        }
+      ],
+      "warnings": [
+        "Bar spacing varies. Gaps are preserved; no bars are filled or removed."
+      ],
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      },
+      "id": "113464b78ab94c7d951f6875cae58470",
+      "name": "SYNTHETIC 120-day narrow oracle",
+      "symbol": "SYNTHETIC",
+      "created_at": "2026-11-11T00:12:44.159370Z"
+    },
+    "strategy": {
+      "id": "consecutive_green_hold",
+      "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+      "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+      "execution_assumption": "same_close_full_fill",
+      "parameters": [
+        {
+          "name": "green_bar_count",
+          "type": "int",
+          "default": 3,
+          "description": "Consecutive observed bars with Close > Open required while flat.",
+          "minimum": 1
+        },
+        {
+          "name": "hold_minutes",
+          "type": "int",
+          "default": 20,
+          "description": "Elapsed UTC minutes from the actual entry time to the target exit.",
+          "minimum": 1
+        },
+        {
+          "name": "contracts",
+          "type": "int",
+          "default": 1,
+          "description": "Fixed contract quantity requested for each long entry.",
+          "minimum": 1
+        }
+      ]
+    },
+    "report_detail": "compact",
+    "research": {
+      "phase": "is",
+      "plan": {
+        "strategy_id": "consecutive_green_hold",
+        "source_sha256": "608027a06dbf4cf2069062baa9475d1d3ee60b1e9b1b218b8c3dd91607298067",
+        "source_timezone": "UTC",
+        "is_start": "2024-01-01",
+        "is_end": "2025-12-31",
+        "oos_start": "2026-01-01",
+        "oos_end": "2026-01-01",
+        "is_bars": 2882,
+        "oos_bars": 1,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "workflow_id": "a088675413f74a398225b81077207adb",
+      "workflow_phase": "is_narrow",
+      "broad_trial": 1,
+      "broad_selection_identity": "955f424324598c9540bd9e05f601828946984cc31f3da0c01050d330c38e79e0",
+      "screening_policy": {
+        "version": "is-broad-v3",
+        "minimum_history_months": 24,
+        "minimum_closed_trades": 100,
+        "profitable_months_pct_gt": "50",
+        "longest_dd_period_fraction_lt": "0.25",
+        "extra_slippage_ticks_per_fill": 1,
+        "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+        "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+        "annualization_days": "365.2425"
+      },
+      "narrow_policy": {
+        "version": "is-narrow-v1",
+        "neighbor_profit_fraction_gte": "0.70",
+        "time_periods": 4,
+        "profitable_periods_gte": 3,
+        "latest_period_positive": true,
+        "best_complete_month_removed_net_gt": "0",
+        "confidence_level": "0.95",
+        "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+        "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+        "hac_lag_observations": 5,
+        "minimum_observed_days": 100,
+        "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+        "neighbors": "all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent",
+        "seed": null
+      },
+      "refinement_policy": "is-narrow-local-refinement-v1",
+      "refined_broad_parameters": [
+        "hold_minutes"
+      ],
+      "broad_anchor_parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 1
+      },
+      "period_boundaries": [
+        "2024-01-01",
+        "2024-07-01",
+        "2024-12-31",
+        "2025-07-02",
+        "2026-01-01"
+      ],
+      "frozen_broad_parameters": {}
+    },
+    "engine_identity": "fcbbd6af955b14a174df2118a3890e67cfff090077aa05bcf2e9dfa78dc276ef",
+    "reused_trials": 0,
+    "default_prop_profile": null,
+    "prop_unavailable_trials": 0,
+    "prop_error_trials": 0,
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "step_counts": {
+      "green_bar_count": 1,
+      "hold_minutes": 3,
+      "contracts": 1
+    },
+    "metric_columns": [
+      "total_net_pnl",
+      "total_gross_pnl",
+      "total_commissions",
+      "total_slippage_cost",
+      "final_equity",
+      "trades_taken",
+      "winning_trades",
+      "losing_trades",
+      "breakeven_trades",
+      "win_rate_pct",
+      "max_drawdown_amount",
+      "max_drawdown_pct",
+      "max_drawdown_duration_seconds",
+      "is_history_months",
+      "is_annual_net_profit",
+      "is_mtm_max_drawdown",
+      "is_annual_profit_dd_ratio",
+      "is_profitable_months_pct",
+      "is_full_months",
+      "is_longest_dd_pct",
+      "is_stress_net_profit"
+    ],
+    "started_at_utc": "2026-11-11T00:12:50.263945+00:00",
+    "elapsed_seconds": 4.742830332950689,
+    "preparation_seconds": 0.07390258298255503,
+    "prepared_data": true,
+    "cached_feature_series": 0,
+    "temporary_bytes": 523554,
+    "finished_at_utc": "2026-11-11T00:12:55.009546+00:00"
+  }
+}

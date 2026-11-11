@@ -151,17 +151,27 @@ Retain **all five IS Broad requirements** and add:
    unsuccessful searches and reruns. An ordinary winner-only interval does not
    satisfy this condition.
 
-For each confirmed Broad configuration, choose a Narrow grid. Every parameter
-that varied in Broad is fixed at the selected Broad value. The other strategy
-parameters can vary. At least one Narrow parameter must vary so every row has
-an immediate neighbor. The native exhaustive optimizer validates coupled
-strategy constraints before launch. Each Broad selection has its own durable
+For each confirmed Broad configuration, choose a Narrow grid. Parameters that
+varied in Broad are locked at the selected Broad values by default. An explicit
+**Refine in Narrow** choice can unlock a numeric Broad parameter when the saved
+Broad grid has a representable finer step. The Narrow range must include its
+selected Broad value, use a smaller step, include at least one new value, and
+stay closer to that value than the midpoint to any other tested Broad value.
+Thus a Broad swing length grid of `5, 20`, selected at `5`, may use Narrow
+`3..7 step 1`; a binary mode grid of `1, 2` stays locked automatically. No
+per-campaign refinement list is required. A future sparse coded mode can opt
+out through `refinement_kind: categorical` in its strategy parameter metadata;
+ordinary numeric parameters need no new declaration. The other strategy parameters can
+vary. At least one Narrow parameter must vary so every row has an immediate
+neighbor. The native exhaustive optimizer validates coupled strategy
+constraints before launch. Each Broad selection has its own durable
 Narrow job; all branches must finish before any Narrow row becomes selectable.
 Up to two rows per Broad branch can be confirmed, at most four total. Each
 confirmation is immutable. OOS navigation unlocks only when all branches have
 confirmed selections; OOS execution and acceptance rules remain unimplemented.
 
-The Narrow job saves its Broad selection identity, frozen parameters, IS plan,
+The Narrow job saves its Broad selection identity, selected Broad anchor values,
+explicitly refined and still-frozen parameters, refinement rule version, IS plan,
 source and cost identity, all grid axes, five-rule screening policy, and the
 `is-narrow-v1` policy before launch. Native baseline and +1-tick cost-stress
 reports are saved in the usual report store. Missing reports, changed measured

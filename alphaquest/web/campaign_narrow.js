@@ -22,31 +22,38 @@
       let {state,job}=detail,preview=null,busy=false,sort='trial',direction='asc',offset=0,fetching=0,saving=false;
       parent.replaceChildren();
       const chooser=node('section',undefined,'panel broad-panel');chooser.id='narrow-chooser';
-      chooser.append(node('h2','One Narrow search per confirmed Broad configuration'),node('p','Choose a Broad configuration. Parameters varied in IS Broad are locked at its confirmed values. Run a separate Narrow grid for each choice.'));
+      chooser.append(node('h2','One Narrow search per confirmed Broad configuration'),node('p','Choose a Broad configuration. Broad values are locked by default. Where a finer numeric step exists, explicitly choose Refine in Narrow to search around the confirmed value. Run a separate Narrow grid for each choice.'));
       const chooseLabel=node('label','Broad configuration'),choose=node('select');choose.id='narrow-broad-trial';
       for(const branch of detail.branches)choose.add(new Option(`Broad trial ${branch.broad_trial} · ${branch.status.replaceAll('_',' ')}`,String(branch.broad_trial)));
       choose.value=String(trial);choose.onchange=()=>{location.hash=`#campaigns/workflows/${workflow.id}/is_narrow?broad_trial=${choose.value}`;};chooseLabel.append(choose);chooser.append(chooseLabel);
       const frozenBroad=node('pre',JSON.stringify(state.broad_selection.parameters,null,2));chooser.append(frozenBroad);parent.append(chooser);
       const config=node('section',undefined,'panel broad-panel');config.id='narrow-config';
-      config.append(node('h2','IS Narrow parameter search'),node('p','Choose ranges only for parameters that were fixed in IS Broad. The validated dataset, IS dates, costs, and selected Broad values stay frozen.'));
+      config.append(node('h2','IS Narrow parameter search'),node('p','Choose ranges for parameters fixed in IS Broad, or opt into a finer numeric range around a selected Broad value. Include that value in the range. The validated dataset, IS dates and costs stay frozen.'));
       const form=node('form'),fieldset=node('fieldset');form.append(fieldset);
-      const region=node('div',undefined,'optimization-scroll'),grid=node('table',undefined,'library-table optimization-grid');grid.innerHTML='<thead><tr><th>Parameter</th><th>Start</th><th>End</th><th>Step</th><th>Count</th></tr></thead><tbody></tbody>';region.append(grid);fieldset.append(region);config.append(form);parent.append(config);
-      const ranges=new Map(),parameters=detail.strategy.parameters,fixed=new Set(detail.fixed_parameters);
+      const region=node('div',undefined,'optimization-scroll'),grid=node('table',undefined,'library-table optimization-grid');grid.innerHTML='<thead><tr><th>Parameter</th><th>Narrow treatment</th><th>Start</th><th>End</th><th>Step</th><th>Count</th></tr></thead><tbody></tbody>';region.append(grid);fieldset.append(region);config.append(form);parent.append(config);
+      const ranges=new Map(),parameters=detail.strategy.parameters,fixed=new Set(detail.fixed_parameters),refinable=detail.refinable_parameters||{};
       let draft;try{draft=JSON.parse(sessionStorage.getItem('narrow-grid:'+workflow.id+':'+trial));}catch{}
-      const initial=job?.request.parameter_ranges||draft;
+      const initial=job?.request.parameter_ranges||draft?.parameter_ranges||draft;
+      const refined=new Set((job?job.research?.refined_broad_parameters||[]:draft?.refine_broad_parameters||[]).filter(name=>Object.hasOwn(refinable,name)));
+      const invalidate=message=>{preview=null;run.disabled=true;count.textContent=message;try{sessionStorage.setItem('narrow-grid:'+workflow.id+':'+trial,JSON.stringify({parameter_ranges:values(),refine_broad_parameters:[...refined]}));}catch{}};
       for(const parameter of parameters){
         const row=node('tr');row.dataset.parameter=parameter.name;
-        const name=node('th',label(parameter.name));name.scope='row';name.append(node('small',fixed.has(parameter.name)?'Locked from IS Broad':parameter.description||'','field-help'));row.append(name);
+        const isBroad=fixed.has(parameter.name),canRefine=Object.hasOwn(refinable,parameter.name);
+        const name=node('th',label(parameter.name));name.scope='row';name.append(node('small',isBroad?`Selected Broad value: ${state.broad_selection.parameters[parameter.name]}`:parameter.description||'','field-help'));row.append(name);
+        const treatment=node('td');
+        if(canRefine){const choice=node('label'),toggle=node('input');toggle.type='checkbox';toggle.setAttribute('aria-label',`Refine ${label(parameter.name)} in Narrow`);toggle.checked=refined.has(parameter.name);choice.append(toggle,document.createTextNode(' Refine in Narrow'));treatment.append(choice,node('small',`Broad minimum step ${refinable[parameter.name].broad_min_step}; use a finer step and include the selected value.`,'field-help'));toggle.onchange=()=>{if(toggle.checked)refined.add(parameter.name);else refined.delete(parameter.name);for(const part of ['start','end','step']){const input=ranges.get(parameter.name)[part];input.disabled=!toggle.checked;input.value=part==='step'?'0':String(state.broad_selection.parameters[parameter.name]);}invalidate('Refinement changed. Calculate iterations again.');};}
+        else treatment.textContent=isBroad?'Locked from IS Broad':'Choose range';
+        row.append(treatment);
         const inputs={};
         for(const part of ['start','end','step']){
           const cell=node('td'),input=node(parameter.type==='bool'&&part!=='step'?'select':'input');
           if(input.tagName==='SELECT'){input.add(new Option('False','false'));input.add(new Option('True','true'));}
           else{input.type='text';input.inputMode=parameter.type==='Decimal'?'decimal':'numeric';input.maxLength=128;}
           input.required=true;input.setAttribute('aria-label',`${label(parameter.name)} ${part}`);
-          const baseline=fixed.has(parameter.name)?state.broad_selection.parameters[parameter.name]:parameter.default;
-          input.value=String(fixed.has(parameter.name)?part==='step'?0:baseline:initial?.[parameter.name]?.[part]??(part==='step'?0:baseline));
-          input.disabled=fixed.has(parameter.name);inputs[part]=input;cell.append(input);row.append(cell);
-          input.oninput=()=>{if(part!=='step'){if(inputs.start.value===inputs.end.value)inputs.step.value='0';else if(inputs.step.value==='0')inputs.step.value='1';}preview=null;run.disabled=true;count.textContent='Grid changed. Calculate iterations again.';try{sessionStorage.setItem('narrow-grid:'+workflow.id+':'+trial,JSON.stringify(values()));}catch{}};
+          const baseline=isBroad?state.broad_selection.parameters[parameter.name]:parameter.default;
+          input.value=String(isBroad&&!refined.has(parameter.name)?part==='step'?0:baseline:initial?.[parameter.name]?.[part]??(part==='step'?0:baseline));
+          input.disabled=isBroad&&!refined.has(parameter.name);inputs[part]=input;cell.append(input);row.append(cell);
+          input.oninput=()=>{if(part!=='step'){if(inputs.start.value===inputs.end.value)inputs.step.value='0';else if(inputs.step.value==='0')inputs.step.value='1';}invalidate('Grid changed. Calculate iterations again.');};
         }
         inputs.count=node('td','—');row.append(inputs.count);grid.tBodies[0].append(row);ranges.set(parameter.name,inputs);
       }
@@ -58,7 +65,7 @@
       const notice=node('p');notice.id='narrow-status';notice.setAttribute('role','status');config.append(notice);
       const integer=value=>{if(!/^-?\d+$/.test(value)||!Number.isSafeInteger(Number(value)))throw Error('Enter safe whole numbers.');return Number(value);};
       function values(){return Object.fromEntries(parameters.map(p=>{const r=ranges.get(p.name);return [p.name,{start:p.type==='bool'?r.start.value==='true':p.type==='int'?integer(r.start.value):r.start.value.trim(),end:p.type==='bool'?r.end.value==='true':p.type==='int'?integer(r.end.value):r.end.value.trim(),step:p.type==='Decimal'?r.step.value.trim():integer(r.step.value)}];}));}
-      const requestGrid=()=>({broad_trial:trial,parameter_ranges:values(),workers:Number(workers.value)});
+      const requestGrid=()=>({broad_trial:trial,parameter_ranges:values(),refine_broad_parameters:[...refined],workers:Number(workers.value)});
       calculate.onclick=async()=>{if(!form.reportValidity()||busy)return;busy=true;calculate.disabled=true;try{preview=await read(base+'/preview','POST',requestGrid());if(!alive())return;for(const [name,r] of ranges)r.count.textContent=preview.step_counts[name];count.textContent=`${preview.total_trials.toLocaleString()} iterations · IS only`;run.disabled=false;notice.textContent='Grid checked. Native reports include the extra-slippage rerun and daily equity evidence.';}catch(error){if(alive()){preview=null;run.disabled=true;notice.textContent=error.message;}}finally{busy=false;if(alive())calculate.disabled=false;}};
       form.onsubmit=async event=>{event.preventDefault();if(busy||!preview||!form.reportValidity())return;busy=true;fieldset.disabled=true;try{job=await read(base+'/run','POST',{...requestGrid(),revision:preview.revision,preview_token:preview.preview_token});if(!alive())return;preview=null;run.disabled=true;notice.textContent='IS Narrow job started. It continues in Job history if you leave this page.';await refresh();}catch(error){if(alive())notice.textContent=error.message;}finally{busy=false;if(alive())fieldset.disabled=!!job&&['queued','running','complete'].includes(job.status);}};
       const outputs=node('section',undefined,'panel broad-panel');outputs.id='narrow-output';outputs.append(node('h2',`IS Narrow results · Broad trial ${trial}`),node('p','A configuration passes only after both Broad and Narrow checks pass. All selected Broad branches must finish before final screening. Select at most two qualifying rows for this Broad configuration.'),node('p','Statistical check: at least 100 observed source dates; a one-sided 95% lower bound on daily net P&L using a five-observation Bartlett HAC variance and Bonferroni correction across all attempted Broad and Narrow trials. Open each row’s eligibility details for measured values.','field-help'));

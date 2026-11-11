@@ -23,6 +23,7 @@ from .worker_limits import MAX_WORKERS
 from .workflow_criteria import evaluate as broad_evaluate, policy, verified_screening
 
 VERSION = 'is-narrow-v1'
+REFINEMENT_VERSION = 'is-narrow-local-refinement-v1'
 POLICY = dict(version=VERSION, neighbor_profit_fraction_gte='0.70', time_periods=4,
               profitable_periods_gte=3, latest_period_positive=True,
               best_complete_month_removed_net_gt='0', confidence_level='0.95',
@@ -45,10 +46,61 @@ def parameter_key(parameters):
                  for name, value in sorted(parameters.items()))
 
 
+def same_parameter(left, right):
+    return parameter_key({'value': left}) == parameter_key({'value': right})
+
+
+def refinement_options(fields, broad_axes):
+    """Numeric Broad axes with a finer representable step; binary modes stay locked."""
+    definitions = {field['name']: field for field in fields}
+    options = {}
+    for name, values in broad_axes.items():
+        if len(values) < 2:
+            continue
+        kind = definitions[name]['type']
+        if kind not in ('int', 'Decimal') or definitions[name].get('refinement_kind') == 'categorical':
+            continue
+        gaps = [Decimal(str(right)) - Decimal(str(left)) for left, right in zip(values, values[1:])]
+        if not gaps or min(gaps) <= (1 if kind == 'int' else Decimal('1e-100')):
+            continue
+        options[name] = dict(type=kind, broad_min_step=str(min(gaps)))
+    return options
+
+
+def validate_refinement(fields, broad_axes, anchor, axes, opted):
+    """Return Broad-varied fields that must remain equal to the chosen anchor."""
+    varied = {name for name, values in broad_axes.items() if len(values) > 1}
+    if len(opted) != len(set(opted)):
+        raise ValueError('A Broad parameter can be opted into refinement only once.')
+    if set(opted) - varied:
+        raise ValueError('Only parameters varied in IS Broad can opt into Broad-value refinement.')
+    options = refinement_options(fields, broad_axes)
+    if set(opted) - options.keys():
+        raise ValueError('This Broad parameter has no valid finer numeric neighborhood; keep it locked.')
+    for name in varied - set(opted):
+        if len(axes[name]) != 1 or not same_parameter(axes[name][0], anchor[name]):
+            raise ValueError(f'{name} varied in IS Broad and must stay fixed at its confirmed value unless explicitly opted into refinement.')
+    for name in opted:
+        values = axes[name]
+        if len(values) < 2 or not any(same_parameter(value, anchor[name]) for value in values):
+            raise ValueError(f'{name}: the Narrow grid must vary and include the selected Broad value.')
+        gaps = [Decimal(str(right)) - Decimal(str(left)) for left, right in zip(values, values[1:])]
+        if min(gaps) >= Decimal(options[name]['broad_min_step']):
+            raise ValueError(f'{name}: the Narrow step must be finer than its IS Broad step.')
+        nearest = min(abs(Decimal(str(previous)) - Decimal(str(anchor[name])))
+                      for previous in broad_axes[name] if not same_parameter(previous, anchor[name]))
+        if any(2 * abs(Decimal(str(value)) - Decimal(str(anchor[name]))) >= nearest for value in values):
+            raise ValueError(f'{name}: keep the Narrow range inside the selected Broad value’s local neighborhood.')
+        if not any(not any(same_parameter(value, previous) for previous in broad_axes[name]) for value in values):
+            raise ValueError(f'{name}: the Narrow grid must test a value absent from the IS Broad grid.')
+    return sorted(varied - set(opted))
+
+
 class NarrowGrid(BaseModel):
     model_config = ConfigDict(extra='forbid')
     broad_trial: StrictInt = Field(ge=1)
     parameter_ranges: dict[str, ParameterRange]
+    refine_broad_parameters: list[StrictStr] = Field(default_factory=list)
     workers: StrictInt = Field(default=1, ge=1, le=MAX_WORKERS)
 
 
@@ -135,12 +187,11 @@ def prepare(request, workflow_id, body):
     if definition.description()['source_sha256'] != declared['strategy_source_sha256']:
         raise ValueError('Strategy source changed; validate a new workflow.')
     axes, total = grid(definition, body.parameter_ranges)
-    fixed = [name for name, values in broad_job['axes'].items() if len(values) > 1]
-    if not fixed:
+    varied = [name for name, values in broad_job['axes'].items() if len(values) > 1]
+    if not varied:
         raise ValueError('IS Broad must vary at least one parameter before a Narrow search.')
-    for name in fixed:
-        if len(axes[name]) != 1 or parameter_key({name: axes[name][0]}) != parameter_key({name: selected['parameters'][name]}):
-            raise ValueError(f'{name} varied in IS Broad and must stay fixed at its confirmed value.')
+    fixed = validate_refinement(definition.description()['parameters'], broad_job['axes'],
+                                selected['parameters'], axes, body.refine_broad_parameters)
     if total < 2:
         raise ValueError('Vary at least one remaining parameter so immediate neighbors can be assessed.')
     for values in combinations(axes):
@@ -159,6 +210,8 @@ def prepare(request, workflow_id, body):
     config = request_body.execution_settings.execution_config(dataset)
     token = digest(dict(workflow_identity=saved['identity'], broad_selection=selected,
         mechanics=saved['review']['result_identity'], request=request_body.model_dump(),
+        refined_broad_parameters=body.refine_broad_parameters,
+        refinement_policy=REFINEMENT_VERSION,
         engine=engine_identity(), broad_policy=policy(), narrow_policy=POLICY))
     return saved, dataset, definition, config, axes, total, request_body, token, current, fixed
 
@@ -167,7 +220,7 @@ def preview(request, workflow_id, body):
     *_, axes, total, request_body, token, state, fixed = prepare(request, workflow_id, body)
     return dict(total_trials=total, step_counts={k: len(v) for k, v in axes.items()},
                 preview_token=token, revision=state['revision'], broad_trial=body.broad_trial,
-                fixed_parameters=fixed, policy=POLICY)
+                fixed_parameters=fixed, refined_parameters=body.refine_broad_parameters, policy=POLICY)
 
 
 def launch(request, workflow_id, body):
@@ -196,12 +249,17 @@ def launch(request, workflow_id, body):
                             workflow_phase='is_narrow', broad_trial=body.broad_trial,
                             broad_selection_identity=digest(state['broad_selection']),
                             screening_policy=policy(), narrow_policy=POLICY,
+                            refinement_policy=REFINEMENT_VERSION,
+                            refined_broad_parameters=sorted(body.refine_broad_parameters),
+                            broad_anchor_parameters=state['broad_selection']['parameters'],
                             period_boundaries=[d.isoformat() for d in period_boundaries(saved['declaration']['plan'])],
                             frozen_broad_parameters={name: state['broad_selection']['parameters'][name] for name in fixed})
         job = request.app.state.optimizations.create(request_body, dataset, definition, config, axes, total, research, connection=db)
         state = dict(broad_trial=body.broad_trial, job_id=job['id'], revision=state['revision']+1,
                      selected_trials=[], selection=[], confirmed_at_utc=None, preview_token=token,
-                     broad_selection_identity=research['broad_selection_identity'], policy=POLICY)
+                     broad_selection_identity=research['broad_selection_identity'], policy=POLICY,
+                     refinement_policy=REFINEMENT_VERSION,
+                     refined_broad_parameters=research['refined_broad_parameters'])
         db.execute('INSERT INTO campaign_narrow_jobs VALUES (?,?,?)', (job['id'], workflow_id, body.broad_trial))
         db.execute('INSERT INTO campaign_narrow_state VALUES (?,?,?) ON CONFLICT(workflow_id,broad_trial) DO UPDATE SET payload=excluded.payload',
                    (workflow_id, body.broad_trial, json.dumps(state)))
@@ -368,6 +426,7 @@ def chosen_candidate(store, workflow_id, state, trial, db, family):
     if not report or row.get('backtest_deleted'):
         raise ValueError('The selected native Narrow report is unavailable.')
     meta = report['run_metadata']
+    research = job['research']
     if (meta['strategy']['parameters'] != row['parameters'] or meta['strategy']['id'] != saved['declaration']['strategy_id']
         or meta['strategy']['source_sha256'] != saved['declaration']['strategy_source_sha256']
         or meta['research'].get('workflow_id') != workflow_id or meta['research'].get('workflow_phase') != 'is_narrow'
@@ -378,6 +437,20 @@ def chosen_candidate(store, workflow_id, state, trial, db, family):
         or report['execution_settings'] != saved['declaration']['execution_settings']
         or any(meta['dataset'][k] != saved['declaration']['dataset'][k] for k in ('id', 'sha256', 'source_timezone'))):
         raise ValueError('Narrow report does not match the frozen source, Broad selection or IS execution settings.')
+    if state.get('refinement_policy') or research.get('refinement_policy'):
+        anchor = state['broad_selection']['parameters']
+        refined = research.get('refined_broad_parameters', [])
+        broad_id = store.broad_state(workflow_id, db)['job_id']
+        broad = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (broad_id,)).fetchone()[0])
+        validate_refinement(get_strategy(saved['declaration']['strategy_id']).description()['parameters'],
+                            broad['axes'], anchor, job['axes'], refined)
+        expected_fixed = {name: anchor[name] for name, values in broad['axes'].items() if len(values) > 1 and name not in refined}
+        if (research.get('refinement_policy') != REFINEMENT_VERSION or state.get('refinement_policy') != REFINEMENT_VERSION
+            or refined != state.get('refined_broad_parameters')
+            or research.get('broad_anchor_parameters') != anchor or research.get('frozen_broad_parameters') != expected_fixed
+            or any(meta['research'].get(key) != research.get(key) for key in
+                   ('refinement_policy', 'refined_broad_parameters', 'broad_anchor_parameters', 'frozen_broad_parameters'))):
+            raise ValueError('Narrow refinement provenance does not match the selected Broad configuration.')
     for name, value in meta['research']['frozen_broad_parameters'].items():
         if row['parameters'][name] != value:
             raise ValueError('A frozen Broad parameter changed in the Narrow report.')
@@ -451,9 +524,11 @@ async def detail(workflow_id: UUID, request: Request, broad_trial: int = Query(.
         complete = all_jobs_complete(request.app.state.campaign_workflows, workflow_id.hex, db)
         family = family_size(db, workflow_id.hex)
         broad_job = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (saved['broad']['job_id'],)).fetchone()[0])
+    strategy=get_strategy(saved['declaration']['strategy_id']).description()
     return dict(state=state, job=job, branches=branches(request.app.state.campaign_workflows, workflow_id.hex),
-                strategy=get_strategy(saved['declaration']['strategy_id']).description(),
+                strategy=strategy,
                 fixed_parameters=[k for k, axis in broad_job['axes'].items() if len(axis) > 1],
+                refinable_parameters=refinement_options(strategy['parameters'], broad_job['axes']),
                 max_workers=MAX_WORKERS, policy=POLICY, all_branches_complete=complete, family_size=family)
 
 

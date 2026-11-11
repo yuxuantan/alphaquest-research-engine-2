@@ -10641,3 +10641,63 @@ changed neighboring result are rejected. Both selected packages and their
 native reports reopen after app restart without resimulation; deleting their
 native jobs or screening reports is rejected. The original source and OOS holdout
 remain unchanged.
+
+## 2026-11-11 — Optional local refinement of IS Broad values in IS Narrow
+
+The normal campaign Narrow form now locks every Broad-varied value by default.
+When a saved numeric Broad grid has a finer representable step, the researcher
+may explicitly check **Refine in Narrow** for that parameter. The preview API
+checks the opt-in, selected Broad anchor, finer step, at least one new value,
+and a range strictly within the midpoint to the nearest other Broad value.
+Binary coded modes such as `retest_mode=1,2` have no finer integer step and
+stay locked. Ordinary numeric parameters need no campaign-specific declaration;
+a future sparse coded mode can declare `refinement_kind: categorical` in its
+strategy metadata. The saved job and native reports identify the Broad anchor,
+refined names, still-locked names and refinement rule version. The existing
+nine Narrow admission checks, two selections per Broad branch and OOS handoff
+are unchanged.
+
+### Reproduce and inspect the saved normal-product example
+
+The separate `docs/evidence/is_narrow_refinement/` folder preserves a labeled
+synthetic CSV, actual Narrow result JSON, the downloaded confirmed package,
+portal screenshot and job/workflow IDs. The browser fixture uses a temporary
+server and stops it in teardown. Recreate the evidence and run the focused API
+checks with:
+
+```sh
+ALPHAQUEST_REFINEMENT_EVIDENCE_DIR=docs/evidence/is_narrow_refinement \
+  .venv/bin/python -m pytest -q tests/test_campaign_narrow_browser.py::test_narrow_portal_explicit_local_refinement_and_saved_result
+.venv/bin/python -m pytest -q tests/test_campaign_narrow.py
+```
+
+To repeat manually, start the ordinary app with a fresh data directory using
+the command in the preceding IS Narrow section. Upload
+`docs/evidence/is_narrow_refinement/SYNTHETIC-source.csv` as a UTC synthetic
+dataset with tick size 0.25 and point value 10. Choose Consecutive Green Hold,
+IS 2024-01-01 through 2025-12-31, OOS 2026-01-01, 10,000 CU initial capital,
+one tick slippage and one CU commission per contract per side. Complete the
+mechanic checklist after reviewing the displayed native evidence; the fixture's
+automatic attestation is synthetic and does not establish MultiCharts parity.
+In Broad, hold `green_bar_count=3` and `contracts=1` and search
+`hold_minutes=20..40 step 20`. Confirm the passing `hold_minutes=20` row.
+Open IS Narrow. Expect `hold_minutes` disabled and **Refine in Narrow** off.
+Check it; search `19..21 step 1` while the other parameters stay fixed.
+Preview expects **three** combinations. Run and inspect the native reports,
+screening details, frozen varied column and saved grid. The fixture's 120
+active days and six trades per day at 78 CU net/day independently imply
+**9,360 CU** for hold 20; the saved 19 and 20 rows both show 9,360 CU.
+The 21 row shows 1,800 CU and fails the measured extra-slippage rerun, so it
+cannot be selected. The search family contains two Broad plus three Narrow
+trials. Select one qualifying Narrow row and confirm; OOS navigation unlocks.
+Reopen the downloaded package or restart the app to inspect the same saved
+reports without resimulation.
+
+Boundary checks: without explicit opt-in, changing a Broad-varied value is
+rejected. So are an unvaried parameter opt-in, duplicate opt-ins, a coarse
+step, a range reaching the next Broad neighborhood, a range omitting the
+selected Broad value, and a stale preview token. Existing two-branch Narrow
+jobs continue to keep `contracts=1,2` locked. Altering saved refinement
+provenance after confirmation blocks OOS navigation. The synthetic source and its
+OOS holdout are unchanged; this increment does not execute OOS or prop
+simulation.

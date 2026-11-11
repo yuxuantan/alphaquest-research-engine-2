@@ -25,7 +25,7 @@ def dense_csv():
     return ('\n'.join(lines)+'\n').encode()
 
 
-def narrow_workflow(client):
+def narrow_workflow(client, *, refinement=False):
     response=client.post('/api/datasets',params=dict(filename='SYNTHETIC-narrow.csv',name='SYNTHETIC 120-day narrow oracle',symbol='SYNTHETIC',source_timezone='UTC',tick_size='.25',point_value='10'),content=dense_csv())
     assert response.status_code==201,response.text
     dataset=response.json()
@@ -34,12 +34,16 @@ def narrow_workflow(client):
     result=run_validation(client,workflow);prefix='/api/campaign-workflows/'+workflow['id']
     review=client.patch(prefix+'/review',json=checks(result)).json()
     assert client.post(prefix+'/confirm',json={'revision':review['review']['revision']}).status_code==200
-    broad=broad_grid(3,20,2)
+    broad=broad_grid(3,40,1) if refinement else broad_grid(3,20,2)
     job,_=start_grid(client,prefix,broad)
     rows=client.get(prefix+'/broad/results').json()['items']
-    assert [float(row['metrics']['total_net_pnl']) for row in rows]==[9360,18720]
-    assert all(row['qualifies'] for row in rows)
-    selected=selection(client,prefix,[1,2]).json()
+    if refinement:
+        assert float(rows[0]['metrics']['total_net_pnl'])==9360
+        assert rows[0]['qualifies']
+    else:
+        assert [float(row['metrics']['total_net_pnl']) for row in rows]==[9360,18720]
+        assert all(row['qualifies'] for row in rows)
+    selected=selection(client,prefix,[1] if refinement else [1,2]).json()
     response=client.post(prefix+'/broad/confirm',json={'job_id':job['id'],'revision':selected['revision']})
     assert response.status_code==200,response.text
     return dataset,workflow,job
@@ -146,3 +150,86 @@ def test_statistical_bound_counts_all_attempts_and_missing_evidence_fails():
     rows=[{'parameters':{'a':i},'metrics':{'total_net_pnl':str(p)}} for i,p in [(1,10),(2,-1),(3,10)]]
     assert neighbor_check(rows[1],rows,axes)==dict(profitable=2,valid=2,fraction=1.0,passed=True)
     assert neighbor_check(rows[0],rows,axes)['passed'] is False
+
+
+def test_refinement_eligibility_uses_numeric_spacing_without_campaign_declarations():
+    from alphaquest.campaign_narrow import refinement_options,validate_refinement
+    from alphaquest.strategies.registry import get_strategy
+    fields=get_strategy('vwap_pullback_risk_sizing').description()['parameters']
+    axes={field['name']:[field['default']] for field in fields}
+    axes.update(stop_swing_len=[5,20],target_swing_len=[5,20],retest_mode=[1,2])
+    choices=refinement_options(fields,axes)
+    assert choices['stop_swing_len']=={'type':'int','broad_min_step':'15'}
+    assert choices['target_swing_len']=={'type':'int','broad_min_step':'15'}
+    assert 'retest_mode' not in choices
+    fields=[dict(field,refinement_kind='categorical') if field['name']=='stop_swing_len' else field for field in fields]
+    assert 'stop_swing_len' not in refinement_options(fields,axes)
+    decimal_fields=[{'name':'threshold','type':'Decimal'}]
+    assert refinement_options(decimal_fields,{'threshold':['0.5','1.5']})=={'threshold':{'type':'Decimal','broad_min_step':'1.0'}}
+    assert validate_refinement(decimal_fields,{'threshold':['0.5','1.5']},{'threshold':'0.5'},
+                               {'threshold':['0.4','0.5','0.6']},['threshold'])==[]
+
+
+def test_refined_broad_value_runs_native_narrow_grid_and_freezes_choice(client):
+    dataset,workflow,broad=narrow_workflow(client,refinement=True)
+    prefix='/api/campaign-workflows/'+workflow['id']
+    detail=client.get(prefix+'/narrow',params={'broad_trial':1}).json()
+    assert detail['fixed_parameters']==['hold_minutes']
+    assert detail['refinable_parameters']['hold_minutes']=={'type':'int','broad_min_step':'20'}
+    body=dict(broad_trial=1,workers=1,parameter_ranges={
+        'green_bar_count':dict(start=3,end=3,step=0),
+        'hold_minutes':dict(start=19,end=21,step=1),
+        'contracts':dict(start=1,end=1,step=0)})
+    def rejected(request):
+        result=client.post(prefix+'/narrow/preview',json=request)
+        assert result.status_code==409,result.text
+    rejected(body)  # Default lock applies at the API, not only in the form.
+    rejected(dict(body,refine_broad_parameters=['contracts']))
+    rejected(dict(body,refine_broad_parameters=['hold_minutes','hold_minutes']))
+    coarse=json.loads(json.dumps(body));coarse['parameter_ranges']['hold_minutes']=dict(start=20,end=40,step=20)
+    rejected(dict(coarse,refine_broad_parameters=['hold_minutes']))
+    far=json.loads(json.dumps(body));far['parameter_ranges']['hold_minutes']=dict(start=19,end=30,step=1)
+    rejected(dict(far,refine_broad_parameters=['hold_minutes']))
+    omitted=json.loads(json.dumps(body));omitted['parameter_ranges']['hold_minutes']=dict(start=18,end=19,step=1)
+    rejected(dict(omitted,refine_broad_parameters=['hold_minutes']))
+    body['refine_broad_parameters']=['hold_minutes']
+    response=client.post(prefix+'/narrow/preview',json=body)
+    assert response.status_code==200,response.text
+    preview=response.json()
+    assert preview['total_trials']==3 and preview['fixed_parameters']==[]
+    assert preview['refined_parameters']==['hold_minutes']
+    changed=dict(body,refine_broad_parameters=[])
+    assert client.post(prefix+'/narrow/run',json=dict(changed,revision=preview['revision'],preview_token=preview['preview_token'])).status_code==409
+    launched=client.post(prefix+'/narrow/run',json=dict(body,revision=preview['revision'],preview_token=preview['preview_token']))
+    assert launched.status_code==202,launched.text
+    job=wait_job(client,launched.json()['id'])
+    assert job['axes']['hold_minutes']==[19,20,21]
+    assert job['research']['refined_broad_parameters']==['hold_minutes']
+    assert job['research']['broad_anchor_parameters']['hold_minutes']==20
+    assert job['research']['frozen_broad_parameters']=={}
+    page=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
+    assert page['family_size']==5 and page['all_branches_complete']
+    assert [row['parameters']['hold_minutes'] for row in page['items']]==[19,20,21]
+    eligible=[row for row in page['items'] if row['qualifies']]
+    assert eligible,page
+    for row in page['items']:
+        report=client.get('/api/backtests/'+row['run_id']).json()
+        assert report['run_metadata']['research']['refined_broad_parameters']==['hold_minutes']
+        assert report['run_metadata']['research']['broad_anchor_parameters']['hold_minutes']==20
+    state=client.get(prefix+'/narrow',params={'broad_trial':1}).json()['state']
+    selected=client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=job['id'],revision=state['revision'],trials=[eligible[0]['trial']]))
+    assert selected.status_code==200,selected.text
+    confirmed=client.post(prefix+'/narrow/confirm',json=dict(broad_trial=1,job_id=job['id'],revision=selected.json()['revision']))
+    assert confirmed.status_code==200,confirmed.text
+    assert client.get(prefix+'/phases/oos').status_code==200
+    package=client.get(prefix+'/narrow/download',params={'broad_trial':1}).json()
+    with client.app.state.runs.connect() as db:
+        original=db.execute('SELECT payload FROM campaign_narrow_state WHERE workflow_id=? AND broad_trial=1',(workflow['id'],)).fetchone()[0]
+        altered=json.loads(original);altered['refined_broad_parameters']=[]
+        db.execute('UPDATE campaign_narrow_state SET payload=? WHERE workflow_id=? AND broad_trial=1',(json.dumps(altered),workflow['id']))
+    assert client.get(prefix+'/phases/oos').status_code==409
+    with client.app.state.runs.connect() as db:
+        db.execute('UPDATE campaign_narrow_state SET payload=? WHERE workflow_id=? AND broad_trial=1',(original,workflow['id']))
+    with TestClient(create_app(client.app.state.store.path)) as reopened:
+        assert reopened.get(prefix+'/phases/oos').status_code==200
+        assert reopened.get(prefix+'/narrow/download',params={'broad_trial':1}).json()==package

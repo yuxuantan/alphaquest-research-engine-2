@@ -1555,6 +1555,10 @@ dialog::backdrop {
 .optimization-grid th:first-child { min-width:210px; }
 .optimization-grid th small { display:block; font-size:11px; white-space:normal; font-weight:400; max-width:300px; }
 .optimization-grid input, .optimization-grid select { min-width:100px; width:100%; }
+#narrow-config .optimization-grid td:nth-child(2) { min-width:230px; max-width:280px; }
+#narrow-config .optimization-grid td:nth-child(2) label { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+#narrow-config .optimization-grid td:nth-child(2) input[type="checkbox"] { min-width:16px; width:16px; height:16px; flex:none; }
+#narrow-config .optimization-grid td:nth-child(2) small { display:block; margin-top:6px; white-space:normal; line-height:1.4; }
 .optimization-count { font-weight:650; color:var(--accent-dark); }
 :is(#optimization-results,#broad-results) { width:max-content; font-variant-numeric:tabular-nums; border-collapse:separate; border-spacing:0; }
 #optimization-results-scroll { max-height:min(620px, calc(100dvh - 48px)); }
