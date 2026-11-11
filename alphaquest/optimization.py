@@ -19,6 +19,7 @@ import time
 from uuid import uuid4
 
 from .optimization_worker import TrialContext, compute_trial, initialize_worker, run_trial
+from .backtest_api import BacktestStopped
 from .prepared_data import prepare_data
 from .strategy_features import prepare_features
 from .optimization_cache import engine_identity, trial_key, artifacts, digest
@@ -33,6 +34,11 @@ BACKTEST_METRICS = (
     "win_rate_pct", "max_drawdown_amount", "max_drawdown_pct", "max_drawdown_duration_seconds",
 )
 METRICS = (*BACKTEST_METRICS, "historical_net", "lucid_historical_net")
+
+
+def can_resume(job):
+    return job['status'] in ('failed', 'interrupted') or (
+        job['status'] == 'cancelled' and bool(job.get('stop_requested_at_utc')))
 
 
 def grid(definition, ranges):
@@ -151,7 +157,56 @@ class OptimizationStore:
         with self.runs.connect() as conn:
             row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
             job = {**json.loads(row[0]), **values}
+            if job.get('stop_requested_at_utc') and job['status'] == 'running':
+                job['stage'] = 'stopping'
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+        return job
+
+    def stop_requested(self, job_id):
+        with self.runs.connect() as conn:
+            row = conn.execute("SELECT json_extract(payload,'$.stop_requested_at_utc') FROM optimizations WHERE id=?", (job_id,)).fetchone()
+        return bool(row and row[0])
+
+    def request_stop(self, job_id):
+        """Request a checkpoint stop without discarding completed trial reports."""
+        with self.runs.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError("Backtest activity not found.")
+            job = json.loads(row[0])
+            if job['status'] == 'queued':
+                now = datetime.now(timezone.utc).isoformat()
+                job.update(status='cancelled', stage='cancelled', cancelled_at_utc=now,
+                           finished_at_utc=now, cancellation_reason='Cancelled before execution; saved reports retained.',
+                           active_trials=[], worker_pids=[])
+            elif job['status'] == 'running':
+                if job.get('stop_requested_at_utc'):
+                    return job
+                job.update(stop_requested_at_utc=datetime.now(timezone.utc).isoformat(), stage='stopping')
+            elif job['status'] == 'cancelled':
+                return job
+            else:
+                raise ValueError(f"Only queued or running activities can be stopped; this activity is {job['status']}.")
+            conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+        return job
+
+    def finish_execution(self, job_id, failures, elapsed):
+        """Set the terminal state under the same lock used by stop requests."""
+        with self.runs.connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            job = json.loads(conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()[0])
+            stopped = bool(job.get('stop_requested_at_utc')) and not failures and job['completed_trials'] < job['total_trials']
+            status = 'failed' if failures else 'cancelled' if stopped else 'complete'
+            job.update(status=status, stage='failed' if failures else 'cancelled' if stopped else 'done',
+                       active_trials=[], failed_trials=failures,
+                       elapsed_seconds=elapsed, finished_at_utc=datetime.now(timezone.utc).isoformat())
+            if failures:
+                job['error'] = f"Trial {failures[0]['trial']}: {failures[0]['error']}"
+            if stopped:
+                job.update(cancelled_at_utc=job['finished_at_utc'],
+                           cancellation_reason='Stopped during execution; completed trials and reports retained.')
+            conn.execute('UPDATE optimizations SET payload=? WHERE id=?', (json.dumps(job), job_id))
         return job
 
     def cancel_queued(self, job_id):
@@ -197,17 +252,18 @@ class OptimizationStore:
             if row is None:
                 raise ValueError('This backtest activity has been deleted.')
             job = json.loads(row[0])
-            if job["status"] not in ("failed", "interrupted"):
-                raise ValueError("Only failed or interrupted optimizations can be resumed.")
+            if not can_resume(job):
+                raise ValueError("Only failed, interrupted or stopped running optimizations can be resumed.")
             saved = conn.execute("SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?", (job_id,)).fetchone()[0]
             if saved != job["completed_trials"]:
                 raise ValueError("Saved trial count does not match this job; inspect the catalogue before resuming.")
             attempts = list(job.get("previous_attempts", []))
             attempts.append({key: job.get(key) for key in (
-                "status", "error", "failed_trials", "elapsed_seconds", "started_at_utc", "finished_at_utc", "completed_trials")})
+                "status", "error", "failed_trials", "elapsed_seconds", "started_at_utc", "finished_at_utc", "completed_trials",
+                "cancelled_at_utc", "cancellation_reason", "stop_requested_at_utc")})
             job.update(status="queued", stage="queued", active_trials=[], failed_trials=[], previous_attempts=attempts,
                        worker_count=job.get("worker_count", 1), elapsed_seconds=0)
-            for key in ("error", "started_at_utc", "finished_at_utc"):
+            for key in ("error", "started_at_utc", "finished_at_utc", "cancelled_at_utc", "cancellation_reason", "stop_requested_at_utc"):
                 job.pop(key, None)
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
         return job
@@ -479,6 +535,10 @@ class OptimizationStore:
         active = {}
         last_update = 0
 
+        def check_stop():
+            if self.stop_requested(job_id):
+                raise BacktestStopped('Stopped by user at a backtest checkpoint.')
+
         def progress(trial, stage, processed, total, worker_pid=None):
             nonlocal last_update
             active[trial] = {"trial": trial, "stage": stage, "bars_processed": processed,
@@ -503,14 +563,18 @@ class OptimizationStore:
                 logger.exception("Could not save progress for optimization %s; continuing active trials", job_id)
 
         try:
+            check_stop()
             from .research_access import guard_read
             guard_read(source,job["dataset"]["id"],date_range,kind='strategy_execution',origin='optimization:'+job_id)
             if job.get("engine_identity") and engine_identity() != job["engine_identity"]:
                 raise ValueError("Engine code changed while this job was queued. Start a new optimization.")
             with self.runs.connect() as conn:
                 saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
-            pending = [(trial, values) for trial, values in enumerate(combinations(job["axes"]), 1)
-                       if trial not in saved and not self._reuse_trial(job, trial, values)]
+            pending = []
+            for trial, values in enumerate(combinations(job['axes']), 1):
+                check_stop()
+                if trial not in saved and not self._reuse_trial(job, trial, values):
+                    pending.append((trial, values))
             with TemporaryDirectory(prefix=".optimization-", dir=self.runs.root) as temporary:
                 root = Path(temporary)
                 snapshot = root / "source.csv"
@@ -519,10 +583,12 @@ class OptimizationStore:
                 if pending:
                     with snapshot.open("wb") as stream:
                         for chunk in source.iter_csv(job["dataset"]["id"]):
+                            check_stop()
                             stream.write(chunk)
                     if job["request"].get("prepare_data", True) and len(pending) > job["worker_count"]:
                         from .optimization_worker import FrozenSource
                         def preparation_progress(stage, processed, total):
+                            check_stop()
                             self.update(job_id, stage=stage, bars_processed=processed, total_bars=total,
                                         elapsed_seconds=time.monotonic() - started)
                         preparation_progress("preparing_data", 0, job["dataset"]["row_count"])
@@ -530,6 +596,7 @@ class OptimizationStore:
                         snapshot.unlink()
                         features = prepare_features(definition, prepared, [values for _, values in pending], root,
                                                     preparation_progress, workers=job["worker_count"],cache=self.runs.replay_cache)
+                check_stop()
                 self.update(job_id, preparation_seconds=time.monotonic() - preparation_started,
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
@@ -541,26 +608,32 @@ class OptimizationStore:
                 workers = job["worker_count"]
                 if workers == 1:
                     for trial, values in trials:
+                        check_stop()
                         run_id = uuid4().hex
                         try:
+                            def serial_progress(stage, processed, total):
+                                check_stop()
+                                progress(trial, stage, processed, total, os.getpid())
                             result = compute_trial(context, trial, values, run_id,
-                                                   lambda stage, processed, total: progress(trial, stage, processed, total, os.getpid()))
+                                                   serial_progress)
                             self.publish(job_id, trial, run_id, context, result)
                             active.pop(trial, None)
+                        except BacktestStopped:
+                            raise
                         except Exception as exc:
                             logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
                             break
                 elif pending:
                     self._run_parallel(job_id, context, trials, workers, active, progress, save_progress, failures)
-            self.update(job_id, status="failed" if failures else "complete", stage="failed" if failures else "done",
-                        active_trials=[], failed_trials=failures,
-                        **({"error": f"Trial {failures[0]['trial']}: {failures[0]['error']}"} if failures else {}),
-                        elapsed_seconds=time.monotonic() - started, finished_at_utc=datetime.now(timezone.utc).isoformat())
+            self.finish_execution(job_id, failures, time.monotonic() - started)
+        except BacktestStopped:
+            self.finish_execution(job_id, [], time.monotonic() - started)
         except Exception as exc:
             logger.exception("Optimization %s coordinator failed", job_id)
             self.update(job_id, status="failed", stage="failed", error=str(exc), active_trials=[],
-                        failed_trials=failures, elapsed_seconds=time.monotonic() - started)
+                        failed_trials=failures, elapsed_seconds=time.monotonic() - started,
+                        finished_at_utc=datetime.now(timezone.utc).isoformat())
 
     def _run_parallel(self, job_id, context, trials, workers, active, progress, save_progress, failures):
         spawn = multiprocessing.get_context("spawn")
@@ -569,9 +642,14 @@ class OptimizationStore:
         pending = {}
         with spawn.Manager() as manager:
             messages = manager.Queue(maxsize=workers * 16)
+            stop_event = manager.Event()
+            if self.stop_requested(job_id):
+                stop_event.set()
             with ProcessPoolExecutor(max_workers=workers, mp_context=spawn, initializer=initialize_worker,
-                                     initargs=(context, messages)) as pool:
+                                     initargs=(context, messages, stop_event)) as pool:
                 def submit_next():
+                    if stop_event.is_set():
+                        return False
                     try:
                         trial, values = next(trials)
                     except StopIteration:
@@ -592,6 +670,8 @@ class OptimizationStore:
                 save_progress()
                 while pending:
                     done, _ = wait(pending, timeout=.2, return_when=FIRST_COMPLETED)
+                    if self.stop_requested(job_id):
+                        stop_event.set()
                     while True:
                         try:
                             message = messages.get_nowait()
@@ -608,10 +688,12 @@ class OptimizationStore:
                             continue
                         try:
                             self.publish(job_id, trial, run_id, context, future.result())
+                        except BacktestStopped:
+                            continue
                         except Exception as exc:
                             logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
-                    if failures:
+                    if failures or stop_event.is_set():
                         # Do not launch more trials. Already running trials finish
                         # and successful reports are published before cleanup.
                         for future in pending:

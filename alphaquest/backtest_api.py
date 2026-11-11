@@ -35,6 +35,10 @@ from .backtest_requests import ExecutionSettings,OptimizationRequest
 from .research import SplitDeclaration, ResearchConflict, dates_for, metadata as research_metadata
 
 
+class BacktestStopped(Exception):
+    """User-requested stop before an in-progress report is published."""
+
+
 class BacktestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_id: StrictStr = Field(min_length=1, max_length=128)
@@ -329,12 +333,36 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
         raise HTTPException(409, str(exc)) from None
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations,research=research_metadata(plan),market_benchmark=body.market_benchmark.model_dump())
+    stop_event = None
+    if progress_id is not None:
+        from threading import Event
+        stop_event = Event()
+        if request.app.state.backtest_stops.setdefault(progress_id.hex, stop_event) is not stop_event:
+            raise HTTPException(409, 'This progress ID already belongs to a running backtest.')
+    try:
+        return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
+            report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,
+            reuse_calculations=body.reuse_calculations,research=research_metadata(plan),
+            market_benchmark=body.market_benchmark.model_dump(),stop_event=stop_event)
+    except BacktestStopped:
+        raise HTTPException(409, 'Backtest stopped by user; no incomplete report was saved.') from None
+    finally:
+        if stop_event is not None:
+            request.app.state.backtest_stops.pop(progress_id.hex, None)
+
+
+@router.post('/api/backtests/progress/{progress_id}/stop')
+async def stop_one_backtest(progress_id: UUID, request: Request):
+    event = request.app.state.backtest_stops.get(progress_id.hex)
+    if event is None:
+        raise HTTPException(409, 'This backtest is no longer running. Check saved reports before starting another run.')
+    event.set()
+    return {'status': 'stopping', 'progress_id': progress_id.hex}
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
                            *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None,
-                           execution_scenario=None,automatic_prop=True):
+                           execution_scenario=None,automatic_prop=True,stop_event=None):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -343,6 +371,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
                                      "total_bars": 0 if date_range.active else dataset["row_count"], "run_id": run_id})
 
     def progress(stage, processed, total):
+        if stop_event is not None and stage != 'done' and stop_event.is_set():
+            raise BacktestStopped('Stopped by user at a backtest checkpoint.')
         if operation_id:
             tracker.update_backtest(operation_id, run_id, stage, processed, total)
 
@@ -361,6 +391,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))
+        if isinstance(exc, BacktestStopped):
+            raise
         if isinstance(exc, (DatasetReadError, InvalidDataset, ExecutionError, ReportError, CalendarError)):
             raise HTTPException(422, str(exc)) from None
         raise HTTPException(500, "Backtest failed; no completed run was saved.") from exc

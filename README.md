@@ -368,6 +368,17 @@ standalone backtests appear once saved; their in-flight HTTP executions are not
 registered jobs. A server/process interruption is recorded rather than silently
 resuming computation.
 
+To stop a running mechanic validation or parameter sweep, open its **Job
+history** entry and choose **Stop running job**. You can also stop it on its
+mechanic, IS Broad, IS Narrow or batch progress page. A one-off backtest has
+**Stop running backtest** on its live progress screen. A stop request takes
+effect at the next backtest checkpoint; Job history shows **Stopping** until
+the worker exits. Completed sweep trials and reports remain available, and
+**Resume remaining trials** runs only unfinished trials. A stopped mechanic
+validation has no partial report and can be run again. Queued sweeps can be
+cancelled before they start. A job that finishes publication before the stop
+request reaches a checkpoint is recorded as completed.
+
 After mechanic review, open **IS Broad** in the campaign's phase navigation.
 Set each parameter's start/end/step, calculate iterations, and run the native
 IS-only optimization. The results retain show/hide, freeze and reorder controls.

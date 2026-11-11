@@ -28,7 +28,8 @@ def test_cancel_queued_keeps_other_jobs_and_survives_restart(client,monkeypatch,
     try:
         assert entered.wait(10)
         cancelled=start(client,request);last=start(client,request)
-        assert client.post(f'/api/backtests/batches/{first}/cancel').status_code==409
+        with pytest.raises(ValueError, match='Only queued'):
+            client.app.state.optimizations.cancel_queued(first)
         result=client.post(f'/api/backtests/batches/{cancelled}/cancel')
         assert result.status_code==200,result.text
         saved=result.json();assert saved['status']==saved['stage']=='cancelled' and saved['completed_trials']==0

@@ -86,8 +86,10 @@
       resume.id='broad-resume';cancel.id='broad-cancel';resume.type=cancel.type='button';resume.hidden=cancel.hidden=true;jobControls.append(resume,cancel);outputs.append(jobControls);
       const settings=node('details');settings.id='broad-run-settings';settings.append(node('summary','Saved run settings'));const settingsText=node('pre');settings.append(settingsText);outputs.append(settings);
       async function jobAction(kind){
-        if(busy||state.archived||!job)return;busy=true;fieldset.disabled=true;resume.disabled=cancel.disabled=true;
-        try{await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())notice.textContent=kind==='resume'?'Resuming the saved IS Broad run.':'Queued run cancelled.';}
+        if(busy||state.archived||!job)return;
+        if(kind==='cancel'&&job.status==='running'&&!window.confirm('Stop this running IS Broad backtest at the next checkpoint? Completed trials will remain available for resuming.'))return;
+        busy=true;fieldset.disabled=true;resume.disabled=cancel.disabled=true;
+        try{const response=await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())notice.textContent=kind==='resume'?'Resuming the saved IS Broad run.':response.status==='running'?'Stop requested. Active trials are stopping; completed results are retained.':'Queued run cancelled.';}
         catch(error){if(alive())notice.textContent=error.message;}
         finally{busy=false;if(alive())await refresh();}
       }
@@ -137,9 +139,11 @@
           if(phaseButton&&!state.archived){phaseButton.dataset.status=state.status;phaseButton.querySelector('.mechanic-phase-state').textContent=state.status.replaceAll('_',' ');}
           progress.textContent=job?`${job.status.toUpperCase()} · ${job.completed_trials} / ${job.total_trials} trials · ${job.stage} · ${job.worker_count||1} workers${job.elapsed_seconds==null?'':` · ${job.elapsed_seconds.toFixed(1)}s elapsed`} · ${job.reused_trials||0} reused${job.error?' · '+job.error:''}${job.cancellation_reason?' · '+job.cancellation_reason:''}${job.active_trials?.length?' · Active: '+job.active_trials.map(t=>`${t.trial} (${t.stage}, ${t.bars_processed}/${t.total_bars} bars)`).join(', '):''}`:'No IS Broad job yet.';
           settings.hidden=!job;settingsText.textContent=job?JSON.stringify({run_id:job.id,created_at_utc:job.created_at_utc,started_at_utc:job.started_at_utc,finished_at_utc:job.finished_at_utc,request:job.request,axes:job.axes,execution_settings:job.execution_settings,worker_count:job.worker_count,engine_identity:job.engine_identity,screening_policy:job.research?.screening_policy,previous_attempts:job.previous_attempts||[]},null,2):'';
-          resume.hidden=!!state.archived||!!state.confirmed_at_utc||!['failed','interrupted'].includes(job?.status);resume.disabled=cancel.disabled=busy;
+          resume.hidden=!!state.archived||!!state.confirmed_at_utc||(!['failed','interrupted'].includes(job?.status)&&!(job?.status==='cancelled'&&job.stop_requested_at_utc));resume.disabled=busy;
           resume.textContent=job?.completed_trials<job?.total_trials?`Resume remaining ${job.total_trials-job.completed_trials} trials`:'Finalize saved results';
-          cancel.hidden=!!state.archived||job?.status!=='queued';
+          cancel.hidden=!!state.archived||!['queued','running'].includes(job?.status);
+          cancel.disabled=busy||!!job?.stop_requested_at_utc;
+          cancel.textContent=job?.stop_requested_at_utc?'Stop requested':job?.status==='running'?'Stop running backtest':'Cancel queued run';
           links.replaceChildren();
           if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Broad package ↓',forRun('/download'));}
           if(!job){panel.hidden=true;table.tHead.replaceChildren();table.tBodies[0].replaceChildren();previous.disabled=next.disabled=true;pageInfo.textContent='No results yet';selectionState();return;}

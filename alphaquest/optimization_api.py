@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from .backtest_requests import ExecutionSettings,ParameterRange,OptimizationRequest
 from .backtest_data import DateRange
 from .datasets import COLUMNS
-from .optimization import grid, DEFAULT_WORKERS, MAX_WORKERS
+from .optimization import grid, can_resume, DEFAULT_WORKERS, MAX_WORKERS
 from .strategies.registry import get_strategy
 from .research import ResearchConflict,dates_for,metadata as research_metadata
 
@@ -105,7 +105,7 @@ def delete_activity(job_id: UUID, request: Request):
 @router.post("/api/optimizations/{job_id}/cancel")
 def cancel_activity(job_id: UUID, request: Request):
     try:
-        return request.app.state.optimizations.cancel_queued(job_id.hex)
+        return request.app.state.optimizations.request_stop(job_id.hex)
     except KeyError as exc:
         raise HTTPException(404, str(exc.args[0])) from None
     except ValueError as exc:
@@ -121,8 +121,8 @@ def resume(job_id: UUID, request: Request):
         job = get_job(request, job_id)
     except sqlite3.OperationalError as exc:
         raise HTTPException(503, str(exc)) from None
-    if job["status"] not in ("failed", "interrupted"):
-        raise HTTPException(409, "Only failed or interrupted optimizations can be resumed.")
+    if not can_resume(job):
+        raise HTTPException(409, "Only failed, interrupted or stopped running optimizations can be resumed.")
     try:
         body = OptimizationRequest.model_validate(job["request"])
         definition = get_strategy(body.strategy_id)

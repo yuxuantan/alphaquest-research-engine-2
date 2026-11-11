@@ -123,6 +123,17 @@
       const run = node('button',workflow.status === 'running' ? 'Running default-parameter backtest…' : 'Run validation · default parameters →','button primary');
       run.id = 'mechanic-run'; run.disabled = workflow.status === 'running'; run.onclick = () => runValidation(workflow);
       intro.append(run); host.append(intro);
+      if (workflow.status === 'running' && workflow.run_id) {
+        const stop = node('button',workflow.stop_requested_at_utc ? 'Stop requested' : 'Stop running backtest','button secondary');
+        stop.id='mechanic-stop';stop.disabled=!!workflow.stop_requested_at_utc;
+        stop.onclick=async()=>{
+          if(!window.confirm('Stop this mechanic validation at the next backtest checkpoint? No incomplete report will be saved.'))return;
+          stop.disabled=true;
+          try {const updated=await read(endpoint(workflow.id)+`/runs/${workflow.run_id}/stop`,'POST');current=updated;render(updated,'mechanic_validation');message('Stop requested. The job will stop at a checkpoint; you can run validation again afterward.');}
+          catch(error){message(error.message);stop.disabled=false;}
+        };
+        intro.append(stop);
+      }
       if (workflow.run_id) { const actions=node('div',undefined,'mechanic-downloads');link(actions,'View job progress / history',`#jobs/mechanic_validation/${workflow.run_id}`);host.append(actions); }
       if (workflow.error) intro.append(node('p',workflow.error,'mechanic-error'));
       const settings = node('details',undefined,'mechanic-settings'); settings.append(node('summary','Saved source, default parameters and execution settings'));

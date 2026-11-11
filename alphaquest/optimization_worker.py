@@ -9,7 +9,7 @@ import time
 from uuid import uuid4
 from hashlib import sha256
 
-from .backtest_api import prepare_backtest_report
+from .backtest_api import BacktestStopped, prepare_backtest_report
 from .backtest_data import DateRange, DatasetReadError
 from .strategies.registry import get_strategy
 from .strategy import ExecutionConfig
@@ -99,11 +99,12 @@ def compute_trial(context, trial, values, run_id, progress):
 
 _context = None
 _progress_queue = None
+_stop_event = None
 
 
-def initialize_worker(context, progress_queue):
-    global _context, _progress_queue
-    _context, _progress_queue = context, progress_queue
+def initialize_worker(context, progress_queue, stop_event=None):
+    global _context, _progress_queue, _stop_event
+    _context, _progress_queue, _stop_event = context, progress_queue, stop_event
 
 
 def run_trial(trial, values, run_id):
@@ -112,6 +113,8 @@ def run_trial(trial, values, run_id):
 
     def progress(stage, processed, total):
         nonlocal last_update, previous_stage
+        if _stop_event is not None and _stop_event.is_set():
+            raise BacktestStopped('Stopped by user at a backtest checkpoint.')
         now = time.monotonic()
         if stage != previous_stage or now - last_update >= .25:
             try:

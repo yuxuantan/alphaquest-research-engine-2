@@ -6,8 +6,8 @@
   const words = value => String(value || '').replaceAll('_',' ');
   const stamp = value => value ? new Date(value).toLocaleString(undefined,{timeZoneName:'short'}) : 'Not recorded';
   let generation=0,timer,offset=0,lastList='',lastListData='',lastDetailData='';
-  const read = async url => {
-    const response=await fetch(url,{cache:'no-store'}), body=await response.json();
+  const read = async (url,method='GET') => {
+    const response=await fetch(url,{method,cache:'no-store'}), body=await response.json();
     if(!response.ok) throw Error(typeof body.detail==='string' ? body.detail : 'Could not load job history.');
     return body;
   };
@@ -19,7 +19,7 @@
     return `${words(p.stage)}${known ? ` · ${p.completed.toLocaleString()}${p.total>0 ? ' / '+p.total.toLocaleString() : ''} ${p.unit || ''}` : ''}`;
   }
   function status(job) {
-    const label=job.status==='complete'?'Completed':words(job.status);
+    const label=job.status==='complete'?'Completed':job.status==='cancelled'?(job.stop_requested_at_utc?'Stopped':'Cancelled'):job.status==='running'&&job.stop_requested_at_utc?'Stopping':words(job.status);
     const pill=node('span',label,'pill '+(job.status==='complete'?'success':'neutral'));
     if(['failed','interrupted'].includes(job.status))pill.classList.add('jobs-error-status');
     return pill;
@@ -29,6 +29,19 @@
     const params=new URLSearchParams({status:get('#jobs-filter-status').value,kind:get('#jobs-filter-kind').value});
     if(get('#jobs-search').value.trim())params.set('q',get('#jobs-search').value.trim());
     location.hash='#jobs?'+params;
+  }
+  async function stop(job) {
+    if(!job.stop_url||job.stop_requested_at_utc)return;
+    if(!window.confirm(job.status==='queued'?'Cancel this queued backtest job?':'Stop this running backtest at its next checkpoint? Completed reports will remain available.'))return;
+    try {await read(job.stop_url,'POST');await refresh();}
+    catch(error){const target=get('#jobs-detail-view').hidden?'#jobs-list-status':'#jobs-detail-status';get(target).textContent=error.message;}
+  }
+  function stopButton(parent,job) {
+    if(!job.stop_url)return;
+    const button=node('button',job.status==='queued'?'Cancel queued job':'Stop running job','button secondary');
+    button.type='button';button.disabled=!!job.stop_requested_at_utc;
+    if(button.disabled)button.textContent='Stop requested';
+    button.onclick=()=>stop(job);parent.append(button);
   }
   async function refresh() {
     clearTimeout(timer);
@@ -57,7 +70,7 @@
         panel.append(facts);
         if(job.kind==='mechanic_validation' && job.status==='complete') panel.append(node('p',job.review_status==='passed'?'Mechanics review confirmed by the user.':'Run completed. Mechanics review and phase confirmation are separate.'));
         if(job.error)panel.append(node('p',job.error,'mechanic-error'));
-        const actions=node('div',undefined,'mechanic-downloads');job.links.forEach(item=>link(actions,item.label,item.href));panel.append(actions);
+        const actions=node('div',undefined,'mechanic-downloads');job.links.forEach(item=>link(actions,item.label,item.href));stopButton(actions,job);panel.append(actions);
         host.append(panel);
       } else {
         const changed=lastList!==location.hash;
@@ -77,7 +90,7 @@
           const source=node('td');source.append(node('strong',kinds[job.kind]),node('div',words(job.strategy_id) || 'Saved strategy sources'),node('small',job.dataset_name));
           const state=node('td');state.append(status(job));
           const detail=node('td',progress(job));if(job.error)detail.append(node('small',job.error,'mechanic-error'));
-          const actions=node('td');link(actions,job.status==='complete'?'View results':'View progress / details',job.href);
+          const actions=node('td');link(actions,job.status==='complete'?'View results':'View progress / details',job.href);stopButton(actions,job);
           row.append(recorded,source,state,detail,actions);rows.append(row);
         }
         get('#jobs-list-status').textContent=data.total ? `${data.total} matching ${data.total===1?'job':'jobs'} · updates automatically.` : 'No jobs match these filters. Start a validation or backtest from Campaigns.';

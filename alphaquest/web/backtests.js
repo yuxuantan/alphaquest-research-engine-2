@@ -8,6 +8,7 @@
   const fromDate = get("#backtest-from-date");
   const toDate = get("#backtest-to-date");
   const start = get("#start-backtest");
+  const stopBacktest = get("#backtest-stop");
   const refresh = get("#refresh-backtest-choices");
   const resetInstrument = get("#reset-instrument-defaults");
   const tickSize = get("#backtest-tick-size");
@@ -458,12 +459,33 @@
     const started = performance.now();
     let current = { stage: "waiting", bars_processed: 0, total_bars: payload.from_date || payload.to_date ? 0 : selectedDataset()?.row_count || 0 };
     let finished = false;
+    let stopRequested = false;
     let pollTimer;
     const abortPoll = new AbortController();
     state.busy = true;
     controls();
     get("#backtest-completion").hidden = true;
     get("#backtest-progress-note").textContent = "Preparing to send the run configuration.";
+    stopBacktest.hidden = false;
+    stopBacktest.disabled = true;
+    stopBacktest.textContent = "Stop running backtest";
+    stopBacktest.onclick = async () => {
+      if (finished || stopRequested || !window.confirm("Stop this running backtest at its next checkpoint? No incomplete report will be saved.")) return;
+      stopRequested = true;
+      stopBacktest.disabled = true;
+      try {
+        const response = await fetch(`/api/backtests/progress/${operationId}/stop`, {method:"POST"});
+        await readResponse(response);
+        stopBacktest.textContent = "Stop requested";
+        get("#backtest-progress-note").textContent = "Stopping at the next backtest checkpoint…";
+      } catch (error) {
+        if (!finished) {
+          stopRequested = false;
+          stopBacktest.disabled = false;
+          get("#backtest-progress-note").textContent = error.message;
+        }
+      }
+    };
     paintProgress(current, started);
     const elapsedTimer = setInterval(() => paintProgress(current, started), 250);
     const poll = async () => {
@@ -473,6 +495,7 @@
           const progress = await response.json();
           if (finished) return;
           current = progress;
+          if (!stopRequested && progress.stage !== "done") stopBacktest.disabled = false;
           get("#backtest-progress-note").textContent = ["preparing", "preparing_data", "preparing_features"].includes(progress.stage)
             ? "Checking the source and preparing indicators before strategy replay. The percentage bar tracks strategy replay only."
             : progress.stage.startsWith("prop_simulation:") ? "Strategy replay finished. Running Apex 50K EOD analysis before saving the result."
@@ -505,15 +528,17 @@
     } catch (error) {
       finished = true;
       const network = error instanceof TypeError;
-      current = { ...current, stage: network ? "unconfirmed" : "failed" };
+      current = { ...current, stage: network ? "unconfirmed" : stopRequested ? "stopped" : "failed" };
       showError(network ? { message: "Connection lost. Completion is unconfirmed; check saved runs before submitting again." } : error,
-        network ? "Could not confirm completion" : "Backtest could not complete");
+        network ? "Could not confirm completion" : stopRequested ? "Backtest stopped" : "Backtest could not complete");
       get("#backtest-progress-note").textContent = "";
     } finally {
       finished = true;
       clearTimeout(pollTimer);
       clearInterval(elapsedTimer);
       abortPoll.abort();
+      stopBacktest.hidden = true;
+      stopBacktest.onclick = null;
       paintProgress(current, started);
       state.busy = false;
       controls();

@@ -16,6 +16,7 @@ SOURCES = '''
         json_object('workflow_id',j.workflow_id,'started_at',j.started_at,'finished_at',j.finished_at,
                     'error',j.error,'total_bars',COALESCE(j.total_bars,json_extract(r.manifest,'$.run_metadata.selection.row_count')),
                     'report_available',r.id IS NOT NULL,'current_run_id',json_extract(w.payload,'$.run_id'),
+                    'stop_requested_at_utc',json_extract(w.payload,'$.stop_requested_at_utc'),
                     'review_status',json_extract(w.payload,'$.status')) AS payload
  FROM mechanic_job_attempts j JOIN campaign_workflows w ON w.id=j.workflow_id LEFT JOIN runs r ON r.id=j.id
  UNION ALL
@@ -42,7 +43,7 @@ def public_job(row, tracker):
     payload = json.loads(raw)
     result = dict(id=id, kind=kind, recorded_at_utc=recorded, status=status,
                   strategy_id=strategy, dataset_name=dataset, started_at_utc=None, finished_at_utc=None,
-                  error=payload.get('error'), progress=None, links=[])
+                  error=payload.get('error'), progress=None, links=[], stop_requested_at_utc=payload.get('stop_requested_at_utc'))
     result['href'] = f'#jobs/{kind}/{id}'
     links = result['links']
     if kind == 'mechanic_validation':
@@ -55,9 +56,15 @@ def public_job(row, tracker):
         progress = tracker.get(str(UUID(id))) if status == 'running' else None
         result['progress'] = dict(stage=progress['stage'], completed=progress.get('bars_processed'), total=progress.get('total_bars'), unit='bars') if progress else dict(
             stage=status, completed=payload['total_bars'] if status == 'complete' else None, total=payload['total_bars'], unit='bars')
+        if status == 'running' and payload['current_run_id'] == id:
+            result['stop_url'] = f"/api/campaign-workflows/{payload['workflow_id']}/runs/{id}/stop"
+            if result['stop_requested_at_utc']:
+                result['progress']['stage'] = 'stopping'
     elif kind == 'backtest_batch':
         result.update(started_at_utc=payload.get('started_at_utc'),finished_at_utc=payload.get('finished_at_utc'))
         result['progress'] = dict(stage=payload.get('stage',status),completed=payload.get('completed_trials'),total=payload.get('total_trials'),unit='trials')
+        if status in ('queued','running'):
+            result['stop_url'] = f'/api/backtests/batches/{id}/cancel'
         research = payload.get('research') or {}
         if research.get('workflow_phase') == 'is_broad' and research.get('workflow_id'):
             result['phase'] = 'is_broad'

@@ -8,6 +8,7 @@ import asyncio
 from decimal import Decimal
 import json
 import logging
+from threading import Event
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -162,11 +163,36 @@ class CampaignWorkflowStore:
             if saved['status'] in ('running', 'review_required', 'passed'):
                 return saved, False
             saved.update(status='running', run_id=uuid4().hex, error=None)
+            saved.pop('stop_requested_at_utc', None)
             self.write(db, saved)
             timestamp = now()
             db.execute("INSERT INTO mechanic_job_attempts VALUES (?,?,?,?,NULL,'running',NULL,NULL)",
                        (saved['run_id'], workflow_id, timestamp, timestamp))
             return saved, True
+
+    def request_stop(self, workflow_id, run_id):
+        with self.runs.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            saved = self.raw(workflow_id, db)
+            if saved['status'] != 'running' or saved['run_id'] != run_id:
+                raise ValueError('Only the current running mechanic validation can be stopped.')
+            if not saved.get('stop_requested_at_utc'):
+                saved['stop_requested_at_utc'] = now()
+                db.execute("UPDATE mechanic_job_attempts SET error='Stop requested; waiting for a backtest checkpoint.' WHERE id=?", (run_id,))
+                self.write(db, saved)
+        return saved
+
+    def stop_finished(self, workflow_id, run_id):
+        with self.runs.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            saved = self.raw(workflow_id, db)
+            if saved['status'] != 'running' or saved['run_id'] != run_id:
+                return
+            reason = 'Stopped by user; no mechanic validation report was saved.'
+            db.execute("UPDATE mechanic_job_attempts SET status='cancelled',finished_at=?,error=? WHERE id=?",
+                       (now(), reason, run_id))
+            saved.update(status='cancelled', error=reason)
+            self.write(db, saved)
 
     def finish(self, workflow_id, record):
         saved = self.raw(workflow_id)
@@ -197,6 +223,7 @@ class CampaignWorkflowStore:
                 raise ValueError('Validation execution is no longer current.')
             db.execute('INSERT INTO campaign_workflow_runs VALUES (?,?)', (workflow_id, record['id']))
             current.update(status='review_required', review=review, error=None)
+            current.pop('stop_requested_at_utc', None)
             self.write(db, current)
 
     def fail(self, workflow_id, error, interrupted=False):
@@ -206,6 +233,7 @@ class CampaignWorkflowStore:
                 db.execute('UPDATE mechanic_job_attempts SET status=?,finished_at=?,error=? WHERE id=?',
                            ('interrupted' if interrupted else 'failed', now(), error, saved['run_id']))
                 saved.update(status='failed', error=error)
+                saved.pop('stop_requested_at_utc', None)
                 self.write(db, saved)
 
     def results(self, saved):
@@ -390,7 +418,7 @@ async def get(workflow_id: UUID, request: Request):
 
 @router.post('/api/campaign-workflows/{workflow_id}/run')
 async def run(workflow_id: UUID, request: Request, background: bool = False):
-    from .backtest_api import execute_backtest
+    from .backtest_api import BacktestStopped, execute_backtest
     saved = await call(request, 'raw', workflow_id.hex)
     if saved['status'] in ('review_required', 'passed', 'running'):
         return await call(request, 'get', workflow_id.hex)
@@ -408,18 +436,27 @@ async def run(workflow_id: UUID, request: Request, background: bool = False):
     saved, fresh = await call(request, 'reserve', workflow_id.hex)
     if not fresh:
         return await call(request, 'get', workflow_id.hex)
+    stop_event = Event()
+    request.app.state.mechanic_stops[saved['run_id']] = stop_event
     async def execute_validation():
         try:
             plan = declaration['plan']
+            if stop_event.is_set():
+                raise BacktestStopped('Stopped before validation began.')
             await run_in_threadpool(request.app.state.research.claim, plan)
             record = await execute_backtest(request, dataset, definition, parameters, config, dates_for(plan), UUID(saved['run_id']),
                 reuse_results=False, research=metadata(plan, workflow_id=workflow_id.hex, workflow_phase='mechanic_validation'),
-                run_id_override=saved['run_id'], market_benchmark=declaration['market_benchmark'], automatic_prop=False)
+                run_id_override=saved['run_id'], market_benchmark=declaration['market_benchmark'], automatic_prop=False,
+                stop_event=stop_event)
             await call(request, 'finish', workflow_id.hex, record)
+        except BacktestStopped:
+            await call(request, 'stop_finished', workflow_id.hex, saved['run_id'])
         except Exception as exc:
             await call(request, 'fail', workflow_id.hex, str(getattr(exc, 'detail', exc)))
             if not background:
                 raise
+        finally:
+            request.app.state.mechanic_stops.pop(saved['run_id'], None)
     if background:
         task = asyncio.create_task(execute_validation())
         request.app.state.mechanic_tasks.add(task)
@@ -431,6 +468,16 @@ async def run(workflow_id: UUID, request: Request, background: bool = False):
         return JSONResponse(request.app.state.campaign_workflows.public(saved), status_code=202)
     await execute_validation()
     return await call(request, 'get', workflow_id.hex)
+
+
+@router.post('/api/campaign-workflows/{workflow_id}/runs/{run_id}/stop')
+async def stop_validation(workflow_id: UUID, run_id: UUID, request: Request):
+    event = request.app.state.mechanic_stops.get(run_id.hex)
+    if event is None:
+        raise HTTPException(409, 'This mechanic validation is no longer running on this server. Reload its job status.')
+    saved = await call(request, 'request_stop', workflow_id.hex, run_id.hex)
+    event.set()
+    return request.app.state.campaign_workflows.public(saved)
 
 
 @router.patch('/api/campaign-workflows/{workflow_id}/review')
