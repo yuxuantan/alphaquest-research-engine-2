@@ -10840,3 +10840,44 @@ sorting, automatic phase status, history navigation, JSON/CSV downloads and
 reload. Earlier IS evidence and confirmed v1/v2/v3 policies remain unchanged.
 All temporary test servers stop at teardown. Synthetic mechanic attestations do
 not establish MultiCharts parity, statistical edge, or live trading readiness.
+
+### 2026-11-11 — Final full-period Monte Carlo after campaign OOS
+
+Implemented a separately labeled retrospective sanity check inside the existing
+OOS page, for every verified OOS-passing frozen configuration (up to four). The
+existing AnalysisStore supplies its worker, cancellation, catalogue, atomic
+sealed report and downloads. Job history opens the exact campaign/OOS attempt.
+The task continues after navigation and reopening never reruns price replay or
+the bootstrap. No prop sizing/account model or new candidate-selection phase
+was introduced; IS selections and OOS verdicts remain unchanged.
+
+The calculation reconciles native IS and OOS daily equity with saved closed
+trade counts/net totals, then bootstraps the pooled additive daily P&L. Existing
+costs are included once. It retains observed no-trade dates and daily open marks,
+labels absent dates and the split gap, and preserves the two original phases'
+execution boundary behavior. It runs 5,000 deterministic stationary-block paths
+at mean block lengths 5 and 20, fixed seed 42. Each candidate needs ≥100 observed
+source dates/100 trades, positive 5th-percentile full-period net, and 95th-percentile
+daily-close drawdown ≤2× observed daily-close drawdown under both block settings.
+The thresholds are local sanity gates, not proof of edge. Daily-close risk is
+explicitly distinguished from native bar-close MTM and intraday risk. Pooling IS
+with accessed OOS creates no new holdout and corrects no selection bias.
+
+[Saved normal-product evidence and exact reproduction steps](evidence/campaign_monte_carlo/README.md)
+include the source CSV, actual portal screenshot, JSON report, full-period daily
+P&L CSV, 40,000 path outcomes and the sealed evidence ZIP. The synthetic native
+journey's independently derived full-period totals are **14,040 CU** for each
+one-contract candidate and **28,080 CU** for each two-contract candidate, with
+**1,080 closed trades** each. Daily net increments are nonnegative, giving exactly
+zero historical and simulated daily-close drawdown; all four pass. Those are
+synthetic arithmetic expectations, not fabricated market outcomes or measured
+MultiCharts parity. Earlier report/evidence folders are preserved.
+
+Focused checks include deterministic constant gains/losses, positive historical
+profit failing the bootstrap lower tail, a separate clustering/drawdown failure,
+inclusive drawdown limits, insufficient trade evidence, OOS rejection, net/trade
+reconciliation, no new OOS access/backtests, frozen IS preservation, idempotent
+launches, cooperative cancellation, artifact tampering, immutable downloads and
+application reopening. The Chromium journey starts from the actual OOS page,
+leaves for job history, returns, downloads the ordinary reports and reloads them.
+Temporary test servers stop at teardown; no persistent server is started.

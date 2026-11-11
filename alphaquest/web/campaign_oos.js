@@ -7,7 +7,7 @@
   const read=async(url,method='GET',body)=>{const response=await fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'OOS request rejected.');return data;};
   const link=(parent,text,href)=>{const n=node('a',text,'workflow-inline-link');n.href=href;parent.append(n);};
   let generation=0,timer,columns;
-  function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;}
+  function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;window.campaignMonteCarlo?.dispose();}
   async function render(parent,workflow,{isCurrent,jobId}){
     dispose();const version=generation,alive=()=>version===generation&&isCurrent(),base=`/api/campaign-workflows/${workflow.id}/oos`;
     const url=path=>base+path+(jobId?'?job='+jobId:'');
@@ -16,6 +16,7 @@
     try{
       detail=await read(url(''));if(!alive())return;job=detail.job;parent.replaceChildren();
       const panel=node('section',undefined,'panel broad-panel');panel.id='oos-panel';parent.append(panel);
+      const monteCarlo=node('section',undefined,'panel broad-panel');monteCarlo.id='monte-carlo-panel';parent.append(monteCarlo);
       panel.append(node('h2','OOS assessment · all frozen configurations'),node('p',`OOS ${detail.plan.oos_start} → ${detail.plan.oos_end}. Assess all ${detail.candidates.length} confirmed Narrow configurations with the same parameters, dataset and execution costs. Each can pass independently; no IS choices are changed.`));
       const controls=node('div',undefined,'mechanic-downloads'),workerLabel=node('label','Parallel backtests'),workers=node('select');workers.id='oos-workers';
       for(let i=1;i<=detail.max_workers;i++)workers.add(new Option(i===detail.default_workers?`${i} · default`:String(i),String(i)));
@@ -74,6 +75,7 @@
         items=data.items.length?data.items:detail.candidates.map((c,i)=>({trial:i+1,broad_trial:c.broad_trial,narrow_trial:c.trial,parameters:c.parameters,is_run_id:c.run_id,is_reference:c.is_reference,status:'pending',qualifies:false}));
         paintTable();if(job?.status==='complete')paintPhase(data.passed?'passed':'not_qualified');outcome.textContent=job?.status==='complete'?`${data.passed} / ${data.total} configurations passed OOS. Each passing configuration remains eligible independently; OOS does not revise the IS selections.`:job?'Completed results remain visible while remaining configurations run.':'Seven checks will be shown per completed configuration.';
         downloads.replaceChildren();if(job){link(downloads,'Job history / progress',`#jobs/backtest_batch/${job.id}`);link(downloads,'OOS assessment JSON ↓',url('/download'));link(downloads,'OOS results CSV ↓',url('/download')+(jobId?'&':'?')+'format=csv');}
+        await window.campaignMonteCarlo.render(monteCarlo,workflow.id,job?.id,{isCurrent:alive,eligible:job?.status==='complete'&&data.passed>0});
         if(['queued','running'].includes(job?.status))timer=setTimeout(poll,2500);
       }
       async function poll(){try{const previous=job,updated=await read(`/api/optimizations/${job.id}`);if(!alive())return;job=updated;paintProgress();if(job.completed_trials!==previous.completed_trials||job.status!==previous.status){await refresh();return;}}catch(error){if(alive())notice.textContent=`Progress update failed: ${error.message}`;}if(alive()&&['queued','running'].includes(job?.status))timer=setTimeout(poll,2500);}

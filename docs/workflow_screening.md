@@ -445,3 +445,94 @@ and short-history rejection, stop/resume, prior access/repeated history,
 report/verdict corruption, deletion protection and reopening without replay.
 Browser checks cover the real single-table portal, column freezing/sorting,
 progress, job-history navigation, acceptance reasons, and durable downloads.
+
+## Final full-period Monte Carlo sanity check — implemented
+
+After a completed OOS batch, **Final Monte Carlo sanity check** on the OOS page
+assesses all its verified passing candidates independently (up to four). It is
+an additional, separately reported retrospective check. It does not introduce a
+fifth research phase, alter the seven OOS rules, reselect IS candidates, tune
+parameters, or implement prop simulation.
+
+### Inputs and simulation
+
+Use each candidate's exact frozen IS report and matching OOS report. Verify the
+native evidence and reconcile saved daily equity to the saved closed trades and
+native net total. Stitch additive daily net P&L from both reports, keeping each
+phase's actual execution/warmup/flat-at-end behavior; this is not a new continuous
+price replay across the split. Costs are already in net P&L and are not deducted
+again. There is no resizing, compounding, account replacement, or provider model.
+
+Daily means the last observed bar of each source-local calendar date. Retain
+observed dates with zero trades/P&L and daily marks of any open position. Do not
+invent zero observations for missing source dates, holidays or an untested gap
+between declared windows. Report that gap in calendar days. Each simulated path
+has exactly the combined number of observed source dates. Partial/no-trade days
+remain part of the input; no trading-calendar inference is added by this check.
+
+The stationary circular block bootstrap samples consecutive daily increments
+with replacement, with independent restart probability 1/L per observation.
+Blocks may wrap around the pooled history and may cross the stitched split.
+Run **5,000 paths for mean block length L=5 and another 5,000 for L=20**. Preserve
+short clusters rather than treating every trade as independent; use both block
+lengths as a simple dependence sensitivity check. Resampling with replacement
+allows total profit to change, unlike a shuffle of the same trades. The method
+is based on [Politis and Romano's stationary bootstrap](https://doi.org/10.1080/01621459.1994.10476870);
+its assumptions do not establish that market P&L is stationary.
+
+Policy `campaign-full-period-monte-carlo-v1` fixes seed 42, PCG64 with
+`SeedSequence([42, L])`, 128-path batches, NumPy version and linear quantiles.
+Each candidate uses the same deterministic schedules. An unchanged completed
+check is reopened/reused rather than rerolled. Interrupted/stopped checks can
+be explicitly run again with the identical policy and seed. Source or model
+changes produce a distinct saved assessment; earlier results remain unchanged.
+
+### Passing rules
+
+All three rules must pass. Rules 2 and 3 must hold under **both** block settings:
+
+| Rule | Threshold |
+| --- | --- |
+| Sufficient input evidence | ≥100 observed source dates and ≥100 closed trades across IS + OOS |
+| Positive lower-tail profit | Empirical 5th percentile of full-period net profit **>0** |
+| Drawdown resilience | Empirical 95th percentile of maximum daily-close drawdown **≤2×** historical combined daily-close maximum drawdown |
+
+Profit is strictly positive; equality at the drawdown limit passes. If historical
+daily-close drawdown is zero, the simulated 95th percentile must also be zero.
+Historical and simulated drawdowns both start at zero cumulative P&L and use
+the same daily-close basis. Do not compare this series to intraday/native
+bar-close MTM drawdown or claim that it measures intraday liquidation risk.
+
+The positive lower tail asks whether the observed edge survives plausible
+resampling of the full history; the drawdown rule rejects sensitivity to loss
+clustering. The 2× tolerance gives room for unfavorable ordering without
+requiring resamples to reproduce one historical path. These are practical local
+screening thresholds, not a literature-certified guarantee or a substitute for
+a separately chosen capital/drawdown budget. No annual profit/drawdown ratio is
+reintroduced as a gate. Median profit, positive-path frequency and its estimated
+Monte Carlo standard error are diagnostics, not extra gates.
+
+Pooling IS and already accessed OOS reuses selection data. The results are
+conditional on those observations and the bootstrap/stationarity assumptions;
+they cannot prove an untouched holdout, correct multiple testing, forecast new
+market regimes, establish MultiCharts parity, or certify trading readiness.
+
+### Product use and durable evidence
+
+Use the existing AnalysisStore catalogue, background worker, cooperative stop
+control and sealed report/archive. Jobs continue after navigation, appear as
+**Final Monte Carlo check** in Job history, and link to the exact OOS attempt.
+Progress polls read only metadata while active; reopening completed reports
+verifies artifacts and reads saved measurements without simulation. A cancelled
+job publishes no partial passing population. Frozen IS/OOS reports are retained.
+
+The single results table shows two block scenarios per candidate, combined
+status, evidence counts, lower-tail profit, daily-close drawdown, limits and
+per-rule reasons. Monetary values display two decimals. Download JSON, exact
+daily inputs, all path outcomes and a checksummed ZIP. Store source IDs and
+artifact hashes, parameters, research windows, prior OOS verdict, policy, seed,
+NumPy/calculation identity and limitations. Corrupt sources cannot launch a new
+check; corrupt Monte Carlo artifacts cannot be presented as passing. A saved
+sealed snapshot remains inspectable even if its live source later changes.
+
+See [the reproducible synthetic journey and independent expected values](evidence/campaign_monte_carlo/README.md).

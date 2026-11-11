@@ -16,6 +16,7 @@
     <script src="/static/workflow.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaign_broad.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaign_narrow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/campaign_monte_carlo.js?v=ASSET_VERSION" defer></script>
     <script src="/static/campaign_oos.js?v=ASSET_VERSION" defer></script>
     <script src="/static/mechanic_validation.js?v=ASSET_VERSION" defer></script>
     <script src="/static/jobs.js?v=ASSET_VERSION" defer></script>
@@ -341,7 +342,7 @@
           <div id="jobs-list-view">
             <form id="jobs-filters" class="jobs-filters" aria-label="Filter jobs">
               <label>Status<select id="jobs-filter-status"><option value="all">All statuses</option><option value="active">Running / queued</option><option value="completed">Completed</option><option value="attention">Failed / stopped</option></select></label>
-              <label>Job type<select id="jobs-filter-kind"><option value="all">All job types</option><option value="mechanic_validation">Mechanic validation</option><option value="backtest_batch">Backtest batches</option><option value="backtest">Saved backtests</option><option value="prop_analysis">Prop analyses</option></select></label>
+              <label>Job type<select id="jobs-filter-kind"><option value="all">All job types</option><option value="mechanic_validation">Mechanic validation</option><option value="backtest_batch">Backtest batches</option><option value="backtest">Saved backtests</option><option value="prop_analysis">Prop analyses</option><option value="monte_carlo">Final Monte Carlo checks</option></select></label>
               <label>Find a job<input id="jobs-search" type="search" maxlength="200" placeholder="Strategy, dataset or job ID" /></label><button class="button secondary" type="submit">Search</button>
             </form>
             <p id="jobs-list-status" role="status" aria-live="polite"></p>

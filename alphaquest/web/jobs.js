@@ -2,7 +2,7 @@
 (() => {
   const get = s => document.querySelector(s);
   const node = (tag,text,cls) => { const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n; };
-  const kinds = {mechanic_validation:'Mechanic validation',backtest_batch:'Backtest batch',backtest:'Saved backtest',prop_analysis:'Prop analysis'};
+  const kinds = {mechanic_validation:'Mechanic validation',backtest_batch:'Backtest batch',backtest:'Saved backtest',prop_analysis:'Prop analysis',monte_carlo:'Final Monte Carlo check'};
   const words = value => String(value || '').replaceAll('_',' ');
   const stamp = value => value ? new Date(value).toLocaleString(undefined,{timeZoneName:'short'}) : 'Not recorded';
   let generation=0,timer,offset=0,lastList='',lastListData='',lastDetailData='';

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
-JobKind = Literal['mechanic_validation', 'backtest_batch', 'backtest', 'prop_analysis']
+JobKind = Literal['mechanic_validation', 'backtest_batch', 'backtest', 'prop_analysis', 'monte_carlo']
 JobFilter = Literal['all', 'active', 'completed', 'attention']
 
 # Only metadata is queried. Numerical reports stay in their existing stores.
@@ -30,11 +30,12 @@ SOURCES = '''
    AND NOT EXISTS (SELECT 1 FROM optimization_trials t WHERE json_extract(t.payload,'$.run_id')=r.id)
    AND COALESCE(json_extract(r.manifest,'$.run_metadata.research.workflow_phase'),'') NOT IN ('is_broad_cost_stress','is_narrow_cost_stress','oos_cost_stress')
  UNION ALL
- SELECT 'prop_analysis',a.id,a.created,CASE a.status WHEN 'error' THEN 'failed' ELSE a.status END,
+ SELECT CASE WHEN c.analysis_id IS NOT NULL THEN 'monte_carlo' ELSE 'prop_analysis' END,a.id,a.created,CASE a.status WHEN 'error' THEN 'failed' ELSE a.status END,
         COALESCE(json_extract(r.manifest,'$.run_metadata.strategy.id'),''),
         COALESCE(json_extract(r.manifest,'$.run_metadata.dataset.name'),'Saved source '||a.source_id),
-        json_object('progress',a.progress,'error',a.error,'source_id',a.source_id)
+        json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id)
  FROM prop_catalog.analyses a LEFT JOIN runs r ON r.id=a.source_id
+ LEFT JOIN prop_catalog.campaign_sanity_jobs c ON c.analysis_id=a.id
 '''
 
 
@@ -82,6 +83,11 @@ def public_job(row, tracker):
         # Creation time is publication time; old reports do not record start time.
         result['progress'] = dict(stage='complete',completed=payload['summary']['trades_taken'],total=None,unit='trades')
         links.append(dict(label='Open backtest report',href=f'#backtests/report/{id}'))
+    elif kind == 'monte_carlo':
+        result['progress'] = dict(stage=payload.get('progress') or status,completed=None,total=None,unit=None)
+        links.append(dict(label='Open final Monte Carlo check',href=f"#campaigns/workflows/{payload['workflow_id']}/oos?job={payload['oos_job_id']}"))
+        if status in ('queued','running'):
+            result['stop_url'] = f'/api/prop-analyses/{id}/cancel'
     else:
         result['progress'] = dict(stage=payload.get('progress') or status,completed=None,total=None,unit=None)
         links.append(dict(label='Open prop analysis',href=f'#backtests/prop/job/{id}'))
@@ -112,7 +118,7 @@ router = APIRouter()
 
 
 @router.get('/api/jobs')
-async def list_jobs(request: Request, status: JobFilter='all', kind: Literal['all','mechanic_validation','backtest_batch','backtest','prop_analysis']='all',
+async def list_jobs(request: Request, status: JobFilter='all', kind: Literal['all','mechanic_validation','backtest_batch','backtest','prop_analysis','monte_carlo']='all',
                     q: str=Query('',max_length=200),offset: int=Query(0,ge=0),limit: int=Query(25,ge=1,le=100)):
     return await run_in_threadpool(history,request,status=status,kind=kind,q=q,offset=offset,limit=limit)
 

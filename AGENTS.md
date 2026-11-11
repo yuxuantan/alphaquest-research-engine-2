@@ -6,7 +6,7 @@
   `tests/test_campaign_mechanics_browser.py` or
   `tests/test_workflow_navigation_browser.py`, `tests/test_job_history_browser.py`,
   `tests/test_campaign_broad_browser.py`, `tests/test_campaign_narrow_browser.py`,
-  or `tests/test_campaign_oos_browser.py`.
+  or `tests/test_campaign_oos_browser.py`, `tests/test_campaign_monte_carlo_browser.py`.
   Browser checks are opt-in; select only the affected journey.
 - Older regressions remain intact but are excluded from default discovery.
   Do not routinely run the previous 180-check set or the full suite for each
@@ -23,6 +23,14 @@ from `alphaquest/workflow_criteria.py`, `alphaquest/campaign_narrow.py`, and
 `alphaquest/campaign_oos.py`; it must never tune or reselect IS candidates.
 Preserve policy snapshots and historical confirmations; do not relabel an older
 rule as passing a newer one.
+
+Final full-period Monte Carlo is owned by `alphaquest/campaign_monte_carlo.py`
+and runs inside OOS for its passing candidates. It is a retrospective sanity
+check, with a separate verdict; it must not revise frozen IS choices or OOS
+acceptance. Use the existing AnalysisStore worker/catalogue and sealed reports.
+Keep the seed/policy fixed and retain the daily inputs, source hashes and path
+outcomes. `tests/test_monte_carlo.py` contains fast arithmetic/cancellation checks;
+select the native API/browser journeys explicitly when those surfaces change.
 
 When adding strategy parameters, check the IS Narrow refinement rule in
 `docs/workflow_screening.md` and `alphaquest/campaign_narrow.py`. Narrow locks

@@ -1965,3 +1965,6 @@ dialog::backdrop {
 
 #oos-results td[data-column=eligibility] { min-width:240px; max-width:480px; white-space:normal; }
 #oos-results td[data-column=parameters] pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+#monte-carlo-panel { margin-top:24px; }
+#monte-carlo-table tr.broad-ineligible td { background:#303b44; color:#d8dfe4; border-color:#45535e; }
+#monte-carlo-table td:last-child { min-width:280px; max-width:440px; white-space:normal; }

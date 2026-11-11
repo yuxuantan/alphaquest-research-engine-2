@@ -61,6 +61,8 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
+            from ..campaign_monte_carlo import initialize as initialize_sanity
+            initialize_sanity(db)
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
             db.execute('CREATE TABLE IF NOT EXISTS lifecycle_comparisons (request_id TEXT PRIMARY KEY, declaration TEXT NOT NULL, checked TEXT NOT NULL, analysis_id TEXT NOT NULL UNIQUE)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
@@ -130,6 +132,8 @@ class AnalysisStore:
                 with self.connect() as db:
                     db.execute('BEGIN IMMEDIATE')
                     record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
+                    if db.execute('SELECT 1 FROM campaign_sanity_jobs WHERE analysis_id=?',(id,)).fetchone():
+                        raise ValueError('This final Monte Carlo assessment is retained by its workflow history.')
                     if db.execute('SELECT 1 FROM campaign_analyses WHERE analysis_id=?', (id,)).fetchone():
                         raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
                     for table in ('forward_assessments', 'forward_report_refs'):
