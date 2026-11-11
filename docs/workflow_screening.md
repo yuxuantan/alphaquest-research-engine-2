@@ -161,10 +161,16 @@ Thus a Broad swing length grid of `5, 20`, selected at `5`, may use Narrow
 `3..7 step 1`; a binary mode grid of `1, 2` stays locked automatically. No
 per-campaign refinement list is required. A future sparse coded mode can opt
 out through `refinement_kind: categorical` in its strategy parameter metadata;
-ordinary numeric parameters need no new declaration. The other strategy parameters can
-vary. At least one Narrow parameter must vary so every row has an immediate
-neighbor. The native exhaustive optimizer validates coupled strategy
-constraints before launch. Each Broad selection has its own durable
+ordinary numeric parameters need no new declaration. Define the tag on its
+`Parameters` dataclass field (for example,
+`field(default=1, metadata={"refinement_kind": "categorical"})`). The strategy
+registry copies field metadata into the parameter description, and
+`campaign_narrow.refinement_options()` then excludes that field from the
+checkbox and API opt-in. The current strategy fields do not use this tag;
+binary `1,2` modes are already excluded by the integer-step rule. The other
+strategy parameters can vary. At least one Narrow parameter must vary so every
+row has an immediate neighbor. The native exhaustive optimizer validates
+coupled strategy constraints before launch. Each Broad selection has its own durable
 Narrow job; all branches must finish before any Narrow row becomes selectable.
 Up to two rows per Broad branch can be confirmed, at most four total. Each
 confirmation is immutable. OOS navigation unlocks only when all branches have

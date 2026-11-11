@@ -5,7 +5,7 @@
 - For changes to the current UI, explicitly select the relevant cases in
   `tests/test_campaign_mechanics_browser.py` or
   `tests/test_workflow_navigation_browser.py`, `tests/test_job_history_browser.py`,
-  or `tests/test_campaign_broad_browser.py`.
+  `tests/test_campaign_broad_browser.py`, or `tests/test_campaign_narrow_browser.py`.
   Browser checks are opt-in; select only the affected journey.
 - Older regressions remain intact but are excluded from default discovery.
   Do not routinely run the previous 180-check set or the full suite for each
@@ -15,11 +15,24 @@
 
 # Agreed campaign screening policy
 
-Follow `docs/workflow_screening.md` for the approved IS Broad criteria and the
-additional IS Narrow criteria reserved for later implementation. The portal
-shares server-owned rules from `alphaquest/workflow_criteria.py`. Preserve policy
-snapshots and historical confirmations; do not relabel an older rule as passing
-a newer one or claim the displayed Narrow plan has been executed.
+Follow `docs/workflow_screening.md` for the implemented IS Broad and IS Narrow
+criteria. OOS execution remains planned. The portal shares server-owned rules
+from `alphaquest/workflow_criteria.py` and `alphaquest/campaign_narrow.py`.
+Preserve policy snapshots and historical confirmations; do not relabel an older
+rule as passing a newer one.
+
+When adding strategy parameters, check the IS Narrow refinement rule in
+`docs/workflow_screening.md` and `alphaquest/campaign_narrow.py`. Narrow locks
+selected Broad values by default and offers **Refine in Narrow** for numeric
+Broad axes with a finer representable step. `StrategyDefinition.description()`
+copies each `Parameters` dataclass field's metadata into the parameter
+description. A sparse integer-coded category that might otherwise appear
+refinable must set `refinement_kind: categorical` in that field's metadata.
+Ordinary numeric parameters need no declaration; binary `1,2` integer modes
+stay locked because they have no finer integer step. The VWAP strategy's
+`integer()` helper currently accepts only description/minimum/maximum, so
+extend it or declare an exceptional field directly if this tag is needed.
+Keep the opt-out eligibility covered in `tests/test_campaign_narrow.py`.
 
 # Prop simulation deliverables
 
