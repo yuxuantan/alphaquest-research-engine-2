@@ -1,0 +1,102 @@
+{
+  "id": "ab088eb4e2a642e4aff73bbae8d146c2",
+  "created_at_utc": "2026-11-12T03:45:38.627228+00:00",
+  "configuration": {
+    "request_id": "ab088eb4-e2a6-42e4-aff7-3bbae8d146c2",
+    "selections": [
+      {
+        "workflow_id": "f127bd92-24ca-4927-b0fd-2999dbb23f3f",
+        "oos_job_id": "9ca18e85-a1ef-4c17-9300-e691b84db3eb",
+        "monte_carlo_id": "969e2f4e-951c-4c7b-af54-a60f7d64945a",
+        "candidate": 1
+      }
+    ],
+    "evaluation_minimum_micros": 58,
+    "evaluation_maximum_micros": 60,
+    "funded_minimum_micros": 38,
+    "funded_maximum_micros": 40,
+    "simulations": 32,
+    "seed": 42,
+    "block_weekdays": 5,
+    "evaluation_price": "49",
+    "activation_fee": "129",
+    "start_date": "2026-11-16",
+    "closures": [],
+    "funded_horizon_calendar_days": 90,
+    "receipt_delay_calendar_days": 2,
+    "maximum_funded_breach_probability": null,
+    "commission_per_mnq_side": "0.51"
+  },
+  "qualification": {
+    "selection": {
+      "workflow_id": "f127bd92-24ca-4927-b0fd-2999dbb23f3f",
+      "oos_job_id": "9ca18e85-a1ef-4c17-9300-e691b84db3eb",
+      "monte_carlo_id": "969e2f4e-951c-4c7b-af54-a60f7d64945a",
+      "candidate": 1
+    },
+    "source_backtest_id": "d276566314c340e9a645c355f09e3ef0",
+    "strategy_id": "consecutive_green_hold",
+    "dataset": {
+      "id": "b621d22b1fe14ed5ad937ea2d03d372a",
+      "name": "SYNTHETIC frozen OOS",
+      "sha256": "f550f5f739a158aac42ee547a3f0cbe8476978efb2cd613e13a77def62ab7eb6",
+      "bytes": 147575,
+      "row_count": 3052,
+      "source_timezone": "UTC",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      },
+      "symbol": "NQ",
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-12-31T09:00:00Z"
+    },
+    "parameters": {
+      "green_bar_count": 3,
+      "hold_minutes": 16,
+      "contracts": 1
+    },
+    "plan": {
+      "strategy_id": "consecutive_green_hold",
+      "source_sha256": "f550f5f739a158aac42ee547a3f0cbe8476978efb2cd613e13a77def62ab7eb6",
+      "source_timezone": "UTC",
+      "is_start": "2024-01-01",
+      "is_end": "2025-12-31",
+      "oos_start": "2026-01-01",
+      "oos_end": "2026-12-31",
+      "is_bars": 2018,
+      "oos_bars": 1034,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "broad_trial": 1,
+    "narrow_trial": 2,
+    "oos_report_id": "c474d1aa3804490a99b62fd9a119bf4a",
+    "monte_carlo_report_sha256": "0fe67c009fc1ec760abd46ca397fd0e8db1e5e6af13ed2efaea0cf18a138cffd",
+    "frozen_identity": "1808c598cdbf27ab615cb47e01b4bc967d5b30d7caecbd78c969dd116eab7bfe",
+    "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed"
+  },
+  "disclosure": "Sizing uses only the selected configuration\u2019s declared IS history. Eligibility has already used OOS and full-period Monte Carlo, so this is post-screening research, not an untouched final holdout. Saved fixed-signal trades are scaled to whole MNQ contracts with native held-OHLC adverse bounds. Account stops/pauses do not rerun strategy signals; execution, gaps and size-dependent fills remain assumptions. Evaluation and Funded objectives are independent. Calendars below are declared weekday scenarios, not verified exchange calendars. Local Apex 50K EOD rules are versioned model assumptions, not newly certified provider rules. Fees are editable scenarios; receipt delay is a modeled assumption. No portfolio allocation or combined annual net projection is calculated.",
+  "campaign_ids": {
+    "evaluation": "79a76bbc0d6f55aa876fdc71dd422958",
+    "funded": "d35cbe15ae58578dbfbf7b54ea5e1ef6"
+  },
+  "phases": {
+    "evaluation": {
+      "campaign_id": "79a76bbc0d6f55aa876fdc71dd422958",
+      "status": "complete",
+      "analysis_id": "e62e7e491bdc4c76acec4d7517f19cef",
+      "progress": "Saved Evaluation search ready",
+      "error": null,
+      "candidate_count": 3
+    },
+    "funded": {
+      "campaign_id": "d35cbe15ae58578dbfbf7b54ea5e1ef6",
+      "status": "complete",
+      "analysis_id": "2a811ae590874c04b6fb8600e00c98cc",
+      "progress": "Saved Funded search ready",
+      "error": null,
+      "candidate_count": 3
+    }
+  }
+}

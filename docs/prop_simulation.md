@@ -124,6 +124,58 @@ Previously saved reports reopen without requalification or resimulation.
 
 See the [normal-product evidence and reproduction guide](evidence/qualified_prop_sim/README.md).
 
+## Independent size ranges, optional breach cap and Evaluation chart — 2026-11-12
+
+The current Prop Sim form has separate Evaluation minimum/maximum sizes and
+Funded minimum/maximum sizes. The local Apex 50K EOD limits are **60 MNQ for
+Evaluation** and **40 MNQ for Funded**. Each range enumerates every integer
+between its endpoints; defaults remain 1–10 for each phase. Funded requested
+sizes are still subject to its existing per-account scaling tiers, starting at
+20 MNQ in the preserved local model. Evaluation explicitly supplies a 60-MNQ
+simulation cap to the existing owner: candidates above 40 are not clipped by
+`SimulationConfig`'s older default. No numerical owner or rule hash is changed.
+
+New request fields are `evaluation_minimum_micros`,
+`evaluation_maximum_micros`, `funded_minimum_micros` and
+`funded_maximum_micros`. Backend/HTML validation enforce each phase's ceiling
+and ordered range. Changing either range changes only that phase's numerical
+request/cache identity. Old shared `minimum_micros` / `maximum_micros` requests
+and stored declarations are read compatibly, never rewritten. Mixed old/new
+range declarations reject. Existing saved results retain their original model
+settings and numerical snapshots. Small status/history views and source
+qualification remain unchanged. Report-resource bounds still apply separately;
+source-check errors now identify the rejecting phase.
+
+`maximum_funded_breach_probability` is now optional, **null/off by default**.
+Blank in the form means no breach eligibility cap; a number in 0–1 enables it.
+Breach probability remains a displayed measurement regardless. The cap is a
+user research preference, not provider admission or campaign qualification.
+It measures drawdown failure before the selected future-model Funded horizon;
+the number of years in the IS sampling history is a different quantity.
+Accounts may also end through inactivity or completing the payout ladder.
+Long history does not mean every sampled account must breach. With no cap,
+Funded ranks complete feasible candidates by expected cash received across all
+starts, including zero-payout failures. There is no automatic replacement account.
+Historical saved capped analyses keep their explicit original caps.
+
+Evaluation results now draw expected calendar days to Funded on the horizontal
+axis and expected acquisition cost (USD) on the vertical axis. All resolved
+sizes are shown; green points and connecting segments identify the computed
+Pareto frontier, grey points show dominated estimates. Exactly tied coordinates
+share a point listing every corresponding size. Hover, focus, Enter/Space or
+click reveals values and highlights the matching result rows. The chart exports
+a standalone SVG. Unresolved/censored rows remain in the table and are excluded
+from geometry; a single distinct frontier point is shown as one point, without
+inventing a tradeoff curve or untested intermediate sizes. A missing resolved
+population shows an explicit empty-chart explanation.
+
+[The additive product evidence](evidence/qualified_prop_sim/phase_ranges/README.md)
+includes the actual 58–60 MNQ Evaluation / 38–40 MNQ Funded journey, current
+default uncapped Funded request, native phase downloads and Pareto SVG/screenshot.
+Earlier shared-range evidence remains unchanged. Defaults of 1,000 paths and
+resource bounds are unchanged; for full 1–60 / 1–40 ranges, 500 paths fits the
+existing per-report capture bound, while 1,000 Funded paths does not.
+
 ## Canonical external sources — 2026-11-08
 
 **Strategies → Import trades** validates the versioned

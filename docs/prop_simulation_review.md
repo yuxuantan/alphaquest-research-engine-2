@@ -11001,3 +11001,45 @@ weekday calendars, editable fees/receipt delay, 21-session expiry/inactivity
 clocks and the existing exactly-50% consistency boundary. Current provider parity,
 complete strategy resimulation under account pauses and a portfolio allocation
 are not claimed or implemented by this increment.
+
+
+### 2026-11-12 — Independent phase size ranges, optional risk cap and Pareto chart
+
+Extended the same qualified backtest → Prop Sim → source check → native phase
+execution → sealed results/download journey with separate size ranges. Apex
+Evaluation admits through 60 MNQ and explicitly sends that cap into simulation;
+Funded admits through 40 MNQ while retaining its account scaling tiers. Backend
+and HTML validate both ceilings/range ordering. The parameter configuration and
+IS source remain fixed, and changing one phase's size range leaves the other's
+calculation identity unchanged. Historical shared-range settings remain readable
+and idempotently launchable without modifying earlier reports.
+
+The Funded breach cap is optional and blank/null by default, as approved by the
+user. Breach remains a diagnostic across the selected modeled horizon. Explicit
+caps remain enforceable; old saved runs retain their explicit 25% caps. No
+account needs to survive the entire IS history: that history supplies sampled
+scenarios, while the existing finite-horizon owner can terminate on breach,
+inactivity or completed payouts. No numerical engine, provider rule, reporting
+store, replacement-account or portfolio-allocation change is introduced.
+
+Added an interactive/exportable Evaluation cost/time Pareto chart to the actual
+result section. Resolved candidates appear with the existing frontier verdicts,
+exact coordinate ties retain all sizes, hover/keyboard/click reveals values and
+highlights rows, and the SVG download preserves axes/points/labels. Unresolved
+rows are excluded only from chart geometry. A single distinct frontier point
+and a wholly unresolved population are represented explicitly.
+
+[New saved normal-product evidence and reproduction](evidence/qualified_prop_sim/phase_ranges/README.md)
+use the existing labeled synthetic NQ source through all campaign phases and the
+current Monte Carlo gate. The actual portal runs 58–60 MNQ Evaluation and 38–40
+MNQ Funded, 32 paths per size/phase, then downloads native CSV/JSON/ZIP, Pareto
+SVG and result screenshots. This exercises the real upper boundaries rather
+than a mock execution service. Earlier evidence remains in the parent folder.
+The API additionally checks 61/41-MNQ and inverted-range rejection, distinct
+phase membership and cache independence, optional versus explicit risk caps,
+legacy shared-range requests, normal qualification/reopen protections, and a
+separate arithmetic oracle: 50 USD NQ-equivalent net per session at 60 MNQ earns
+300 USD/session and reaches the 3,000 USD target in exactly ten sessions; the
+old accidental 40-MNQ cap would require fifteen. A presentation-only chart test
+keeps its synthetic tradeoff/tie/missing-point oracle in tests, never in product
+storage or exported product evidence. Temporary browser servers stop at teardown.

@@ -61,6 +61,13 @@ the parent phase-reference record into another result store. Select
 `tests/test_prop_sim.py` explicitly for admission/orchestration changes and the
 browser journey above for the portal. These exercise the complete qualified
 pipeline, so keep them opt-in when unrelated features change.
+Keep phase size ranges independent (Apex Evaluation ceiling 60 MNQ, Funded 40,
+with Funded account tiers still enforced). Explicitly pass the phase simulation
+cap; do not silently clip Evaluation to the older 40-MNQ default. Funded breach
+probability is a diagnostic with an optional default-off eligibility cap over
+the modeled horizon, not over the IS history. Preserve explicit historical caps.
+The Evaluation Pareto chart shows resolved estimates, exact ties and the supplied
+frontier; it must not fabricate points for unresolved or untested configurations.
 
 For each future prop simulation subtask, deliver:
 

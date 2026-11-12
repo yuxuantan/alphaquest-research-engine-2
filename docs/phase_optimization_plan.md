@@ -35,6 +35,12 @@ new provider qualification or untouched final OOS. Multiple-source portfolio
 allocation remains pending. See [implementation and assumptions](prop_simulation.md#campaign-qualified-prop-sim-portal--2026-11-12)
 and [saved product evidence](evidence/qualified_prop_sim/README.md).
 
+Current Prop Sim extension (12 November): Evaluation and Funded now have
+independent whole-MNQ ranges (Apex 50K EOD caps 60 / 40), an optional default-off
+Funded breach cap, and an interactive/downloadable Evaluation Pareto chart.
+Existing numerical owners and independent objectives remain unchanged. See the
+[current contract and saved evidence](prop_simulation.md#independent-size-ranges-optional-breach-cap-and-evaluation-chart--2026-11-12).
+
 ## Implemented saved-trial research campaigns — 2026-11-06
 
 [`research_campaigns.py`](../alphaquest/research_campaigns.py) now expands declared

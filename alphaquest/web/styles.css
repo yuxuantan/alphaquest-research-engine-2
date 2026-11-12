@@ -1975,3 +1975,7 @@ dialog::backdrop {
 #prop-sim-results > section { margin:24px 0; }
 #prop-sim-content pre { max-height:400px; max-width:100%; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
 #prop-sim-results td:last-child { min-width:220px; max-width:480px; white-space:normal; }
+.prop-sim-pareto svg { display:block; width:100%; min-width:640px; font-family:inherit; }
+.prop-sim-pareto circle { cursor:pointer; }
+.prop-sim-pareto circle:focus { stroke:#20313b; stroke-width:3; outline:none; }
+#prop-sim-evaluation-table tr.prop-sim-chart-highlight td { background:#e2f5ef; }

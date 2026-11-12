@@ -6,6 +6,14 @@ campaign mechanics/Broad/Narrow/OOS/Monte Carlo, native phase source checks,
 CampaignStore, AnalysisStore and the actual Prop Sim portal. No alternate API,
 calculation engine or result store was created for this demonstration.
 
+Current extension: [separate phase ranges, optional default-off breach cap and
+Pareto chart](phase_ranges/README.md) supersede the shared form below. The files
+in this folder preserve the original `53a973f` product snapshot and its explicit
+25% cap. The current browser test has `shared-range` and `phase-limits` cases;
+select `[shared-range]` to repeat the low-size arithmetic journey, or follow the
+new guide for the 60/40 boundaries. Write reproduction output to a temporary
+folder to preserve these snapshots.
+
 ## Inspect the delivered outputs
 
 - `SYNTHETIC-source.csv`: the labeled synthetic source from the normal dataset API.
@@ -28,7 +36,7 @@ From the repository root, with the existing `.venv` and Chromium browser extra:
 
 ```sh
 ALPHAQUEST_PROP_SIM_EVIDENCE_DIR=/private/tmp/qualified-prop-sim-reproduction \
-  .venv/bin/python -m pytest -q tests/test_prop_sim_browser.py \
+  .venv/bin/python -m pytest -q 'tests/test_prop_sim_browser.py::test_prop_sim_qualified_single_configuration_real_results_and_downloads[shared-range]' \
   tests/test_workflow_navigation_browser.py::test_prop_sim_empty_qualification_boundary_and_mobile
 ```
 

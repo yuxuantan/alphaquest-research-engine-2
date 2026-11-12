@@ -6,7 +6,7 @@ import json
 from uuid import UUID, uuid5
 
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
 
 from .campaign_broad import invoke
 from .campaign_monte_carlo import POLICY as MC_POLICY
@@ -17,6 +17,7 @@ from .prop.phase_profiles import rule_version
 
 
 PROFILE='apex-50k-eod'
+SIZE_LIMITS=dict(evaluation=60,funded=40)
 DISCLOSURE=('Sizing uses only the selected configuration’s declared IS history. Eligibility has already used OOS and full-period Monte Carlo, so this is post-screening research, not an untouched final holdout. '
             'Saved fixed-signal trades are scaled to whole MNQ contracts with native held-OHLC adverse bounds. Account stops/pauses do not rerun strategy signals; execution, gaps and size-dependent fills remain assumptions. '
             'Evaluation and Funded objectives are independent. Calendars below are declared weekday scenarios, not verified exchange calendars. '
@@ -40,8 +41,10 @@ class Configuration(BaseModel):
     model_config=ConfigDict(extra='forbid')
     request_id: UUID
     selections: list[Selection] = Field(min_length=1,max_length=1)
-    minimum_micros: StrictInt = Field(default=1,ge=1,le=40)
-    maximum_micros: StrictInt = Field(default=10,ge=1,le=40)
+    evaluation_minimum_micros: StrictInt = Field(default=1,ge=1,le=60)
+    evaluation_maximum_micros: StrictInt = Field(default=10,ge=1,le=60)
+    funded_minimum_micros: StrictInt = Field(default=1,ge=1,le=40)
+    funded_maximum_micros: StrictInt = Field(default=10,ge=1,le=40)
     simulations: StrictInt = Field(default=1000,ge=8,le=20000)
     seed: StrictInt = Field(default=42,ge=0,lt=2**32-3)
     block_weekdays: StrictInt = Field(default=5)
@@ -51,8 +54,28 @@ class Configuration(BaseModel):
     closures: list[StrictStr] = Field(default_factory=list,max_length=3660)
     funded_horizon_calendar_days: StrictInt = Field(default=90,ge=1,le=365)
     receipt_delay_calendar_days: StrictInt = Field(default=2,ge=0,le=365)
-    maximum_funded_breach_probability: float = Field(default=.25,ge=0,le=1)
+    maximum_funded_breach_probability: float | None = Field(default=None,ge=0,le=1)
     commission_per_mnq_side: StrictStr = '0.51'
+
+    @model_validator(mode='before')
+    @classmethod
+    def legacy_shared_range(cls,value):
+        """Read old declarations without mutating their saved settings/reports."""
+        if isinstance(value,dict) and {'minimum_micros','maximum_micros'} & value.keys():
+            if any(f'{phase}_{bound}_micros' in value for phase in SIZE_LIMITS for bound in ('minimum','maximum')):
+                raise ValueError('Use either legacy shared sizes or separate phase sizes, not both.')
+            value=dict(value)
+            minimum=value.pop('minimum_micros',1);maximum=value.pop('maximum_micros',10)
+            for phase in SIZE_LIMITS:
+                value.update({f'{phase}_minimum_micros':minimum,f'{phase}_maximum_micros':maximum})
+        return value
+
+    @model_validator(mode='after')
+    def ordered_ranges(self):
+        for phase in SIZE_LIMITS:
+            if getattr(self,f'{phase}_minimum_micros')>getattr(self,f'{phase}_maximum_micros'):
+                raise ValueError(f'{phase.title()} minimum size must not exceed its maximum size.')
+        return self
 
     @field_validator('evaluation_price','activation_fee','commission_per_mnq_side')
     @classmethod
@@ -132,7 +155,6 @@ def candidates(request):
 
 
 def declarations(body,source):
-    if body.minimum_micros>body.maximum_micros:raise ValueError('Minimum size must not exceed maximum size.')
     if body.block_weekdays not in (1,5,10):raise ValueError('Block length must be 1, 5 or 10 weekdays.')
     profile=dict(profile_id=PROFILE,rule_version=rule_version(PROFILE),daily_loss_limit=True)
     # The saved source bounds may start on the prior Chicago session date.
@@ -140,12 +162,12 @@ def declarations(body,source):
     native=source['_native']
     first=max(source['plan']['is_start'],session_date(instant(native['period_start_utc'])).isoformat())
     last=min(source['plan']['is_end'],session_date(instant(native['period_end_utc'])).isoformat())
-    common=dict(sources=[dict(backtest_id=source['source_backtest_id'],sizes=list(range(body.minimum_micros,body.maximum_micros+1)))],
-        is_window=dict(first_session=first,last_session=last),simulation=dict(simulations=body.simulations,seed=body.seed),
+    common=dict(is_window=dict(first_session=first,last_session=last),
         costs=dict(mode='override',broker='Rithmic',per_side=body.commission_per_mnq_side,instrument='auto'))
     calendar=dict(start_dates=[body.start_date],closures=body.closures)
     definitions={}
     for phase in ('evaluation','funded'):
+        minimum=getattr(body,f'{phase}_minimum_micros');maximum=getattr(body,f'{phase}_maximum_micros')
         phase_profile=dict(profile)
         sampling=dict(block_weekdays=body.block_weekdays)
         settings=dict(calendar=calendar)
@@ -156,8 +178,10 @@ def declarations(body,source):
             phase_profile['approval_day_counts']=True
             settings.update(horizon_calendar_days=body.funded_horizon_calendar_days,
                 receipt_delay_calendar_days=body.receipt_delay_calendar_days,bootstrap_replicates=100,
-                constraints=dict(maximum_account_breach_probability=body.maximum_funded_breach_probability,maximum_position_size=body.maximum_micros))
+                constraints=dict(maximum_account_breach_probability=body.maximum_funded_breach_probability,maximum_position_size=maximum))
         definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,
+            sources=[dict(backtest_id=source['source_backtest_id'],sizes=list(range(minimum,maximum+1)))],
+            simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=SIZE_LIMITS[phase]),
             phase=phase,profile=phase_profile,sampling=sampling,search_settings=settings))
     return definitions
 
@@ -166,7 +190,10 @@ def check(request,body):
     source=qualified(request,body.selections[0])
     source['_native']=request.app.state.runs.get(source['source_backtest_id'])
     definitions=declarations(body,source);source.pop('_native')
-    checks={phase:request.app.state.campaigns.expand(declaration) for phase,declaration in definitions.items()}
+    checks={}
+    for phase,declaration in definitions.items():
+        try:checks[phase]=request.app.state.campaigns.expand(declaration)
+        except ValueError as exc:raise ValueError(f'{phase.title()} sizing search: {exc}') from exc
     return dict(status='compatible',source=source,phases=checks,disclosure=DISCLOSURE),definitions
 
 
@@ -188,7 +215,8 @@ def launch(request,body):
     with analyses.lock:
         with analyses.connect() as db:previous=db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()
         if previous:
-            if json.loads(previous[0])['configuration']!=body.model_dump(mode='json'):raise ValueError('This request ID already belongs to a different simulation.')
+            previous_body=Configuration.model_validate(json.loads(previous[0])['configuration'])
+            if previous_body.model_dump(mode='json')!=body.model_dump(mode='json'):raise ValueError('This request ID already belongs to a different simulation.')
             # Revalidate qualification on every explicit launch, even for a cached result.
             qualified(request,body.selections[0])
             saved=json.loads(previous[0])
@@ -217,14 +245,15 @@ def defaults():
     from .prop.native_engine import Rules
     from .prop.phase_profiles import EvaluationProfile,FundedProfile
     from .prop.rule_provenance import profile_review
-    return dict(profile_id=PROFILE,rule_version=rule_version(PROFILE),disclosure=DISCLOSURE,
+    return dict(profile_id=PROFILE,rule_version=rule_version(PROFILE),disclosure=DISCLOSURE,size_limits=SIZE_LIMITS,
         rule_provenance=dict(evaluation=profile_review(EvaluationProfile(PROFILE,rule_version(PROFILE),'49','129'),'evaluation'),
                              funded=profile_review(FundedProfile(PROFILE,rule_version(PROFILE)),'funded')),
         evaluation_rules=dict(account_size=50000,profit_target=3000,maximum_drawdown=2000,daily_loss_limit=1000,expiry_weekdays=21),
         funded_rules=asdict(Rules()),maximum_selected_configurations=1,
-        defaults=dict(minimum_micros=1,maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
+        defaults=dict(evaluation_minimum_micros=1,evaluation_maximum_micros=10,
+            funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
             evaluation_price='49',activation_fee='129',commission_per_mnq_side='0.51',funded_horizon_calendar_days=90,
-            receipt_delay_calendar_days=2,maximum_funded_breach_probability=.25))
+            receipt_delay_calendar_days=2,maximum_funded_breach_probability=None))
 
 
 @router.post('/check')
