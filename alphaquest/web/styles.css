@@ -2003,3 +2003,43 @@ dialog::backdrop {
   .pareto-metrics dd { font-size:20px; }
   .pareto-views button { min-height:40px; }
 }
+.prop-sim-setup { margin:20px 0; }
+.prop-sim-setup > summary { font-size:18px; font-weight:650; cursor:pointer; }
+.prop-sim-setup[open] > summary { padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid #e6ecef; }
+.prop-sim-source-grid, .prop-sim-phase-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-bottom:24px; }
+.prop-sim-source-grid h2 { font-size:18px; margin:0 0 14px; }
+.prop-sim-source-grid label { display:grid; gap:8px; font-size:13px; font-weight:600; color:#405763; }
+.prop-sim-source-grid select { padding:11px; background:#fff; border:1px solid #dbe5e8; border-radius:8px; font:inherit; }
+.prop-sim-account-info { color:#263d49; line-height:1.7; }
+.prop-sim-source-grid .prop-sim-dll { display:flex; align-items:center; gap:9px; font-weight:500; }
+.prop-sim-dll input { width:auto; }
+.prop-sim-phase-config { padding:20px; border:1px solid #dfe8e9; border-radius:12px; background:#fafcfc; }
+.prop-sim-phase-config h3, .prop-sim-quality h3 { margin:0 0 8px; font-size:17px; }
+.prop-sim-phase-config .prop-sim-settings { grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:0; }
+.prop-sim-settings input, .prop-sim-settings select { width:100%; min-width:0; box-sizing:border-box; }
+.prop-sim-quality .prop-sim-settings { grid-template-columns:repeat(2,minmax(0,1fr)); max-width:600px; }
+.prop-sim-advanced { padding:16px 0; border-top:1px solid #e6ecef; }
+.prop-sim-advanced > summary { cursor:pointer; color:#526875; font-weight:600; }
+.prop-sim-preflight { padding:13px 16px; background:#eef7f3; border:1px solid #d8ebe3; color:#29604e; border-radius:9px; font-size:13px; }
+.prop-sim-preflight-error { background:#fff3eb; border-color:#f0d1bd; color:#984b25; }
+.prop-sim-run-heading { margin-bottom:24px; }
+.prop-sim-run-heading h2 { margin:12px 0; }
+.prop-sim-run-heading .mechanic-downloads { margin-top:16px; }
+.prop-sim-history { display:grid; gap:10px; padding:18px; margin:24px 0; border:1px solid #e0e7ea; border-radius:12px; background:white; font-size:13px; font-weight:600; }
+.prop-sim-history select { width:100%; min-width:0; padding:10px; font:inherit; }
+.prop-result-table th { position:sticky; top:0; z-index:2; }
+.prop-result-table th button { font:inherit; letter-spacing:inherit; text-transform:inherit; color:inherit; border:0; padding:0; background:transparent; cursor:pointer; text-align:left; }
+.prop-result-table th:first-child, .prop-result-table td:first-child { position:sticky; left:0; background:#f8fbfa; z-index:1; }
+.prop-result-table th:first-child { z-index:3; }
+.prop-result-table td { font-variant-numeric:tabular-nums; }
+.prop-sim-exports { border-top:1px solid #e5ecef; padding-top:16px; margin-top:18px; }
+@media (max-width:800px) {
+ .prop-sim-source-grid, .prop-sim-phase-grid { grid-template-columns:1fr; gap:18px; }
+ .prop-sim-phase-config { padding:16px; }
+}
+
+.prop-sim-setup .prop-sim-settings { align-items:start; }
+.prop-sim-setup .prop-sim-settings label { align-content:start; }
+
+.prop-sim-setup, .prop-sim-run-heading { padding:22px; }
+@media (max-width:600px) { .prop-sim-setup, .prop-sim-run-heading { padding:16px; } }

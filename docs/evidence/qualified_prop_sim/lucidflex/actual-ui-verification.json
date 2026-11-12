@@ -1,0 +1,26 @@
+{
+  "simulation_id": "64f1f4603bdf40e9b776b3668cd1e227",
+  "profile_id": "lucidflex-50k",
+  "paths_per_size": 128,
+  "ranges": {
+    "evaluation": [
+      1,
+      10
+    ],
+    "funded": [
+      1,
+      10
+    ]
+  },
+  "screenshots": "Actual existing local library outputs; source was not fabricated.",
+  "phase_report_sha256": {
+    "evaluation": "161ae93ad100770c0fffd281d9b3f0f2a27dcb73c2da55c8bbfd4d48d95bb814",
+    "funded": "83172b235612e3023d4defa26b06b5385e94b92b2eb95918d33c1716f83212a2"
+  },
+  "browser_errors": [],
+  "mutation_requests": [],
+  "mobile_page_overflow": false,
+  "legacy_apex_report_reopened": true,
+  "blocked_funded_40_sizes_1000_paths": true,
+  "execution": "Read-only browser inspection; no server or new jobs started by this check."
+}

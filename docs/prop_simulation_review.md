@@ -11079,3 +11079,52 @@ picker/keyboard inspection, front-to-back ordering, one/no frontier, unresolved
 rows, mobile overflow and SVG export. It runs without backtests/Monte Carlo and
 stops its isolated server at teardown. The actual-product check starts no server
 and does not rerun or mutate the user's saved analysis.
+
+### 2026-11-12 — Selectable LucidFlex 50K and revised setup/results experience
+
+The main Prop Sim workflow now offers Apex 50K EOD and LucidFlex 50K standard
+40% accounts. Backend declarations pin the profile, rule version, optional
+Lucid DLL, account-specific costs and 40/40-MNQ Lucid limits; Apex retains 60/40.
+Eligibility still independently verifies every campaign phase and current Monte
+Carlo. Unknown profiles, incompatible ranges, nonzero Lucid activation and
+invalid source shapes reject. Legacy saved requests default to their original
+Apex identity, retaining explicit historical fees/risk caps.
+
+Lucid Evaluation uses a new saved-signal **calendar acquisition** branch in
+`evaluation_profiles.py` / `evaluation_optimization.py`. It calls the existing
+Lucid session transitions on modeled civil dates, with empty-date inactivity,
+seeded fresh retry streams, consistency, optional DLL and actual fee charges.
+It does not reuse the Apex empirical-IID/session deadline or rerun source bars.
+Calendar/attempt guards censor unresolved paths; unconditional cost/time means
+require complete acquisition across all paths. The existing all-path metric /
+Pareto contract is reused, with first-attempt probability labeled separately.
+Funded continues through its existing dated Lucid owner and cash ledger. No
+Evaluation fee/probability/time enters Funded, and no legacy joint selector or
+external engine is called. Numerical source identity includes the changed owners;
+older reports stay readable and incompatible frozen execution remains closed.
+
+The portal groups source/account and independent phase settings, provides live
+capture-limit warnings before launch, and collapses advanced controls. Saved
+results open directly to the account/source summary, frozen parameters, phase
+navigation, chart and sortable tables with a sticky size column. Adjusting inputs
+creates another saved run; it does not edit existing outputs. Mobile review and
+profile switching were checked through the actual product.
+
+[Saved evidence, independent expected values and exact reproduction](evidence/qualified_prop_sim/lucidflex/README.md)
+include the normal synthetic NQ → campaign → Monte Carlo → Lucid check/run →
+durable native results journey, both numerical reports/CSV/ZIPs, Pareto SVG and
+screenshots. Across 32 chains the Evaluation oracle has 36 purchases, 2,898 USD
+paid fees and 761 calendar days: means 90.5625 USD / 23.78125 days. Funded totals
+79,200 received + 1,800 pending = 90% × 90,000 withdrawn. Pure calendar oracles
+cover Friday/weekend/closure readiness, Sunday inactivity, DLL variants, charged
+retries and guard censoring. Existing owner tests, profile-isolation API checks,
+qualification rejection, sorting/download/reopen and browser/mobile checks pass.
+Temporary test servers stop at teardown; no persistent test server is created.
+
+The user's real qualified VWAP source was additionally run through normal APIs
+as `64f1f4603bdf40e9b776b3668cd1e227` (1–10 MNQ, 128 paths per size/phase). Both
+phases completed; separate actual-library screenshots and read-only verification
+are labeled in the evidence folder. Prior Apex reports reopen unchanged. These
+conditional model outputs are not forecasts or provider certification. Lucid's
+50% add-on and live-account outcomes are outside this implementation; fixed
+1,200 USD DLL, account readiness and settlement assumptions remain explicit.

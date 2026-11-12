@@ -825,3 +825,18 @@ Lucid freeze failure and is corrected. Identity changes reject future frozen
 launches and cache reuse while old reports/downloads stay readable. No changed
 calculation source is filtered out to preserve old hashes. The implementation
 and qualification record distinguishes these corrections from provider parity.
+
+## LucidFlex saved-signal calendar acquisition — 2026-11-12
+
+The main Prop Sim portal now supports selectable Apex 50K EOD and LucidFlex 50K
+standard 40% profiles. This supersedes older dated statements that only native
+bar reruns could support Lucid calendar inactivity. The new Evaluation owner
+branch samples fixed-signal histories on declared civil dates, calls existing
+Lucid session transitions, charges all retry fees and preserves guard censoring.
+Cost/time are direct complete-path means; the Apex IID estimator stays unchanged.
+Funded continues through its existing independent dated Lucid owner. Profile,
+DLL, costs, caps, source and numerical identities are captured in normal phase
+campaigns/AnalysisStore. Old reports remain immutable and incompatible frozen
+execution is not bypassed. The [current contract and actual product evidence](prop_simulation.md#selectable-lucidflex-50k--2026-11-12)
+record calendar/cash oracles, 40/40 limits, UI revisions and remaining provider /
+50%-add-on / live-transition limitations. No portfolio optimizer is added.

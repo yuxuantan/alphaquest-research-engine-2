@@ -571,3 +571,118 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
             'The existing Apex model expires after 21 eligible sessions; current provider equivalence is unverified. Rule-version gaps are not deployment approval.',
             'Saved fixed-signal-path approximation: account pauses/skips are not a strategy rerun. No native execution or future profitability is certified.',
             'Calendar, activation and receipt timing are declared model assumptions. An unfinished acquisition has no fabricated finite funding-time estimate.'])
+
+def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry, calendar,
+        *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None):
+    """Lucid saved-signal acquisition on actual modeled civil dates.
+
+    Reuses Lucid's session transitions, including empty-date inactivity checks.
+    Each fresh attempt has an independently addressed circular-block stream.
+    First/last attempt summaries are bounded; counts and paid fees cover all.
+    """
+    from datetime import date,timedelta
+    from decimal import Decimal
+    from hashlib import sha256
+    from . import lucid_engine,native_engine
+    from .cash_ledger import replay_calendar_sessions,acquisition_schedule
+    if type(profile) is not EvaluationProfile or profile.profile_id!='lucidflex-50k' or not days:
+        raise ValueError('Calendar saved-path acquisition requires LucidFlex and nonempty history.')
+    sessions=replay_calendar_sessions(calendar);session_set=set(sessions)
+    starts=sorted(calendar.start_dates);schedule=sha256();paths=[]
+    fee=Decimal(profile.evaluation_price);activation=Decimal(profile.activation_fee)
+    for index in range(simulation.simulations):
+        checkpoint();start=date.fromisoformat(starts[index%len(starts)])
+        cutoff=start+timedelta(days=retry.max_calendar_days)
+        purchase=start;attempt=None;first_attempt=None;last_attempt=None;attempts=0
+        paid=Decimal(0);paid_activation=Decimal(0);passed_on=eligible=ready=None
+        outcome='calendar_guard';observed=retry.max_calendar_days;stream=None
+        for offset in range(retry.max_calendar_days):
+            if offset%32==0:checkpoint()
+            day=start+timedelta(days=offset)
+            if passed_on is not None:
+                if eligible==day:paid_activation+=activation
+                if ready==day:outcome='funded';observed=offset;break
+                continue
+            if attempt is None and day>=purchase:
+                if attempts>=retry.max_attempts:outcome='attempt_guard';observed=offset;break
+                attempts+=1;paid+=fee
+                attempt=dict(index=attempts,purchase_date=str(day),first_session=None,sessions=0,
+                    equity=0.,high=0.,best=0.,last_activity=0,outcome='open')
+                if first_attempt is None:first_attempt=attempt
+                last_attempt=attempt
+                rng=np.random.RandomState(np.random.SeedSequence([simulation.seed,index,attempts]).generate_state(1)[0])
+                stream=native_engine.sampled_days(rng,len(days),sampling.block_weekdays)
+            if attempt is None:continue
+            is_session=day in session_set
+            if not is_session and attempt['first_session'] is None:continue
+            if is_session:
+                if attempt['first_session'] is None:attempt['first_session']=str(day)
+                source_index=next(stream);trades=days[source_index];attempt['sessions']+=1
+                schedule.update(f'{index}:{attempts}:{day}:{source_index};'.encode())
+            else:trades=[];source_index=None
+            elapsed=(day-date.fromisoformat(attempt['first_session'])).days
+            kwargs=(dict(**sizing.kernel_arguments(stage='evaluation_calendar_sample',path_index=index,
+                source_session_index=source_index,calendar_date=str(day),attempt=attempts),trace=trace) if sizing is not None and is_session else {})
+            result=lucid_engine.evaluation_session(trades,attempt['equity'],attempt['high'],attempt['best'],
+                attempt['last_activity'],elapsed,min(micros,40,simulation.max_micros),
+                1200. if profile.daily_loss_limit else None,max_micros=simulation.max_micros,**kwargs)
+            attempt['equity'],attempt['high'],attempt['best'],attempt['last_activity'],state,_,_=result
+            attempt['outcome']=state
+            if state=='passed':
+                attempt['terminal_date']=str(day);passed_on=day
+                eligible,ready=acquisition_schedule(day,sessions,retry.activation_delay_sessions,allow_pending=True)
+                if eligible==day:paid_activation+=activation
+                attempt=None
+            elif state in ('blown','inactive'):
+                attempt['terminal_date']=str(day);purchase=day+timedelta(days=1+retry.retry_delay_calendar_days);attempt=None
+        if ready==cutoff and eligible is not None and eligible<cutoff:
+            outcome='funded';observed=retry.max_calendar_days
+        complete=outcome=='funded'
+        summaries=[] if first_attempt is None else [first_attempt]
+        if last_attempt is not first_attempt:summaries.append(last_attempt)
+        paths.append(dict(path=index,start_date=str(start),outcome=outcome,acquisition_completed=complete,
+            censored=not complete,observed_calendar_days=observed,calendar_days_to_funded=observed if complete else None,
+            attempts_started=attempts,attempts=summaries,attempt_detail_policy='First and last only; aggregate counts/fees include every attempt.',
+            paid_evaluation_fees=float(paid),paid_activation_fees=float(paid_activation),paid_fees=float(paid+paid_activation),
+            pending_activation=passed_on is not None and (eligible is None or eligible>=cutoff),
+            pass_date=str(passed_on) if passed_on else None,ready_date=str(ready) if ready else None))
+        if (index+1)%max(1,simulation.simulations//10)==0:progress(f'Lucid Evaluation paths {index+1}/{simulation.simulations}')
+    return paths,schedule.hexdigest()
+
+
+def simulate_calendar_evaluation_profile(runs,candidate,calendar,*,observed_sessions=None,checkpoint=lambda:None,progress=lambda value:None):
+    """Local calendar-aware saved-signal Lucid paths projected to Pareto metrics."""
+    from dataclasses import asdict
+    from .phase_profiles import equal_stratum_mean
+    c=candidate
+    snapshot,days,_=prepare_phase_source(runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing,
+        observed_sessions=observed_sessions)
+    trace=SizingTrace(c.sizing) if c.sizing is not None else None
+    paths,schedule=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,c.retry,calendar,
+        sizing=c.sizing,trace=trace,checkpoint=checkpoint,progress=progress)
+    verify_phase_source(runs,c.source,snapshot)
+    def estimate(key):
+        return equal_stratum_mean([[p[key] for p in paths if p['start_date']==start] for start in sorted(calendar.start_dates)])
+    names=dict(restricted_mean_paid_fees='paid_fees',restricted_mean_observed_calendar_days='observed_calendar_days',
+        probability_acquisition_by_cutoff='acquisition_completed',mean_attempts_started='attempts_started')
+    estimates={name:estimate(key) for name,key in names.items()};complete=all(p['acquisition_completed'] for p in paths)
+    for name,key in [('mean_acquisition_cost','paid_fees'),('mean_calendar_days_to_funded','calendar_days_to_funded')]:
+        estimates[name]=estimate(key) if complete else dict(mean=None,mc_standard_error=None)
+    forecast=dict(paths=paths,metrics=dict({k:v['mean'] for k,v in estimates.items()},censored_paths=sum(p['censored'] for p in paths)),
+        uncertainty=dict(metrics=estimates,scope='Conditional simulation noise under the saved source/calendar law; no future confidence or provider certification.'),
+        model='saved-signal-calendar-acquisition-v1',phase_configuration=dict(profile=asdict(c.profile),micros=c.micros,
+            simulation=asdict(c.simulation),sampling=asdict(c.sampling),retry=asdict(c.retry),calendar=asdict(calendar)),
+        assumptions=['Source trade signals are fixed and scaled; account stops do not regenerate subsequent signals.',
+            'Lucid native session rules advance on actual scenario civil dates, including weekend/closure inactivity; no provider expiry.',
+            'Fresh-account retries charge every purchase. Cost/time are direct all-path means, not fee divided by an IID pass probability.',
+            'Readiness is the next declared open session after eligibility; not measured provider activation latency.',
+            'Numerical calendar/attempt guards censor open paths and withhold unconditional acquisition means.',
+            'Only first/last attempt details are captured; fees and counts include all attempts.'])
+    result=native_acquisition_metrics(forecast)
+    result['assumptions'].update(native_execution=False,fixed_signal_calendar_sampling=True)
+    result['metrics'].update(p90_calendar_days_to_funded=float(np.quantile([p['calendar_days_to_funded'] for p in paths],.9,method='inverted_cdf')) if complete else None,
+        median_calendar_days_to_funded=float(np.median([p['calendar_days_to_funded'] for p in paths])) if complete else None)
+    result.update(paths=paths,schedule_sha256=schedule,reason=None if complete else 'calendar_or_attempt_guard',
+        component=dict(provenance=provenance('evaluation',snapshot,c.profile,c.micros,c.simulation,c.sampling,
+            acquisition_model=forecast['model'],calendar=asdict(calendar))))
+    return result

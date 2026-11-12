@@ -26,6 +26,11 @@ from .phase_profiles import (
 from .phase_search import PhaseCalendar as AcquisitionCalendar
 
 MODEL_VERSION = 'evaluation-optimization-empirical-iid-v1'
+CALENDAR_MODEL_VERSION = 'evaluation-optimization-profile-calendar-v2'
+
+
+def model_version(search):
+    return CALENDAR_MODEL_VERSION if search.native_execution is None and any(c.profile.profile_id=='lucidflex-50k' for c in search.candidates) else MODEL_VERSION
 
 
 @dataclass(frozen=True)
@@ -118,8 +123,11 @@ class EvaluationSearch:
         if self.source_backtest_id not in {c.source.source_backtest_id for c in self.candidates}:
             raise ValueError('The navigation anchor must belong to the candidate set.')
         for c in self.candidates:
-            if self.native_execution is None and c.profile.profile_id != 'apex-50k-eod':
-                raise ValueError('Dated IID optimization currently supports Apex EOD only; Lucid calendar inactivity requires a native dated strategy rerun.')
+            if self.native_execution is None and c.profile.profile_id == 'lucidflex-50k':
+                if c.simulation.simulations!=c.sampling.chain_simulations or c.simulation.seed!=c.sampling.chain_seed:
+                    raise ValueError('Calendar Lucid acquisition uses one path count and seed; simulation and chain settings must match.')
+                if c.sampling.computational_horizon_weekdays is not None:
+                    raise ValueError('Calendar Lucid acquisition uses retry.max_calendar_days; a weekday guard cannot be silently substituted.')
             horizon = self.native_execution.horizon_calendar_days if self.native_execution is not None else c.retry.max_calendar_days
             if (date.fromisoformat(self.calendar.coverage_end) - max(map(date.fromisoformat, self.calendar.start_dates))).days < horizon:
                 raise ValueError('Calendar coverage must include every chain guard date.')
@@ -177,7 +185,7 @@ def implementation_identity():
 
 
 def search_key(search, checks):
-    return sha256(canonical(dict(model=MODEL_VERSION, calendar=asdict(search.calendar),
+    return sha256(canonical(dict(model=model_version(search), calendar=asdict(search.calendar),
         constraints=asdict(search.constraints) if search.constraints is not None else None,
         anchor=search.source_backtest_id,
         candidates=[{k:r[k] for k in ('candidate_id','prior_access','origin_trials')} for r in checks],
@@ -398,15 +406,24 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
     for check in checks:
         candidate = configurations[canonical(check['manifest']['configuration'])]
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Evaluating '+check['candidate_id'][:12])
-        component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
-            candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs,
-            **({'sizing':candidate.sizing} if candidate.sizing is not None else {}),
-            **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
-        if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
-            raise ValueError('Candidate source changed after source checking.')
-        result = acquisition_metrics(component, candidate.profile, candidate.retry, search.calendar, candidate.sampling)
-        rows.append(dict(candidate_id=check['candidate_id'], **result,
-            component=asdict(component), manifest=check['manifest'], origin_trials=check['origin_trials']))
+        if candidate.profile.profile_id=='lucidflex-50k':
+            from .evaluation_profiles import simulate_calendar_evaluation_profile
+            result=simulate_calendar_evaluation_profile(runs,candidate,search.calendar,
+                observed_sessions=training_context['train_window']['sessions'] if training_context else None,
+                checkpoint=checkpoint,progress=progress)
+            if canonical(result['component']['provenance']['source'])!=canonical(check['manifest']['source']):
+                raise ValueError('Candidate source changed after source checking.')
+            rows.append(dict(candidate_id=check['candidate_id'],**result,manifest=check['manifest'],origin_trials=check['origin_trials']))
+        else:
+            component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
+                candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs,
+                **({'sizing':candidate.sizing} if candidate.sizing is not None else {}),
+                **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
+            if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
+                raise ValueError('Candidate source changed after source checking.')
+            result = acquisition_metrics(component, candidate.profile, candidate.retry, search.calendar, candidate.sampling)
+            rows.append(dict(candidate_id=check['candidate_id'], **result,
+                component=asdict(component), manifest=check['manifest'], origin_trials=check['origin_trials']))
     # Recheck all sources at the publication boundary, including earlier candidates.
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
@@ -416,11 +433,11 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
             apply_constraints(rows, search.constraints)
         for row in rows:
             row.update(pareto_member=False, dominated=None, pareto_rank=None)
-        return dict(model_version=MODEL_VERSION, phase='evaluation', candidates=rows,
+        return dict(model_version=model_version(search), phase='evaluation', candidates=rows,
             frontier=[], marginal_acceleration_cost=[], winner=None, certified_frontier=False,
             selection_status='assessment_only_no_reselection',
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
-    return dict(model_version=MODEL_VERSION, phase='evaluation', **pareto_sort(rows, search.constraints))
+    return dict(model_version=model_version(search), phase='evaluation', **pareto_sort(rows, search.constraints))
 
 
 def optimize_native_evaluation(datasets,runs,search,checks,progress,*,assessment=False,training_context=None,checkpoint=lambda:None,reserve_child=None):
@@ -507,7 +524,7 @@ def write_report(runs, staged, search, checks, calculations):
         for row in calculations['candidates']:
             writer.writerow({**{k:row[k] for k in fields[:4]}, **row['metrics']})
     anchor = next(r['manifest']['source'] for r in checks if r['manifest']['source']['backtest']['id'] == search.source_backtest_id)
-    return dict(format_version=4, model_version=MODEL_VERSION, phase='evaluation', source=anchor,
+    return dict(format_version=4, model_version=calculations['model_version'], phase='evaluation', source=anchor,
         settings=dict(ANALYSIS_MODE='evaluation_optimization'), calculations=calculations,
         implementation=implementation_identity(), request=asdict(search),
         provider_rules=provider_rules, deployment_readiness=readiness(provider_rules),

@@ -62,12 +62,22 @@ the parent phase-reference record into another result store. Select
 browser journey above for the portal. These exercise the complete qualified
 pipeline, so keep them opt-in when unrelated features change.
 Keep phase size ranges independent (Apex Evaluation ceiling 60 MNQ, Funded 40,
-with Funded account tiers still enforced). Explicitly pass the phase simulation
+LucidFlex 50K ceiling 40 in both, with Funded account tiers still enforced). Explicitly pass the phase simulation
 cap; do not silently clip Evaluation to the older 40-MNQ default. Funded breach
 probability is a diagnostic with an optional default-off eligibility cap over
 the modeled horizon, not over the IS history. Preserve explicit historical caps.
 The Evaluation Pareto chart shows resolved estimates, exact ties and the supplied
 frontier; it must not fabricate points for unresolved or untested configurations.
+Lucid standard 40% Evaluation uses the saved-signal calendar acquisition owner
+in `evaluation_profiles.py` / `evaluation_optimization.py`, not Apex's IID attempt
+law or session deadline. Charge every retry, advance closed-date inactivity,
+retain guard censoring and compute cost/time from all complete calendar paths.
+Do not substitute fee divided by first-attempt probability. Funded continues
+through its existing independent dated owner. The 50% add-on and subsequent
+live-account returns are unsupported. Fast clock/cash oracles are in
+`tests/test_lucid_calendar_acquisition.py`; full qualification/API/browser
+journeys remain explicit opt-in checks. Preserve old report identities and fail
+closed on incompatible frozen execution after numerical source changes.
 
 For each future prop simulation subtask, deliver:
 

@@ -2193,3 +2193,45 @@ the current view, legend and inspected values. No simulations, verdicts, source
 inputs, numerical identities or existing reports change. Reopen saved results to
 use it immediately. [Actual product evidence and reproduction](evidence/qualified_prop_sim/pareto_ui/README.md)
 retain the earlier calculation/phase-range evidence unchanged.
+
+## Selectable LucidFlex 50K — 2026-11-12
+
+The main Prop Sim setup now selects **Apex 50K EOD** or **LucidFlex 50K**. Lucid
+supports its standard 40% Evaluation consistency and optional DLL-on/off, 40 MNQ
+in both phases and no activation fee. Profile-specific scenario defaults are
+80.50 USD purchase / zero activation / 0.50 USD MNQ commission per side; prices
+remain editable assumptions. Apex retains its prior defaults and 60/40-MNQ caps.
+Backend validation and implementation/cache identity include the selected
+profile and settings. Unknown accounts and unsupported Lucid 50% add-on behavior
+are not silently substituted. Original Apex declarations/reports stay readable.
+
+The previous dated IID Evaluation interface rejected Lucid because a session
+count could not safely represent calendar inactivity. The implemented extension
+routes saved-signal Lucid candidates through `calendar_evaluation_paths` and
+`simulate_calendar_evaluation_profile` in the existing Evaluation owner. It
+uses actual scenario civil dates, the existing Lucid session kernel, closed-date
+inactivity and independently addressed per-attempt block streams. Direct all-path
+fees/time determine acquisition means; first-attempt pass fraction is a separate
+measurement, not a fee/pass shortcut. All paths must acquire before the declared
+calendar/attempt guards for unconditional means; otherwise means are withheld,
+fees and restricted durations remain visible. The existing Pareto/uncertainty
+contract is reused. Native source-bar rerun and legacy weekday components remain
+separate existing interfaces. Numerical files remain hashed, with explicit
+`evaluation-optimization-profile-calendar-v2` report identity for this branch.
+
+Funded reuses the existing dated Lucid model: optional soft DLL, EOD loss floor,
+account tiers, five 150-USD qualifying days per payout, 50% withdrawal up to
+2,000 USD, 90% trader entitlement, five-payout simulated-stage boundary, inactivity,
+and separate request/deduction/receipt events. It does not acquire replacement
+accounts or consume Evaluation inputs. Live profits after transition are outside
+scope. The fixed 1,200-USD DLL amount and declared next-session/receipt-calendar
+conventions remain explicit assumptions; provider parity is not asserted.
+
+Setup now groups the source, account and independent phase settings and checks
+report capture bounds visibly before launch. Saved results lead with actual
+profile/source identity and outputs, collapsing rerun controls and advanced
+assumptions. Tables sort on raw saved values, keeping the MNQ column/header
+visible. Phase navigation, frozen parameters, job links and ordinary downloads
+remain in the same workflow. [Actual outputs, UI review and reproduction](evidence/qualified_prop_sim/lucidflex/README.md)
+preserve earlier evidence, independently check the new calendar/cash arithmetic
+and distinguish the labeled synthetic source from actual local-library captures.

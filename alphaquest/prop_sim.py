@@ -3,10 +3,11 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+from typing import Literal
 from uuid import UUID, uuid5
 
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator
 
 from .campaign_broad import invoke
 from .campaign_monte_carlo import POLICY as MC_POLICY
@@ -18,10 +19,12 @@ from .prop.phase_profiles import rule_version
 
 PROFILE='apex-50k-eod'
 SIZE_LIMITS=dict(evaluation=60,funded=40)
+PROFILES={PROFILE:dict(name='Apex 50K EOD',limits=SIZE_LIMITS,price='49',activation='129',commission='0.51',broker='Rithmic'),
+    'lucidflex-50k':dict(name='LucidFlex 50K',limits=dict(evaluation=40,funded=40),price='80.50',activation='0',commission='0.50',broker='Lucid')}
 DISCLOSURE=('Sizing uses only the selected configuration’s declared IS history. Eligibility has already used OOS and full-period Monte Carlo, so this is post-screening research, not an untouched final holdout. '
             'Saved fixed-signal trades are scaled to whole MNQ contracts with native held-OHLC adverse bounds. Account stops/pauses do not rerun strategy signals; execution, gaps and size-dependent fills remain assumptions. '
             'Evaluation and Funded objectives are independent. Calendars below are declared weekday scenarios, not verified exchange calendars. '
-            'Local Apex 50K EOD rules are versioned model assumptions, not newly certified provider rules. Fees are editable scenarios; receipt delay is a modeled assumption. No portfolio allocation or combined annual net projection is calculated.')
+            'Local account rules are versioned model assumptions, not newly certified provider rules. Fees are editable scenarios; receipt delay is a modeled assumption. No portfolio allocation or combined annual net projection is calculated.')
 
 
 def initialize(db):
@@ -40,6 +43,8 @@ class Selection(BaseModel):
 class Configuration(BaseModel):
     model_config=ConfigDict(extra='forbid')
     request_id: UUID
+    profile_id: Literal['apex-50k-eod','lucidflex-50k'] = PROFILE
+    daily_loss_limit: StrictBool = True
     selections: list[Selection] = Field(min_length=1,max_length=1)
     evaluation_minimum_micros: StrictInt = Field(default=1,ge=1,le=60)
     evaluation_maximum_micros: StrictInt = Field(default=10,ge=1,le=60)
@@ -59,6 +64,15 @@ class Configuration(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
+    def profile_defaults(cls,value):
+        if isinstance(value,dict) and value.get('profile_id')=='lucidflex-50k':
+            value=dict(value)
+            for field,key in [('evaluation_price','price'),('activation_fee','activation'),('commission_per_mnq_side','commission')]:
+                value.setdefault(field,PROFILES['lucidflex-50k'][key])
+        return value
+
+    @model_validator(mode='before')
+    @classmethod
     def legacy_shared_range(cls,value):
         """Read old declarations without mutating their saved settings/reports."""
         if isinstance(value,dict) and {'minimum_micros','maximum_micros'} & value.keys():
@@ -73,8 +87,12 @@ class Configuration(BaseModel):
     @model_validator(mode='after')
     def ordered_ranges(self):
         for phase in SIZE_LIMITS:
+            if getattr(self,f'{phase}_maximum_micros')>PROFILES[self.profile_id]['limits'][phase]:
+                raise ValueError(f'{PROFILES[self.profile_id]["name"]} {phase} supports at most {PROFILES[self.profile_id]["limits"][phase]} MNQ.')
             if getattr(self,f'{phase}_minimum_micros')>getattr(self,f'{phase}_maximum_micros'):
                 raise ValueError(f'{phase.title()} minimum size must not exceed its maximum size.')
+        if self.profile_id==PROFILE and not self.daily_loss_limit:raise ValueError('Apex requires its daily loss limit.')
+        if self.profile_id=='lucidflex-50k' and Decimal(self.activation_fee)!=0:raise ValueError('LucidFlex has no activation fee; use zero.')
         return self
 
     @field_validator('evaluation_price','activation_fee','commission_per_mnq_side')
@@ -156,14 +174,15 @@ def candidates(request):
 
 def declarations(body,source):
     if body.block_weekdays not in (1,5,10):raise ValueError('Block length must be 1, 5 or 10 weekdays.')
-    profile=dict(profile_id=PROFILE,rule_version=rule_version(PROFILE),daily_loss_limit=True)
+    account=PROFILES[body.profile_id]
+    profile=dict(profile_id=body.profile_id,rule_version=rule_version(body.profile_id),daily_loss_limit=body.daily_loss_limit)
     # The saved source bounds may start on the prior Chicago session date.
     from .prop.phase_lifecycle import instant, session_date
     native=source['_native']
     first=max(source['plan']['is_start'],session_date(instant(native['period_start_utc'])).isoformat())
     last=min(source['plan']['is_end'],session_date(instant(native['period_end_utc'])).isoformat())
     common=dict(is_window=dict(first_session=first,last_session=last),
-        costs=dict(mode='override',broker='Rithmic',per_side=body.commission_per_mnq_side,instrument='auto'))
+        costs=dict(mode='override',broker=account['broker'],per_side=body.commission_per_mnq_side,instrument='auto'))
     calendar=dict(start_dates=[body.start_date],closures=body.closures)
     definitions={}
     for phase in ('evaluation','funded'):
@@ -173,7 +192,7 @@ def declarations(body,source):
         settings=dict(calendar=calendar)
         if phase=='evaluation':
             phase_profile.update(evaluation_price=body.evaluation_price,activation_fee=body.activation_fee)
-            sampling.update(chain_simulations=body.simulations,chain_seed=body.seed+3)
+            sampling.update(chain_simulations=body.simulations,chain_seed=body.seed if body.profile_id=='lucidflex-50k' else body.seed+3)
         else:
             phase_profile['approval_day_counts']=True
             settings.update(horizon_calendar_days=body.funded_horizon_calendar_days,
@@ -181,8 +200,9 @@ def declarations(body,source):
                 constraints=dict(maximum_account_breach_probability=body.maximum_funded_breach_probability,maximum_position_size=maximum))
         definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,
             sources=[dict(backtest_id=source['source_backtest_id'],sizes=list(range(minimum,maximum+1)))],
-            simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=SIZE_LIMITS[phase]),
-            phase=phase,profile=phase_profile,sampling=sampling,search_settings=settings))
+            simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=account['limits'][phase]),
+            phase=phase,profile=phase_profile,sampling=sampling,search_settings=settings,
+            **(dict(retry=dict(activation_delay_sessions=0)) if phase=='evaluation' and body.profile_id=='lucidflex-50k' else {})))
     return definitions
 
 
@@ -240,20 +260,31 @@ router=APIRouter(prefix='/api/prop-sim')
 async def sources(request:Request):return await invoke(candidates,request)
 
 
-@router.get('/defaults')
-def defaults():
-    from .prop.native_engine import Rules
+def account_defaults(id):
+    from .prop import native_engine,lucid_engine
     from .prop.phase_profiles import EvaluationProfile,FundedProfile
     from .prop.rule_provenance import profile_review
-    return dict(profile_id=PROFILE,rule_version=rule_version(PROFILE),disclosure=DISCLOSURE,size_limits=SIZE_LIMITS,
-        rule_provenance=dict(evaluation=profile_review(EvaluationProfile(PROFILE,rule_version(PROFILE),'49','129'),'evaluation'),
-                             funded=profile_review(FundedProfile(PROFILE,rule_version(PROFILE)),'funded')),
-        evaluation_rules=dict(account_size=50000,profit_target=3000,maximum_drawdown=2000,daily_loss_limit=1000,expiry_weekdays=21),
-        funded_rules=asdict(Rules()),maximum_selected_configurations=1,
-        defaults=dict(evaluation_minimum_micros=1,evaluation_maximum_micros=10,
+    account=PROFILES[id];lucid=id=='lucidflex-50k'
+    return dict(profile_id=id,name=account['name'],rule_version=rule_version(id),disclosure=DISCLOSURE,size_limits=account['limits'],
+        rule_provenance=dict(evaluation=profile_review(EvaluationProfile(id,rule_version(id),account['price'],account['activation']),'evaluation'),
+            funded=profile_review(FundedProfile(id,rule_version(id)),'funded')),
+        evaluation_rules=dict(account_size=50000,profit_target=3000,maximum_drawdown=2000,
+            daily_loss_limit=1200 if lucid else 1000,expiry_weekdays=None if lucid else 21,
+            consistency=.4 if lucid else None,inactivity_calendar_days=30 if lucid else None),
+        funded_rules=asdict((lucid_engine if lucid else native_engine).Rules()),maximum_selected_configurations=1,
+        notes=('Standard 40% Evaluation consistency; no activation fee or provider Evaluation expiry. Calendar inactivity is modeled. DLL-on uses the preserved fixed $1,200 soft stop assumption. Live trading after the fifth payout is outside this simulation.' if lucid else
+            'Preserved local model: 21-session Evaluation expiry/inactivity and exactly 50% Funded consistency; reviewed provider calendar/boundary rules differ.'),
+        report_limits=dict(capture_bytes=100*1024*1024,evaluation_bytes_per_path=2000 if lucid else 800,funded_bytes_per_path=5000),
+        defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_minimum_micros=1,evaluation_maximum_micros=10,
             funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
-            evaluation_price='49',activation_fee='129',commission_per_mnq_side='0.51',funded_horizon_calendar_days=90,
-            receipt_delay_calendar_days=2,maximum_funded_breach_probability=None))
+            evaluation_price=account['price'],activation_fee=account['activation'],commission_per_mnq_side=account['commission'],
+            funded_horizon_calendar_days=90,receipt_delay_calendar_days=2,maximum_funded_breach_probability=None))
+
+
+@router.get('/defaults')
+def defaults():
+    profiles={id:account_defaults(id) for id in PROFILES}
+    return dict(profiles[PROFILE],profiles=profiles)
 
 
 @router.post('/check')

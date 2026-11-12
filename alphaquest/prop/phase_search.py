@@ -60,7 +60,7 @@ def validate_phase_work(search, observed_session_count=None):
     funded = search.mode == 'funded_optimization'
     count = len(search.candidates)
     estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if funded else
-                sum(c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
+                sum(c.simulation.simulations*2000 if c.profile.profile_id=='lucidflex-50k' else c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
     work = sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days if funded else 0
     cfg = getattr(search, 'conservative_objective', None)
     indices = 0

@@ -10,9 +10,10 @@ from test_backtests_browser import browser,page,portal,playwright
 from test_prop_sim import qualified_source
 
 
-@pytest.mark.parametrize('evaluation_sizes,funded_sizes',[
-    ((1,2,3),(1,2,3)),((58,59,60),(38,39,40))],ids=['shared-range','phase-limits'])
-def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page,portal,tmp_path,evaluation_sizes,funded_sizes):
+@pytest.mark.parametrize('profile_id,evaluation_sizes,funded_sizes',[
+    ('apex-50k-eod',(1,2,3),(1,2,3)),('apex-50k-eod',(58,59,60),(38,39,40)),
+    ('lucidflex-50k',(1,2,3),(1,2,3))],ids=['shared-range','phase-limits','lucidflex'])
+def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page,portal,tmp_path,profile_id,evaluation_sizes,funded_sizes):
     with httpx.Client(base_url=portal['url'],timeout=120) as client:workflow,source=qualified_source(client)
     page.goto(portal['url']+'/#prop-sim')
     playwright.expect(page.locator('#prop-sim-source option')).to_have_count(5)
@@ -22,14 +23,20 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
     playwright.expect(page.locator('#report-prop-setup')).to_have_attribute('href','#prop-sim?source='+source['source_backtest_id'])
     page.locator('#report-prop-setup').click()
     playwright.expect(page.locator('#prop-sim-source')).to_have_value('0')
-    assert page.locator('#prop-sim-evaluation_maximum_micros').get_attribute('max')=='60'
+    page.locator('#prop-sim-profile').select_option(profile_id)
+    assert page.locator('#prop-sim-evaluation_maximum_micros').get_attribute('max')==('40' if profile_id=='lucidflex-50k' else '60')
+    if profile_id=='lucidflex-50k':
+        playwright.expect(page.locator('#prop-sim-evaluation_price')).to_have_value('80.50')
+        playwright.expect(page.locator('#prop-sim-activation_fee')).to_have_value('0')
     assert page.locator('#prop-sim-funded_maximum_micros').get_attribute('max')=='40'
     for phase,sizes in [('evaluation',evaluation_sizes),('funded',funded_sizes)]:
         page.locator('#prop-sim-'+phase+'_minimum_micros').fill(str(sizes[0]))
         page.locator('#prop-sim-'+phase+'_maximum_micros').fill(str(sizes[-1]))
     playwright.expect(page.locator('#prop-sim-maximum_funded_breach_probability')).to_have_value('')
     page.locator('#prop-sim-simulations').fill('32')
+    page.get_by_text('Costs, calendar and optional risk settings',exact=True).click()
     page.locator('#prop-sim-start_date').fill('2026-11-16')
+    page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'configuration-portal.png'))
     page.locator('#prop-sim-check').click()
     playwright.expect(page.locator('#prop-sim-status')).to_contain_text('Source compatible',timeout=30000)
     with page.expect_response(lambda r:r.url.endswith('/api/prop-sim') and r.request.method=='POST') as response:
@@ -37,6 +44,7 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
     record=response.value.json();assert response.value.status==202
     assert len(record['configuration']['selections'])==1
     assert record['configuration']['maximum_funded_breach_probability'] is None
+    assert record['configuration']['profile_id']==profile_id
     page.get_by_role('navigation',name='Main navigation',exact=True).get_by_role('link',name='Dataset',exact=True).click()
     page.goto(portal['url']+'/#prop-sim?analysis='+record['id'])
     for phase in ('evaluation','funded'):
@@ -51,6 +59,9 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
             with page.expect_download() as download:page.get_by_role('link',name='Pareto chart SVG ↓',exact=True).click()
             download.value.save_as(tmp_path/'evaluation-pareto.svg')
             assert 'Expected acquisition cost' in (tmp_path/'evaluation-pareto.svg').read_text()
+        page.locator('#prop-sim-'+phase+'-table th button').first.click()
+        assert page.locator('#prop-sim-'+phase+'-table tbody tr').evaluate_all('(rows)=>rows.map(r=>Number(r.dataset.size))')==list(reversed(evaluation_sizes if phase=='evaluation' else funded_sizes))
+        page.locator('#prop-sim-'+phase+'-table th button').first.click()
         parent=page.locator('#prop-sim-'+phase+'-results')
         with page.expect_download() as download:parent.get_by_role('link',name='Saved report JSON ↓',exact=True).click()
         download.value.save_as(tmp_path/(phase+'-report.json'))
@@ -64,7 +75,8 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
     assert evaluation['frontier'] and funded['winner']
     for row in evaluation['candidates']:
         if row['metrics']['cost_per_funded'] is not None:
-            assert abs(row['metrics']['cost_per_funded']-(49/row['metrics']['pass_probability']+129))<1e-8
+            expected=(sum(p['paid_fees'] for p in row['paths'])/len(row['paths']) if profile_id=='lucidflex-50k' else 49/row['metrics']['pass_probability']+129)
+            assert abs(row['metrics']['cost_per_funded']-expected)<1e-8
     for row in funded['candidates']:
         assert row['metrics']['expected_funded_cash_payouts_within_horizon']==sum(p['cash_received'] for p in row['paths'])/len(row['paths'])
     page.locator('#prop-sim-funded-results').get_by_role('link',name='Job history / progress',exact=True).click()
@@ -77,9 +89,9 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
     (tmp_path/'prop-sim.json').write_text(json.dumps(saved,indent=2))
     dataset=source['dataset']['id'];(tmp_path/'SYNTHETIC-source.csv').write_bytes(page.request.get(portal['url']+'/api/datasets/'+dataset+'/csv').body())
     (tmp_path/'journey.json').write_text(json.dumps(dict(synthetic=True,simulation_id=record['id'],workflow_id=workflow['id'],
-        qualification=source['qualification'],source_backtest_id=source['source_backtest_id'],
+        qualification=source['qualification'],source_backtest_id=source['source_backtest_id'],profile_id=profile_id,
         sizes=dict(evaluation=evaluation_sizes,funded=funded_sizes),paths_per_size_per_phase=32,
-        expected_evaluation_cost_formula='49 / empirical_attempt_pass_probability + 129',
+        expected_evaluation_cost_formula='mean paid fees across all completed calendar paths' if profile_id=='lucidflex-50k' else '49 / empirical_attempt_pass_probability + 129',
         expected_funded_receipts_formula='sum(path.cash_received for all starts) / 32',
         evaluation=[dict(micros=r['manifest']['configuration']['micros'],metrics=r['metrics'],pareto=r['pareto_member']) for r in evaluation['candidates']],
         funded=[dict(micros=r['manifest']['configuration']['micros'],metrics=r['metrics'],rank=r['rank']) for r in funded['candidates']],

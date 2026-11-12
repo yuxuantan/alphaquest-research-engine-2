@@ -132,6 +132,33 @@ def test_qualified_source_gate_real_phase_math_and_durable_results(client):
     from alphaquest.app import create_app
     with TestClient(create_app(client.app.state.store.path)) as reopened:
         assert reopened.get('/api/prop-sim/'+saved['id']+'/results/funded').json()['calculations']==funded
+    catalog=client.get('/api/prop-sim/defaults').json()['profiles']
+    assert set(catalog)=={'apex-50k-eod','lucidflex-50k'}
+    assert catalog['lucidflex-50k']['size_limits']==dict(evaluation=40,funded=40)
+    lucid=dict(request,request_id=uuid4().hex,profile_id='lucidflex-50k',daily_loss_limit=True,
+        evaluation_price='80.50',activation_fee='0',commission_per_mnq_side='0.50',maximum_funded_breach_probability=None)
+    for update in [dict(evaluation_maximum_micros=41),dict(activation_fee='1'),dict(profile_id='unknown')]:
+        assert client.post('/api/prop-sim/check',json=dict(lucid,**update)).status_code==422
+    checked_lucid=client.post('/api/prop-sim/check',json=lucid);assert checked_lucid.status_code==200,checked_lucid.text
+    for phase in ('evaluation','funded'):
+        assert checked_lucid.json()['phases'][phase]['calculation_key']!=checked['phases'][phase]['calculation_key']
+    fee_change=client.post('/api/prop-sim/check',json=dict(lucid,evaluation_price='99')).json()
+    assert fee_change['phases']['funded']['calculation_key']==checked_lucid.json()['phases']['funded']['calculation_key']
+    launched=client.post('/api/prop-sim',json=lucid);assert launched.status_code==202,launched.text
+    l_saved=wait_prop(client,launched.json()['id'])
+    l_eval=client.get('/api/prop-sim/'+l_saved['id']+'/results/evaluation').json()
+    assert l_eval['model_version']=='evaluation-optimization-profile-calendar-v2'
+    for row in l_eval['calculations']['candidates']:
+        if row['status']=='estimated':
+            assert abs(row['metrics']['cost_per_funded']-sum(p['paid_fees'] for p in row['paths'])/32)<1e-8
+        assert row['manifest']['configuration']['profile']['profile_id']=='lucidflex-50k'
+        assert all(p['paid_activation_fees']==0 for p in row['paths'])
+    l_fund=client.get('/api/prop-sim/'+l_saved['id']+'/results/funded').json()['calculations']
+    for row in l_fund['candidates']:
+        for path in row['paths']:
+            for event in path['payout_events']:
+                assert abs(event['trader_cash_entitlement']-.9*event['gross_account_deduction'])<1e-8
+    assert client.get('/api/prop-sim/'+saved['id']+'/results/funded').json()['calculations']==funded
     # Qualification is rechecked on launch, including an idempotent/cached request.
     mc_id=source['selection']['monte_carlo_id'].replace('-','')
     path=client.app.state.prop_analyses.root/mc_id/'report.json';original=path.read_bytes();path.write_text('{}')
