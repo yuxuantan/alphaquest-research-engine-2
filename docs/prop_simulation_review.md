@@ -11210,3 +11210,34 @@ successfully after the final summary-reader integration. JavaScript/Python synta
 and `git diff --check` passed. No full historical/180-check suite was run.
 Saved demonstration numerical source hashes match the current owners, and all
 six assessments reference their exact original frozen IS report identities.
+
+### 2026-11-12 — Select sizes in IS results; focus validation on frozen OOS
+
+The repeated size tile grid obscured the IS-selection step with disabled sizes.
+Both main Prop Sim phase tables now own eligible checkboxes next to their
+metrics. Excluded rows remain inspectable with specific frontier/unresolved/
+constraint reasons. A shared selection state retains checked IDs through
+sorting, caps the UI at four and synchronizes with the existing frozen package.
+The checkbox/MNQ columns stay pinned while comparing wide results.
+
+A compact selection summary and required single-line note replace the grid and
+large textarea. After freeze, only the frozen sizes appear in the OOS validation
+summary; the primary button runs their OOS assessment. Optional robustness and
+more-path controls/results live under collapsed Additional diagnostics. Saved
+OOS results remain directly visible on reload. Hidden diagnostic result bodies
+load when opened; status/progress polling still follows their active jobs.
+
+[Normal-product evidence, expected arithmetic and reproduction](evidence/qualified_prop_sim/selection-flow/README.md)
+use the actual synthetic qualified-source journey through both phase engines,
+IS selection/sorting, freezing, six saved assessments, downloads and mobile
+reload. A separate forty-size test oracle covers exclusions, the four-choice
+boundary and sticky columns, alongside the existing chart/ties regression.
+No API/numerical owner/rule/source or historical evidence was changed. Current
+saved runs need only a browser refresh; no new calculation is required for this
+presentation increment. Temporary test servers stop at teardown.
+
+Validation: all three focused browser cases passed, including actual phase
+execution and six durable assessments. JavaScript syntax and `git diff --check`
+passed. All 33 numerical source hashes in each phase match the prior commit,
+and the saved demonstration identities match the current owners. No full suite
+was run; no persistent server was started.

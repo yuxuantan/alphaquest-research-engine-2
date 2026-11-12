@@ -2315,3 +2315,23 @@ See [saved product evidence and independent expected outcomes](evidence/qualifie
 and `tests/test_prop_evaluation_validation.py` for rejection/clock/arithmetic
 checks. Each evidence ZIP includes source inputs, scenario configurations,
 paths, code/rule identity and frozen-package provenance.
+
+### IS results selection and OOS-focused validation — 2026-11-12
+
+For each main Prop Sim phase, select up to four eligible sizes directly in the
+IS results table. Evaluation excludes non-frontier/unresolved rows; Funded
+shows applicable constraint reasons. The comparison table retains every tested
+size, while the validation section contains only a compact selection summary.
+Sorting preserves selection, and checkbox/MNQ columns stay visible during
+horizontal scrolling. Add the required selection note and freeze using the
+unchanged immutable server contract.
+
+After freezing, OOS validation shows only frozen choices and **Run OOS
+assessment** as its primary action. Saved OOS assessments appear directly there.
+Robustness, extra-path precision and their histories are in collapsed
+**Additional diagnostics**, with an explicit running/saved count. Reopening
+loads their summary results without rerunning calculations. The existing
+numerical-version/source guards remain unchanged; this UI increment itself
+requires no backtest or simulation rerun.
+
+[Saved product journey and reproduction](evidence/qualified_prop_sim/selection-flow/README.md).

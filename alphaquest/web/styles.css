@@ -2048,8 +2048,15 @@ dialog::backdrop {
 .prop-sim-deleted p { margin:0; }
 .prop-sim-deleted .button { margin-top:12px; }
 .prop-sim-validation { margin-top:28px; padding-top:20px; border-top:1px solid #dce5e8; min-width:0; }
-.prop-sim-choice-grid { display:flex; flex-wrap:wrap; gap:8px 16px; margin:16px 0; }
-.prop-sim-choice { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid #dce5e8; border-radius:8px; }
-.prop-sim-validation textarea { display:block; width:100%; min-height:76px; margin:12px 0; padding:12px; resize:vertical; box-sizing:border-box; }
-.prop-sim-validation > label { display:grid; gap:8px; margin:20px 0 12px; max-width:320px; }
+.prop-sim-selection-summary { font-weight:650; margin:14px 0 8px; }
+.prop-sim-select-cell input { width:18px; height:18px; margin:0; accent-color:#078573; }
+.prop-sim-is-results th:first-child, .prop-sim-is-results td:first-child { box-sizing:border-box; width:72px; min-width:72px; max-width:72px; padding:12px; }
+.prop-sim-is-results th:nth-child(2), .prop-sim-is-results td:nth-child(2) { position:sticky; left:72px; background:#f8fbfa; z-index:1; }
+.prop-sim-is-results th:nth-child(2) { z-index:3; }
+.prop-result-table tr.prop-sim-selected td { background:#edf8f4; }
+.prop-sim-validation > label { display:grid; gap:8px; margin:16px 0 12px; max-width:640px; }
+.prop-sim-diagnostics { margin-top:24px; padding-top:16px; border-top:1px solid #dce5e8; }
+.prop-sim-diagnostics > summary { font-weight:600; cursor:pointer; }
+.prop-sim-diagnostics > label { display:grid; gap:8px; max-width:320px; margin:16px 0; }
+.prop-sim-validation [hidden] { display:none !important; }
 .prop-sim-assessment { margin-top:20px; padding:18px; min-width:0; max-width:100%; overflow:hidden; }

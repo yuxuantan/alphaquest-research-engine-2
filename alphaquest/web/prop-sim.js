@@ -211,26 +211,31 @@
       const results=node('div');results.id='prop-sim-results';host.append(results);
       if(history.items.length){const historyLabel=node('label','Saved simulations'),historySelect=node('select');historySelect.id='prop-sim-history';historySelect.add(new Option('Choose saved results',''));for(const old of history.items){const p=profiles[old.configuration.profile_id||'apex-50k-eod'],e=range(old.configuration,'evaluation'),f=range(old.configuration,'funded');historySelect.add(new Option(`${new Date(old.created_at_utc).toLocaleString()} · ${p.name} · Eval ${e.minimum}–${e.maximum} / Funded ${f.minimum}–${f.maximum} MNQ`,old.id));}historySelect.value=selectedId||'';historyLabel.append(historySelect,deleteButton(selectedId,'Delete selected simulation'));historyLabel.className='prop-sim-history';host.append(historyLabel);historySelect.onchange=()=>{location.hash=historySelect.value?'#prop-sim?analysis='+historySelect.value:'#prop-sim';};}
       const phasePanels={},loaded={},validationControllers={};
-      function validationControls(parent,phase,report){
+      function validationControls(parent,phase,report,selection){
         const root=node('section',undefined,'prop-sim-validation');root.id='prop-sim-'+phase+'-validation';parent.append(root);
-        root.append(node('h3','Freeze choices and validate'),node('p','Choose up to four sizes using IS results. Freezing is permanent for this run. Assess those same choices on already-accessed OOS data, inspect IS sensitivity, or refine their estimates with more paths. These checks do not select new sizes.','field-help'));
-        const choices=node('div',undefined,'prop-sim-choice-grid'),rationale=node('textarea');rationale.placeholder='Why these sizes?';rationale.setAttribute('aria-label',phase+' freeze rationale');
-        const frozenNotice=node('p'),message=node('p');message.setAttribute('role','status');const selected=new Set(),inputs=[];
-        const calc=report.calculations,eligible=new Set(phase==='evaluation'?calc.frontier:calc.ranking);
-        for(const row of [...calc.candidates].sort((a,b)=>a.manifest.configuration.micros-b.manifest.configuration.micros)){
-          const label=node('label',undefined,'prop-sim-choice'),input=node('input');input.type='checkbox';input.value=row.candidate_id;input.disabled=!eligible.has(row.candidate_id);input.dataset.freezeCandidate=row.candidate_id;
-          label.append(input,node('span',`${row.manifest.configuration.micros} MNQ${input.disabled?' · not eligible':''}`));choices.append(label);inputs.push(input);
-          input.onchange=()=>{if(input.checked&&selected.size>=4){input.checked=false;message.textContent='Choose at most four sizes.';return;}if(input.checked)selected.add(input.value);else selected.delete(input.value);};
-        }
+        const heading=node('h3','Freeze IS choices'),intro=node('p','Select up to four sizes in the IS results table above, then freeze them before OOS assessment.','field-help');root.append(heading,intro);
+        const selected=selection.selected,selectionSummary=node('p',undefined,'prop-sim-selection-summary');selectionSummary.id='prop-sim-'+phase+'-selection';selectionSummary.setAttribute('aria-live','polite');
+        const noteLabel=node('label','Selection note (required)'),rationale=node('input');rationale.type='text';rationale.required=true;rationale.maxLength=4000;rationale.placeholder='Why these sizes?';rationale.setAttribute('aria-label',phase+' freeze rationale');noteLabel.append(rationale);
+        const frozenNotice=node('p',undefined,'field-help'),message=node('p');message.setAttribute('role','status');
         const freeze=node('button','Freeze selected sizes','button primary');freeze.type='button';freeze.id='prop-sim-'+phase+'-freeze';
+        const primaryActions=node('div',undefined,'mechanic-downloads'),additional=node('details',undefined,'prop-sim-diagnostics');additional.id='prop-sim-'+phase+'-diagnostics';const diagnosticsTitle=node('summary','Additional diagnostics');additional.append(diagnosticsTitle,node('p','Optional IS robustness and extra-path checks. These preserve the frozen sizes and do not select new choices.','field-help'));
         const actions=node('div',undefined,'mechanic-downloads'),pathLabel=node('label','Diagnostic paths per frozen size'),paths=node('input');paths.type='number';paths.min='8';paths.max='20000';paths.step='1';paths.value=String(Math.min(20000,Math.max(1000,saved.configuration.simulations*2)));paths.setAttribute('aria-label',phase+' diagnostic paths');pathLabel.append(paths);
-        const history=node('div'),buttons=[];let frozen=null,busy=false,active=false;
-        root.append(frozenNotice,choices,rationale,freeze,pathLabel,actions,message,history);
+        const history=node('div'),diagnosticHistory=node('div'),buttons=[];let frozen=null,busy=false,active=false;
+        additional.append(pathLabel,actions,diagnosticHistory);
+        root.append(selectionSummary,frozenNotice,noteLabel,freeze,primaryActions,message,history,additional);
         const url=`/api/prop-sim/${selectedId}/validation/${phase}`;
-        freeze.onclick=async()=>{if(!selected.size||!rationale.value.trim()){message.textContent='Choose sizes and enter a rationale before freezing.';return;}freeze.disabled=true;try{await read(url+'/freeze','POST',{candidate_ids:[...selected],rationale:rationale.value});await refreshValidation();}catch(e){message.textContent=e.message;freeze.disabled=false;}};
-        for(const [kind,text] of [['oos','Assess frozen sizes on OOS'],['is_robustness','Check IS blocks and subperiods'],['precision','Run more paths for frozen sizes']]){
-          const button=node('button',text,'button secondary');button.type='button';button.disabled=true;button.dataset.studyKind=kind;buttons.push(button);actions.append(button);
-          button.onclick=async()=>{if(busy)return;if(kind!=='oos'&&!paths.reportValidity())return;busy=true;buttons.forEach(b=>b.disabled=true);message.textContent='Submitting saved assessment…';try{const body={request_id:crypto.randomUUID(),kind};if(kind!=='oos')body.paths=Number(paths.value);await read(url,'POST',body);message.textContent='Assessment queued. You can navigate away and return here or use Job history.';await refreshValidation();timer=setTimeout(refresh,2000);}catch(e){message.textContent=e.message;}finally{busy=false;buttons.forEach(b=>b.disabled=!frozen||active);}};
+        function updateSelection(){
+          const sizes=report.calculations.candidates.filter(r=>selected.has(r.candidate_id)).map(r=>r.manifest.configuration.micros).sort((a,b)=>a-b);
+          selectionSummary.textContent=sizes.length?`${frozen?'Frozen choices':'Selected'}: ${sizes.join(', ')} MNQ · ${sizes.length}${frozen?' size'+(sizes.length===1?'':'s'):' of 4 sizes'}`:'No sizes selected · choose up to four in the IS results table.';
+          freeze.disabled=!selection.ready||!selection.compatible||busy||!selected.size||!rationale.value.trim()||selection.unresolved;
+          buttons.forEach(button=>button.disabled=!selection.compatible||!frozen||busy||active);
+          selection.syncRows();
+        }
+        selection.onChange=updateSelection;rationale.oninput=updateSelection;updateSelection();
+        freeze.onclick=async()=>{if(!selected.size||!rationale.value.trim())return;busy=true;updateSelection();try{await read(url+'/freeze','POST',{candidate_ids:[...selected],rationale:rationale.value});await refreshValidation();}catch(e){message.textContent=e.message;}finally{busy=false;updateSelection();}};
+        for(const [kind,text] of [['oos','Run OOS assessment'],['is_robustness','Check IS blocks and subperiods'],['precision','Run more paths for frozen sizes']]){
+          const button=node('button',text,kind==='oos'?'button primary':'button secondary');button.type='button';button.disabled=true;button.dataset.studyKind=kind;buttons.push(button);(kind==='oos'?primaryActions:actions).append(button);
+          button.onclick=async()=>{if(busy)return;if(kind!=='oos'&&!paths.reportValidity())return;busy=true;buttons.forEach(b=>b.disabled=true);message.textContent='Submitting saved assessment…';try{const body={request_id:crypto.randomUUID(),kind};if(kind!=='oos')body.paths=Number(paths.value);await read(url,'POST',body);message.textContent='Assessment queued. You can navigate away and return here or use Job history.';await refreshValidation();timer=setTimeout(refresh,2000);}catch(e){message.textContent=e.message;}finally{busy=false;buttons.forEach(b=>b.disabled=!selection.compatible||!frozen||active);}};
         }
         function studyTable(box,study){
           const rows=study.calculations.candidates,isEval=phase==='evaluation',oos=study.calculations.assessment_kind==='oos';
@@ -256,34 +261,49 @@
         }
         async function refreshValidation(){
           const data=await read(url);if(!alive())return false;frozen=data.frozen;
-          const compatible=data.numerical_implementation_compatible;
-          frozenNotice.textContent=!compatible?'Historical numerical version: saved results remain readable. Start a new simulation to use the current freeze and validation tools.':frozen?`Choices frozen ${new Date(frozen.created_at_utc).toLocaleString()}. OOS was already used in strategy qualification; this is not an untouched holdout.`:'IS selection is not frozen yet.';
-          freeze.disabled=!compatible;
-          for(const input of inputs){if(frozen)input.checked=frozen.candidate_ids.includes(input.value);input.disabled=!compatible||!!frozen||!eligible.has(input.value);}
-          freeze.hidden=rationale.hidden=!!frozen;
-          if(frozen&&!root.querySelector('.prop-sim-freeze-link')){const links=node('div',undefined,'mechanic-downloads prop-sim-freeze-link');link(links,'Frozen choices JSON ↓',`/api/research-campaigns/${data.campaign_id}/exports/frozen_package.json`);root.insertBefore(links,pathLabel);}
-          active=data.assessments.some(a=>['launching','queued','running'].includes(a.status));buttons.forEach(b=>b.disabled=!compatible||!frozen||busy||active);
+          selection.ready=true;selection.compatible=data.numerical_implementation_compatible;selection.frozen=frozen;
+          if(frozen){selected.clear();frozen.candidate_ids.forEach(id=>selected.add(id));}
+          heading.textContent=frozen?'OOS validation':'Freeze IS choices';
+          intro.textContent=frozen?'Only the frozen sizes below enter OOS assessment. IS choices remain unchanged.':'Select up to four sizes in the IS results table above, then freeze them before OOS assessment.';
+          frozenNotice.textContent=!selection.compatible?'Historical numerical version: saved results remain readable. Start a new simulation to use the current freeze and validation tools.':frozen?`Choices frozen ${new Date(frozen.created_at_utc).toLocaleString()}. OOS was already used in strategy qualification; this is not an untouched holdout.`:selection.unresolved?'This search contains unresolved results. Resolve them or start a narrower search before freezing.':'Freezing permanently locks these choices for this run.';
+          freeze.hidden=noteLabel.hidden=!!frozen;primaryActions.hidden=additional.hidden=!frozen;
+          updateSelection();
+          if(frozen&&!root.querySelector('.prop-sim-freeze-link')){const links=node('div',undefined,'mechanic-downloads prop-sim-freeze-link');link(links,'Frozen choices JSON ↓',`/api/research-campaigns/${data.campaign_id}/exports/frozen_package.json`);root.insertBefore(links,primaryActions);}
+          active=data.assessments.some(a=>['launching','queued','running'].includes(a.status));buttons.forEach(b=>b.disabled=!selection.compatible||!frozen||busy||active);
+          const diagnosticAttempts=data.assessments.filter(a=>a.kind!=='oos'),diagnosticActive=diagnosticAttempts.filter(a=>['launching','queued','running'].includes(a.status)).length;
+          diagnosticsTitle.textContent='Additional diagnostics'+(diagnosticActive?` · ${diagnosticActive} running`:diagnosticAttempts.length?` · ${diagnosticAttempts.length} saved`:'');
           for(const attempt of data.assessments){
-            let box=history.querySelector(`[data-assessment="${attempt.request_id}"]`);
-            if(!box){box=node('section',undefined,'prop-sim-assessment panel');box.dataset.assessment=attempt.request_id;box.append(node('h4',({oos:'Frozen-size OOS assessment',is_robustness:'IS block and subperiod robustness',precision:'More-path precision assessment'})[attempt.kind]||'Saved assessment'));const status=node('p');status.setAttribute('role','status');box.append(status);history.prepend(box);}
+            const container=attempt.kind==='oos'?history:diagnosticHistory;let box=container.querySelector(`[data-assessment="${attempt.request_id}"]`);
+            if(!box){box=node('section',undefined,'prop-sim-assessment panel');box.dataset.assessment=attempt.request_id;box.append(node('h4',({oos:'Frozen-size OOS assessment',is_robustness:'IS block and subperiod robustness',precision:'More-path precision assessment'})[attempt.kind]||'Saved assessment'));const status=node('p');status.setAttribute('role','status');box.append(status);container.prepend(box);}
             box.querySelector('[role=status]').textContent=`${attempt.status.toUpperCase()} · ${attempt.analysis?.progress||attempt.error||'Preparing inputs'}`;
             if(attempt.analysis_id&&!box.querySelector('.prop-sim-study-links')){const links=node('div',undefined,'mechanic-downloads prop-sim-study-links');link(links,'Job history / progress',`#jobs/prop_analysis/${attempt.analysis_id}`);link(links,'Assessment report JSON ↓',`/api/prop-analyses/${attempt.analysis_id}/downloads/report.json`);link(links,'Assessment evidence ZIP ↓',`/api/prop-analyses/${attempt.analysis_id}/downloads/analysis.zip`);box.append(links);}
             if(['queued','running'].includes(attempt.status)&&!box.querySelector('[data-stop-study]')){const stop=node('button','Stop assessment','button secondary');stop.type='button';stop.dataset.stopStudy='true';stop.onclick=async()=>{stop.disabled=true;try{await read(`/api/prop-analyses/${attempt.analysis_id}/cancel`,'POST');}catch(e){message.textContent=e.message;}await refreshValidation();};box.append(stop);}
             if(!['queued','running'].includes(attempt.status))box.querySelector('[data-stop-study]')?.remove();
-            if(attempt.status==='complete'&&!box.dataset.loaded){const study=await read(url+'/'+attempt.request_id+'?summary=true');if(!alive())return false;studyTable(box,study);box.dataset.loaded='true';}
+            if(attempt.status==='complete'&&!box.dataset.loaded&&(attempt.kind==='oos'||additional.open)){const study=await read(url+'/'+attempt.request_id+'?summary=true');if(!alive())return false;studyTable(box,study);box.dataset.loaded='true';}
           }
           return active;
         }
+        additional.ontoggle=()=>{if(additional.open)refreshValidation().catch(e=>{message.textContent=e.message;});};
         return {refresh:async()=>{try{return await refreshValidation();}catch(e){message.textContent='Validation: '+e.message;return false;}}};
       }
       function table(parent,phase,report){
         const c=report.calculations,rows=[...c.candidates].sort((a,b)=>a.manifest.configuration.micros-b.manifest.configuration.micros),isEval=phase==='evaluation';
+        const eligible=new Set(isEval?c.frontier:c.ranking),selection={selected:new Set(),eligible,ready:false,compatible:false,frozen:null,unresolved:!!c.unresolved_candidates?.length,onChange:()=>{}};
+        function exclusionReason(row){
+          if(eligible.has(row.candidate_id))return selection.frozen?.candidate_ids.includes(row.candidate_id)?'Frozen choice':'Selectable';
+          if(row.status!=='estimated')return row.status==='unresolved'||row.status==='censored'?'Unresolved':row.status;
+          if(isEval)return row.feasible===false?'Constraint failed':'Outside Pareto frontier';
+          return row.constraint_violations?.length?'Constraint failed: '+row.constraint_violations.map(s=>s.replaceAll('_',' ')).join(', '):'Not feasible';
+        }
+        selection.syncRows=()=>{for(const input of tb.querySelectorAll('[data-freeze-candidate]')){const id=input.value;input.checked=selection.selected.has(id);input.disabled=!selection.ready||!selection.compatible||!!selection.frozen||selection.selected.size>=4&&!input.checked;input.closest('tr').classList.toggle('prop-sim-selected',input.checked);}for(const row of tb.children){const item=rows.find(r=>String(r.manifest.configuration.micros)===row.dataset.size);if(item)row.querySelector('[data-selection-status]').textContent=exclusionReason(item);}};
         const summary=node('p');summary.id='prop-sim-'+phase+'-summary';summary.textContent=isEval?`${c.frontier.length} Pareto configurations · ${rows.filter(r=>r.status!=='estimated').length} unresolved/censored. Compare cost and calendar time; all nondominated configurations remain.`:c.winner?`Best estimated cash size: ${rows.find(r=>r.candidate_id===c.winner).manifest.configuration.micros} MNQ · ${c.near_ties.length} tied/near-tied alternatives. This is a point estimate.`:'No Funded winner. Inspect unresolved results or constraints below.';parent.append(summary);
         if(isEval&&c.precision_interpretation){parent.append(node('p',c.precision_interpretation,'field-help'));if(c.paired_comparisons?.length)detail(parent,'Paired funding-time and cost comparisons',c.paired_comparisons);}
         if(isEval&&saved.configuration.profile_id==='lucidflex-50k')parent.append(node('p','Calendar-aware acquisition: cost and time average every simulated retry chain. A 3,650-calendar-day computation guard leaves open paths unresolved; it is not a provider deadline.','field-help'));
         if(isEval){const dispose=evaluationChart(parent,rows);if(dispose)chartDisposers.push(dispose);}
-        const wrap=node('div',undefined,'optimization-scroll'),t=node('table',undefined,'library-table prop-result-table');t.id='prop-sim-'+phase+'-table';const head=node('tr'),tb=node('tbody');
+        parent.append(node('p','IS results · select up to four eligible sizes here. Excluded sizes remain visible for comparison.','field-help'));
+        const wrap=node('div',undefined,'optimization-scroll'),t=node('table',undefined,'library-table prop-result-table prop-sim-is-results');t.id='prop-sim-'+phase+'-table';const head=node('tr'),tb=node('tbody');head.append(node('th','Select'));
         const specs=isEval?[['MNQ size',r=>r.manifest.configuration.micros],['Status',r=>r.status],['Pareto frontier',r=>r.pareto_member?'Yes':'No'],['First-attempt pass %',r=>r.metrics.pass_probability,'pct'],['Acquisition cost · USD',r=>r.metrics.cost_per_funded,'number'],['Calendar days to Funded',r=>r.metrics.expected_calendar_days_to_funded,'number'],['P90 calendar days',r=>r.metrics.p90_calendar_days_to_funded,'number'],['Expected attempts',r=>r.metrics.expected_attempts_per_funded,'number']]:[['MNQ size',r=>r.manifest.configuration.micros],['Status',r=>r.feasible?'Eligible':r.status==='unresolved'?'Unresolved':'Constraint failed'],['Rank',r=>r.rank],['Mean trader receipts · USD',r=>r.metrics.expected_funded_cash_payouts_within_horizon,'number'],['Median receipts',r=>r.metrics.median_payouts,'number'],['P10 receipts',r=>r.metrics.p10_payouts,'number'],['Breach %',r=>r.metrics.account_breach_probability,'pct'],['Inactivity %',r=>r.metrics.probability_inactivity,'pct'],['First payout %',r=>r.metrics.probability_first_payout,'pct'],['Pending cash',r=>r.metrics.expected_pending_cash,'number'],['Account deductions',r=>r.metrics.expected_gross_account_deductions,'number']];
+        specs[1][1]=exclusionReason;
         if(isEval)specs.push(['Median calendar days',r=>r.metrics.median_calendar_days_to_funded,'number'],['Mean time MC SE · days',r=>r.uncertainty?.calendar_mean_se,'number'],['Funded within 60 days',r=>r.metrics.probability_funded_by_day_60,'pct'],['Funding-time near ties',r=>r.funding_time_near_ties?.map(id=>rows.find(x=>x.candidate_id===id)?.manifest.configuration.micros).join(', ')||'—']);
         if(isEval&&rows.some(r=>r.metrics.mean_final_attempt_days_after_target!=null)){
           parent.append(node('p','Time breakdown: earlier attempts + final account to first target + further trading after target + funded readiness = mean calendar days. Consistency requires additional net profit; elapsed time alone does not improve the ratio. Failed-after-target accounts increase retries.','field-help'));
@@ -291,12 +311,14 @@
         }
         let sort=0,direction=1;
         function paint(){const selected=new Set([...tb.querySelectorAll('.prop-sim-chart-highlight')].map(r=>r.dataset.size));tb.replaceChildren();const get=specs[sort][1];const ordered=[...rows].sort((a,b)=>{const av=get(a),bv=get(b);if(av==null||bv==null)return av==null?(bv==null?0:1):-1;return (typeof av==='number'?av-bv:String(av).localeCompare(String(bv)))*direction;});
-          for(const row of ordered){const tr=node('tr');tr.dataset.size=row.manifest.configuration.micros;if(selected.has(tr.dataset.size))tr.classList.add('prop-sim-chart-highlight');for(const [,get,type] of specs){const v=get(row);tr.append(node('td',type==='pct'?pct(v):type==='number'?fmt(v):v==null?'—':String(v)));}const td=node('td');detail(td,'Details',{metrics:row.metrics,uncertainty:row.uncertainty,censoring:row.censoring,reason:row.reason,constraint_violations:row.constraint_violations,assumptions:row.assumptions,sample_path:row.paths?.[0]});tr.append(td);tb.append(tr);}
-          [...head.children].forEach((th,i)=>{th.setAttribute('aria-sort',i===sort?(direction===1?'ascending':'descending'):'none');const button=th.querySelector('button');if(button)button.textContent=specs[i][0]+' '+(i===sort?(direction===1?'↑':'↓'):'↕');});
+          for(const row of ordered){const tr=node('tr');tr.dataset.size=row.manifest.configuration.micros;if(selected.has(tr.dataset.size))tr.classList.add('prop-sim-chart-highlight');const choice=node('td',undefined,'prop-sim-select-cell');
+            if(eligible.has(row.candidate_id)){const input=node('input');input.type='checkbox';input.value=row.candidate_id;input.dataset.freezeCandidate=row.candidate_id;input.setAttribute('aria-label',`Select ${row.manifest.configuration.micros} MNQ for ${phase} validation`);input.onchange=()=>{if(input.checked){if(selection.selected.size>=4){input.checked=false;return;}selection.selected.add(input.value);}else selection.selected.delete(input.value);selection.onChange();};choice.append(input);}else{choice.textContent='—';choice.title=exclusionReason(row);}tr.append(choice);
+            for(const [index,[,get,type]] of specs.entries()){const v=get(row),cell=node('td',type==='pct'?pct(v):type==='number'?fmt(v):v==null?'—':String(v));if(index===1)cell.dataset.selectionStatus='true';tr.append(cell);}const td=node('td');detail(td,'Details',{metrics:row.metrics,uncertainty:row.uncertainty,censoring:row.censoring,reason:row.reason,constraint_violations:row.constraint_violations,assumptions:row.assumptions,sample_path:row.paths?.[0]});tr.append(td);tb.append(tr);}
+          [...head.children].forEach((th,i)=>{const index=i-1;th.setAttribute('aria-sort',index===sort?(direction===1?'ascending':'descending'):'none');const button=th.querySelector('button');if(button)button.textContent=specs[index][0]+' '+(index===sort?(direction===1?'↑':'↓'):'↕');});selection.syncRows();
         }
         specs.forEach(([text],i)=>{const th=node('th'),button=node('button',text+' ↕');button.type='button';button.onclick=()=>{direction=sort===i?-direction:1;sort=i;paint();};th.append(button);head.append(th);});head.append(node('th','Details'));const th=node('thead');th.append(head);t.append(th,tb);paint();wrap.append(t);parent.append(wrap);
         const links=node('div',undefined,'mechanic-downloads prop-sim-exports');for(const [kind,text] of [['results.csv','Results CSV ↓'],['results.json','Calculations JSON ↓'],['report.json','Saved report JSON ↓'],['analysis.zip','Evidence ZIP ↓'],['source_checks.json','Source checks ↓']])link(links,text,`/api/research-campaigns/${saved.campaign_ids[phase]}/exports/${kind}`);parent.append(links);
-        validationControllers[phase]=validationControls(parent,phase,report);
+        validationControllers[phase]=validationControls(parent,phase,report,selection);
       }
       async function refresh(){clearTimeout(timer);try{
         const current=await read('/api/prop-sim/'+selectedId);if(!alive())return;saved=current;

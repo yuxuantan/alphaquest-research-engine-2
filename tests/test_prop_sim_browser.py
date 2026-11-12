@@ -263,18 +263,31 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
         for phase in ('evaluation','funded'):
             playwright.expect(page.locator('#prop-sim-'+phase+'-progress')).to_contain_text('COMPLETE',timeout=90000)
             root=page.locator('#prop-sim-'+phase+'-validation')
-            chosen=root.locator('[data-freeze-candidate]:enabled').first
+            table=page.locator('#prop-sim-'+phase+'-table')
+            assert root.locator('[data-freeze-candidate]').count()==0
+            chosen=table.locator('[data-freeze-candidate]:enabled').first
             chosen_id=chosen.get_attribute('value');chosen.check()
+            playwright.expect(root.locator('.prop-sim-selection-summary')).to_contain_text('Selected: 12 MNQ · 1 of 4 sizes')
+            table.locator('th button').first.click()
+            playwright.expect(table.locator('[data-freeze-candidate="'+chosen_id+'"]')).to_be_checked()
+            table.locator('th button').first.click()
+            root.screenshot(path=str(tmp_path/(phase+'-selection-summary.png')))
             root.get_by_label(phase+' freeze rationale',exact=True).fill('Synthetic product journey: preserve this declared size across every assessment.')
             root.get_by_role('button',name='Freeze selected sizes',exact=True).click()
             playwright.expect(root).to_contain_text('Choices frozen',timeout=30000)
-            assert root.locator('[data-freeze-candidate]:enabled').count()==0
+            assert table.locator('[data-freeze-candidate]:enabled').count()==0
+            playwright.expect(root.locator('.prop-sim-selection-summary')).to_contain_text('Frozen choices: 12 MNQ')
+            diagnostics=root.locator('.prop-sim-diagnostics')
+            assert diagnostics.get_attribute('open') is None
+            playwright.expect(root.get_by_role('button',name='Run OOS assessment',exact=True)).to_have_class('button primary')
             prefix='/api/prop-sim/'+saved['id']+'/validation/'+phase
             frozen=client.get(prefix).json()['frozen']
             assert frozen['candidate_ids']==[chosen_id]
             results=[]
-            for kind,text,paths in [('oos','Assess frozen sizes on OOS',None),('is_robustness','Check IS blocks and subperiods',8),('precision','Run more paths for frozen sizes',64)]:
-                if paths is not None:root.get_by_label(phase+' diagnostic paths',exact=True).fill(str(paths))
+            for kind,text,paths in [('oos','Run OOS assessment',None),('is_robustness','Check IS blocks and subperiods',8),('precision','Run more paths for frozen sizes',64)]:
+                if paths is not None:
+                    if diagnostics.get_attribute('open') is None:diagnostics.locator('summary').click()
+                    root.get_by_label(phase+' diagnostic paths',exact=True).fill(str(paths))
                 with page.expect_response(lambda r:r.url.endswith(prefix) and r.request.method=='POST') as started:
                     root.get_by_role('button',name=text,exact=True).click()
                 assert started.value.status==202,started.value.text()
@@ -304,6 +317,7 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
             else:
                 for row in baseline['calculations']['candidates']:assert row['metrics']['expected_funded_cash_payouts_within_horizon']==sum(p['cash_received'] for p in row['paths'])/16
             (tmp_path/(phase+'-baseline-report.json')).write_text(json.dumps(baseline,indent=2))
+            diagnostics.locator('summary').click()
             page.locator('#prop-sim-'+phase+'-results').screenshot(path=str(tmp_path/(phase+'-validation.png')))
             summary[phase]=dict(frozen=frozen,studies=results,baseline_metrics=[r['metrics'] for r in baseline['calculations']['candidates']])
     page.reload()
@@ -311,6 +325,8 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
         root=page.locator('#prop-sim-'+phase+'-validation')
         playwright.expect(root).to_contain_text('Choices frozen',timeout=30000)
         playwright.expect(root.locator('[data-assessment]')).to_have_count(3,timeout=30000)
+        assert root.locator('.prop-sim-diagnostics').get_attribute('open') is None
+        playwright.expect(root.get_by_role('button',name='Check IS blocks and subperiods',exact=True)).not_to_be_visible()
     page.set_viewport_size(dict(width=390,height=844))
     assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
     page.locator('#prop-sim-evaluation-validation').screenshot(path=str(tmp_path/'validation-mobile.png'))
@@ -322,3 +338,55 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
         target=Path(destination);target.mkdir(parents=True,exist_ok=True)
         for file in tmp_path.iterdir():
             if file.is_file() and file.suffix in ('.json','.zip','.png'):shutil.copyfile(file,target/file.name)
+
+
+def test_is_table_size_selection_limits_exclusions_sorting_and_compact_summary(page,portal,tmp_path):
+    """Presentation-only 40-size oracle; the real qualified journey above proves execution."""
+    from uuid import uuid4
+    id=uuid4().hex
+    defaults=page.request.get(portal['url']+'/api/prop-sim/defaults').json()['defaults']
+    saved=dict(id=id,configuration=dict(defaults,start_date='2026-11-16',closures=[],selections=[]),
+        campaign_ids={p:uuid4().hex for p in ('evaluation','funded')},
+        phases={p:dict(status='complete',analysis_id=uuid4().hex,progress='UI fixture only',error=None) for p in ('evaluation','funded')})
+    rows=[dict(candidate_id=str(size),manifest=dict(configuration=dict(micros=size)),
+        status='unresolved' if size==40 else 'estimated',pareto_member=3<=size<=12,
+        metrics=dict(cost_per_funded=100+size,expected_calendar_days_to_funded=200-size)) for size in range(1,41)]
+    report=dict(calculations=dict(candidates=rows,frontier=[str(n) for n in range(3,13)],unresolved_candidates=['40']))
+    funded=dict(calculations=dict(candidates=[dict(candidate_id='funded-1',manifest=dict(configuration=dict(micros=1)),
+        status='estimated',feasible=False,rank=None,constraint_violations=['maximum_account_breach_probability'],metrics={})],winner=None,ranking=[]))
+    page.route('**/api/prop-sim',lambda route:route.fulfill(json=dict(items=[])))
+    page.route('**/api/prop-sim/'+id,lambda route:route.fulfill(json=saved))
+    page.route('**/api/prop-sim/'+id+'/results/evaluation',lambda route:route.fulfill(json=report))
+    page.route('**/api/prop-sim/'+id+'/results/funded',lambda route:route.fulfill(json=funded))
+    for phase in ('evaluation','funded'):
+        page.route('**/api/prop-sim/'+id+'/validation/'+phase,lambda route:route.fulfill(json=dict(
+            numerical_implementation_compatible=True,campaign_id=uuid4().hex,frozen=None,assessments=[])))
+    page.goto(portal['url']+'/#prop-sim?analysis='+id)
+    table=page.locator('#prop-sim-evaluation-table');root=page.locator('#prop-sim-evaluation-validation')
+    playwright.expect(table.locator('[data-freeze-candidate]:enabled')).to_have_count(10)
+    assert root.locator('[data-freeze-candidate]').count()==0
+    assert page.locator('.prop-sim-choice-grid').count()==0
+    for size in [1,2,13,39]:
+        row=table.locator('tr[data-size="'+str(size)+'"]')
+        assert row.locator('input').count()==0
+        playwright.expect(row.locator('[data-selection-status]')).to_have_text('Outside Pareto frontier')
+    playwright.expect(table.locator('tr[data-size="40"] [data-selection-status]')).to_have_text('Unresolved')
+    playwright.expect(page.locator('#prop-sim-funded-table [data-selection-status]')).to_have_text('Constraint failed: maximum account breach probability')
+    for size in range(3,7):table.locator('[data-freeze-candidate="'+str(size)+'"]').check()
+    playwright.expect(root.locator('.prop-sim-selection-summary')).to_have_text('Selected: 3, 4, 5, 6 MNQ · 4 of 4 sizes')
+    playwright.expect(table.locator('[data-freeze-candidate="7"]')).to_be_disabled()
+    table.locator('th button').first.click()
+    for size in range(3,7):playwright.expect(table.locator('[data-freeze-candidate="'+str(size)+'"]')).to_be_checked()
+    table.locator('[data-freeze-candidate="6"]').uncheck()
+    playwright.expect(table.locator('[data-freeze-candidate="7"]')).to_be_enabled()
+    playwright.expect(root.locator('.prop-sim-selection-summary')).to_have_text('Selected: 3, 4, 5 MNQ · 3 of 4 sizes')
+    assert root.locator('[data-study-kind="oos"]').is_hidden()
+    assert root.locator('.prop-sim-diagnostics').is_hidden()
+    table.locator('th button').first.click()
+    root.screenshot(path=str(tmp_path/'compact-selection.png'))
+    page.set_viewport_size(dict(width=390,height=844))
+    assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
+    wrap=table.locator('..');wrap.evaluate('(el)=>el.scrollLeft=600')
+    # Both the checkbox and MNQ size remain visible while comparing later metrics.
+    positions=table.evaluate("(el)=>{const r=[...el.tBodies[0].rows].find(row=>row.dataset.size==='3');return [el.parentElement.getBoundingClientRect().left,r.children[0].getBoundingClientRect().left,r.children[1].getBoundingClientRect().left];}")
+    assert positions[1]>=positions[0] and positions[2]>positions[1]
