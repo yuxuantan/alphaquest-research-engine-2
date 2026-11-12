@@ -1,0 +1,17 @@
+{
+  "source": "Actual existing normal-product local report; no synthetic or mocked chart data.",
+  "simulation_id": "5d5d999ba9a5479183fbe66cbeb04576",
+  "report_sha256_before": "199ce273e67de11195d0b65a184bf19f3515b3cf34c478c87a41f44c91fcab95",
+  "report_sha256_after": "199ce273e67de11195d0b65a184bf19f3515b3cf34c478c87a41f44c91fcab95",
+  "default_view": "frontier",
+  "resolved_sizes": 53,
+  "default_visible_sizes": 27,
+  "frontier_configurations": 5,
+  "inspection": "27 MNQ \u00b7 Pareto frontier",
+  "axes": "Automatic bounds for the chosen view; no origin requirement; metrics and frontier verdicts unchanged.",
+  "mobile_width": 390,
+  "horizontal_page_overflow": false,
+  "mutation_requests": [],
+  "browser_errors": [],
+  "execution": "Reopened saved analysis and downloaded its chart only; no jobs or test server started."
+}

@@ -2178,3 +2178,18 @@ Saved evidence is shown through actual-session timelines, qualification plots
 and matched Funded forecast/actual receipt plots with complete tables/downloads.
 No new simulation, selector or separate result store is introduced. See the M4
 normal-product journey and expected observations in `prop_simulation_review.md`.
+
+## Dense Pareto chart presentation — 2026-11-12
+
+The main Prop Sim Evaluation chart now defaults to **Frontier detail**, with
+axes fitted to the existing frontier and nearby estimates. **All sizes** restores
+full context. The viewport count makes omitted out-of-view estimates explicit;
+all configurations remain in the saved result table. Nice ticks and green
+markers drawn above grey points replace the previous overlapping size labels.
+**Inspect size**, hover or keyboard focus shows exact cost/time values and
+highlights matching rows, including exact coordinate ties. Selecting an off-view
+size switches to the full overview. The SVG adapts to mobile width and exports
+the current view, legend and inspected values. No simulations, verdicts, source
+inputs, numerical identities or existing reports change. Reopen saved results to
+use it immediately. [Actual product evidence and reproduction](evidence/qualified_prop_sim/pareto_ui/README.md)
+retain the earlier calculation/phase-range evidence unchanged.

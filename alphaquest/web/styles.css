@@ -1975,7 +1975,31 @@ dialog::backdrop {
 #prop-sim-results > section { margin:24px 0; }
 #prop-sim-content pre { max-height:400px; max-width:100%; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
 #prop-sim-results td:last-child { min-width:220px; max-width:480px; white-space:normal; }
-.prop-sim-pareto svg { display:block; width:100%; min-width:640px; font-family:inherit; }
+.prop-sim-pareto { margin:22px 0; }
+.prop-sim-pareto svg { display:block; width:100%; min-width:0; font-family:inherit; }
 .prop-sim-pareto circle { cursor:pointer; }
 .prop-sim-pareto circle:focus { stroke:#20313b; stroke-width:3; outline:none; }
 #prop-sim-evaluation-table tr.prop-sim-chart-highlight td { background:#e2f5ef; }
+.pareto-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; margin:16px 0; }
+.pareto-views { display:inline-flex; padding:4px; border:1px solid #dfe8e7; border-radius:10px; background:#f5f8f8; }
+.pareto-views button { font:inherit; font-size:13px; font-weight:600; border:0; border-radius:7px; padding:9px 14px; color:#64747e; background:transparent; cursor:pointer; }
+.pareto-views button[aria-pressed="true"] { color:#006e61; background:#fff; box-shadow:0 1px 4px #18342b16; }
+.pareto-views button:focus-visible, .pareto-inspector select:focus-visible { outline:2px solid #008675; outline-offset:2px; }
+.pareto-views button:disabled { opacity:.5; cursor:default; }
+.pareto-legend { display:flex; flex-wrap:wrap; gap:16px; color:#657681; font-size:12px; }
+.pareto-legend span { display:inline-flex; align-items:center; gap:7px; }
+.pareto-legend i { width:8px; height:8px; border-radius:50%; background:#a7b3bc; }
+.pareto-legend i.frontier { background:#008675; }
+.pareto-plot { min-width:0; overflow:hidden; border:1px solid #e5ecef; border-radius:12px; }
+.pareto-inspector { display:grid; grid-template-columns:minmax(180px,1fr) 2fr; align-items:center; gap:12px 24px; padding:16px 18px; margin-top:14px; background:#f3f8f6; border:1px solid #e3eeea; border-radius:10px; }
+.pareto-inspector label { display:grid; gap:7px; font-size:12px; font-weight:600; color:#536c65; }
+.pareto-inspector select { width:100%; min-width:0; padding:9px; color:#233c35; font:inherit; font-size:14px; background:white; border:1px solid #d4e2dc; border-radius:7px; }
+.pareto-metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0; }
+.pareto-metrics dt { font-size:12px; color:#667c74; }
+.pareto-metrics dd { margin:4px 0 0; font-size:22px; font-weight:600; letter-spacing:-.5px; color:#203d32; }
+.pareto-readout { grid-column:1/-1; margin:0; color:#536d63; font-size:12px; overflow-wrap:anywhere; }
+@media (max-width:600px) {
+  .pareto-inspector { grid-template-columns:1fr; padding:14px; }
+  .pareto-metrics dd { font-size:20px; }
+  .pareto-views button { min-height:40px; }
+}

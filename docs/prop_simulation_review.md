@@ -11043,3 +11043,39 @@ separate arithmetic oracle: 50 USD NQ-equivalent net per session at 60 MNQ earns
 old accidental 40-MNQ cap would require fifteen. A presentation-only chart test
 keeps its synthetic tradeoff/tie/missing-point oracle in tests, never in product
 storage or exported product evidence. Temporary browser servers stop at teardown.
+
+### 2026-11-12 — Readable dense Pareto frontier and responsive inspection
+
+Refined the existing Prop Sim result chart without changing any numerical owner,
+input, verdict, objective, report hash or saved selection. The previous full-range
+origin-based axes compressed nearby frontier points and overlaid their labels.
+The default **Frontier detail** now fits the frontier with nearby configurations;
+**All sizes** retains full context. A visible count discloses what is in view,
+while every result remains in the table. Nice tick intervals, fewer/smaller grey
+markers and drawing the green frontier last make the curve legible. Permanent
+size labels and the SVG-wide browser tooltip are removed.
+
+**Inspect size** selects an exact coordinate group even when markers overlap.
+Hover/focus/click and keyboard inspection update separate cost/time readouts and
+highlight rows. Exact ties remain grouped; off-view picker choices switch to full
+context. The responsive SVG and stacked mobile inspector avoid page overflow.
+SVG exports retain the current view, legend and inspected measurements. Resize
+observers are released on navigation; no added simulation, polling or third-party
+chart library is involved.
+
+[Saved actual normal-product evidence and exact reproduction](evidence/qualified_prop_sim/pareto_ui/README.md)
+reopen the user's already completed report through its ordinary Prop Sim URL.
+It has 53 resolved sizes, five frontier configurations and seven unresolved/
+censored sizes. The captured focused view shows 27 nearby sizes; the full view
+shows all 53. Inspecting 27 MNQ displays 271.44 USD and 42.21 calendar days.
+Desktop/mobile screenshots, the normal SVG download and a read-only verification
+record are saved. Before/after report bytes match exactly, with no mutation
+requests or browser errors. This is actual stored research data, not synthetic
+future performance. Earlier evidence and source/report snapshots remain intact.
+
+The focused browser check keeps its analytical display oracle only in tests:
+known tradeoffs/ties, a 40-point dense frontier plus distant outliers, precise
+picker/keyboard inspection, front-to-back ordering, one/no frontier, unresolved
+rows, mobile overflow and SVG export. It runs without backtests/Monte Carlo and
+stops its isolated server at teardown. The actual-product check starts no server
+and does not rerun or mutate the user's saved analysis.

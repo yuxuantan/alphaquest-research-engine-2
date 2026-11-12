@@ -111,6 +111,10 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     page.goto(portal['url']+'/#prop-sim?analysis='+id)
     chart=page.locator('#prop-sim-evaluation-pareto')
     playwright.expect(chart).to_have_attribute('data-candidate-count','4')
+    playwright.expect(chart).to_have_attribute('data-view','frontier')
+    playwright.expect(chart.locator('circle')).to_have_count(2)
+    page.locator('#prop-sim-pareto-all').click()
+    playwright.expect(chart).to_have_attribute('data-view','all')
     playwright.expect(chart.locator('circle')).to_have_count(3)
     playwright.expect(chart.locator('circle[data-pareto="true"]')).to_have_count(2)
     points=chart.locator('polyline').get_attribute('points').split()
@@ -121,9 +125,48 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     page.keyboard.press('Enter')
     playwright.expect(page.locator('#prop-sim-pareto-readout')).to_contain_text('1, 5 MNQ')
     playwright.expect(page.locator('#prop-sim-evaluation-table tr.prop-sim-chart-highlight')).to_have_count(2)
+    rows[:]=[rows[0],rows[4]];report['calculations']['frontier']=['1','5']
+    page.reload()
+    playwright.expect(chart).to_have_attribute('data-visible-count','2')
+    playwright.expect(chart.locator('circle')).to_have_count(1)
+    playwright.expect(chart.locator('polyline')).to_have_count(0)
+    # Dense tradeoff frontier with two distant dominated outliers: no label pileup.
+    rows[:]=[dict(candidate_id=str(size),manifest=dict(configuration=dict(micros=size)),
+        status='estimated',pareto_member=True,metrics=dict(cost_per_funded=300-size*.5,
+        expected_calendar_days_to_funded=40+size*.3)) for size in range(1,41)]
+    for size,cost,days in [(99,600,200),(100,1000,500)]:
+        rows.append(dict(candidate_id=str(size),manifest=dict(configuration=dict(micros=size)),
+            status='estimated',pareto_member=False,metrics=dict(cost_per_funded=cost,expected_calendar_days_to_funded=days)))
+    report['calculations']['frontier']=[str(size) for size in range(1,41)]
+    page.reload()
+    playwright.expect(chart).to_have_attribute('data-visible-count','40')
+    playwright.expect(chart).to_have_attribute('data-candidate-count','42')
+    assert not any('MNQ' in text for text in chart.locator('text').all_text_contents())
+    playwright.expect(chart.locator('title')).to_have_count(0)
+    page.locator('#prop-sim-pareto-size').select_option('39')
+    playwright.expect(page.locator('#prop-sim-pareto-readout')).to_contain_text('40 MNQ')
+    playwright.expect(page.locator('.pareto-metrics')).to_contain_text('$280.00')
+    playwright.expect(page.locator('.pareto-metrics')).to_contain_text('52.00 days')
+    page.locator('#prop-sim-pareto-size').select_option('41')
+    playwright.expect(chart).to_have_attribute('data-view','all')
+    playwright.expect(chart).to_have_attribute('data-visible-count','42')
+    assert chart.locator('circle').last.get_attribute('data-pareto')=='true'
+    page.locator('#prop-sim-pareto-focus').click()
+    playwright.expect(chart).to_have_attribute('data-visible-count','40')
+    page.set_viewport_size(dict(width=390,height=844))
+    playwright.expect(chart).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    with page.expect_download() as download:page.get_by_role('link',name='Pareto chart SVG ↓',exact=True).click()
+    assert b'Frontier detail' in download.value.path().read_bytes()
+    for row in rows:row['pareto_member']=False
+    report['calculations']['frontier']=[]
+    page.reload()
+    playwright.expect(chart).to_have_attribute('data-view','all')
+    playwright.expect(page.locator('#prop-sim-pareto-focus')).to_be_disabled()
+    playwright.expect(chart.locator('polyline')).to_have_count(0)
     for row in rows:
         row['status']='unresolved';row['metrics'].update(cost_per_funded=None,expected_calendar_days_to_funded=None)
     page.reload()
     playwright.expect(page.locator('.prop-sim-pareto')).to_contain_text('No resolved cost/time points')
     playwright.expect(page.locator('#prop-sim-evaluation-pareto')).to_have_count(0)
-    playwright.expect(page.locator('#prop-sim-evaluation-table tbody tr')).to_have_count(5)
+    playwright.expect(page.locator('#prop-sim-evaluation-table tbody tr')).to_have_count(42)

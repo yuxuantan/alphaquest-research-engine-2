@@ -7,39 +7,96 @@
   const link=(parent,text,href)=>{const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);};
   const detail=(parent,title,value)=>{const d=node('details');d.append(node('summary',title),node('pre',JSON.stringify(value,null,2)));parent.append(d);return d;};
   const range=(settings,phase)=>({minimum:settings[phase+'_minimum_micros']??settings.minimum_micros,maximum:settings[phase+'_maximum_micros']??settings.maximum_micros});
+  const chartDisposers=[];
   function evaluationChart(parent,rows){
     const plotted=rows.filter(r=>r.status==='estimated'&&['cost_per_funded','expected_calendar_days_to_funded'].every(k=>r.metrics[k]!=null&&Number.isFinite(Number(r.metrics[k]))));
-    const section=node('section',undefined,'prop-sim-pareto');section.append(node('h3','Evaluation cost/time Pareto curve'));parent.append(section);
+    const section=node('section',undefined,'prop-sim-pareto');
+    section.append(node('h3','Evaluation cost/time Pareto curve'));parent.append(section);
     if(!plotted.length){section.append(node('p','No resolved cost/time points are available. Unresolved and censored sizes remain in the table below.'));return;}
-    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.id='prop-sim-evaluation-pareto';svg.setAttribute('viewBox','0 0 900 390');svg.setAttribute('role','group');svg.setAttribute('aria-label','Evaluation Pareto chart: calendar days horizontally, acquisition cost vertically; lower and left is better.');svg.dataset.candidateCount=plotted.length;
-    const draw=(tag,attrs,text)=>{const item=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))item.setAttribute(k,String(v));if(text!==undefined)item.textContent=text;svg.append(item);return item;};
-    draw('rect',{width:900,height:390,fill:'#fff'});draw('title',{},'Evaluation cost/time Pareto curve');
-    const groups=new Map();for(const row of plotted){const x=Number(row.metrics.expected_calendar_days_to_funded),y=Number(row.metrics.cost_per_funded),key=`${x}|${y}`;if(!groups.has(key))groups.set(key,{x,y,rows:[]});groups.get(key).rows.push(row);}
-    const points=[...groups.values()],frontier=points.filter(p=>p.rows.some(r=>r.pareto_member)).sort((a,b)=>a.x-b.x||a.y-b.y);
-    const xmax=Math.max(1,...points.map(p=>p.x))*1.1,ymax=Math.max(1,...points.map(p=>p.y))*1.1;
-    const x=v=>115+755*v/xmax,y=v=>315-280*v/ymax;
-    for(let i=0;i<=4;i++){const xv=xmax*i/4,yv=ymax*i/4;
-      draw('line',{x1:x(xv),x2:x(xv),y1:35,y2:315,stroke:'#e3e9ed'});draw('line',{x1:115,x2:870,y1:y(yv),y2:y(yv),stroke:'#e3e9ed'});
-      draw('text',{x:x(xv),y:338,'text-anchor':'middle',fill:'#52616c','font-size':12},fmt(xv));draw('text',{x:102,y:y(yv)+4,'text-anchor':'end',fill:'#52616c','font-size':12},fmt(yv));
+    const groups=new Map();
+    for(const row of plotted){
+      const x=Number(row.metrics.expected_calendar_days_to_funded),y=Number(row.metrics.cost_per_funded),key=`${x}|${y}`;
+      if(!groups.has(key))groups.set(key,{x,y,rows:[]});groups.get(key).rows.push(row);
     }
-    draw('line',{x1:115,x2:870,y1:315,y2:315,stroke:'#52616c'});draw('line',{x1:115,x2:115,y1:35,y2:315,stroke:'#52616c'});
-    draw('text',{x:490,y:377,'text-anchor':'middle',fill:'#21313b','font-size':14},'Expected calendar days to Funded');draw('text',{x:22,y:180,transform:'rotate(-90 22 180)','text-anchor':'middle',fill:'#21313b','font-size':14},'Expected acquisition cost · USD');
-    if(frontier.length>1)draw('polyline',{points:frontier.map(p=>`${x(p.x)},${y(p.y)}`).join(' '),fill:'none',stroke:'#007f73','stroke-width':3,'data-frontier':'true'});
-    section.append(node('p','Green = Pareto frontier; grey = other resolved sizes. Lower and left is better.','field-help'));
-    const readout=node('p','Hover, focus or click a point to inspect its sizes.','field-help');readout.id='prop-sim-pareto-readout';readout.setAttribute('aria-live','polite');
-    for(const point of points){const sizes=point.rows.map(r=>r.manifest.configuration.micros),onFrontier=point.rows.some(r=>r.pareto_member),label=`${sizes.join(', ')} MNQ · ${fmt(point.x)} calendar days · $${fmt(point.y)} acquisition cost · ${onFrontier?'Pareto frontier':'outside frontier'}`;
-      const circle=draw('circle',{cx:x(point.x),cy:y(point.y),r:onFrontier?7:5,fill:onFrontier?'#007f73':'#7b8b96',stroke:'#fff','stroke-width':2,tabindex:0,role:'button','aria-label':label,'data-sizes':sizes.join(','),'data-pareto':onFrontier});
-      const title=document.createElementNS(ns,'title');title.textContent=label;circle.append(title);
-      const inspect=()=>{readout.textContent=label;parent.querySelectorAll('tbody tr').forEach(row=>row.classList.toggle('prop-sim-chart-highlight',sizes.includes(Number(row.dataset.size))));};
-      circle.onmouseenter=circle.onfocus=circle.onclick=inspect;circle.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inspect();}};
-      if(onFrontier){const right=x(point.x)>700;draw('text',{x:x(point.x)+(right?-11:11),y:y(point.y)-12,'text-anchor':right?'end':'start',fill:'#00685e','font-size':12},sizes.length<=3?`${sizes.join(', ')} MNQ`:`${sizes[0]} + ${sizes.length-1} sizes`);}
+    const points=[...groups.values()].sort((a,b)=>Math.min(...a.rows.map(r=>r.manifest.configuration.micros))-Math.min(...b.rows.map(r=>r.manifest.configuration.micros)));
+    points.forEach(p=>{p.sizes=p.rows.map(r=>r.manifest.configuration.micros);p.frontier=p.rows.some(r=>r.pareto_member);});
+    const frontier=points.filter(p=>p.frontier).sort((a,b)=>a.x-b.x||a.y-b.y);
+    let view=frontier.length?'frontier':'all',selected=null,bounds,lastWidth;
+    const toolbar=node('div',undefined,'pareto-toolbar'),views=node('div',undefined,'pareto-views');views.setAttribute('role','group');views.setAttribute('aria-label','Chart view');
+    const focus=node('button','Frontier detail'),all=node('button','All sizes');focus.id='prop-sim-pareto-focus';all.id='prop-sim-pareto-all';
+    for(const button of [focus,all]){button.type='button';views.append(button);}focus.disabled=!frontier.length;
+    const legend=node('div',undefined,'pareto-legend');
+    for(const [text,cls] of [['Pareto frontier','frontier'],['Other resolved sizes','other']]){const item=node('span',text),dot=node('i',undefined,cls);dot.setAttribute('aria-hidden','true');item.prepend(dot);legend.append(item);}
+    toolbar.append(views,legend);section.append(toolbar);
+    const wrap=node('div',undefined,'pareto-plot'),ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
+    svg.id='prop-sim-evaluation-pareto';svg.setAttribute('role','group');svg.setAttribute('aria-label','Evaluation Pareto chart: calendar days horizontally, acquisition cost vertically; lower and left is better.');svg.dataset.candidateCount=plotted.length;
+    wrap.append(svg);section.append(wrap);
+    const inspector=node('div',undefined,'pareto-inspector'),label=node('label','Inspect size'),picker=node('select');picker.id='prop-sim-pareto-size';picker.add(new Option('Choose a size or point…',''));
+    points.forEach((p,i)=>picker.add(new Option(`${p.sizes.join(', ')} MNQ · ${p.frontier?'Frontier':'Other size'}`,String(i))));label.append(picker);
+    const readout=node('p','Hover, focus or click a point to see its exact results.','pareto-readout');readout.id='prop-sim-pareto-readout';readout.setAttribute('aria-live','polite');
+    const metrics=node('dl',undefined,'pareto-metrics'),values={};
+    for(const [key,title] of [['cost','Expected acquisition cost'],['days','Calendar days to Funded']]){const item=node('div');values[key]=node('dd','—');item.append(node('dt',title),values[key]);metrics.append(item);}
+    inspector.append(label,metrics,readout);section.append(inspector);
+    const caption=node('p',undefined,'field-help');caption.id='prop-sim-pareto-caption';section.append(caption);
+    const download=node('a','Pareto chart SVG ↓','workflow-inline-link');download.download='evaluation-pareto.svg';section.append(download);
+    const updateDownload=()=>{
+      const copy=svg.cloneNode(true),[,,width,height]=svg.getAttribute('viewBox').split(' ').map(Number);
+      copy.setAttribute('viewBox',`0 0 ${width} ${height+44}`);copy.setAttribute('height',String(height+44));
+      const lines=[`${view==='frontier'?'Frontier detail':'All sizes'} · Green: Pareto frontier. Grey: other resolved sizes.`,selected?`${selected.sizes.length>6?selected.sizes.length+' tied sizes':selected.sizes.join(', ')+' MNQ'} · $${fmt(selected.y)} · ${fmt(selected.x)} calendar days`:'Inspection chart; no Evaluation winner is selected.'];
+      lines.forEach((text,i)=>{const label=document.createElementNS(ns,'text');for(const [key,value] of Object.entries({x:12,y:height+16+i*16,fill:'#526b62','font-size':11}))label.setAttribute(key,String(value));label.textContent=text;copy.append(label);});
+      download.href='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(copy));
+    };
+    const inside=p=>p.x>=bounds.x[0]&&p.x<=bounds.x[1]&&p.y>=bounds.y[0]&&p.y<=bounds.y[1];
+    function updateSelection(){
+      picker.value=selected?String(points.indexOf(selected)):'';
+      readout.textContent=selected?`${selected.sizes.join(', ')} MNQ · ${selected.frontier?'Pareto frontier':'Other resolved size'}${selected.sizes.length>1?' · Exact performance tie':''}`:'Hover, focus or click a point to see its exact results.';
+      values.cost.textContent=selected?'$'+fmt(selected.y):'—';values.days.textContent=selected?fmt(selected.x)+' days':'—';
+      svg.querySelectorAll('circle[data-point]').forEach(circle=>{const p=points[Number(circle.dataset.point)],active=p===selected;circle.setAttribute('r',active?8:p.frontier?6:4);circle.setAttribute('stroke',active?'#20313b':'#fff');circle.setAttribute('stroke-width',active?2.5:1.25);circle.setAttribute('aria-pressed',String(active));});
+      parent.querySelectorAll('tbody tr').forEach(row=>row.classList.toggle('prop-sim-chart-highlight',!!selected&&selected.sizes.includes(Number(row.dataset.size))));
+      updateDownload();
     }
-    const wrap=node('div',undefined,'optimization-scroll');wrap.append(svg);section.append(wrap,readout,node('p',`Shows ${plotted.length} resolved sizes. ${rows.length-plotted.length} unresolved/censored sizes are excluded from the plot. ${frontier.length===1?'The frontier has one distinct point; tied sizes can share it.':'The line connects tested frontier points; intermediate sizes are not inferred.'} These are point estimates, not certified dominance.`,'field-help'));
-    const download=node('a','Pareto chart SVG ↓','workflow-inline-link');download.download='evaluation-pareto.svg';download.href='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));section.append(download);
+    function inspect(point){selected=point;if(!inside(point)){view='all';drawPlot();}else updateSelection();}
+    picker.onchange=()=>{if(picker.value===''){selected=null;updateSelection();}else inspect(points[Number(picker.value)]);};
+    function extent(values,count){
+      const low=Math.min(...values),high=Math.max(...values),span=high-low,padding=Math.max(span*.14,Math.max(1,Math.abs(low)*.06));
+      const first=Math.max(0,low-padding),last=high+padding,raw=(last-first)/count,power=10**Math.floor(Math.log10(raw)),fraction=raw/power;
+      const step=([1,2,2.5,5,10].find(n=>n>=fraction)||10)*power;
+      const min=Math.floor(first/step)*step,max=Math.ceil(last/step)*step;
+      return [min,max,Array.from({length:Math.round((max-min)/step)+1},(_,i)=>min+i*step)];
+    }
+    const tick=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
+    function drawPlot(){
+      const width=Math.max(300,Math.round(wrap.clientWidth||800)),height=width<560?300:360;lastWidth=width;
+      const scope=view==='frontier'?frontier:points,xt=extent(scope.map(p=>p.x),width<560?3:5),yt=extent(scope.map(p=>p.y),4);bounds={x:xt,y:yt};
+      const left=Math.min(110,Math.max(70,...yt[2].map(v=>tick(v).length*7+35))),right=width-22,top=22,bottom=height-58;
+      const x=v=>left+(right-left)*(v-xt[0])/(xt[1]-xt[0]),y=v=>bottom-(bottom-top)*(v-yt[0])/(yt[1]-yt[0]);
+      svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.setAttribute('height',String(height));svg.dataset.view=view;
+      const draw=(tag,attrs,text)=>{const item=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))item.setAttribute(k,String(v));if(text!==undefined)item.textContent=text;svg.append(item);return item;};
+      draw('desc',{},`${view==='frontier'?'Frontier detail':'All resolved sizes'}. Axes fit this view. Lower acquisition cost and shorter time are preferred. Exact ties share a marker.`);
+      draw('rect',{width,height,fill:'#fff'});
+      for(const v of xt[2]){draw('line',{x1:x(v),x2:x(v),y1:top,y2:bottom,stroke:'#edf1f3'});draw('text',{x:x(v),y:bottom+23,'text-anchor':'middle',fill:'#657681','font-size':12},tick(v));}
+      for(const v of yt[2]){draw('line',{x1:left,x2:right,y1:y(v),y2:y(v),stroke:'#e5ecef'});draw('text',{x:left-12,y:y(v)+4,'text-anchor':'end',fill:'#657681','font-size':12},tick(v));}
+      draw('text',{x:(left+right)/2,y:height-10,'text-anchor':'middle',fill:'#344953','font-size':13},'Expected calendar days to Funded');
+      draw('text',{x:16,y:(top+bottom)/2,transform:`rotate(-90 16 ${(top+bottom)/2})`,'text-anchor':'middle',fill:'#344953','font-size':13},'Expected acquisition cost · USD');
+      if(frontier.length>1)draw('polyline',{points:frontier.map(p=>`${x(p.x)},${y(p.y)}`).join(' '),fill:'none',stroke:'#008675','stroke-width':2.5,'data-frontier':'true'});
+      const visible=points.filter(inside);svg.dataset.visibleCount=visible.reduce((n,p)=>n+p.rows.length,0);
+      // Draw the frontier last so nearby grey markers cannot conceal it.
+      for(const p of [...visible].sort((a,b)=>Number(a.frontier)-Number(b.frontier))){
+        const text=`${p.sizes.join(', ')} MNQ · ${fmt(p.x)} calendar days · $${fmt(p.y)} acquisition cost · ${p.frontier?'Pareto frontier':'other resolved size'}`;
+        const circle=draw('circle',{cx:x(p.x),cy:y(p.y),r:p.frontier?6:4,fill:p.frontier?'#008675':'#a7b3bc',stroke:'#fff','stroke-width':1.25,tabindex:0,role:'button','aria-label':text,'data-point':points.indexOf(p),'data-sizes':p.sizes.join(','),'data-pareto':p.frontier});
+        circle.onmouseenter=circle.onfocus=circle.onclick=()=>inspect(p);circle.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inspect(p);}};
+      }
+      focus.setAttribute('aria-pressed',String(view==='frontier'));all.setAttribute('aria-pressed',String(view==='all'));
+      caption.textContent=`${svg.dataset.visibleCount} of ${plotted.length} resolved sizes in view · ${rows.length-plotted.length} unresolved/censored sizes remain in the table. Axes fit the selected view. ${frontier.length===0?'No frontier was supplied for these resolved estimates.':frontier.length===1?'One distinct frontier point; tied sizes share a marker.':'The line connects tested frontier points.'} Point estimates; no untested intermediate sizes inferred.`;
+      if(selected&&!inside(selected))selected=null;updateSelection();
+    }
+    focus.onclick=()=>{view='frontier';drawPlot();};all.onclick=()=>{view='all';drawPlot();};
+    drawPlot();const observer=new ResizeObserver(()=>{if(Math.max(300,Math.round(wrap.clientWidth||800))!==lastWidth)drawPlot();});observer.observe(wrap);
+    return ()=>observer.disconnect();
   }
   let generation=0,timer;
   async function render(){
-    ++generation;clearTimeout(timer);if(location.hash.split('?')[0]!=='#prop-sim')return;
+    ++generation;clearTimeout(timer);chartDisposers.splice(0).forEach(dispose=>dispose());if(location.hash.split('?')[0]!=='#prop-sim')return;
     const version=generation,alive=()=>version===generation&&location.hash.split('?')[0]==='#prop-sim',host=document.querySelector('#prop-sim-content');
     const query=new URLSearchParams(location.hash.split('?')[1]||''),selectedId=query.get('analysis'),sourceId=query.get('source');
     host.replaceChildren(node('p','Loading qualified configurations…'));
@@ -86,7 +143,7 @@
       const phasePanels={};const loaded={};
       function table(parent,phase,report){const c=report.calculations,rows=[...c.candidates].sort((a,b)=>a.manifest.configuration.micros-b.manifest.configuration.micros);
         const summary=node('p');summary.id='prop-sim-'+phase+'-summary';summary.textContent=phase==='evaluation'?`${c.frontier.length} cost/time Pareto sizing points. All nondominated points remain; no combined score or automatic Evaluation winner. ${rows.filter(r=>r.status!=='estimated').length} unresolved/censored sizes: the frontier covers resolved estimates only.`:c.winner?`Best estimated cash size: ${rows.find(r=>r.candidate_id===c.winner).manifest.configuration.micros} MNQ. ${c.near_ties.length} tied/near-tied alternatives. This is a point estimate, not a certified optimum.`:'No Funded winner: inspect infeasible or unresolved candidates below.';parent.append(summary);
-        if(phase==='evaluation')evaluationChart(parent,rows);
+        if(phase==='evaluation'){const dispose=evaluationChart(parent,rows);if(dispose)chartDisposers.push(dispose);}
         const wrap=node('div',undefined,'optimization-scroll'),t=node('table',undefined,'library-table');t.id='prop-sim-'+phase+'-table';const head=node('tr');
         const labels=phase==='evaluation'?['MNQ size','Status','Pareto frontier','Attempt pass %','Expected acquisition cost · USD','Expected calendar days to funded','P90 calendar days','Expected attempts','Details']:['MNQ size','Status','Rank','Expected trader receipts · USD','Median receipts','P10 receipts','Breach %','Inactivity %','First payout %','Pending cash','Account deductions','Details'];for(const text of labels)head.append(node('th',text));const th=node('thead');th.append(head);t.append(th);const tb=node('tbody');
         for(const row of rows){const tr=node('tr');tr.dataset.size=row.manifest.configuration.micros;const m=row.metrics;
