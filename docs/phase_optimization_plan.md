@@ -23,6 +23,17 @@ legacy numerical semantics; it does not complete an optimization milestone.
 
 ## Campaign-qualified single-source portal — 2026-11-12
 
+Current extension on this date: the main Prop Sim portal also supports explicit
+Lucid 40% standard / 50% add-on Evaluation, acquisition diagnostics and paired
+conditional MC uncertainty. Each phase can freeze up to four eligible sizes and
+run existing-worker OOS (MC plus chronological saved-signal replay), IS
+block/subperiod sensitivity and more-path assessments. These append normal
+AnalysisStore reports, never reselect on OOS or overwrite the IS decision.
+The add-on fee is user-declared, and prior OOS access remains disclosed.
+[Saved product evidence and reproduction](evidence/qualified_prop_sim/validation/README.md).
+Account-aware signal reruns and live-account returns remain separate later work;
+these fixed-signal diagnostics do not claim new provider parity.
+
 The main **Prop Sim** tab now admits one campaign configuration only after
 mechanics, both IS stages, current OOS and latest current-policy Monte Carlo
 acceptance. It runs the existing independent Evaluation cost/time frontier and

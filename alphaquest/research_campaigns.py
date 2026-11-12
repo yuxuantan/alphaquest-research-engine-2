@@ -657,7 +657,8 @@ class CampaignStore:
                     name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))
             raw.update(candidates=selected, source_backtest_id=min(oos_sources.values()))
             context = dict(campaign_id=id, request_id=attempt['request_id'], frozen_package=package,
-                sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'])
+                sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'],
+                kind=attempt.get('kind'),is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
             # Protect sources before queueing and keep every report in AnalysisStore.
             with self.analyses.connect() as db:
                 db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
@@ -665,3 +666,39 @@ class CampaignStore:
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
             return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))
+
+    def assess_saved(self,id,request_id,kind,paths=None,oos_sources=None):
+        """Use existing frozen packages, workers and assessment history for Prop Sim."""
+        if kind not in ('oos','is_robustness','precision'):raise ValueError('Unknown frozen assessment kind.')
+        with self.analyses.lock:
+            attempt,fresh=self.begin_assessment(id,request_id)
+            if not fresh:
+                if attempt.get('kind')!=kind or attempt.get('paths')!=paths:
+                    raise ResearchConflict('Assessment request ID already belongs to another declaration.')
+                return attempt
+            attempt=dict(attempt,kind=kind,paths=paths)
+            self.save_assessment(attempt)
+            try:
+                if kind=='oos':return self.finish_assessment(id,attempt,oos_sources)
+                report=self.report(id);campaign=self.get(id);package=campaign['frozen'];module=module_for(package['phase'])
+                raw=deepcopy(report['request']);configs=[];mappings=[]
+                for row in report['calculations']['candidates']:
+                    if row['candidate_id'] not in package['candidate_ids']:continue
+                    config=deepcopy(row['manifest']['configuration'])
+                    if kind=='precision' and paths<=config['simulation']['simulations']:
+                        raise ValueError('Precision refinement requires more paths than the saved search.')
+                    config['simulation']['simulations']=paths
+                    if 'chain_simulations' in config['sampling']:config['sampling']['chain_simulations']=paths
+                    configs.append(config)
+                    mappings.append(dict(source_id=config['source']['source_backtest_id'],frozen_candidate_id=row['candidate_id'],frozen_manifest=row['manifest']))
+                raw.update(candidates=configs,source_backtest_id=min(c['source']['source_backtest_id'] for c in configs))
+                context=dict(campaign_id=id,request_id=request_id,frozen_package=package,kind=kind,paths=paths,
+                    sources=mappings,prior_access=attempt['prior_access'],
+                    is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']},
+                    interpretation='Frozen IS sensitivity/precision assessment; no OOS data, new size selection or certified optimum.')
+                analysis=self.analyses.submit_phase(self.runs,module.parse_request(raw),assessment=context,datasets=self.datasets)
+                with self.analyses.connect() as db:db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)',(id,analysis['id']))
+                return self.save_assessment(dict(attempt,status=analysis['status'],analysis_id=analysis['id']))
+            except Exception as exc:
+                self.save_assessment(dict(attempt,status='error',error=str(exc)))
+                raise

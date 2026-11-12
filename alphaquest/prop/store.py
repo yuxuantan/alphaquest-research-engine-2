@@ -350,6 +350,11 @@ class AnalysisStore:
         module = module_for_mode(search.mode)
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
+        if assessment and assessment.get('kind')=='is_robustness':
+            bound=validate_phase_work(search)
+            blocks={1,5,20,*[c.sampling.block_weekdays for c in search.candidates]}
+            if bound['estimated_capture_bytes']*(len(blocks)+2)>100*1024*1024:
+                raise ValueError('Robustness report is too large; reduce diagnostic paths or frozen choices.')
         if assessment or training_context:
             checks = check_candidates(runs, search, assessment, training_context=training_context, datasets=datasets)
         else:
@@ -452,7 +457,7 @@ class AnalysisStore:
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
                 with self.runtime.activate():
-                    options = dict(assessment=True) if assessment else {}
+                    options = dict(assessment=assessment,checkpoint=checkpoint) if assessment else dict(checkpoint=checkpoint)
                     if getattr(search, 'native_execution', None) is not None:
                         if assessment is not None:
                             options['assessment'] = dict(assessment,analysis_id=id)

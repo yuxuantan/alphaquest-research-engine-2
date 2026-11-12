@@ -68,13 +68,18 @@ probability is a diagnostic with an optional default-off eligibility cap over
 the modeled horizon, not over the IS history. Preserve explicit historical caps.
 The Evaluation Pareto chart shows resolved estimates, exact ties and the supplied
 frontier; it must not fabricate points for unresolved or untested configurations.
-Lucid standard 40% Evaluation uses the saved-signal calendar acquisition owner
+Lucid 40% standard / 50% add-on Evaluation uses the saved-signal calendar acquisition owner
 in `evaluation_profiles.py` / `evaluation_optimization.py`, not Apex's IID attempt
 law or session deadline. Charge every retry, advance closed-date inactivity,
 retain guard censoring and compute cost/time from all complete calendar paths.
 Do not substitute fee divided by first-attempt probability. Funded continues
-through its existing independent dated owner. The 50% add-on and subsequent
-live-account returns are unsupported. Fast clock/cash oracles are in
+through its existing independent dated owner. The 50% add-on requires an explicit
+purchase fee; arbitrary percentages reject. Subsequent live-account returns remain
+unsupported. Frozen size choices can run existing-worker OOS, IS block/subperiod
+robustness and more-path assessments without reselection or rewriting IS reports.
+Use `tests/test_prop_evaluation_validation.py` and its normal browser journey
+for this surface. Keep paired MC uncertainty distinct from provider/future risk.
+Fast clock/cash oracles are in
 `tests/test_lucid_calendar_acquisition.py`; full qualification/API/browser
 journeys remain explicit opt-in checks. Preserve old report identities and fail
 closed on incompatible frozen execution after numerical source changes.

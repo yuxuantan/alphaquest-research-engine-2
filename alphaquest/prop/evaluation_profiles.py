@@ -133,7 +133,7 @@ class NativeEvaluationController(NativeControlBase):
         if not self._active_session:return
         if self.lucid:
             self.equity,self.high,self.best_day,self.last_activity,self._account_status=self.kernel.evaluation_finish(
-                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal('.4'))
+                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal(self.profile.consistency_percent)/100)
         else:
             self.equity,self.high,self._account_status=self.kernel.evaluation_finish(self.equity,self.high,self._account_status)
             if self._account_status=='open' and self._current_attempt['sessions']>=21:self._account_status='expired'
@@ -167,7 +167,7 @@ class NativeEvaluationController(NativeControlBase):
                 eod_floor_cap='100' if self.lucid else '3000',
                 daily_loss=('1200' if self.profile.daily_loss_limit else None) if self.lucid else '1000',
                 maximum_contracts=40 if self.lucid else 60,
-                consistency_fraction='0.4' if self.lucid else None,
+                consistency_fraction=str(self.profile.consistency_percent/100) if self.lucid else None,
                 consistency_test='best_day <= fraction * total_profit at session close' if self.lucid else None,
                 provider_expiry_sessions=None if self.lucid else 21,
                 inactivity_calendar_days=30 if self.lucid else None,
@@ -273,6 +273,18 @@ def native_acquisition_metrics(forecast):
     passed=first.count('passed');open_count=sum(value not in terminal for value in first)
     complete=all(path['acquisition_completed'] for path in paths)
     m=forecast['metrics'];u=forecast['uncertainty']['metrics']
+    additional=dict(median_calendar_days_to_funded=None,p90_calendar_days_to_funded=None)
+    for day in (30,60,90):
+        additional[f'probability_funded_by_day_{day}']=(sum(p['acquisition_completed'] and p['calendar_days_to_funded']<=day for p in paths)/n
+            if complete else None)
+    for name in ('days_before_final_attempt','final_attempt_days_before_target','final_attempt_days_after_target','pass_to_ready_days',
+                 'failed_attempts_before_target','failed_attempts_after_target','consistency_blocked_sessions'):
+        values=[p.get('acquisition_diagnostics',{}).get(name) for p in paths]
+        additional['mean_'+name]=float(np.mean(values)) if complete and all(v is not None for v in values) else None
+    if complete:
+        values=[p['calendar_days_to_funded'] for p in paths]
+        additional.update(median_calendar_days_to_funded=float(np.median(values)),
+            p90_calendar_days_to_funded=float(np.quantile(values,.9,method='inverted_cdf')))
     return dict(status='estimated' if complete else 'unresolved',
         metrics=dict(cost_per_funded=m['mean_acquisition_cost'],
             expected_calendar_days_to_funded=m['mean_calendar_days_to_funded'],
@@ -281,7 +293,7 @@ def native_acquisition_metrics(forecast):
             probability_acquisition_by_cutoff=m['probability_acquisition_by_cutoff'],
             expected_attempts_per_funded=m['mean_attempts_started'] if complete else None,
             restricted_mean_paid_fees=m['restricted_mean_paid_fees'],
-            restricted_mean_observed_calendar_days=m['restricted_mean_observed_calendar_days']),
+            restricted_mean_observed_calendar_days=m['restricted_mean_observed_calendar_days'],**additional),
         uncertainty=dict(cost_se=u['mean_acquisition_cost']['mc_standard_error'],
             calendar_mean_se=u['mean_calendar_days_to_funded']['mc_standard_error'],
             cost_ci=None,calendar_mean_ci=None,robust_dominance='not_established',
@@ -328,6 +340,8 @@ def simulate_evaluation_profile(
             kwargs.update(sizing.kernel_arguments(stage='attempt_sample' if not kwargs.get('chain') else 'legacy_chain'))
             if not kwargs.get('chain'):
                 kwargs['trace'] = trace
+        if profile.profile_id == 'lucidflex-50k':
+            kwargs['consistency'] = profile.consistency_percent/100
         return evaluation_model(*args, **kwargs)
 
     sim = runner(days, micros, simulation.simulations, simulation.seed,
@@ -486,7 +500,8 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
             if lucid and attempt['first_session'] is not None:
                 values = kernel.evaluation_session([], attempt['equity'], attempt['high'], attempt['best'],
                     attempt['last_activity'], (day-date.fromisoformat(attempt['first_session'])).days,
-                    min(micros, max_micros, 40), 1200. if profile.daily_loss_limit else None)
+                    min(micros, max_micros, 40), 1200. if profile.daily_loss_limit else None,
+                    consistency=profile.consistency_percent/100)
                 attempt['equity'], attempt['high'], attempt['best'], attempt['last_activity'], state, hit, used = values
                 if state == 'inactive':
                     attempt.update(outcome=state, terminal_date=str(day))
@@ -505,7 +520,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
         if lucid:
             values = kernel.evaluation_session(trades, attempt['equity'], attempt['high'], attempt['best'],
                 attempt['last_activity'], (day-date.fromisoformat(attempt['first_session'])).days, size,
-                1200. if profile.daily_loss_limit else None, **kwargs)
+                1200. if profile.daily_loss_limit else None, consistency=profile.consistency_percent/100, **kwargs)
             attempt['equity'], attempt['high'], attempt['best'], attempt['last_activity'], state, hit, used = values
         else:
             attempt['equity'], attempt['high'], state, hit, used = kernel.evaluation_session(
@@ -573,7 +588,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
             'Calendar, activation and receipt timing are declared model assumptions. An unfinished acquisition has no fabricated finite funding-time estimate.'])
 
 def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry, calendar,
-        *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None):
+        *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None, chronological=False):
     """Lucid saved-signal acquisition on actual modeled civil dates.
 
     Reuses Lucid's session transitions, including empty-date inactivity checks.
@@ -585,17 +600,20 @@ def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry
     from hashlib import sha256
     from . import lucid_engine,native_engine
     from .cash_ledger import replay_calendar_sessions,acquisition_schedule
-    if type(profile) is not EvaluationProfile or profile.profile_id!='lucidflex-50k' or not days:
+    lucid=profile.profile_id=='lucidflex-50k'
+    if type(profile) is not EvaluationProfile or (not lucid and not chronological) or not days:
         raise ValueError('Calendar saved-path acquisition requires LucidFlex and nonempty history.')
     sessions=replay_calendar_sessions(calendar);session_set=set(sessions)
     starts=sorted(calendar.start_dates);schedule=sha256();paths=[]
     fee=Decimal(profile.evaluation_price);activation=Decimal(profile.activation_fee)
-    for index in range(simulation.simulations):
+    count=1 if chronological else simulation.simulations
+    for index in range(count):
         checkpoint();start=date.fromisoformat(starts[index%len(starts)])
         cutoff=start+timedelta(days=retry.max_calendar_days)
         purchase=start;attempt=None;first_attempt=None;last_attempt=None;attempts=0
         paid=Decimal(0);paid_activation=Decimal(0);passed_on=eligible=ready=None
         outcome='calendar_guard';observed=retry.max_calendar_days;stream=None
+        failed_before=failed_after=blocked=source_cursor=0
         for offset in range(retry.max_calendar_days):
             if offset%32==0:checkpoint()
             day=start+timedelta(days=offset)
@@ -607,7 +625,7 @@ def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry
                 if attempts>=retry.max_attempts:outcome='attempt_guard';observed=offset;break
                 attempts+=1;paid+=fee
                 attempt=dict(index=attempts,purchase_date=str(day),first_session=None,sessions=0,
-                    equity=0.,high=0.,best=0.,last_activity=0,outcome='open')
+                    equity=0.,high=0.,best=0.,last_activity=0,outcome='open',first_target_date=None)
                 if first_attempt is None:first_attempt=attempt
                 last_attempt=attempt
                 rng=np.random.RandomState(np.random.SeedSequence([simulation.seed,index,attempts]).generate_state(1)[0])
@@ -616,36 +634,59 @@ def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry
             is_session=day in session_set
             if not is_session and attempt['first_session'] is None:continue
             if is_session:
+                if chronological and source_cursor>=len(days):
+                    outcome='source_window_censored';observed=offset;break
                 if attempt['first_session'] is None:attempt['first_session']=str(day)
-                source_index=next(stream);trades=days[source_index];attempt['sessions']+=1
+                source_index=source_cursor if chronological else next(stream)
+                source_cursor+=1;trades=days[source_index];attempt['sessions']+=1
                 schedule.update(f'{index}:{attempts}:{day}:{source_index};'.encode())
             else:trades=[];source_index=None
             elapsed=(day-date.fromisoformat(attempt['first_session'])).days
             kwargs=(dict(**sizing.kernel_arguments(stage='evaluation_calendar_sample',path_index=index,
                 source_session_index=source_index,calendar_date=str(day),attempt=attempts),trace=trace) if sizing is not None and is_session else {})
-            result=lucid_engine.evaluation_session(trades,attempt['equity'],attempt['high'],attempt['best'],
-                attempt['last_activity'],elapsed,min(micros,40,simulation.max_micros),
-                1200. if profile.daily_loss_limit else None,max_micros=simulation.max_micros,**kwargs)
-            attempt['equity'],attempt['high'],attempt['best'],attempt['last_activity'],state,_,_=result
+            if lucid:
+                result=lucid_engine.evaluation_session(trades,attempt['equity'],attempt['high'],attempt['best'],
+                    attempt['last_activity'],elapsed,min(micros,40,simulation.max_micros),
+                    1200. if profile.daily_loss_limit else None,consistency=profile.consistency_percent/100,
+                    max_micros=simulation.max_micros,**kwargs)
+                attempt['equity'],attempt['high'],attempt['best'],attempt['last_activity'],state,_,_=result
+            elif is_session:
+                attempt['equity'],attempt['high'],state,_,_=native_engine.evaluation_session(
+                    trades,attempt['equity'],attempt['high'],min(micros,simulation.max_micros),
+                    max_micros=simulation.max_micros,**kwargs)
+                if state=='open' and attempt['sessions']>=21:state='expired'
+            else:state='open'
+            if state not in ('blown','inactive','expired') and attempt['equity']>=3000:
+                if attempt['first_target_date'] is None:attempt['first_target_date']=str(day)
+                if state!='passed' and is_session:blocked+=1
             attempt['outcome']=state
             if state=='passed':
                 attempt['terminal_date']=str(day);passed_on=day
                 eligible,ready=acquisition_schedule(day,sessions,retry.activation_delay_sessions,allow_pending=True)
                 if eligible==day:paid_activation+=activation
                 attempt=None
-            elif state in ('blown','inactive'):
+            elif state in ('blown','inactive','expired'):
+                if attempt['first_target_date'] is None:failed_before+=1
+                else:failed_after+=1
                 attempt['terminal_date']=str(day);purchase=day+timedelta(days=1+retry.retry_delay_calendar_days);attempt=None
-        if ready==cutoff and eligible is not None and eligible<cutoff:
+        if not chronological and ready==cutoff and eligible is not None and eligible<cutoff:
             outcome='funded';observed=retry.max_calendar_days
         complete=outcome=='funded'
         summaries=[] if first_attempt is None else [first_attempt]
         if last_attempt is not first_attempt:summaries.append(last_attempt)
+        diagnostics=dict(failed_attempts_before_target=failed_before,failed_attempts_after_target=failed_after,
+            consistency_blocked_sessions=blocked,
+            days_before_final_attempt=(date.fromisoformat(last_attempt['purchase_date'])-start).days if complete else None,
+            final_attempt_days_before_target=(date.fromisoformat(last_attempt['first_target_date'])-date.fromisoformat(last_attempt['purchase_date'])).days if complete else None,
+            final_attempt_days_after_target=(passed_on-date.fromisoformat(last_attempt['first_target_date'])).days if complete else None,
+            pass_to_ready_days=(ready-passed_on).days if complete else None)
         paths.append(dict(path=index,start_date=str(start),outcome=outcome,acquisition_completed=complete,
             censored=not complete,observed_calendar_days=observed,calendar_days_to_funded=observed if complete else None,
             attempts_started=attempts,attempts=summaries,attempt_detail_policy='First and last only; aggregate counts/fees include every attempt.',
             paid_evaluation_fees=float(paid),paid_activation_fees=float(paid_activation),paid_fees=float(paid+paid_activation),
             pending_activation=passed_on is not None and (eligible is None or eligible>=cutoff),
-            pass_date=str(passed_on) if passed_on else None,ready_date=str(ready) if ready else None))
+            pass_date=str(passed_on) if passed_on else None,ready_date=str(ready) if ready else None,
+            acquisition_diagnostics=diagnostics))
         if (index+1)%max(1,simulation.simulations//10)==0:progress(f'Lucid Evaluation paths {index+1}/{simulation.simulations}')
     return paths,schedule.hexdigest()
 

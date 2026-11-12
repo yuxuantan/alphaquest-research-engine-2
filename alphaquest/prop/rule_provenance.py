@@ -56,7 +56,7 @@ def profile_review(profile, phase):
             gap='Exact account creation time, inclusive boundary and enforcement timing remain unverified.'))
         if phase == 'evaluation':
             fields.extend([
-                _field('target_and_consistency', dict(target=3000, maximum_best_day_fraction=.4, max_micros=40),
+                _field('target_and_consistency', dict(target=3000, maximum_best_day_fraction=profile.consistency_percent/100, max_micros=40),
                     '50K target 3000, 40% standard consistency, maximum 40 micros; 50% is a separate add-on.', 'lucid_evaluation'),
                 _field('expiry', None, 'The evaluation has no pass deadline or monthly rebilling.', 'lucid_evaluation'),
                 _field('activation_fee', profile.activation_fee, 'The published activation fee is zero.', 'lucid_evaluation',

@@ -233,3 +233,92 @@ def test_delete_saved_simulation_confirmation_and_source_preservation(page,porta
         target=Path(destination);target.mkdir(parents=True,exist_ok=True)
         for name in ('delete-action.png','deleted-mobile.png','deletion-preview.json','deletion-receipt.json','preservation-verification.json'):
             shutil.copyfile(tmp_path/name,target/name)
+
+
+def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journey(page,portal,tmp_path):
+    from uuid import uuid4
+    from test_prop_evaluation_validation import wait_assessment
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:
+        workflow,source=qualified_source(client)
+    page.goto(portal['url']+'/#prop-sim?source='+source['source_backtest_id'])
+    page.locator('#prop-sim-profile').select_option('lucidflex-50k')
+    page.locator('#prop-sim-consistency').select_option('50')
+    playwright.expect(page.locator('#prop-sim-evaluation_price')).to_have_value('')
+    page.locator('#prop-sim-evaluation_price').fill('99.50')
+    for phase in ('evaluation','funded'):
+        page.locator('#prop-sim-'+phase+'_minimum_micros').fill('12')
+        page.locator('#prop-sim-'+phase+'_maximum_micros').fill('13' if phase=='evaluation' else '12')
+    page.locator('#prop-sim-simulations').fill('16')
+    page.get_by_text('Costs, calendar and optional risk settings',exact=True).click()
+    page.locator('#prop-sim-start_date').fill('2026-11-16')
+    page.locator('#prop-sim-check').click()
+    playwright.expect(page.locator('#prop-sim-status')).to_contain_text('Source compatible',timeout=30000)
+    page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'variant-configuration.png'))
+    with page.expect_response(lambda r:r.url.endswith('/api/prop-sim') and r.request.method=='POST') as response:
+        page.locator('#prop-sim-run').click()
+    saved=response.value.json();assert response.value.status==202
+    assert saved['configuration']['evaluation_consistency_percent']==50
+    summary={}
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:
+        for phase in ('evaluation','funded'):
+            playwright.expect(page.locator('#prop-sim-'+phase+'-progress')).to_contain_text('COMPLETE',timeout=90000)
+            root=page.locator('#prop-sim-'+phase+'-validation')
+            chosen=root.locator('[data-freeze-candidate]:enabled').first
+            chosen_id=chosen.get_attribute('value');chosen.check()
+            root.get_by_label(phase+' freeze rationale',exact=True).fill('Synthetic product journey: preserve this declared size across every assessment.')
+            root.get_by_role('button',name='Freeze selected sizes',exact=True).click()
+            playwright.expect(root).to_contain_text('Choices frozen',timeout=30000)
+            assert root.locator('[data-freeze-candidate]:enabled').count()==0
+            prefix='/api/prop-sim/'+saved['id']+'/validation/'+phase
+            frozen=client.get(prefix).json()['frozen']
+            assert frozen['candidate_ids']==[chosen_id]
+            results=[]
+            for kind,text,paths in [('oos','Assess frozen sizes on OOS',None),('is_robustness','Check IS blocks and subperiods',8),('precision','Run more paths for frozen sizes',64)]:
+                if paths is not None:root.get_by_label(phase+' diagnostic paths',exact=True).fill(str(paths))
+                with page.expect_response(lambda r:r.url.endswith(prefix) and r.request.method=='POST') as started:
+                    root.get_by_role('button',name=text,exact=True).click()
+                assert started.value.status==202,started.value.text()
+                attempt=started.value.json()
+                _,report=wait_assessment(client,prefix,attempt['request_id'])
+                box=root.locator('[data-assessment="'+attempt['request_id']+'"]')
+                playwright.expect(box.locator('[role=status]')).to_contain_text('COMPLETE',timeout=30000)
+                playwright.expect(box.locator('table')).to_be_visible()
+                assert report['calculations']['winner'] is None
+                assert {r['frozen_candidate_id'] for r in report['calculations']['candidates']}=={chosen_id}
+                if kind=='oos':assert all(r['chronological_replay'] for r in report['calculations']['candidates'])
+                if kind=='is_robustness':assert {r['scenario'] for r in report['calculations']['candidates']}=={'block_1','block_5','block_20','first_half','second_half'}
+                if kind=='precision':assert all(len(r['paths'])==64 for r in report['calculations']['candidates'])
+                (tmp_path/(phase+'-'+kind+'-report.json')).write_text(json.dumps(report,indent=2))
+                with page.expect_download() as download:box.get_by_role('link',name='Assessment evidence ZIP ↓',exact=True).click()
+                download.value.save_as(tmp_path/(phase+'-'+kind+'-evidence.zip'))
+                results.append(dict(kind=kind,request_id=attempt['request_id'],analysis_id=attempt['analysis_id'],rows=len(report['calculations']['candidates'])))
+            assert client.get(prefix).json()['frozen']==frozen
+            baseline=client.get('/api/prop-sim/'+saved['id']+'/results/'+phase).json()
+            if phase=='evaluation':
+                for row in baseline['calculations']['candidates']:
+                    if row['status']=='estimated':
+                        m=row['metrics'];assert abs(m['cost_per_funded']-sum(p['paid_fees'] for p in row['paths'])/16)<1e-8
+                        assert abs(m['expected_calendar_days_to_funded']-sum(p['calendar_days_to_funded'] for p in row['paths'])/16)<1e-8
+                        assert abs(sum(m['mean_'+key] for key in ['days_before_final_attempt','final_attempt_days_before_target','final_attempt_days_after_target','pass_to_ready_days'])-m['expected_calendar_days_to_funded'])<1e-8
+                assert 'paired_comparisons' in baseline['calculations']
+            else:
+                for row in baseline['calculations']['candidates']:assert row['metrics']['expected_funded_cash_payouts_within_horizon']==sum(p['cash_received'] for p in row['paths'])/16
+            (tmp_path/(phase+'-baseline-report.json')).write_text(json.dumps(baseline,indent=2))
+            page.locator('#prop-sim-'+phase+'-results').screenshot(path=str(tmp_path/(phase+'-validation.png')))
+            summary[phase]=dict(frozen=frozen,studies=results,baseline_metrics=[r['metrics'] for r in baseline['calculations']['candidates']])
+    page.reload()
+    for phase in ('evaluation','funded'):
+        root=page.locator('#prop-sim-'+phase+'-validation')
+        playwright.expect(root).to_contain_text('Choices frozen',timeout=30000)
+        playwright.expect(root.locator('[data-assessment]')).to_have_count(3,timeout=30000)
+    page.set_viewport_size(dict(width=390,height=844))
+    assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
+    page.locator('#prop-sim-evaluation-validation').screenshot(path=str(tmp_path/'validation-mobile.png'))
+    (tmp_path/'verification.json').write_text(json.dumps(dict(synthetic=True,simulation_id=saved['id'],source_backtest_id=source['source_backtest_id'],
+        model='Local AlphaQuest; no Bridge runtime',consistency_percent=50,purchase_fee='99.50 user scenario',paths_per_size=16,
+        expected='Fee and calendar means independently summed from all paths; time components sum to total. Frozen IDs unchanged; no assessment selects a winner; five robustness scenarios; 64 precision paths; durable reload.',
+        phases=summary,temporary_server='Stopped by fixture teardown',prior_access='OOS already accessed during strategy qualification; no untouched holdout claim'),indent=2))
+    if destination:=os.environ.get('ALPHAQUEST_PROP_VALIDATION_EVIDENCE_DIR'):
+        target=Path(destination);target.mkdir(parents=True,exist_ok=True)
+        for file in tmp_path.iterdir():
+            if file.is_file() and file.suffix in ('.json','.zip','.png'):shutil.copyfile(file,target/file.name)

@@ -304,6 +304,8 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
     if search.native_execution is not None:
         return optimize_native_funded(datasets,runs,search,checks,progress,
             assessment=assessment,training_context=training_context,checkpoint=checkpoint,reserve_child=reserve_child)
+    if isinstance(assessment,dict) and assessment.get('kind'):
+        return assess_saved_funded(runs,search,checks,assessment,progress,checkpoint)
     if training_context is not None:
         current = check_search(runs, search, training_context=training_context)
         if checks is not None and canonical(current) != canonical(checks):
@@ -317,6 +319,7 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Simulating funded candidate '+check['candidate_id'][:12])
         component = simulate_dated_funded_profile(runs,c.source,c.profile,c.micros,search.horizon_calendar_days,
             search.calendar,search.receipt_delay_calendar_days,c.simulation,c.period,c.sampling,c.costs,
+            checkpoint=checkpoint,
             **({'sizing':c.sizing} if c.sizing is not None else {}),
             **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
         if canonical(component['provenance']['source']) != canonical(check['manifest']['source']):
@@ -351,6 +354,46 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
     from .phase_search import stable_phase_policy_identity
     tie_key = (lambda row: stable_phase_policy_identity(row, 'funded')) if training_context is not None else None
     return dict(model_version=MODEL_VERSION,phase='funded',**rank_candidates(rows,search,tie_key=tie_key))
+
+
+def assess_saved_funded(runs,search,checks,assessment,progress,checkpoint):
+    """Frozen Funded policy assessments, with every zero-receipt path retained."""
+    from datetime import date,timedelta
+    from .phase_profiles import assessment_scenarios,prepare_phase_source
+    from .phase_search import check_candidates,PhaseCalendar
+    from .funded_profiles import _dated_funded_paths
+    current=check_candidates(runs,search,assessment)
+    if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Frozen assessment inputs changed.')
+    configurations={canonical(asdict(c)):c for c in search.candidates};rows=[]
+    for check in current:
+        c=configurations[canonical(check['manifest']['configuration'])]
+        for label,scenario in assessment_scenarios(c,assessment):
+            checkpoint();progress(f"{assessment['kind']} · {c.micros} MNQ · {label}")
+            component=simulate_dated_funded_profile(runs,scenario.source,scenario.profile,scenario.micros,search.horizon_calendar_days,
+                search.calendar,search.receipt_delay_calendar_days,scenario.simulation,scenario.period,scenario.sampling,scenario.costs,scenario.sizing,checkpoint=checkpoint)
+            row=dict(candidate_id=check['candidate_id'],frozen_candidate_id=check['frozen_candidate_id'],scenario=label,
+                configuration=asdict(scenario),**funded_metrics(component['paths'],search),paths=component['paths'],
+                schedule_sha256=component['schedule_sha256'],provenance=component['provenance'],manifest=check['manifest'],
+                origin_trials=check['origin_trials'],rank=None)
+            if assessment['kind']=='oos':
+                _,days,_=prepare_phase_source(runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing)
+                first=date.fromisoformat(c.period.first_session)
+                if (date.fromisoformat(c.period.last_session)-first).days+1<search.horizon_calendar_days:
+                    raise ValueError('OOS source is shorter than the frozen Funded horizon.')
+                calendar=PhaseCalendar((str(first),),str(first+timedelta(days=search.horizon_calendar_days)),())
+                paths,_,_=_dated_funded_paths(days,c.profile,c.micros,search.horizon_calendar_days,calendar,
+                    search.receipt_delay_calendar_days,c.simulation,c.sampling,c.sizing,chronological=True,checkpoint=checkpoint)
+                row['chronological_replay']=dict(paths[0],interpretation='One chronological OOS saved-signal scenario over the frozen Funded horizon; no resampling, acquisition or replacement.')
+                base=assessment['is_metrics'][check['frozen_candidate_id']]
+                row['is_comparison']={key:dict(is_value=base.get(key),oos_value=row['metrics'].get(key),
+                    oos_over_is=(row['metrics'][key]/base[key] if base.get(key) and row['metrics'].get(key) is not None else None))
+                    for key in ('expected_funded_cash_payouts_within_horizon','account_breach_probability','probability_first_payout')}
+            rows.append(row)
+        verify_phase_source(runs,c.source,check['manifest']['source'])
+    apply_constraints(rows,search)
+    return dict(model_version=MODEL_VERSION,phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
+        certified_optimum=False,selection_status='assessment_only_no_reselection',assessment_kind=assessment['kind'],
+        objective=objective_metric(search),unresolved_candidates=[r['candidate_id'] for r in rows if r['status']!='estimated'])
 
 
 def optimize_native_funded(datasets,runs,search,checks,progress,*,assessment=False,training_context=None,checkpoint=lambda:None,reserve_child=None):
@@ -436,7 +479,7 @@ def write_report(runs, staged, search, checks, calculations):
         save('historical_mean_cash.json', [dict(candidate_id=row['candidate_id'],
             **row['conservative_expected_cash']) for row in calculations['candidates'] if 'conservative_expected_cash' in row])
     save('request.json',asdict(search))
-    save('sampling.json',[dict(candidate_id=r['candidate_id'],configuration=r['manifest']['configuration']['sampling'],
+    save('sampling.json',[dict(candidate_id=r['candidate_id'],scenario=r.get('scenario'),configuration=r.get('configuration',r['manifest']['configuration'])['sampling'],
         simulation=r['manifest']['configuration']['simulation'],schedule_sha256=r['schedule_sha256'],
         calendar=asdict(search.calendar),bootstrap_seed=search.bootstrap_seed,bootstrap_replicates=search.bootstrap_replicates) for r in calculations['candidates']])
     with (staged/'phase_metrics.csv').open('w',newline='') as stream:

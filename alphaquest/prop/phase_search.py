@@ -60,7 +60,7 @@ def validate_phase_work(search, observed_session_count=None):
     funded = search.mode == 'funded_optimization'
     count = len(search.candidates)
     estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if funded else
-                sum(c.simulation.simulations*2000 if c.profile.profile_id=='lucidflex-50k' else c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
+                sum(c.simulation.simulations*2600 if c.profile.profile_id=='lucidflex-50k' else c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
     work = sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days if funded else 0
     cfg = getattr(search, 'conservative_objective', None)
     indices = 0
@@ -241,22 +241,33 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
                     continue
                 expected = deepcopy(mapping['frozen_manifest']['configuration'])
                 expected['source']['source_backtest_id'] = record['id']
-                expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+                if assessment.get('kind') in ('is_robustness','precision'):
+                    if assessment.get('paths') is not None:
+                        expected['simulation']['simulations']=assessment['paths']
+                        if 'chain_simulations' in expected['sampling']:expected['sampling']['chain_simulations']=assessment['paths']
+                else:expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
                 if canonical(asdict(candidate)) == canonical(expected):
                     selected = mapping
                     break
             if selected is None:
                 raise ValueError('Assessment source is outside the frozen family.')
             saved = selected['frozen_manifest']['source']['backtest']
-            if (research.get('phase') != 'oos' or research.get('parent_run_id') != saved['id']
+            diagnostic=assessment.get('kind') in ('is_robustness','precision')
+            if diagnostic and canonical(record)!=canonical(saved):
+                raise ValueError('Frozen IS diagnostic source changed.')
+            if not diagnostic and (research.get('phase') != 'oos' or research.get('parent_run_id') != saved['id']
                     or metadata['strategy'] != saved['run_metadata']['strategy']
                     or metadata['dataset'] != saved['run_metadata']['dataset']
                     or record['execution_settings'] != saved['execution_settings']
                     or research['plan'] != saved['run_metadata']['research']['plan']):
                 raise ValueError('OOS source must retain its frozen IS parent, strategy, split and execution costs.')
-            expected = dict(selected['frozen_manifest']['configuration'])
+            expected = deepcopy(selected['frozen_manifest']['configuration'])
             expected['source'] = dict(expected['source'], source_backtest_id=record['id'])
-            expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+            if diagnostic:
+                if assessment.get('paths') is not None:
+                    expected['simulation']['simulations']=assessment['paths']
+                    if 'chain_simulations' in expected['sampling']:expected['sampling']['chain_simulations']=assessment['paths']
+            else:expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
             if canonical(asdict(candidate)) != canonical(expected):
                 raise ValueError('Assessment parameters, size, profile, costs, sampling and window are frozen.')
         elif training_context is None:
@@ -308,7 +319,8 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
                         (metadata['strategy']['id'], metadata['dataset']['sha256'])).fetchall()
                     access = dict(status='recorded', attempts=[dict(zip(('id','parent_run_id','run_id','status','created_at'), r)) for r in history],
                         interpretation='Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.')
-        rows.append(dict(candidate_id=key, manifest=manifest, status='compatible', prior_access=access, origin_trials=origins))
+        rows.append(dict(candidate_id=key, manifest=manifest, status='compatible', prior_access=access, origin_trials=origins,
+            **(dict(frozen_candidate_id=selected['frozen_candidate_id']) if assessment else {})))
     keys = [r['candidate_id'] for r in rows]
     if len(set(keys)) != len(keys):
         raise ValueError('Duplicate candidate definitions; remove duplicates explicitly.')

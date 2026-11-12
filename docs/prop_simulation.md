@@ -2259,3 +2259,59 @@ source qualification, numerical hashes and report identities are unchanged.
 retained and pending-cleanup identities. Saved results/status return 404 after
 removal; the receipt remains available for idempotent retry. See the
 [product journey, expected observations and saved evidence](evidence/qualified_prop_sim/deletion/README.md).
+
+## Qualified Prop Sim account variants and validation — 2026-11-12
+
+The current main Prop Sim workflow supports LucidFlex 50K Evaluation **40%
+standard or 50% add-on**. The latter requires an explicitly supplied purchase
+fee; there is no assumed add-on quote or 52% variant. The immutable Evaluation
+profile carries `consistency_percent`; Funded carries neither that selection
+nor Evaluation fees. The calendar Evaluation model is
+`evaluation-optimization-profile-calendar-v3`. Prior reports remain historical
+and readable; numerical identity changes fail closed at freeze/new assessment.
+
+Acquisition paths capture first-target dates, counts of failed accounts before
+and after target, consistency-blocked sessions and four exhaustive calendar-time
+components for completed acquisition. All starts enter means. Censored paths
+retain accrued observations and withhold unconditional acquisition timing.
+Normal approximate paired path/cohort difference intervals are Bonferroni-
+adjusted across the declared pairs and two objectives; they quantify conditional
+simulation error, preserve point-estimate Pareto membership and never certify
+future/provider performance or choose an Evaluation winner.
+
+Within each phase, **Freeze choices and validate** saves up to four eligible
+sizes with a rationale using the existing research-campaign package. Immutable
+choices can launch append-only assessments through existing workers/storage:
+
+- `oos`: frozen policy on the campaign's already-verified OOS native report,
+  retaining sampling/calendar settings for comparable MC estimates; also one
+  separate actual-order replay starting at the OOS source boundary. Evaluation
+  ends at acquisition or exclusive source cutoff. Funded observes one fresh
+  account for its frozen horizon, including zero cash and pending receipts.
+- `is_robustness`: explicit diagnostic paths, full-IS block lengths 1/5/20 and
+  first/second weekday halves at the original block. No OOS inputs or new sizes.
+- `precision`: more explicitly declared paths than the original search, with
+  frozen profile/size/source/options/seed. It publishes refined estimates and
+  leaves original IS reports and choices unchanged.
+
+Assessments never call a selector or establish a new pass/fail policy. OOS was
+already accessed in strategy qualification, so these are additional research
+assessments rather than untouched holdouts. Full-source fixed-signal scaling,
+OHLC adverse bounds, daily calendar resolution and provider timing assumptions
+remain disclosed. Account-aware signal reruns remain later work; no synthetic
+profit cap or daily winner clipping is substituted.
+
+Normal API/UI integration:
+`GET /api/prop-sim/{id}/validation/{phase}` returns freeze/assessment metadata;
+`POST .../{phase}/freeze` takes the existing candidate IDs/rationale contract;
+`POST .../{phase}` takes `request_id`, `kind`, and explicit `paths` for IS
+robustness/precision (OOS path count is frozen); `GET .../{phase}/{request_id}`
+returns the sealed assessment. CampaignStore owns freeze/history and owner
+modules own the calculations. Jobs link back to the same Prop Sim; downloads
+use existing report/ZIP routes. Running assessments support ordinary phase
+cancellation. Capture/work guards and source/shared-result pins remain active.
+
+See [saved product evidence and independent expected outcomes](evidence/qualified_prop_sim/validation/README.md)
+and `tests/test_prop_evaluation_validation.py` for rejection/clock/arithmetic
+checks. Each evidence ZIP includes source inputs, scenario configurations,
+paths, code/rule identity and frozen-package provenance.

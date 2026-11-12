@@ -147,7 +147,7 @@ def test_qualified_source_gate_real_phase_math_and_durable_results(client):
     launched=client.post('/api/prop-sim',json=lucid);assert launched.status_code==202,launched.text
     l_saved=wait_prop(client,launched.json()['id'])
     l_eval=client.get('/api/prop-sim/'+l_saved['id']+'/results/evaluation').json()
-    assert l_eval['model_version']=='evaluation-optimization-profile-calendar-v2'
+    assert l_eval['model_version']=='evaluation-optimization-profile-calendar-v3'
     for row in l_eval['calculations']['candidates']:
         if row['status']=='estimated':
             assert abs(row['metrics']['cost_per_funded']-sum(p['paid_fees'] for p in row['paths'])/32)<1e-8

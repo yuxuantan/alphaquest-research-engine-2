@@ -11163,3 +11163,50 @@ rollback, filesystem cleanup retry and symbolic-link refusal. Existing analysis-
 and campaign-deletion rollback/shared-report regressions pass. This work does
 not require the broad historical or numerical suite: no calculation changes are
 introduced.
+
+### 2026-11-12 — Lucid variants and frozen Prop Sim validation
+
+Prop Sim's Evaluation now supports explicit 40% standard / 50% add-on Lucid
+profiles, with a required user-declared add-on purchase fee. The account keeps
+trading until both target and consistency pass; this gate never clips a winner
+or fabricates an earlier strategy exit. Every sampled retry charges its own fee.
+All-path summaries add target/consistency timing, failed-before/after-target
+counts, median/P90, funding within 30/60/90 days, nominal mean uncertainty and
+paired cost/time comparisons. Approximate family intervals and near ties are
+conditional MC diagnostics; the point-estimate cost/time frontier is preserved.
+
+The existing saved Prop Sim phase reports now offer immutable selection of up
+to four eligible sizes per phase, rationale/package download, and explicit OOS,
+IS sensitivity and more-path assessments. These reuse CampaignStore freezing,
+source/access guards, existing assessment history, AnalysisStore workers,
+cancellation, Job history, numerical owners and sealed downloads. OOS applies
+exactly the frozen size/profile/cost/sampling settings to the already-qualified
+native OOS report. It publishes MC estimates and IS comparisons plus a separate
+actual-order saved-signal replay; it does not rerank candidates. Funded remains
+fresh-account, receipt-horizon only, without acquisition or replacement inputs.
+
+IS robustness samples blocks 1/5/20 and the two weekday halves at the original
+block. More-path runs retain the frozen source/size/options/seed, require more
+paths than the original search and publish another report instead of mutating
+it. Both declare their path count; combined capture bounds reject excessive
+work. Unknown kinds, changed/fake membership, code mismatch and missing sources
+fail closed. The fixed-signal/OHLC-bound assumptions, prior OOS access, expiry/
+DLL caveats and absence of live/provider certification remain explicit.
+
+[Normal-product demonstration, outputs and exact reproduction](evidence/qualified_prop_sim/validation/README.md)
+use the actual labeled synthetic backtest -> qualification -> account form ->
+source check -> engines -> freeze -> six assessments -> durable reload/download
+journey. Independent fee/day sums and deterministic clock/gap/boundary oracles
+support the results; both phase packages and original IS reports remain intact.
+The temporary browser server stops on teardown. Earlier saved evidence and all
+real user simulations remain unchanged. Numerical source identity advances;
+old packages stay readable but cannot silently execute under the new code.
+
+Validation scope: 31 distinct focused cases passed (15 Prop Sim/clock/deletion
+cases, 14 existing assessment/resource/cancellation/native-control compatibility
+cases, and two browser journeys including the existing Pareto interaction).
+The four new arithmetic/assessment cases and both browser journeys were rerun
+successfully after the final summary-reader integration. JavaScript/Python syntax
+and `git diff --check` passed. No full historical/180-check suite was run.
+Saved demonstration numerical source hashes match the current owners, and all
+six assessments reference their exact original frozen IS report identities.

@@ -334,7 +334,7 @@ def lifetime_profile(value):
 
 def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calendar_days,
         calendar, receipt_delay_calendar_days, simulation=SimulationConfig(),
-        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None):
+        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None, *, checkpoint=lambda:None):
     """Dated fresh-account paths using the same native funded transitions.
 
     The legacy weekday interface above remains unchanged. Dates are civil session
@@ -357,7 +357,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
         observed_sessions=observed_sessions)
     trace = SizingTrace(sizing) if sizing is not None else None
     paths, schedule_sha256, rules = _dated_funded_paths(days, profile, micros, horizon_calendar_days,
-        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace)
+        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace,checkpoint=checkpoint)
     verify_phase_source(runs, source, snapshot)
     result = dict(paths=paths, schedule_sha256=schedule_sha256,
         provenance=provenance('funded', snapshot, profile, micros, simulation, sampling,
@@ -375,7 +375,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
 
 
 def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
-        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None):
+        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None):
     """The same fresh-account dated kernel for original and resampled histories."""
     from dataclasses import replace
     from datetime import date, timedelta
@@ -389,7 +389,8 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     schedule = sha256()
     closed = set(calendar.closures)
     starts = sorted(calendar.start_dates)
-    for i in range(simulation.simulations):
+    for i in range(1 if chronological else simulation.simulations):
+        checkpoint()
         start = date.fromisoformat(starts[i % len(starts)])
         cutoff = start + timedelta(days=horizon_calendar_days)
         rng = np.random.RandomState(np.random.SeedSequence([simulation.seed, i]).generate_state(1)[0])
@@ -397,7 +398,9 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
         account = account_class(rules)
         events = []
         terminal_date = None
+        source_cursor=0
         for offset in range(horizon_calendar_days):
+            if offset%32==0:checkpoint()
             day = start + timedelta(days=offset)
             is_session = day.weekday() < 5 and day.isoformat() not in closed
             if not is_session:
@@ -406,7 +409,10 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
                 if lucid:
                     account.expire_inactive(offset)
             else:
-                index = next(stream)
+                if chronological and source_cursor>=len(days):
+                    raise ValueError('Chronological OOS source does not cover the frozen Funded horizon.')
+                index = source_cursor if chronological else next(stream)
+                source_cursor+=1
                 schedule.update(f'{i}:{day.isoformat()}:{index};'.encode())
                 before = len(account.payouts)
                 dynamic = (dict(**sizing.kernel_arguments(stage='funded_calendar_sample', path_index=i,

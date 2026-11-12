@@ -13,7 +13,7 @@ from .campaign_broad import invoke
 from .campaign_monte_carlo import POLICY as MC_POLICY
 from .campaign_oos import context as oos_context, results as oos_results
 from .optimization_cache import artifacts, digest
-from .research_campaigns import CampaignRequest
+from .research_campaigns import CampaignRequest,FreezeRequest
 from .prop.phase_profiles import rule_version
 
 
@@ -46,6 +46,7 @@ class Configuration(BaseModel):
     request_id: UUID
     profile_id: Literal['apex-50k-eod','lucidflex-50k'] = PROFILE
     daily_loss_limit: StrictBool = True
+    evaluation_consistency_percent: StrictInt = 40
     selections: list[Selection] = Field(min_length=1,max_length=1)
     evaluation_minimum_micros: StrictInt = Field(default=1,ge=1,le=60)
     evaluation_maximum_micros: StrictInt = Field(default=10,ge=1,le=60)
@@ -68,6 +69,8 @@ class Configuration(BaseModel):
     def profile_defaults(cls,value):
         if isinstance(value,dict) and value.get('profile_id')=='lucidflex-50k':
             value=dict(value)
+            if value.get('evaluation_consistency_percent')==50 and 'evaluation_price' not in value:
+                raise ValueError('Enter the purchase price including the 50% consistency add-on; no add-on price is assumed.')
             for field,key in [('evaluation_price','price'),('activation_fee','activation'),('commission_per_mnq_side','commission')]:
                 value.setdefault(field,PROFILES['lucidflex-50k'][key])
         return value
@@ -87,6 +90,10 @@ class Configuration(BaseModel):
 
     @model_validator(mode='after')
     def ordered_ranges(self):
+        if self.evaluation_consistency_percent not in (40,50):
+            raise ValueError('Choose 40% standard or 50% add-on Evaluation consistency.')
+        if self.profile_id != 'lucidflex-50k' and self.evaluation_consistency_percent != 40:
+            raise ValueError('The consistency add-on applies only to LucidFlex.')
         for phase in SIZE_LIMITS:
             if getattr(self,f'{phase}_maximum_micros')>PROFILES[self.profile_id]['limits'][phase]:
                 raise ValueError(f'{PROFILES[self.profile_id]["name"]} {phase} supports at most {PROFILES[self.profile_id]["limits"][phase]} MNQ.')
@@ -192,6 +199,7 @@ def declarations(body,source):
         sampling=dict(block_weekdays=body.block_weekdays)
         settings=dict(calendar=calendar)
         if phase=='evaluation':
+            phase_profile['consistency_percent']=body.evaluation_consistency_percent
             phase_profile.update(evaluation_price=body.evaluation_price,activation_fee=body.activation_fee)
             sampling.update(chain_simulations=body.simulations,chain_seed=body.seed if body.profile_id=='lucidflex-50k' else body.seed+3)
         else:
@@ -275,10 +283,11 @@ def account_defaults(id):
             daily_loss_limit=1200 if lucid else 1000,expiry_weekdays=None if lucid else 21,
             consistency=.4 if lucid else None,inactivity_calendar_days=30 if lucid else None),
         funded_rules=asdict((lucid_engine if lucid else native_engine).Rules()),maximum_selected_configurations=1,
-        notes=('Standard 40% Evaluation consistency; no activation fee or provider Evaluation expiry. Calendar inactivity is modeled. DLL-on uses the preserved fixed $1,200 soft stop assumption. Live trading after the fifth payout is outside this simulation.' if lucid else
+        supported_evaluation_consistency_percent=[40,50] if lucid else [],
+        notes=('40% standard or 50% add-on Evaluation consistency; enter the actual purchase fee including options. No activation fee or provider Evaluation expiry. Calendar inactivity is modeled. DLL-on uses the preserved fixed $1,200 soft stop assumption. Live trading after the fifth payout is outside this simulation.' if lucid else
             'Preserved local model: 21-session Evaluation expiry/inactivity and exactly 50% Funded consistency; reviewed provider calendar/boundary rules differ.'),
-        report_limits=dict(capture_bytes=100*1024*1024,evaluation_bytes_per_path=2000 if lucid else 800,funded_bytes_per_path=5000),
-        defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_minimum_micros=1,evaluation_maximum_micros=10,
+        report_limits=dict(capture_bytes=100*1024*1024,evaluation_bytes_per_path=2600 if lucid else 800,funded_bytes_per_path=5000),
+        defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_consistency_percent=40,evaluation_minimum_micros=1,evaluation_maximum_micros=10,
             funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
             evaluation_price=account['price'],activation_fee=account['activation'],commission_per_mnq_side=account['commission'],
             funded_horizon_calendar_days=90,receipt_delay_calendar_days=2,maximum_funded_breach_probability=None))
@@ -325,6 +334,69 @@ async def stop(id:UUID,request:Request):
         if phase['analysis_id'] and phase['status'] in ('queued','running'):
             await invoke(request.app.state.prop_analyses.cancel_phase,phase['analysis_id'])
     return await invoke(public,request,id.hex)
+
+
+class FrozenAssessment(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    request_id: UUID
+    kind: Literal['oos','is_robustness','precision']
+    paths: StrictInt | None = Field(default=None,ge=8,le=20000)
+
+
+def phase_campaign(request,id,phase):
+    if phase not in ('evaluation','funded'):raise KeyError('Unknown phase.')
+    saved=public(request,id)
+    return saved,saved['campaign_ids'][phase]
+
+
+@router.get('/{id}/validation/{phase}')
+async def validation(id:UUID,phase:str,request:Request):
+    def read():
+        _,cid=phase_campaign(request,id.hex,phase);store=request.app.state.campaigns;campaign=store.get(cid)
+        frozen=campaign['frozen']
+        from .prop.phase_dispatch import module_for
+        compatible=module_for(phase).implementation_identity()==campaign['manifest']['numerical_implementation']
+        return dict(campaign_id=cid,numerical_implementation_compatible=compatible,frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
+            assessments=store.assessments(cid),disclosure='Strategy qualification already accessed OOS. Frozen-size assessment is additional research, not an untouched holdout. No OOS reselection.')
+    return await invoke(read)
+
+
+@router.post('/{id}/validation/{phase}/freeze')
+async def freeze_choices(id:UUID,phase:str,body:FreezeRequest,request:Request):
+    def freeze():
+        if len(body.candidate_ids)>4:raise ValueError('Freeze at most four size choices per phase.')
+        _,cid=phase_campaign(request,id.hex,phase)
+        return request.app.state.campaigns.freeze(cid,body)
+    return await invoke(freeze)
+
+
+@router.post('/{id}/validation/{phase}',status_code=202)
+async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request):
+    def assess():
+        saved,cid=phase_campaign(request,id.hex,phase)
+        if body.kind=='oos' and body.paths is not None:raise ValueError('OOS uses the frozen path count; it cannot be changed.')
+        if body.kind!='oos' and body.paths is None:raise ValueError('Declare diagnostic paths explicitly.')
+        sources={saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']}
+        return request.app.state.campaigns.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources)
+    return await invoke(assess)
+
+
+@router.get('/{id}/validation/{phase}/{attempt_id}')
+async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,summary:bool=False):
+    def read():
+        _,cid=phase_campaign(request,id.hex,phase);store=request.app.state.campaigns
+        attempt=next((a for a in store.assessments(cid) if a['request_id']==attempt_id.hex),None)
+        if not attempt or not attempt.get('analysis_id'):raise KeyError('Assessment report not found.')
+        analyses=request.app.state.prop_analyses;aid=attempt['analysis_id']
+        if not analyses.fingerprint(aid):raise ValueError('Assessment is incomplete or its evidence changed.')
+        report=json.loads((analyses.root/aid/'report.json').read_text())
+        if summary:
+            calculations=dict(report['calculations'])
+            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay')
+            calculations['candidates']=[{k:r[k] for k in fields if k in r} for r in calculations['candidates']]
+            return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)
+        return report
+    return await invoke(read)
 
 def deletion_preview(request,id,db):
     """Metadata-only deletion plan over the existing catalogue and owner guards."""

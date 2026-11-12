@@ -65,6 +65,20 @@ def equal_stratum_mean(groups):
         precision_status='conditional_mc_only' if enough else 'insufficient_within_cohort_replication')
 
 
+def assessment_scenarios(candidate, assessment):
+    """Declared frozen-choice diagnostics; never enumerate other sizes or policies."""
+    from dataclasses import replace
+    if assessment['kind']!='is_robustness':return [('full_period',candidate)]
+    blocks=sorted({1,5,20,candidate.sampling.block_weekdays})
+    result=[(f'block_{block}',replace(candidate,sampling=replace(candidate.sampling,block_weekdays=block))) for block in blocks]
+    grid=pd.bdate_range(candidate.period.first_session,candidate.period.last_session)
+    if len(grid)<4:raise ValueError('Robustness halves require at least four source weekdays.')
+    midpoint=len(grid)//2
+    for name,part in [('first_half',grid[:midpoint]),('second_half',grid[midpoint:])]:
+        result.append((name,replace(candidate,period=ResearchPeriod(str(part[0].date()),str(part[-1].date())))))
+    return result
+
+
 def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
     """Validate the shared declared calendar/layout, without running a phase."""
     from datetime import timedelta, timezone
@@ -215,8 +229,8 @@ class SamplingConfig:
     block_weekdays: int = 5
 
     def __post_init__(self):
-        if type(self.block_weekdays) is not int or self.block_weekdays not in (1, 5, 10):
-            raise ValueError('Bootstrap block must be 1, 5 or 10 weekdays.')
+        if type(self.block_weekdays) is not int or self.block_weekdays not in (1, 5, 10, 20):
+            raise ValueError('Bootstrap block must be 1, 5, 10 or 20 weekdays.')
 
 
 @dataclass(frozen=True)
@@ -242,6 +256,13 @@ class EvaluationProfile:
     evaluation_price: str
     activation_fee: str
     daily_loss_limit: bool = True
+    consistency_percent: int = 40
+
+    def __post_init__(self):
+        if type(self.consistency_percent) is not int or self.consistency_percent not in (40, 50):
+            raise ValueError('Lucid Evaluation consistency must be 40% standard or 50% add-on.')
+        if self.profile_id != 'lucidflex-50k' and self.consistency_percent != 40:
+            raise ValueError('Consistency variants apply only to LucidFlex Evaluation.')
 
 
 @dataclass(frozen=True)

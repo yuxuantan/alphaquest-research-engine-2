@@ -26,7 +26,7 @@ from .phase_profiles import (
 from .phase_search import PhaseCalendar as AcquisitionCalendar
 
 MODEL_VERSION = 'evaluation-optimization-empirical-iid-v1'
-CALENDAR_MODEL_VERSION = 'evaluation-optimization-profile-calendar-v2'
+CALENDAR_MODEL_VERSION = 'evaluation-optimization-profile-calendar-v3'
 
 
 def model_version(search):
@@ -389,12 +389,50 @@ def pareto_sort(rows, constraints=None):
         acceleration_interpretation='USD per calendar day saved between adjacent points, not a lambda or recommendation; nonconvex Pareto points are retained')
 
 
+def paired_precision(rows):
+    """Conditional paired MC diagnostics; never change point-estimate membership."""
+    from itertools import combinations
+    from statistics import NormalDist
+    comparisons=[]
+    pairs=list(combinations(rows,2))
+    z=NormalDist().inv_cdf(1-.05/(2*max(1,len(pairs))*2))
+    for row in rows:
+        row['funding_time_near_ties']=[]
+        se=row['uncertainty'].get('calendar_mean_se');mean=row['metrics'].get('expected_calendar_days_to_funded')
+        if se is not None and mean is not None:
+            row['uncertainty']['calendar_mean_ci']=[max(0.,mean-1.96*se),mean+1.96*se]
+            row['uncertainty']['calendar_interval_scope']='Nominal 95% conditional MC interval; not future uncertainty or a frontier certificate.'
+    for a,b in pairs:
+        pa,pb=a.get('paths',[]),b.get('paths',[])
+        if a['status']!='estimated' or b['status']!='estimated' or len(pa)<2 or len(pa)!=len(pb):continue
+        if [(p['path'],p['start_date']) for p in pa]!=[(p['path'],p['start_date']) for p in pb]:continue
+        data={}
+        for key in ('time','cost'):
+            def value(p):return p.get('calendar_days_to_funded',p.get('observed_calendar_days')) if key=='time' else float(p.get('paid_fees',p.get('cost_accrued')))
+            groups=[]
+            for start in sorted({p['start_date'] for p in pa}):
+                groups.append(np.array([value(x)-value(y) for x,y in zip(pa,pb) if x['start_date']==start]))
+            if any(len(g)<2 for g in groups):break
+            mean=float(np.mean([g.mean() for g in groups]));se=float(np.sqrt(sum(g.var(ddof=1)/len(g) for g in groups))/len(groups))
+            data[key]=dict(mean_difference=mean,mc_standard_error=se,family_95_interval=[mean-z*se,mean+z*se])
+        if len(data)!=2:continue
+        interval=data['time']['family_95_interval'];near=interval[0]<=0<=interval[1]
+        comparisons.append(dict(candidate_a=a['candidate_id'],candidate_b=b['candidate_id'],**data,funding_time_difference_unresolved=near))
+        if near:
+            a['funding_time_near_ties'].append(b['candidate_id']);b['funding_time_near_ties'].append(a['candidate_id'])
+    return dict(paired_comparisons=comparisons,precision_interpretation=
+        'Differences are A minus B, paired by saved path and start cohort. Normal approximate Bonferroni 95% intervals cover declared pairs and both objectives. '
+        'Conditional simulation error only; no future/provider certification. Near ties mean a funding-time interval includes zero; costs can differ. Point-estimate Pareto membership is unchanged.')
+
+
 def optimize_evaluation(runs, search, checks=None, progress=lambda message: None, *, assessment=False, training_context=None, datasets=None, checkpoint=lambda:None, reserve_child=None):
     if assessment and training_context is not None:
         raise ValueError('Assessment cannot consume a training context.')
     if search.native_execution is not None:
         return optimize_native_evaluation(datasets,runs,search,checks,progress,
             assessment=assessment,training_context=training_context,checkpoint=checkpoint,reserve_child=reserve_child)
+    if isinstance(assessment,dict) and assessment.get('kind'):
+        return assess_saved_evaluation(runs,search,checks,assessment,progress,checkpoint)
     if training_context is not None:
         current = check_search(runs, search, training_context=training_context)
         if checks is not None and canonical(current) != canonical(checks):
@@ -437,7 +475,51 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
             frontier=[], marginal_acceleration_cost=[], winner=None, certified_frontier=False,
             selection_status='assessment_only_no_reselection',
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
-    return dict(model_version=model_version(search), phase='evaluation', **pareto_sort(rows, search.constraints))
+    precision=paired_precision(rows)
+    return dict(model_version=model_version(search), phase='evaluation', **pareto_sort(rows, search.constraints),**precision)
+
+
+def assess_saved_evaluation(runs,search,checks,assessment,progress,checkpoint):
+    """Assess frozen sizes only, with OOS MC + chronology or declared IS sensitivity."""
+    from dataclasses import replace
+    from datetime import timedelta
+    from .phase_profiles import assessment_scenarios,prepare_phase_source
+    from .evaluation_profiles import simulate_calendar_evaluation_profile,calendar_evaluation_paths
+    from .phase_search import check_candidates
+    current=check_candidates(runs,search,assessment)
+    if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Frozen assessment inputs changed.')
+    configurations={canonical(asdict(c)):c for c in search.candidates};rows=[]
+    for check in current:
+        c=configurations[canonical(check['manifest']['configuration'])]
+        for label,scenario in assessment_scenarios(c,assessment):
+            checkpoint();progress(f"{assessment['kind']} · {c.micros} MNQ · {label}")
+            if c.profile.profile_id=='lucidflex-50k':
+                result=simulate_calendar_evaluation_profile(runs,scenario,search.calendar,checkpoint=checkpoint,progress=progress)
+            else:
+                component=simulate_evaluation_profile(runs,scenario.source,scenario.profile,scenario.micros,
+                    scenario.simulation,scenario.period,scenario.sampling,scenario.costs,scenario.sizing)
+                result=acquisition_metrics(component,scenario.profile,scenario.retry,search.calendar,scenario.sampling)
+                result['component']=asdict(component)
+            row=dict(candidate_id=check['candidate_id'],frozen_candidate_id=check['frozen_candidate_id'],scenario=label,
+                configuration=asdict(scenario),**result,manifest=check['manifest'],origin_trials=check['origin_trials'],
+                pareto_member=False,dominated=None,pareto_rank=None)
+            if assessment['kind']=='oos':
+                snapshot,days,_=prepare_phase_source(runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing)
+                first=date.fromisoformat(c.period.first_session);last=date.fromisoformat(c.period.last_session)
+                calendar=AcquisitionCalendar((str(first),),str(last+timedelta(days=c.retry.max_calendar_days+2)),())
+                paths,_=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,
+                    replace(c.retry,max_calendar_days=(last-first).days+1),calendar,chronological=True,checkpoint=checkpoint)
+                row['chronological_replay']=dict(paths[0],interpretation='One chronological OOS saved-signal scenario; no resampling or reselection. Window-censored acquisition has no finite funding-time estimate.')
+                base=assessment['is_metrics'][check['frozen_candidate_id']]
+                row['is_comparison']={key:dict(is_value=base.get(key),oos_value=row['metrics'].get(key),
+                    oos_over_is=(row['metrics'][key]/base[key] if base.get(key) and row['metrics'].get(key) is not None else None))
+                    for key in ('cost_per_funded','expected_calendar_days_to_funded','pass_probability')}
+            rows.append(row)
+        verify_phase_source(runs,c.source,check['manifest']['source'])
+    precision=paired_precision(rows) if assessment['kind']!='is_robustness' else {}
+    return dict(model_version=model_version(search),phase='evaluation',candidates=rows,frontier=[],winner=None,
+        marginal_acceleration_cost=[],certified_frontier=False,selection_status='assessment_only_no_reselection',
+        assessment_kind=assessment['kind'],unresolved_candidates=[r['candidate_id'] for r in rows if r['status']!='estimated'],**precision)
 
 
 def optimize_native_evaluation(datasets,runs,search,checks,progress,*,assessment=False,training_context=None,checkpoint=lambda:None,reserve_child=None):
@@ -516,7 +598,7 @@ def write_report(runs, staged, search, checks, calculations):
     save('frontier.json', {k:v for k,v in calculations.items() if k != 'candidates'})
     save('calculations.json', calculations)
     save('request.json', asdict(search))
-    save('sampling.json', [dict(candidate_id=r['candidate_id'], configuration=r['manifest']['configuration']['sampling'],
+    save('sampling.json', [dict(candidate_id=r['candidate_id'], scenario=r.get('scenario'),configuration=r.get('configuration',r['manifest']['configuration'])['sampling'],
         schedule_sha256=r.get('schedule_sha256'), uncertainty=r['uncertainty']) for r in calculations['candidates']])
     with (staged/'phase_metrics.csv').open('w', newline='') as stream:
         fields = ['candidate_id', 'status', 'pareto_member', 'dominated', *calculations['candidates'][0]['metrics']]

@@ -34,7 +34,7 @@ SOURCES = '''
         COALESCE(json_extract(r.manifest,'$.run_metadata.strategy.id'),''),
         COALESCE(json_extract(r.manifest,'$.run_metadata.dataset.name'),'Saved source '||a.source_id),
         json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id,
-            'prop_sim_id',(SELECT s.simulation_id FROM prop_catalog.workflow_prop_sim_phases s JOIN prop_catalog.research_campaigns r ON r.id=s.campaign_id WHERE r.analysis_id=a.id ORDER BY r.created DESC LIMIT 1))
+            'prop_sim_id',(SELECT s.simulation_id FROM prop_catalog.workflow_prop_sim_phases s JOIN prop_catalog.campaign_analyses r ON r.campaign_id=s.campaign_id WHERE r.analysis_id=a.id ORDER BY s.simulation_id LIMIT 1))
  FROM prop_catalog.analyses a LEFT JOIN runs r ON r.id=a.source_id
  LEFT JOIN prop_catalog.campaign_sanity_jobs c ON c.analysis_id=a.id
 '''
