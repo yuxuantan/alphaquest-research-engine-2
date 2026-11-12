@@ -11128,3 +11128,38 @@ are labeled in the evidence folder. Prior Apex reports reopen unchanged. These
 conditional model outputs are not forecasts or provider certification. Lucid's
 50% add-on and live-account outcomes are outside this implementation; fixed
 1,200 USD DLL, account readiness and settlement assumptions remain explicit.
+
+### 2026-11-12 — Delete saved Prop Sim simulations with reference-safe cleanup
+
+Added Delete actions to the existing saved-result header and saved-run selector.
+The product checks current dependencies, displays the exact profile/strategy/date
+and report removal/retention counts, and requires confirmation. Active jobs must
+be stopped or complete first. Deleting a run releases its parent/internal phase
+links and removes unreferenced report/catalogue/cache/job entries; shared or
+frozen/dependent results are kept. Source datasets/backtests, campaign workflow
+phases and OOS/Monte Carlo are never deletion targets. A durable metadata receipt
+prevents deleted request-ID reuse and supports repeat deletion/file-cleanup retry.
+
+The increment reuses AnalysisStore guards and metadata cleanup plus CampaignStore
+transactional reference release, without changing numerical owners or identity.
+Catalogue changes and file staging share one locked SQL transaction; failure
+restores rows and directories. Final file cleanup occurs after commit and any
+pending cleanup remains retryable from the durable product receipt page. No
+second result store, numerical engine, provider change or automatic cancellation
+is added.
+
+[Saved normal-product deletion evidence and exact reproduction](evidence/qualified_prop_sim/deletion/README.md)
+create a labeled synthetic qualified source through the real campaign/Monte
+Carlo pipeline and publish normal Evaluation/Funded reports. Dismissing the
+product confirmation preserves the run. Accepting it removes exactly two
+unshared phase reports and their job entries. Source backtest JSON, frozen Narrow
+selection and Monte Carlo report bytes remain identical; reload/mobile receipt
+behavior is verified. All actual user simulations and earlier evidence remain
+unchanged. The temporary demonstration server stops at teardown.
+
+Focused lifecycle checks additionally cover shared and last-owner references,
+stale confirmation, active-job blocking, frozen report preservation, injected SQL
+rollback, filesystem cleanup retry and symbolic-link refusal. Existing analysis-
+and campaign-deletion rollback/shared-report regressions pass. This work does
+not require the broad historical or numerical suite: no calculation changes are
+introduced.

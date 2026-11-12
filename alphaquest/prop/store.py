@@ -124,6 +124,29 @@ class AnalysisStore:
                 'SELECT monitor_id FROM forward_source_refs WHERE source_id=? ORDER BY monitor_id', (source,)))
         return refs
 
+    def deletion_check(self, db, id, *, releasing_campaigns=()):
+        """Shared metadata-only guards; callers may release their own links atomically."""
+        record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
+        if db.execute('SELECT 1 FROM campaign_sanity_jobs WHERE analysis_id=?',(id,)).fetchone():
+            raise ValueError('This final Monte Carlo assessment is retained by its workflow history.')
+        owners={r[0] for r in db.execute('SELECT campaign_id FROM campaign_analyses WHERE analysis_id=?',(id,))}
+        owners.update(r[0] for r in db.execute('SELECT id FROM research_campaigns WHERE analysis_id=?',(id,)))
+        if owners-set(releasing_campaigns):
+            raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
+        for table in ('forward_assessments','forward_report_refs'):
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
+                if db.execute(f'SELECT 1 FROM {table} WHERE analysis_id=?',(id,)).fetchone():
+                    raise ValueError('This report is retained by a forward monitor and cannot be deleted.')
+        if record and record[0] in ('queued','running'):
+            raise ValueError('This prop analysis is queued or running. Stop it or wait for completion before deleting.')
+        return record
+
+    def remove_catalogue_record(self, db, id):
+        """Release one report's catalogue/cache rows within the caller transaction."""
+        for table,key in (('calculation_reuse','id'),('analysis_report_checks','id'),
+                ('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('analyses','id')):
+            db.execute(f'DELETE FROM {table} WHERE {key}=?',(id,))
+
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
         import shutil
@@ -133,17 +156,7 @@ class AnalysisStore:
             try:
                 with self.connect() as db:
                     db.execute('BEGIN IMMEDIATE')
-                    record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
-                    if db.execute('SELECT 1 FROM campaign_sanity_jobs WHERE analysis_id=?',(id,)).fetchone():
-                        raise ValueError('This final Monte Carlo assessment is retained by its workflow history.')
-                    if db.execute('SELECT 1 FROM campaign_analyses WHERE analysis_id=?', (id,)).fetchone():
-                        raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
-                    for table in ('forward_assessments', 'forward_report_refs'):
-                        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
-                            if db.execute(f'SELECT 1 FROM {table} WHERE analysis_id=?', (id,)).fetchone():
-                                raise ValueError('This report is retained by a forward monitor and cannot be deleted.')
-                    if record and record[0] in ('queued','running'):
-                        raise ValueError('This prop analysis is queued or running. Wait for it to finish before deleting.')
+                    record=self.deletion_check(db,id)
                     if destination.is_symlink() or staged.is_symlink():
                         raise OSError('Refusing to delete a symbolic-link prop report directory.')
                     if not record and not staged.exists():return False
@@ -152,10 +165,7 @@ class AnalysisStore:
                             if destination.exists():raise OSError('Conflicting staged deletion; no report files were removed.')
                             staged.rename(destination)
                         if destination.exists():destination.rename(staged);moved=True
-                    db.execute('DELETE FROM calculation_reuse WHERE id=?',(id,))
-                    db.execute('DELETE FROM analysis_report_checks WHERE id=?',(id,))
-                    db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(id,))
-                    db.execute('DELETE FROM analyses WHERE id=?',(id,))
+                    self.remove_catalogue_record(db,id)
             except BaseException:
                 if moved:staged.rename(destination)
                 raise

@@ -359,10 +359,11 @@ class CampaignStore:
                               'WHERE c.campaign_id=? ORDER BY a.created,a.id', (id,)).fetchall()
         return [self.analyses.get(id) for (id,) in rows]
 
-    def _deletion_preview(self, db, id):
+    def _deletion_preview(self, db, id, *, releasing_prop_sim=None):
         """Metadata only, on the same transaction used to release references."""
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='workflow_prop_sim_phases'").fetchone():
-            if db.execute('SELECT 1 FROM workflow_prop_sim_phases WHERE campaign_id=?',(id,)).fetchone():
+            owner=db.execute('SELECT simulation_id FROM workflow_prop_sim_phases WHERE campaign_id=?',(id,)).fetchone()
+            if owner and owner[0]!=releasing_prop_sim:
                 raise ResearchConflict('This phase campaign is retained by a saved Prop Sim analysis.')
         row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
         if not row:
@@ -444,16 +445,20 @@ class CampaignStore:
                 raise ResearchConflict('Cannot delete campaign: ' + ' '.join(b['message'] for b in preview['blockers']))
             if body.confirmation_sha256 != preview['confirmation_sha256']:
                 raise ResearchConflict('Campaign dependencies changed. Review a fresh deletion preview and confirm again.')
-            row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
-            receipt = dict(preview, deleted=True, deletable=False, deleted_at_utc=datetime.now(timezone.utc).isoformat())
-            snapshot = dict(campaign_id=id, created=row[0], declaration=json.loads(row[1]), manifest=json.loads(row[2]),
-                analysis_id=row[3], frozen=None)
-            db.execute('INSERT INTO campaign_deletions VALUES (?,?,?)',
-                (id, receipt['deleted_at_utc'], canonical(dict(receipt=receipt, campaign_snapshot=snapshot))))
-            for table in ('campaign_sources', 'campaign_jobs', 'campaign_analyses'):
-                db.execute(f'DELETE FROM {table} WHERE campaign_id=?', (id,))
-            db.execute('DELETE FROM research_campaigns WHERE id=?', (id,))
-            return receipt
+            return self.delete_in_transaction(db,id,preview)
+
+    def delete_in_transaction(self,db,id,preview):
+        """Release an already checked campaign using the caller's transaction."""
+        row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
+        receipt = dict(preview, deleted=True, deletable=False, deleted_at_utc=datetime.now(timezone.utc).isoformat())
+        snapshot = dict(campaign_id=id, created=row[0], declaration=json.loads(row[1]), manifest=json.loads(row[2]),
+            analysis_id=row[3], frozen=None)
+        db.execute('INSERT INTO campaign_deletions VALUES (?,?,?)',
+            (id, receipt['deleted_at_utc'], canonical(dict(receipt=receipt, campaign_snapshot=snapshot))))
+        for table in ('campaign_sources', 'campaign_jobs', 'campaign_analyses'):
+            db.execute(f'DELETE FROM {table} WHERE campaign_id=?', (id,))
+        db.execute('DELETE FROM research_campaigns WHERE id=?', (id,))
+        return receipt
 
     def validate(self, id):
         with self.analyses.lock:

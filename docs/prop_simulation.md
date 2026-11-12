@@ -2235,3 +2235,27 @@ visible. Phase navigation, frozen parameters, job links and ordinary downloads
 remain in the same workflow. [Actual outputs, UI review and reproduction](evidence/qualified_prop_sim/lucidflex/README.md)
 preserve earlier evidence, independently check the new calendar/cash arithmetic
 and distinguish the labeled synthetic source from actual local-library captures.
+
+## Remove a saved Prop Sim simulation — 2026-11-12
+
+Open a saved run and choose **Delete simulation**, or use **Delete selected
+simulation** beside the saved-run selector. A fresh dependency preview and
+confirmation identify the selected profile/strategy/date and how many phase
+reports will be removed or retained. Queued/running jobs must be stopped or
+complete first. The operation removes the saved entry, unused internal phase
+campaigns and unreferenced analysis/report/cache/job records. Other simulations'
+shared results and frozen/dependent phase reports remain protected. Original
+source datasets/backtests and the mechanics/IS/OOS/Monte Carlo workflow remain.
+
+Deletion reuses the existing catalogue and owner guards. Metadata and staged
+report directories roll back together on SQL/file-staging failure; post-commit
+cleanup failures are retried through the receipt page. A small deletion audit
+keeps provenance and blocks request-ID reuse, without keeping a duplicate numeric
+result store. A new simulation uses a new request ID. Current historical models,
+source qualification, numerical hashes and report identities are unchanged.
+
+`GET /api/prop-sim/{id}/deletion` previews or reopens the deletion receipt.
+`DELETE /api/prop-sim/{id}` requires its `confirmation_sha256` and returns removed,
+retained and pending-cleanup identities. Saved results/status return 404 after
+removal; the receipt remains available for idempotent retry. See the
+[product journey, expected observations and saved evidence](evidence/qualified_prop_sim/deletion/README.md).

@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "simulation_id": "a89452662be74665ae656752679a217f",
+  "cancelled_confirmation_kept_simulation": true,
+  "deleted_reports": 2,
+  "retained_reports": 0,
+  "source_backtest_id": "88ab410d95f140d48138892a3204de70",
+  "source_report_unchanged": true,
+  "frozen_narrow_unchanged": true,
+  "monte_carlo_report_sha256": "96f0562ef1541516f16207313235bca39475e24fb7d24061a0f03332de756ad1",
+  "monte_carlo_report_unchanged": true,
+  "deleted_job_links_absent": true,
+  "deleted_entry_absent": true,
+  "reload_receipt": true,
+  "mobile_no_page_overflow": true,
+  "server": "Temporary isolated server stopped by fixture teardown."
+}

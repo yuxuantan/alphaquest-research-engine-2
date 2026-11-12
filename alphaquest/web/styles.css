@@ -2043,3 +2043,7 @@ dialog::backdrop {
 
 .prop-sim-setup, .prop-sim-run-heading { padding:22px; }
 @media (max-width:600px) { .prop-sim-setup, .prop-sim-run-heading { padding:16px; } }
+.prop-sim-history .button { justify-self:start; }
+.prop-sim-deleted { padding:16px 22px; margin:20px 0; border-color:#cde8de; background:#f2faf6; color:#295b48; }
+.prop-sim-deleted p { margin:0; }
+.prop-sim-deleted .button { margin-top:12px; }

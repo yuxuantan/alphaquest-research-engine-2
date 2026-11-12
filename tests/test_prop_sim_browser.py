@@ -182,3 +182,54 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     playwright.expect(page.locator('.prop-sim-pareto')).to_contain_text('No resolved cost/time points')
     playwright.expect(page.locator('#prop-sim-evaluation-pareto')).to_have_count(0)
     playwright.expect(page.locator('#prop-sim-evaluation-table tbody tr')).to_have_count(42)
+
+
+def test_delete_saved_simulation_confirmation_and_source_preservation(page,portal,tmp_path):
+    """Actual qualified product run -> cancel/confirm deletion -> retained sources."""
+    import hashlib
+    from test_prop_sim import body,wait_prop
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:
+        workflow,source=qualified_source(client)
+        request=dict(body(source),evaluation_maximum_micros=1,funded_maximum_micros=1,simulations=8)
+        response=client.post('/api/prop-sim',json=request);assert response.status_code==202,response.text
+        saved=wait_prop(client,response.json()['id'])
+        source_before=client.get('/api/backtests/'+source['source_backtest_id']).json()
+        mc_id=source['selection']['monte_carlo_id'].replace('-','')
+        mc_before=client.get('/api/prop-analyses/'+mc_id+'/downloads/report.json').content
+        plan=client.get('/api/prop-sim/'+saved['id']+'/deletion').json()
+    page.goto(portal['url']+'/#prop-sim?analysis='+saved['id'])
+    button=page.get_by_role('button',name='Delete simulation',exact=True)
+    playwright.expect(button).to_be_enabled()
+    page.locator('.prop-sim-run-heading').screenshot(path=str(tmp_path/'delete-action.png'))
+    page.once('dialog',lambda dialog:dialog.dismiss());button.click()
+    assert page.request.get(portal['url']+'/api/prop-sim/'+saved['id']).status==200
+    page.once('dialog',lambda dialog:dialog.accept())
+    with page.expect_response(lambda r:r.url.endswith('/api/prop-sim/'+saved['id']) and r.request.method=='DELETE') as response:button.click()
+    receipt=response.value.json();assert response.value.status==200 and receipt['deleted']
+    assert len(receipt['analysis_ids_to_delete'])==2 and not receipt['retained_analyses']
+    playwright.expect(page).to_have_url(portal['url']+'/#prop-sim?deleted='+saved['id'])
+    playwright.expect(page.locator('.prop-sim-deleted')).to_contain_text('Saved simulation deleted')
+    playwright.expect(page.locator('#prop-sim-history option[value="'+saved['id']+'"]')).to_have_count(0)
+    assert page.request.get(portal['url']+'/api/prop-sim/'+saved['id']).status==404
+    source_after=page.request.get(portal['url']+'/api/backtests/'+source['source_backtest_id']).json()
+    assert source_after==source_before
+    assert page.request.get(portal['url']+'/api/prop-analyses/'+mc_id+'/downloads/report.json').body()==mc_before
+    assert page.request.get(portal['url']+'/api/campaign-workflows/'+workflow['id']).json()['narrow']==workflow['narrow']
+    for phase in saved['phases'].values():
+        assert page.request.get(portal['url']+'/api/jobs/prop_analysis/'+phase['analysis_id']).status==404
+    page.reload();playwright.expect(page.locator('.prop-sim-deleted')).to_contain_text('Saved simulation deleted')
+    page.set_viewport_size(dict(width=390,height=844))
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    page.locator('.prop-sim-deleted').screenshot(path=str(tmp_path/'deleted-mobile.png'))
+    (tmp_path/'deletion-preview.json').write_text(json.dumps(plan,indent=2))
+    (tmp_path/'deletion-receipt.json').write_text(json.dumps(receipt,indent=2))
+    (tmp_path/'preservation-verification.json').write_text(json.dumps(dict(synthetic=True,simulation_id=saved['id'],
+        cancelled_confirmation_kept_simulation=True,deleted_reports=2,retained_reports=0,
+        source_backtest_id=source['source_backtest_id'],source_report_unchanged=True,frozen_narrow_unchanged=True,
+        monte_carlo_report_sha256=hashlib.sha256(mc_before).hexdigest(),monte_carlo_report_unchanged=True,
+        deleted_job_links_absent=True,deleted_entry_absent=True,reload_receipt=True,mobile_no_page_overflow=True,
+        server='Temporary isolated server stopped by fixture teardown.'),indent=2))
+    if destination:=os.environ.get('ALPHAQUEST_PROP_DELETE_EVIDENCE_DIR'):
+        target=Path(destination);target.mkdir(parents=True,exist_ok=True)
+        for name in ('delete-action.png','deleted-mobile.png','deletion-preview.json','deletion-receipt.json','preservation-verification.json'):
+            shutil.copyfile(tmp_path/name,target/name)

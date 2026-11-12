@@ -28,6 +28,7 @@ DISCLOSURE=('Sizing uses only the selected configuration’s declared IS history
 
 
 def initialize(db):
+    db.execute('CREATE TABLE IF NOT EXISTS workflow_prop_sim_deletions (id TEXT PRIMARY KEY, deleted TEXT NOT NULL, payload TEXT NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS workflow_prop_simulations (id TEXT PRIMARY KEY, created TEXT NOT NULL, payload TEXT NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS workflow_prop_sim_phases (simulation_id TEXT NOT NULL, phase TEXT NOT NULL, campaign_id TEXT NOT NULL UNIQUE, PRIMARY KEY(simulation_id,phase))')
 
@@ -233,6 +234,8 @@ def public(request,id):
 def launch(request,body):
     analyses=request.app.state.prop_analyses;id=body.request_id.hex
     with analyses.lock:
+        with analyses.connect() as db:
+            if db.execute('SELECT 1 FROM workflow_prop_sim_deletions WHERE id=?',(id,)).fetchone():raise ValueError('This saved simulation was deleted. Use a new request ID for another simulation.')
         with analyses.connect() as db:previous=db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()
         if previous:
             previous_body=Configuration.model_validate(json.loads(previous[0])['configuration'])
@@ -322,3 +325,104 @@ async def stop(id:UUID,request:Request):
         if phase['analysis_id'] and phase['status'] in ('queued','running'):
             await invoke(request.app.state.prop_analyses.cancel_phase,phase['analysis_id'])
     return await invoke(public,request,id.hex)
+
+def deletion_preview(request,id,db):
+    """Metadata-only deletion plan over the existing catalogue and owner guards."""
+    analyses=request.app.state.prop_analyses;campaigns=request.app.state.campaigns
+    old=db.execute('SELECT payload FROM workflow_prop_sim_deletions WHERE id=?',(id,)).fetchone()
+    if old:return json.loads(old[0])['receipt']
+    row=db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()
+    if not row:raise KeyError('Prop simulation not found.')
+    saved=json.loads(row[0]);expected=saved['campaign_ids']
+    refs=dict(db.execute('SELECT phase,campaign_id FROM workflow_prop_sim_phases WHERE simulation_id=?',(id,)))
+    if refs!=expected:raise ValueError('Saved simulation references are inconsistent; no results were removed.')
+    plans={phase:campaigns._deletion_preview(db,cid,releasing_prop_sim=id) for phase,cid in expected.items()}
+    active=sorted({a['id'] for p in plans.values() for a in p['retained_analyses'] if a['status'] in ('queued','running')})
+    released=[cid for phase,cid in expected.items() if plans[phase]['deletable']]
+    retained_campaigns=[dict(id=cid,reasons=plans[phase]['blockers']) for phase,cid in expected.items() if not plans[phase]['deletable']]
+    ids=sorted({a['id'] for p in plans.values() for a in p['retained_analyses']})
+    remove=[];retain=[]
+    for aid in ids:
+        try:
+            record=analyses.deletion_check(db,aid,releasing_campaigns=released)
+            if not record:raise ValueError('Report catalogue entry is unavailable; existing evidence is kept.')
+            remove.append(aid)
+        except ValueError as exc:retain.append(dict(id=aid,reason=str(exc)))
+    result=dict(id=id,deleted=False,deletable=not active,active_analyses=active,
+        campaign_ids_to_delete=released,retained_campaigns=retained_campaigns,
+        analysis_ids_to_delete=remove,retained_analyses=retain,
+        source_backtest_id=saved['qualification']['source_backtest_id'],profile_id=saved['configuration'].get('profile_id',PROFILE),
+        strategy_id=saved['qualification']['strategy_id'],created_at_utc=saved['created_at_utc'],
+        interpretation='Delete this saved simulation, its unused phase campaigns and unshared reports. Keep datasets, source backtests, campaign phases, OOS/Monte Carlo and results used elsewhere.')
+    result['confirmation_sha256']=digest(dict(preview=result,parent=saved,phase_plans=plans))
+    return result
+
+
+class DeleteSimulation(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    confirmation_sha256: StrictStr = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+def remove_simulation(request,id,body):
+    """Atomically release catalogue links and stage files; retry cleanup safely."""
+    import shutil
+    analyses=request.app.state.prop_analyses;campaigns=request.app.state.campaigns;moved=[]
+    with analyses.lock:
+        try:
+            with analyses.connect() as db:
+                db.execute('BEGIN IMMEDIATE');preview=deletion_preview(request,id,db)
+                if body.confirmation_sha256!=preview['confirmation_sha256']:
+                    raise ValueError('Simulation dependencies changed. Review the deletion again.')
+                if not preview.get('deleted'):
+                    if not preview['deletable']:raise ValueError('This simulation has queued or running jobs. Stop them or wait before deleting.')
+                    snapshot=json.loads(db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()[0])
+                    db.execute('DELETE FROM workflow_prop_sim_phases WHERE simulation_id=?',(id,))
+                    for cid in preview['campaign_ids_to_delete']:
+                        current=campaigns._deletion_preview(db,cid)
+                        if not current['deletable']:raise ValueError('A phase campaign acquired another dependency; review deletion again.')
+                        campaigns.delete_in_transaction(db,cid,current)
+                    for aid in preview['analysis_ids_to_delete']:
+                        if UUID(aid).hex!=aid:raise ValueError('Invalid report identity; no results were removed.')
+                        record=analyses.deletion_check(db,aid)
+                        destination=analyses.root/aid;staged=analyses.root/('.deleted-'+aid)
+                        if destination.is_symlink() or staged.is_symlink():raise OSError('Refusing to remove a symbolic-link report directory.')
+                        if staged.exists():
+                            if destination.exists():raise OSError('Conflicting staged report deletion; no results were removed.')
+                            if record:staged.rename(destination)
+                        if destination.exists():destination.rename(staged);moved.append((staged,destination))
+                        analyses.remove_catalogue_record(db,aid)
+                    db.execute('DELETE FROM workflow_prop_simulations WHERE id=?',(id,))
+                    preview=dict(preview,deleted=True,deletable=False,deleted_at_utc=datetime.now(timezone.utc).isoformat(),cleanup_pending=[])
+                    db.execute('INSERT INTO workflow_prop_sim_deletions VALUES (?,?,?)',
+                        (id,preview['deleted_at_utc'],json.dumps(dict(receipt=preview,simulation_snapshot=snapshot))))
+        except BaseException:
+            for staged,destination in reversed(moved):
+                if staged.exists():staged.rename(destination)
+            raise
+        pending=[]
+        for aid in preview['analysis_ids_to_delete']:
+            staged=analyses.root/('.deleted-'+aid)
+            if staged.is_symlink():pending.append(aid);continue
+            if staged.exists():
+                try:shutil.rmtree(staged)
+                except OSError:pending.append(aid)
+        preview['cleanup_pending']=pending
+        with analyses.connect() as db:
+            stored=json.loads(db.execute('SELECT payload FROM workflow_prop_sim_deletions WHERE id=?',(id,)).fetchone()[0])
+            stored['receipt']=preview;db.execute('UPDATE workflow_prop_sim_deletions SET payload=? WHERE id=?',(json.dumps(stored),id))
+        return preview
+
+
+@router.get('/{id}/deletion')
+async def preview_deletion(id:UUID,request:Request):
+    def read():
+        with request.app.state.prop_analyses.lock,request.app.state.prop_analyses.connect() as db:return deletion_preview(request,id.hex,db)
+    return await invoke(read)
+
+
+@router.delete('/{id}')
+async def delete_simulation(id:UUID,body:DeleteSimulation,request:Request):
+    import sqlite3
+    try:return await invoke(remove_simulation,request,id.hex,body)
+    except sqlite3.Error as exc:
+        raise HTTPException(409,'Could not finish deletion bookkeeping. Retry this deletion; source data is kept.') from exc
