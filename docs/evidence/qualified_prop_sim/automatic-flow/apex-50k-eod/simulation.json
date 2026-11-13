@@ -1,0 +1,213 @@
+{
+  "id": "92d9002b85454584ae32a688f5d46ce8",
+  "created_at_utc": "2026-11-13T10:16:47.612009+00:00",
+  "configuration": {
+    "request_id": "92d9002b-8545-4584-ae32-a688f5d46ce8",
+    "profile_id": "apex-50k-eod",
+    "automatic": true,
+    "daily_loss_limit": true,
+    "evaluation_consistency_percent": 40,
+    "selections": [
+      {
+        "workflow_id": "8a80ac50-dd1c-4905-bfc5-728219e63fa5",
+        "oos_job_id": "46d09b31-1ed6-4a83-a9c5-813b49059a68",
+        "monte_carlo_id": "20260f2d-58cb-496c-9f82-274fb02a6d99",
+        "candidate": 1
+      }
+    ],
+    "evaluation_minimum_micros": 9,
+    "evaluation_maximum_micros": 10,
+    "funded_minimum_micros": 9,
+    "funded_maximum_micros": 10,
+    "simulations": 8,
+    "seed": 42,
+    "block_weekdays": 5,
+    "evaluation_price": "49",
+    "activation_fee": "129",
+    "start_date": "2026-11-16",
+    "closures": [],
+    "funded_horizon_calendar_days": 90,
+    "receipt_delay_calendar_days": 2,
+    "maximum_funded_breach_probability": null,
+    "commission_per_mnq_side": "0.51"
+  },
+  "qualification": {
+    "selection": {
+      "workflow_id": "8a80ac50-dd1c-4905-bfc5-728219e63fa5",
+      "oos_job_id": "46d09b31-1ed6-4a83-a9c5-813b49059a68",
+      "monte_carlo_id": "20260f2d-58cb-496c-9f82-274fb02a6d99",
+      "candidate": 1
+    },
+    "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+    "strategy_id": "consecutive_green_hold",
+    "dataset": {
+      "id": "700805d171cd4b49b7551d38979045ad",
+      "name": "SYNTHETIC frozen OOS",
+      "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+      "bytes": 909491,
+      "row_count": 18816,
+      "source_timezone": "UTC",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      },
+      "symbol": "NQ",
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-12-31T14:24:00Z"
+    },
+    "parameters": {
+      "green_bar_count": 3,
+      "hold_minutes": 16,
+      "contracts": 1
+    },
+    "plan": {
+      "strategy_id": "consecutive_green_hold",
+      "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+      "source_timezone": "UTC",
+      "is_start": "2024-01-01",
+      "is_end": "2025-12-31",
+      "oos_start": "2026-01-01",
+      "oos_end": "2026-12-31",
+      "is_bars": 12552,
+      "oos_bars": 6264,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "broad_trial": 1,
+    "narrow_trial": 2,
+    "oos_report_id": "417b5999fa924abbb064063d5deb280b",
+    "monte_carlo_report_sha256": "1bb492737375d60e92366e791c7b2b98474f2fa896d48855f7806c81c94c5107",
+    "frozen_identity": "4fcdbe2006626259e5f05c8c70aa8a2085ac04ea8f284f488d2f30d758d2bfce",
+    "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed"
+  },
+  "disclosure": "Sizing uses only the selected configuration\u2019s declared IS history. Eligibility has already used OOS and full-period Monte Carlo, so this is post-screening research, not an untouched final holdout. Saved fixed-signal trades are scaled to whole MNQ contracts with native held-OHLC adverse bounds. Account stops/pauses do not rerun strategy signals; execution, gaps and size-dependent fills remain assumptions. Evaluation and Funded objectives are independent. Calendars below are declared weekday scenarios, not verified exchange calendars. Local account rules are versioned model assumptions, not newly certified provider rules. Fees are editable scenarios; receipt delay is a modeled assumption. No portfolio allocation or combined annual net projection is calculated.",
+  "campaign_ids": {
+    "evaluation": "a9279287d4415d81896045f29f62e98e",
+    "funded": "7ef4a5aed58a55b0a1bd81995cb2f7c9"
+  },
+  "automation": {
+    "version": "prop-sim-automatic-v1",
+    "selection_identity": {
+      "policy": {
+        "version": "prop-sim-auto-selection-v1",
+        "evaluation_maximum": 3,
+        "evaluation_fast_time_multiplier": 1.25,
+        "funded_maximum": 2,
+        "funded_receipts_retention": 0.95,
+        "tie_break": "smaller_micros_then_candidate_id",
+        "data_role": "IS_only",
+        "unresolved": "exclude_without_blocking_resolved_candidates",
+        "duplicates": "collapse_within_phase"
+      },
+      "source_sha256": "79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70"
+    },
+    "stop_requested": false,
+    "phases": {
+      "evaluation": {
+        "stage": "complete",
+        "selection": {
+          "phase": "evaluation",
+          "selection_identity": {
+            "policy": {
+              "version": "prop-sim-auto-selection-v1",
+              "evaluation_maximum": 3,
+              "evaluation_fast_time_multiplier": 1.25,
+              "funded_maximum": 2,
+              "funded_receipts_retention": 0.95,
+              "tie_break": "smaller_micros_then_candidate_id",
+              "data_role": "IS_only",
+              "unresolved": "exclude_without_blocking_resolved_candidates",
+              "duplicates": "collapse_within_phase"
+            },
+            "source_sha256": "79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70"
+          },
+          "status": "selected",
+          "candidates": [
+            {
+              "candidate_id": "7f01cdbe64b61125bf097fa18e1c3a222d1e5044ef769cd8e9ad2215264e835e",
+              "micros": 9,
+              "roles": [
+                "Lowest acquisition cost",
+                "Fastest funding",
+                "Lowest cost within 25% of fastest"
+              ],
+              "is_metrics": {
+                "cost_per_funded": 178.0,
+                "expected_calendar_days_to_funded": 2.0
+              }
+            }
+          ],
+          "excluded_count": 0,
+          "interpretation": "Automatic IS-only selection of resolved eligible point estimates; no OOS tuning or certified superiority. Lower exposure does not guarantee lower breach probability.",
+          "selection_sha256": "0bf20c0610715123cc991b4cb61d333cbe2eca95c43129cd35e45ddaff4bd893",
+          "is_analysis_id": "fc50ba14eacf46e9820ac89fdcd1b1ee",
+          "is_report_sha256": "1943f26f65651e7d04ecbd4ccfdd4cb896cbdfe8f1c4a60c6f7968678a62eb67"
+        },
+        "frozen_package_sha256": "07436d042914b225874e185d2464016f3cab328050a0fad85c8e79ed4e74659e",
+        "oos_request_id": "363340c9688548fbafa71fed36c33e80",
+        "oos_analysis_id": "236dfcdddeca4791b8479fc2edefc3c0"
+      },
+      "funded": {
+        "stage": "complete",
+        "selection": {
+          "phase": "funded",
+          "selection_identity": {
+            "policy": {
+              "version": "prop-sim-auto-selection-v1",
+              "evaluation_maximum": 3,
+              "evaluation_fast_time_multiplier": 1.25,
+              "funded_maximum": 2,
+              "funded_receipts_retention": 0.95,
+              "tie_break": "smaller_micros_then_candidate_id",
+              "data_role": "IS_only",
+              "unresolved": "exclude_without_blocking_resolved_candidates",
+              "duplicates": "collapse_within_phase"
+            },
+            "source_sha256": "79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70"
+          },
+          "status": "selected",
+          "candidates": [
+            {
+              "candidate_id": "57b154900aa0ad1d5bafd980f09dda1d6d2bf2f52417549d35cca7f030a379ba",
+              "micros": 9,
+              "roles": [
+                "Highest mean trader receipts",
+                "Smallest size retaining 95% of peak receipts"
+              ],
+              "is_metrics": {
+                "expected_funded_cash_payouts_within_horizon": 13000.0
+              }
+            }
+          ],
+          "excluded_count": 0,
+          "interpretation": "Automatic IS-only selection of resolved eligible point estimates; no OOS tuning or certified superiority. Lower exposure does not guarantee lower breach probability.",
+          "selection_sha256": "5483830a19b38e887a8d68564faeae6937d20ab6016d89ae2a5639cef8e4144e",
+          "is_analysis_id": "c12ba9323e924157a4928c12c2531fb1",
+          "is_report_sha256": "957f613f65dcc0103c2285d9b40164bbbf0c16c11f7ffec477c6256d4220aba8"
+        },
+        "frozen_package_sha256": "b806a79b297b575f700e7f1efc88dc6262648d9097ef25323487573a7a017f9c",
+        "oos_request_id": "6f783937544f4d88a64aff23d575ab4b",
+        "oos_analysis_id": "c2c46e4e98d44fdfae42878f78f3a076"
+      }
+    },
+    "updated_at_utc": "2026-11-13T10:17:10.169682+00:00"
+  },
+  "phases": {
+    "evaluation": {
+      "campaign_id": "a9279287d4415d81896045f29f62e98e",
+      "status": "complete",
+      "analysis_id": "fc50ba14eacf46e9820ac89fdcd1b1ee",
+      "progress": "Saved Evaluation search ready",
+      "error": null,
+      "candidate_count": 2
+    },
+    "funded": {
+      "campaign_id": "7ef4a5aed58a55b0a1bd81995cb2f7c9",
+      "status": "complete",
+      "analysis_id": "c12ba9323e924157a4928c12c2531fb1",
+      "progress": "Saved Funded search ready",
+      "error": null,
+      "candidate_count": 2
+    }
+  }
+}

@@ -46,6 +46,7 @@ class Configuration(BaseModel):
     model_config=ConfigDict(extra='forbid')
     request_id: UUID
     profile_id: Literal['apex-50k-eod','lucidflex-50k'] = PROFILE
+    automatic: StrictBool = True
     daily_loss_limit: StrictBool = True
     evaluation_consistency_percent: StrictInt = 40
     selections: list[Selection] = Field(min_length=1,max_length=1)
@@ -253,15 +254,20 @@ def launch(request,body):
             qualified(request,body.selections[0])
             saved=json.loads(previous[0])
             for campaign_id in saved['campaign_ids'].values():request.app.state.campaigns.run(campaign_id)
+            if saved.get('automation'):request.app.state.prop_sim_automation.resume(id)
             return public(request,id)
         checked,definitions=check(request,body)
         for declaration in definitions.values():request.app.state.campaigns.create(declaration)
         result=dict(id=id,created_at_utc=datetime.now(timezone.utc).isoformat(),configuration=body.model_dump(mode='json'),
                     qualification=checked['source'],disclosure=DISCLOSURE,campaign_ids={p:d.campaign_id for p,d in definitions.items()})
+        if body.automatic:
+            from .prop_sim_automation import initial_state
+            result['automation']=initial_state()
         with analyses.connect() as db:
             db.execute('INSERT INTO workflow_prop_simulations VALUES (?,?,?)',(id,result['created_at_utc'],json.dumps(result)))
             db.executemany('INSERT INTO workflow_prop_sim_phases VALUES (?,?,?)',[(id,p,d.campaign_id) for p,d in definitions.items()])
         for phase in ('evaluation','funded'):request.app.state.campaigns.run(result['campaign_ids'][phase])
+    if body.automatic:request.app.state.prop_sim_automation.schedule(id)
     return public(request,id)
 
 
@@ -276,8 +282,9 @@ def account_defaults(id):
     from .prop import native_engine,lucid_engine
     from .prop.phase_profiles import EvaluationProfile,FundedProfile
     from .prop.rule_provenance import profile_review
+    from .prop_sim_selection import identity as selection_identity
     account=PROFILES[id];lucid=id=='lucidflex-50k'
-    return dict(profile_id=id,name=account['name'],rule_version=rule_version(id),disclosure=DISCLOSURE,size_limits=account['limits'],
+    return dict(profile_id=id,name=account['name'],rule_version=rule_version(id),disclosure=DISCLOSURE,size_limits=account['limits'],automatic_selection_policy=selection_identity(),
         rule_provenance=dict(evaluation=profile_review(EvaluationProfile(id,rule_version(id),account['price'],account['activation']),'evaluation'),
             funded=profile_review(FundedProfile(id,rule_version(id)),'funded')),
         evaluation_rules=dict(account_size=50000,profit_target=3000,maximum_drawdown=2000,
@@ -291,7 +298,7 @@ def account_defaults(id):
         defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_consistency_percent=40,evaluation_minimum_micros=1,evaluation_maximum_micros=10,
             funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
             evaluation_price=account['price'],activation_fee=account['activation'],commission_per_mnq_side=account['commission'],
-            funded_horizon_calendar_days=90,receipt_delay_calendar_days=2,maximum_funded_breach_probability=None))
+            funded_horizon_calendar_days=90,receipt_delay_calendar_days=2,maximum_funded_breach_probability=None,automatic=True))
 
 
 @router.get('/defaults')
@@ -331,8 +338,9 @@ async def results(id:UUID,phase:str,request:Request):
 @router.post('/{id}/cancel')
 async def stop(id:UUID,request:Request):
     saved=await invoke(public,request,id.hex)
+    if saved.get('automation'):await invoke(request.app.state.prop_sim_automation.stop,id.hex)
     for phase in saved['phases'].values():
-        if phase['analysis_id'] and phase['status'] in ('queued','running'):
+        if not saved.get('automation') and phase['analysis_id'] and phase['status'] in ('queued','running'):
             await invoke(request.app.state.prop_analyses.cancel_phase,phase['analysis_id'])
     return await invoke(public,request,id.hex)
 
@@ -501,70 +509,77 @@ def save_assessment_policy(request,id,phase,body,revision=None):
 async def freeze_choices(id:UUID,phase:str,body:FreezeRequest,request:Request):
     def freeze():
         if len(body.candidate_ids)>4:raise ValueError('Freeze at most four size choices per phase.')
-        _,cid=phase_campaign(request,id.hex,phase)
+        saved,cid=phase_campaign(request,id.hex,phase)
+        if saved.get('automation'):raise ValueError('This automatic run freezes its IS-selected sizes without manual selection.')
         return request.app.state.campaigns.freeze(cid,body)
     return await invoke(freeze)
 
 
+def submit_assessment(request,id,phase,body):
+    with request.app.state.prop_analyses.lock:return _declare_assessment(request,id,phase,body)
+
+
+def _declare_assessment(request,id,phase,body):
+    saved,cid=phase_campaign(request,id,phase)
+    if body.kind in ('oos','account_starts','qualification','forward_review') and body.paths is not None:raise ValueError('OOS uses the frozen path count; account starts are deterministic. Do not override paths.')
+    if body.kind=='forward_review':raise ValueError('Use the forward review form with its captured observation assessment.')
+    if body.kind in ('is_robustness','precision') and body.paths is None:raise ValueError('Declare diagnostic paths explicitly.')
+    store=request.app.state.campaigns
+    attempts=store.assessments(cid)
+    previous=next((a for a in attempts if a['request_id']==body.request_id.hex),None)
+    if previous:
+        if previous.get('kind')!=body.kind or previous.get('paths')!=body.paths:
+            raise ValueError('Assessment request ID already belongs to another declaration.')
+        store.begin_assessment(cid,body.request_id.hex)  # Verify sealed evidence on idempotent reopen too.
+        return previous
+    options=None
+    robustness=next((a for a in reversed(attempts) if a.get('kind')=='qualification' and a['status']=='complete'),None)
+    if body.kind=='qualification' or body.kind=='account_starts' and robustness:
+        from .prop.oos_qualification import policy as robustness_policy,implementation
+        from .prop.phase_search import saved_oos_period
+        from .prop.adapter import source_record
+        qualification=qualified(request,Selection.model_validate(saved['configuration']['selections'][0]))
+        selected=store.get(cid)['frozen']
+        if not selected:raise ValueError('Freeze the IS size choices before OOS qualification.')
+        if len(selected['candidate_ids'])>4:raise ValueError('Qualification covers at most four frozen sizes per phase.')
+        source=source_record(request.app.state.runs,saved['qualification']['oos_report_id'])
+        policy=robustness_policy(phase,saved_oos_period(source),saved['configuration']['funded_horizon_calendar_days'],closures=saved['configuration']['closures'])
+        options=dict(qualification=True,simulation_id=id,policy=policy,implementation=implementation(),kind=body.kind,
+            prerequisites=dict(passed=True,qualification=qualification['qualification'],snapshot=qualification))
+        if body.kind=='account_starts' and (robustness.get('report_options') or {}).get('implementation')!=implementation():
+            raise ValueError('Run the current OOS qualification before account-start sensitivity.')
+        base=robustness or next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None)
+        if base:
+            fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
+            if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
+            options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
+    elif body.kind in ('oos','account_starts') and saved.get('assessment_policies',{}).get(phase):
+        from .prop.assessment_review import implementation
+        policy=saved.get('assessment_policies',{}).get(phase)
+        if policy is None:raise ValueError('Save explicit OOS assessment limits before running OOS.')
+        if policy['implementation']!=implementation():raise ValueError('Assessment review implementation changed; save a policy revision before a new assessment.')
+        options=dict(policy=policy,implementation=implementation(),kind=body.kind)
+        base=next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None) or robustness
+        if body.kind=='account_starts' and base is None:raise ValueError('Complete an OOS assessment before account-start sensitivity.')
+        if body.kind=='account_starts' and (base.get('report_options') or {}).get('policy',{}).get('policy_sha256')!=policy['policy_sha256']:
+            raise ValueError('Run OOS assessment with the current policy revision before account-start sensitivity. Saved MC results will be reused.')
+        if base:
+            fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
+            if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
+            options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
+    elif body.kind=='account_starts':
+        raise ValueError('Complete OOS qualification before account-start sensitivity.')
+    if options and saved.get('automation'):
+        options['automatic_selection']=saved['automation']['phases'][phase].get('selection')
+    sources={saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']}
+    previous=reusable_assessment(request,cid,body.kind,body.paths,options)
+    if previous:return previous
+    return store.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources,report_options=options)
+
+
 @router.post('/{id}/validation/{phase}',status_code=202)
 async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request):
-    def assess():
-        with request.app.state.prop_analyses.lock:return declare()
-    def declare():
-        saved,cid=phase_campaign(request,id.hex,phase)
-        if body.kind in ('oos','account_starts','qualification','forward_review') and body.paths is not None:raise ValueError('OOS uses the frozen path count; account starts are deterministic. Do not override paths.')
-        if body.kind=='forward_review':raise ValueError('Use the forward review form with its captured observation assessment.')
-        if body.kind in ('is_robustness','precision') and body.paths is None:raise ValueError('Declare diagnostic paths explicitly.')
-        store=request.app.state.campaigns
-        attempts=store.assessments(cid)
-        previous=next((a for a in attempts if a['request_id']==body.request_id.hex),None)
-        if previous:
-            if previous.get('kind')!=body.kind or previous.get('paths')!=body.paths:
-                raise ValueError('Assessment request ID already belongs to another declaration.')
-            store.begin_assessment(cid,body.request_id.hex)  # Verify sealed evidence on idempotent reopen too.
-            return previous
-        options=None
-        robustness=next((a for a in reversed(attempts) if a.get('kind')=='qualification' and a['status']=='complete'),None)
-        if body.kind=='qualification' or body.kind=='account_starts' and robustness:
-            from .prop.oos_qualification import policy as robustness_policy,implementation
-            from .prop.phase_search import saved_oos_period
-            from .prop.adapter import source_record
-            qualification=qualified(request,Selection.model_validate(saved['configuration']['selections'][0]))
-            selected=store.get(cid)['frozen']
-            if not selected:raise ValueError('Freeze the IS size choices before OOS qualification.')
-            if len(selected['candidate_ids'])>4:raise ValueError('Qualification covers at most four frozen sizes per phase.')
-            source=source_record(request.app.state.runs,saved['qualification']['oos_report_id'])
-            policy=robustness_policy(phase,saved_oos_period(source),saved['configuration']['funded_horizon_calendar_days'],closures=saved['configuration']['closures'])
-            options=dict(qualification=True,simulation_id=id.hex,policy=policy,implementation=implementation(),kind=body.kind,
-                prerequisites=dict(passed=True,qualification=qualification['qualification'],snapshot=qualification))
-            if body.kind=='account_starts' and (robustness.get('report_options') or {}).get('implementation')!=implementation():
-                raise ValueError('Run the current OOS qualification before account-start sensitivity.')
-            base=robustness or next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None)
-            if base:
-                fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
-                if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
-                options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
-        elif body.kind in ('oos','account_starts') and saved.get('assessment_policies',{}).get(phase):
-            from .prop.assessment_review import implementation
-            policy=saved.get('assessment_policies',{}).get(phase)
-            if policy is None:raise ValueError('Save explicit OOS assessment limits before running OOS.')
-            if policy['implementation']!=implementation():raise ValueError('Assessment review implementation changed; save a policy revision before a new assessment.')
-            options=dict(policy=policy,implementation=implementation(),kind=body.kind)
-            base=next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None) or robustness
-            if body.kind=='account_starts' and base is None:raise ValueError('Complete an OOS assessment before account-start sensitivity.')
-            if body.kind=='account_starts' and (base.get('report_options') or {}).get('policy',{}).get('policy_sha256')!=policy['policy_sha256']:
-                raise ValueError('Run OOS assessment with the current policy revision before account-start sensitivity. Saved MC results will be reused.')
-            if base:
-                fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
-                if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
-                options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
-        elif body.kind=='account_starts':
-            raise ValueError('Complete OOS qualification before account-start sensitivity.')
-        sources={saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']}
-        previous=reusable_assessment(request,cid,body.kind,body.paths,options)
-        if previous:return previous
-        return store.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources,report_options=options)
-    return await invoke(assess)
+    return await invoke(submit_assessment,request,id.hex,phase,body)
 
 
 class ForwardReview(BaseModel):

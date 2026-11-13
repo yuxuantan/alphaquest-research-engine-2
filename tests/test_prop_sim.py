@@ -36,7 +36,7 @@ def qualified_source(client,raw=None):
 
 
 def body(source):
-    return dict(request_id=uuid4().hex,selections=[source['selection']],
+    return dict(request_id=uuid4().hex,automatic=False,selections=[source['selection']],
         evaluation_minimum_micros=1,evaluation_maximum_micros=3,funded_minimum_micros=1,funded_maximum_micros=3,
         simulations=32,seed=42,block_weekdays=5,evaluation_price='49',activation_fee='129',
         start_date='2026-11-16',funded_horizon_calendar_days=90,receipt_delay_calendar_days=2,

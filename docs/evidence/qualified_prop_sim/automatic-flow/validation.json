@@ -1,0 +1,20 @@
+{
+  "focused_cases_passed": 18,
+  "final_run": {
+    "passed": 17,
+    "fixture_errors": 1,
+    "reason": "Temporary disk exhaustion during last compatibility fixture copy; no product assertion failed."
+  },
+  "affected_case_rerun": {
+    "file": "tests/test_prop_sim_assessment_reuse_browser.py",
+    "passed": 1
+  },
+  "browser_profiles": [
+    "apex-50k-eod",
+    "lucidflex-50k"
+  ],
+  "required_followup_actions": 0,
+  "full_historical_suite": false,
+  "temporary_servers": "Stopped by fixture teardown",
+  "persistent_server_started": false
+}

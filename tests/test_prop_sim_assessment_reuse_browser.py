@@ -1,4 +1,5 @@
 """Normal product: one OOS table, duplicate reuse and lazy historical versions."""
+from prop_sim_fixtures import manual_prop_requests
 import json
 import os
 from pathlib import Path

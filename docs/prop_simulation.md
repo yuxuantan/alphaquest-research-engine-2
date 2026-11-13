@@ -2654,3 +2654,71 @@ unchanged. No account engine, duplicate result store or background migration is
 introduced. Previous reports and forward-monitor bindings keep their identities.
 
 [Product demonstration, saved evidence and reproduction](evidence/qualified_prop_sim/assessment-reuse/README.md).
+
+### Automatic IS selection, freeze and OOS — 2026-11-13
+
+New qualified Prop Sim runs now finish both independent IS searches, choose and
+freeze their sizing families, and run both OOS qualifications from **Run IS and
+OOS**. Source checking is included in that launch; **Check source and settings**
+is an optional preview. There is no required sizing checkbox, rationale entry,
+freeze confirmation, OOS launch or dollar-limit declaration after Run.
+
+The new `prop_sim_selection.py` reads each original sealed **IS** report and
+chooses a small family from its existing resolved eligible frontier/ranking.
+It does not replace the phase optimizer, modify the original report or consult
+OOS outcomes. The versioned `prop-sim-auto-selection-v1` policy is:
+
+| Phase | Automatic roles |
+| --- | --- |
+| Evaluation, at most three | Lowest mean acquisition cost; fastest mean calendar funding time; lowest cost subject to time ≤1.25 times the fastest |
+| Funded, at most two | Highest mean trader cash received over the saved horizon, including zeros; smallest size retaining ≥95% of that peak mean |
+
+Exact objective ties use smaller MNQ, then candidate ID. Roles choosing the same
+candidate collapse into one row; fewer than the maximum is expected. Undefined,
+unresolved, infeasible or nonfinite estimates are excluded, without blocking
+valid resolved candidates. Funding time and Funded expected receipts must be
+positive; a valid free-Evaluation cost of zero is retained. No eligible positive
+Funded estimate ends that branch with **no eligible candidates**, without freezing
+an arbitrary size or blocking the other phase. Existing optional risk constraints
+remain respected; no new breach-probability cap is introduced. These are IS point
+estimate selection tolerances, not statistical equivalence/future-risk guarantees.
+
+Selection policy/source hash, roles, quantities, objective values, original IS
+report identity/hash and selection checksum are saved in the existing parent
+metadata before freeze. Candidate IDs/roles and the checksum are included in the
+ordinary immutable freeze rationale/names; the selection snapshot follows the
+existing OOS report options and downloads. The original numerical IS report still
+contains every tested size and the full Pareto/ranking result. Automatic families
+are never replaced after observing OOS. Manual freeze overrides reject for an
+automatic run. Existing OOS pass/fail/insufficient-evidence rules remain unchanged.
+
+`prop_sim_automation.py` orchestrates normal campaigns and AnalysisStore jobs.
+Short continuations use the existing AnalysisStore worker, triggered by phase
+completion; no page polling, browser residency, new executor/service/database or
+duplicate results store is required. Cached completed IS results receive the same
+continuation. Each phase proceeds independently. On restart, interrupted IS/OOS
+jobs and a reservation interrupted between freeze and launch recover using the
+saved plan and immutable family. Original attempts remain in history, with a new
+attempt only when interrupted work needs replay. Genuine errors fail closed;
+completed/NO_GO/insufficient results do not rerun seeking a favorable outcome.
+A changed selection implementation blocks unfinished automatic selection rather
+than silently changing the saved policy. Existing completed reports stay readable.
+
+**Stop running analyses** persists stop intent before cancellation, stops this
+run's active/queued work and prevents subsequent automatic jobs. Shared IS jobs
+retained by another campaign are allowed to finish for their other consumers;
+this run remains stopped. Explicit retry resumes incomplete work while preserving
+completed reports and frozen decisions. The UI shows automatic roles/stage,
+read-only selected sizes and one current OOS table per phase, with normal job
+history, progress, cancellation, reload and JSON/ZIP downloads. Optional diagnostic
+controls remain separate. No supplied forward paper evidence or live-readiness
+approval is fabricated; forward monitoring remains a distinct later activity.
+
+The API `automatic` field defaults true. Existing parent records without an
+automatic plan retain their original manual workflow. Explicit `automatic:false`
+is retained for historical/API compatibility and is not offered as a new portal
+choice. No historical report, size or verdict is silently converted. Numerical
+phase, qualification, business-review and forward-owner hashes are unchanged;
+new family-selection policy/code identity is captured separately.
+
+[One-click actual product demonstrations, independent expectations and reproduction](evidence/qualified_prop_sim/automatic-flow/README.md).

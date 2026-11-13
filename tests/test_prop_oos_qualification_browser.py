@@ -1,4 +1,5 @@
 """Existing backtest -> Prop Sim -> frozen OOS confidence -> supplied-event monitor."""
+from prop_sim_fixtures import manual_prop_requests
 import json
 import os
 from pathlib import Path

@@ -1,4 +1,5 @@
 """Final product: qualified campaign -> check -> both phase engines -> saved results."""
+from prop_sim_fixtures import manual_prop_requests
 import json
 import os
 from pathlib import Path

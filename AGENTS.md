@@ -246,3 +246,24 @@ result store. The portal shows one current OOS table per phase, collapsed sizing
 and criteria, and lazy individual historical report loading. Keep checks focused
 on `tests/test_prop_sim_assessment_reuse.py` and its browser journey for this
 orchestration/presentation surface. Preserve numerical/qualification hashes.
+
+# Automatic qualified Prop Sim workflow
+
+New portal/API runs default to `automatic:true`: Run checks source admission,
+executes both IS searches, selects families using `prop_sim_selection.py`, freezes
+and runs OOS qualification without further confirmation. Read only sealed IS
+frontier/ranking data for selection: Evaluation cheapest, fastest, and cheapest
+within 1.25× fastest time (at most 3); Funded peak mean receipts and smallest size
+retaining 95% (at most 2). Collapse duplicates and tie-break smaller MNQ. Persist
+selection/source identity and original IS report hash; carry it into normal OOS
+artifacts. Never use OOS to select replacements or fabricate forward execution.
+`prop_sim_automation.py` continues on the existing AnalysisStore worker through
+phase completion notifications and startup recovery. Preserve stop intent,
+shared-job consumers, immutable freezes, idempotency and legacy manual records.
+`automatic:false` is historical/API compatibility only; new UI always runs the
+automatic plan. Explicitly scoped older manual browser fixtures use that flag;
+`test_prop_sim_automatic_browser.py` verifies the unmodified automatic default.
+Use the focused selector/orchestration tests in `test_prop_sim_automatic.py` and
+the one-click product journeys when changing this surface. Do not require a page
+to remain open, add another scheduler/service/store, or change numerical owners
+for orchestration-only work. See the dated product/evidence contract.

@@ -1,0 +1,2183 @@
+{
+  "id": "03fdd787dbe34430aeb31801b639aa5e",
+  "model_version": "evaluation-optimization-profile-calendar-v3",
+  "calculations": {
+    "assessment": {
+      "campaign_id": "7a005d92211e557ebcdf9ff6450d92ef",
+      "frozen_package": {
+        "analysis_id": "05d889d7dd0844719d06b29bba48eb57",
+        "assessment_status": "not_run",
+        "campaign_id": "7a005d92211e557ebcdf9ff6450d92ef",
+        "campaign_manifest_sha256": "cf4f448a19d2c4117c00f2ee2b5a1b6541031b62b7d4072beed37002c94d61f9",
+        "candidate_definitions": [
+          {
+            "account_rules": null,
+            "candidate_id": "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8",
+            "manifest": {
+              "configuration": {
+                "costs": {
+                  "broker": "Lucid",
+                  "instrument": "auto",
+                  "mode": "override",
+                  "per_side": "0.50"
+                },
+                "micros": 9,
+                "period": {
+                  "first_session": "2024-01-01",
+                  "last_session": "2025-12-31"
+                },
+                "profile": {
+                  "activation_fee": "0",
+                  "consistency_percent": 40,
+                  "daily_loss_limit": true,
+                  "evaluation_price": "80.50",
+                  "profile_id": "lucidflex-50k",
+                  "rule_version": "alphaquest-lucidflex50k-eod-v4-acquisition-bounds"
+                },
+                "retry": {
+                  "activation_delay_sessions": 0,
+                  "activation_eligibility": "automatic_after_pass_and_delay",
+                  "max_attempts": 10000,
+                  "max_calendar_days": 3650,
+                  "model": "independent_empirical_sequential_retry",
+                  "retry_delay_calendar_days": 0
+                },
+                "sampling": {
+                  "block_weekdays": 5,
+                  "chain_seed": 42,
+                  "chain_simulations": 8,
+                  "computational_horizon_weekdays": null
+                },
+                "simulation": {
+                  "max_micros": 40,
+                  "seed": 42,
+                  "simulations": 8
+                },
+                "sizing": null,
+                "source": {
+                  "export_timezone": "America/Chicago",
+                  "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+                  "trade_file": ""
+                }
+              },
+              "source": {
+                "backtest": {
+                  "artifacts": {
+                    "equity_csv": "equity.csv",
+                    "execution_decisions_jsonl": "execution_decisions.jsonl",
+                    "intratrade_risk_csv": "intratrade_risk.csv",
+                    "is_screening_json": "is_screening.json",
+                    "market_benchmark_json": "market_benchmark.json",
+                    "report": "report.json",
+                    "strategy_equity_day_csv": "strategy_equity_day.csv",
+                    "trades_csv": "trades.csv"
+                  },
+                  "created_at_utc": "2026-11-13T08:29:38.817689Z",
+                  "execution_assumption": "same_close_full_fill",
+                  "execution_decisions": {
+                    "bracket_submissions": 0,
+                    "cancelled_decisions": 0,
+                    "decisions": 3138,
+                    "events": 9414,
+                    "filled_trades": 3138,
+                    "policy": "Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry.",
+                    "quantity_path_policy": "native_rerun_required",
+                    "sha256": "129a87fc1483b96133662a97f7d8e3eb0a531e5841423b0e01764e538160c6fc",
+                    "version": "native-entry-decisions-v1"
+                  },
+                  "execution_settings": {
+                    "commission_per_contract_per_side": "1",
+                    "initial_capital": "10000",
+                    "point_value": "20",
+                    "slippage_ticks": 1,
+                    "tick_size": "0.25"
+                  },
+                  "format_version": 2,
+                  "id": "16250e7e9821471da96c35d815cbeb8a",
+                  "intratrade_risk": {
+                    "ambiguous_trades": 0,
+                    "cross_session_trades": 0,
+                    "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.",
+                    "sha256": "ad7f6708559e4e639b04b6c6509483eccb6c7eae5d4f3177d4f5495e7cca119c",
+                    "trades": 3138,
+                    "version": "held-ohlc-equity-bounds-v1"
+                  },
+                  "is_screening": {
+                    "checks": [
+                      {
+                        "actual": "24 months; 3138 closed trades",
+                        "id": "evidence",
+                        "label": "History and trades",
+                        "passed": true,
+                        "required": "\u2265 24 months and \u2265 100 closed trades"
+                      },
+                      {
+                        "actual": "12514344.00",
+                        "id": "net_profit",
+                        "label": "Overall profitability",
+                        "passed": true,
+                        "required": "Net IS profit > 0"
+                      },
+                      {
+                        "actual": "100% of 24 complete months",
+                        "id": "profitable_months",
+                        "label": "Profitable months",
+                        "passed": true,
+                        "required": "> 50% profitable; zero/no-trade months included"
+                      },
+                      {
+                        "actual": "12482964.00",
+                        "id": "cost_stress",
+                        "label": "Extra-slippage native rerun",
+                        "passed": true,
+                        "required": "Net profit > 0 with +1 tick per fill"
+                      }
+                    ],
+                    "closed_trades": 3138,
+                    "cost_stress": {
+                      "artifacts": {
+                        "equity.csv": "3333148deff3990e4f144fc03ffe463b3681698dbe6d1c32cf6d501039290bc3",
+                        "execution_decisions.jsonl": "855b81ee7a1e02e839f6b4de83e098a41bd959a55b6f10fafefdbf5aa3b72997",
+                        "intratrade_risk.csv": "476ef46ad6a655e39aebf2318a3820dd30b3ac360292507184b32fb39cb92134",
+                        "market_benchmark.json": "8621b387fdf712a7c648eafbd70331c23e58c5854e7e660e8339261bd157d533",
+                        "report.json": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                        "shared_holding_day": "1a7e917c9ec6d6fd9fbb17aa96456f72c105ba51a3321ac9ef91de4d30617d3d",
+                        "strategy_equity_day.csv": "11ac768f48d1aeb32b66dc61d222055aff0a76310edc4ec350499688e9e91076",
+                        "trades.csv": "dedc71a60c9ce27a3ba410d23d2495d47f29b874d40725248d443ef47b0e6470"
+                      },
+                      "execution_settings": {
+                        "commission_per_contract_per_side": "1",
+                        "initial_capital": "10000",
+                        "point_value": "20",
+                        "slippage_ticks": 2,
+                        "tick_size": "0.25"
+                      },
+                      "report_sha256": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                      "run_id": "d23ad8fff02646f9aa7c9639dab8c2ff",
+                      "summary": {
+                        "breakeven_trades": 0,
+                        "ending_position_contracts": 0,
+                        "final_equity": "12492964.00",
+                        "initial_capital": "10000",
+                        "losing_trades": 523,
+                        "max_drawdown_amount": "6022.00",
+                        "max_drawdown_duration_seconds": "10740",
+                        "max_drawdown_pct": "27.42758243760247768263800328",
+                        "total_commissions": "6276",
+                        "total_gross_pnl": "12489240.00",
+                        "total_net_pnl": "12482964.00",
+                        "total_slippage_cost": "62760.00",
+                        "trades_taken": 3138,
+                        "win_rate_pct": "83.33333333333333333333333333",
+                        "winning_trades": 2615
+                      }
+                    },
+                    "metrics": {
+                      "is_annual_net_profit": "6252763.732448700410396716826",
+                      "is_annual_profit_dd_ratio": "1039.010257967547426121089536",
+                      "is_full_months": 24,
+                      "is_history_months": 24,
+                      "is_longest_dd_pct": "0.01367989056087551299589603283",
+                      "is_mtm_max_drawdown": "6018.00",
+                      "is_profitable_months_pct": "100",
+                      "is_stress_net_profit": "12482964.00"
+                    },
+                    "months": [
+                      {
+                        "complete": true,
+                        "month": "2024-01",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-02",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-03",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-04",
+                        "net_pnl": "526416.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-05",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-06",
+                        "net_pnl": "478560.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-07",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-08",
+                        "net_pnl": "526416.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-09",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-10",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-11",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2024-12",
+                        "net_pnl": "526416.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-01",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-02",
+                        "net_pnl": "478560.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-03",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-04",
+                        "net_pnl": "526416.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-05",
+                        "net_pnl": "526416.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-06",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-07",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-08",
+                        "net_pnl": "502488.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-09",
+                        "net_pnl": "526416.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-10",
+                        "net_pnl": "550344.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-11",
+                        "net_pnl": "478560.00"
+                      },
+                      {
+                        "complete": true,
+                        "month": "2025-12",
+                        "net_pnl": "550344.00"
+                      }
+                    ],
+                    "mtm_drawdown_duration_seconds": "8640",
+                    "observed_end": "2025-12-31",
+                    "observed_start": "2024-01-01",
+                    "period_end_exclusive_utc": "2026-01-01T00:00:00+00:00",
+                    "period_start_utc": "2024-01-01T00:00:00+00:00",
+                    "policy": {
+                      "annualization_days": "365.2425",
+                      "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+                      "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+                      "extra_slippage_ticks_per_fill": 1,
+                      "minimum_closed_trades": 100,
+                      "minimum_history_months": 24,
+                      "profitable_months_pct_gt": "50",
+                      "version": "is-broad-v4"
+                    },
+                    "qualifies": true,
+                    "sha256": "6b6f7e081403210d4a2a0bd2b855e0c836ff4dfa42858da5c57200442ce49995",
+                    "status": "qualified",
+                    "total_net_pnl": "12514344.00"
+                  },
+                  "market_benchmark": {
+                    "equity_sha256": "e69ea5febe8ce42f17feef10a104d37c5134166cc5bd170441104fe942c40dc7",
+                    "observed_bar_count": 12552,
+                    "settings": {
+                      "contracts": 1
+                    },
+                    "sha256": "baceb0f5473182aa35cb4e79369820c9b1eccf94e014e76e40df7cc8352a53a8",
+                    "storage": {
+                      "day_boundary": "last_selected_bar_of_source_calendar_date",
+                      "granularity": "DAY",
+                      "holding_key": "314cd665dbb7413eb358dff83a5a4c0078561f2c150a9f8fa3679338a8beb0ff",
+                      "holding_sha256": "3dacb9278a33cc26b661a12b26dad7fd9027b1eb40c0a4fd227864e0d7bf8f63",
+                      "observed_day_count": 523,
+                      "strategy_sha256": "5c6a13ae570b40da67a88040252a491f4b875dbe732420c0340566559b956c8e",
+                      "timezone": "UTC",
+                      "version": "daily-shared-v1"
+                    },
+                    "version": "price-series-holding-v1"
+                  },
+                  "period_end_utc": "2025-12-31T14:24:00Z",
+                  "period_start_utc": "2024-01-01T09:00:00Z",
+                  "reconciliation": {
+                    "equity_equals_cash_plus_unrealized_at_every_point": true,
+                    "expected_bar_count": 12552,
+                    "final_equity_equals_initial_plus_net": true,
+                    "final_position_flat": true,
+                    "gross_minus_commissions_equals_net": true,
+                    "observed_bar_count": 12552,
+                    "realized_net_equals_cash_minus_initial_at_every_point": true,
+                    "total_net_equals_sum_trade_net": true
+                  },
+                  "report_storage": {
+                    "compression": "none",
+                    "detail": "compact",
+                    "equity_csv": "initial_and_trade_close",
+                    "per_bar_equity_retained": false,
+                    "trades": "all"
+                  },
+                  "run_metadata": {
+                    "dataset": {
+                      "id": "700805d171cd4b49b7551d38979045ad",
+                      "instrument_settings": {
+                        "point_value": "20",
+                        "tick_size": ".25"
+                      },
+                      "name": "SYNTHETIC frozen OOS",
+                      "row_count": 18816,
+                      "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                      "source_timezone": "UTC"
+                    },
+                    "full_dataset": {
+                      "end": "2026-12-31T14:24:00Z",
+                      "id": "700805d171cd4b49b7551d38979045ad",
+                      "name": "SYNTHETIC frozen OOS",
+                      "row_count": 18816,
+                      "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                      "source_timezone": "UTC",
+                      "start": "2024-01-01T09:00:00Z",
+                      "symbol": "NQ"
+                    },
+                    "instrument": {
+                      "interval_kind": "irregular",
+                      "interval_seconds": null,
+                      "symbol": "NQ"
+                    },
+                    "instrument_overrides": {},
+                    "research": {
+                      "broad_anchor_parameters": {
+                        "contracts": 1,
+                        "green_bar_count": 3,
+                        "hold_minutes": 20
+                      },
+                      "broad_selection_identity": "781e9344a6fef59348de41e8cc0b6eb247b1c078999c6d58972a36d52acb2732",
+                      "broad_trial": 1,
+                      "cost_stress": {
+                        "artifacts": {
+                          "equity.csv": "3333148deff3990e4f144fc03ffe463b3681698dbe6d1c32cf6d501039290bc3",
+                          "execution_decisions.jsonl": "855b81ee7a1e02e839f6b4de83e098a41bd959a55b6f10fafefdbf5aa3b72997",
+                          "intratrade_risk.csv": "476ef46ad6a655e39aebf2318a3820dd30b3ac360292507184b32fb39cb92134",
+                          "market_benchmark.json": "8621b387fdf712a7c648eafbd70331c23e58c5854e7e660e8339261bd157d533",
+                          "report.json": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                          "shared_holding_day": "1a7e917c9ec6d6fd9fbb17aa96456f72c105ba51a3321ac9ef91de4d30617d3d",
+                          "strategy_equity_day.csv": "11ac768f48d1aeb32b66dc61d222055aff0a76310edc4ec350499688e9e91076",
+                          "trades.csv": "dedc71a60c9ce27a3ba410d23d2495d47f29b874d40725248d443ef47b0e6470"
+                        },
+                        "execution_settings": {
+                          "commission_per_contract_per_side": "1",
+                          "initial_capital": "10000",
+                          "point_value": "20",
+                          "slippage_ticks": 2,
+                          "tick_size": "0.25"
+                        },
+                        "report_sha256": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                        "run_id": "d23ad8fff02646f9aa7c9639dab8c2ff",
+                        "summary": {
+                          "breakeven_trades": 0,
+                          "ending_position_contracts": 0,
+                          "final_equity": "12492964.00",
+                          "initial_capital": "10000",
+                          "losing_trades": 523,
+                          "max_drawdown_amount": "6022.00",
+                          "max_drawdown_duration_seconds": "10740",
+                          "max_drawdown_pct": "27.42758243760247768263800328",
+                          "total_commissions": "6276",
+                          "total_gross_pnl": "12489240.00",
+                          "total_net_pnl": "12482964.00",
+                          "total_slippage_cost": "62760.00",
+                          "trades_taken": 3138,
+                          "win_rate_pct": "83.33333333333333333333333333",
+                          "winning_trades": 2615
+                        }
+                      },
+                      "frozen_broad_parameters": {
+                        "contracts": 1
+                      },
+                      "narrow_policy": {
+                        "advisory": [
+                          "four_period_profitability",
+                          "latest_period_profitability",
+                          "drawdown_duration",
+                          "drawdown_depth",
+                          "search_adjusted_daily_net_lower_bound"
+                        ],
+                        "best_complete_month_removed_net_gt": "0",
+                        "boundary_handling": "use available neighbors; label one-sided assessments",
+                        "confidence_level": "0.95",
+                        "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+                        "hac_lag_observations": 5,
+                        "minimum_observed_days": 100,
+                        "minimum_valid_neighbors": 2,
+                        "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+                        "plateau_cost_stress_net_gt": "0",
+                        "plateau_directions": "nearest tested lower/higher value on each varied ordered-numeric axis; other parameters unchanged",
+                        "plateau_retention_pct_gte": "70",
+                        "resolution": "tested grid spacing only; no claim about smaller untested changes",
+                        "seed": null,
+                        "source_observations_each_period": true,
+                        "time_periods": 4,
+                        "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+                        "version": "is-narrow-v4"
+                      },
+                      "period_boundaries": [
+                        "2024-01-01",
+                        "2024-07-01",
+                        "2024-12-31",
+                        "2025-07-02",
+                        "2026-01-01"
+                      ],
+                      "phase": "is",
+                      "plan": {
+                        "is_bars": 12552,
+                        "is_end": "2025-12-31",
+                        "is_start": "2024-01-01",
+                        "oos_bars": 6264,
+                        "oos_end": "2026-12-31",
+                        "oos_start": "2026-01-01",
+                        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+                        "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                        "source_timezone": "UTC",
+                        "strategy_id": "consecutive_green_hold",
+                        "version": 1
+                      },
+                      "refined_broad_parameters": [],
+                      "refinement_policy": "is-narrow-local-refinement-v1",
+                      "screening_policy": {
+                        "annualization_days": "365.2425",
+                        "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+                        "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+                        "extra_slippage_ticks_per_fill": 1,
+                        "minimum_closed_trades": 100,
+                        "minimum_history_months": 24,
+                        "profitable_months_pct_gt": "50",
+                        "version": "is-broad-v4"
+                      },
+                      "workflow_id": "8a80ac50dd1c4905bfc5728219e63fa5",
+                      "workflow_phase": "is_narrow"
+                    },
+                    "selection": {
+                      "end_utc": "2025-12-31T14:24:00Z",
+                      "first_source_bar_number": 1,
+                      "from_date": "2024-01-01",
+                      "last_source_bar_number": 12552,
+                      "row_count": 12552,
+                      "source_timezone": "UTC",
+                      "start_utc": "2024-01-01T09:00:00Z",
+                      "to_date": "2025-12-31",
+                      "warmup": "none"
+                    },
+                    "strategy": {
+                      "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+                      "execution_assumption": "same_close_full_fill",
+                      "id": "consecutive_green_hold",
+                      "parameters": {
+                        "contracts": 1,
+                        "green_bar_count": 3,
+                        "hold_minutes": 16
+                      },
+                      "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4"
+                    }
+                  },
+                  "status": "complete",
+                  "summary": {
+                    "breakeven_trades": 0,
+                    "ending_position_contracts": 0,
+                    "final_equity": "12524344.00",
+                    "initial_capital": "10000",
+                    "losing_trades": 523,
+                    "max_drawdown_amount": "6012.00",
+                    "max_drawdown_duration_seconds": "10740",
+                    "max_drawdown_pct": "27.35711685475063705860939206",
+                    "total_commissions": "6276",
+                    "total_gross_pnl": "12520620.00",
+                    "total_net_pnl": "12514344.00",
+                    "total_slippage_cost": "31380.00",
+                    "trades_taken": 3138,
+                    "win_rate_pct": "83.33333333333333333333333333",
+                    "winning_trades": 2615
+                  },
+                  "timestamp_convention": "bar_close"
+                },
+                "commission_simulation": {
+                  "applied": true,
+                  "broker": "Lucid",
+                  "detected_source_instrument": "NQ",
+                  "formula": "(source net + actual source commission) / source quantity * source-to-NQ factor / 10 - 2 * MNQ per-side rate, per simulated MNQ round turn. Source slippage retained.",
+                  "mode": "override",
+                  "normalization": "Totals below sum one NQ-equivalent exposure per source trade; divide by ten for one MNQ.",
+                  "per_side": "0.50",
+                  "risk_policy": "Captured/measured source excursions remain unchanged. Simulation uses conservative commission-adjusted bounds, reserving max(one-side fee delta, round-turn fee delta), entry commission and realized exit loss. These are not measured repriced MAE/MFE. Close-only sources retain a realized-loss fallback.",
+                  "round_turn": "1.00",
+                  "schedule": {
+                    "broker": "Lucid",
+                    "checked_on": "2026-10-29",
+                    "currency": "USD",
+                    "rates": {
+                      "MNQ": "0.50",
+                      "NQ": "1.75"
+                    },
+                    "source_url": "https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions",
+                    "unit": "per contract per side"
+                  },
+                  "simulated_instrument": "MNQ",
+                  "source_instrument": "NQ",
+                  "source_to_nq_factor": "1",
+                  "totals_per_nq": {
+                    "simulated_commission": "31380.00",
+                    "simulated_net": "12489240.00",
+                    "source_commission": "6276",
+                    "source_net": "12514344.00"
+                  }
+                },
+                "excursion_input": {
+                  "ambiguous_mae_count": 0,
+                  "cost_contract": "Saved net P&L includes source costs. Original costs reconcile before the separately recorded simulation commission treatment; no duplicate source-cost deduction.",
+                  "export_timezone": "America/Chicago",
+                  "filename": null,
+                  "matched_trades": 3138,
+                  "measured_mae_count": 0,
+                  "measured_mfe_count": 0,
+                  "native_ohlc_count": 3138,
+                  "native_risk_sha256": "ad7f6708559e4e639b04b6c6509483eccb6c7eae5d4f3177d4f5495e7cca119c",
+                  "path": null,
+                  "risk_policy": "conservative_held_ohlc_upper",
+                  "sha256": null
+                },
+                "excursion_provenance": "Held OHLC account-equity excursion bounds, including entry costs and realized exit costs once. Uses the conservative MAE upper bound; target-exit ordering may be ambiguous. These are bar observations, not measured tick MAE/MFE. Observed opening gaps and actual exit-cost jumps can overshoot a DLL and breach the account floor. Other intrabar DLL fills assume the threshold price; unobserved tick gaps and liquidity are not modeled.",
+                "filtering": "The portal passes all matched entry rows unchanged; AlphaQuest groups Chicago entry timestamps into CME session days, retaining zero-trade weekdays.",
+                "manifest_sha256": "51acf6a7e5aedbfa928a7e6568499afd6e36359a77ae02031549b6f959eb8800",
+                "native_risk": {
+                  "ambiguous_trades": 0,
+                  "cross_session_trades": 0,
+                  "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.",
+                  "sha256": "ad7f6708559e4e639b04b6c6509483eccb6c7eae5d4f3177d4f5495e7cca119c",
+                  "trades": 3138,
+                  "version": "held-ohlc-equity-bounds-v1"
+                },
+                "phase_suitability": {
+                  "fixed_quantity": true,
+                  "instrument": "NQ",
+                  "risk_covered_trades": 3138,
+                  "scaling": "Linear MNQ exposure scenario on a saved fixed-quantity path; liquidity/size-dependent fills are not resimulated."
+                },
+                "profile_research_period": {
+                  "convention": "CME Chicago session dates; zero-trade weekdays retained; no internal reselection or split",
+                  "first_session": "2024-01-01",
+                  "last_session": "2025-12-31",
+                  "weekdays": 523
+                },
+                "reconciliation": {
+                  "exact_source_arithmetic": true,
+                  "source_count": 3138,
+                  "source_totals": {
+                    "gross_pnl": "12520620.00",
+                    "net_pnl": "12514344.00",
+                    "reference_gross_pnl": "12552000",
+                    "slippage_cost": "31380.00",
+                    "total_commissions": "6276"
+                  }
+                },
+                "source_timezone": "UTC",
+                "trades_sha256": "02c14a1f2974864a5c67aabfb06f16359af67e4e47ce6009619d1e6f465c5cd4"
+              },
+              "strategy": {
+                "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+                "execution_assumption": "same_close_full_fill",
+                "id": "consecutive_green_hold",
+                "parameters": {
+                  "contracts": 1,
+                  "green_bar_count": 3,
+                  "hold_minutes": 16
+                },
+                "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4"
+              }
+            }
+          }
+        ],
+        "candidate_ids": [
+          "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8"
+        ],
+        "created_at_utc": "2026-11-13T11:35:01.861338+00:00",
+        "implementation": {
+          "files": {
+            "../canonical_trades.py": "7982f82c654f6de44c8e4340bccaa23f49b788a1fc561419840453166e39abe0",
+            "../decimal_math.py": "05b596b1d93a80c9eb351395c602daeccef3a98e0eac60dc4aa47c03b710dcb5",
+            "../decision_capture.py": "dbc9ff56c88ba52f97ae7282b01c23830530d382063cd364310ec8007f472036",
+            "../execution.py": "e7a0e4c0b89b6038f0ab92bb1a17758e56fb7d2e4c970d4726943fe038cd542d",
+            "../execution_scenarios.py": "d61648f0b15bc990caa80989c95d4cbdebeb5df40420e83efb0c8bbdc354b3e8",
+            "../intratrade.py": "dab5f0a2cf3a5bb0f70794dc49c92a9cb089f0919d6c734328f0ad78de6ae13f",
+            "../session_calendar.py": "4e15d94d09357e51a25de7867a4650cdaa9d0d4815a9abd8bbd88dafcc7cc415",
+            "../strategies/vwap_pullback_risk_sizing.py": "0b2be19293fb8b5258386c26afe4710bb388a894913b333df51f2812daf23942",
+            "../trade_imports.py": "78d0cfbee9bb570e015a8db7252c783d1a19c5564348941b07cef53178824146",
+            "adapter.py": "56c05d0de3bdc21c24f6dd2dc23dda940d218ce7e7c578a82620e61a47fbfe1d",
+            "cash_ledger.py": "ce424f3809b582ea444f504ce2419500f8141d5306002bebdb67ca1e3bac1c60",
+            "commissions.py": "331896435d1ac465da6ecf36fdb92890b33717c3477f0c904d2d3f9d9ddbb71d",
+            "evaluation_optimization.py": "e7a77749ca6104fef676331ebed8fb3f48dc0301b386488be9e17b58a1ac9d0a",
+            "evaluation_profiles.py": "1757ae3e7c58cf7c5a222d7d89414d82baa09b73cc4157fbe0a644ea9990d8a7",
+            "external_source.py": "df025eca2df393e66971def9fad795d56fe3c3078b99db862f1acc87a55c297a",
+            "lucid_backend.py": "0e7c63755eb8990065ec53ba10f623404f3ddb96663552054d53c2001310ef83",
+            "lucid_engine.py": "5ab16f732cbe1670a4039676654218de493f59d2eca80afe99c895533cb2c1d4",
+            "lucid_rules.py": "f12b985155043e5ee9762571c0fadfbab4c8be162499932fef93cca1388c8a32",
+            "native_analysis.py": "818cfad97905328f448f762e2ea9a84765f2484ae20d04b89217037ceae8f7d2",
+            "native_backend.py": "61baa91238029bf9545af0111a0bd82012b4d453d29be32bcf9562265f75b0bb",
+            "native_control.py": "e986ca0ec9b4e19df9402de1a61189db366c90f25df31cd0bd03c0633437df2b",
+            "native_draws.py": "c5782003ec18a6aa370da41337596d189ce7e2c7cd2503b55c8bf167eede42f1",
+            "native_engine.py": "001e57aeccc6b9cef5b09accbf99dab0a9e8b193b229fe22a3dd103d3024903e",
+            "native_money.py": "e923b007d9f129eb8ac870f751f09823eed41720211896fb8b0e4fc84813a2dc",
+            "native_replay.py": "94566ee5a56a182b9e3fd6158d6b2751068a3eb7f982358a78dacb6f8e100397",
+            "native_search.py": "9c794edd12c7f25201b0a07e0f679004f89a5b097674ccd0c0392fa935e95447",
+            "phase_lifecycle.py": "a5a423746e72789ad307f0f02725d8ab42400ccf55bfb3f61260d991b48d5b99",
+            "phase_profiles.py": "97214801ecf172f60c333ba11267ea1daa329906cafe5719930f8c6831847230",
+            "phase_search.py": "14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c",
+            "rule_provenance.py": "d1bf6d5dd1590a64796be92bae86b7b50973ea7338f4e13bfcfdab9a1b872b49",
+            "sizing.py": "7915d50e60035ded169795bfbeb58a55937cb6978b3892e85ff8ac0115e32421",
+            "sizing_runtime.py": "83b72e62de853ffb2e538cfdd254d3c190212111b10e3f38e0c9fef821bb1975",
+            "source.py": "85720fabbbfb9823cf51f26165884d4a6458e9f7b4ebbe0b6f15a0c8a32bff65"
+          },
+          "kernel": {
+            "arithmetic": "Strict IEEE doubles; fast math and floating contraction disabled; unchanged MT19937 draws",
+            "binary_sha256": "4eb81ba0268e7f2d7fef757016fddd38ae3d520c9423a9441580735ba45c021b",
+            "name": "compiled",
+            "source_sha256": "001e57aeccc6b9cef5b09accbf99dab0a9e8b193b229fe22a3dd103d3024903e"
+          },
+          "lucid_kernel": {
+            "arithmetic": "Strict IEEE doubles; shared observed-adverse-frontier checks",
+            "binary_sha256": "6ea562bed6239f490f277901c503b8405c0ff5ee80df7d32feee6e3fd268de7a",
+            "name": "compiled",
+            "source_sha256": "5ab16f732cbe1670a4039676654218de493f59d2eca80afe99c895533cb2c1d4"
+          },
+          "numpy": "2.5.4"
+        },
+        "interpretation": "IS selection frozen; no OOS executed. Estimated results, not certified future outcomes.",
+        "model_version": "evaluation-optimization-profile-calendar-v3",
+        "names": {
+          "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8": "9 MNQ \u00b7 Lowest acquisition cost / Fastest funding / Lowest cost within 25% of fastest"
+        },
+        "package_sha256": "49a397ba2ac4517ac49d1984d86a6ec2f1eeacf0632633a583f48cc347936c98",
+        "phase": "evaluation",
+        "prior_access": [
+          {
+            "candidate_id": "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8",
+            "prior_access": {
+              "attempts": [
+                {
+                  "created_at": "2026-11-13T08:30:54.165872+00:00",
+                  "id": "f426e19c-01ef-4fcc-81e8-ad1348c2e9c5",
+                  "parent_run_id": "16250e7e9821471da96c35d815cbeb8a",
+                  "run_id": "417b5999fa924abbb064063d5deb280b",
+                  "status": "complete"
+                },
+                {
+                  "created_at": "2026-11-13T08:30:54.166299+00:00",
+                  "id": "14f36c06-c172-478b-99ad-7937798993a9",
+                  "parent_run_id": "b8078fa289be473db8b32ca22b1a19e8",
+                  "run_id": "0ea0a317379a4a969c85829acba1b78a",
+                  "status": "complete"
+                },
+                {
+                  "created_at": "2026-11-13T08:30:54.166402+00:00",
+                  "id": "ac7c2f15-3b1f-44b3-a0a9-fd8e10b308d4",
+                  "parent_run_id": "566e1ec07e304dd4999fa88306828eab",
+                  "run_id": "ed504771e29f4816b050cbe87a7b7289",
+                  "status": "complete"
+                },
+                {
+                  "created_at": "2026-11-13T08:30:54.166498+00:00",
+                  "id": "9362796c-d5f3-47fa-b0c4-a5c718f4c327",
+                  "parent_run_id": "f6bb5dfe8729476cada8e8058c44f2f5",
+                  "run_id": "5b568d0a09414142817ae529a9f1ac65",
+                  "status": "complete"
+                }
+              ],
+              "interpretation": "Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.",
+              "status": "recorded"
+            }
+          },
+          {
+            "candidate_id": "f2df3dfe7bd59cfc4f1eeea9e28d089883443bbd8701b4f8a80dd010f6341bb0",
+            "prior_access": {
+              "attempts": [
+                {
+                  "created_at": "2026-11-13T08:30:54.165872+00:00",
+                  "id": "f426e19c-01ef-4fcc-81e8-ad1348c2e9c5",
+                  "parent_run_id": "16250e7e9821471da96c35d815cbeb8a",
+                  "run_id": "417b5999fa924abbb064063d5deb280b",
+                  "status": "complete"
+                },
+                {
+                  "created_at": "2026-11-13T08:30:54.166299+00:00",
+                  "id": "14f36c06-c172-478b-99ad-7937798993a9",
+                  "parent_run_id": "b8078fa289be473db8b32ca22b1a19e8",
+                  "run_id": "0ea0a317379a4a969c85829acba1b78a",
+                  "status": "complete"
+                },
+                {
+                  "created_at": "2026-11-13T08:30:54.166402+00:00",
+                  "id": "ac7c2f15-3b1f-44b3-a0a9-fd8e10b308d4",
+                  "parent_run_id": "566e1ec07e304dd4999fa88306828eab",
+                  "run_id": "ed504771e29f4816b050cbe87a7b7289",
+                  "status": "complete"
+                },
+                {
+                  "created_at": "2026-11-13T08:30:54.166498+00:00",
+                  "id": "9362796c-d5f3-47fa-b0c4-a5c718f4c327",
+                  "parent_run_id": "f6bb5dfe8729476cada8e8058c44f2f5",
+                  "run_id": "5b568d0a09414142817ae529a9f1ac65",
+                  "status": "complete"
+                }
+              ],
+              "interpretation": "Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.",
+              "status": "recorded"
+            }
+          }
+        ],
+        "rationale": "Automatically selected from IS only. {\"policy\":{\"policy\":{\"version\":\"prop-sim-auto-selection-v1\",\"evaluation_maximum\":3,\"evaluation_fast_time_multiplier\":1.25,\"funded_maximum\":2,\"funded_receipts_retention\":0.95,\"tie_break\":\"smaller_micros_then_candidate_id\",\"data_role\":\"IS_only\",\"unresolved\":\"exclude_without_blocking_resolved_candidates\",\"duplicates\":\"collapse_within_phase\"},\"source_sha256\":\"79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70\"},\"selection_sha256\":\"8cd0d77444663ce8ba52e9d7c80ceb4ea0942a8a4991217ae6cadeb5ec2010b9\",\"roles\":[{\"candidate_id\":\"3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8\",\"micros\":9,\"roles\":[\"Lowest acquisition cost\",\"Fastest funding\",\"Lowest cost within 25% of fastest\"],\"is_metrics\":{\"cost_per_funded\":80.5,\"expected_calendar_days_to_funded\":3.0}}]}",
+        "report_sha256": "2fac20fd3590e0042e9643164ed553d4a7b0c3a031f281c52bab9e9ccc408a05",
+        "rule_sources": {
+          "lucid_engine.py": {
+            "sha256": "5ab16f732cbe1670a4039676654218de493f59d2eca80afe99c895533cb2c1d4",
+            "source": "\"\"\"LucidFlex 50K transitions, qualified against the dated provider rule snapshot.\n\nDollar balances exclude the $50,000 starting balance. Only observed adverse\nfrontiers enter breach checks; no tick paths or live-account outcomes are invented.\n\"\"\"\nfrom dataclasses import dataclass, field\nimport numpy as np\nimport cython\nfrom .native_money import money_add, money_sub, money_mul, money_half, money_sum, rule_constant\nfrom .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags\nfrom .native_engine import risk_hit, sampled_days\nfrom .lucid_rules import EVALUATION_INITIAL_HORIZON, EVALUATION_MAX_HORIZON\n\n\n@dataclass(frozen=True)\nclass Rules:\n    provider: str = 'lucidflex'\n    max_dd: float = 2000.\n    lock_profit: float = 100.\n    safety_net: float = 0.\n    ladder: tuple = (2000.,) * 5\n    qualifying_days: int = 5\n    qualifying_profit: float = 150.\n    consistency: float = 1.  # No funded consistency rule.\n    evaluation_consistency: float = .4\n    daily_loss: float | None = 1200.\n    payout_share: float = .9\n    minimum_request: float = 500.\n    inactivity_calendar_days: int = 30\n    approval_day_counts: bool = True\n    levels: tuple = ((0.,20,1200.), (1000.,30,1200.), (2000.,40,1200.))\n\n\n@cython.ccall\n@cython.locals(equity=cython.double,size=cython.double,dll=cython.double,floor=cython.double,\n               daily_floor=cython.double,net=cython.double,adverse=cython.double,trough=cython.double,\n               opening=cython.double,balance=cython.double)\ndef trade_result(trade, equity, size, daily_floor, floor):\n    \"\"\"Return balance and 0=continue, 1=DLL pause, 2=account breach.\"\"\"\n    net,adverse=trade[0],trade[1]\n    trough=equity-adverse*size/10.\n    threshold=max(daily_floor,floor)\n    if trough<=threshold:\n        if len(trade)>2 and trade[2] is not None:\n            hit,balance=risk_hit(trade[2],equity,size,daily_floor,floor)\n            if hit:return balance,hit\n        return threshold,2 if floor>=daily_floor else 1\n    balance=equity+net*size/10.\n    if balance<=threshold:\n        # A realized net/cost jump is observed, rather than clipped optimistically.\n        return balance,2 if balance<=floor else 1\n    return balance,0\n\n\n@dataclass\nclass FundedAccount:\n    rules: Rules = field(default_factory=Rules)\n    equity: float = 0.\n    high: float = 0.\n    locked: bool = False\n    day: int = 0\n    cycle_start: float = 0.\n    qualifying: int = 0\n    payouts: list = field(default_factory=list)  # Trader receipts, after 90/10.\n    withdrawals: list = field(default_factory=list)  # Full account deductions.\n    outcome: str = 'open'\n    last_activity: int = 0\n    last_hit = 0\n    trades_consumed = 0\n    effective_micros = 0\n\n    @cython.locals(opening=cython.double,floor=cython.double,size=cython.double,\n                   daily_floor=cython.double,profit=cython.double,gross=cython.double,\n                   previous=cython.double,balance=cython.double)\n    def advance(self,trades,micros,max_micros=40,calendar_day=None,sizing_policy=None,sizing_context=None,trace=None):\n        if self.outcome!='open':raise ValueError('Cannot advance a closed account.')\n        runtime=resolve_runtime(sizing_policy,sizing_context,trace)\n        if runtime is not None:self.opportunities_consumed=0;self.skipped_trades=0\n        boundary=self.begin_session(calendar_day)\n        if boundary is None:return 0.\n        opening,floor,daily_floor,cap,calendar_day=boundary\n        r=self.rules\n        size=min(micros,cap,max_micros)\n        self.effective_micros=size if runtime is None else None\n        amount=0.\n        for opportunity_index, trade in enumerate(trades, 1):\n            decision=None\n            if runtime is not None:\n                self.opportunities_consumed+=1\n                decision=before_trade(runtime,trade,self.equity,floor,daily_floor,cap,min(micros,max_micros),'funded',self.day,opportunity_index)\n                size=decision['quantity']\n                if size==0:\n                    self.skipped_trades+=1\n                    finish_trace(runtime,decision,self.equity,0,'skipped')\n                    continue\n                self.effective_micros=size\n            try:\n                self.trades_consumed+=1\n                previous=self.equity\n                self.equity,hit=trade_result(trade,self.equity,size,daily_floor,floor)\n                self.last_hit=hit\n                if abs(self.equity-previous)>=1:self.last_activity=calendar_day\n                if hit==2:self.outcome='blown';return 0.\n                profit=self.equity-opening\n                # With DLL on, eligibility is checked at observed completed-trade\n                # marks; a request stops trading for the remainder of that session.\n                if r.daily_loss is not None and (len(trade)<4 or trade[3]) and self._eligible(profit):\n                    amount=self._withdraw();break\n                if hit:break\n            finally:\n                if decision is not None:\n                    finish_trace(runtime,decision,self.equity,self.last_hit,self.outcome)\n        return self.finish_session(opening,calendar_day,amount)\n\n    def begin_session(self, calendar_day=None):\n        \"\"\"Shared one-time opening on the declared calendar clock.\"\"\"\n        if self.outcome != 'open':raise ValueError('Cannot begin a closed account session.')\n        self.last_hit=0;self.trades_consumed=0\n        self.day+=1\n        calendar_day=((self.day-1)//5*7+(self.day-1)%5) if calendar_day is None else calendar_day\n        if self.expire_inactive(calendar_day, before_session=True):return None\n        opening=self.equity;r=self.rules\n        floor=r.lock_profit if self.locked else min(money_sub(self.high,r.max_dd),r.lock_profit)\n        cap=20\n        for threshold,level_cap,_ in r.levels:\n            if opening>=threshold:cap=level_cap\n        daily_floor=money_sub(opening,r.daily_loss) if r.daily_loss is not None else -float('inf')\n        return opening, floor, daily_floor, cap, calendar_day\n\n    def finish_session(self, opening, calendar_day, amount):\n        \"\"\"Finalize once, including an earlier same-session request.\"\"\"\n        r=self.rules\n        profit=money_sub(money_add(self.equity,money_sum(v for d,v in self.withdrawals if d==self.day)),opening)\n        if not amount and self._eligible(profit):amount=self._withdraw()\n        if not amount:self.qualifying+=profit>=r.qualifying_profit\n        self.high=max(self.high,money_add(self.equity,(self.withdrawals[-1][1] if amount else self.equity-self.equity)))\n        if money_sub(self.high,r.max_dd)>=r.lock_profit:self.locked=True\n        self.expire_inactive(calendar_day)\n        return amount\n\n    def expire_inactive(self, calendar_day, before_session=False):\n        \"\"\"Native calendar clock, also callable on dates without a session.\"\"\"\n        elapsed = calendar_day-self.last_activity\n        expired = (elapsed > self.rules.inactivity_calendar_days if before_session\n                   else elapsed >= self.rules.inactivity_calendar_days and elapsed != 0)\n        if expired:\n            self.outcome = 'inactive'\n        return self.outcome == 'inactive'\n\n    def _eligible(self,profit):\n        r=self.rules\n        return (self.qualifying+(profit>=r.qualifying_profit)>=r.qualifying_days\n                and self.equity>self.cycle_start\n                and min(money_half(self.equity),r.ladder[len(self.payouts)])>=r.minimum_request)\n\n    def _withdraw(self):\n        gross=min(money_half(self.equity),self.rules.ladder[len(self.payouts)])\n        self.equity=money_sub(self.equity,gross);self.locked=True\n        receipt=money_mul(gross,self.rules.payout_share)\n        self.withdrawals.append((self.day,gross));self.payouts.append((self.day,receipt))\n        self.cycle_start=self.equity;self.qualifying=0\n        if len(self.payouts)==len(self.rules.ladder):self.outcome='paid_all'\n        return receipt\n\n\n@cython.ccall\n@cython.locals(equity=cython.double, high=cython.double, best_day=cython.double,\n               size=cython.double, opening=cython.double, floor=cython.double,\n               daily_floor=cython.double, previous=cython.double, consistency=cython.double,\n               last_activity=cython.longlong, calendar=cython.longlong,\n               hit=cython.longlong, consumed=cython.longlong)\ndef evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None,max_micros=40):\n    \"\"\"One Lucid evaluation session on a caller-owned calendar clock.\"\"\"\n    runtime=resolve_runtime(sizing_policy,sizing_context,trace)\n    sizing_cap=min(size,max_micros)\n    boundary=evaluation_opening(equity,high,last_activity,calendar,daily_loss)\n    if boundary is None:return equity,high,best_day,last_activity,'inactive',0,0\n    opening,floor,daily_floor=boundary\n    result='open';hit=consumed=0\n    for opportunity_index, trade in enumerate(trades, 1):\n        decision=None\n        if runtime is not None:\n            decision=before_trade(runtime,trade,equity,floor,daily_floor,40,sizing_cap,'evaluation',sizing_context.get('trace_context',{}).get('session_index') if sizing_context else None,opportunity_index)\n            size=decision['quantity']\n            if size==0:\n                finish_trace(runtime,decision,equity,0,'skipped')\n                continue\n        try:\n            consumed+=1;previous=equity\n            equity,hit=trade_result(trade,equity,size,daily_floor,floor)\n            if abs(equity-previous)>=1:last_activity=calendar\n            if hit==2:result='blown';break\n            if hit:break\n        finally:\n            if decision is not None:\n                finish_trace(runtime,decision,equity,hit,result)\n    equity,high,best_day,last_activity,result=evaluation_finish(\n        equity,high,best_day,opening,last_activity,calendar,result,consistency)\n    return equity,high,best_day,last_activity,result,hit,consumed\n\n\n@cython.locals(equity=cython.double,high=cython.double,opening=cython.double,\n               floor=cython.double,daily_floor=cython.double,size=cython.double,\n               best_day=cython.double,profit=cython.double,previous=cython.double,\n               duration=cython.longlong,day=cython.longlong,last_activity=cython.longlong,\n               calendar=cython.longlong,remaining=cython.longlong,index=cython.longlong,\n               cursor=cython.longlong,length=cython.longlong,starts=cython.longlong[:])\ndef evaluation(days,micros,sims,seed,block=5,deadline=EVALUATION_MAX_HORIZON,chain=False,max_micros=40,\n               daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None):\n    \"\"\"Continue open paths beyond 2,000 sessions without resetting their state.\n\n    A successful evaluation is assessed at session close, including consistency.\n    Activation adds zero extra weekdays; new funded sampling begins next session.\n    The larger computational guard still censors genuinely unresolved paths.\n    \"\"\"\n    runtime=resolve_runtime(sizing_policy,sizing_context,trace)\n    if not days:raise ValueError('LucidFlex requires a nonempty source sample.')\n    rng=np.random.RandomState(seed);outcomes=[];durations=[];attempts=[];longest_attempts=[]\n    length=len(days);starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0\n    for path_index in range(sims):\n        duration=0;remaining=0;index=0;longest_attempt=0\n        for attempt in range(1,10001 if chain else 2):\n            equity=high=best_day=0.;last_activity=0;result='timeout'\n            size=min(micros,40,max_micros)\n            for day in range(1,deadline+1):\n                calendar=(day-1)//5*7+(day-1)%5\n                if calendar-last_activity>30:result='inactive';break\n                if remaining==0:\n                    if cursor==4096:starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0\n                    index=starts[cursor];cursor+=1;remaining=block\n                source_index=index\n                trades=days[index];index=(index+1)%length;remaining-=1\n                # Unboxed compiled loop; the shared Python session reference\n                # powers dated replay and is qualified against this fast path.\n                if cython.compiled and runtime is None:\n                    opening=equity;floor=min(high-2000.,100.)\n                    daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')\n                    for trade in trades:\n                        previous=equity\n                        equity,hit=trade_result(trade,equity,size,daily_floor,floor)\n                        if abs(equity-previous)>=1:last_activity=calendar\n                        if hit==2:result='blown';break\n                        if hit:break\n                    best_day=max(best_day,equity-opening);high=max(high,equity)\n                    if result=='blown':break\n                    if equity>=3000. and best_day<=consistency*equity:result='passed';break\n                    if calendar-last_activity>=30:result='inactive';break\n                else:\n                    context=with_tags(sizing_context,path_index=path_index,attempt=attempt,session_index=day,source_session_index=source_index) if runtime is not None else None\n                    equity,high,best_day,last_activity,state,_,_=evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss,consistency,sizing_policy,context,trace,max_micros)\n                    if state!='open':result=state;break\n            duration+=day\n            longest_attempt=max(longest_attempt,day)\n            if not chain or result=='passed':break\n            if result=='timeout':raise ValueError(f'LucidFlex funding chain is censored at {deadline:,} sessions; acquisition time is unavailable.')\n        if chain and result!='passed':raise ValueError('No pass within the 10,000-attempt funding-time bound; acquisition time is unavailable.')\n        outcomes.append(result);durations.append(duration);attempts.append(attempt);longest_attempts.append(longest_attempt)\n    return dict(outcomes=np.array(outcomes),days=np.array(durations),attempts=np.array(attempts),\n        longest_attempt_days=np.array(longest_attempts),horizon_weekdays=deadline,\n        initial_horizon_weekdays=min(deadline,EVALUATION_INITIAL_HORIZON))\n\n\n@cython.locals(equity=cython.double,high=cython.double,opening=cython.double,floor=cython.double,\n               daily_floor=cython.double,size=cython.double,profit=cython.double,gross=cython.double,\n               receipt=cython.double,previous=cython.double,cycle_start=cython.double,\n               qual=cython.longlong,day=cython.longlong,last_activity=cython.longlong,calendar=cython.longlong,\n               cap=cython.longlong,hit=cython.longlong,remaining=cython.longlong,index=cython.longlong,\n               length=cython.longlong,qual_days=cython.longlong,inactivity=cython.longlong,\n               max_dd=cython.double,lock_profit=cython.double,dll=cython.double,qual_profit=cython.double,\n               minimum=cython.double,share=cython.double,tier1=cython.double,tier2=cython.double,\n               cap0=cython.longlong,cap1=cython.longlong,cap2=cython.longlong,limit=cython.longlong,\n               has_dll=cython.bint,cursor=cython.longlong,starts=cython.longlong[:])\ndef funded(days,micros,sims,seed,block=5,horizon=2000,rules=Rules(),max_micros=40,sizing_policy=None,sizing_context=None,trace=None):\n    \"\"\"Primitive batch loop; every requested path consumes its own RNG stream.\n\n    Avoid constructing Python account state at every session. Boundary tests\n    compare the full final state against the public step-by-step account ledger.\n    \"\"\"\n    runtime=resolve_runtime(sizing_policy,sizing_context,trace)\n    if runtime is not None:\n        dynamic_rng=np.random.RandomState(seed);dynamic_accounts=[]\n        for path_index in range(sims):\n            account=FundedAccount(rules)\n            for source_index in sampled_days(dynamic_rng,len(days),block):\n                context=with_tags(sizing_context,path_index=path_index,source_session_index=source_index)\n                account.advance(days[source_index],micros,max_micros,sizing_policy=sizing_policy,sizing_context=context,trace=trace)\n                if account.outcome!='open' or account.day==horizon:break\n            dynamic_accounts.append(account)\n        return dynamic_accounts\n    rng=np.random.RandomState(seed);accounts=[];r=rules\n    length=len(days);qual_days=r.qualifying_days;inactivity=r.inactivity_calendar_days\n    max_dd=r.max_dd;lock_profit=r.lock_profit;has_dll=r.daily_loss is not None\n    dll=r.daily_loss if has_dll else 0.;qual_profit=r.qualifying_profit;minimum=r.minimum_request;share=r.payout_share\n    cap0=r.levels[0][1];tier1=r.levels[1][0];cap1=r.levels[1][1];tier2=r.levels[2][0];cap2=r.levels[2][1]\n    limits=r.ladder;limit=len(limits)\n    # Batched bounded integers are consumed in exactly the scalar stream order,\n    # across account boundaries. Prefetching never changes or omits path draws.\n    starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0\n    for _ in range(sims):\n        equity=high=cycle_start=0.;locked=False;qual=day=last_activity=0\n        payouts=[];withdrawals=[];outcome='open';remaining=0;index=0\n        while day<horizon:\n            if remaining==0:\n                if cursor==4096:starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0\n                index=starts[cursor];cursor+=1;remaining=block\n            trades=days[index];index=(index+1)%length;remaining-=1\n            day+=1;calendar=(day-1)//5*7+(day-1)%5\n            if calendar-last_activity>inactivity:outcome='inactive';break\n            opening=equity;floor=lock_profit if locked else min(high-max_dd,lock_profit)\n            cap=cap0 if opening<tier1 else cap1 if opening<tier2 else cap2\n            size=min(micros,cap,max_micros)\n            daily_floor=opening-dll if has_dll else -float('inf')\n            gross=receipt=0.\n            for trade in trades:\n                previous=equity;equity,hit=trade_result(trade,equity,size,daily_floor,floor)\n                if abs(equity-previous)>=1:last_activity=calendar\n                if hit==2:outcome='blown';break\n                profit=equity-opening\n                if (has_dll and (len(trade)<4 or trade[3]) and qual+(profit>=qual_profit)>=qual_days\n                        and equity>cycle_start and min(equity*.5,limits[len(payouts)])>=minimum):\n                    gross=min(equity*.5,limits[len(payouts)]);break\n                if hit:break\n            if outcome=='blown':break\n            profit=equity-opening\n            if (not gross and qual+(profit>=qual_profit)>=qual_days\n                    and equity>cycle_start and min(equity*.5,limits[len(payouts)])>=minimum):\n                gross=min(equity*.5,limits[len(payouts)])\n            high=max(high,equity)\n            if gross:\n                equity-=gross;locked=True;receipt=gross*share\n                payouts.append((day,receipt));withdrawals.append((day,gross));qual=0;cycle_start=equity\n                if len(payouts)==limit:outcome='paid_all'\n            else:qual+=profit>=qual_profit\n            if high-max_dd>=lock_profit:locked=True\n            if calendar-last_activity>=inactivity and last_activity!=calendar:outcome='inactive'\n            if outcome!='open' or day==horizon:break\n        account=FundedAccount(rules=r,equity=equity,high=high,locked=locked,day=day,cycle_start=cycle_start,\n            qualifying=qual,payouts=payouts,withdrawals=withdrawals,outcome=outcome,last_activity=last_activity)\n        accounts.append(account)\n    return accounts\n\n\ndef evaluation_opening(equity,high,last_activity,calendar,daily_loss):\n    if calendar-last_activity>30:return None\n    floor=min(money_sub(high,rule_constant(high,'2000')),rule_constant(high,'100'))\n    daily_floor=money_sub(equity,daily_loss) if daily_loss is not None else -float('inf')\n    return equity,floor,daily_floor\n\n\ndef evaluation_finish(equity,high,best_day,opening,last_activity,calendar,result,consistency):\n    best_day=max(best_day,money_sub(equity,opening));high=max(high,equity)\n    if result!='blown':\n        if equity>=3000. and best_day<=money_mul(consistency,equity):result='passed'\n        elif calendar-last_activity>=30:result='inactive'\n    return equity,high,best_day,last_activity,result\n"
+          },
+          "lucid_rules.py": {
+            "sha256": "f12b985155043e5ee9762571c0fadfbab4c8be162499932fef93cca1388c8a32",
+            "source": "\"\"\"Dated LucidFlex contract. Provider pages are evidence, never runtime inputs.\"\"\"\nMODEL_VERSION='alphaquest-lucidflex50k-eod-v4-acquisition-bounds'\nEVALUATION_INITIAL_HORIZON=2000\nEVALUATION_MAX_HORIZON=20000\nSOURCES={\n    'customization':'https://support.lucidtrading.com/en/articles/16226050-lucidflex-customization',\n    'evaluation':'https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account',\n    'consistency':'https://support.lucidtrading.com/en/articles/12945805-lucidflex-consistency-percentage',\n    'drawdown':'https://support.lucidtrading.com/en/articles/12945815-lucidflex-drawdown',\n    'funded':'https://support.lucidtrading.com/en/articles/12945795-lucidflex-funded-account',\n    'scaling':'https://support.lucidtrading.com/en/articles/12945808-lucidflex-scaling-plan',\n    'payouts':'https://support.lucidtrading.com/en/articles/12945796-lucidflex-payouts',\n    'inactivity':'https://support.lucidtrading.com/en/articles/11404632-inactivity-policy',\n    'commissions':'https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions',\n    'plan_cards':'https://lucidtrading.com/',\n    'live_boundary':'https://support.lucidtrading.com/en/articles/16558826-new-live-structure',\n    'trading_times':'https://support.lucidtrading.com/en/articles/11404729-allowed-trading-times',\n    'account_limits':'https://support.lucidtrading.com/en/articles/11404617-maximum-number-of-accounts',\n}\nCONTRACT=dict(checked_on='2026-10-29',sources=SOURCES,\n    price_origin='User-supplied current evaluation purchase price: USD 80.50; editable, not a guaranteed checkout quote.',\n    evaluation=dict(target=3000,drawdown=2000,consistency=.4,deadline=None,activation_fee=0,extra_activation_weekdays=0),\n    funded=dict(drawdown=2000,lock_profit=100,winning_days=5,daily_profit=150,\n        withdrawal_fraction=.5,minimum_gross_request=500,maximum_gross_request=2000,\n        trader_share=.9,maximum_simulated_payouts=5,scaling=[[0,20],[1000,30],[2000,40]]),\n    scope='Simulated evaluation and sim-funded stage only. Risk-team early live transitions and live trading returns are not modeled.',\n    timing='DLL-on requests occur at the first eligible observed completed-trade mark within 18:00\u201315:45 America/New_York and stop that session. If no intraday request was made, eligibility is checked at session close; DLL-off always uses session close. No favorable unobserved intratrade request is invented. Gross withdrawals reduce equity; trader payouts are 90%. Reports date payouts at request/deduction, not bank settlement; the provider disbursement delay is not simulated.',\n    inactivity='Activity is an observed closed result of at least USD 1 in absolute value, within 30 calendar days. Bootstrap clocks start Monday; historical replay uses actual elapsed calendar days.',\n    horizon='No provider evaluation deadline. Open evaluation paths continue with their existing balance, trail, consistency, activity and bootstrap state beyond the initial 2,000 weekdays, up to a 20,000-weekday computational limit per attempt. Remaining open paths are censored, never counted as failures or restarted. Censored funding chains have unavailable acquisition timing; no fallback delay or survivor-only mean is substituted. Joint funded-lifetime estimates use a 20,000-weekday computational guard. Remaining open accounts are censored, with bounded potential receipts; no complete lifetime rate is substituted.',\n    renewal='Annual-per-slot and historical replacement are research renewal assumptions, not a simulation of live accounts after the fifth payout.',\n    documentation_conflict='The newer customization and consistency pages specify 40% standard; the older evaluation overview still lists 50%. This version supports the 40% standard, not the 50% add-on/cushion.')\nCONTRACT['daily_loss_assumption']='DLL-on uses a fixed USD 1,200 soft daily stop in both phases. The customization page confirms the soft breach and phase coverage but does not specify an above-trail adjustment. Holding this amount fixed above the trail is an explicit modeling assumption, not verified provider parity. DLL-off has no daily stop.'\nCONTRACT['source_hours']='Sources must already close positions by the regular 16:45 America/New_York cutoff and enter only during the 18:00\u201316:45 Sunday-evening through Friday session windows. Late exits reject as incompatible because their earlier liquidation price is unavailable; they are not counted as provider account breaches. Eastern civil time includes DST. Holiday early closes are not independently validated by this adapter and require correctly session-filtered source data.'\n\ndef defaults(apex):\n    return dict(apex,PROP_FIRM='Lucid',ACCOUNT_TYPE='LucidFlex',EVAL_PRICE='80.5',ACTIVATION_FEE='0',SLOTS='5',\n        COMMISSION_BROKER='Lucid',DAILY_LOSS_LIMIT='on')\n"
+          }
+        },
+        "schema_version": "phase-freeze-v1",
+        "search_history": {
+          "campaign_id": "7a005d92211e557ebcdf9ff6450d92ef",
+          "confirmed_candidate_count": null,
+          "costs": {
+            "broker": "Lucid",
+            "instrument": "auto",
+            "mode": "override",
+            "per_side": "0.50"
+          },
+          "is_window": {
+            "first_session": "2024-01-01",
+            "last_session": "2025-12-31"
+          },
+          "maximum_candidates": null,
+          "phase": "evaluation",
+          "profile": {
+            "activation_fee": "0",
+            "consistency_percent": 40,
+            "daily_loss_limit": true,
+            "evaluation_price": "80.50",
+            "profile_id": "lucidflex-50k",
+            "rule_version": "alphaquest-lucidflex50k-eod-v4-acquisition-bounds"
+          },
+          "retry": {
+            "activation_delay_sessions": 0
+          },
+          "sampling": {
+            "block_weekdays": 5,
+            "chain_seed": 42,
+            "chain_simulations": 8
+          },
+          "search_settings": {
+            "calendar": {
+              "closures": [],
+              "start_dates": [
+                "2026-11-16"
+              ]
+            }
+          },
+          "simulation": {
+            "max_micros": 40,
+            "seed": 42,
+            "simulations": 8
+          },
+          "sources": [
+            {
+              "backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+              "export_timezone": "America/Chicago",
+              "optimization_id": null,
+              "sizes": [
+                9,
+                10
+              ],
+              "sizing_policies": null,
+              "trade_file": "",
+              "trials": null
+            }
+          ]
+        },
+        "search_settings": {
+          "calendar": {
+            "closures": [],
+            "coverage_end": "2036-11-13",
+            "start_dates": [
+              "2026-11-16"
+            ],
+            "timezone": "America/Chicago",
+            "version": "user-declared-weekdays-v1"
+          },
+          "constraints": null,
+          "mode": "evaluation_optimization",
+          "native_execution": null,
+          "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a"
+        },
+        "selected_candidates": [
+          {
+            "costs": {
+              "broker": "Lucid",
+              "instrument": "auto",
+              "mode": "override",
+              "per_side": "0.50"
+            },
+            "micros": 9,
+            "period": {
+              "first_session": "2024-01-01",
+              "last_session": "2025-12-31"
+            },
+            "profile": {
+              "activation_fee": "0",
+              "consistency_percent": 40,
+              "daily_loss_limit": true,
+              "evaluation_price": "80.50",
+              "profile_id": "lucidflex-50k",
+              "rule_version": "alphaquest-lucidflex50k-eod-v4-acquisition-bounds"
+            },
+            "retry": {
+              "activation_delay_sessions": 0,
+              "activation_eligibility": "automatic_after_pass_and_delay",
+              "max_attempts": 10000,
+              "max_calendar_days": 3650,
+              "model": "independent_empirical_sequential_retry",
+              "retry_delay_calendar_days": 0
+            },
+            "sampling": {
+              "block_weekdays": 5,
+              "chain_seed": 42,
+              "chain_simulations": 8,
+              "computational_horizon_weekdays": null
+            },
+            "simulation": {
+              "max_micros": 40,
+              "seed": 42,
+              "simulations": 8
+            },
+            "sizing": null,
+            "source": {
+              "export_timezone": "America/Chicago",
+              "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+              "trade_file": ""
+            }
+          }
+        ],
+        "selection_criteria": "cost_time_pareto"
+      },
+      "interpretation": "Manual OOS assessment of the predeclared frozen family. No reranking or reselection. Prior access is retained; no untouched-OOS claim.",
+      "is_metrics": {
+        "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8": {
+          "cost_per_funded": 80.5,
+          "expected_attempts_per_funded": 1.0,
+          "expected_calendar_days_to_funded": 3.0,
+          "mean_consistency_blocked_sessions": 2.0,
+          "mean_days_before_final_attempt": 0.0,
+          "mean_failed_attempts_after_target": 0.0,
+          "mean_failed_attempts_before_target": 0.0,
+          "mean_final_attempt_days_after_target": 2.0,
+          "mean_final_attempt_days_before_target": 0.0,
+          "mean_pass_to_ready_days": 1.0,
+          "median_calendar_days_to_funded": 3.0,
+          "p90_calendar_days_to_funded": 3.0,
+          "pass_probability": 1.0,
+          "pass_probability_bounds": [
+            1.0,
+            1.0
+          ],
+          "probability_acquisition_by_cutoff": 1.0,
+          "probability_funded_by_day_30": 1.0,
+          "probability_funded_by_day_60": 1.0,
+          "probability_funded_by_day_90": 1.0,
+          "restricted_mean_observed_calendar_days": 3.0,
+          "restricted_mean_paid_fees": 80.5
+        }
+      },
+      "kind": "oos",
+      "prior_access": [
+        {
+          "candidate_id": "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8",
+          "prior_access": {
+            "attempts": [
+              {
+                "created_at": "2026-11-13T08:30:54.165872+00:00",
+                "id": "f426e19c-01ef-4fcc-81e8-ad1348c2e9c5",
+                "parent_run_id": "16250e7e9821471da96c35d815cbeb8a",
+                "run_id": "417b5999fa924abbb064063d5deb280b",
+                "status": "complete"
+              },
+              {
+                "created_at": "2026-11-13T08:30:54.166299+00:00",
+                "id": "14f36c06-c172-478b-99ad-7937798993a9",
+                "parent_run_id": "b8078fa289be473db8b32ca22b1a19e8",
+                "run_id": "0ea0a317379a4a969c85829acba1b78a",
+                "status": "complete"
+              },
+              {
+                "created_at": "2026-11-13T08:30:54.166402+00:00",
+                "id": "ac7c2f15-3b1f-44b3-a0a9-fd8e10b308d4",
+                "parent_run_id": "566e1ec07e304dd4999fa88306828eab",
+                "run_id": "ed504771e29f4816b050cbe87a7b7289",
+                "status": "complete"
+              },
+              {
+                "created_at": "2026-11-13T08:30:54.166498+00:00",
+                "id": "9362796c-d5f3-47fa-b0c4-a5c718f4c327",
+                "parent_run_id": "f6bb5dfe8729476cada8e8058c44f2f5",
+                "run_id": "5b568d0a09414142817ae529a9f1ac65",
+                "status": "complete"
+              }
+            ],
+            "interpretation": "Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.",
+            "status": "recorded"
+          }
+        },
+        {
+          "candidate_id": "f2df3dfe7bd59cfc4f1eeea9e28d089883443bbd8701b4f8a80dd010f6341bb0",
+          "prior_access": {
+            "attempts": [
+              {
+                "created_at": "2026-11-13T08:30:54.165872+00:00",
+                "id": "f426e19c-01ef-4fcc-81e8-ad1348c2e9c5",
+                "parent_run_id": "16250e7e9821471da96c35d815cbeb8a",
+                "run_id": "417b5999fa924abbb064063d5deb280b",
+                "status": "complete"
+              },
+              {
+                "created_at": "2026-11-13T08:30:54.166299+00:00",
+                "id": "14f36c06-c172-478b-99ad-7937798993a9",
+                "parent_run_id": "b8078fa289be473db8b32ca22b1a19e8",
+                "run_id": "0ea0a317379a4a969c85829acba1b78a",
+                "status": "complete"
+              },
+              {
+                "created_at": "2026-11-13T08:30:54.166402+00:00",
+                "id": "ac7c2f15-3b1f-44b3-a0a9-fd8e10b308d4",
+                "parent_run_id": "566e1ec07e304dd4999fa88306828eab",
+                "run_id": "ed504771e29f4816b050cbe87a7b7289",
+                "status": "complete"
+              },
+              {
+                "created_at": "2026-11-13T08:30:54.166498+00:00",
+                "id": "9362796c-d5f3-47fa-b0c4-a5c718f4c327",
+                "parent_run_id": "f6bb5dfe8729476cada8e8058c44f2f5",
+                "run_id": "5b568d0a09414142817ae529a9f1ac65",
+                "status": "complete"
+              }
+            ],
+            "interpretation": "Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.",
+            "status": "recorded"
+          }
+        }
+      ],
+      "prop_sim_review": {
+        "automatic_selection": {
+          "candidates": [
+            {
+              "candidate_id": "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8",
+              "is_metrics": {
+                "cost_per_funded": 80.5,
+                "expected_calendar_days_to_funded": 3.0
+              },
+              "micros": 9,
+              "roles": [
+                "Lowest acquisition cost",
+                "Fastest funding",
+                "Lowest cost within 25% of fastest"
+              ]
+            }
+          ],
+          "excluded_count": 0,
+          "interpretation": "Automatic IS-only selection of resolved eligible point estimates; no OOS tuning or certified superiority. Lower exposure does not guarantee lower breach probability.",
+          "is_analysis_id": "05d889d7dd0844719d06b29bba48eb57",
+          "is_report_sha256": "2fac20fd3590e0042e9643164ed553d4a7b0c3a031f281c52bab9e9ccc408a05",
+          "phase": "evaluation",
+          "selection_identity": {
+            "policy": {
+              "data_role": "IS_only",
+              "duplicates": "collapse_within_phase",
+              "evaluation_fast_time_multiplier": 1.25,
+              "evaluation_maximum": 3,
+              "funded_maximum": 2,
+              "funded_receipts_retention": 0.95,
+              "tie_break": "smaller_micros_then_candidate_id",
+              "unresolved": "exclude_without_blocking_resolved_candidates",
+              "version": "prop-sim-auto-selection-v1"
+            },
+            "source_sha256": "79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70"
+          },
+          "selection_sha256": "8cd0d77444663ce8ba52e9d7c80ceb4ea0942a8a4991217ae6cadeb5ec2010b9",
+          "status": "selected"
+        },
+        "implementation": {
+          "files": {
+            "assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+            "oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+            "prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e"
+          },
+          "forward_implementation": "54c0f0b85f67cede23a5f027caa81b4f89a6efd71ef9028f034e7158e127938e",
+          "numpy": "2.5.4",
+          "version": "prop-oos-qualification-v1"
+        },
+        "kind": "qualification",
+        "policy": {
+          "declaration_timing": "retrospective",
+          "declared_at_utc": "2026-11-13T11:35:02.352390+00:00",
+          "implementation": {
+            "files": {
+              "assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+              "oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+              "prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e"
+            },
+            "forward_implementation": "54c0f0b85f67cede23a5f027caa81b4f89a6efd71ef9028f034e7158e127938e",
+            "numpy": "2.5.4",
+            "version": "prop-oos-qualification-v1"
+          },
+          "interpretation": "Fixed robustness policy; no required dollar declaration. Strategy OOS was already accessed. Economic limits remain optional historical assessments.",
+          "phase": "evaluation",
+          "policy_sha256": "27b2f9c9f2ec913e5a254c1e8e302a424eb5e8ed6529a039631987bdc1434721",
+          "rules": {
+            "confidence": 0.95,
+            "evaluation_cost_ratio_max": 1.5,
+            "evaluation_time_ratio_max": 1.5,
+            "forward_maximum_unexplained_discrepancies": 0,
+            "forward_minimum_closed_trades": 30,
+            "forward_minimum_sessions": 20,
+            "funded_receipts_ratio_min": 0.7,
+            "historical_replicates": 10000,
+            "history_seed": 13742,
+            "maximum_family_tests": 12,
+            "maximum_inner_relative_standard_error": 0.05,
+            "minimum_closed_trades": 100,
+            "minimum_complete_months": 12,
+            "minimum_outer_block_weekdays": 5,
+            "version": "prop-oos-qualification-v1"
+          },
+          "start_plan": {
+            "clock": "Chicago civil dates; exclusive horizon cutoff; inherited declared weekday/closure scenario, not a newly verified exchange calendar.",
+            "eligible_starts": 132,
+            "horizon_calendar_days": 180,
+            "period": {
+              "first_session": "2026-01-01",
+              "last_session": "2026-12-31"
+            },
+            "requested_starts": 5,
+            "selection": "Evenly spaced across all eligible weekday starts using coverage only; no P&L, ranking or cherry-picking.",
+            "starts": [
+              "2026-01-01",
+              "2026-02-17",
+              "2026-04-03",
+              "2026-05-19",
+              "2026-07-03"
+            ],
+            "status": "ready",
+            "version": "evenly-spaced-covered-starts-v1"
+          },
+          "version": "prop-oos-qualification-v1"
+        },
+        "prerequisites": {
+          "passed": true,
+          "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+          "snapshot": {
+            "broad_trial": 1,
+            "dataset": {
+              "bytes": 909491,
+              "end": "2026-12-31T14:24:00Z",
+              "id": "700805d171cd4b49b7551d38979045ad",
+              "instrument_settings": {
+                "point_value": "20",
+                "tick_size": ".25"
+              },
+              "name": "SYNTHETIC frozen OOS",
+              "row_count": 18816,
+              "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+              "source_timezone": "UTC",
+              "start": "2024-01-01T09:00:00Z",
+              "symbol": "NQ"
+            },
+            "frozen_identity": "4fcdbe2006626259e5f05c8c70aa8a2085ac04ea8f284f488d2f30d758d2bfce",
+            "monte_carlo_report_sha256": "1bb492737375d60e92366e791c7b2b98474f2fa896d48855f7806c81c94c5107",
+            "narrow_trial": 2,
+            "oos_report_id": "417b5999fa924abbb064063d5deb280b",
+            "parameters": {
+              "contracts": 1,
+              "green_bar_count": 3,
+              "hold_minutes": 16
+            },
+            "plan": {
+              "is_bars": 12552,
+              "is_end": "2025-12-31",
+              "is_start": "2024-01-01",
+              "oos_bars": 6264,
+              "oos_end": "2026-12-31",
+              "oos_start": "2026-01-01",
+              "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+              "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+              "source_timezone": "UTC",
+              "strategy_id": "consecutive_green_hold",
+              "version": 1
+            },
+            "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+            "selection": {
+              "candidate": 1,
+              "monte_carlo_id": "20260f2d-58cb-496c-9f82-274fb02a6d99",
+              "oos_job_id": "46d09b31-1ed6-4a83-a9c5-813b49059a68",
+              "workflow_id": "8a80ac50-dd1c-4905-bfc5-728219e63fa5"
+            },
+            "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+            "strategy_id": "consecutive_green_hold"
+          }
+        },
+        "qualification": true,
+        "simulation_id": "0b7bba144dcf40c0a8826d36131c078b"
+      },
+      "request_id": "74569cb7e8244d02b5b3f516b6c133f7",
+      "sources": [
+        {
+          "frozen_candidate_id": "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8",
+          "frozen_manifest": {
+            "configuration": {
+              "costs": {
+                "broker": "Lucid",
+                "instrument": "auto",
+                "mode": "override",
+                "per_side": "0.50"
+              },
+              "micros": 9,
+              "period": {
+                "first_session": "2024-01-01",
+                "last_session": "2025-12-31"
+              },
+              "profile": {
+                "activation_fee": "0",
+                "consistency_percent": 40,
+                "daily_loss_limit": true,
+                "evaluation_price": "80.50",
+                "profile_id": "lucidflex-50k",
+                "rule_version": "alphaquest-lucidflex50k-eod-v4-acquisition-bounds"
+              },
+              "retry": {
+                "activation_delay_sessions": 0,
+                "activation_eligibility": "automatic_after_pass_and_delay",
+                "max_attempts": 10000,
+                "max_calendar_days": 3650,
+                "model": "independent_empirical_sequential_retry",
+                "retry_delay_calendar_days": 0
+              },
+              "sampling": {
+                "block_weekdays": 5,
+                "chain_seed": 42,
+                "chain_simulations": 8,
+                "computational_horizon_weekdays": null
+              },
+              "simulation": {
+                "max_micros": 40,
+                "seed": 42,
+                "simulations": 8
+              },
+              "sizing": null,
+              "source": {
+                "export_timezone": "America/Chicago",
+                "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+                "trade_file": ""
+              }
+            },
+            "source": {
+              "backtest": {
+                "artifacts": {
+                  "equity_csv": "equity.csv",
+                  "execution_decisions_jsonl": "execution_decisions.jsonl",
+                  "intratrade_risk_csv": "intratrade_risk.csv",
+                  "is_screening_json": "is_screening.json",
+                  "market_benchmark_json": "market_benchmark.json",
+                  "report": "report.json",
+                  "strategy_equity_day_csv": "strategy_equity_day.csv",
+                  "trades_csv": "trades.csv"
+                },
+                "created_at_utc": "2026-11-13T08:29:38.817689Z",
+                "execution_assumption": "same_close_full_fill",
+                "execution_decisions": {
+                  "bracket_submissions": 0,
+                  "cancelled_decisions": 0,
+                  "decisions": 3138,
+                  "events": 9414,
+                  "filled_trades": 3138,
+                  "policy": "Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry.",
+                  "quantity_path_policy": "native_rerun_required",
+                  "sha256": "129a87fc1483b96133662a97f7d8e3eb0a531e5841423b0e01764e538160c6fc",
+                  "version": "native-entry-decisions-v1"
+                },
+                "execution_settings": {
+                  "commission_per_contract_per_side": "1",
+                  "initial_capital": "10000",
+                  "point_value": "20",
+                  "slippage_ticks": 1,
+                  "tick_size": "0.25"
+                },
+                "format_version": 2,
+                "id": "16250e7e9821471da96c35d815cbeb8a",
+                "intratrade_risk": {
+                  "ambiguous_trades": 0,
+                  "cross_session_trades": 0,
+                  "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.",
+                  "sha256": "ad7f6708559e4e639b04b6c6509483eccb6c7eae5d4f3177d4f5495e7cca119c",
+                  "trades": 3138,
+                  "version": "held-ohlc-equity-bounds-v1"
+                },
+                "is_screening": {
+                  "checks": [
+                    {
+                      "actual": "24 months; 3138 closed trades",
+                      "id": "evidence",
+                      "label": "History and trades",
+                      "passed": true,
+                      "required": "\u2265 24 months and \u2265 100 closed trades"
+                    },
+                    {
+                      "actual": "12514344.00",
+                      "id": "net_profit",
+                      "label": "Overall profitability",
+                      "passed": true,
+                      "required": "Net IS profit > 0"
+                    },
+                    {
+                      "actual": "100% of 24 complete months",
+                      "id": "profitable_months",
+                      "label": "Profitable months",
+                      "passed": true,
+                      "required": "> 50% profitable; zero/no-trade months included"
+                    },
+                    {
+                      "actual": "12482964.00",
+                      "id": "cost_stress",
+                      "label": "Extra-slippage native rerun",
+                      "passed": true,
+                      "required": "Net profit > 0 with +1 tick per fill"
+                    }
+                  ],
+                  "closed_trades": 3138,
+                  "cost_stress": {
+                    "artifacts": {
+                      "equity.csv": "3333148deff3990e4f144fc03ffe463b3681698dbe6d1c32cf6d501039290bc3",
+                      "execution_decisions.jsonl": "855b81ee7a1e02e839f6b4de83e098a41bd959a55b6f10fafefdbf5aa3b72997",
+                      "intratrade_risk.csv": "476ef46ad6a655e39aebf2318a3820dd30b3ac360292507184b32fb39cb92134",
+                      "market_benchmark.json": "8621b387fdf712a7c648eafbd70331c23e58c5854e7e660e8339261bd157d533",
+                      "report.json": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                      "shared_holding_day": "1a7e917c9ec6d6fd9fbb17aa96456f72c105ba51a3321ac9ef91de4d30617d3d",
+                      "strategy_equity_day.csv": "11ac768f48d1aeb32b66dc61d222055aff0a76310edc4ec350499688e9e91076",
+                      "trades.csv": "dedc71a60c9ce27a3ba410d23d2495d47f29b874d40725248d443ef47b0e6470"
+                    },
+                    "execution_settings": {
+                      "commission_per_contract_per_side": "1",
+                      "initial_capital": "10000",
+                      "point_value": "20",
+                      "slippage_ticks": 2,
+                      "tick_size": "0.25"
+                    },
+                    "report_sha256": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                    "run_id": "d23ad8fff02646f9aa7c9639dab8c2ff",
+                    "summary": {
+                      "breakeven_trades": 0,
+                      "ending_position_contracts": 0,
+                      "final_equity": "12492964.00",
+                      "initial_capital": "10000",
+                      "losing_trades": 523,
+                      "max_drawdown_amount": "6022.00",
+                      "max_drawdown_duration_seconds": "10740",
+                      "max_drawdown_pct": "27.42758243760247768263800328",
+                      "total_commissions": "6276",
+                      "total_gross_pnl": "12489240.00",
+                      "total_net_pnl": "12482964.00",
+                      "total_slippage_cost": "62760.00",
+                      "trades_taken": 3138,
+                      "win_rate_pct": "83.33333333333333333333333333",
+                      "winning_trades": 2615
+                    }
+                  },
+                  "metrics": {
+                    "is_annual_net_profit": "6252763.732448700410396716826",
+                    "is_annual_profit_dd_ratio": "1039.010257967547426121089536",
+                    "is_full_months": 24,
+                    "is_history_months": 24,
+                    "is_longest_dd_pct": "0.01367989056087551299589603283",
+                    "is_mtm_max_drawdown": "6018.00",
+                    "is_profitable_months_pct": "100",
+                    "is_stress_net_profit": "12482964.00"
+                  },
+                  "months": [
+                    {
+                      "complete": true,
+                      "month": "2024-01",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-02",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-03",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-04",
+                      "net_pnl": "526416.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-05",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-06",
+                      "net_pnl": "478560.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-07",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-08",
+                      "net_pnl": "526416.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-09",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-10",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-11",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2024-12",
+                      "net_pnl": "526416.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-01",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-02",
+                      "net_pnl": "478560.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-03",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-04",
+                      "net_pnl": "526416.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-05",
+                      "net_pnl": "526416.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-06",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-07",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-08",
+                      "net_pnl": "502488.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-09",
+                      "net_pnl": "526416.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-10",
+                      "net_pnl": "550344.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-11",
+                      "net_pnl": "478560.00"
+                    },
+                    {
+                      "complete": true,
+                      "month": "2025-12",
+                      "net_pnl": "550344.00"
+                    }
+                  ],
+                  "mtm_drawdown_duration_seconds": "8640",
+                  "observed_end": "2025-12-31",
+                  "observed_start": "2024-01-01",
+                  "period_end_exclusive_utc": "2026-01-01T00:00:00+00:00",
+                  "period_start_utc": "2024-01-01T00:00:00+00:00",
+                  "policy": {
+                    "annualization_days": "365.2425",
+                    "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+                    "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+                    "extra_slippage_ticks_per_fill": 1,
+                    "minimum_closed_trades": 100,
+                    "minimum_history_months": 24,
+                    "profitable_months_pct_gt": "50",
+                    "version": "is-broad-v4"
+                  },
+                  "qualifies": true,
+                  "sha256": "6b6f7e081403210d4a2a0bd2b855e0c836ff4dfa42858da5c57200442ce49995",
+                  "status": "qualified",
+                  "total_net_pnl": "12514344.00"
+                },
+                "market_benchmark": {
+                  "equity_sha256": "e69ea5febe8ce42f17feef10a104d37c5134166cc5bd170441104fe942c40dc7",
+                  "observed_bar_count": 12552,
+                  "settings": {
+                    "contracts": 1
+                  },
+                  "sha256": "baceb0f5473182aa35cb4e79369820c9b1eccf94e014e76e40df7cc8352a53a8",
+                  "storage": {
+                    "day_boundary": "last_selected_bar_of_source_calendar_date",
+                    "granularity": "DAY",
+                    "holding_key": "314cd665dbb7413eb358dff83a5a4c0078561f2c150a9f8fa3679338a8beb0ff",
+                    "holding_sha256": "3dacb9278a33cc26b661a12b26dad7fd9027b1eb40c0a4fd227864e0d7bf8f63",
+                    "observed_day_count": 523,
+                    "strategy_sha256": "5c6a13ae570b40da67a88040252a491f4b875dbe732420c0340566559b956c8e",
+                    "timezone": "UTC",
+                    "version": "daily-shared-v1"
+                  },
+                  "version": "price-series-holding-v1"
+                },
+                "period_end_utc": "2025-12-31T14:24:00Z",
+                "period_start_utc": "2024-01-01T09:00:00Z",
+                "reconciliation": {
+                  "equity_equals_cash_plus_unrealized_at_every_point": true,
+                  "expected_bar_count": 12552,
+                  "final_equity_equals_initial_plus_net": true,
+                  "final_position_flat": true,
+                  "gross_minus_commissions_equals_net": true,
+                  "observed_bar_count": 12552,
+                  "realized_net_equals_cash_minus_initial_at_every_point": true,
+                  "total_net_equals_sum_trade_net": true
+                },
+                "report_storage": {
+                  "compression": "none",
+                  "detail": "compact",
+                  "equity_csv": "initial_and_trade_close",
+                  "per_bar_equity_retained": false,
+                  "trades": "all"
+                },
+                "run_metadata": {
+                  "dataset": {
+                    "id": "700805d171cd4b49b7551d38979045ad",
+                    "instrument_settings": {
+                      "point_value": "20",
+                      "tick_size": ".25"
+                    },
+                    "name": "SYNTHETIC frozen OOS",
+                    "row_count": 18816,
+                    "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                    "source_timezone": "UTC"
+                  },
+                  "full_dataset": {
+                    "end": "2026-12-31T14:24:00Z",
+                    "id": "700805d171cd4b49b7551d38979045ad",
+                    "name": "SYNTHETIC frozen OOS",
+                    "row_count": 18816,
+                    "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                    "source_timezone": "UTC",
+                    "start": "2024-01-01T09:00:00Z",
+                    "symbol": "NQ"
+                  },
+                  "instrument": {
+                    "interval_kind": "irregular",
+                    "interval_seconds": null,
+                    "symbol": "NQ"
+                  },
+                  "instrument_overrides": {},
+                  "research": {
+                    "broad_anchor_parameters": {
+                      "contracts": 1,
+                      "green_bar_count": 3,
+                      "hold_minutes": 20
+                    },
+                    "broad_selection_identity": "781e9344a6fef59348de41e8cc0b6eb247b1c078999c6d58972a36d52acb2732",
+                    "broad_trial": 1,
+                    "cost_stress": {
+                      "artifacts": {
+                        "equity.csv": "3333148deff3990e4f144fc03ffe463b3681698dbe6d1c32cf6d501039290bc3",
+                        "execution_decisions.jsonl": "855b81ee7a1e02e839f6b4de83e098a41bd959a55b6f10fafefdbf5aa3b72997",
+                        "intratrade_risk.csv": "476ef46ad6a655e39aebf2318a3820dd30b3ac360292507184b32fb39cb92134",
+                        "market_benchmark.json": "8621b387fdf712a7c648eafbd70331c23e58c5854e7e660e8339261bd157d533",
+                        "report.json": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                        "shared_holding_day": "1a7e917c9ec6d6fd9fbb17aa96456f72c105ba51a3321ac9ef91de4d30617d3d",
+                        "strategy_equity_day.csv": "11ac768f48d1aeb32b66dc61d222055aff0a76310edc4ec350499688e9e91076",
+                        "trades.csv": "dedc71a60c9ce27a3ba410d23d2495d47f29b874d40725248d443ef47b0e6470"
+                      },
+                      "execution_settings": {
+                        "commission_per_contract_per_side": "1",
+                        "initial_capital": "10000",
+                        "point_value": "20",
+                        "slippage_ticks": 2,
+                        "tick_size": "0.25"
+                      },
+                      "report_sha256": "26c3e7ff298361f267ffcf774d6dfc971f5ffebf9fbda083e9eb2a3dcf454469",
+                      "run_id": "d23ad8fff02646f9aa7c9639dab8c2ff",
+                      "summary": {
+                        "breakeven_trades": 0,
+                        "ending_position_contracts": 0,
+                        "final_equity": "12492964.00",
+                        "initial_capital": "10000",
+                        "losing_trades": 523,
+                        "max_drawdown_amount": "6022.00",
+                        "max_drawdown_duration_seconds": "10740",
+                        "max_drawdown_pct": "27.42758243760247768263800328",
+                        "total_commissions": "6276",
+                        "total_gross_pnl": "12489240.00",
+                        "total_net_pnl": "12482964.00",
+                        "total_slippage_cost": "62760.00",
+                        "trades_taken": 3138,
+                        "win_rate_pct": "83.33333333333333333333333333",
+                        "winning_trades": 2615
+                      }
+                    },
+                    "frozen_broad_parameters": {
+                      "contracts": 1
+                    },
+                    "narrow_policy": {
+                      "advisory": [
+                        "four_period_profitability",
+                        "latest_period_profitability",
+                        "drawdown_duration",
+                        "drawdown_depth",
+                        "search_adjusted_daily_net_lower_bound"
+                      ],
+                      "best_complete_month_removed_net_gt": "0",
+                      "boundary_handling": "use available neighbors; label one-sided assessments",
+                      "confidence_level": "0.95",
+                      "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+                      "hac_lag_observations": 5,
+                      "minimum_observed_days": 100,
+                      "minimum_valid_neighbors": 2,
+                      "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+                      "plateau_cost_stress_net_gt": "0",
+                      "plateau_directions": "nearest tested lower/higher value on each varied ordered-numeric axis; other parameters unchanged",
+                      "plateau_retention_pct_gte": "70",
+                      "resolution": "tested grid spacing only; no claim about smaller untested changes",
+                      "seed": null,
+                      "source_observations_each_period": true,
+                      "time_periods": 4,
+                      "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+                      "version": "is-narrow-v4"
+                    },
+                    "period_boundaries": [
+                      "2024-01-01",
+                      "2024-07-01",
+                      "2024-12-31",
+                      "2025-07-02",
+                      "2026-01-01"
+                    ],
+                    "phase": "is",
+                    "plan": {
+                      "is_bars": 12552,
+                      "is_end": "2025-12-31",
+                      "is_start": "2024-01-01",
+                      "oos_bars": 6264,
+                      "oos_end": "2026-12-31",
+                      "oos_start": "2026-01-01",
+                      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+                      "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                      "source_timezone": "UTC",
+                      "strategy_id": "consecutive_green_hold",
+                      "version": 1
+                    },
+                    "refined_broad_parameters": [],
+                    "refinement_policy": "is-narrow-local-refinement-v1",
+                    "screening_policy": {
+                      "annualization_days": "365.2425",
+                      "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+                      "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+                      "extra_slippage_ticks_per_fill": 1,
+                      "minimum_closed_trades": 100,
+                      "minimum_history_months": 24,
+                      "profitable_months_pct_gt": "50",
+                      "version": "is-broad-v4"
+                    },
+                    "workflow_id": "8a80ac50dd1c4905bfc5728219e63fa5",
+                    "workflow_phase": "is_narrow"
+                  },
+                  "selection": {
+                    "end_utc": "2025-12-31T14:24:00Z",
+                    "first_source_bar_number": 1,
+                    "from_date": "2024-01-01",
+                    "last_source_bar_number": 12552,
+                    "row_count": 12552,
+                    "source_timezone": "UTC",
+                    "start_utc": "2024-01-01T09:00:00Z",
+                    "to_date": "2025-12-31",
+                    "warmup": "none"
+                  },
+                  "strategy": {
+                    "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+                    "execution_assumption": "same_close_full_fill",
+                    "id": "consecutive_green_hold",
+                    "parameters": {
+                      "contracts": 1,
+                      "green_bar_count": 3,
+                      "hold_minutes": 16
+                    },
+                    "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4"
+                  }
+                },
+                "status": "complete",
+                "summary": {
+                  "breakeven_trades": 0,
+                  "ending_position_contracts": 0,
+                  "final_equity": "12524344.00",
+                  "initial_capital": "10000",
+                  "losing_trades": 523,
+                  "max_drawdown_amount": "6012.00",
+                  "max_drawdown_duration_seconds": "10740",
+                  "max_drawdown_pct": "27.35711685475063705860939206",
+                  "total_commissions": "6276",
+                  "total_gross_pnl": "12520620.00",
+                  "total_net_pnl": "12514344.00",
+                  "total_slippage_cost": "31380.00",
+                  "trades_taken": 3138,
+                  "win_rate_pct": "83.33333333333333333333333333",
+                  "winning_trades": 2615
+                },
+                "timestamp_convention": "bar_close"
+              },
+              "commission_simulation": {
+                "applied": true,
+                "broker": "Lucid",
+                "detected_source_instrument": "NQ",
+                "formula": "(source net + actual source commission) / source quantity * source-to-NQ factor / 10 - 2 * MNQ per-side rate, per simulated MNQ round turn. Source slippage retained.",
+                "mode": "override",
+                "normalization": "Totals below sum one NQ-equivalent exposure per source trade; divide by ten for one MNQ.",
+                "per_side": "0.50",
+                "risk_policy": "Captured/measured source excursions remain unchanged. Simulation uses conservative commission-adjusted bounds, reserving max(one-side fee delta, round-turn fee delta), entry commission and realized exit loss. These are not measured repriced MAE/MFE. Close-only sources retain a realized-loss fallback.",
+                "round_turn": "1.00",
+                "schedule": {
+                  "broker": "Lucid",
+                  "checked_on": "2026-10-29",
+                  "currency": "USD",
+                  "rates": {
+                    "MNQ": "0.50",
+                    "NQ": "1.75"
+                  },
+                  "source_url": "https://support.lucidtrading.com/en/articles/11508978-approved-products-and-commissions",
+                  "unit": "per contract per side"
+                },
+                "simulated_instrument": "MNQ",
+                "source_instrument": "NQ",
+                "source_to_nq_factor": "1",
+                "totals_per_nq": {
+                  "simulated_commission": "31380.00",
+                  "simulated_net": "12489240.00",
+                  "source_commission": "6276",
+                  "source_net": "12514344.00"
+                }
+              },
+              "excursion_input": {
+                "ambiguous_mae_count": 0,
+                "cost_contract": "Saved net P&L includes source costs. Original costs reconcile before the separately recorded simulation commission treatment; no duplicate source-cost deduction.",
+                "export_timezone": "America/Chicago",
+                "filename": null,
+                "matched_trades": 3138,
+                "measured_mae_count": 0,
+                "measured_mfe_count": 0,
+                "native_ohlc_count": 3138,
+                "native_risk_sha256": "ad7f6708559e4e639b04b6c6509483eccb6c7eae5d4f3177d4f5495e7cca119c",
+                "path": null,
+                "risk_policy": "conservative_held_ohlc_upper",
+                "sha256": null
+              },
+              "excursion_provenance": "Held OHLC account-equity excursion bounds, including entry costs and realized exit costs once. Uses the conservative MAE upper bound; target-exit ordering may be ambiguous. These are bar observations, not measured tick MAE/MFE. Observed opening gaps and actual exit-cost jumps can overshoot a DLL and breach the account floor. Other intrabar DLL fills assume the threshold price; unobserved tick gaps and liquidity are not modeled.",
+              "filtering": "The portal passes all matched entry rows unchanged; AlphaQuest groups Chicago entry timestamps into CME session days, retaining zero-trade weekdays.",
+              "manifest_sha256": "51acf6a7e5aedbfa928a7e6568499afd6e36359a77ae02031549b6f959eb8800",
+              "native_risk": {
+                "ambiguous_trades": 0,
+                "cross_session_trades": 0,
+                "policy": "Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.",
+                "sha256": "ad7f6708559e4e639b04b6c6509483eccb6c7eae5d4f3177d4f5495e7cca119c",
+                "trades": 3138,
+                "version": "held-ohlc-equity-bounds-v1"
+              },
+              "phase_suitability": {
+                "fixed_quantity": true,
+                "instrument": "NQ",
+                "risk_covered_trades": 3138,
+                "scaling": "Linear MNQ exposure scenario on a saved fixed-quantity path; liquidity/size-dependent fills are not resimulated."
+              },
+              "profile_research_period": {
+                "convention": "CME Chicago session dates; zero-trade weekdays retained; no internal reselection or split",
+                "first_session": "2024-01-01",
+                "last_session": "2025-12-31",
+                "weekdays": 523
+              },
+              "reconciliation": {
+                "exact_source_arithmetic": true,
+                "source_count": 3138,
+                "source_totals": {
+                  "gross_pnl": "12520620.00",
+                  "net_pnl": "12514344.00",
+                  "reference_gross_pnl": "12552000",
+                  "slippage_cost": "31380.00",
+                  "total_commissions": "6276"
+                }
+              },
+              "source_timezone": "UTC",
+              "trades_sha256": "02c14a1f2974864a5c67aabfb06f16359af67e4e47ce6009619d1e6f465c5cd4"
+            },
+            "strategy": {
+              "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+              "execution_assumption": "same_close_full_fill",
+              "id": "consecutive_green_hold",
+              "parameters": {
+                "contracts": 1,
+                "green_bar_count": 3,
+                "hold_minutes": 16
+              },
+              "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4"
+            }
+          },
+          "name": "9 MNQ \u00b7 Lowest acquisition cost / Fastest funding / Lowest cost within 25% of fastest",
+          "source_id": "417b5999fa924abbb064063d5deb280b"
+        }
+      ]
+    },
+    "assessment_kind": "qualification",
+    "candidates": [
+      {
+        "candidate_id": "94b2e76f8c419ed6fcb58af12d958675727d22298151a351848119b17df6d8c0",
+        "frozen_candidate_id": "3b61282d212ded76492b8160e74510f0c63f045a852ffd89a1e401b8b73408a8",
+        "configuration": {
+          "costs": {
+            "broker": "Lucid",
+            "instrument": "auto",
+            "mode": "override",
+            "per_side": "0.50"
+          },
+          "micros": 9,
+          "period": {
+            "first_session": "2026-01-01",
+            "last_session": "2026-12-31"
+          },
+          "profile": {
+            "activation_fee": "0",
+            "consistency_percent": 40,
+            "daily_loss_limit": true,
+            "evaluation_price": "80.50",
+            "profile_id": "lucidflex-50k",
+            "rule_version": "alphaquest-lucidflex50k-eod-v4-acquisition-bounds"
+          },
+          "retry": {
+            "activation_delay_sessions": 0,
+            "activation_eligibility": "automatic_after_pass_and_delay",
+            "max_attempts": 10000,
+            "max_calendar_days": 3650,
+            "model": "independent_empirical_sequential_retry",
+            "retry_delay_calendar_days": 0
+          },
+          "sampling": {
+            "block_weekdays": 5,
+            "chain_seed": 42,
+            "chain_simulations": 8,
+            "computational_horizon_weekdays": null
+          },
+          "simulation": {
+            "max_micros": 40,
+            "seed": 42,
+            "simulations": 8
+          },
+          "sizing": null,
+          "source": {
+            "export_timezone": "America/Chicago",
+            "source_backtest_id": "417b5999fa924abbb064063d5deb280b",
+            "trade_file": ""
+          }
+        },
+        "metrics": {
+          "cost_per_funded": 80.5,
+          "expected_attempts_per_funded": 1.0,
+          "expected_calendar_days_to_funded": 3.0,
+          "mean_consistency_blocked_sessions": 2.0,
+          "mean_days_before_final_attempt": 0.0,
+          "mean_failed_attempts_after_target": 0.0,
+          "mean_failed_attempts_before_target": 0.0,
+          "mean_final_attempt_days_after_target": 2.0,
+          "mean_final_attempt_days_before_target": 0.0,
+          "mean_pass_to_ready_days": 1.0,
+          "median_calendar_days_to_funded": 3.0,
+          "p90_calendar_days_to_funded": 3.0,
+          "pass_probability": 1.0,
+          "pass_probability_bounds": [
+            1.0,
+            1.0
+          ],
+          "probability_acquisition_by_cutoff": 1.0,
+          "probability_funded_by_day_30": 1.0,
+          "probability_funded_by_day_60": 1.0,
+          "probability_funded_by_day_90": 1.0,
+          "restricted_mean_observed_calendar_days": 3.0,
+          "restricted_mean_paid_fees": 80.5
+        },
+        "status": "estimated",
+        "scenario": "full_period",
+        "uncertainty": {
+          "calendar_interval_scope": "Nominal 95% conditional MC interval; not future uncertainty or a frontier certificate.",
+          "calendar_mean_ci": [
+            3.0,
+            3.0
+          ],
+          "calendar_mean_se": 0.0,
+          "cost_ci": null,
+          "cost_se": 0.0,
+          "interpretation": "Conditional simulation noise under the saved source/calendar law; no future confidence or provider certification.",
+          "robust_dominance": "not_established"
+        },
+        "is_comparison": {
+          "cost_per_funded": {
+            "is_value": 80.5,
+            "oos_over_is": 1.0,
+            "oos_value": 80.5
+          },
+          "expected_calendar_days_to_funded": {
+            "is_value": 3.0,
+            "oos_over_is": 1.0,
+            "oos_value": 3.0
+          },
+          "pass_probability": {
+            "is_value": 1.0,
+            "oos_over_is": 1.0,
+            "oos_value": 1.0
+          }
+        },
+        "chronological_replay": {
+          "acquisition_completed": true,
+          "acquisition_diagnostics": {
+            "consistency_blocked_sessions": 2,
+            "days_before_final_attempt": 0,
+            "failed_attempts_after_target": 0,
+            "failed_attempts_before_target": 0,
+            "final_attempt_days_after_target": 4,
+            "final_attempt_days_before_target": 0,
+            "pass_to_ready_days": 1
+          },
+          "attempt_detail_policy": "First and last only; aggregate counts/fees include every attempt.",
+          "attempts": [
+            {
+              "best": 21492.0,
+              "equity": 64476.0,
+              "first_session": "2026-01-01",
+              "first_target_date": "2026-01-01",
+              "high": 64476.0,
+              "index": 1,
+              "last_activity": 4,
+              "outcome": "passed",
+              "purchase_date": "2026-01-01",
+              "sessions": 3,
+              "terminal_date": "2026-01-05"
+            }
+          ],
+          "attempts_started": 1,
+          "calendar_days_to_funded": 5,
+          "censored": false,
+          "interpretation": "One chronological OOS saved-signal scenario; no resampling or reselection. Window-censored acquisition has no finite funding-time estimate.",
+          "observed_calendar_days": 5,
+          "outcome": "funded",
+          "paid_activation_fees": 0.0,
+          "paid_evaluation_fees": 80.5,
+          "paid_fees": 80.5,
+          "pass_date": "2026-01-05",
+          "path": 0,
+          "pending_activation": false,
+          "ready_date": "2026-01-06",
+          "start_date": "2026-01-01"
+        },
+        "outcome_summary": {
+          "includes_all_paths": true,
+          "p90_calendar_days": 3.0,
+          "paths": 8,
+          "unresolved_paths": 0
+        },
+        "prop_qualification": {
+          "checks": [
+            {
+              "direction": "maximum",
+              "label": "Acquisition cost",
+              "limit": 1.5,
+              "lower": 1.0,
+              "metric": "cost_per_funded",
+              "point_ratio": 1.0,
+              "status": "PASS",
+              "upper": 1.0
+            },
+            {
+              "direction": "maximum",
+              "label": "Funding time",
+              "limit": 1.5,
+              "lower": 1.0,
+              "metric": "expected_calendar_days_to_funded",
+              "point_ratio": 1.0,
+              "status": "PASS",
+              "upper": 1.0
+            }
+          ],
+          "confidence": 0.95,
+          "evidence": [
+            {
+              "actual": 12,
+              "label": "Complete OOS calendar months",
+              "passed": true,
+              "required": 12
+            },
+            {
+              "actual": 1566,
+              "label": "Closed OOS source trades",
+              "passed": true,
+              "required": 100
+            },
+            {
+              "actual": "estimated",
+              "label": "Complete account estimates",
+              "passed": true,
+              "required": "estimated"
+            }
+          ],
+          "family_test_budget": 12,
+          "forward_execution": {
+            "minimum_closed_trades": 30,
+            "minimum_sessions": 20,
+            "status": "PENDING"
+          },
+          "historical_replicates": 10000,
+          "inner_precision_ok": true,
+          "interpretation": "GO supports forward review under the saved historical model. Insufficient evidence is not approval. The bounds do not imply a 95% probability of future success.",
+          "limitations": [
+            "Nominal block-bootstrap percentile bounds assume a representative, weakly dependent stationary history. They are not guaranteed future coverage.",
+            "The family budget covers at most four frozen Evaluation sizes \u00d7 two metrics plus four Funded sizes \u00d7 one metric. It does not repair earlier adaptive strategy search or already-accessed OOS.",
+            "Inner account paths retain the requested count and fixed random streams. Their numerical error is checked separately; MC precision is not additional market history.",
+            "GO qualifies the historical model for forward execution review, not provider certification, full replacement-account profitability or automatic live trading."
+          ],
+          "prerequisites": {
+            "passed": true,
+            "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+            "snapshot": {
+              "broad_trial": 1,
+              "dataset": {
+                "bytes": 909491,
+                "end": "2026-12-31T14:24:00Z",
+                "id": "700805d171cd4b49b7551d38979045ad",
+                "instrument_settings": {
+                  "point_value": "20",
+                  "tick_size": ".25"
+                },
+                "name": "SYNTHETIC frozen OOS",
+                "row_count": 18816,
+                "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                "source_timezone": "UTC",
+                "start": "2024-01-01T09:00:00Z",
+                "symbol": "NQ"
+              },
+              "frozen_identity": "4fcdbe2006626259e5f05c8c70aa8a2085ac04ea8f284f488d2f30d758d2bfce",
+              "monte_carlo_report_sha256": "1bb492737375d60e92366e791c7b2b98474f2fa896d48855f7806c81c94c5107",
+              "narrow_trial": 2,
+              "oos_report_id": "417b5999fa924abbb064063d5deb280b",
+              "parameters": {
+                "contracts": 1,
+                "green_bar_count": 3,
+                "hold_minutes": 16
+              },
+              "plan": {
+                "is_bars": 12552,
+                "is_end": "2025-12-31",
+                "is_start": "2024-01-01",
+                "oos_bars": 6264,
+                "oos_end": "2026-12-31",
+                "oos_start": "2026-01-01",
+                "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+                "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+                "source_timezone": "UTC",
+                "strategy_id": "consecutive_green_hold",
+                "version": 1
+              },
+              "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+              "selection": {
+                "candidate": 1,
+                "monte_carlo_id": "20260f2d-58cb-496c-9f82-274fb02a6d99",
+                "oos_job_id": "46d09b31-1ed6-4a83-a9c5-813b49059a68",
+                "workflow_id": "8a80ac50-dd1c-4905-bfc5-728219e63fa5"
+              },
+              "source_backtest_id": "16250e7e9821471da96c35d815cbeb8a",
+              "strategy_id": "consecutive_green_hold"
+            }
+          },
+          "retrospective": true,
+          "status": "GO",
+          "tail_probability": 0.002083333333333335
+        }
+      }
+    ],
+    "certified_frontier": false,
+    "frontier": [],
+    "marginal_acceleration_cost": [],
+    "model_version": "evaluation-optimization-profile-calendar-v3",
+    "paired_comparisons": [],
+    "phase": "evaluation",
+    "precision_interpretation": "Differences are A minus B, paired by saved path and start cohort. Normal approximate Bonferroni 95% intervals cover declared pairs and both objectives. Conditional simulation error only; no future/provider certification. Near ties mean a funding-time interval includes zero; costs can differ. Point-estimate Pareto membership is unchanged.",
+    "qualification_implementation": {
+      "files": {
+        "assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+        "oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+        "prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e"
+      },
+      "forward_implementation": "54c0f0b85f67cede23a5f027caa81b4f89a6efd71ef9028f034e7158e127938e",
+      "numpy": "2.5.4",
+      "version": "prop-oos-qualification-v1"
+    },
+    "qualification_policy": {
+      "declaration_timing": "retrospective",
+      "declared_at_utc": "2026-11-13T11:35:02.352390+00:00",
+      "implementation": {
+        "files": {
+          "assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+          "oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+          "prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e"
+        },
+        "forward_implementation": "54c0f0b85f67cede23a5f027caa81b4f89a6efd71ef9028f034e7158e127938e",
+        "numpy": "2.5.4",
+        "version": "prop-oos-qualification-v1"
+      },
+      "interpretation": "Fixed robustness policy; no required dollar declaration. Strategy OOS was already accessed. Economic limits remain optional historical assessments.",
+      "phase": "evaluation",
+      "policy_sha256": "27b2f9c9f2ec913e5a254c1e8e302a424eb5e8ed6529a039631987bdc1434721",
+      "rules": {
+        "confidence": 0.95,
+        "evaluation_cost_ratio_max": 1.5,
+        "evaluation_time_ratio_max": 1.5,
+        "forward_maximum_unexplained_discrepancies": 0,
+        "forward_minimum_closed_trades": 30,
+        "forward_minimum_sessions": 20,
+        "funded_receipts_ratio_min": 0.7,
+        "historical_replicates": 10000,
+        "history_seed": 13742,
+        "maximum_family_tests": 12,
+        "maximum_inner_relative_standard_error": 0.05,
+        "minimum_closed_trades": 100,
+        "minimum_complete_months": 12,
+        "minimum_outer_block_weekdays": 5,
+        "version": "prop-oos-qualification-v1"
+      },
+      "start_plan": {
+        "clock": "Chicago civil dates; exclusive horizon cutoff; inherited declared weekday/closure scenario, not a newly verified exchange calendar.",
+        "eligible_starts": 132,
+        "horizon_calendar_days": 180,
+        "period": {
+          "first_session": "2026-01-01",
+          "last_session": "2026-12-31"
+        },
+        "requested_starts": 5,
+        "selection": "Evenly spaced across all eligible weekday starts using coverage only; no P&L, ranking or cherry-picking.",
+        "starts": [
+          "2026-01-01",
+          "2026-02-17",
+          "2026-04-03",
+          "2026-05-19",
+          "2026-07-03"
+        ],
+        "status": "ready",
+        "version": "evenly-spaced-covered-starts-v1"
+      },
+      "version": "prop-oos-qualification-v1"
+    },
+    "qualification_rules": {
+      "confidence": 0.95,
+      "evaluation_cost_ratio_max": 1.5,
+      "evaluation_time_ratio_max": 1.5,
+      "forward_maximum_unexplained_discrepancies": 0,
+      "forward_minimum_closed_trades": 30,
+      "forward_minimum_sessions": 20,
+      "funded_receipts_ratio_min": 0.7,
+      "historical_replicates": 10000,
+      "history_seed": 13742,
+      "maximum_family_tests": 12,
+      "maximum_inner_relative_standard_error": 0.05,
+      "minimum_closed_trades": 100,
+      "minimum_complete_months": 12,
+      "minimum_outer_block_weekdays": 5,
+      "version": "prop-oos-qualification-v1"
+    },
+    "selection_status": "assessment_only_no_reselection",
+    "unresolved_candidates": [],
+    "winner": null
+  }
+}

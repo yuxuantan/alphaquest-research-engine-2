@@ -56,6 +56,7 @@ class AnalysisStore:
         self.path=self.root/'catalog.sqlite3';self.lock=RLock()
         self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='prop-analysis')
         self.runtime=Runtime()
+        self.phase_finished=lambda id:None
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
@@ -570,6 +571,7 @@ class AnalysisStore:
                     if runs.get(child_id) is None:
                         db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?',(id,child_id))
                         if assessment:db.execute('DELETE FROM campaign_sources WHERE campaign_id=? AND source_id=?',(assessment['campaign_id'],child_id))
+            self.phase_finished(id)
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.

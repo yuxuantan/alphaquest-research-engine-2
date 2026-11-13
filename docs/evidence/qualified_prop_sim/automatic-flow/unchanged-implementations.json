@@ -1,0 +1,44 @@
+{
+  "phase_reports": [
+    {
+      "profile": "apex-50k-eod",
+      "phase": "evaluation",
+      "numerical_source_files": 33,
+      "head_and_saved_identity_match": true,
+      "selection_identity_matches": true
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "funded",
+      "numerical_source_files": 33,
+      "head_and_saved_identity_match": true,
+      "selection_identity_matches": true
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "evaluation",
+      "numerical_source_files": 33,
+      "head_and_saved_identity_match": true,
+      "selection_identity_matches": true
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "funded",
+      "numerical_source_files": 33,
+      "head_and_saved_identity_match": true,
+      "selection_identity_matches": true
+    }
+  ],
+  "unchanged_qualification_business_and_forward": {
+    "alphaquest/prop/oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+    "alphaquest/prop/assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+    "alphaquest/prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e",
+    "alphaquest/forward_contracts.py": "fb34399a5b936c24b79ed8fdd9b1f2ec8fd9bb959acab88d5b34a931cf64eb25",
+    "alphaquest/forward_reconcile.py": "ee02565f83349c74090c47c11a8b28affc55497f37b2ac147212768207297855",
+    "alphaquest/forward_monitoring.py": "4baafb35a108de908ebbc956877d3c5e6c173615a526506d1a423bc01f7b4500",
+    "alphaquest/forward_policy.py": "d5ae91507d427247afa3fc6d8208a818edc79e004dec3559b1f8063ec36e1e37",
+    "alphaquest/forward_access.py": "461a837602fc5163af456a8c9bddd83d0fc9b897f557923cbd83ffacb4e7f4cf",
+    "alphaquest/forward_comparison.py": "e598ddd149175a59c810782a08becf8a104996c2ac00d2fa5abe6b1ab95aba0d",
+    "alphaquest/forward_conformance.py": "f921e5c091a6c583c30be0b62e0c826366b7af6d9608d39262a35e52f443e2ea"
+  }
+}

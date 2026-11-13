@@ -11534,3 +11534,59 @@ qualification, forward and business-review implementation hashes are unchanged.
 Independent saved-output verification, Python/JavaScript syntax and diff checks
 passed. No broad historical suite was run. Temporary servers stopped at teardown;
 user jobs/data/server/VM and earlier evidence remain unchanged.
+
+### 2026-11-13 — One Run for automatic sizing, IS and OOS
+
+Delivered through the existing qualified backtest → Prop Sim configuration →
+**Run IS and OOS** → durable Evaluation/Funded IS and OOS reports. Source checking
+is integrated into launch. No sizing checkbox, rationale, freeze confirmation,
+OOS button or dollar declaration is required after the initial Run. Old manual
+records retain their original workflow; their reports and freezes are unchanged.
+
+Automatic IS-only family selection reads the original sealed reports. Evaluation
+chooses cheapest, fastest and cheapest within 1.25× fastest time, at most three.
+Funded chooses peak mean receipts and the smallest size retaining at least 95%
+of peak receipts, at most two. Roles collapse on duplicates; exact ties prefer
+smaller MNQ. Unresolved/infeasible estimates are excluded without blocking valid
+resolved choices. No positive eligible Funded mean ends that branch explicitly;
+the independent Evaluation branch can still finish. Original IS frontier/ranking
+reports retain all tested sizes. Point-estimate tolerances are disclosed and are
+not statistical equivalence or guarantees about future breach risk.
+
+The existing parent metadata saves the policy/code identity, selected roles,
+original IS report hash and selection checksum before immutable freeze. Normal
+OOS options/downloads carry this snapshot. The existing AnalysisStore worker
+continues on phase completion without a resident page, new scheduler, engine,
+service or result store. Startup recovery preserves the exact frozen choices and
+replays interrupted work; genuine errors stop and unfavorable OOS is never
+reselected. Stop persists intent before cancellation, prevents follow-on work and
+preserves shared IS jobs for another consumer. Qualification and forward owners,
+all 33 phase numerical hashes, legacy calculations and prior evidence are unchanged.
+
+[Screenshots, sealed IS/OOS downloads, independent arithmetic and exact
+reproduction](evidence/qualified_prop_sim/automatic-flow/README.md).
+Both actual Chromium journeys enter from the qualified backtest report, test
+9–10 MNQ for Apex/LucidFlex, click only Run, navigate to Dataset while working,
+then return to both OOS results. On this explicitly synthetic constant-history
+example the tested sizes tie, so 9 MNQ must receive all 3/2 roles. Independently
+expected Evaluation acquisition is $178/2 days for Apex and $80.50/3 days for
+LucidFlex; Funded receipts are $13,000/$9,000. All historical OOS ratios and
+bounds are exactly 1.00 across 10,000 replicates and all eight requested paths.
+Forward stays PENDING; no paper evidence or live authorization is invented.
+The portal shows automatic status/roles, read-only sizes, current OOS results,
+progress, cancellation and normal downloads. Reload/mobile layout retain results.
+
+Validation: 18 distinct focused checks cover selection boundaries, ties,
+phase independence, unresolved/zero-receipt cases, manual-override rejection,
+full real API execution, interruption after freeze/launch reservation, owned and
+shared-job cancellation, canonical assessment reuse, the existing independent
+phase regression and three actual browser journeys (two automatic and one manual
+compatibility). The earlier independent-phase regression initially hit its
+20-second synthetic-fixture wait while other work competed for CPU; an isolated
+rerun passed. The final sequential run passed 17 checks, then the last manual
+compatibility browser fixture exhausted temporary disk space while copying its
+library. Only that run's temporary libraries were removed, and the affected
+browser check was rerun separately. Independent saved-output
+arithmetic/hash verification, Python/JavaScript syntax and diff checks pass.
+No full historical suite is claimed. Temporary servers stop at teardown; no
+persistent server was started and the user server, jobs, data and VM are preserved.

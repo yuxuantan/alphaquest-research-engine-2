@@ -682,6 +682,8 @@ class CampaignStore:
                     raise ResearchConflict('Assessment request ID already belongs to another declaration.')
                 return attempt
             attempt=dict(attempt,kind=kind,paths=paths,report_options=report_options)
+            if report_options and report_options.get('automatic_selection'):
+                attempt['interpretation']='Automatic assessment of the IS-selected frozen sizing family; no OOS reselection. Prior strategy OOS access remains recorded.'
             self.save_assessment(attempt)
             try:
                 if kind in ('oos','account_starts','qualification','forward_review'):return self.finish_assessment(id,attempt,oos_sources)
