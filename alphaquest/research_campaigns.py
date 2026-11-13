@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .prop.adapter import canonical, source_record
-from .prop.phase_dispatch import module_for
+from .prop.phase_dispatch import implementations_compatible, module_for
 from .prop.phase_search import CANDIDATE_CONFIRMATION_THRESHOLD, require_candidate_confirmation
 from .research import ResearchConflict
 
@@ -471,7 +471,7 @@ class CampaignStore:
             before = row['manifest']['source_checks']
             if [r['candidate_id'] for r in checks] != [r['candidate_id'] for r in before]:
                 raise ResearchConflict('Saved source identity changed; create a new campaign.')
-            if module.implementation_identity() != row['manifest']['numerical_implementation']:
+            if not implementations_compatible(row['manifest']['numerical_implementation'], module.implementation_identity()):
                 raise ResearchConflict('Numerical implementation changed; create a new campaign.')
             return dict(status='compatible', candidate_search_count=len(checks), candidates=checks)
 
@@ -605,7 +605,7 @@ class CampaignStore:
                 raise ResearchConflict('Freeze IS candidates before manually launching OOS.')
             report = self.report(id)
             module = module_for(campaign['manifest']['phase'])
-            if module.implementation_identity() != report['implementation']:
+            if not implementations_compatible(report['implementation'], module.implementation_identity()):
                 raise ResearchConflict('Frozen numerical implementation changed; preserve this package and create a new campaign.')
             access = self.validate(id)
             parents = sorted({r['manifest']['configuration']['source']['source_backtest_id']
@@ -631,7 +631,7 @@ class CampaignStore:
             package = campaign['frozen']
             report = self.report(id)
             module = module_for(campaign['manifest']['phase'])
-            if module.implementation_identity() != report['implementation']:
+            if not implementations_compatible(report['implementation'], module.implementation_identity()):
                 raise ResearchConflict('Frozen numerical implementation changed during OOS launch.')
             raw = deepcopy(report['request'])
             selected, mappings = [], []
@@ -645,14 +645,14 @@ class CampaignStore:
                 if config['source']['trade_file']:
                     raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
                 config['source']['source_backtest_id'] = source_id
-                plan = manifest['source']['backtest']['run_metadata']['research']['plan']
                 if raw.get('native_execution') is not None:
                     from .prop.phase_lifecycle import instant,session_date
                     observed=source_record(self.runs,source_id)
                     config['period']=dict(first_session=str(session_date(instant(observed['period_start_utc']))),
                         last_session=str(session_date(instant(observed['period_end_utc']))))
                 else:
-                    config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
+                    from .prop.phase_search import saved_oos_period
+                    config['period'] = saved_oos_period(source_record(self.runs, source_id))
                 selected.append(config)
                 mappings.append(dict(source_id=source_id, frozen_candidate_id=row['candidate_id'], frozen_manifest=manifest,
                     name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))

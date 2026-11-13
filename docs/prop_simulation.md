@@ -2349,3 +2349,28 @@ package; OOS applies only its chosen family without reselection. Existing
 compatible reports can freeze directly, with no backtest or sizing rerun.
 
 [Native boundary outputs, actual saved-run inspection and reproduction](evidence/qualified_prop_sim/resolved-selection-freeze/README.md).
+
+### Frozen OOS session-audit identity correction — 2026-11-13
+
+Saved-source OOS admission compares the strategy code, parameters, static
+session-flattening rules and calendar snapshot. Six per-period audit fields may
+differ: session/closed-session/early-close counts, examples, early-close examples
+and the generated session-plan hash. Unknown fields and changed static rules
+still reject. Full original audit metadata remains in each source/report;
+comparison uses copies and never rewrites the frozen package.
+
+The saved-source assessment window is the intersection of the unchanged OOS
+split and the report's actual CME-session coverage. An absent first date (for
+example a holiday) does not require nonexistent bars. The original split stays
+in the frozen/source manifests, the effective window stays in the assessment
+request, and an empty intersection rejects. Candidate sizes, parameters,
+profile, costs, sampling and seeds remain frozen; no OOS reselection is added.
+
+`phase_dispatch.implementations_compatible` permits only the exact reviewed
+old/new `phase_search.py` source revisions for this admission correction, with
+every other source, kernel and environment identity equal. New reports retain
+the actual current source hash; old reports and package hashes are unchanged.
+This is not a generic legacy-code override. Unknown admission revisions and
+any calculation-code changes still fail closed.
+
+[Saved evidence and exact reproduction](evidence/qualified_prop_sim/oos-session-audit/README.md).

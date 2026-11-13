@@ -354,8 +354,8 @@ async def validation(id:UUID,phase:str,request:Request):
     def read():
         _,cid=phase_campaign(request,id.hex,phase);store=request.app.state.campaigns;campaign=store.get(cid)
         frozen=campaign['frozen']
-        from .prop.phase_dispatch import module_for
-        compatible=module_for(phase).implementation_identity()==campaign['manifest']['numerical_implementation']
+        from .prop.phase_dispatch import implementations_compatible, module_for
+        compatible=implementations_compatible(campaign['manifest']['numerical_implementation'],module_for(phase).implementation_identity())
         return dict(campaign_id=cid,numerical_implementation_compatible=compatible,frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
             assessments=store.assessments(cid),disclosure='Strategy qualification already accessed OOS. Frozen-size assessment is additional research, not an untouched holdout. No OOS reselection.')
     return await invoke(read)

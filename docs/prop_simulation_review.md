@@ -11271,3 +11271,40 @@ boundaries, and the qualified two-phase product browser journey). Both changed
 JavaScript files passed syntax checks; `git diff --check` passed. All 33 source
 hashes for each numerical phase remain unchanged. The actual saved-run browser
 inspection recorded zero write requests. No full historical suite was run.
+
+### 2026-11-13 — Admit frozen OOS with period-specific session audit output
+
+A full strategy-dictionary equality check rejected valid VWAP OOS reports because
+session counts, example dates and session-plan hashes differ between periods.
+The saved-source guard now excludes only the six known audit fields while
+preserving every static strategy/calendar rule. Dataset, IS parent, declared
+split and execution costs remain enforced. Full IS/OOS audit dictionaries and
+frozen packages remain unchanged.
+
+Read-only admission against actual simulation
+`2d19909ce7b3404ca73adb534d6a8d2a` then exposed a second boundary: its declared OOS
+start is 2025-01-01, before the first saved session on 2025-01-02. Assessment
+requests now use actual saved coverage within the unchanged declared split,
+through 2026-07-07. No missing dates are fabricated. The read-only check admits
+all four Evaluation and all four Funded frozen sizes and verifies all original
+IS source identities, without launching or mutating the user's simulation.
+
+The admission source hash advances and is retained honestly in new reports.
+A directed, exact old/new admission-revision compatibility check accepts this
+correction only when all other numerical/kernel/environment identities match.
+It preserves existing report/package bytes and does not bypass changed numerical
+code. The old revision is `5fae2e87…76e0a`; the reviewed correction is
+`a078590d…3a051`. Unknown revisions reject.
+
+[Saved normal-product reports, read-only verification and reproduction](evidence/qualified_prop_sim/oos-session-audit/README.md).
+
+Validation: eight focused cases passed: five audit/coverage/compatibility cases
+(including actual VWAP Evaluation and Funded OOS calculations), two existing
+manual frozen-history cases and the complete qualified Prop Sim browser journey.
+Both changed admission paths preserve IS/package bytes, and genuine parent,
+strategy, dataset, costs, split or calendar-rule mismatches reject. Python syntax
+and `git diff --check` passed. Of 33 phase source fingerprints, only the reviewed
+admission file changed; the other 32 sources and all numerical kernels remain
+unchanged. Saved reports retain current fingerprints plus their original frozen
+packages. No full historical suite was run. Temporary servers stopped at teardown;
+no persistent server was started and no user assessment was submitted.

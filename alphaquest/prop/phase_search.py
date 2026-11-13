@@ -23,6 +23,28 @@ def declared_is_coverage(record):
 CANDIDATE_CONFIRMATION_THRESHOLD = 128
 
 
+def strategy_definition(strategy):
+    """Retain strategy/calendar rules, excluding only per-period audit output."""
+    definition = deepcopy(strategy)
+    flattening = definition.get('session_flattening')
+    if isinstance(flattening, dict):
+        for key in ('sessions', 'closed_sessions', 'early_close_sessions',
+                    'examples', 'early_close_examples', 'plans_sha256'):
+            flattening.pop(key, None)
+    return definition
+
+
+def saved_oos_period(record):
+    """Use saved CME-session coverage within the unchanged declared OOS split."""
+    from .phase_lifecycle import instant, session_date
+    plan = record['run_metadata']['research']['plan']
+    first = max(plan['oos_start'], str(session_date(instant(record['period_start_utc']))))
+    last = min(plan['oos_end'], str(session_date(instant(record['period_end_utc']))))
+    if first > last:
+        raise ValueError('OOS source has no saved coverage within its frozen split.')
+    return dict(first_session=first, last_session=last)
+
+
 def stable_phase_policy_identity(row, phase):
     """Tie preference independent of run IDs and opposite-phase declarations."""
     if phase not in ('evaluation', 'funded'):
@@ -245,7 +267,7 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
                     if assessment.get('paths') is not None:
                         expected['simulation']['simulations']=assessment['paths']
                         if 'chain_simulations' in expected['sampling']:expected['sampling']['chain_simulations']=assessment['paths']
-                else:expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+                else:expected['period'] = saved_oos_period(record)
                 if canonical(asdict(candidate)) == canonical(expected):
                     selected = mapping
                     break
@@ -256,7 +278,7 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
             if diagnostic and canonical(record)!=canonical(saved):
                 raise ValueError('Frozen IS diagnostic source changed.')
             if not diagnostic and (research.get('phase') != 'oos' or research.get('parent_run_id') != saved['id']
-                    or metadata['strategy'] != saved['run_metadata']['strategy']
+                    or strategy_definition(metadata['strategy']) != strategy_definition(saved['run_metadata']['strategy'])
                     or metadata['dataset'] != saved['run_metadata']['dataset']
                     or record['execution_settings'] != saved['execution_settings']
                     or research['plan'] != saved['run_metadata']['research']['plan']):
@@ -267,7 +289,7 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
                 if assessment.get('paths') is not None:
                     expected['simulation']['simulations']=assessment['paths']
                     if 'chain_simulations' in expected['sampling']:expected['sampling']['chain_simulations']=assessment['paths']
-            else:expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+            else:expected['period'] = saved_oos_period(record)
             if canonical(asdict(candidate)) != canonical(expected):
                 raise ValueError('Assessment parameters, size, profile, costs, sampling and window are frozen.')
         elif training_context is None:
