@@ -1,0 +1,192 @@
+{
+  "analysis_id": "cc9c235aa85c402baaad3aa99b0f95b0",
+  "campaign_id": "d71230dcdf115833954ffe150f287a44",
+  "created_at_utc": "2026-11-13T08:43:17.816147+00:00",
+  "interpretation": "Manual OOS assessment of the predeclared frozen family. No reranking or reselection. Prior access is retained; no untouched-OOS claim.",
+  "kind": "forward_review",
+  "native_chronological": false,
+  "oos_sources": {
+    "46bc2f6b1eba47eaa12d5bbcf046c837": "b63977054c7c4c03a8dcc78d1d2781fe"
+  },
+  "package_sha256": "55e8c978e7f768cebdb42581abcdf4085d7939ad29adbf3cff6015ea46de8434",
+  "parent_source_ids": [
+    "46bc2f6b1eba47eaa12d5bbcf046c837"
+  ],
+  "paths": null,
+  "prior_access": [
+    {
+      "candidate_id": "7ae1b6b718c0952d1e2673f9542223ac9c74b56796a659b6001b04a6d15b6849",
+      "prior_access": {
+        "attempts": [
+          {
+            "created_at": "2026-11-13T08:42:25.253574+00:00",
+            "id": "e82277f9-b20b-4838-81f9-508df89b99b6",
+            "parent_run_id": "46bc2f6b1eba47eaa12d5bbcf046c837",
+            "run_id": "b63977054c7c4c03a8dcc78d1d2781fe",
+            "status": "complete"
+          },
+          {
+            "created_at": "2026-11-13T08:42:25.254161+00:00",
+            "id": "cc0fcae4-a2f0-4428-b292-79dfad46a5c0",
+            "parent_run_id": "782d59514a644882b92e1232a4d667b1",
+            "run_id": "d6b290e2834446498fceb6b84e6bc48f",
+            "status": "complete"
+          },
+          {
+            "created_at": "2026-11-13T08:42:25.254279+00:00",
+            "id": "5391b398-5ecb-412f-8365-17a2703b37c0",
+            "parent_run_id": "01eaf8a709a744718d4be1e87c9143c5",
+            "run_id": "bb3b92a701ef44ed882dec4097bfb2ed",
+            "status": "complete"
+          },
+          {
+            "created_at": "2026-11-13T08:42:25.254375+00:00",
+            "id": "c40e7259-5cd8-44b0-9bc0-4f7b413aeb5b",
+            "parent_run_id": "937558fd736e40aaa68d0e76dca586e3",
+            "run_id": "bc15910f27c5449992e9e453de434c7b",
+            "status": "complete"
+          }
+        ],
+        "interpretation": "Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.",
+        "status": "recorded"
+      }
+    }
+  ],
+  "report_options": {
+    "base_report": {
+      "analysis_id": "e7f5ad2f642e4350a0698f4c923deea6",
+      "sha256": "d153efc15b1e2f42cc4b4bee0d3ec5cfbc0b6c6fcdf5c577203eb559962c5241"
+    },
+    "forward_capture": {
+      "analysis_id": "802f895eb3c34ea69b994c11f6bcf7e8",
+      "notes": "SYNTHETIC arithmetic review only; insufficient real forward evidence",
+      "reviewed_episode_ids": [
+        "b3fa7660025f4ff720d6a8dd7f6f4407cef57c9ba8f44c7ca8ae75442252ec3a"
+      ],
+      "sha256": "9d9be41a58f03e70251102e5661b7b4cb502d312a42297d8a96acbe6ce5f44cc"
+    },
+    "implementation": {
+      "files": {
+        "assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+        "oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+        "prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e"
+      },
+      "forward_implementation": "54c0f0b85f67cede23a5f027caa81b4f89a6efd71ef9028f034e7158e127938e",
+      "numpy": "2.5.4",
+      "version": "prop-oos-qualification-v1"
+    },
+    "kind": "forward_review",
+    "policy": {
+      "declaration_timing": "retrospective",
+      "declared_at_utc": "2026-11-13T08:43:07.412623+00:00",
+      "implementation": {
+        "files": {
+          "assessment_review.py": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4",
+          "oos_qualification.py": "6d2aca8f257e8feb3df572a78b7cb04788e1862dc1fd65a482c4efd9afbc70c1",
+          "prop_sim_forward.py": "bea5da9153705c7683383486354659b2e88df6c4efa751ec93ecb2f57007a83e"
+        },
+        "forward_implementation": "54c0f0b85f67cede23a5f027caa81b4f89a6efd71ef9028f034e7158e127938e",
+        "numpy": "2.5.4",
+        "version": "prop-oos-qualification-v1"
+      },
+      "interpretation": "Fixed robustness policy; no required dollar declaration. Strategy OOS was already accessed. Economic limits remain optional historical assessments.",
+      "phase": "funded",
+      "policy_sha256": "7988b34367f6539dc0d6fd144e0acf46929c93b8915b08c2fac18740c1622675",
+      "rules": {
+        "confidence": 0.95,
+        "evaluation_cost_ratio_max": 1.5,
+        "evaluation_time_ratio_max": 1.5,
+        "forward_maximum_unexplained_discrepancies": 0,
+        "forward_minimum_closed_trades": 30,
+        "forward_minimum_sessions": 20,
+        "funded_receipts_ratio_min": 0.7,
+        "historical_replicates": 10000,
+        "history_seed": 13742,
+        "maximum_family_tests": 12,
+        "maximum_inner_relative_standard_error": 0.05,
+        "minimum_closed_trades": 100,
+        "minimum_complete_months": 12,
+        "minimum_outer_block_weekdays": 5,
+        "version": "prop-oos-qualification-v1"
+      },
+      "start_plan": {
+        "clock": "Chicago civil dates; exclusive horizon cutoff; inherited declared weekday/closure scenario, not a newly verified exchange calendar.",
+        "eligible_starts": 197,
+        "horizon_calendar_days": 90,
+        "period": {
+          "first_session": "2026-01-01",
+          "last_session": "2026-12-31"
+        },
+        "requested_starts": 5,
+        "selection": "Evenly spaced across all eligible weekday starts using coverage only; no P&L, ranking or cherry-picking.",
+        "starts": [
+          "2026-01-01",
+          "2026-03-11",
+          "2026-05-19",
+          "2026-07-27",
+          "2026-10-02"
+        ],
+        "status": "ready",
+        "version": "evenly-spaced-covered-starts-v1"
+      },
+      "version": "prop-oos-qualification-v1"
+    },
+    "prerequisites": {
+      "passed": true,
+      "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+      "snapshot": {
+        "broad_trial": 1,
+        "dataset": {
+          "bytes": 909491,
+          "end": "2026-12-31T14:24:00Z",
+          "id": "fad961f7549a46d99bba016863651429",
+          "instrument_settings": {
+            "point_value": "20",
+            "tick_size": ".25"
+          },
+          "name": "SYNTHETIC frozen OOS",
+          "row_count": 18816,
+          "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+          "source_timezone": "UTC",
+          "start": "2024-01-01T09:00:00Z",
+          "symbol": "NQ"
+        },
+        "frozen_identity": "bc44b3561aadc0b995b9ad54cb9293b921b30a18dd94764936214112bd382560",
+        "monte_carlo_report_sha256": "960f2423c540adec31c0641f4af21daa0c2492d3f65bc604ed67c4d57ab54c9e",
+        "narrow_trial": 2,
+        "oos_report_id": "b63977054c7c4c03a8dcc78d1d2781fe",
+        "parameters": {
+          "contracts": 1,
+          "green_bar_count": 3,
+          "hold_minutes": 16
+        },
+        "plan": {
+          "is_bars": 12552,
+          "is_end": "2025-12-31",
+          "is_start": "2024-01-01",
+          "oos_bars": 6264,
+          "oos_end": "2026-12-31",
+          "oos_start": "2026-01-01",
+          "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+          "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+          "source_timezone": "UTC",
+          "strategy_id": "consecutive_green_hold",
+          "version": 1
+        },
+        "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+        "selection": {
+          "candidate": 1,
+          "monte_carlo_id": "9f58a5bb-3124-4e96-9016-2ad1a24ea39d",
+          "oos_job_id": "aa8faaa3-ecf4-4426-b0c1-312d11a9f849",
+          "workflow_id": "89833c6d-881d-43c0-b69c-4dcf42449f26"
+        },
+        "source_backtest_id": "46bc2f6b1eba47eaa12d5bbcf046c837",
+        "strategy_id": "consecutive_green_hold"
+      }
+    },
+    "qualification": true,
+    "simulation_id": "9a120211b9d74f1d9caf99d950f40435"
+  },
+  "request_id": "249cc8528c5045968fed76f012289d54",
+  "status": "queued"
+}

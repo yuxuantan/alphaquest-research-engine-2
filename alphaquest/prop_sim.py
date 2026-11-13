@@ -340,7 +340,7 @@ async def stop(id:UUID,request:Request):
 class FrozenAssessment(BaseModel):
     model_config=ConfigDict(extra='forbid')
     request_id: UUID
-    kind: Literal['oos','is_robustness','precision','account_starts']
+    kind: Literal['oos','is_robustness','precision','account_starts','qualification','forward_review']
     paths: StrictInt | None = Field(default=None,ge=8,le=20000)
 
 
@@ -363,8 +363,9 @@ async def validation(id:UUID,phase:str,request:Request):
         from .prop.phase_dispatch import implementations_compatible, module_for
         compatible=implementations_compatible(campaign['manifest']['numerical_implementation'],module_for(phase).implementation_identity())
         from .prop.assessment_review import implementation
+        from .prop.oos_qualification import RULES
         policy=saved.get('assessment_policies',{}).get(phase)
-        return dict(campaign_id=cid,numerical_implementation_compatible=compatible,assessment_policy=policy,
+        return dict(campaign_id=cid,numerical_implementation_compatible=compatible,assessment_policy=policy,qualification_rules=RULES,
             assessment_policy_history=saved.get('assessment_policy_history',{}).get(phase,[policy] if policy else []),
             review_implementation_compatible=policy is None or policy['implementation']==implementation(),
             frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
@@ -443,7 +444,8 @@ async def freeze_choices(id:UUID,phase:str,body:FreezeRequest,request:Request):
 async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request):
     def assess():
         saved,cid=phase_campaign(request,id.hex,phase)
-        if body.kind in ('oos','account_starts') and body.paths is not None:raise ValueError('OOS uses the frozen path count; account starts are deterministic. Do not override paths.')
+        if body.kind in ('oos','account_starts','qualification','forward_review') and body.paths is not None:raise ValueError('OOS uses the frozen path count; account starts are deterministic. Do not override paths.')
+        if body.kind=='forward_review':raise ValueError('Use the forward review form with its captured observation assessment.')
         if body.kind in ('is_robustness','precision') and body.paths is None:raise ValueError('Declare diagnostic paths explicitly.')
         store=request.app.state.campaigns
         attempts=store.assessments(cid)
@@ -454,7 +456,27 @@ async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request
             store.begin_assessment(cid,body.request_id.hex)  # Verify sealed evidence on idempotent reopen too.
             return previous
         options=None
-        if body.kind in ('oos','account_starts'):
+        robustness=next((a for a in reversed(attempts) if a.get('kind')=='qualification' and a['status']=='complete'),None)
+        if body.kind=='qualification' or body.kind=='account_starts' and robustness:
+            from .prop.oos_qualification import policy as robustness_policy,implementation
+            from .prop.phase_search import saved_oos_period
+            from .prop.adapter import source_record
+            qualification=qualified(request,Selection.model_validate(saved['configuration']['selections'][0]))
+            selected=store.get(cid)['frozen']
+            if not selected:raise ValueError('Freeze the IS size choices before OOS qualification.')
+            if len(selected['candidate_ids'])>4:raise ValueError('Qualification covers at most four frozen sizes per phase.')
+            source=source_record(request.app.state.runs,saved['qualification']['oos_report_id'])
+            policy=robustness_policy(phase,saved_oos_period(source),saved['configuration']['funded_horizon_calendar_days'],closures=saved['configuration']['closures'])
+            options=dict(qualification=True,simulation_id=id.hex,policy=policy,implementation=implementation(),kind=body.kind,
+                prerequisites=dict(passed=True,qualification=qualification['qualification'],snapshot=qualification))
+            if body.kind=='account_starts' and (robustness.get('report_options') or {}).get('implementation')!=implementation():
+                raise ValueError('Run the current OOS qualification before account-start sensitivity.')
+            base=robustness or next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None)
+            if base:
+                fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
+                if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
+                options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
+        elif body.kind in ('oos','account_starts') and saved.get('assessment_policies',{}).get(phase):
             from .prop.assessment_review import implementation
             policy=saved.get('assessment_policies',{}).get(phase)
             if policy is None:raise ValueError('Save explicit OOS assessment limits before running OOS.')
@@ -468,9 +490,80 @@ async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request
                 fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
                 if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
                 options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
+        elif body.kind=='account_starts':
+            raise ValueError('Complete OOS qualification before account-start sensitivity.')
         sources={saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']}
         return store.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources,report_options=options)
     return await invoke(assess)
+
+
+class ForwardReview(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    request_id: UUID
+    analysis_id: UUID
+    reviewed_episode_ids: list[StrictStr] = Field(max_length=100000)
+    notes: StrictStr = Field(min_length=1,max_length=4000)
+
+
+@router.get('/{id}/validation/{phase}/forward')
+async def forward_launcher(id:UUID,phase:str,request:Request):
+    def read():
+        phase_campaign(request,id.hex,phase)
+        from .prop_sim_forward import launcher
+        return launcher(request.app.state.prop_analyses,id.hex,phase)
+    return await invoke(read)
+
+
+def forward_preview(request,id,phase,analysis_id):
+    from .prop_sim_forward import current_report,verified_observation,execution_check
+    from .prop.adapter import canonical
+    from hashlib import sha256
+    analyses=request.app.state.prop_analyses
+    _,cid=phase_campaign(request,id,phase)
+    qualification=current_report(analyses,id,phase,cid)
+    fingerprint=analyses.fingerprint(analysis_id)
+    if not fingerprint:raise ValueError('Complete a saved forward observation assessment first.')
+    capture=dict(analysis_id=analysis_id,sha256=fingerprint['files']['report.json'])
+    report,_=verified_observation(capture,id,phase,qualification['id'],analyses)
+    episodes=[dict(id=sha256(canonical(e).encode()).hexdigest(),trade=e) for e in report['calculations']['metrics']['episodes']]
+    return dict(capture=capture,qualification_analysis_id=qualification['id'],episodes=episodes,
+        preview=execution_check(report,[],'')),qualification
+
+
+@router.get('/{id}/validation/{phase}/forward-review/{analysis_id}')
+async def preview_forward_review(id:UUID,phase:str,analysis_id:UUID,request:Request):
+    return await invoke(lambda:forward_preview(request,id.hex,phase,analysis_id.hex)[0])
+
+
+@router.post('/{id}/validation/{phase}/forward-review',status_code=202)
+async def save_forward_review(id:UUID,phase:str,body:ForwardReview,request:Request):
+    def save():
+        if not body.notes.strip():raise ValueError('Record the manual signal and execution parity review.')
+        analyses=request.app.state.prop_analyses;store=request.app.state.campaigns
+        with analyses.lock:
+            saved,cid=phase_campaign(request,id.hex,phase)
+            previous=next((a for a in store.assessments(cid) if a['request_id']==body.request_id.hex),None)
+            if previous:
+                capture=(previous.get('report_options') or {}).get('forward_capture',{})
+                if (previous.get('kind')!='forward_review' or capture.get('analysis_id')!=body.analysis_id.hex
+                        or capture.get('reviewed_episode_ids')!=body.reviewed_episode_ids or capture.get('notes')!=body.notes):
+                    raise ValueError('Request ID already belongs to another forward review.')
+                store.begin_assessment(cid,body.request_id.hex)
+                return previous
+            preview,qualification=forward_preview(request,id.hex,phase,body.analysis_id.hex)
+            valid={e['id'] for e in preview['episodes']}
+            if len(set(body.reviewed_episode_ids))!=len(body.reviewed_episode_ids) or not set(body.reviewed_episode_ids)<=valid:
+                raise ValueError('Trade review must reference unique closed episodes from the saved observation.')
+            options=dict(qualification['assessment']['prop_sim_review'])
+            options.update(kind='forward_review',base_report=dict(analysis_id=qualification['id'],
+                sha256=analyses.fingerprint(qualification['id'])['files']['report.json']),
+                forward_capture=dict(preview['capture'],reviewed_episode_ids=body.reviewed_episode_ids,notes=body.notes))
+            qualified(request,Selection.model_validate(saved['configuration']['selections'][0]))
+            with analyses.connect() as db:
+                db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)',(cid,body.analysis_id.hex))
+            return store.assess_saved(cid,body.request_id.hex,'forward_review',None,
+                {saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']},report_options=options)
+    return await invoke(save)
 
 
 @router.get('/{id}/validation/{phase}/{attempt_id}')
@@ -484,7 +577,8 @@ async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,su
         report=json.loads((analyses.root/aid/'report.json').read_text())
         if summary:
             calculations=dict(report['calculations'])
-            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment')
+            calculations.pop('qualification_bootstrap',None)
+            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification')
             calculations['candidates']=[{k:r[k] for k in fields if k in r} for r in calculations['candidates']]
             return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)
         return report
@@ -512,7 +606,8 @@ def deletion_preview(request,id,db):
             if not record:raise ValueError('Report catalogue entry is unavailable; existing evidence is kept.')
             remove.append(aid)
         except ValueError as exc:retain.append(dict(id=aid,reason=str(exc)))
-    result=dict(id=id,deleted=False,deletable=not active,active_analyses=active,
+    monitors=[r[0] for r in db.execute("SELECT id FROM forward_monitors WHERE json_extract(declaration,'$.policy_binding.application_id')=?",(id,))]
+    result=dict(id=id,deleted=False,deletable=not active and not monitors,active_analyses=active,dependent_forward_monitors=monitors,
         campaign_ids_to_delete=released,retained_campaigns=retained_campaigns,
         analysis_ids_to_delete=remove,retained_analyses=retain,
         source_backtest_id=saved['qualification']['source_backtest_id'],profile_id=saved['configuration'].get('profile_id',PROFILE),
@@ -538,7 +633,7 @@ def remove_simulation(request,id,body):
                 if body.confirmation_sha256!=preview['confirmation_sha256']:
                     raise ValueError('Simulation dependencies changed. Review the deletion again.')
                 if not preview.get('deleted'):
-                    if not preview['deletable']:raise ValueError('This simulation has queued or running jobs. Stop them or wait before deleting.')
+                    if not preview['deletable']:raise ValueError('This simulation has active jobs or bound forward monitors. Preserve their frozen policy and evidence.')
                     snapshot=json.loads(db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()[0])
                     db.execute('DELETE FROM workflow_prop_sim_phases WHERE simulation_id=?',(id,))
                     for cid in preview['campaign_ids_to_delete']:

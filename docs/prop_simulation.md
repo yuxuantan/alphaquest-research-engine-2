@@ -2517,3 +2517,95 @@ packages remain unchanged; unknown numerical revisions still reject. Saved
 simulations remain readable and compatible for freeze/OOS/review workflows.
 
 [Full product demonstration and reproduction](evidence/qualified_prop_sim/uncapped-path-count/README.md).
+
+### Frozen-size historical qualification and forward execution review — 2026-11-13
+
+Implemented for the qualified saved-source Prop Sim workflow. This supersedes
+mandatory dollar-limit declarations as the default OOS gate. The earlier
+versioned business-limit assessments remain available under **Additional
+diagnostics → Optional business limits and historical policies**. Their saved
+reports, calculations and declarations are unchanged.
+
+After choosing up to four IS sizes independently per phase, freeze them and use
+**Run OOS qualification**. A new immutable assessment applies these fixed rules:
+
+| Requirement | Evaluation | Funded |
+| --- | --- | --- |
+| Prior strategy qualification | Mechanics, Broad, Narrow, strategy OOS and final MC must still pass | Same |
+| OOS evidence | At least 12 complete calendar months and 100 closed source trades | Same, plus coverage of the full frozen cash horizon |
+| Deterioration margins | Mean acquisition cost OOS / IS ≤ 1.50; mean calendar time to funding OOS / IS ≤ 1.50 | Mean trader receipts OOS / IS ≥ 0.70 at the same horizon; zero receipts included |
+| Historical uncertainty | Each ratio's upper bound must fit its margin | Ratio's lower bound must fit its margin |
+| Numerical precision | Relative inner MC standard error ≤ 5% in every resampled calculation | Same |
+
+The historical procedure independently circular-block-resamples the **source
+weekday daybooks** in IS and OOS, preserving each history's length, with block
+length `max(5, saved block length)` and 10,000 saved replicates. Each resample
+reruns the existing local phase account owner with the frozen whole-MNQ size,
+rules, fees, calendar, horizon and complete requested account-path count. It does
+not bootstrap previously simulated MC paths, rerank sizes, select another source,
+or substitute a shorter horizon. Only numerically identical *entire resampled
+daybooks* share a memoized owner calculation; requested paths are never clipped.
+The saved random streams and replicate index checksums make it reproducible.
+
+Nominal simultaneous 95% two-sided percentile intervals use tail probability
+`0.05 / (2 × 12)`. The conservative family budget of twelve covers four Evaluation
+sizes × two metrics plus four Funded sizes × one metric without coupling phase
+selection. GO requires every interval wholly within its allowed margin. An
+interval wholly on the adverse side gives NO_GO. A crossing interval, missing or
+undefined ratio, inadequate evidence, model censoring or inadequate MC precision
+gives INSUFFICIENT_EVIDENCE, which does not authorize progression. Undefined
+replicates are retained rather than discarded. These bootstrap bounds depend on
+the block/stationarity assumptions; they are not finite-sample coverage promises,
+independent new market history, correction for the whole earlier strategy search,
+or a probability of future trading success. These degradation margins are a
+chosen local research policy, not an industry standard.
+
+A historical GO permits **Paper execution and parity review**, using the existing
+supplied-event forward monitor, its event schema, source checks, append-only
+records, reconciliation, frozen-sizing conformance and sealed reports. The
+server derives its policy from a GO member of this Prop Sim frozen family;
+caller-authored policy packages and another phase's observations reject. A
+separate execution verdict requires at least twenty distinct CME sessions with
+recorded trading, thirty closed flat-to-flat trades, zero unacknowledged execution
+issues, matching frozen sizing, prospective supplied-paper clocks, a checkbox
+review of every closed trade for signal/execution parity and a nonblank review
+note. Counting trading sessions is conservative: isolated heartbeats do not
+prove a full zero-trade session. Historical imports and synthetic harness records
+cannot pass as prospective paper execution. Signal-generation correctness is a
+manual review assertion; no broker/platform connection is certified. A paper GO
+supports consideration of a limited pilot, not automatic order placement or
+future-profit certification.
+
+The user chooses an existing completed monitor assessment in the Prop Sim panel,
+loads its closed trades, reviews them and saves a new **Forward execution review**.
+Reports and inputs are verified server-side; new/unassessed events, a paused or
+retired monitor, another package or changed artifacts reject. The original
+qualification and forward reports remain immutable and referenced through the
+existing campaign/forward tables. A simulation bound to a forward monitor cannot
+be deleted out from under its policy. No new database, order engine, demo surface
+or duplicate result store is added. No pretend future paper trades are generated.
+
+Normal API assessment POSTs now accept `kind: qualification`; account-start
+sensitivity can follow this qualification without dollar declarations. It uses
+five coverage-only full windows, Evaluation 180 calendar days as a *diagnostic*
+window and Funded its frozen horizon, inheriting declared closures. Existing
+covered-window censoring rules apply. Forward integration adds `/forward`,
+`/forward-review/{analysis_id}` preview and `/forward-review` submission beneath
+`/api/prop-sim/{id}/validation/{phase}`. Both review kinds run through the existing
+workers, job history, progress, cooperative cancellation, AnalysisStore and normal
+report/ZIP downloads. A compatible previous OOS report supplies point MC paths;
+a current qualification supplies existing bootstrap results for forward review
+and account-start diagnostics. The first qualification can be much more expensive
+than the original simulation because it refits historical account estimates.
+
+Downloads add `qualification_policy.json`, `oos_qualification.json`,
+`historical_bootstrap.json` and, when applicable, `forward_execution_review.json`
+or `account_start_sensitivity.json`. The historical policy and its numerical
+helper hashes are separate from the unchanged phase numerical identities. Older
+reports are readable without reinterpretation. Strategy OOS/full-period MC
+already accessed these dates, so every new result explicitly remains
+retrospective/post-screening research. Evaluation costs/time and conditional
+fresh-Funded receipts remain independent. Portfolio allocation and complete
+replacement-account cash-flow economics are still deferred.
+
+[Normal-product evidence and exact reproduction](evidence/qualified_prop_sim/oos-confidence/README.md).

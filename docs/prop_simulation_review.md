@@ -11431,3 +11431,61 @@ boundaries and the real 80,000-path Chromium product journey). The initial
 with all paths retained and its temporary server stopped. Independent saved
 cash/cost arithmetic, source-hash compatibility, Python/JavaScript syntax and
 `git diff --check` passed. No user job was submitted or stopped.
+
+### 2026-11-13 — Historical OOS qualification and separate forward execution gate
+
+Delivered in the actual qualified backtest -> Prop Sim configure/check/run ->
+independent phase results -> select/freeze -> **Run OOS qualification** -> durable
+report/download workflow. Required dollar declarations are superseded by the
+approved fixed degradation policy; historical optional business-limit reports and
+revisions remain available unchanged. No portfolio or replacement-account
+analysis is added.
+
+Evaluation requires simultaneous historical upper bounds on acquisition cost
+and calendar-time OOS/IS ratios ≤1.50; Funded requires its mean-receipt ratio's
+lower bound ≥0.70 at the same horizon. At least twelve complete OOS calendar
+months, 100 closed source trades, complete account estimates and adequate inner
+MC precision are required. The new owner block-resamples actual source histories
+10,000 times and reruns unchanged local account owners with every frozen path.
+Intervals use a conservative twelve-metric family budget. Clearly adverse bounds
+give NO_GO, overlap/missing evidence gives INSUFFICIENT_EVIDENCE, and GO opens
+forward review. Bounds are conditional on historical/block assumptions; prior
+strategy OOS access is explicitly retrospective and no future-profit probability
+or provider parity is claimed.
+
+**Paper execution and parity review** binds a historical GO member to the existing
+supplied-event monitor. It requires twenty distinct sessions with recorded trading,
+thirty closed trades, no unexplained discrepancies, frozen-sizing agreement,
+prospective supplied-paper clocks, manual per-trade signal/execution review and
+notes. Synthetic, retrospective, stale, foreign-phase and paused/retired evidence
+cannot silently pass. The resulting execution verdict is a new sealed assessment,
+with references to the original observation and qualification reports. Bound
+monitors protect their parent simulation from deletion. No future paper evidence
+is invented; no broker connection or order placement is added.
+
+[Normal-product screenshots, downloads, independent arithmetic and exact
+reproduction](evidence/qualified_prop_sim/oos-confidence/README.md).
+The Apex and LucidFlex browser demonstrations use an explicitly synthetic daily
+repeat with 1,566 OOS closed trades and twelve full months. Every resampled history
+is numerically identical, so all ratios and confidence bounds independently must
+be exactly 1.00. Apex acquisition is $49+$129=$178 over two calendar days;
+LucidFlex is $80.50 over three days at 40% consistency. Fresh-Funded receipts are
+$13,000 and $9,000 respectively; independent sums include all account paths and
+separate trader cash from account deductions. All 10,000 traces are captured;
+exact whole-history memoization preserves the complete eight-path test request.
+Forward stays PENDING. A separate normal-product synthetic one-trade observation
+produces INSUFFICIENT_EVIDENCE, with its original event/declaration/report downloads.
+
+Validation: 65 distinct focused cases passed across qualification arithmetic/API,
+legacy business-review/revision behavior, forward reconciliation/conformance and
+current-procedure binding, plus the two real browser account journeys. The
+qualification API journey also verifies MC/bootstrap-free account-start reuse and
+forward review. Both browser journeys verify durable reload, mobile layout,
+report/ZIP downloads and server-authoritative paper declaration admission. The
+initial collapsed observation form was corrected to open on its configure action;
+the Apex page-load assertion uses a 30-second budget for qualification-source
+loading. Final reruns passed. All 33 phase numerical hashes and the old business
+review implementation remain unchanged. Independent saved-output verification,
+Python/JavaScript syntax and `git diff --check` passed. No full historical suite
+was run. Temporary servers stopped; the user server, VM, data, jobs and earlier
+saved evidence are unchanged.

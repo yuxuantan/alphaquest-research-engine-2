@@ -10,8 +10,8 @@ from test_research_workflow import client
 from test_campaign_oos import frozen_workflow, oos_csv, run_oos
 
 
-def qualified_source(client):
-    original=oos_csv().decode().splitlines();lines=[original[0]]
+def qualified_source(client,raw=None):
+    original=(oos_csv() if raw is None else raw).decode().splitlines();lines=[original[0]]
     for line in original[1:]:
         row=line.split(',')
         if datetime.strptime(row[0],'%m/%d/%Y').weekday()>=5:continue

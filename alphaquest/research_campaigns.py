@@ -659,7 +659,7 @@ class CampaignStore:
             raw.update(candidates=selected, source_backtest_id=min(oos_sources.values()))
             context = dict(campaign_id=id, request_id=attempt['request_id'], frozen_package=package,
                 sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'],
-                kind=attempt.get('kind'),is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
+                kind='oos' if attempt.get('kind') in ('qualification','forward_review') else attempt.get('kind'),is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
             if attempt.get('report_options') is not None:
                 context['prop_sim_review'] = attempt['report_options']
             # Protect sources before queueing and keep every report in AnalysisStore.
@@ -672,8 +672,8 @@ class CampaignStore:
 
     def assess_saved(self,id,request_id,kind,paths=None,oos_sources=None,*,report_options=None):
         """Use existing frozen packages, workers and assessment history for Prop Sim."""
-        if kind not in ('oos','is_robustness','precision','account_starts'):raise ValueError('Unknown frozen assessment kind.')
-        if kind=='account_starts' and not report_options:
+        if kind not in ('oos','is_robustness','precision','account_starts','qualification','forward_review'):raise ValueError('Unknown frozen assessment kind.')
+        if kind in ('account_starts','qualification','forward_review') and not report_options:
             raise ValueError('Account-start sensitivity requires a declared policy and completed OOS report.')
         with self.analyses.lock:
             attempt,fresh=self.begin_assessment(id,request_id)
@@ -684,7 +684,7 @@ class CampaignStore:
             attempt=dict(attempt,kind=kind,paths=paths,report_options=report_options)
             self.save_assessment(attempt)
             try:
-                if kind in ('oos','account_starts'):return self.finish_assessment(id,attempt,oos_sources)
+                if kind in ('oos','account_starts','qualification','forward_review'):return self.finish_assessment(id,attempt,oos_sources)
                 report=self.report(id);campaign=self.get(id);package=campaign['frozen'];module=module_for(package['phase'])
                 raw=deepcopy(report['request']);configs=[];mappings=[]
                 for row in report['calculations']['candidates']:

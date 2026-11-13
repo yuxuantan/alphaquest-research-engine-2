@@ -18,6 +18,9 @@ def resolve_policy(robust,declaration):
     """
     binding=declaration.policy_binding
     if binding is None:raise ValueError('A current procedure policy binding is required.')
+    from .prop_sim_forward import resolve
+    prop_policy=resolve(robust,declaration)
+    if prop_policy is not None:return prop_policy
     analyses=robust.analyses
     with analyses.lock:
         with analyses.connect() as db:

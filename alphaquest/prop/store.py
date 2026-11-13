@@ -475,7 +475,7 @@ class AnalysisStore:
                             raise ValueError('Saved OOS report changed; no numerical results were reused.')
                         report = json.loads((self.root/base['analysis_id']/'report.json').read_text())
                         if (report.get('assessment', {}).get('frozen_package') != assessment['frozen_package']
-                                or report['calculations'].get('assessment_kind') != 'oos'
+                                or report['calculations'].get('assessment_kind') not in ('oos','qualification','forward_review')
                                 or not implementations_compatible(report['implementation'], module.implementation_identity())):
                             raise ValueError('Saved OOS report does not match the frozen numerical package.')
                         original = {r['candidate_id']:r['manifest'] for r in report['calculations']['candidates']}
@@ -489,8 +489,12 @@ class AnalysisStore:
                     else:
                         calculations = optimize(runs, search, checks, update, **options)
                     if review_options:
-                        from .assessment_review import enrich
-                        calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update)
+                        if review_options.get('qualification'):
+                            from .oos_qualification import qualify
+                            calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self)
+                        else:
+                            from .assessment_review import enrich
+                            calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update)
                 if assessment:
                     calculations['assessment'] = assessment
                 result = module.write_report(runs, staged, search, checks, calculations)
@@ -501,7 +505,17 @@ class AnalysisStore:
                     result['assessment'] = assessment
                     result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
                     (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
-                    if review_options:
+                    if review_options and review_options.get('qualification'):
+                        (staged/'qualification_policy.json').write_text(canonical(calculations['qualification_policy']))
+                        (staged/'oos_qualification.json').write_text(canonical([
+                            dict(candidate_id=r['candidate_id'],frozen_candidate_id=r['frozen_candidate_id'],
+                                micros=r['configuration']['micros'],qualification=r['prop_qualification']) for r in calculations['candidates']]))
+                        (staged/'historical_bootstrap.json').write_text(canonical(calculations['qualification_bootstrap']))
+                        if calculations.get('account_start_sensitivity') is not None:
+                            (staged/'account_start_sensitivity.json').write_text(canonical(calculations['account_start_sensitivity']))
+                        if calculations.get('forward_execution_review') is not None:
+                            (staged/'forward_execution_review.json').write_text(canonical(calculations['forward_execution_review']))
+                    elif review_options:
                         (staged/'assessment_policy.json').write_text(canonical(calculations['assessment_policy']))
                         (staged/'economic_assessment.json').write_text(canonical([
                             dict(candidate_id=r['candidate_id'],micros=r['configuration']['micros'],
@@ -521,10 +535,16 @@ class AnalysisStore:
                 with self.lock:
                     checkpoint()
                     if assessment and review_options:
-                        from .assessment_review import implementation
+                        if review_options.get('qualification'):
+                            from .oos_qualification import implementation
+                        else:
+                            from .assessment_review import implementation
                         if review_options['implementation'] != implementation():
                             raise ValueError('Review implementation changed before publication.')
                         if base: verified_base()
+                        if review_options.get('forward_capture'):
+                            from ..prop_sim_forward import verified_observation
+                            verified_observation(review_options['forward_capture'],review_options['simulation_id'],phase.lower(),base['analysis_id'],self)
                     size_limit = (128*1024*1024 if getattr(search,'native_execution',None) is not None
                                   or getattr(search,'conservative_objective',None) is not None else None)
                     seal_report(staged, result, id, self.get(id)['created'],size_limit_bytes=size_limit)
