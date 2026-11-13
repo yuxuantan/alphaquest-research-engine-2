@@ -61,6 +61,7 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
+            db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_progress (analysis_id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
             from ..campaign_monte_carlo import initialize as initialize_sanity
             initialize_sanity(db)
@@ -92,7 +93,8 @@ class AnalysisStore:
     def get(self,id):
         with self.connect() as db:
             db.row_factory=sqlite3.Row;row=db.execute('SELECT * FROM analyses WHERE id=?',(id,)).fetchone()
-        return dict(row) if row else None
+            detail=db.execute('SELECT payload FROM phase_analysis_progress WHERE analysis_id=?',(id,)).fetchone()
+        return dict(row,progress_details=json.loads(detail[0]) if detail else None) if row else None
 
     def list(self,source):
         with self.connect() as db:
@@ -145,7 +147,7 @@ class AnalysisStore:
     def remove_catalogue_record(self, db, id):
         """Release one report's catalogue/cache rows within the caller transaction."""
         for table,key in (('calculation_reuse','id'),('analysis_report_checks','id'),
-                ('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('analyses','id')):
+                ('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analyses','id')):
             db.execute(f'DELETE FROM {table} WHERE {key}=?',(id,))
 
     def delete(self, id):
@@ -451,7 +453,11 @@ class AnalysisStore:
                 raise AnalysisCancelled('Phase search stopped; no partial result was published. Run again to replay the same complete declaration.')
         def update(message):
             checkpoint()
-            self._update(id, 'running', message)
+            details=message if isinstance(message,dict) else None
+            if details:
+                message=(f"Historical confidence · {details['micros']} MNQ · "
+                    f"{details['completed']:,}/{details['total']:,} block resamples · {details['worker_count']} workers")
+            self._update(id, 'running', message,progress_details=details)
             progress(message)
         try:
             update('Running independent '+phase+' search')
@@ -627,8 +633,12 @@ class AnalysisStore:
             return saved
         return None
 
-    def _update(self,id,status,progress,error=None):
-        with self.connect() as db:db.execute('UPDATE analyses SET status=?,progress=?,error=? WHERE id=?',(status,progress,error,id))
+    def _update(self,id,status,progress,error=None,*,progress_details=None):
+        with self.connect() as db:
+            db.execute('UPDATE analyses SET status=?,progress=?,error=? WHERE id=?',(status,progress,error,id))
+            if progress_details is not None:
+                db.execute('INSERT OR REPLACE INTO phase_analysis_progress VALUES (?,?)',(id,canonical(progress_details)))
+            elif status=='running':db.execute('DELETE FROM phase_analysis_progress WHERE analysis_id=?',(id,))
 
     def publish_prepared(self, prepared, directory):
         """Publish a worker's standard report through this single catalogue."""

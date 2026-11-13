@@ -2722,3 +2722,50 @@ phase, qualification, business-review and forward-owner hashes are unchanged;
 new family-selection policy/code identity is captured separately.
 
 [One-click actual product demonstrations, independent expectations and reproduction](evidence/qualified_prop_sim/automatic-flow/README.md).
+
+### Parallel historical confidence and live progress — 2026-11-13
+
+Qualified Prop Sim OOS historical refits use the existing bounded prop process
+pool and CPU reservation budget, with four workers by default (fewer on smaller
+machines). `ALPHAQUEST_PROP_WORKERS` retains its existing override, between one
+and the existing capacity of at most eight and no more than CPU count minus one.
+The AnalysisStore orchestration worker remains single; each OOS job distributes
+independent historical replicates across the shared calculation pool. Evaluation
+and Funded jobs still queue normally. No separate scheduler, execution engine or
+result store is added, and worker processes never create nested pools.
+
+`prop/oos_bootstrap.py` dispatches the existing `oos_qualification._means` and
+unchanged account owners. Each replicate retains its original role/index-derived
+seed, historical block length, complete requested account-path count, metrics and
+trace. Completion order does not affect results: captured rows are restored to
+replicate-index order before the same nominal confidence decision. Exact whole
+daybook memoization remains local to each worker; the reported distinct-history
+count is the union across workers. A constant fixture can consequently evaluate
+the same distinct history once per worker without changing the economics.
+The 10,000 historical replicates, 12-metric confidence budget, thresholds and all
+33 phase numerical source hashes remain unchanged. The qualification identity
+explicitly captures the new dispatcher/shared-runtime source hashes; historical
+reports remain sealed/readable and are not silently reused as current-version
+qualification results. IS freezes retain their unchanged numerical identity.
+
+Only an internal ephemeral input file is supplied to workers, verified on first
+load and cached once per process. The existing shared pool limits in-flight work
+to its reserved slots. Cancellation is checked at least between task completions
+and on short parent polling intervals; a temporary marker propagates accepted
+stop to active account paths. The reservation stays held until siblings stop,
+and no partial qualification report is published. Context/marker files are
+removed after workers finish.
+
+Metadata is saved in `phase_analysis_progress` in the existing catalogue, at most
+once per second during calculation, plus initial/final updates. It includes the
+current size, candidate position, completed/total resamples, overall family
+completed/total resamples, worker count, elapsed time, rate, approximate ETA for
+the current size and update timestamp. Progress reads never replay simulations
+or load numerical report artifacts. The normal Prop Sim card and Job history
+detail share the same renderer and polling metadata; they show a progress bar,
+workers, timing and current-size ETA. The job's existing overall progress bar
+uses the full eligible sizing family. Report execution diagnostics retain actual
+worker PIDs, counts and elapsed time. Small-machine/explicit single-worker runs
+keep the same progress and numerical contracts.
+
+[Actual four-process product evidence and exact reproduction](evidence/qualified_prop_sim/parallel-confidence/README.md).

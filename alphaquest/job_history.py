@@ -34,6 +34,7 @@ SOURCES = '''
         COALESCE(json_extract(r.manifest,'$.run_metadata.strategy.id'),''),
         COALESCE(json_extract(r.manifest,'$.run_metadata.dataset.name'),'Saved source '||a.source_id),
         json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id,
+            'progress_details',json((SELECT payload FROM prop_catalog.phase_analysis_progress WHERE analysis_id=a.id)),
             'prop_sim_id',(SELECT s.simulation_id FROM prop_catalog.workflow_prop_sim_phases s JOIN prop_catalog.campaign_analyses r ON r.campaign_id=s.campaign_id WHERE r.analysis_id=a.id ORDER BY s.simulation_id LIMIT 1))
  FROM prop_catalog.analyses a LEFT JOIN runs r ON r.id=a.source_id
  LEFT JOIN prop_catalog.campaign_sanity_jobs c ON c.analysis_id=a.id
@@ -91,6 +92,10 @@ def public_job(row, tracker):
             result['stop_url'] = f'/api/prop-analyses/{id}/cancel'
     else:
         result['progress'] = dict(stage=payload.get('progress') or status,completed=None,total=None,unit=None)
+        if details:=payload.get('progress_details'):
+            result['progress'].update(details,stage=payload.get('progress') or status,
+                completed=details.get('overall_completed',details['completed']),
+                total=details.get('overall_total',details['total']),details=details)
         if payload.get('prop_sim_id'):
             links.append(dict(label='Open Prop Sim',href=f"#prop-sim?analysis={payload['prop_sim_id']}"))
             if status in ('queued','running'):result['stop_url']=f'/api/prop-analyses/{id}/cancel'

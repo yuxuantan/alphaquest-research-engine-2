@@ -11590,3 +11590,57 @@ browser check was rerun separately. Independent saved-output
 arithmetic/hash verification, Python/JavaScript syntax and diff checks pass.
 No full historical suite is claimed. Temporary servers stop at teardown; no
 persistent server was started and the user server, jobs, data and VM are preserved.
+
+### 2026-11-13 — Parallel OOS confidence with live progress in both pages
+
+The normal backtest report → Prop Sim configure/check-on-Run → automatic IS,
+freeze and OOS → durable reports now distributes independent historical refits
+over the existing process pool, four workers by default. The same role/index
+seeds, 10,000 historical replicates, all requested inner paths, account owners,
+confidence budget and pass/fail rules are retained. Bounded completion-order
+dispatch restores replicate order; actual worker PIDs/counts are saved. No new
+engine/service/store or nested worker pools are introduced. The phase numerical
+hashes remain unchanged, while qualification captures the dispatcher/runtime
+implementation hashes explicitly. Original reports remain unchanged and readable.
+
+Prop Sim and Job history show current size/family position, completed resamples,
+progress bar, active/allocated workers, elapsed time, approximate current-size ETA
+and last update. Existing catalogue metadata is written at most once per second;
+page polling does not read numerical report files or recalculate results. Normal
+cooperative cancellation reaches active child paths and queued work, drains
+siblings before releasing the shared reservation, and publishes no partial result.
+Transient progress rows are removed with their original analysis.
+
+[Inspectable screenshots, ZIPs, live progress samples, independent numerical
+checks and reproduction](evidence/qualified_prop_sim/parallel-confidence/README.md).
+The actual LucidFlex browser journey begins at the qualified synthetic backtest,
+tests 9–10 MNQ with eight inner paths and clicks Run once. It captures advancing
+four-worker progress on Prop Sim and Job history, then both completed OOS ZIPs,
+reload and mobile layout. Both reports contain 10,000 ordered resamples and four
+distinct child PIDs. Independent constant-history expectations remain $80.50 and
+three calendar days for Evaluation, $9,000 fresh-Funded mean receipts, ratio bounds
+exactly 1.00, GO and forward PENDING. No future paper execution or provider parity
+is fabricated. The fixture is explicitly synthetic, including future-dated bars.
+
+Validation: nine focused checks passed: eight numerical/runtime/metadata cases
+and the actual product browser journey. Non-identical Evaluation and Funded
+daybooks match an independent copy of the preceding serial seed/refit contract
+exactly, including all traces and metrics. Boundaries cover identical-history
+memoization, shared-budget release, no nested pool, cancellation/drain and pool
+reuse, lightweight progress reads and deletion cleanup. Independent exported-output
+arithmetic/source identities and Python/JavaScript syntax checks pass. No full
+historical suite is claimed. The temporary browser server stopped at teardown.
+Development/testing used an isolated copy to preserve the user's active job;
+application to the live server and restarting unfinished OOS was explicitly
+approved, retaining completed IS reports and frozen packages.
+
+Live application verification: the approved restart cancelled only the unfinished
+OOS jobs through the normal parent cancellation API, applied the tested files,
+then retried the same saved simulation. Evaluation resumed under job
+`4b184f9d2ed34c21a24d2ab7b2d7ae7c`, advancing from 3 to 22 completed resamples in
+the observed interval, with four child processes each near one CPU core. Funded
+OOS `31b8953ee1f049f29d611db8eeed89e2` remains normally queued behind it. Both
+completed IS analysis IDs and both immutable frozen-package hashes matched the
+pre-restart values exactly. This verifies dispatch and progress, not a completed
+OOS verdict for the user's real history. No extra persistent server was started;
+the existing user-managed server continues running.

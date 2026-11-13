@@ -237,7 +237,7 @@ def public(request,id):
         campaign=request.app.state.campaigns.get(campaign_id)
         analysis=campaign.get('analysis') or {}
         result['phases'][phase]=dict(campaign_id=campaign_id,status=campaign['status'],analysis_id=campaign['analysis_id'],
-            progress=analysis.get('progress'),error=analysis.get('error'),candidate_count=campaign['manifest']['candidate_search_count'])
+            progress=analysis.get('progress'),progress_details=analysis.get('progress_details'),error=analysis.get('error'),candidate_count=campaign['manifest']['candidate_search_count'])
     return result
 
 

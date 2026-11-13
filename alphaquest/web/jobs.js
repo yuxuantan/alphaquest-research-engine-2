@@ -79,6 +79,7 @@
           const bar=node('progress');bar.max=p.total;bar.value=Math.min(p.completed,p.total);bar.setAttribute('aria-label',`Job progress in ${p.unit}`);panel.append(bar);
         }
         activeTrials(panel,job);
+        const confidence=node('div');window.renderPropProgress(confidence,p?.details,job.status);panel.append(confidence);
         const facts=node('dl',undefined,'backtest-run-details');
         for(const [label,value] of [['Job ID',job.id],['Recorded',stamp(job.recorded_at_utc)],['Started',stamp(job.started_at_utc)],['Finished',stamp(job.finished_at_utc)]]) {
           const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item);

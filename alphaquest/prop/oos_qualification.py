@@ -34,11 +34,13 @@ LIMITATIONS = [
 
 
 def implementation():
-    from . import assessment_review
+    from . import assessment_review,oos_bootstrap,parallel
     from .. import prop_sim_forward,forward_monitoring
     return dict(version=RULES['version'], files={
         'oos_qualification.py':sha256(Path(__file__).read_bytes()).hexdigest(),
         'assessment_review.py':sha256(Path(assessment_review.__file__).read_bytes()).hexdigest(),
+        'oos_bootstrap.py':sha256(Path(oos_bootstrap.__file__).read_bytes()).hexdigest(),
+        'parallel.py':sha256(Path(parallel.__file__).read_bytes()).hexdigest(),
         'prop_sim_forward.py':sha256(Path(prop_sim_forward.__file__).read_bytes()).hexdigest()},
         forward_implementation=forward_monitoring.implementation_identity(),numpy=np.__version__)
 
@@ -147,35 +149,8 @@ def _book_classes(days):
 
 
 def historical_ratios(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress):
-    from .native_engine import sampled_days
-    books=(is_days,oos_days);candidates=(is_candidate,oos_candidate)
-    codes=tuple(_book_classes(book) for book in books);caches=({},{});replicates=[];precision=True
-    outer_block=max(RULES['minimum_outer_block_weekdays'],oos_candidate.sampling.block_weekdays)
-    next_check=0.
-    def stop():
-        nonlocal next_check
-        now=monotonic()
-        if now>=next_check:checkpoint();next_check=now+.1
-    for index in range(RULES['historical_replicates']):
-        stop();values=[];trace=[]
-        for role,(days,candidate,labels,cache) in enumerate(zip(books,candidates,codes,caches)):
-            seed=int(np.random.SeedSequence([RULES['history_seed'],role,index]).generate_state(1)[0])
-            stream=sampled_days(np.random.RandomState(seed),len(days),outer_block)
-            indices=np.fromiter((next(stream) for _ in days),dtype=np.int32,count=len(days))
-            key=labels[indices].tobytes()
-            if key not in cache:cache[key]=_means([days[int(i)] for i in indices],candidate,search,stop)
-            means,error=cache[key];values.append(means)
-            precision=bool(precision and error is not None and error<=RULES['maximum_inner_relative_standard_error'])
-            trace.append(dict(seed=seed,indices_sha256=sha256(indices.tobytes()).hexdigest(),
-                metrics=means,relative_inner_standard_error=error))
-        ratio={key:values[1][key]/values[0][key] if values[0].get(key,0)>0 and values[1].get(key) is not None else None
-               for key,_,_,_ in definitions(search.mode.removesuffix('_optimization'))}
-        replicates.append(dict(replicate=index,is_history=trace[0],oos_history=trace[1],ratios=ratio))
-        if (index+1)%100==0:progress(f'Historical confidence · {oos_candidate.micros} MNQ · {index+1:,}/{RULES["historical_replicates"]:,} block resamples')
-    checkpoint()
-    return dict(replicates=replicates,inner_precision_ok=precision,outer_block_weekdays=outer_block,
-        unique_histories_evaluated=[len(c) for c in caches],
-        memoization='Only numerically identical entire resampled daybooks reuse the same phase calculation. No requested path count is reduced.')
+    from .oos_bootstrap import run
+    return run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress)
 
 
 def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses):
@@ -189,6 +164,9 @@ def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,stage
         raise ValueError('Qualification policy identity changed.')
     phase=search.mode.removesuffix('_optimization');detail=[];is_candidates=[];is_captures=[]
     reused=calculations.get('qualification_implementation')==implementation() and calculations.get('qualification_rules')==RULES
+    eligible_count=sum(all(e['passed'] for e in evidence(
+        next(c for c in checks if c['candidate_id']==row['candidate_id']),row,phase,
+        getattr(search,'horizon_calendar_days',None))) for row in calculations['candidates'])
     for row in calculations['candidates']:
         check=next(c for c in checks if c['candidate_id']==row['candidate_id'])
         candidate=next(c for c in search.candidates if asdict(c)==check['manifest']['configuration'])
@@ -210,7 +188,11 @@ def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,stage
         if all(e['passed'] for e in evidence_rows):
             oos_snapshot,oos_days,_=prepare_phase_source(runs,candidate.source,candidate.profile,candidate.micros,
                 candidate.simulation,candidate.period,candidate.costs,candidate.sizing)
-            data=historical_ratios(is_days,oos_days,is_candidate,candidate,search,checkpoint,progress)
+            def refit_progress(value):
+                progress(dict(value,candidate_index=len(detail)+1,candidate_count=eligible_count,
+                    overall_completed=len(detail)*value['total']+value['completed'],
+                    overall_total=eligible_count*value['total']))
+            data=historical_ratios(is_days,oos_days,is_candidate,candidate,search,checkpoint,refit_progress)
             verify_phase_source(runs,candidate.source,oos_snapshot)
             result=decide(point,[r['ratios'] for r in data['replicates']],phase,evidence_rows,inner_precision_ok=data['inner_precision_ok'])
             detail.append(dict(frozen_candidate_id=check['frozen_candidate_id'],**data))

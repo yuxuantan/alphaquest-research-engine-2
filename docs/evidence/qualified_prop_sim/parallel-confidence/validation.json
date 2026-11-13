@@ -1,0 +1,17 @@
+{
+  "focused_cases_passed": 9,
+  "unit_runtime_metadata": 8,
+  "normal_product_browser": 1,
+  "isolated_development": true,
+  "serial_reference_parity": "Exact for both phases on non-identical daybooks",
+  "default_workers": 4,
+  "full_historical_suite": false,
+  "temporary_browser_server": "Stopped at fixture teardown",
+  "live_restart": "User explicitly approved; IS report IDs and frozen package hashes preserved",
+  "actual_oos_job": "4b184f9d2ed34c21a24d2ab7b2d7ae7c",
+  "live_progress_observed": [
+    3,
+    22
+  ],
+  "live_worker_processes": 4
+}

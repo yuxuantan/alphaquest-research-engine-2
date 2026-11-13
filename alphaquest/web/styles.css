@@ -2076,3 +2076,6 @@ dialog::backdrop {
 .prop-sim-history-entry > summary { cursor:pointer; font-size:13px; color:#61717c; }
 .prop-sim-policy > summary { cursor:pointer; font-weight:650; }
 .prop-sim-policy[open] > summary { margin-bottom:12px; }
+.prop-confidence-progress { margin-block: 1rem; }
+.prop-confidence-progress progress { display: block; width: min(100%, 44rem); height: 1rem; }
+.prop-confidence-progress small { color: var(--text-muted, #637581); }

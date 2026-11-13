@@ -267,3 +267,14 @@ Use the focused selector/orchestration tests in `test_prop_sim_automatic.py` and
 the one-click product journeys when changing this surface. Do not require a page
 to remain open, add another scheduler/service/store, or change numerical owners
 for orchestration-only work. See the dated product/evidence contract.
+
+Qualified OOS historical refits now use `prop/oos_bootstrap.py` on the existing
+`prop/parallel.py` Runtime, four workers by default. Preserve index-derived seeds,
+ordered output, full path counts, unchanged phase owners and bounded shared CPU
+reservations. Capture dispatcher/runtime hashes in qualification identity. Worker
+stop markers must drain active siblings before releasing the reservation. Progress
+belongs to `phase_analysis_progress` in the existing catalogue and is metadata
+only, throttled to one-second writes. Prop Sim and Job history share
+`web/prop-progress.js`; no polling-triggered calculations. Check exact serial
+parity/cancellation with `test_prop_confidence_parallel.py` and the actual product
+journey in `test_prop_confidence_parallel_browser.py`. Preserve old sealed reports.
