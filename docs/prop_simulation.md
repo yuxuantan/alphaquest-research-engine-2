@@ -2609,3 +2609,48 @@ fresh-Funded receipts remain independent. Portfolio allocation and complete
 replacement-account cash-flow economics are still deferred.
 
 [Normal-product evidence and exact reproduction](evidence/qualified_prop_sim/oos-confidence/README.md).
+
+### One current Prop Sim OOS result and on-demand history — 2026-11-13
+
+The qualified Prop Sim workflow now reopens an equivalent running/completed
+assessment instead of creating another job/report when the user clicks again or
+submits from another tab. Admission, lookup and queueing share AnalysisStore's
+existing lock. The match is scoped to the frozen phase campaign and includes
+assessment kind, declared diagnostic paths and substantive review settings.
+Request UUIDs, qualification declaration timestamps and reuse-parent bookkeeping
+are not new calculation inputs. Qualification rules, implementation identities,
+source provenance, start plans, explicit business-policy versions and forward
+observation/review inputs remain meaningful distinctions. Existing attempts are
+recognized without rewriting/migrating their sealed reports or adding a database.
+The API returns the existing canonical `request_id`/`analysis_id` and
+`reused: true`; clients use that returned ID rather than creating a new history row.
+
+Complete reuse verifies sealed artifacts, current numerical compatibility and
+both original IS and OOS source captures. Changed/tampered or incompatible evidence
+fails closed. Failed, cancelled and interrupted attempts remain in Job history
+and can be retried with a new request ID. Equivalent successful reports, including
+NO_GO or insufficient-evidence results, reopen as-is rather than running again
+until a favorable random outcome appears. Explicitly different policies or
+precision requests retain their own results. A business-policy review may now
+reuse verified qualification point paths for its first assessment too; the
+business verdict is separate from the historical qualification verdict.
+
+The page presents one current OOS table per phase. Completed actions become
+**View OOS results** (or the corresponding saved diagnostic/business view), with
+no submission on click. IS sizing collapses after freezing; passing criteria,
+per-size checks, historical records and optional diagnostics are collapsed.
+A compact sequence shows IS sizing → frozen choices → OOS → forward review.
+The current forward execution review, when present, shares the OOS table.
+**Assessment history** keeps previous qualification/business/forward reports
+available as small metadata entries; **Additional diagnostics** contains start,
+IS robustness and extra-path checks. Older report tables are fetched only when
+that individual entry opens. Expanding the history list alone does not fetch all
+its reports. Existing history and references are preserved, not deleted or
+relabeled. Default page load fetches only the current report for each phase.
+
+Numerical owners, policy thresholds, random streams, requested path counts,
+qualification/forward implementation hashes and old business-review hashes are
+unchanged. No account engine, duplicate result store or background migration is
+introduced. Previous reports and forward-monitor bindings keep their identities.
+
+[Product demonstration, saved evidence and reproduction](evidence/qualified_prop_sim/assessment-reuse/README.md).

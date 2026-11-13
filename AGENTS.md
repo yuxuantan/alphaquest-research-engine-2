@@ -229,3 +229,20 @@ normal source evidence/downloads. The existing per-size input range is8–20,000
 regardless of range size. Optional historical refits, native reruns and legacy
 reports retain their separate bounds. See the dated path-count contract and
 normal-product evidence in `docs/prop_simulation.md`/`prop_simulation_review.md`.
+
+# Current qualified Prop Sim OOS presentation and reuse
+
+The later user-approved historical qualification policy in `docs/prop_simulation.md`
+supersedes mandatory business-dollar declarations for the default Prop Sim gate.
+Business policies/revisions remain optional and keep their historical verdicts.
+For qualified Prop Sim, identical assessment inputs reopen the running/completed
+canonical job/report; do not create another report because a request UUID,
+qualification timestamp or reuse-parent ID differs. Keep substantive rules,
+implementation/source identity, diagnostic paths and explicit policy revisions
+separate. Admission/reuse/queueing share the existing AnalysisStore lock; verify
+sealed reports and IS/OOS source captures before complete reuse. Failed/stopped
+attempts remain retryable. Do not rewrite or delete old reports or add a second
+result store. The portal shows one current OOS table per phase, collapsed sizing
+and criteria, and lazy individual historical report loading. Keep checks focused
+on `tests/test_prop_sim_assessment_reuse.py` and its browser journey for this
+orchestration/presentation surface. Preserve numerical/qualification hashes.

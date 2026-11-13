@@ -1,0 +1,137 @@
+{
+  "phase_sources": [
+    {
+      "file": "alphaquest/canonical_trades.py",
+      "sha256": "7982f82c654f6de44c8e4340bccaa23f49b788a1fc561419840453166e39abe0"
+    },
+    {
+      "file": "alphaquest/decimal_math.py",
+      "sha256": "05b596b1d93a80c9eb351395c602daeccef3a98e0eac60dc4aa47c03b710dcb5"
+    },
+    {
+      "file": "alphaquest/decision_capture.py",
+      "sha256": "dbc9ff56c88ba52f97ae7282b01c23830530d382063cd364310ec8007f472036"
+    },
+    {
+      "file": "alphaquest/execution.py",
+      "sha256": "e7a0e4c0b89b6038f0ab92bb1a17758e56fb7d2e4c970d4726943fe038cd542d"
+    },
+    {
+      "file": "alphaquest/execution_scenarios.py",
+      "sha256": "d61648f0b15bc990caa80989c95d4cbdebeb5df40420e83efb0c8bbdc354b3e8"
+    },
+    {
+      "file": "alphaquest/intratrade.py",
+      "sha256": "dab5f0a2cf3a5bb0f70794dc49c92a9cb089f0919d6c734328f0ad78de6ae13f"
+    },
+    {
+      "file": "alphaquest/session_calendar.py",
+      "sha256": "4e15d94d09357e51a25de7867a4650cdaa9d0d4815a9abd8bbd88dafcc7cc415"
+    },
+    {
+      "file": "alphaquest/strategies/vwap_pullback_risk_sizing.py",
+      "sha256": "0b2be19293fb8b5258386c26afe4710bb388a894913b333df51f2812daf23942"
+    },
+    {
+      "file": "alphaquest/trade_imports.py",
+      "sha256": "78d0cfbee9bb570e015a8db7252c783d1a19c5564348941b07cef53178824146"
+    },
+    {
+      "file": "alphaquest/prop/adapter.py",
+      "sha256": "56c05d0de3bdc21c24f6dd2dc23dda940d218ce7e7c578a82620e61a47fbfe1d"
+    },
+    {
+      "file": "alphaquest/prop/cash_ledger.py",
+      "sha256": "ce424f3809b582ea444f504ce2419500f8141d5306002bebdb67ca1e3bac1c60"
+    },
+    {
+      "file": "alphaquest/prop/commissions.py",
+      "sha256": "331896435d1ac465da6ecf36fdb92890b33717c3477f0c904d2d3f9d9ddbb71d"
+    },
+    {
+      "file": "alphaquest/prop/external_source.py",
+      "sha256": "df025eca2df393e66971def9fad795d56fe3c3078b99db862f1acc87a55c297a"
+    },
+    {
+      "file": "alphaquest/prop/funded_optimization.py",
+      "sha256": "12977debd0ac36dd859b94369020630264ebae80c54f86515d219cd641f6078e"
+    },
+    {
+      "file": "alphaquest/prop/funded_profiles.py",
+      "sha256": "bb36de9ac94dea52db1358b3000d054a88528ee99156d87d5d5ebe2f6987df38"
+    },
+    {
+      "file": "alphaquest/prop/lucid_backend.py",
+      "sha256": "0e7c63755eb8990065ec53ba10f623404f3ddb96663552054d53c2001310ef83"
+    },
+    {
+      "file": "alphaquest/prop/lucid_engine.py",
+      "sha256": "5ab16f732cbe1670a4039676654218de493f59d2eca80afe99c895533cb2c1d4"
+    },
+    {
+      "file": "alphaquest/prop/lucid_rules.py",
+      "sha256": "f12b985155043e5ee9762571c0fadfbab4c8be162499932fef93cca1388c8a32"
+    },
+    {
+      "file": "alphaquest/prop/native_analysis.py",
+      "sha256": "818cfad97905328f448f762e2ea9a84765f2484ae20d04b89217037ceae8f7d2"
+    },
+    {
+      "file": "alphaquest/prop/native_backend.py",
+      "sha256": "61baa91238029bf9545af0111a0bd82012b4d453d29be32bcf9562265f75b0bb"
+    },
+    {
+      "file": "alphaquest/prop/native_control.py",
+      "sha256": "e986ca0ec9b4e19df9402de1a61189db366c90f25df31cd0bd03c0633437df2b"
+    },
+    {
+      "file": "alphaquest/prop/native_draws.py",
+      "sha256": "c5782003ec18a6aa370da41337596d189ce7e2c7cd2503b55c8bf167eede42f1"
+    },
+    {
+      "file": "alphaquest/prop/native_engine.py",
+      "sha256": "001e57aeccc6b9cef5b09accbf99dab0a9e8b193b229fe22a3dd103d3024903e"
+    },
+    {
+      "file": "alphaquest/prop/native_money.py",
+      "sha256": "e923b007d9f129eb8ac870f751f09823eed41720211896fb8b0e4fc84813a2dc"
+    },
+    {
+      "file": "alphaquest/prop/native_replay.py",
+      "sha256": "94566ee5a56a182b9e3fd6158d6b2751068a3eb7f982358a78dacb6f8e100397"
+    },
+    {
+      "file": "alphaquest/prop/native_search.py",
+      "sha256": "9c794edd12c7f25201b0a07e0f679004f89a5b097674ccd0c0392fa935e95447"
+    },
+    {
+      "file": "alphaquest/prop/phase_lifecycle.py",
+      "sha256": "a5a423746e72789ad307f0f02725d8ab42400ccf55bfb3f61260d991b48d5b99"
+    },
+    {
+      "file": "alphaquest/prop/phase_profiles.py",
+      "sha256": "97214801ecf172f60c333ba11267ea1daa329906cafe5719930f8c6831847230"
+    },
+    {
+      "file": "alphaquest/prop/phase_search.py",
+      "sha256": "14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c"
+    },
+    {
+      "file": "alphaquest/prop/rule_provenance.py",
+      "sha256": "d1bf6d5dd1590a64796be92bae86b7b50973ea7338f4e13bfcfdab9a1b872b49"
+    },
+    {
+      "file": "alphaquest/prop/sizing.py",
+      "sha256": "7915d50e60035ded169795bfbeb58a55937cb6978b3892e85ff8ac0115e32421"
+    },
+    {
+      "file": "alphaquest/prop/sizing_runtime.py",
+      "sha256": "83b72e62de853ffb2e538cfdd254d3c190212111b10e3f38e0c9fef821bb1975"
+    },
+    {
+      "file": "alphaquest/prop/source.py",
+      "sha256": "85720fabbbfb9823cf51f26165884d4a6458e9f7b4ebbe0b6f15a0c8a32bff65"
+    }
+  ],
+  "qualification_forward_and_business_review_unchanged": true
+}

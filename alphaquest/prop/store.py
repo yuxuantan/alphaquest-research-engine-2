@@ -494,6 +494,11 @@ class AnalysisStore:
                             calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self)
                         else:
                             from .assessment_review import enrich
+                            # A business-policy review can reuse the point paths
+                            # of a qualification without inheriting its verdict.
+                            for key in list(calculations):
+                                if key.startswith('qualification_') or key=='forward_execution_review':calculations.pop(key)
+                            for row in calculations['candidates']:row.pop('prop_qualification',None)
                             calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update)
                 if assessment:
                     calculations['assessment'] = assessment

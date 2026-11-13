@@ -11489,3 +11489,48 @@ review implementation remain unchanged. Independent saved-output verification,
 Python/JavaScript syntax and `git diff --check` passed. No full historical suite
 was run. Temporary servers stopped; the user server, VM, data, jobs and earlier
 saved evidence are unchanged.
+
+### 2026-11-13 — Reopen identical OOS assessments and simplify the saved portal
+
+Implemented in the existing qualified backtest → Prop Sim configure/check/run →
+freeze → OOS → durable results workflow. Identical assessment meaning reopens its
+canonical queued/running/completed job instead of reserving another request/report.
+The existing AnalysisStore lock protects lookup and submission across tabs.
+Qualification timestamps, caller UUIDs and reuse-parent pointers are excluded;
+real policy/implementation/source distinctions and diagnostic paths remain.
+Complete reuse verifies sealed reports, numerical compatibility and IS/OOS source
+captures; corrupt evidence rejects. Stopped/failed attempts remain retryable.
+No new database, engine, result store or legacy-report migration is added.
+
+The portal shows one current OOS table per phase. Completed buttons become View
+results; IS sizing collapses after freeze, with criteria/per-size checks, historical
+versions and optional diagnostics behind disclosures. History initially contains
+metadata only; a saved report loads only when its individual entry opens. Current
+forward reviews share the OOS table. Original reports and bindings are preserved.
+Changed business limits reuse qualification MC paths even for their first review,
+without inheriting a qualification verdict as the business verdict.
+
+[Actual screenshots, downloads, independent expected outcomes and exact
+reproduction](evidence/qualified_prop_sim/assessment-reuse/README.md).
+The synthetic ten-MNQ example has $13,000 mean Funded receipts. A $1 minimum must
+PASS and a $999,999 revision must FAIL over the exact same account paths. Repeated
+qualification submission adds no fourth assessment: only the qualification and
+two substantive policy versions exist. Initial load fetches one current report;
+opening history fetches none, and opening one entry fetches exactly one more.
+Reload and mobile layout retain the compact presentation. No future execution
+observations or provider qualification are fabricated.
+
+Validation: five focused cases passed: two identity/current-card unit boundaries,
+one actual API concurrency/reuse/policy test, the existing two-phase policy revision
+regression, and the real Chromium product journey. The API covers concurrent
+running/completed reuse, unchanged sealed evidence, explicit policy changes,
+MC-free review, corrupt evidence and stopped-job retry eligibility. The running
+revision regression now declares a substantively different policy before queueing,
+since unchanged requests correctly reuse their completed result. The browser
+asserts no POST on View, one current table, lazy history, downloads, reload and
+390-pixel layout. An initially broad browser selector was narrowed to the direct
+rules disclosure; its complete rerun passed. All 33 phase numerical source hashes,
+qualification, forward and business-review implementation hashes are unchanged.
+Independent saved-output verification, Python/JavaScript syntax and diff checks
+passed. No broad historical suite was run. Temporary servers stopped at teardown;
+user jobs/data/server/VM and earlier evidence remain unchanged.

@@ -2065,3 +2065,14 @@ dialog::backdrop {
 .prop-sim-policy .prop-sim-settings { grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr)); }
 .prop-sim-review-details { white-space:normal; max-width:min(900px,75vw); padding:10px 0; }
 .prop-sim-review-details > summary { cursor:pointer; font-weight:600; }
+
+.prop-sim-steps { display:flex; flex-wrap:wrap; list-style:none; gap:8px 20px; padding:0; margin:0 0 18px; counter-reset:prop-step; color:#71818c; font-size:13px; }
+.prop-sim-steps li { counter-increment:prop-step; }
+.prop-sim-steps li::before { content:counter(prop-step) ' · '; font-weight:700; }
+.prop-sim-steps li.complete { color:#087d6c; }
+.prop-sim-steps li[aria-current=step] { font-weight:700; color:#22313b; }
+.prop-sim-is-panel > summary, .prop-sim-history > summary { cursor:pointer; font-weight:650; padding:12px 0; }
+.prop-sim-history-entry { margin:8px 0; padding:10px 0; border-top:1px solid #e3e9ec; }
+.prop-sim-history-entry > summary { cursor:pointer; font-size:13px; color:#61717c; }
+.prop-sim-policy > summary { cursor:pointer; font-weight:650; }
+.prop-sim-policy[open] > summary { margin-bottom:12px; }

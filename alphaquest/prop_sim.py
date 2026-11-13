@@ -355,6 +355,71 @@ def phase_campaign(request,id,phase):
     return saved,saved['campaign_ids'][phase]
 
 
+def assessment_identity(kind,paths,options):
+    """Calculation/review meaning, excluding timestamps and reuse bookkeeping."""
+    from copy import deepcopy
+    value=deepcopy(options)
+    if value:
+        value.pop('base_report',None)
+        if value.get('qualification'):
+            value['policy']={k:v for k,v in value['policy'].items()
+                if k not in ('declared_at_utc','declaration_timing','policy_sha256')}
+        if value.get('forward_capture'):
+            value['forward_capture']['reviewed_episode_ids']=sorted(value['forward_capture']['reviewed_episode_ids'])
+    return digest(dict(kind=kind,paths=paths,options=value))
+
+
+def reusable_assessment(request,cid,kind,paths,options):
+    """Called under the existing worker lock, before reserving another attempt.
+
+    Also recognizes older attempts without migration or rewriting sealed reports.
+    Failed/stopped attempts remain retryable; corrupt or incompatible evidence
+    fails closed instead of silently creating a replacement result.
+    """
+    store=request.app.state.campaigns;analyses=request.app.state.prop_analyses
+    key=assessment_identity(kind,paths,options)
+    matches=[a for a in reversed(store.assessments(cid)) if a.get('kind')==kind
+        and a['status'] in ('launching','queued','running','complete')
+        and assessment_identity(a.get('kind'),a.get('paths'),a.get('report_options'))==key]
+    if not matches:return None
+    attempt=next((a for a in matches if a['status']=='complete'),matches[0])
+    from .prop.phase_dispatch import implementations_compatible,module_for
+    campaign=store.get(cid)
+    current=module_for(campaign['manifest']['phase']).implementation_identity()
+    if not implementations_compatible(campaign['manifest']['numerical_implementation'],current):
+        raise ValueError('Frozen numerical implementation changed; preserve this package and create a new simulation.')
+    store.begin_assessment(cid,attempt['request_id'])
+    if attempt['status']=='complete':
+        report=json.loads((analyses.root/attempt['analysis_id']/'report.json').read_text())
+        if not implementations_compatible(report['implementation'],current):
+            raise ValueError('Saved assessment numerical implementation changed.')
+        from .prop.phase_profiles import SavedTradeSource,verify_phase_source
+        for row in report['calculations']['candidates']:
+            verify_phase_source(request.app.state.runs,SavedTradeSource(**row['manifest']['configuration']['source']),row['manifest']['source'])
+        for binding in report['assessment']['sources']:
+            original=binding['frozen_manifest']
+            verify_phase_source(request.app.state.runs,SavedTradeSource(**original['configuration']['source']),original['source'])
+    return dict(attempt,reused=True)
+
+
+def current_assessments(attempts,policy):
+    """Metadata-only current cards. Old reports stay accessible on demand."""
+    from .prop.oos_qualification import implementation
+    current=implementation();result={}
+    for attempt in attempts:
+        options=attempt.get('report_options') or {};kind=attempt.get('kind')
+        if options.get('qualification'):
+            if options.get('implementation')!=current:continue
+        elif kind in ('oos','account_starts'):
+            if (options.get('policy') or {}).get('policy_sha256')!=(policy or {}).get('policy_sha256'):continue
+        if attempt['status'] not in ('launching','queued','running','complete'):continue
+        previous=result.get(kind)
+        if previous is None or attempt['status']=='complete' or previous['status']!='complete':result[kind]=attempt
+    if result.get('forward_review') and (result['forward_review'].get('report_options') or {}).get('base_report',{}).get('analysis_id')!=result.get('qualification',{}).get('analysis_id'):
+        result.pop('forward_review')
+    return {kind:a['request_id'] for kind,a in result.items()}
+
+
 @router.get('/{id}/validation/{phase}')
 async def validation(id:UUID,phase:str,request:Request):
     def read():
@@ -365,11 +430,12 @@ async def validation(id:UUID,phase:str,request:Request):
         from .prop.assessment_review import implementation
         from .prop.oos_qualification import RULES
         policy=saved.get('assessment_policies',{}).get(phase)
+        attempts=store.assessments(cid)
         return dict(campaign_id=cid,numerical_implementation_compatible=compatible,assessment_policy=policy,qualification_rules=RULES,
             assessment_policy_history=saved.get('assessment_policy_history',{}).get(phase,[policy] if policy else []),
             review_implementation_compatible=policy is None or policy['implementation']==implementation(),
             frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
-            assessments=store.assessments(cid),disclosure='Strategy qualification already accessed OOS. Frozen-size assessment is additional research, not an untouched holdout. No OOS reselection.')
+            assessments=attempts,current_assessments=current_assessments(attempts,policy),disclosure='Strategy qualification already accessed OOS. Frozen-size assessment is additional research, not an untouched holdout. No OOS reselection.')
     return await invoke(read)
 
 
@@ -443,6 +509,8 @@ async def freeze_choices(id:UUID,phase:str,body:FreezeRequest,request:Request):
 @router.post('/{id}/validation/{phase}',status_code=202)
 async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request):
     def assess():
+        with request.app.state.prop_analyses.lock:return declare()
+    def declare():
         saved,cid=phase_campaign(request,id.hex,phase)
         if body.kind in ('oos','account_starts','qualification','forward_review') and body.paths is not None:raise ValueError('OOS uses the frozen path count; account starts are deterministic. Do not override paths.')
         if body.kind=='forward_review':raise ValueError('Use the forward review form with its captured observation assessment.')
@@ -482,7 +550,7 @@ async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request
             if policy is None:raise ValueError('Save explicit OOS assessment limits before running OOS.')
             if policy['implementation']!=implementation():raise ValueError('Assessment review implementation changed; save a policy revision before a new assessment.')
             options=dict(policy=policy,implementation=implementation(),kind=body.kind)
-            base=next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None)
+            base=next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None) or robustness
             if body.kind=='account_starts' and base is None:raise ValueError('Complete an OOS assessment before account-start sensitivity.')
             if body.kind=='account_starts' and (base.get('report_options') or {}).get('policy',{}).get('policy_sha256')!=policy['policy_sha256']:
                 raise ValueError('Run OOS assessment with the current policy revision before account-start sensitivity. Saved MC results will be reused.')
@@ -493,6 +561,8 @@ async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request
         elif body.kind=='account_starts':
             raise ValueError('Complete OOS qualification before account-start sensitivity.')
         sources={saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']}
+        previous=reusable_assessment(request,cid,body.kind,body.paths,options)
+        if previous:return previous
         return store.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources,report_options=options)
     return await invoke(assess)
 
@@ -559,6 +629,8 @@ async def save_forward_review(id:UUID,phase:str,body:ForwardReview,request:Reque
                 sha256=analyses.fingerprint(qualification['id'])['files']['report.json']),
                 forward_capture=dict(preview['capture'],reviewed_episode_ids=body.reviewed_episode_ids,notes=body.notes))
             qualified(request,Selection.model_validate(saved['configuration']['selections'][0]))
+            previous=reusable_assessment(request,cid,'forward_review',None,options)
+            if previous:return previous
             with analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)',(cid,body.analysis_id.hex))
             return store.assess_saved(cid,body.request_id.hex,'forward_review',None,

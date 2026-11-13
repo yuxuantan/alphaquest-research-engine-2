@@ -176,6 +176,11 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
             assert updated['calculations']['account_start_sensitivity']['simulations']==3
         assert client.app.state.prop_analyses.fingerprint(studies[0]['id'])==old
         if phase=='evaluation':
+            # A new substantive policy is required to start another review;
+            # repeated requests under version 2 now reopen its saved result.
+            third_request=dict(limits,previous_policy_sha256=revised['policy_sha256'],reason='Change the diagnostic window before queued review',account_start_count=4)
+            response=client.post(prefix+'/policy/revisions',json=third_request);assert response.status_code==200,response.text
+            third=response.json()
             from threading import Event
             from alphaquest.prop.assessment_review import enrich
             entered,release=Event(),Event()
@@ -188,13 +193,13 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
                 try:
                     assert client.post(prefix,json=declared).status_code==202
                     assert entered.wait(10)
-                    revert=dict(limits,previous_policy_sha256=revised['policy_sha256'],reason='Restore the original business decision')
+                    revert=dict(limits,previous_policy_sha256=third['policy_sha256'],reason='Restore the original business decision')
                     response=client.post(prefix+'/policy/revisions',json=revert);assert response.status_code==200,response.text
-                    restored=response.json();assert restored['revision']==3 and restored['limits']==policy['limits']
+                    restored=response.json();assert restored['revision']==4 and restored['limits']==policy['limits']
                 finally:release.set()
                 _,running=wait_assessment(client,prefix,declared['request_id'])
-            assert running['calculations']['assessment_policy']==revised  # Running job retains version 2.
-            assert client.get(prefix).json()['assessment_policy_history']==[policy,revised,restored]
+            assert running['calculations']['assessment_policy']==third  # Running job retains version 3.
+            assert client.get(prefix).json()['assessment_policy_history']==[policy,revised,third,restored]
         evidence[phase]=studies
     # Report readers remain valid even after a numerical implementation changes.
     with patch('alphaquest.prop.evaluation_optimization.implementation_identity',return_value={}):
