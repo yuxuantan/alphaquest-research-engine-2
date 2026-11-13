@@ -15,7 +15,7 @@ from .native_analysis import run_analysis
 from .parallel import Runtime
 
 
-def seal_report(staged, result, id, created):
+def seal_report(staged, result, id, created, *, size_limit_bytes=128*1024*1024):
     """Build the normal durable report/downloads, without catalogue access."""
     from .adapter import digest
     result.update(id=id,created_at_utc=created,status='complete')
@@ -23,11 +23,11 @@ def seal_report(staged, result, id, created):
     for p in staged.rglob('*'):
         if p.is_symlink():raise ValueError('Analysis output contains a symbolic link.')
         if p.is_file():files[str(p.relative_to(staged))]=dict(bytes=p.stat().st_size,sha256=digest(p))
-    if sum(v['bytes'] for v in files.values())>128*1024*1024:
+    if size_limit_bytes is not None and sum(v['bytes'] for v in files.values())>size_limit_bytes:
         raise ValueError('Analysis output exceeds 128 MiB; no completed result was published.')
     result['files']=files
     report_text=canonical(result)
-    if sum(v['bytes'] for v in files.values())+len(report_text.encode('utf-8'))>128*1024*1024:
+    if size_limit_bytes is not None and sum(v['bytes'] for v in files.values())+len(report_text.encode('utf-8'))>size_limit_bytes:
         raise ValueError('Analysis artifacts and embedded report exceed 128 MiB; no completed result was published. The archive is a separate compressed copy.')
     (staged/'report.json').write_text(report_text,encoding='utf-8')
     with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
@@ -350,7 +350,7 @@ class AnalysisStore:
         module = module_for_mode(search.mode)
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
-        if assessment and assessment.get('kind')=='is_robustness':
+        if assessment and assessment.get('kind')=='is_robustness' and getattr(search,'conservative_objective',None) is not None:
             bound=validate_phase_work(search)
             blocks={1,5,20,*[c.sampling.block_weekdays for c in search.candidates]}
             if bound['estimated_capture_bytes']*(len(blocks)+2)>100*1024*1024:
@@ -525,7 +525,9 @@ class AnalysisStore:
                         if review_options['implementation'] != implementation():
                             raise ValueError('Review implementation changed before publication.')
                         if base: verified_base()
-                    seal_report(staged, result, id, self.get(id)['created'])
+                    size_limit = (128*1024*1024 if getattr(search,'native_execution',None) is not None
+                                  or getattr(search,'conservative_objective',None) is not None else None)
+                    seal_report(staged, result, id, self.get(id)['created'],size_limit_bytes=size_limit)
                     staged.rename(self.root/id)
                     with self.connect() as db:
                         db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))

@@ -11395,3 +11395,39 @@ passed, including revision while running, retry/stale-edit rejection, preserved
 old verdicts, unchanged MC paths, reload and mobile layout. Independent saved
 fee/cash checks, numerical/review source identity verification, Python/JavaScript
 syntax and `git diff --check` passed. No full historical suite was run.
+
+### 2026-11-13 — Remove size-dependent path-count rejection
+
+The normal qualified backtest -> Prop Sim configure/check/run -> durable results
+workflow no longer caps paths according to the size range. The portal displays
+per-size and total path counts, and the shared saved-source admission reports
+work estimates without rejecting basic runs at 100 MiB or 50 million aggregate
+path-days. Publication for plain saved-source phase jobs no longer imposes the
+aggregate 128-MiB ceiling either; no completed paths or source evidence are dropped.
+Optional historical refits/native reruns and other legacy report bounds retain
+their existing contracts. The per-size input range stays 8–20,000 for every range.
+
+[Actual outputs, independent expected values and reproduction](evidence/qualified_prop_sim/uncapped-path-count/README.md).
+The isolated normal-product browser journey requests 40 sizes and 1,000 paths in
+each phase, checks source/settings, launches both actual workers, downloads the
+normal sealed ZIPs, verifies all 40,000 captured paths per phase and reloads the
+saved tables. A deliberately short 10-calendar-day Funded horizon keeps this
+boundary demonstration focused; it is an explicit synthetic scenario, not a
+recommendation. Independent arithmetic includes every Funded path's cash and
+verifies Evaluation acquisition cost from its empirical attempt probability.
+
+Focused boundaries cover baseline searches above both former work/capture
+thresholds, optional-refit safeguards, unknown-mode rejection, publication of a
+129-MiB captured artifact, retained legacy publication rejection, and exact
+forward-only identity compatibility. The reviewed admission source hash changes
+honestly while the other 32 numerical source hashes remain unchanged. Existing
+sealed product reports qualify through the directed compatibility check. Earlier
+snapshots are preserved. Temporary test servers stop at teardown; no user data,
+account rules or persistent server is changed. No full historical suite is run.
+
+Validation: 10 distinct focused checks passed (9 admission/publication/identity
+boundaries and the real 80,000-path Chromium product journey). The initial
+30-second browser submission budget was corrected; the complete rerun passed
+with all paths retained and its temporary server stopped. Independent saved
+cash/cost arithmetic, source-hash compatibility, Python/JavaScript syntax and
+`git diff --check` passed. No user job was submitted or stopped.

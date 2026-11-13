@@ -466,3 +466,76 @@ def test_is_table_size_selection_limits_exclusions_sorting_and_compact_summary(p
     # Both the checkbox and MNQ size remain visible while comparing later metrics.
     positions=table.evaluate("(el)=>{const r=[...el.tBodies[0].rows].find(row=>row.dataset.size==='3');return [el.parentElement.getBoundingClientRect().left,r.children[0].getBoundingClientRect().left,r.children[1].getBoundingClientRect().left];}")
     assert positions[1]>=positions[0] and positions[2]>positions[1]
+
+
+def test_forty_sizes_keep_one_thousand_paths_through_saved_product_results(page,portal,tmp_path):
+    """Real source/check/workers/report path beyond the former 524-path cap."""
+    import time
+    from zipfile import ZipFile
+    with httpx.Client(base_url=portal['url'],timeout=180) as client:
+        workflow,source=qualified_source(client)
+    page.goto(portal['url']+'/#backtests/report/'+source['source_backtest_id'])
+    page.locator('#report-prop-setup').click()
+    for phase in ('evaluation','funded'):
+        page.locator('#prop-sim-'+phase+'_minimum_micros').fill('1')
+        page.locator('#prop-sim-'+phase+'_maximum_micros').fill('40')
+    page.locator('#prop-sim-funded_horizon_calendar_days').fill('10')
+    page.locator('#prop-sim-simulations').fill('1000')
+    playwright.expect(page.locator('#prop-sim-simulations')).to_have_value('1000')
+    playwright.expect(page.locator('#prop-sim-preflight')).to_contain_text('80,000 total paths')
+    playwright.expect(page.locator('#prop-sim-check')).to_be_enabled()
+    page.get_by_text('Costs, calendar and optional risk settings',exact=True).click()
+    page.locator('#prop-sim-start_date').fill('2026-11-16')
+    page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'forty-size-configuration.png'))
+    with page.expect_response(lambda r:r.url.endswith('/api/prop-sim/check'),timeout=180000) as checked:
+        page.locator('#prop-sim-check').click()
+    assert checked.value.status==200,checked.value.text()
+    check=checked.value.json()
+    for phase in ('evaluation','funded'):
+        assert check['phases'][phase]['candidate_search_count']==40
+        assert all(c['simulation']['simulations']==1000 for c in check['phases'][phase]['request']['candidates'])
+    playwright.expect(page.locator('#prop-sim-run')).to_be_enabled()
+    with page.expect_response(lambda r:r.url.endswith('/api/prop-sim') and r.request.method=='POST',timeout=180000) as launched:
+        page.locator('#prop-sim-run').click()
+    assert launched.value.status==202,launched.value.text()
+    saved=launched.value.json();outputs={}
+    with httpx.Client(base_url=portal['url'],timeout=180) as client:
+        deadline=time.monotonic()+900
+        while True:
+            saved=client.get('/api/prop-sim/'+saved['id']).json()
+            if all(p['status'] not in ('queued','running') for p in saved['phases'].values()):break
+            assert time.monotonic()<deadline,saved['phases']
+            time.sleep(.5)
+        assert all(p['status']=='complete' for p in saved['phases'].values()),saved['phases']
+        for phase in ('evaluation','funded'):
+            aid=saved['phases'][phase]['analysis_id']
+            response=client.get('/api/prop-analyses/'+aid+'/downloads/analysis.zip')
+            assert response.status_code==200,response.text
+            archive=tmp_path/(phase+'-forty-size-evidence.zip');archive.write_bytes(response.content)
+            with ZipFile(archive) as z:report=json.loads(z.read('report.json'))
+            rows=report['calculations']['candidates'];assert len(rows)==40
+            assert sorted(r['manifest']['configuration']['micros'] for r in rows)==list(range(1,41))
+            for row in rows:
+                assert row['manifest']['configuration']['simulation']['simulations']==1000
+                assert len(row['paths'])==1000
+                if phase=='funded':
+                    assert abs(row['metrics']['expected_funded_cash_payouts_within_horizon']-sum(p['cash_received'] for p in row['paths'])/1000)<1e-8
+                elif row['metrics']['cost_per_funded'] is not None:
+                    assert abs(row['metrics']['cost_per_funded']-(49/row['metrics']['pass_probability']+129))<1e-8
+            outputs[phase]=dict(analysis_id=aid,candidates=40,paths_per_candidate=1000,total_paths=40000,
+                recorded_artifact_bytes=sum(f['bytes'] for f in report['files'].values()),zip_bytes=archive.stat().st_size)
+            playwright.expect(page.locator('#prop-sim-'+phase+'-progress')).to_contain_text('COMPLETE',timeout=90000)
+            playwright.expect(page.locator('#prop-sim-'+phase+'-table tbody tr')).to_have_count(40,timeout=90000)
+    page.locator('#prop-sim-funded-results').screenshot(path=str(tmp_path/'forty-size-funded-results.png'))
+    page.reload()
+    playwright.expect(page.locator('#prop-sim-funded-table tbody tr')).to_have_count(40,timeout=90000)
+    (tmp_path/'forty-size-verification.json').write_text(json.dumps(dict(synthetic=True,simulation_id=saved['id'],
+        workflow_id=workflow['id'],source_backtest_id=source['source_backtest_id'],phases=outputs,
+        funded_horizon_calendar_days=10,
+        source_checked=True,paths_not_clipped=True,durable_reload=True,
+        expected='40 candidates × 1000 paths per phase; Funded mean includes all 1000 path receipts; Evaluation cost = 49 / attempt pass probability + 129.',
+        server='Isolated temporary server stops at fixture teardown; no user job submitted.'),indent=2))
+    if destination:=os.environ.get('ALPHAQUEST_PROP_PATH_EVIDENCE_DIR'):
+        target=Path(destination);target.mkdir(parents=True,exist_ok=True)
+        for p in tmp_path.iterdir():
+            if p.is_file() and p.suffix in ('.json','.zip','.png'):shutil.copyfile(p,target/p.name)

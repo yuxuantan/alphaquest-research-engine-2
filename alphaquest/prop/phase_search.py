@@ -71,7 +71,7 @@ def require_candidate_confirmation(count, confirmed_count):
 
 
 def validate_phase_work(search, observed_session_count=None):
-    """One preflight bound shared by preview, source checks and reservation.
+    """Shared work estimates; only optional historical refits impose bounds.
 
     Counts describe captured history units, never certify historical evidence.
     A scalar count applies to every candidate; per-candidate counts are accepted
@@ -97,9 +97,9 @@ def validate_phase_work(search, observed_session_count=None):
             estimate += indices*8
             if indices > 1_000_000:
                 raise ValueError('Historical resampling capture exceeds one million session indices; narrow the declared search.')
-    if estimate > 100*1024*1024:
+    if cfg is not None and estimate > 100*1024*1024:
         raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
-    if work > 50_000_000:
+    if cfg is not None and work > 50_000_000:
         raise ValueError('Declared funded search exceeds 50 million path calendar days including historical refits; narrow the explicit search.')
     return dict(estimated_capture_bytes=estimate, funded_path_calendar_days=work,
                 historical_session_indices=indices if observed_session_count is not None else None)

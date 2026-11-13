@@ -1,0 +1,30 @@
+{
+  "synthetic": true,
+  "simulation_id": "911e4695d948498396915e4baeb86a11",
+  "workflow_id": "b8f1ada373f646beb03686b9f27d6283",
+  "source_backtest_id": "8472d0eb33dd4173999ad2dafd7d6c81",
+  "phases": {
+    "evaluation": {
+      "analysis_id": "b4d16dce928c499e8f36bb37bce8cd6a",
+      "candidates": 40,
+      "paths_per_candidate": 1000,
+      "total_paths": 40000,
+      "recorded_artifact_bytes": 14180979,
+      "zip_bytes": 1688375
+    },
+    "funded": {
+      "analysis_id": "b048e74ac1af4643b47602a2d5315c1b",
+      "candidates": 40,
+      "paths_per_candidate": 1000,
+      "total_paths": 40000,
+      "recorded_artifact_bytes": 21338899,
+      "zip_bytes": 1462715
+    }
+  },
+  "funded_horizon_calendar_days": 10,
+  "source_checked": true,
+  "paths_not_clipped": true,
+  "durable_reload": true,
+  "expected": "40 candidates \u00d7 1000 paths per phase; Funded mean includes all 1000 path receipts; Evaluation cost = 49 / attempt pass probability + 129.",
+  "server": "Isolated temporary server stops at fixture teardown; no user job submitted."
+}

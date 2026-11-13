@@ -1610,7 +1610,7 @@ Its reproduction claims apply to the old notebook, not The Bridge model.
 
 # Notebook-compatible prop analysis
 
-Authority: `notebooks/PropFirm_MonteCarlo_Apex50K_2508.ipynb`, SHA-256
+Authority: `notebooks/PropFirm_MonteCarlo_Apex 50K_2508.ipynb`, SHA-256
 `f79b6c6cc54e7bd64d619bb684ec4c6537c7bcf1d1e1d3f6d5bd6e74c908f89b`.
 Downloaded on 2026-10-26; 1,016,849 bytes, 23 cells; exact reviewed revision.
 Executable cells take precedence over notebook prose. Stored outputs are not oracles.
@@ -2489,3 +2489,31 @@ The validation GET includes current policy and `assessment_policy_history`.
 Saving the original policy route still cannot overwrite an existing version.
 
 [Revision evidence and reproduction](evidence/qualified_prop_sim/oos-policy-revisions/README.md).
+
+### Path count is independent of the saved-source size range — 2026-11-13
+
+The qualified Prop Sim portal no longer lowers allowed paths as the number of
+MNQ sizes increases. A 1–40 size search with 1,000 paths retains 1,000 per size
+in each phase (80,000 declared paths overall); the former approximate 100-MiB
+capture estimate no longer disables source checking or launch. The preview now
+shows the requested per-size count and total, without clipping or a size-based
+maximum. The existing 8–20,000 per-size input range is independent of size count.
+
+Saved-source independent Evaluation/Funded admission continues to estimate work
+but does not reject a basic search based on the estimated capture size or total
+Funded path-calendar days. Optional historical-refit and native signal-rerun
+bounds remain their separate contracts. Basic saved-source sensitivity/precision
+assessments follow the same path-count admission. Report publication for these
+saved-source phase jobs also removes the aggregate 128-MiB ceiling; it retains
+all paths, source captures, checksums, normal JSON/ZIP downloads, cancellation and
+atomic completion. Legacy/native/refit report bounds remain unchanged.
+
+The only fingerprinted source revision is admission in `phase_search.py`, from
+`a078590d…3a051` to `14fbe784…ec36c`. Every numerical kernel/phase simulation and
+all other 32 fingerprinted sources remain unchanged. Directed compatibility
+accepts this exact admission revision (and the earlier reviewed audit correction)
+only when all other implementation fields match. Earlier reports and frozen
+packages remain unchanged; unknown numerical revisions still reject. Saved
+simulations remain readable and compatible for freeze/OOS/review workflows.
+
+[Full product demonstration and reproduction](evidence/qualified_prop_sim/uncapped-path-count/README.md).

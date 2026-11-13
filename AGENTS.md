@@ -220,3 +220,12 @@ Queued/running jobs retain their captured version. Re-review compatible sealed
 OOS MC paths rather than rerunning optimization; require a current-version OOS
 review before new account-start sensitivity. Expose history/version labels in the
 normal portal. See the later revision contract in `docs/prop_simulation.md`.
+
+Saved-source Prop Sim path count must not shrink with the selected size range.
+Do not reintroduce aggregate estimated-capture/path-day caps for basic independent
+Evaluation/Funded or their plain saved-source assessments, or the aggregate
+report-size ceiling at their publication step. Retain all requested paths and
+normal source evidence/downloads. The existing per-size input range is8–20,000
+regardless of range size. Optional historical refits, native reruns and legacy
+reports retain their separate bounds. See the dated path-count contract and
+normal-product evidence in `docs/prop_simulation.md`/`prop_simulation_review.md`.

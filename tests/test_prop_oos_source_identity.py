@@ -42,6 +42,10 @@ def test_admission_revision_compatibility_is_exact_directed_and_preserves_hashes
     snapshot = deepcopy(saved)
     assert implementations_compatible(saved,current)
     assert not implementations_compatible(current,saved)
+    previous = deepcopy(current)
+    previous['files']['phase_search.py']='a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051'
+    assert implementations_compatible(previous,current)
+    assert not implementations_compatible(current,previous)
     assert saved == snapshot
     assert current['files']['phase_search.py'] == sha256(Path('alphaquest/prop/phase_search.py').read_bytes()).hexdigest()
     for key in ('native_engine.py','evaluation_profiles.py','../strategies/vwap_pullback_risk_sizing.py','phase_search.py'):

@@ -146,7 +146,7 @@
       const preview=node('p',undefined,'prop-sim-preflight');preview.id='prop-sim-preflight';preview.setAttribute('role','status');form.append(preview);
       const buttons=node('div',undefined,'mechanic-downloads'),check=node('button','Check source and settings','button secondary'),run=node('button','Run Evaluation and Funded','button primary');check.type=run.type='button';check.id='prop-sim-check';run.id='prop-sim-run';run.disabled=true;buttons.append(check,run);form.append(buttons);
       const notice=node('p');notice.id='prop-sim-status';notice.setAttribute('role','status');form.append(notice);
-      let checked=false,busy=false,resourceOK=true,requestId=crypto.randomUUID(),saved;
+      let checked=false,busy=false,requestId=crypto.randomUUID(),saved;
       let deleting=false;
       async function requestDelete(id){
         if(deleting)return;deleting=true;
@@ -172,16 +172,13 @@
         host.prepend(message);
       }
 
-      const update=()=>{check.disabled=busy||picker.value===''||!resourceOK;run.disabled=busy||!checked||!resourceOK;};
+      const update=()=>{check.disabled=busy||picker.value==='';run.disabled=busy||!checked;};
       function resourcePreview(){
-        const p=profiles[accountPicker.value],paths=Number(fields.simulations.value),counts={};const errors=[];
+        const paths=Number(fields.simulations.value),counts={};
         for(const phase of ['evaluation','funded']){
           counts[phase]=Math.max(0,Number(fields[phase+'_maximum_micros'].value)-Number(fields[phase+'_minimum_micros'].value)+1);
-          if(counts[phase]*paths*p.report_limits[phase+'_bytes_per_path']>p.report_limits.capture_bytes)
-            errors.push(`${phase==='evaluation'?'Evaluation':'Funded'} report is too large. For ${counts[phase]} sizes, use at most ${Math.floor(p.report_limits.capture_bytes/(counts[phase]*p.report_limits[phase+'_bytes_per_path']))} paths, or narrow the range.`);
         }
-        resourceOK=!errors.length;preview.classList.toggle('prop-sim-preflight-error',!resourceOK);
-        preview.textContent=errors.length?errors.join(' '):`${counts.evaluation} Evaluation sizes + ${counts.funded} Funded sizes · ${paths.toLocaleString()} paths per size, per phase. Both searches use IS history only.`;update();
+        preview.textContent=`${counts.evaluation} Evaluation sizes + ${counts.funded} Funded sizes · ${paths.toLocaleString()} paths per size, per phase · ${((counts.evaluation+counts.funded)*paths).toLocaleString()} total paths. The path count does not shrink with the size range. Both searches use IS history only.`;update();
       }
       function applyAccount(reset){
         const id=accountPicker.value,p=profiles[id];

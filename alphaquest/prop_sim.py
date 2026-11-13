@@ -287,7 +287,7 @@ def account_defaults(id):
         supported_evaluation_consistency_percent=[40,50] if lucid else [],
         notes=('40% standard or 50% add-on Evaluation consistency; enter the actual purchase fee including options. No activation fee or provider Evaluation expiry. Calendar inactivity is modeled. DLL-on uses the preserved fixed $1,200 soft stop assumption. Live trading after the fifth payout is outside this simulation.' if lucid else
             'Preserved local model: 21-session Evaluation expiry/inactivity and exactly 50% Funded consistency; reviewed provider calendar/boundary rules differ.'),
-        report_limits=dict(capture_bytes=100*1024*1024,evaluation_bytes_per_path=2600 if lucid else 800,funded_bytes_per_path=5000),
+        report_limits=dict(size_dependent_path_cap=False),
         defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_consistency_percent=40,evaluation_minimum_micros=1,evaluation_maximum_micros=10,
             funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
             evaluation_price=account['price'],activation_fee=account['activation'],commission_per_mnq_side=account['commission'],
