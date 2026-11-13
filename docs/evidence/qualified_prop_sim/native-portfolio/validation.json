@@ -1,0 +1,14 @@
+{
+  "focused_checks": 21,
+  "existing_automatic_browser_journeys": 2,
+  "real_source_browser_journey": "passed",
+  "real_api_rejections": 6,
+  "independent_zip_audit": "passed",
+  "original_saved_trade_reconciliation": "matched",
+  "phase_implementation_identities_unchanged": true,
+  "simulation_id": "35f7574b772141baa3362d2344fa147a",
+  "analysis_id": "68b9acab37ef41d8bfe4ed7952266edf",
+  "temporary_server": "Stopped after final inspection",
+  "live_server": "Applied to the existing port-8000 server after explicit restart approval; see live-application.json and live-ui-check.json",
+  "focused_checks_repeated_in_workspace": 21
+}

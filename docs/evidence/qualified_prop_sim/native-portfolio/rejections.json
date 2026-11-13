@@ -1,0 +1,252 @@
+[
+  {
+    "case": "duplicate configurations",
+    "expected": 422,
+    "actual": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, Duplicate strategy configurations.",
+          "input": {
+            "request_id": "806f1d23-8fc9-4b24-8722-f08b0ef06a0a",
+            "selections": [
+              {
+                "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+                "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+                "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+                "candidate": 2
+              },
+              {
+                "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+                "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+                "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+                "candidate": 2
+              }
+            ],
+            "profile_id": "lucidflex-50k",
+            "daily_loss_limit": true,
+            "evaluation_consistency_percent": 40,
+            "evaluation_price": "80.50",
+            "activation_fee": "0",
+            "commission_per_mnq_side": ".50",
+            "monthly_cap": "500",
+            "maximum_accounts": 1,
+            "placements": [
+              "separate",
+              "shared"
+            ],
+            "evaluation_policy": {
+              "kind": "percentage_risk",
+              "contracts": null,
+              "risk_dollars": null,
+              "risk_percent": "1",
+              "reference": "initial_configured_capital",
+              "minimum_contracts": 1,
+              "maximum_contracts": 40,
+              "constrain_to_account_cushion": false,
+              "constrain_to_daily_cushion": false
+            },
+            "funded_policy": {
+              "kind": "percentage_risk",
+              "contracts": null,
+              "risk_dollars": null,
+              "risk_percent": "0.2",
+              "reference": "initial_configured_capital",
+              "minimum_contracts": 1,
+              "maximum_contracts": 40,
+              "constrain_to_account_cushion": false,
+              "constrain_to_daily_cushion": false
+            },
+            "receipt_delay_calendar_days": 2,
+            "is_start": "2024-12-23",
+            "is_end": "2024-12-31",
+            "oos_start": "2025-01-02",
+            "oos_end": "2025-01-10"
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case": "provider cap",
+    "expected": 422,
+    "actual": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, Sizing exceeds the account phase ceiling.",
+          "input": {
+            "request_id": "806f1d23-8fc9-4b24-8722-f08b0ef06a0a",
+            "selections": [
+              {
+                "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+                "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+                "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+                "candidate": 2
+              }
+            ],
+            "profile_id": "lucidflex-50k",
+            "daily_loss_limit": true,
+            "evaluation_consistency_percent": 40,
+            "evaluation_price": "80.50",
+            "activation_fee": "0",
+            "commission_per_mnq_side": ".50",
+            "monthly_cap": "500",
+            "maximum_accounts": 1,
+            "placements": [
+              "separate",
+              "shared"
+            ],
+            "evaluation_policy": {
+              "kind": "percentage_risk",
+              "contracts": null,
+              "risk_dollars": null,
+              "risk_percent": "1",
+              "reference": "initial_configured_capital",
+              "minimum_contracts": 1,
+              "maximum_contracts": 40,
+              "constrain_to_account_cushion": false,
+              "constrain_to_daily_cushion": false
+            },
+            "funded_policy": {
+              "kind": "percentage_risk",
+              "contracts": null,
+              "risk_dollars": null,
+              "risk_percent": "0.2",
+              "reference": "initial_configured_capital",
+              "minimum_contracts": 1,
+              "maximum_contracts": 41,
+              "constrain_to_account_cushion": false,
+              "constrain_to_daily_cushion": false
+            },
+            "receipt_delay_calendar_days": 2,
+            "is_start": "2024-12-23",
+            "is_end": "2024-12-31",
+            "oos_start": "2025-01-02",
+            "oos_end": "2025-01-10"
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case": "outside qualified IS",
+    "expected": 409,
+    "actual": 409,
+    "response": {
+      "detail": "Portfolio IS window lies outside common qualified coverage."
+    }
+  },
+  {
+    "case": "unsupported profile",
+    "expected": 422,
+    "actual": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, Unsupported prop account.",
+          "input": {
+            "request_id": "806f1d23-8fc9-4b24-8722-f08b0ef06a0a",
+            "selections": [
+              {
+                "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+                "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+                "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+                "candidate": 2
+              }
+            ],
+            "profile_id": "other",
+            "daily_loss_limit": true,
+            "evaluation_consistency_percent": 40,
+            "evaluation_price": "80.50",
+            "activation_fee": "0",
+            "commission_per_mnq_side": ".50",
+            "monthly_cap": "500",
+            "maximum_accounts": 1,
+            "placements": [
+              "separate",
+              "shared"
+            ],
+            "evaluation_policy": {
+              "kind": "percentage_risk",
+              "contracts": null,
+              "risk_dollars": null,
+              "risk_percent": "1",
+              "reference": "initial_configured_capital",
+              "minimum_contracts": 1,
+              "maximum_contracts": 40,
+              "constrain_to_account_cushion": false,
+              "constrain_to_daily_cushion": false
+            },
+            "funded_policy": {
+              "kind": "percentage_risk",
+              "contracts": null,
+              "risk_dollars": null,
+              "risk_percent": "0.2",
+              "reference": "initial_configured_capital",
+              "minimum_contracts": 1,
+              "maximum_contracts": 40,
+              "constrain_to_account_cushion": false,
+              "constrain_to_daily_cushion": false
+            },
+            "receipt_delay_calendar_days": 2,
+            "is_start": "2024-12-23",
+            "is_end": "2024-12-31",
+            "oos_start": "2025-01-02",
+            "oos_end": "2025-01-10"
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case": "unqualified Monte Carlo",
+    "expected": 409,
+    "actual": 409,
+    "response": {
+      "detail": "Select a configuration from the latest completed Monte Carlo assessment."
+    }
+  },
+  {
+    "case": "account count bound",
+    "expected": 422,
+    "actual": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "body",
+            "maximum_accounts"
+          ],
+          "msg": "Input should be less than or equal to 4",
+          "input": 5,
+          "ctx": {
+            "le": 4
+          }
+        }
+      ]
+    }
+  }
+]

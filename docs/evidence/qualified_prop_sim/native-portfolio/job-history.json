@@ -1,0 +1,25 @@
+{
+  "id": "68b9acab37ef41d8bfe4ed7952266edf",
+  "kind": "prop_analysis",
+  "recorded_at_utc": "2026-11-13T15:18:49.392344+00:00",
+  "status": "complete",
+  "strategy_id": "vwap_pullback_risk_sizing",
+  "dataset_name": "ofb_bars_NQ",
+  "started_at_utc": null,
+  "finished_at_utc": null,
+  "error": null,
+  "progress": {
+    "stage": "Saved portfolio allocation and replacement cash flow ready",
+    "completed": null,
+    "total": null,
+    "unit": null
+  },
+  "links": [
+    {
+      "label": "Open Prop Sim",
+      "href": "#prop-sim?analysis=35f7574b772141baa3362d2344fa147a"
+    }
+  ],
+  "stop_requested_at_utc": null,
+  "href": "#jobs/prop_analysis/68b9acab37ef41d8bfe4ed7952266edf"
+}

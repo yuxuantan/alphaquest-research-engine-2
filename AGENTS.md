@@ -55,7 +55,7 @@ Keep the opt-out eligibility covered in `tests/test_campaign_narrow.py`.
 The main Prop Sim tab is orchestrated by `alphaquest/prop_sim.py` and
 `alphaquest/web/prop-sim.js`. Keep campaign mechanics/Broad/Narrow/current OOS/
 latest current-policy Monte Carlo qualification server-owned and rechecked at
-launch. Exactly one configuration is currently supported. Reuse the independent
+launch. Exactly one configuration is supported by independent fixed-size searches. Reuse the independent
 phase campaigns/AnalysisStore; do not duplicate their numerical engines or turn
 the parent phase-reference record into another result store. Select
 `tests/test_prop_sim.py` explicitly for admission/orchestration changes and the
@@ -66,6 +66,21 @@ LucidFlex 50K ceiling 40 in both, with Funded account tiers still enforced). Exp
 cap; do not silently clip Evaluation to the older 40-MNQ default. Funded breach
 probability is a diagnostic with an optional default-off eligibility cap over
 the modeled horizon, not over the IS history. Preserve explicit historical caps.
+The additive native portfolio mode supports one to four qualified VWAP EOD-flat
+configurations on one common NQ/MNQ dataset. Keep its observed-IS cash objective
+separate from independent phase objectives. Native percentage risk reruns actual
+strategy/execution under the existing Evaluation/Funded controllers; never
+retroactively resize saved trades when strategy/account state can change signals.
+Shared accounts currently admit one position at a time with declared risk-share
+priority. Preserve the hard monthly Evaluation/activation cap, reservation and
+receipt/deduction separation, zero-purchase baseline and frozen OOS allocation.
+Use `portfolio_sources.py` for checked temporary per-session source spools,
+`portfolio_lifecycle.py` for orchestration and `portfolio_cash.py` for the shared
+budget. No duplicate phase engine/store or claimed portfolio Monte Carlo GO.
+Run `test_prop_portfolio_core.py` and `test_prop_portfolio_api.py` for this mode;
+the normal-product evidence and scope are in the dated native-portfolio section
+of `docs/prop_simulation.md` and `docs/prop_simulation_review.md`.
+
 The Evaluation Pareto chart shows resolved estimates, exact ties and the supplied
 frontier; it must not fabricate points for unresolved or untested configurations.
 Lucid 40% standard / 50% add-on Evaluation uses the saved-signal calendar acquisition owner

@@ -176,3 +176,17 @@ This comparison does not replace the completed dated/budgeted lifecycle modes.
 It admits no monthly budget input: unsupported declarations reject. Existing
 budgeted replay retains the hard monthly fee cap, no rollover and no expansion
 from payouts. General portfolio search remains outside this comparison.
+
+## 2026-11-13 native portfolio increment
+
+The campaign-qualified Prop Sim page now implements an additive finite allocation
+search across separate accounts and shared accounts with one position at a time,
+percentage-risk native execution and full budgeted replacement cash accounting.
+IS selects/fixes the allocation, then fresh OOS and continuous full-period replays
+run automatically. This supersedes earlier blanket statements that no portfolio
+allocation is implemented. Earlier dated milestones and evidence remain intact.
+See [the implemented contract](prop_simulation.md#native-percentage-risk-portfolio-allocation-and-replacement-cash-flow--2026-11-13)
+for source restrictions, 25% shared shares, exact monthly budget, artifacts and
+historical-scenario interpretation. Shared concurrent positions/netting, mixed
+instrument portfolios and native portfolio Monte Carlo certification remain
+pending; a chronological best-IS allocation is not an expected-profit guarantee.

@@ -2079,3 +2079,17 @@ dialog::backdrop {
 .prop-confidence-progress { margin-block: 1rem; }
 .prop-confidence-progress progress { display: block; width: min(100%, 44rem); height: 1rem; }
 .prop-confidence-progress small { color: var(--text-muted, #637581); }
+.prop-sim-insight { padding: 1.25rem; margin-block: 1rem; background: #edf8f5; border: 1px solid #d0e7df; border-radius: 12px; }
+.prop-sim-insight h3, .prop-sim-outcome h3 { margin-block: .75rem .5rem; }
+.prop-sim-insight small { color: #52666d; }
+.prop-sim-outcome { margin-block: 1rem; }
+.prop-sim-chart-details { margin-block: 1rem; }
+.prop-portfolio-panel { padding: 24px; margin-block: 18px; }
+.prop-portfolio-panel > a { display: inline-flex; margin: 8px 18px 8px 0; }
+.prop-portfolio-panel h3 { margin-block: 24px 12px; }
+.prop-portfolio-panel details { margin-block: 20px; }
+.prop-portfolio-panel pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prop-portfolio-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-block: 24px; }
+.prop-portfolio-metrics .prop-sim-insight { margin: 0; }
+@media (max-width: 640px) { .prop-portfolio-panel { padding: 18px; } }
+.prop-portfolio-metrics .prop-sim-insight h3 { font-size: 28px; letter-spacing: -.03em; margin-block: 12px; }

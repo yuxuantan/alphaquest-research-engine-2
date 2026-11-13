@@ -11644,3 +11644,93 @@ completed IS analysis IDs and both immutable frozen-package hashes matched the
 pre-restart values exactly. This verifies dispatch and progress, not a completed
 OOS verdict for the user's real history. No extra persistent server was started;
 the existing user-managed server continues running.
+
+## 2026-11-13 — native percentage risk, both portfolio placements and replacement cash
+
+The actual campaign-qualified Prop Sim workflow now exposes an additive portfolio
+mode alongside the existing independent fixed-size Evaluation/Funded workflow.
+One initial Run checks qualified sources, searches the declared finite IS family,
+freezes the winning allocation, and calculates fresh-start OOS plus continuous
+full-period replacements/cash receipts. The portal leads with phase cash insights
+and compact tables; optional tables, Pareto exploration and technical evidence
+are expandable. Earlier dated reports, milestones and numerical owners remain.
+
+New owners are narrow orchestration/adaptation modules: `portfolio_sources.py`
+checks and temporarily spools actual sessions, `portfolio_lifecycle.py` calls the
+existing native strategy/execution and phase controllers, `portfolio_cash.py`
+coordinates the shared monthly fee cap, and `portfolio_search.py` ranks the finite
+observed-IS allocation family. The existing API, workers, AnalysisStore, job
+history and saved Prop Sim parent own persistence. No Bridge runtime, new service,
+new database, invented measured adverse excursion or demo-only route is added.
+
+The user journey begins at the existing qualified IS report, opens Prop Sim,
+selects the new portfolio mode, configures one or more supported strategies and
+trade risk, runs once, navigates away, reopens durable results and downloads the
+normal sealed ZIP. [The saved real-data demonstration](evidence/qualified_prop_sim/native-portfolio/README.md)
+contains exact inputs/steps, desktop/mobile screenshots, original parent/summary,
+source checks, native trades/risk decisions, ledgers, independent expected values
+and API rejection evidence. The demonstration uses an isolated copy of the user's
+already-qualified NQ source; its reference-price/MNQ-fill limitation is explicit.
+It does not mutate or add artificial qualification to the original data.
+
+The short example correctly selects the zero-purchase baseline: invested
+alternatives pay $80.50 without trader receipts in that IS window. The invested
+IS diagnostic remains inspectable and is not substituted in OOS. Its actual
+26 December trade independently reconciles to 15 MNQ from a $500 risk budget
+and $32.50 planned unit risk; actual fill/exit produce $1,860 gross, $15 costs and
+$1,845 net. Retained Evaluation P&L is not cash received. Zero-account OOS/full
+period results remain $0.00 with the same frozen allocation. This is a short
+workflow/arithmetical example, not a long-term strategy or sizing recommendation.
+
+Analytical fixture oracles remain in tests: known current-balance quantities
+10/9/5, initial-capital quantities 10/10/5, one-position shared arbitration,
+Evaluation-to-Funded transitions, repeated payout-limit replacements, exact
+activation reservations, monthly resets that cannot use receipts, pending cash
+cutoffs and last-Sunday inactivity without an out-of-window replacement purchase.
+A session-spool equality/tamper check demonstrates identical native outputs while
+pool children receive a small index rather than a multi-year history. Stop,
+idempotent launch/retry, all-attempt history, immutable freeze, source/report
+pins, deletion and deleted-ID rejection are exercised through the ordinary API.
+Six real qualification/provider/date/count rejection cases are saved separately.
+
+Validation scope: 21 focused native/core/API/lifecycle/deletion/history checks
+and both existing automatic fixed-size browser journeys (Apex and LucidFlex)
+pass. The normal real-source browser run, reload/download arithmetic audit and
+390px desktop/mobile inspection also pass; no full historical suite is claimed.
+`scripts/verify_native_portfolio_report.py` checks the normal ZIP without invoking
+the engine. All existing numerical phase owners/legacy joint sizing are unchanged.
+Temporary browser servers are stopped after inspection. Live deployment is kept
+separate because applying Python files triggers the user's port-8000 auto-reload
+and interrupts unfinished OOS confidence work; completed IS/frozen evidence is
+preserved, and application/restart must follow the user's explicit choice.
+
+Supported scope is VWAP EOD-flat configurations on one common NQ/MNQ dataset,
+separate integer account counts and shared 25% risk shares with one open position
+at a time. Initial $50,000, current balance or remaining drawdown cushion may be
+the risk base. The downstream objective is observed IS received cash minus actual
+fees, including abstention; it does not alter independent phase objectives or
+claim a Monte Carlo portfolio optimum/new GO. Source coverage, local account-rule
+assumptions, modeled receipt delays and prior OOS access remain explicit.
+
+### Live application — 2026-11-14
+
+Applied to `epic/revamp-workflow` after the user's explicit approval to restart
+unfinished OOS. The ordinary parent cancellation API stopped the old attempts;
+a first retry reached the closing server and was cooperatively cancelled before
+waiting for the new portfolio routes and retrying again. Cancelled history was
+retained. Evaluation OOS `aab0ee8cfc58473590635b2acb4888a5` then advanced from
+14 to 62 of 10,000 historical resamples with four workers; Funded OOS
+`893d3d05ade841539b448c7b13e29b7b` is normally queued behind it. This confirms
+restart/progress, not a completed OOS verdict.
+
+Both original completed IS analysis IDs, report hashes, selected families and
+frozen-package hashes match the before-application snapshot exactly. All 21
+focused checks pass again in the real workspace; the downloaded ZIP's independent
+arithmetic audit passes. A live browser check verifies the new portfolio form,
+Apex 60/40 phase caps, mobile overflow and qualified source checking without
+launching an additional simulation. [Live application evidence](evidence/qualified_prop_sim/native-portfolio/live-application.json)
+and [live UI check](evidence/qualified_prop_sim/native-portfolio/live-ui-check.json)
+are saved beside the normal-product demonstration. The unrelated pre-existing
+`workflow.js` edit is unchanged and excluded from this increment's commit.
+All owned temporary test servers are stopped; the existing user-managed port-8000
+server continues running. No additional persistent server was introduced.

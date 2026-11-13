@@ -851,3 +851,19 @@ campaigns/AnalysisStore. Old reports remain immutable and incompatible frozen
 execution is not bypassed. The [current contract and actual product evidence](prop_simulation.md#selectable-lucidflex-50k--2026-11-12)
 record calendar/cash oracles, 40/40 limits, UI revisions and remaining provider /
 50%-add-on / live-transition limitations. No portfolio optimizer is added.
+
+## 2026-11-13 downstream native portfolio mode
+
+Campaign-qualified Prop Sim now exposes a downstream native percentage-risk,
+finite account-allocation and budgeted replacement-cashflow mode. It reuses
+`evaluation_profiles.py` / `funded_profiles.py` account owners and the normal
+execution engine; no independent phase selector/objective or legacy joint-sizing
+contract is replaced. `portfolio_cash.py` owns the explicit shared fee budget,
+`portfolio_lifecycle.py` orchestrates native episodes, `portfolio_sources.py`
+admits synchronized observed prices and `portfolio_search.py` ranks the finite
+IS allocation family. The normal AnalysisStore/router/UI save the frozen family
+and fresh OOS / continuous full-period historical scenarios. This is an additive
+implemented increment, not portfolio Monte Carlo or simultaneous-position
+certification. The [current contract](prop_simulation.md#native-percentage-risk-portfolio-allocation-and-replacement-cash-flow--2026-11-13)
+and review evidence supersede earlier dated portfolio-pending statements only
+within this stated subset.

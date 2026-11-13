@@ -120,6 +120,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.prop_sim_automation=PropSimAutomation(app)
         app.state.prop_analyses.phase_finished=app.state.prop_sim_automation.analysis_finished
         app.state.prop_sim_automation.recover()
+        from .prop_portfolio import recover as recover_portfolios
+        recover_portfolios(app)
         yield
         app.state.prop_sim_automation.close()
         if app.state.mechanic_tasks:
@@ -155,6 +157,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(monte_carlo_router)
     from .prop_sim import router as prop_sim_router
     app.include_router(prop_sim_router)
+    from .prop_portfolio import router as prop_portfolio_router
+    app.include_router(prop_portfolio_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

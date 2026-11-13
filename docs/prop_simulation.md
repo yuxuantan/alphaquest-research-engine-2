@@ -2769,3 +2769,130 @@ worker PIDs, counts and elapsed time. Small-machine/explicit single-worker runs
 keep the same progress and numerical contracts.
 
 [Actual four-process product evidence and exact reproduction](evidence/qualified_prop_sim/parallel-confidence/README.md).
+
+## Native percentage risk, portfolio allocation and replacement cash flow — 2026-11-13
+
+The campaign-qualified **Prop Sim** page now has a second configuration mode:
+**Portfolio allocation, percentage risk & full cash flow**. This is downstream
+portfolio research; it preserves independent Evaluation cost/time and fresh-Funded
+receipt optimizers, their numerical identities, legacy joint sizing and old reports.
+The primary single-strategy results now lead with the phase insight and a compact
+OOS table. Full IS tables, Pareto exploration, technical records and older
+assessments remain expandable/downloadable.
+
+### Trade sizing and supported sources
+
+Select one to four configurations that passed mechanics, Broad, Narrow, OOS and
+current-policy campaign Monte Carlo. The native portfolio increment supports
+`vwap_pullback_risk_sizing`, EOD Flat enabled, strategy-local Vol Sizing disabled,
+and one common saved NQ/MNQ dataset with matching execution settings. Other
+strategies, mixed datasets and overnight entry windows reject explicitly. NQ
+reference prices can proxy MNQ at $2 per point; this does not establish micro
+basis, liquidity or fill parity. Source records and original data are unchanged.
+
+Evaluation and Funded have separate declared sizing policies and contract caps.
+For percentage sizing, `budget = risk_percent / 100 × basis`. The basis can be
+initial $50,000 capital, current provider balance, or remaining account drawdown
+cushion. Initial-capital sizing keeps the dollar risk base stable as the instrument
+price changes. Current-balance sizing compounds. Known decision-close to initial
+stop distance, entry/stop slippage and round-trip commissions determine planned
+risk per MNQ; whole quantity is floored, then capped by current provider/user
+limits. A budget that cannot afford one contract skips the entry. Planning costs
+are not charged twice. Gaps, later stop changes and execution can exceed planned
+loss; percentage risk is an admission budget, not guaranteed maximum loss.
+
+Actual strategy callbacks, fills, brackets and existing native account owners are
+rerun. Saved completed trades are not multiplied by a retroactively chosen size.
+Sparse pre-entry source bars stay sparse; all minutes during the possible daytime
+holding window through the scheduled close must be present. Missing holding
+prices, missing open sessions, incompatible strategy provenance and changed source
+artifacts reject. Calendar identity and the per-session coverage audit are saved.
+
+### Allocation and account handling
+
+One initial Run automatically performs source admission, finite IS search,
+selection/freeze, fresh-start chronological OOS and a continuous full-period
+scenario. No follow-up selection/confirmation is required. Stop, retry and delete
+remain optional. Progress appears on Prop Sim and Job history; work survives page
+navigation. Native source preparation validates the saved CSV, so this step can
+be slower than lightweight job polling.
+
+Separate placement searches nonnegative integer account counts per configuration,
+up to the declared maximum concurrent accounts (1–4). Shared placement searches
+25% risk-share increments summing to 100%, and each permitted account count.
+**Shared accounts admit one open position at a time**. Larger declared risk share
+gets first opportunity when simultaneous known signals compete; ties use the
+saved source order. Each strategy continues observing bars while another owns
+the position. This is an explicit arbitration policy, not concurrent position
+netting or a sum of standalone adverse excursions. Weight is a share of the
+per-trade policy; floors/caps can change actual exposure. Zero-weight strategies
+do not trade. Both placement families may be compared in one run.
+
+All declared allocations, including a zero-purchase baseline, are retained.
+Selection maximizes **observed IS trader receipts minus actually paid Evaluation
+and activation fees**. Exact ties prefer fewer accounts then canonical allocation
+order. This is the best member of a finite historical family, not a global or
+Monte Carlo expected-profit optimum. IS fees, rules, sources, calendar, policies,
+allocation, numerical code hashes and windows are sealed before OOS prices are
+released to the calculation. OOS never reselects. A new configuration creates a
+new saved simulation; retry reuses the declaration with a new retained attempt.
+
+The same local account owners enforce target, drawdown, daily limits, consistency,
+provider size limits, expiry/inactivity and payout rules. The standard Lucid
+consistency is 40%; 50% requires an explicitly declared checkout price. There is
+no added consistency cushion or removal of the configured DLL. Existing versioned
+local rules remain assumptions, including 30-calendar-day Lucid inactivity.
+Funded closes after breach, inactivity or its payout limit, then a replacement
+Evaluation can be purchased from the next civil day. Evaluation retries retain
+causal feature state; phase/account switches start cold, flat strategy state.
+This policy is frozen and may produce different signals from an unconstrained run.
+
+### Full cash accounting and interpretation
+
+Every account shares one hard calendar-month Evaluation-plus-activation fee cap.
+An Evaluation purchase reserves its activation obligation before charging the
+purchase. Failure releases that reservation; activation consumes it. On a new
+month paid usage resets and outstanding obligations are re-reserved from that
+month's cap. Unused allowance expires; trader receipts never increase the cap.
+Daily slot order rotates deterministically to avoid permanent budget priority.
+No account is implicitly replaced by a Funded optimizer: replacements belong only
+to this explicitly selected downstream lifecycle mode.
+
+Payout requests, gross account deductions and modeled received cash are different
+events. The owner deducts gross funds exactly once; the cash ledger records that
+deduction without charging it again. Trader entitlement follows the configured
+share and cent convention. Receipts enter investor cash only on their modeled due
+date strictly before the exclusive horizon cutoff. Pending amounts and activation
+obligations are disclosed separately. Trading P&L retained inside an account is
+not investor cash. `net_cash = received_trader_cash − paid_evaluation_fees −
+paid_activation_fees`. Monthly and yearly totals reconcile to the event ledger.
+
+The three results are IS selection, **fresh-start OOS** (starts unfunded), and
+**full-period continuation** (accounts/pending settlements persist through the
+IS/OOS boundary). They are separate scenarios: adding the two fresh-start net
+figures does not reproduce the continuous full-period figure. OOS was already
+accessed in campaign qualification; it is not relabeled untouched. These native
+portfolio results are chronological historical scenarios, not a Monte Carlo
+forecast, old fixed-size GO certification, or provider/live approval. Native
+portfolio resampling, simultaneous shared positions, automatic policy/risk-level
+optimization, mixed-instrument synchronization and live order routing remain out
+of this increment.
+
+Reports use the existing AnalysisStore, job catalogue, saved Prop Sim parent and
+normal downloads. `portfolio_frozen.json`, `allocation_results.json`,
+`source_checks.json`, and per-scenario cash/trade/sizing/control files are sealed
+in the report ZIP. Every sizing opportunity has aggregate counts; retained sizing
+details use the existing 10,000-decision limit per account/phase, with completeness
+explicit in account snapshots. All cash events are retained. Saved-source and
+attempt references prevent deletion underneath a portfolio. Deleting its saved
+simulation releases only its own unshared reports; datasets, backtests, campaign
+qualification and earlier evidence remain protected.
+
+Native portfolio input bars are spooled by session inside the normal job's
+private temporary directory. Pool children receive the small verified session
+index and load one actual session at a time; they do not retain an entire
+multi-year Bar history after a trial. Temporary input spools are removed after
+completion/cancellation. This is not an additional dataset or result store.
+When the zero-purchase baseline wins, the best invested **IS-only diagnostic** is
+also replayed/captured so its actual sizing, trades and fees can be inspected.
+It does not replace the frozen choice or run a new OOS selection.

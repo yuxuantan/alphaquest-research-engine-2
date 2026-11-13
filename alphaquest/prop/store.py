@@ -104,6 +104,7 @@ class AnalysisStore:
     def active_sources(self):
         with self.connect() as db:
             sources = {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') OR EXISTS (SELECT 1 FROM lifecycle_comparisons p WHERE p.analysis_id=a.id) UNION SELECT source_id FROM campaign_sources")}
+            sources.update(r[0] for r in db.execute("SELECT s.source_id FROM analysis_sources s JOIN workflow_prop_simulations p ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=s.analysis_id)"))
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
                 sources.update(r[0] for r in db.execute('SELECT source_id FROM forward_source_refs'))
             return sources
@@ -122,14 +123,19 @@ class AnalysisStore:
         refs.extend(dict(kind='lifecycle_comparison', id=r[0]) for r in db.execute(
             'SELECT DISTINCT p.request_id FROM lifecycle_comparisons p JOIN analysis_sources s '
             'ON s.analysis_id=p.analysis_id WHERE s.source_id=? ORDER BY p.request_id', (source,)))
+        refs.extend(dict(kind='prop_portfolio',id=r[0]) for r in db.execute(
+            "SELECT DISTINCT p.id FROM workflow_prop_simulations p JOIN analysis_sources s "
+            "ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=s.analysis_id) WHERE s.source_id=?",(source,)))
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
             refs.extend(dict(kind='forward_monitor', id=r[0]) for r in db.execute(
                 'SELECT monitor_id FROM forward_source_refs WHERE source_id=? ORDER BY monitor_id', (source,)))
         return refs
 
-    def deletion_check(self, db, id, *, releasing_campaigns=()):
+    def deletion_check(self, db, id, *, releasing_campaigns=(),releasing_prop_sim=None):
         """Shared metadata-only guards; callers may release their own links atomically."""
         record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
+        parents={r[0] for r in db.execute("SELECT id FROM workflow_prop_simulations p WHERE EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=?)",(id,))}
+        if parents-{releasing_prop_sim}:raise ValueError('This report is retained by a saved Prop Sim portfolio.')
         if db.execute('SELECT 1 FROM campaign_sanity_jobs WHERE analysis_id=?',(id,)).fetchone():
             raise ValueError('This final Monte Carlo assessment is retained by its workflow history.')
         owners={r[0] for r in db.execute('SELECT campaign_id FROM campaign_analyses WHERE analysis_id=?',(id,))}

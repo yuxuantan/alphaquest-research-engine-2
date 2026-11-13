@@ -233,6 +233,8 @@ def public(request,id):
     if not row:raise KeyError('Prop simulation not found.')
     result=json.loads(row[0])
     result['phases']={}
+    if result.get('portfolio'):
+        result['portfolio']['job']=request.app.state.prop_analyses.get(result['portfolio']['analysis_id'])
     for phase,campaign_id in result['campaign_ids'].items():
         campaign=request.app.state.campaigns.get(campaign_id)
         analysis=campaign.get('analysis') or {}
@@ -338,6 +340,8 @@ async def results(id:UUID,phase:str,request:Request):
 @router.post('/{id}/cancel')
 async def stop(id:UUID,request:Request):
     saved=await invoke(public,request,id.hex)
+    if saved.get('portfolio'):
+        await invoke(request.app.state.prop_analyses.cancel_phase,saved['portfolio']['analysis_id'])
     if saved.get('automation'):await invoke(request.app.state.prop_sim_automation.stop,id.hex)
     for phase in saved['phases'].values():
         if not saved.get('automation') and phase['analysis_id'] and phase['status'] in ('queued','running'):
@@ -686,10 +690,14 @@ def deletion_preview(request,id,db):
     released=[cid for phase,cid in expected.items() if plans[phase]['deletable']]
     retained_campaigns=[dict(id=cid,reasons=plans[phase]['blockers']) for phase,cid in expected.items() if not plans[phase]['deletable']]
     ids=sorted({a['id'] for p in plans.values() for a in p['retained_analyses']})
+    if saved.get('portfolio'):
+        for aid in saved['portfolio'].get('attempts',[saved['portfolio']['analysis_id']]):
+            ids.append(aid);job=analyses.get(aid)
+            if job and job['status'] in ('queued','running'):active.append(aid)
     remove=[];retain=[]
     for aid in ids:
         try:
-            record=analyses.deletion_check(db,aid,releasing_campaigns=released)
+            record=analyses.deletion_check(db,aid,releasing_campaigns=released,releasing_prop_sim=id)
             if not record:raise ValueError('Report catalogue entry is unavailable; existing evidence is kept.')
             remove.append(aid)
         except ValueError as exc:retain.append(dict(id=aid,reason=str(exc)))
@@ -729,7 +737,7 @@ def remove_simulation(request,id,body):
                         campaigns.delete_in_transaction(db,cid,current)
                     for aid in preview['analysis_ids_to_delete']:
                         if UUID(aid).hex!=aid:raise ValueError('Invalid report identity; no results were removed.')
-                        record=analyses.deletion_check(db,aid)
+                        record=analyses.deletion_check(db,aid,releasing_prop_sim=id)
                         destination=analyses.root/aid;staged=analyses.root/('.deleted-'+aid)
                         if destination.is_symlink() or staged.is_symlink():raise OSError('Refusing to remove a symbolic-link report directory.')
                         if staged.exists():
