@@ -158,7 +158,7 @@ def job(id: str,request: Request):
             stop_requested=bool(control and control[0]))}
 
 @router.get('/{id}/downloads/{kind}')
-def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv'],request: Request):
+def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv','assessment_policy.json','economic_assessment.json','account_start_sensitivity.json'],request: Request):
     record=job(id,request)
     if record['status']!='complete':
         raise HTTPException(409,'Operation has not published a completed report.')

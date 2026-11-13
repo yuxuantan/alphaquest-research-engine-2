@@ -283,8 +283,14 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
             prefix='/api/prop-sim/'+saved['id']+'/validation/'+phase
             frozen=client.get(prefix).json()['frozen']
             assert frozen['candidate_ids']==[chosen_id]
+            playwright.expect(root.get_by_role('button',name='Run OOS assessment',exact=True)).to_be_disabled()
+            limits=dict(maximum_cost_per_funded='500',maximum_calendar_days_to_funded='180') if phase=='evaluation' else dict(minimum_funded_receipts='100')
+            for name,value in limits.items():root.get_by_label(phase+' '+name,exact=True).fill(value)
+            root.get_by_role('button',name='Save assessment limits',exact=True).click()
+            playwright.expect(root).to_contain_text('Declared before the first Prop Sim OOS result',timeout=30000)
+            playwright.expect(root.get_by_role('button',name='Check account-start sensitivity',exact=True)).to_be_disabled()
             results=[]
-            for kind,text,paths in [('oos','Run OOS assessment',None),('is_robustness','Check IS blocks and subperiods',8),('precision','Run more paths for frozen sizes',64)]:
+            for kind,text,paths in [('oos','Run OOS assessment',None),('account_starts','Check account-start sensitivity',None),('is_robustness','Check IS blocks and subperiods',8),('precision','Run more paths for frozen sizes',64)]:
                 if paths is not None:
                     if diagnostics.get_attribute('open') is None:diagnostics.locator('summary').click()
                     root.get_by_label(phase+' diagnostic paths',exact=True).fill(str(paths))
@@ -295,10 +301,36 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
                 _,report=wait_assessment(client,prefix,attempt['request_id'])
                 box=root.locator('[data-assessment="'+attempt['request_id']+'"]')
                 playwright.expect(box.locator('[role=status]')).to_contain_text('COMPLETE',timeout=30000)
-                playwright.expect(box.locator('table')).to_be_visible()
+                playwright.expect(box.locator('table').first).to_be_visible()
                 assert report['calculations']['winner'] is None
                 assert {r['frozen_candidate_id'] for r in report['calculations']['candidates']}=={chosen_id}
                 if kind=='oos':assert all(r['chronological_replay'] for r in report['calculations']['candidates'])
+                if kind in ('oos','account_starts'):
+                    for row in report['calculations']['candidates']:
+                        assert row['economic_assessment']['verdict']=='PASS'
+                        if phase=='funded':
+                            values=sorted(p['cash_received'] for p in row['paths'])
+                            assert row['outcome_summary']['cash_quantiles']['median']==values[(len(values)+1)//2-1]
+                            assert row['outcome_summary']['probability_zero_received_cash']==values.count(0)/len(values)
+                    if kind=='account_starts':
+                        sensitivity=report['calculations']['account_start_sensitivity']
+                        assert sensitivity['status']=='COMPLETE' and sensitivity['simulations']==5
+                        scenarios=sensitivity['candidates'][0]['paths'];assert len(scenarios)==5
+                        if phase=='evaluation':
+                            assert [p['start_date'] for p in scenarios]==['2026-01-01','2026-02-17','2026-04-03','2026-05-19','2026-07-03']
+                            assert [p['result']['calendar_days_to_funded'] for p in scenarios]==[6,20,5,21,5]
+                            assert all(p['result']['paid_fees']==99.5 and p['result']['attempts_started']==1 for p in scenarios)
+                        else:
+                            assert [p['start_date'] for p in scenarios]==['2026-01-01','2026-03-11','2026-05-19','2026-07-27','2026-10-02']
+                            # Each full payout is $2,000 gross × 90% = $1,800;
+                            # the March start's second receipt falls after cutoff.
+                            assert [p['result']['cash_received'] for p in scenarios]==[3600,1800,3600,0,3600]
+                            assert [p['result']['pending_cash'] for p in scenarios]==[0,1800,0,0,0]
+                            assert scenarios[3]['result']['outcome']=='inactive'
+                        root.screenshot(path=str(tmp_path/(phase+'-account-starts.png')))
+                    else:
+                        box.locator('.prop-sim-review-details > summary').first.click()
+                        box.screenshot(path=str(tmp_path/(phase+'-economic-assessment.png')))
                 if kind=='is_robustness':assert {r['scenario'] for r in report['calculations']['candidates']}=={'block_1','block_5','block_20','first_half','second_half'}
                 if kind=='precision':assert all(len(r['paths'])==64 for r in report['calculations']['candidates'])
                 (tmp_path/(phase+'-'+kind+'-report.json')).write_text(json.dumps(report,indent=2))
@@ -324,7 +356,7 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
     for phase in ('evaluation','funded'):
         root=page.locator('#prop-sim-'+phase+'-validation')
         playwright.expect(root).to_contain_text('Choices frozen',timeout=30000)
-        playwright.expect(root.locator('[data-assessment]')).to_have_count(3,timeout=30000)
+        playwright.expect(root.locator('[data-assessment]')).to_have_count(4,timeout=30000)
         assert root.locator('.prop-sim-diagnostics').get_attribute('open') is None
         playwright.expect(root.get_by_role('button',name='Check IS blocks and subperiods',exact=True)).not_to_be_visible()
     page.set_viewport_size(dict(width=390,height=844))
@@ -332,7 +364,7 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
     page.locator('#prop-sim-evaluation-validation').screenshot(path=str(tmp_path/'validation-mobile.png'))
     (tmp_path/'verification.json').write_text(json.dumps(dict(synthetic=True,simulation_id=saved['id'],source_backtest_id=source['source_backtest_id'],
         model='Local AlphaQuest; no Bridge runtime',consistency_percent=50,purchase_fee='99.50 user scenario',paths_per_size=16,
-        expected='Fee and calendar means independently summed from all paths; time components sum to total. Frozen IDs unchanged; no assessment selects a winner; five robustness scenarios; 64 precision paths; durable reload.',
+        expected='Fee/calendar means independently summed from all paths; time components sum to total. Explicit economic limits PASS; cash median/zero probability independently recomputed. Five covered chronological starts reuse the OOS MC results. Frozen IDs unchanged; five robustness scenarios; 64 precision paths; durable reload.',
         phases=summary,temporary_server='Stopped by fixture teardown',prior_access='OOS already accessed during strategy qualification; no untouched holdout claim'),indent=2))
     if destination:=os.environ.get('ALPHAQUEST_PROP_VALIDATION_EVIDENCE_DIR'):
         target=Path(destination);target.mkdir(parents=True,exist_ok=True)

@@ -660,6 +660,8 @@ class CampaignStore:
             context = dict(campaign_id=id, request_id=attempt['request_id'], frozen_package=package,
                 sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'],
                 kind=attempt.get('kind'),is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
+            if attempt.get('report_options') is not None:
+                context['prop_sim_review'] = attempt['report_options']
             # Protect sources before queueing and keep every report in AnalysisStore.
             with self.analyses.connect() as db:
                 db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
@@ -668,19 +670,21 @@ class CampaignStore:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
             return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))
 
-    def assess_saved(self,id,request_id,kind,paths=None,oos_sources=None):
+    def assess_saved(self,id,request_id,kind,paths=None,oos_sources=None,*,report_options=None):
         """Use existing frozen packages, workers and assessment history for Prop Sim."""
-        if kind not in ('oos','is_robustness','precision'):raise ValueError('Unknown frozen assessment kind.')
+        if kind not in ('oos','is_robustness','precision','account_starts'):raise ValueError('Unknown frozen assessment kind.')
+        if kind=='account_starts' and not report_options:
+            raise ValueError('Account-start sensitivity requires a declared policy and completed OOS report.')
         with self.analyses.lock:
             attempt,fresh=self.begin_assessment(id,request_id)
             if not fresh:
-                if attempt.get('kind')!=kind or attempt.get('paths')!=paths:
+                if attempt.get('kind')!=kind or attempt.get('paths')!=paths or attempt.get('report_options')!=report_options:
                     raise ResearchConflict('Assessment request ID already belongs to another declaration.')
                 return attempt
-            attempt=dict(attempt,kind=kind,paths=paths)
+            attempt=dict(attempt,kind=kind,paths=paths,report_options=report_options)
             self.save_assessment(attempt)
             try:
-                if kind=='oos':return self.finish_assessment(id,attempt,oos_sources)
+                if kind in ('oos','account_starts'):return self.finish_assessment(id,attempt,oos_sources)
                 report=self.report(id);campaign=self.get(id);package=campaign['frozen'];module=module_for(package['phase'])
                 raw=deepcopy(report['request']);configs=[];mappings=[]
                 for row in report['calculations']['candidates']:

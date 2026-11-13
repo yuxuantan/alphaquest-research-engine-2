@@ -2374,3 +2374,81 @@ This is not a generic legacy-code override. Unknown admission revisions and
 any calculation-code changes still fail closed.
 
 [Saved evidence and exact reproduction](evidence/qualified_prop_sim/oos-session-audit/README.md).
+
+### Prop Sim OOS economic policy and account-start sensitivity — 2026-11-13
+
+The qualified Prop Sim portal now declares immutable **per-phase assessment
+limits** before new OOS jobs. Evaluation requires a maximum mean acquisition cost
+(USD) and maximum mean calendar days to Funded. Funded requires minimum mean
+trader cash received over the already frozen horizon, including zero-receipt
+accounts. These business limits have no invented defaults. Evidence safeguards
+start at 90 calendar days of history and 30 closed source trades and are editable
+before declaration. They are research admission safeguards, not universal
+statistical guarantees. An existing optional Funded breach cap remains a frozen
+constraint; default-off remains default-off.
+
+**PASS** means that candidate's resolved estimates meet the declared economic
+limits and evidence minimums; equality passes. **FAIL** means adequate resolved
+evidence misses an economic limit or existing frozen optional constraint.
+**INCONCLUSIVE** means minimum evidence or complete estimates are unavailable.
+Funded must cover its entire frozen horizon; the existing chronological owner
+rejects sources too short to replay that horizon rather than inventing future
+sessions. This is a point-estimate economic review, not provider certification,
+future profitability assurance or a confidence-bound acceptance rule.
+
+IS-to-OOS deterioration is reported separately: cost/time increases, receipt or
+first-payout/pass-probability declines, and breach increases generate **watch**
+flags. No arbitrary retention ratio silently becomes another gate. Monetary/time
+changes show absolute and relative deltas; probabilities show percentage-point
+changes. Any adverse difference is descriptive, not a statistical finding.
+Existing MC standard errors/intervals remain available separately from historical
+or future-regime uncertainty. No assessment reranks or reselects sizes.
+
+Richer OOS summaries retain Evaluation mean/median/P90 calendar time and costs,
+and Funded zero-receipt probability, P10/median/P90 cash including zeros,
+first-receipt median/P75/P90 conditional on a receipt, and each payout milestone's
+request probability versus modeled receipt probability within the horizon.
+Pending entitlements and gross account deductions remain distinct from receipts.
+A single chronological OOS replay remains beside the Monte Carlo summary.
+Historical reports without this policy explicitly have no new economic verdict.
+
+Policies are configuration metadata in the existing Prop Sim parent record;
+results remain in AnalysisStore. The policy stores phase, limits, timestamp,
+prior OOS attempts, immutable date plan and SHA-256, plus the separate review
+implementation hash. A policy declared after any prior Prop Sim OOS attempt is
+**retrospective**. All these sources were already accessed in strategy
+qualification; none is relabeled untouched. A changed declaration requires a new
+simulation. Earlier reports/packages remain unchanged and readable.
+
+**Check account-start sensitivity** becomes available after completed OOS. Before
+assessment, the policy fixes 2–12 starts (default five), evenly spaced over all
+eligible weekday dates from saved OOS coverage, excluding inherited declared
+closures. Dates never use returns. Funded uses its frozen horizon; Evaluation
+uses its declared maximum funding-time limit as a diagnostic observation window,
+not a provider deadline or a changed MC horizon. Every start must have the same
+full calendar window; if there are too few eligible starts, sensitivity is
+INCONCLUSIVE and no shortened windows are substituted. The report displays all
+actual-order accounts, fees, funding/censoring or receipts/pending amounts, and
+min/median/max ranges. Censored acquisitions do not enter a completed-only time
+mean; their fees remain paid. Zero-receipt Funded accounts remain in ranges.
+Overlapping windows are dependent scenarios, not independent statistical trials.
+The weekday/closure scenario is inherited, not a newly verified exchange calendar.
+
+The existing local Evaluation/Funded chronological owners execute these slices;
+there is no new account engine. A verified completed OOS report supplies the MC
+paths for both re-review and account-start jobs, so neither reruns Monte Carlo.
+Source/frozen-package/numerical identities and sealed report hashes are checked,
+and the existing worker, cancellation and publication bounds still apply.
+Downloads add `assessment_policy.json`, `economic_assessment.json` and, when run,
+`account_start_sensitivity.json` to the normal evidence ZIP. The API adds
+`POST /api/prop-sim/{id}/validation/{phase}/policy` and the existing assessment
+POST accepts `kind: account_starts` without a path override.
+
+Approved account-rule choices are retained: exact selected Evaluation consistency
+without a cushion, fixed USD 1,200 DLL when enabled above the trailing-profit
+threshold too, and 30-calendar-day Lucid inactivity. No numerical rule source or
+phase identity changes for this review increment. External funded-lab outputs
+remain qualification references only. Portfolio allocation and full replacement
+cash-flow analysis are deferred separate increments.
+
+[Normal-product evidence and reproduction](evidence/qualified_prop_sim/oos-policy-starts/README.md).

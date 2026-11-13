@@ -11308,3 +11308,54 @@ admission file changed; the other 32 sources and all numerical kernels remain
 unchanged. Saved reports retain current fingerprints plus their original frozen
 packages. No full historical suite was run. Temporary servers stopped at teardown;
 no persistent server was started and no user assessment was submitted.
+
+### 2026-11-13 — Economic OOS assessment, richer summaries and account starts
+
+Implemented in the existing qualified Prop Sim journey: backtest report ->
+configuration -> source check -> independent IS workers -> choose/freeze sizes ->
+declare immutable phase business limits -> manual OOS -> durable economic review
+-> prespecified chronological account starts -> reload and normal JSON/ZIP
+downloads. No separate demonstration page, service or result store is added.
+
+Evaluation checks declared maximum mean cost/time; Funded checks declared minimum
+mean receipts over its frozen horizon. Evidence/complete estimates determine
+whether a verdict is conclusive; adverse IS changes are separate watch flags.
+Funded summaries include zeros, payout request/receipt funnels and conditional
+first-receipt timing. Each account start has the full declared window; censorship,
+zero receipts and pending cash remain visible. New review metadata is separately
+versioned; the existing phase numerical source identities are unchanged.
+Retrospective review reuses sealed compatible OOS paths without resimulation and
+preserves the original report/package. No size is selected through OOS.
+
+[Saved portal screenshots, actual output downloads, independent expected values,
+and exact reproduction](evidence/qualified_prop_sim/oos-policy-starts/README.md).
+The normal-product synthetic example selects 12 MNQ for both phases and declares
+Evaluation limits of $500/180 days and a Funded minimum of $100 over 90 days.
+These are explicitly demonstration limits, not recommended business thresholds.
+Its five Evaluation chronological funding times are 6, 20, 5, 21 and 5 calendar
+days, with one $99.50 purchase each. Funded receives $3,600/$1,800/$3,600/$0/$3,600;
+the second start has $1,800 pending outside its cutoff, and the fourth expires
+through inactivity. Thus a passing mean does not conceal a weak start date.
+
+Boundary checks cover equality, economic failure versus inconclusive evidence,
+phase-isolated/finite/required limits, immutable policies, retrospective labels,
+missing-first-OOS/split identity compatibility, no completed-only acquisition
+statistics, zero-inclusive cash ranges, pending requests versus receipts, full
+window coverage, frozen selection preservation and MC-free result reuse. Poisoned
+MC optimizers prove re-review/start jobs do not run a search. Changed review code
+or tampered sealed evidence reject; old reports remain unchanged and readable.
+The two-phase Chromium journey verifies downloads, durable reload and a mobile
+viewport; a focused table check retains selection/exclusion/sorting behavior.
+Temporary servers stop at teardown; no persistent server or user job is started.
+The user's existing server, datasets, campaigns, Windows VM and reports are kept.
+No full historical suite or new external/provider parity claim is included.
+
+Retained rule choices: no Evaluation consistency cushion, fixed DLL above the
+profit threshold, and 30-calendar-day inactivity. Portfolio allocation and full
+replacement-account cash-flow analysis are explicitly deferred.
+
+Validation for this increment: 18 distinct focused cases passed (14 arithmetic/API,
+2 manual campaign-history cases, and 2 browser journeys). JavaScript/Python
+syntax and `git diff --check` passed. Independently summed product outputs and
+all 33 numerical source hashes per phase were verified; the saved evidence
+contains the reproducible arithmetic and source-hash record.

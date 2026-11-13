@@ -65,6 +65,7 @@ from test_prop_sim import qualified_source,body,wait_prop
 
 
 def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(client):
+    from unittest.mock import patch
     workflow,source=qualified_source(client)
     request=dict(body(source),profile_id='lucidflex-50k',evaluation_price='99.50',activation_fee='0',
         commission_per_mnq_side='0.50',evaluation_consistency_percent=50,maximum_funded_breach_probability=None)
@@ -95,11 +96,28 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
                     m=row['metrics'];assert abs(sum(m['mean_'+key] for key in ['days_before_final_attempt','final_attempt_days_before_target','final_attempt_days_after_target','pass_to_ready_days'])-m['expected_calendar_days_to_funded'])<1e-8
             assert 'paired_comparisons' in calc
         studies=[]
-        for kind,paths_count in [('oos',None),('is_robustness',8),('precision',64)]:
+        # Emulate a historical descriptive assessment, retaining its sealed bytes.
+        cid=saved['campaign_ids'][phase];legacy_id=uuid4().hex
+        client.app.state.campaigns.assess_saved(cid,legacy_id,'oos',oos_sources={source['source_backtest_id']:saved['qualification']['oos_report_id']})
+        legacy_attempt,legacy=wait_assessment(client,prefix,legacy_id)
+        original=client.app.state.prop_analyses.fingerprint(legacy['id'])
+        assert 'assessment_policy' not in legacy['calculations']
+        limits=dict(maximum_cost_per_funded='100000',maximum_calendar_days_to_funded=180) if phase=='evaluation' else dict(minimum_funded_receipts='1')
+        response=client.post(prefix+'/policy',json=limits);assert response.status_code==200,response.text
+        policy=response.json();assert policy['declaration_timing']=='retrospective' and policy['prior_completed_oos_assessments']==1
+        assert client.post(prefix+'/policy',json=limits).json()==policy
+        assert client.post(prefix+'/policy',json=dict(limits,account_start_count=6)).status_code==409
+        for kind,paths_count in [('oos',None),('account_starts',None),('is_robustness',8),('precision',64)]:
             declared=dict(request_id=uuid4().hex,kind=kind)
             if paths_count is not None:declared['paths']=paths_count
-            response=client.post(prefix,json=declared);assert response.status_code==202,response.text
-            attempt,study=wait_assessment(client,prefix,declared['request_id'])
+            if kind in ('oos','account_starts'):
+                # Re-review and start replay must not run the MC optimizer again.
+                with patch('alphaquest.prop.'+phase+'_optimization.optimize_'+phase,side_effect=AssertionError('MC must be reused')):
+                    response=client.post(prefix,json=declared);assert response.status_code==202,response.text
+                    attempt,study=wait_assessment(client,prefix,declared['request_id'])
+            else:
+                response=client.post(prefix,json=declared);assert response.status_code==202,response.text
+                attempt,study=wait_assessment(client,prefix,declared['request_id'])
             assert client.post(prefix,json=declared).json()['analysis_id']==attempt['analysis_id']
             rows=study['calculations']['candidates'];assert rows
             assert study['calculations']['selection_status']=='assessment_only_no_reselection'
@@ -107,9 +125,17 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
             assert {r['frozen_candidate_id'] for r in rows}==set(chosen)
             assert study['assessment']['frozen_package']==frozen
             if kind=='is_robustness':assert {r['scenario'] for r in rows}=={'block_1','block_5','block_20','first_half','second_half'}
-            if kind=='oos':
+            if kind in ('oos','account_starts'):
                 assert all(r['is_comparison'] and r['chronological_replay'] for r in rows)
                 assert all(r['manifest']['source']['backtest']['run_metadata']['research']['phase']=='oos' for r in rows)
+                assert all(r['economic_assessment']['verdict'] in ('PASS','FAIL','INCONCLUSIVE') for r in rows)
+                assert study['calculations']['assessment_policy']==policy
+                assert client.get('/api/prop-analyses/'+attempt['analysis_id']+'/downloads/economic_assessment.json').status_code==200
+                if kind=='account_starts':
+                    sensitivity=study['calculations']['account_start_sensitivity'];assert sensitivity['status']=='COMPLETE'
+                    assert len(sensitivity['candidates'][0]['paths'])==5
+                    assert [r['paths'] for r in rows]==[r['paths'] for r in studies[0]['calculations']['candidates']]
+                    assert study['assessment']['prop_sim_review']['base_report']['analysis_id']==studies[0]['id']
             else:assert all(r['manifest']['source']['backtest']['run_metadata']['research']['phase']=='is' for r in rows)
             if kind=='precision':assert all(len(r['paths'])==64 for r in rows)
             assert client.get('/api/jobs/prop_analysis/'+attempt['analysis_id']).json()['links'][0]['href']=='#prop-sim?analysis='+saved['id']
@@ -118,13 +144,18 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
             assert all('paths' not in r and 'manifest' not in r for r in summary['calculations']['candidates'])
             assert [r['metrics'] for r in summary['calculations']['candidates']]==[r['metrics'] for r in rows]
             studies.append(study)
-        assert len(client.get(prefix).json()['assessments'])==3
+        assert len(client.get(prefix).json()['assessments'])==5
+        assert client.app.state.prop_analyses.fingerprint(legacy['id'])==original
         assert client.get(prefix).json()['frozen']['package_sha256']==frozen['package_sha256']
         assert client.get('/api/prop-sim/'+saved['id']+'/results/'+phase).json()==report
         assert client.post(prefix,json=dict(request_id=uuid4().hex,kind='precision',paths=8)).status_code==409
+        with patch.object(client.app.state.prop_analyses,'fingerprint',return_value=None):
+            assert client.post(prefix,json=dict(request_id=uuid4().hex,kind='account_starts')).status_code==409
+        from alphaquest.prop.assessment_review import implementation
+        with patch('alphaquest.prop.assessment_review.implementation',return_value=dict(implementation(),source_sha256='changed')):
+            assert client.post(prefix,json=dict(request_id=uuid4().hex,kind='oos')).status_code==409
         evidence[phase]=studies
     # Report readers remain valid even after a numerical implementation changes.
-    from unittest.mock import patch
     with patch('alphaquest.prop.evaluation_optimization.implementation_identity',return_value={}):
         prefix='/api/prop-sim/'+saved['id']+'/validation/evaluation'
         assert client.post(prefix,json=dict(request_id=uuid4().hex,kind='oos')).status_code==409

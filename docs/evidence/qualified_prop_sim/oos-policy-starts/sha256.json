@@ -1,0 +1,20 @@
+{
+  "README.md": "b06679a70b619e90a6105fbf277d285783e5c002a14a1ed473b9f5bc85546382",
+  "evaluation-account-starts.png": "976b9d473445383d9e312f0645c046f2bd21227792f858ad4718731512612792",
+  "evaluation-account_starts-evidence.zip": "3bdddfc21a7a81986940e694ff9b0875f46cd3f72db357c9e12a5458c268b1e0",
+  "evaluation-account_starts-report.json": "5544a4b6413d8749be1511c637e30619c344e412ad1c220259dad96e7d34e679",
+  "evaluation-economic-assessment.png": "754959ae043f9a6c74811c1e7fc3691f797a4ec622f85029c8a2352624036bab",
+  "evaluation-oos-evidence.zip": "a5647839fd2deed5d95f3507aa2210d6218e064dc5e4b49650020d74ef328de7",
+  "evaluation-oos-report.json": "2429322f84d1bc05c5a4faaa85fd47c76f6bc5b0a5607500a45777b0d49b8bdb",
+  "funded-account-starts.png": "ae812a9012551bff2a7f34a7cbdb3dfe317c7d0fac51309bd258a7481245cb50",
+  "funded-account_starts-evidence.zip": "eac7d98641511096dd214024d1e08fb537552261c7a0885e7a7d037a2b2701f5",
+  "funded-account_starts-report.json": "9b18a8b86f846c553ea7a7e6f66383ee98978562367e95e65dfab6d02a85283c",
+  "funded-economic-assessment.png": "2f859701926c62862f9a683a3278d8e7142659109450572fab8c52f603cef551",
+  "funded-oos-evidence.zip": "9dd2c6ce0a8d9a01d96144ea0c0709a6086141e03c2035e0ec456d8a74111510",
+  "funded-oos-report.json": "402db394b90a35b374f440b82b9067f279426a4d82d9833b0446ce55274a45eb",
+  "independent-verification.json": "1b0ecfdeadea57efd7fec77326964ae4092ce7970734b7d53dd1b8e64ba8f2e7",
+  "validation-mobile.png": "4217d3eb686db218e73570c0d83d4c6c769fecedeafd7b345ad05752ac637a97",
+  "variant-configuration.png": "ee491ad0c231cb51279863b8c8ea823eb7fbca8000efa29bf1950b19b149cadf",
+  "verification.json": "61d8289bd77da6f677467fe73b6c1b6f69d8bcabc79ba69e7b6fb1dac3921483",
+  "verify_outputs.py": "6d8af8bc932a6ee52c52fcc754c29d67944c3e14b632da466e110e17df4873b6"
+}

@@ -191,3 +191,24 @@ Keep current/planned status explicit and retain all delivery requirements above.
   Generated/adaptive campaigns, Lucid dated Evaluation and portfolio search are
   still pending. Update current documentation without deleting dated findings,
   ADRs, reports, immutable snapshots or prior numerical evidence.
+
+# Prop Sim OOS economic review and start-date sensitivity
+
+`prop/assessment_review.py` owns the additional versioned review of saved-source
+Prop Sim OOS results. Require explicit immutable per-phase economic limits before
+new Prop Sim OOS launches: Evaluation maximum acquisition cost/time; Funded minimum
+received cash over its frozen horizon. Evidence minima and complete estimates are
+separate from adverse IS-to-OOS watch flags. Historical assessments remain readable;
+new retrospective limits never relabel their old verdicts. Reuse verified sealed
+OOS outputs for review and account-start replay, without rerunning their MC search.
+Prespecified full-window start dates use coverage alone; overlapping chronological
+scenarios are dependent, with no replacement accounts or new size selection.
+Keep the new review implementation hash separate and explicit in policies/reports,
+while preserving unchanged phase numerical source hashes and frozen-package guards.
+
+The approved Lucid model differences remain deliberate: no Evaluation consistency
+cushion, fixed USD 1,200 DLL when enabled even above the trailing-profit threshold,
+and 30 calendar days of inactivity. They are local assumptions, not new provider
+parity claims. Portfolio allocation and full replacement cash-flow analysis remain
+separate future increments. See the dated policy contract in
+`docs/prop_simulation.md` and reproduction/evidence in `docs/prop_simulation_review.md`.

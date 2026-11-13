@@ -466,7 +466,31 @@ class AnalysisStore:
                         options['checkpoint'] = checkpoint
                     if training_context is not None:
                         options['training_context'] = training_context
-                    calculations = optimize(runs, search, checks, update, **options)
+                    review_options = assessment.get('prop_sim_review') if assessment else None
+                    base = review_options.get('base_report') if review_options else None
+                    def verified_base():
+                        from .phase_dispatch import implementations_compatible
+                        fingerprint = self.fingerprint(base['analysis_id'])
+                        if not fingerprint or fingerprint['files']['report.json'] != base['sha256']:
+                            raise ValueError('Saved OOS report changed; no numerical results were reused.')
+                        report = json.loads((self.root/base['analysis_id']/'report.json').read_text())
+                        if (report.get('assessment', {}).get('frozen_package') != assessment['frozen_package']
+                                or report['calculations'].get('assessment_kind') != 'oos'
+                                or not implementations_compatible(report['implementation'], module.implementation_identity())):
+                            raise ValueError('Saved OOS report does not match the frozen numerical package.')
+                        original = {r['candidate_id']:r['manifest'] for r in report['calculations']['candidates']}
+                        if original != {c['candidate_id']:c['manifest'] for c in checks}:
+                            raise ValueError('Saved OOS candidate/source identity changed; no results were reused.')
+                        return report
+                    if base:
+                        from copy import deepcopy
+                        update('Reusing verified OOS numerical results; applying declared review')
+                        calculations = deepcopy(verified_base()['calculations'])
+                    else:
+                        calculations = optimize(runs, search, checks, update, **options)
+                    if review_options:
+                        from .assessment_review import enrich
+                        calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update)
                 if assessment:
                     calculations['assessment'] = assessment
                 result = module.write_report(runs, staged, search, checks, calculations)
@@ -477,6 +501,14 @@ class AnalysisStore:
                     result['assessment'] = assessment
                     result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
                     (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
+                    if review_options:
+                        (staged/'assessment_policy.json').write_text(canonical(calculations['assessment_policy']))
+                        (staged/'economic_assessment.json').write_text(canonical([
+                            dict(candidate_id=r['candidate_id'],micros=r['configuration']['micros'],
+                                 economic_assessment=r['economic_assessment'],outcome_summary=r['outcome_summary'])
+                            for r in calculations['candidates']]))
+                        if calculations.get('account_start_sensitivity') is not None:
+                            (staged/'account_start_sensitivity.json').write_text(canonical(calculations['account_start_sensitivity']))
                 if training_context is not None:
                     from .phase_search import check_candidates
                     current = check_candidates(runs, search, training_context=training_context, datasets=datasets)
@@ -488,6 +520,11 @@ class AnalysisStore:
                 # an accepted cancellation cannot race with a completed report.
                 with self.lock:
                     checkpoint()
+                    if assessment and review_options:
+                        from .assessment_review import implementation
+                        if review_options['implementation'] != implementation():
+                            raise ValueError('Review implementation changed before publication.')
+                        if base: verified_base()
                     seal_report(staged, result, id, self.get(id)['created'])
                     staged.rename(self.root/id)
                     with self.connect() as db:

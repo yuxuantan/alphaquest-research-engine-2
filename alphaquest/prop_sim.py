@@ -15,6 +15,7 @@ from .campaign_oos import context as oos_context, results as oos_results
 from .optimization_cache import artifacts, digest
 from .research_campaigns import CampaignRequest,FreezeRequest
 from .prop.phase_profiles import rule_version
+from .prop.assessment_review import AssessmentLimits
 
 
 PROFILE='apex-50k-eod'
@@ -339,7 +340,7 @@ async def stop(id:UUID,request:Request):
 class FrozenAssessment(BaseModel):
     model_config=ConfigDict(extra='forbid')
     request_id: UUID
-    kind: Literal['oos','is_robustness','precision']
+    kind: Literal['oos','is_robustness','precision','account_starts']
     paths: StrictInt | None = Field(default=None,ge=8,le=20000)
 
 
@@ -352,13 +353,50 @@ def phase_campaign(request,id,phase):
 @router.get('/{id}/validation/{phase}')
 async def validation(id:UUID,phase:str,request:Request):
     def read():
-        _,cid=phase_campaign(request,id.hex,phase);store=request.app.state.campaigns;campaign=store.get(cid)
+        saved,cid=phase_campaign(request,id.hex,phase);store=request.app.state.campaigns;campaign=store.get(cid)
         frozen=campaign['frozen']
         from .prop.phase_dispatch import implementations_compatible, module_for
         compatible=implementations_compatible(campaign['manifest']['numerical_implementation'],module_for(phase).implementation_identity())
-        return dict(campaign_id=cid,numerical_implementation_compatible=compatible,frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
+        from .prop.assessment_review import implementation
+        policy=saved.get('assessment_policies',{}).get(phase)
+        return dict(campaign_id=cid,numerical_implementation_compatible=compatible,assessment_policy=policy,
+            review_implementation_compatible=policy is None or policy['implementation']==implementation(),
+            frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
             assessments=store.assessments(cid),disclosure='Strategy qualification already accessed OOS. Frozen-size assessment is additional research, not an untouched holdout. No OOS reselection.')
     return await invoke(read)
+
+
+@router.post('/{id}/validation/{phase}/policy')
+async def declare_assessment_policy(id:UUID,phase:str,body:AssessmentLimits,request:Request):
+    def save():
+        from .prop.adapter import canonical,source_record
+        from .prop.phase_search import saved_oos_period
+        from .prop.assessment_review import implementation,start_plan
+        from hashlib import sha256
+        body.for_phase(phase)
+        analyses=request.app.state.prop_analyses
+        with analyses.lock:
+            saved,cid=phase_campaign(request,id.hex,phase)
+            policies=saved.get('assessment_policies',{})
+            if phase in policies:
+                if policies[phase]['limits']!=body.model_dump(mode='json'):
+                    raise ValueError('Assessment limits are immutable for this simulation. Create a new simulation for a different policy.')
+                return policies[phase]
+            source=source_record(request.app.state.runs,saved['qualification']['oos_report_id'])
+            prior=[a for a in request.app.state.campaigns.assessments(cid) if a.get('kind')=='oos']
+            horizon=body.maximum_calendar_days_to_funded if phase=='evaluation' else saved['configuration']['funded_horizon_calendar_days']
+            policy=dict(version='prop-oos-review-v1',phase=phase,limits=body.model_dump(mode='json'),
+                implementation=implementation(),declared_at_utc=datetime.now(timezone.utc).isoformat(),
+                declaration_timing='retrospective' if prior else 'before_first_prop_oos_result',
+                prior_oos_attempts=len(prior),prior_completed_oos_assessments=sum(a['status']=='complete' for a in prior),
+                start_plan=start_plan(saved_oos_period(source),horizon,body.account_start_count,saved['configuration']['closures']))
+            policy['policy_sha256']=sha256(canonical(policy).encode()).hexdigest()
+            with analyses.connect() as db:
+                payload=json.loads(db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id.hex,)).fetchone()[0])
+                payload.setdefault('assessment_policies',{})[phase]=policy
+                db.execute('UPDATE workflow_prop_simulations SET payload=? WHERE id=?',(canonical(payload),id.hex))
+            return policy
+    return await invoke(save)
 
 
 @router.post('/{id}/validation/{phase}/freeze')
@@ -374,10 +412,31 @@ async def freeze_choices(id:UUID,phase:str,body:FreezeRequest,request:Request):
 async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request):
     def assess():
         saved,cid=phase_campaign(request,id.hex,phase)
-        if body.kind=='oos' and body.paths is not None:raise ValueError('OOS uses the frozen path count; it cannot be changed.')
-        if body.kind!='oos' and body.paths is None:raise ValueError('Declare diagnostic paths explicitly.')
+        if body.kind in ('oos','account_starts') and body.paths is not None:raise ValueError('OOS uses the frozen path count; account starts are deterministic. Do not override paths.')
+        if body.kind in ('is_robustness','precision') and body.paths is None:raise ValueError('Declare diagnostic paths explicitly.')
+        store=request.app.state.campaigns
+        attempts=store.assessments(cid)
+        previous=next((a for a in attempts if a['request_id']==body.request_id.hex),None)
+        if previous:
+            if previous.get('kind')!=body.kind or previous.get('paths')!=body.paths:
+                raise ValueError('Assessment request ID already belongs to another declaration.')
+            store.begin_assessment(cid,body.request_id.hex)  # Verify sealed evidence on idempotent reopen too.
+            return previous
+        options=None
+        if body.kind in ('oos','account_starts'):
+            from .prop.assessment_review import implementation
+            policy=saved.get('assessment_policies',{}).get(phase)
+            if policy is None:raise ValueError('Save explicit OOS assessment limits before running OOS.')
+            if policy['implementation']!=implementation():raise ValueError('Assessment review implementation changed; preserve this policy and create a new simulation.')
+            options=dict(policy=policy,implementation=implementation(),kind=body.kind)
+            base=next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None)
+            if body.kind=='account_starts' and base is None:raise ValueError('Complete an OOS assessment before account-start sensitivity.')
+            if base:
+                fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
+                if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')
+                options['base_report']=dict(analysis_id=base['analysis_id'],sha256=fingerprint['files']['report.json'])
         sources={saved['qualification']['source_backtest_id']:saved['qualification']['oos_report_id']}
-        return request.app.state.campaigns.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources)
+        return store.assess_saved(cid,body.request_id.hex,body.kind,body.paths,sources,report_options=options)
     return await invoke(assess)
 
 
@@ -392,7 +451,7 @@ async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,su
         report=json.loads((analyses.root/aid/'report.json').read_text())
         if summary:
             calculations=dict(report['calculations'])
-            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay')
+            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment')
             calculations['candidates']=[{k:r[k] for k in fields if k in r} for r in calculations['candidates']]
             return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)
         return report
