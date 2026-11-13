@@ -522,8 +522,9 @@ class CampaignStore:
             report = self.report(id)
             calc = report['calculations']
             allowed = calc['frontier'] if row['manifest']['phase'] == 'evaluation' else calc['ranking']
-            if set(selection) - set(allowed) or calc.get('unresolved_candidates'):
-                raise ValueError('Freeze requires resolved frontier points or feasible funded candidates.')
+            resolved = {c['candidate_id'] for c in calc['candidates'] if c['status'] == 'estimated'}
+            if set(selection) - (set(allowed) & resolved):
+                raise ValueError('Freeze requires every selected candidate to be a resolved frontier point or feasible funded candidate.')
             # Refresh access metadata only. No OOS bars or outcomes are read.
             access = self.validate(id)
             from pathlib import Path

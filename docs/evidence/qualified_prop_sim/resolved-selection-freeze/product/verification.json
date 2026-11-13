@@ -1,0 +1,153 @@
+{
+  "synthetic": true,
+  "simulation_id": "ab4adade38f54be79a9b60c5f6d7c043",
+  "source_backtest_id": "98a5a95dde134be29fb5fb567b2c89f0",
+  "model": "Local AlphaQuest; no Bridge runtime",
+  "consistency_percent": 50,
+  "purchase_fee": "99.50 user scenario",
+  "paths_per_size": 16,
+  "expected": "Fee and calendar means independently summed from all paths; time components sum to total. Frozen IDs unchanged; no assessment selects a winner; five robustness scenarios; 64 precision paths; durable reload.",
+  "phases": {
+    "evaluation": {
+      "frozen": {
+        "candidate_ids": [
+          "87e6509df66bdef40035e035fdede8bdbb6f5365b4390cffce7a9e9b9ec1a9de"
+        ],
+        "names": {
+          "87e6509df66bdef40035e035fdede8bdbb6f5365b4390cffce7a9e9b9ec1a9de": "consecutive_green_hold \u00b7 12 MNQ \u00b7 87e6509d"
+        },
+        "rationale": "Synthetic product journey: preserve this declared size across every assessment.",
+        "package_sha256": "3f3eda8dcf8669348a2b3b4d80e34d59772d5c6f5f7a1d9284c964b9933cc71f",
+        "created_at_utc": "2026-11-13T00:30:10.903282+00:00"
+      },
+      "studies": [
+        {
+          "kind": "oos",
+          "request_id": "03b91edc0c884b36b191cb631742b201",
+          "analysis_id": "a1ab250518264b5b96ab7a28422c01c4",
+          "rows": 1
+        },
+        {
+          "kind": "is_robustness",
+          "request_id": "b3df53b763ea4b8ca73c99bdbea2cb94",
+          "analysis_id": "94d5c778ede04a26b8669a26d995645b",
+          "rows": 5
+        },
+        {
+          "kind": "precision",
+          "request_id": "46975c62267c41599b53dd74937de985",
+          "analysis_id": "8a7e8bb5121949caa05628febcefe47c",
+          "rows": 1
+        }
+      ],
+      "baseline_metrics": [
+        {
+          "cost_per_funded": 99.5,
+          "expected_attempts_per_funded": 1.0,
+          "expected_calendar_days_to_funded": 13.875,
+          "mean_consistency_blocked_sessions": 2.3125,
+          "mean_days_before_final_attempt": 0.0,
+          "mean_failed_attempts_after_target": 0.0,
+          "mean_failed_attempts_before_target": 0.0,
+          "mean_final_attempt_days_after_target": 2.9375,
+          "mean_final_attempt_days_before_target": 9.4375,
+          "mean_pass_to_ready_days": 1.5,
+          "median_calendar_days_to_funded": 9.5,
+          "p90_calendar_days_to_funded": 32.0,
+          "pass_probability": 1.0,
+          "pass_probability_bounds": [
+            1.0,
+            1.0
+          ],
+          "probability_acquisition_by_cutoff": 1.0,
+          "probability_funded_by_day_30": 0.875,
+          "probability_funded_by_day_60": 1.0,
+          "probability_funded_by_day_90": 1.0,
+          "restricted_mean_observed_calendar_days": 13.875,
+          "restricted_mean_paid_fees": 99.5
+        },
+        {
+          "cost_per_funded": 99.5,
+          "expected_attempts_per_funded": 1.0,
+          "expected_calendar_days_to_funded": 13.875,
+          "mean_consistency_blocked_sessions": 2.3125,
+          "mean_days_before_final_attempt": 0.0,
+          "mean_failed_attempts_after_target": 0.0,
+          "mean_failed_attempts_before_target": 0.0,
+          "mean_final_attempt_days_after_target": 2.9375,
+          "mean_final_attempt_days_before_target": 9.4375,
+          "mean_pass_to_ready_days": 1.5,
+          "median_calendar_days_to_funded": 9.5,
+          "p90_calendar_days_to_funded": 32.0,
+          "pass_probability": 1.0,
+          "pass_probability_bounds": [
+            1.0,
+            1.0
+          ],
+          "probability_acquisition_by_cutoff": 1.0,
+          "probability_funded_by_day_30": 0.875,
+          "probability_funded_by_day_60": 1.0,
+          "probability_funded_by_day_90": 1.0,
+          "restricted_mean_observed_calendar_days": 13.875,
+          "restricted_mean_paid_fees": 99.5
+        }
+      ]
+    },
+    "funded": {
+      "frozen": {
+        "candidate_ids": [
+          "cc980e9f171de14c87dd6b709ae1861cf12d0750b44d6cc10c808b9ac67eaafb"
+        ],
+        "names": {
+          "cc980e9f171de14c87dd6b709ae1861cf12d0750b44d6cc10c808b9ac67eaafb": "consecutive_green_hold \u00b7 12 MNQ \u00b7 cc980e9f"
+        },
+        "rationale": "Synthetic product journey: preserve this declared size across every assessment.",
+        "package_sha256": "57a79bac3c8fd30c260518238ab4c6febff935ff93f8755c115cb8aad1195c87",
+        "created_at_utc": "2026-11-13T00:30:19.904425+00:00"
+      },
+      "studies": [
+        {
+          "kind": "oos",
+          "request_id": "60e2e6c645d942479790852f708147fd",
+          "analysis_id": "fb183723571c4edb841d5fcd4db46295",
+          "rows": 1
+        },
+        {
+          "kind": "is_robustness",
+          "request_id": "562c92c4047549bab97947a399edada5",
+          "analysis_id": "4e975f345cd744d28e7d839e24aaa0cb",
+          "rows": 5
+        },
+        {
+          "kind": "precision",
+          "request_id": "a80bbf9b467f4db7a7d26acc3e88027e",
+          "analysis_id": "2880c0255af74daaa01d7976019b472d",
+          "rows": 1
+        }
+      ],
+      "baseline_metrics": [
+        {
+          "account_breach_probability": 0.0,
+          "expected_account_lifetime": null,
+          "expected_days_to_first_payout_conditional_on_payout": 34.27272727272727,
+          "expected_funded_cash_payouts_within_horizon": 2475.0,
+          "expected_gross_account_deductions": 2875.0,
+          "expected_number_of_payouts": 1.375,
+          "expected_payouts": 2475.0,
+          "expected_pending_cash": 112.5,
+          "median_payouts": 1800.0,
+          "p10_payouts": 0.0,
+          "p90_payouts": 7200.0,
+          "probability_first_payout": 0.6875,
+          "probability_inactivity": 0.5625,
+          "probability_payout_limit_completion": 0.0625,
+          "probability_surviving_to_horizon": 0.375,
+          "probability_zero_payout": 0.3125,
+          "restricted_mean_account_lifetime_calendar_days": 66.4375
+        }
+      ]
+    }
+  },
+  "temporary_server": "Stopped by fixture teardown",
+  "prior_access": "OOS already accessed during strategy qualification; no untouched holdout claim"
+}

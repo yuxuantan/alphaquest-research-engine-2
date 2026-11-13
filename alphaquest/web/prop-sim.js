@@ -42,7 +42,7 @@
     const updateDownload=()=>{
       const copy=svg.cloneNode(true),[,,width,height]=svg.getAttribute('viewBox').split(' ').map(Number);
       copy.setAttribute('viewBox',`0 0 ${width} ${height+44}`);copy.setAttribute('height',String(height+44));
-      const lines=[`${view==='frontier'?'Frontier detail':'All sizes'} · Green: Pareto frontier. Grey: other resolved sizes.`,selected?`${selected.sizes.length>6?selected.sizes.length+' tied sizes':selected.sizes.join(', ')+' MNQ'} · $${fmt(selected.y)} · ${fmt(selected.x)} calendar days`:'Inspection chart; no Evaluation winner is selected.'];
+      const lines=[`${view==='frontier'?'Frontier detail':'All sizes'} · Green: frontier among resolved candidates only. Grey: other resolved sizes.`,selected?`${selected.sizes.length>6?selected.sizes.length+' tied sizes':selected.sizes.join(', ')+' MNQ'} · $${fmt(selected.y)} · ${fmt(selected.x)} calendar days`:'Inspection chart; no Evaluation winner is selected.'];
       lines.forEach((text,i)=>{const label=document.createElementNS(ns,'text');for(const [key,value] of Object.entries({x:12,y:height+16+i*16,fill:'#526b62','font-size':11}))label.setAttribute(key,String(value));label.textContent=text;copy.append(label);});
       download.href='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(copy));
     };
@@ -87,7 +87,7 @@
         circle.onmouseenter=circle.onfocus=circle.onclick=()=>inspect(p);circle.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inspect(p);}};
       }
       focus.setAttribute('aria-pressed',String(view==='frontier'));all.setAttribute('aria-pressed',String(view==='all'));
-      caption.textContent=`${svg.dataset.visibleCount} of ${plotted.length} resolved sizes in view · ${rows.length-plotted.length} unresolved/censored sizes remain in the table. Axes fit the selected view. ${frontier.length===0?'No frontier was supplied for these resolved estimates.':frontier.length===1?'One distinct frontier point; tied sizes share a marker.':'The line connects tested frontier points.'} Point estimates; no untested intermediate sizes inferred.`;
+      caption.textContent=`${svg.dataset.visibleCount} of ${plotted.length} resolved sizes in view · ${rows.length-plotted.length} unresolved/censored sizes remain in the table. The Pareto frontier compares resolved candidates only. Axes fit the selected view. ${frontier.length===0?'No frontier was supplied for these resolved estimates.':frontier.length===1?'One distinct frontier point; tied sizes share a marker.':'The line connects tested frontier points.'} Point estimates; no untested intermediate sizes inferred.`;
       if(selected&&!inside(selected))selected=null;updateSelection();
     }
     focus.onclick=()=>{view='frontier';drawPlot();};all.onclick=()=>{view='all';drawPlot();};
@@ -227,7 +227,7 @@
         function updateSelection(){
           const sizes=report.calculations.candidates.filter(r=>selected.has(r.candidate_id)).map(r=>r.manifest.configuration.micros).sort((a,b)=>a-b);
           selectionSummary.textContent=sizes.length?`${frozen?'Frozen choices':'Selected'}: ${sizes.join(', ')} MNQ · ${sizes.length}${frozen?' size'+(sizes.length===1?'':'s'):' of 4 sizes'}`:'No sizes selected · choose up to four in the IS results table.';
-          freeze.disabled=!selection.ready||!selection.compatible||busy||!selected.size||!rationale.value.trim()||selection.unresolved;
+          freeze.disabled=!selection.ready||!selection.compatible||busy||!selected.size||!rationale.value.trim();
           buttons.forEach(button=>button.disabled=!selection.compatible||!frozen||busy||active);
           selection.syncRows();
         }
@@ -265,7 +265,7 @@
           if(frozen){selected.clear();frozen.candidate_ids.forEach(id=>selected.add(id));}
           heading.textContent=frozen?'OOS validation':'Freeze IS choices';
           intro.textContent=frozen?'Only the frozen sizes below enter OOS assessment. IS choices remain unchanged.':'Select up to four sizes in the IS results table above, then freeze them before OOS assessment.';
-          frozenNotice.textContent=!selection.compatible?'Historical numerical version: saved results remain readable. Start a new simulation to use the current freeze and validation tools.':frozen?`Choices frozen ${new Date(frozen.created_at_utc).toLocaleString()}. OOS was already used in strategy qualification; this is not an untouched holdout.`:selection.unresolved?'This search contains unresolved results. Resolve them or start a narrower search before freezing.':'Freezing permanently locks these choices for this run.';
+          frozenNotice.textContent=!selection.compatible?'Historical numerical version: saved results remain readable. Start a new simulation to use the current freeze and validation tools.':frozen?`Choices frozen ${new Date(frozen.created_at_utc).toLocaleString()}. OOS was already used in strategy qualification; this is not an untouched holdout.`:selection.unresolved?'Unresolved sizes cannot be selected. You can freeze resolved, eligible sizes; comparisons cover resolved candidates only.':'Freezing permanently locks these choices for this run.';
           freeze.hidden=noteLabel.hidden=!!frozen;primaryActions.hidden=additional.hidden=!frozen;
           updateSelection();
           if(frozen&&!root.querySelector('.prop-sim-freeze-link')){const links=node('div',undefined,'mechanic-downloads prop-sim-freeze-link');link(links,'Frozen choices JSON ↓',`/api/research-campaigns/${data.campaign_id}/exports/frozen_package.json`);root.insertBefore(links,primaryActions);}
@@ -288,7 +288,7 @@
       }
       function table(parent,phase,report){
         const c=report.calculations,rows=[...c.candidates].sort((a,b)=>a.manifest.configuration.micros-b.manifest.configuration.micros),isEval=phase==='evaluation';
-        const eligible=new Set(isEval?c.frontier:c.ranking),selection={selected:new Set(),eligible,ready:false,compatible:false,frozen:null,unresolved:!!c.unresolved_candidates?.length,onChange:()=>{}};
+        const eligible=new Set(rows.filter(r=>r.status==='estimated'&&((isEval?c.frontier:c.ranking)||[]).includes(r.candidate_id)).map(r=>r.candidate_id)),selection={selected:new Set(),eligible,ready:false,compatible:false,frozen:null,unresolved:!!c.unresolved_candidates?.length,onChange:()=>{}};
         function exclusionReason(row){
           if(eligible.has(row.candidate_id))return selection.frozen?.candidate_ids.includes(row.candidate_id)?'Frozen choice':'Selectable';
           if(row.status!=='estimated')return row.status==='unresolved'||row.status==='censored'?'Unresolved':row.status;
@@ -296,7 +296,7 @@
           return row.constraint_violations?.length?'Constraint failed: '+row.constraint_violations.map(s=>s.replaceAll('_',' ')).join(', '):'Not feasible';
         }
         selection.syncRows=()=>{for(const input of tb.querySelectorAll('[data-freeze-candidate]')){const id=input.value;input.checked=selection.selected.has(id);input.disabled=!selection.ready||!selection.compatible||!!selection.frozen||selection.selected.size>=4&&!input.checked;input.closest('tr').classList.toggle('prop-sim-selected',input.checked);}for(const row of tb.children){const item=rows.find(r=>String(r.manifest.configuration.micros)===row.dataset.size);if(item)row.querySelector('[data-selection-status]').textContent=exclusionReason(item);}};
-        const summary=node('p');summary.id='prop-sim-'+phase+'-summary';summary.textContent=isEval?`${c.frontier.length} Pareto configurations · ${rows.filter(r=>r.status!=='estimated').length} unresolved/censored. Compare cost and calendar time; all nondominated configurations remain.`:c.winner?`Best estimated cash size: ${rows.find(r=>r.candidate_id===c.winner).manifest.configuration.micros} MNQ · ${c.near_ties.length} tied/near-tied alternatives. This is a point estimate.`:'No Funded winner. Inspect unresolved results or constraints below.';parent.append(summary);
+        const summary=node('p');summary.id='prop-sim-'+phase+'-summary';summary.textContent=isEval?`${c.frontier.length} Pareto configurations among resolved candidates only · ${rows.filter(r=>r.status!=='estimated').length} unresolved/censored. Unresolved sizes are excluded from comparisons and cannot be selected.`:c.winner?`Best estimated cash size: ${rows.find(r=>r.candidate_id===c.winner).manifest.configuration.micros} MNQ · ${c.near_ties.length} tied/near-tied alternatives. This is a point estimate.`:'No Funded winner. Inspect unresolved results or constraints below.';parent.append(summary);
         if(isEval&&c.precision_interpretation){parent.append(node('p',c.precision_interpretation,'field-help'));if(c.paired_comparisons?.length)detail(parent,'Paired funding-time and cost comparisons',c.paired_comparisons);}
         if(isEval&&saved.configuration.profile_id==='lucidflex-50k')parent.append(node('p','Calendar-aware acquisition: cost and time average every simulated retry chain. A 3,650-calendar-day computation guard leaves open paths unresolved; it is not a provider deadline.','field-help'));
         if(isEval){const dispose=evaluationChart(parent,rows);if(dispose)chartDisposers.push(dispose);}

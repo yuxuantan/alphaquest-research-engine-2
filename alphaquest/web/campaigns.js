@@ -340,7 +340,7 @@
   function chart(parent,rows,phase,frontier,assessment=false){
     const box=node('div');box.id='campaign-chart';parent.append(box);
     if(phase==='evaluation'){
-      box.append(node('h3','Acquisition cost vs calendar time'),node('p',assessment?'Frozen OOS family only; no OOS frontier or selection is computed.':'Orange rings mark the saved IS Pareto frontier. Filters hide points without recomputing dominance. Unresolved points remain in the table.'));
+      box.append(node('h3','Acquisition cost vs calendar time'),node('p',assessment?'Frozen OOS family only; no OOS frontier or selection is computed.':'Orange rings mark the saved IS Pareto frontier among resolved candidates only. Filters hide points without recomputing dominance. Unresolved points remain in the table and cannot be selected.'));
       const points=rows.filter(r=>r.metrics.cost_per_funded!=null&&r.metrics.expected_calendar_days_to_funded!=null);
       if(!points.length){box.append(node('p','No resolved cost/time points to plot.'));return;}
       const svg=svgNode('svg',{viewBox:'0 0 820 340',role:'img','aria-label':'Acquisition cost versus calendar time with Pareto frontier'});

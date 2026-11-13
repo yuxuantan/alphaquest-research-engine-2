@@ -11241,3 +11241,33 @@ execution and six durable assessments. JavaScript syntax and `git diff --check`
 passed. All 33 numerical source hashes in each phase match the prior commit,
 and the saved demonstration identities match the current owners. No full suite
 was run; no persistent server was started.
+
+### 2026-11-13 — Freeze resolved choices with unresolved alternatives
+
+The backend and Prop Sim UI previously blocked the whole search if any size was
+unresolved. Admission now checks the selected family: every chosen candidate
+must be resolved and belong to the saved Evaluation frontier or Funded feasible
+ranking. Unresolved alternatives retain their rows and cannot be selected.
+Evaluation summaries, charts and exported SVG disclose that comparisons cover
+resolved candidates only. OOS remains an immutable-family assessment; no
+unresolved means are invented and no numerical code or historical report changes.
+
+[Saved evidence and exact reproduction steps](evidence/qualified_prop_sim/resolved-selection-freeze/README.md)
+cover a native synthetic backtest/campaign calculation with two genuinely
+censored sizes, rejecting unresolved/mixed/unknown selections, freezing only the
+resolved point without recomputation, and assessing only that frozen point on
+OOS. Independent expected values are $70 and two calendar days at 10 MNQ.
+The qualified Prop Sim browser journey also exercises both phase engines,
+freezing, six durable assessments and downloads. A read-only browser inspection
+of saved simulation `2d19909ce7b3404ca73adb534d6a8d2a` verifies that its chosen
+3/6/8/12 MNQ sizes can freeze while 1/2 remain unresolved, without submitting
+any user selection or assessment. Temporary test servers stop at teardown; the
+user's existing server and sources are preserved. Refresh compatible saved runs;
+no new sizing calculation is needed for this admission change.
+
+Validation: four distinct focused cases passed (native unresolved-selection
+freeze/OOS, existing independent campaign freeze/reopen, forty-row presentation
+boundaries, and the qualified two-phase product browser journey). Both changed
+JavaScript files passed syntax checks; `git diff --check` passed. All 33 source
+hashes for each numerical phase remain unchanged. The actual saved-run browser
+inspection recorded zero write requests. No full historical suite was run.

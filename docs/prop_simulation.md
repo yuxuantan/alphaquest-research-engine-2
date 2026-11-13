@@ -2335,3 +2335,17 @@ numerical-version/source guards remain unchanged; this UI increment itself
 requires no backtest or simulation rerun.
 
 [Saved product journey and reproduction](evidence/qualified_prop_sim/selection-flow/README.md).
+
+### Freeze admission with unresolved alternatives — 2026-11-13
+
+Freeze requires every selected size to be resolved and eligible on its saved IS
+report. Unselected unresolved/censored sizes no longer block this decision.
+Evaluation's frontier compares resolved candidates only; the portal, chart
+caption and SVG download say so. Unresolved rows remain visible and unselectable,
+with their acquisition means withheld. They are not certified dominated by the
+selected frontier. Funded selection still requires feasible ranked candidates.
+The report hash and complete original search stay in the existing frozen
+package; OOS applies only its chosen family without reselection. Existing
+compatible reports can freeze directly, with no backtest or sizing rerun.
+
+[Native boundary outputs, actual saved-run inspection and reproduction](evidence/qualified_prop_sim/resolved-selection-freeze/README.md).
