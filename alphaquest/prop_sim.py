@@ -344,6 +344,11 @@ class FrozenAssessment(BaseModel):
     paths: StrictInt | None = Field(default=None,ge=8,le=20000)
 
 
+class PolicyRevision(AssessmentLimits):
+    previous_policy_sha256: StrictStr = Field(pattern=r'^[0-9a-f]{64}$')
+    reason: StrictStr = Field(min_length=1,max_length=2000)
+
+
 def phase_campaign(request,id,phase):
     if phase not in ('evaluation','funded'):raise KeyError('Unknown phase.')
     saved=public(request,id)
@@ -360,6 +365,7 @@ async def validation(id:UUID,phase:str,request:Request):
         from .prop.assessment_review import implementation
         policy=saved.get('assessment_policies',{}).get(phase)
         return dict(campaign_id=cid,numerical_implementation_compatible=compatible,assessment_policy=policy,
+            assessment_policy_history=saved.get('assessment_policy_history',{}).get(phase,[policy] if policy else []),
             review_implementation_compatible=policy is None or policy['implementation']==implementation(),
             frozen=None if frozen is None else {k:frozen[k] for k in ('candidate_ids','names','rationale','package_sha256','created_at_utc')},
             assessments=store.assessments(cid),disclosure='Strategy qualification already accessed OOS. Frozen-size assessment is additional research, not an untouched holdout. No OOS reselection.')
@@ -368,35 +374,60 @@ async def validation(id:UUID,phase:str,request:Request):
 
 @router.post('/{id}/validation/{phase}/policy')
 async def declare_assessment_policy(id:UUID,phase:str,body:AssessmentLimits,request:Request):
-    def save():
-        from .prop.adapter import canonical,source_record
-        from .prop.phase_search import saved_oos_period
-        from .prop.assessment_review import implementation,start_plan
-        from hashlib import sha256
-        body.for_phase(phase)
-        analyses=request.app.state.prop_analyses
-        with analyses.lock:
-            saved,cid=phase_campaign(request,id.hex,phase)
-            policies=saved.get('assessment_policies',{})
-            if phase in policies:
-                if policies[phase]['limits']!=body.model_dump(mode='json'):
-                    raise ValueError('Assessment limits are immutable for this simulation. Create a new simulation for a different policy.')
-                return policies[phase]
-            source=source_record(request.app.state.runs,saved['qualification']['oos_report_id'])
-            prior=[a for a in request.app.state.campaigns.assessments(cid) if a.get('kind')=='oos']
-            horizon=body.maximum_calendar_days_to_funded if phase=='evaluation' else saved['configuration']['funded_horizon_calendar_days']
-            policy=dict(version='prop-oos-review-v1',phase=phase,limits=body.model_dump(mode='json'),
-                implementation=implementation(),declared_at_utc=datetime.now(timezone.utc).isoformat(),
-                declaration_timing='retrospective' if prior else 'before_first_prop_oos_result',
-                prior_oos_attempts=len(prior),prior_completed_oos_assessments=sum(a['status']=='complete' for a in prior),
-                start_plan=start_plan(saved_oos_period(source),horizon,body.account_start_count,saved['configuration']['closures']))
-            policy['policy_sha256']=sha256(canonical(policy).encode()).hexdigest()
-            with analyses.connect() as db:
-                payload=json.loads(db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id.hex,)).fetchone()[0])
-                payload.setdefault('assessment_policies',{})[phase]=policy
-                db.execute('UPDATE workflow_prop_simulations SET payload=? WHERE id=?',(canonical(payload),id.hex))
-            return policy
-    return await invoke(save)
+    return await invoke(lambda:save_assessment_policy(request,id.hex,phase,body))
+
+
+@router.post('/{id}/validation/{phase}/policy/revisions')
+async def revise_assessment_policy(id:UUID,phase:str,body:PolicyRevision,request:Request):
+    limits=AssessmentLimits.model_validate(body.model_dump(exclude={'previous_policy_sha256','reason'}))
+    return await invoke(lambda:save_assessment_policy(request,id.hex,phase,limits,body))
+
+
+def save_assessment_policy(request,id,phase,body,revision=None):
+    from .prop.adapter import canonical,source_record
+    from .prop.phase_search import saved_oos_period
+    from .prop.assessment_review import implementation,start_plan
+    from hashlib import sha256
+    body.for_phase(phase)
+    if revision is not None and not revision.reason.strip():
+        raise ValueError('Explain why the assessment limits are being revised.')
+    analyses=request.app.state.prop_analyses
+    with analyses.lock:
+        saved,cid=phase_campaign(request,id,phase)
+        policies=saved.get('assessment_policies',{})
+        previous=policies.get(phase)
+        limits=body.model_dump(mode='json')
+        if revision is None and previous:
+            if previous['limits']!=limits:
+                raise ValueError('Saved assessment limits are immutable. Use Revise assessment limits to save a new version.')
+            return previous
+        if revision is not None:
+            if not previous:raise ValueError('Declare initial assessment limits before revising them.')
+            if revision.previous_policy_sha256!=previous['policy_sha256']:
+                if (previous.get('previous_policy_sha256')==revision.previous_policy_sha256
+                        and previous['limits']==limits and previous.get('revision_reason')==revision.reason.strip()):
+                    return previous
+                raise ValueError('Assessment limits changed in another session. Reload before saving your revision.')
+            if previous['limits']==limits and previous['implementation']==implementation():
+                raise ValueError('No assessment limits changed.')
+        source=source_record(request.app.state.runs,saved['qualification']['oos_report_id'])
+        prior=[a for a in request.app.state.campaigns.assessments(cid) if a.get('kind')=='oos']
+        horizon=body.maximum_calendar_days_to_funded if phase=='evaluation' else saved['configuration']['funded_horizon_calendar_days']
+        policy=dict(version='prop-oos-review-v1',phase=phase,limits=limits,revision=previous.get('revision',1)+1 if previous else 1,
+            implementation=implementation(),declared_at_utc=datetime.now(timezone.utc).isoformat(),
+            declaration_timing='retrospective' if prior else 'before_first_prop_oos_result',
+            prior_oos_attempts=len(prior),prior_completed_oos_assessments=sum(a['status']=='complete' for a in prior),
+            start_plan=start_plan(saved_oos_period(source),horizon,body.account_start_count,saved['configuration']['closures']))
+        if revision is not None:
+            policy.update(previous_policy_sha256=previous['policy_sha256'],revision_reason=revision.reason.strip())
+        policy['policy_sha256']=sha256(canonical(policy).encode()).hexdigest()
+        with analyses.connect() as db:
+            payload=json.loads(db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()[0])
+            history=payload.setdefault('assessment_policy_history',{}).setdefault(phase,[previous] if previous else [])
+            history.append(policy)
+            payload.setdefault('assessment_policies',{})[phase]=policy
+            db.execute('UPDATE workflow_prop_simulations SET payload=? WHERE id=?',(canonical(payload),id))
+        return policy
 
 
 @router.post('/{id}/validation/{phase}/freeze')
@@ -427,10 +458,12 @@ async def assess_choices(id:UUID,phase:str,body:FrozenAssessment,request:Request
             from .prop.assessment_review import implementation
             policy=saved.get('assessment_policies',{}).get(phase)
             if policy is None:raise ValueError('Save explicit OOS assessment limits before running OOS.')
-            if policy['implementation']!=implementation():raise ValueError('Assessment review implementation changed; preserve this policy and create a new simulation.')
+            if policy['implementation']!=implementation():raise ValueError('Assessment review implementation changed; save a policy revision before a new assessment.')
             options=dict(policy=policy,implementation=implementation(),kind=body.kind)
             base=next((a for a in reversed(attempts) if a.get('kind')=='oos' and a['status']=='complete'),None)
             if body.kind=='account_starts' and base is None:raise ValueError('Complete an OOS assessment before account-start sensitivity.')
+            if body.kind=='account_starts' and (base.get('report_options') or {}).get('policy',{}).get('policy_sha256')!=policy['policy_sha256']:
+                raise ValueError('Run OOS assessment with the current policy revision before account-start sensitivity. Saved MC results will be reused.')
             if base:
                 fingerprint=request.app.state.prop_analyses.fingerprint(base['analysis_id'])
                 if not fingerprint:raise ValueError('Saved OOS evidence changed; no results were reused.')

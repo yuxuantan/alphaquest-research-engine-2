@@ -11359,3 +11359,39 @@ Validation for this increment: 18 distinct focused cases passed (14 arithmetic/A
 syntax and `git diff --check` passed. Independently summed product outputs and
 all 33 numerical source hashes per phase were verified; the saved evidence
 contains the reproducible arithmetic and source-hash record.
+
+### 2026-11-13 — Change saved OOS limits through explicit policy revisions
+
+The normal qualified backtest -> Prop Sim configure/check/run -> freeze -> OOS
+journey now adds **Revise assessment limits**, a required reason, cancellation,
+policy history and report version labels. Each revision appends configuration;
+original limits, plans, reports and verdicts remain intact. Running jobs retain
+the policy they captured. After a revision, running OOS assessment reuses the
+verified sealed MC paths and publishes a new economic review. Account starts
+then use that version's full-window date plan. No replacement simulation, new
+IS optimization or new Monte Carlo paths are needed for changed limits.
+
+[Saved product evidence, independent expectations and reproduction](evidence/qualified_prop_sim/oos-policy-revisions/README.md).
+The isolated two-phase synthetic portal journey first saves PASS reports with
+Evaluation $500/180 days and Funded minimum $100. It cancels an edit, then revises
+to Evaluation maximum $50 and Funded minimum $5,000. Existing OOS means remain
+$130.59375 acquisition cost and $2,812.50 received cash, so each revised result
+must FAIL while its original PASS report remains unchanged. Saved downloads,
+policy history and reload show both versions, retrospective timing and unchanged
+MC paths. The browser verifies mobile layout too. These are labeled synthetic
+business thresholds/outcomes, not financial recommendations or market forecasts.
+
+Focused API checks cover reason validation, stale edits, idempotent retries,
+version history, explicit reversion, preserved sealed reports, no MC optimizer
+call and current-policy account-start admission. A paused running OOS review
+captures version 2, permits a concurrent version 3 declaration, then completes
+with version 2 unchanged. The existing phase/account numerical sources and review
+calculation implementation are unchanged. Old evidence is preserved. Temporary
+servers shut down at teardown; no user report, running job or persistent server
+is modified. Portfolio/replacement analysis remains deferred.
+
+Validation: the focused two-phase API case and real qualified Chromium journey
+passed, including revision while running, retry/stale-edit rejection, preserved
+old verdicts, unchanged MC paths, reload and mobile layout. Independent saved
+fee/cash checks, numerical/review source identity verification, Python/JavaScript
+syntax and `git diff --check` passed. No full historical suite was run.

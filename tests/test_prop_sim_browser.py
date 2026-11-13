@@ -352,11 +352,50 @@ def test_prop_sim_variants_frozen_assessment_robustness_precision_product_journe
             diagnostics.locator('summary').click()
             page.locator('#prop-sim-'+phase+'-results').screenshot(path=str(tmp_path/(phase+'-validation.png')))
             summary[phase]=dict(frozen=frozen,studies=results,baseline_metrics=[r['metrics'] for r in baseline['calculations']['candidates']])
+            # A changed business decision creates a new version and reuses OOS
+            # paths while retaining the earlier PASS report untouched.
+            current=client.get(prefix).json()['assessment_policy']
+            root.get_by_role('button',name='Revise assessment limits',exact=True).click()
+            field='maximum_cost_per_funded' if phase=='evaluation' else 'minimum_funded_receipts'
+            root.get_by_label(phase+' '+field,exact=True).fill('1')
+            root.get_by_role('button',name='Cancel revision',exact=True).click()
+            playwright.expect(root.get_by_label(phase+' '+field,exact=True)).to_have_value(limits[field])
+            root.get_by_role('button',name='Revise assessment limits',exact=True).click()
+            root.get_by_label(phase+' '+field,exact=True).fill('50' if phase=='evaluation' else '5000')
+            root.get_by_label(phase+' policy revision reason',exact=True).fill('SYNTHETIC: test a stricter corrected business limit without rerunning MC.')
+            with page.expect_response(lambda r:r.url.endswith(prefix+'/policy/revisions') and r.request.method=='POST') as revised:
+                root.get_by_role('button',name='Save new policy version',exact=True).click()
+            assert revised.value.status==200,revised.value.text()
+            revision=revised.value.json();assert revision['revision']==2 and revision['previous_policy_sha256']==current['policy_sha256']
+            playwright.expect(root).to_contain_text('Policy version 2 · Retrospectively declared',timeout=30000)
+            playwright.expect(root.get_by_role('button',name='Check account-start sensitivity',exact=True)).to_be_disabled()
+            old_attempt=next(a for a in results if a['kind']=='oos')
+            old_report=client.get(prefix+'/'+old_attempt['request_id']).json()
+            old_box=root.locator('[data-assessment="'+old_attempt['request_id']+'"]')
+            playwright.expect(old_box.locator('[data-policy-version]')).to_contain_text('superseded; retains its original verdict')
+            with page.expect_response(lambda r:r.url.endswith(prefix) and r.request.method=='POST') as reapplied:
+                root.get_by_role('button',name='Run OOS assessment',exact=True).click()
+            assert reapplied.value.status==202,reapplied.value.text()
+            attempt=reapplied.value.json();_,updated=wait_assessment(client,prefix,attempt['request_id'])
+            new_box=root.locator('[data-assessment="'+attempt['request_id']+'"]')
+            playwright.expect(new_box.locator('[role=status]')).to_contain_text('COMPLETE',timeout=30000)
+            playwright.expect(new_box.locator('.prop-sim-review-details > summary')).to_contain_text('FAIL')
+            assert all(r['economic_assessment']['verdict']=='FAIL' for r in updated['calculations']['candidates'])
+            assert [r['paths'] for r in updated['calculations']['candidates']]==[r['paths'] for r in old_report['calculations']['candidates']]
+            assert client.get(prefix+'/'+old_attempt['request_id']).json()==old_report
+            assert client.get(prefix).json()['assessment_policy_history']==[current,revision]
+            (tmp_path/(phase+'-revised-report.json')).write_text(json.dumps(updated,indent=2))
+            with page.expect_download() as download:new_box.get_by_role('link',name='Assessment evidence ZIP ↓',exact=True).click()
+            download.value.save_as(tmp_path/(phase+'-revised-evidence.zip'))
+            root.get_by_text('Policy history · 2 versions',exact=True).click()
+            root.screenshot(path=str(tmp_path/(phase+'-policy-revision.png')))
+            summary[phase]['policy_revision']=dict(policy=revision,original_verdict='PASS',new_verdict='FAIL',mc_paths_unchanged=True,old_report_unchanged=True)
     page.reload()
     for phase in ('evaluation','funded'):
         root=page.locator('#prop-sim-'+phase+'-validation')
         playwright.expect(root).to_contain_text('Choices frozen',timeout=30000)
-        playwright.expect(root.locator('[data-assessment]')).to_have_count(4,timeout=30000)
+        playwright.expect(root.locator('[data-assessment]')).to_have_count(5,timeout=30000)
+        playwright.expect(root).to_contain_text('Policy version 2 · Retrospectively declared')
         assert root.locator('.prop-sim-diagnostics').get_attribute('open') is None
         playwright.expect(root.get_by_role('button',name='Check IS blocks and subperiods',exact=True)).not_to_be_visible()
     page.set_viewport_size(dict(width=390,height=844))

@@ -1,0 +1,16 @@
+{
+  "evaluation": {
+    "original_verdict": "PASS",
+    "revised_verdict": "FAIL",
+    "unchanged_mean_usd": 130.59375,
+    "mc_paths_unchanged": true,
+    "original_sealed_report_sha256": "4373e06b13d5404e3522ba16948c4ebf6f4a7ce7ca752115bacb7dfca9a58ffc"
+  },
+  "funded": {
+    "original_verdict": "PASS",
+    "revised_verdict": "FAIL",
+    "unchanged_mean_usd": 2812.5,
+    "mc_paths_unchanged": true,
+    "original_sealed_report_sha256": "f16c02c557a171e92c0c13e90074fd6f5ccf14918101a429d0875c31a1cf1d25"
+  }
+}

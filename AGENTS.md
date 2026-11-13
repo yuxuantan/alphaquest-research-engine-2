@@ -212,3 +212,11 @@ and 30 calendar days of inactivity. They are local assumptions, not new provider
 parity claims. Portfolio allocation and full replacement cash-flow analysis remain
 separate future increments. See the dated policy contract in
 `docs/prop_simulation.md` and reproduction/evidence in `docs/prop_simulation_review.md`.
+
+OOS economic limits can now change through explicit policy revisions in the
+same simulation. Preserve each version and its original report verdicts, require
+a reason and predecessor hash, and label post-access revisions retrospective.
+Queued/running jobs retain their captured version. Re-review compatible sealed
+OOS MC paths rather than rerunning optimization; require a current-version OOS
+review before new account-start sensitivity. Expose history/version labels in the
+normal portal. See the later revision contract in `docs/prop_simulation.md`.

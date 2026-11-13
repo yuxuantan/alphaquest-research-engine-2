@@ -154,6 +154,47 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
         from alphaquest.prop.assessment_review import implementation
         with patch('alphaquest.prop.assessment_review.implementation',return_value=dict(implementation(),source_sha256='changed')):
             assert client.post(prefix,json=dict(request_id=uuid4().hex,kind='oos')).status_code==409
+        revision=dict(limits,previous_policy_sha256=policy['policy_sha256'],reason='Correct business limits after reviewing costs',account_start_count=3)
+        assert client.post(prefix+'/policy/revisions',json=dict(revision,reason='  ')).status_code==409
+        response=client.post(prefix+'/policy/revisions',json=revision);assert response.status_code==200,response.text
+        revised=response.json();assert revised['revision']==2 and revised['declaration_timing']=='retrospective'
+        assert revised['previous_policy_sha256']==policy['policy_sha256'] and revised['start_plan']['requested_starts']==3
+        assert client.post(prefix+'/policy/revisions',json=revision).json()==revised  # Retry does not append twice.
+        assert client.post(prefix+'/policy/revisions',json=dict(revision,account_start_count=4)).status_code==409
+        assert client.get(prefix).json()['assessment_policy_history']==[policy,revised]
+        assert client.post(prefix,json=dict(request_id=uuid4().hex,kind='account_starts')).status_code==409
+        old=client.app.state.prop_analyses.fingerprint(studies[0]['id'])
+        with patch('alphaquest.prop.'+phase+'_optimization.optimize_'+phase,side_effect=AssertionError('MC must be reused')):
+            declared=dict(request_id=uuid4().hex,kind='oos')
+            assert client.post(prefix,json=declared).status_code==202
+            _,updated=wait_assessment(client,prefix,declared['request_id'])
+            assert updated['calculations']['assessment_policy']==revised
+            assert [r['paths'] for r in updated['calculations']['candidates']]==[r['paths'] for r in studies[0]['calculations']['candidates']]
+            declared=dict(request_id=uuid4().hex,kind='account_starts')
+            assert client.post(prefix,json=declared).status_code==202
+            _,updated=wait_assessment(client,prefix,declared['request_id'])
+            assert updated['calculations']['account_start_sensitivity']['simulations']==3
+        assert client.app.state.prop_analyses.fingerprint(studies[0]['id'])==old
+        if phase=='evaluation':
+            from threading import Event
+            from alphaquest.prop.assessment_review import enrich
+            entered,release=Event(),Event()
+            def paused(*args,**kwargs):
+                entered.set()
+                assert release.wait(15),'Test did not release the active assessment'
+                return enrich(*args,**kwargs)
+            declared=dict(request_id=uuid4().hex,kind='oos')
+            with patch('alphaquest.prop.assessment_review.enrich',side_effect=paused):
+                try:
+                    assert client.post(prefix,json=declared).status_code==202
+                    assert entered.wait(10)
+                    revert=dict(limits,previous_policy_sha256=revised['policy_sha256'],reason='Restore the original business decision')
+                    response=client.post(prefix+'/policy/revisions',json=revert);assert response.status_code==200,response.text
+                    restored=response.json();assert restored['revision']==3 and restored['limits']==policy['limits']
+                finally:release.set()
+                _,running=wait_assessment(client,prefix,declared['request_id'])
+            assert running['calculations']['assessment_policy']==revised  # Running job retains version 2.
+            assert client.get(prefix).json()['assessment_policy_history']==[policy,revised,restored]
         evidence[phase]=studies
     # Report readers remain valid even after a numerical implementation changes.
     with patch('alphaquest.prop.evaluation_optimization.implementation_identity',return_value={}):

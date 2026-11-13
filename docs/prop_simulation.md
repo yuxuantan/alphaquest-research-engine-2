@@ -2452,3 +2452,40 @@ remain qualification references only. Portfolio allocation and full replacement
 cash-flow analysis are deferred separate increments.
 
 [Normal-product evidence and reproduction](evidence/qualified_prop_sim/oos-policy-starts/README.md).
+
+### Revise OOS assessment limits without replacing a simulation — 2026-11-13
+
+The qualified Prop Sim portal now supports **Revise assessment limits**. This
+supersedes the preceding increment's requirement to create a new simulation when
+changing these limits. Each saved version remains immutable; a revision appends
+new limits, a required reason, timestamp, predecessor hash and revision number.
+The latest version becomes the default for subsequent assessments. Existing
+single-policy records are treated as version 1 and preserved byte-for-byte in
+history when first revised. The existing parent stores configuration history;
+AnalysisStore continues to own all results. No new storage or account engine.
+
+The user can edit Evaluation maximum cost/time, Funded minimum receipts, evidence
+minimums and account-start count. **Cancel revision** discards an unsaved edit.
+Saving does not rerun anything or change a previous verdict. **Run OOS assessment**
+applies the latest policy to verified compatible saved OOS MC paths and publishes
+a new report. Old reports show their original version and a superseded label.
+Revision after OOS access is retrospective, including a reversion to older values;
+it cannot turn accessed data into an untouched holdout. Before the first Prop Sim
+OOS attempt, a revision retains that narrower pre-result timing disclosure.
+
+Queued/running jobs keep their captured policy version, even when the user saves
+a revision. Account-start sensitivity requires a completed OOS review under the
+current version so the displayed limits/date plan and review agree. Revision of
+Evaluation time or start count creates a new covered-start plan; historical plans
+and sensitivity results remain. Frozen source, size, execution costs and account
+rules do not change. No IS or MC rerun is needed for limits alone. Changed review
+code may be adopted through an explicit revision; incompatible phase numerical
+code still fails its existing guards.
+
+`POST /api/prop-sim/{id}/validation/{phase}/policy/revisions` accepts phase limits,
+`previous_policy_sha256` and a nonblank `reason`. A stale predecessor returns 409;
+a retry of the same current revision is idempotent. A no-op revision rejects.
+The validation GET includes current policy and `assessment_policy_history`.
+Saving the original policy route still cannot overwrite an existing version.
+
+[Revision evidence and reproduction](evidence/qualified_prop_sim/oos-policy-revisions/README.md).
