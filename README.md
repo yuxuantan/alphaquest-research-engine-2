@@ -29,6 +29,10 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
+The current **Prop Sim** tab's [Evaluation/Funded calculation guide](docs/prop_simulation_methodology.md)
+details IS selection, frozen OOS simulation and confidence checks, account rules,
+costs, result columns, and the separate percentage-risk portfolio workflow.
+
 [Guided prop configuration](docs/prop_setup.md) starts from a saved report with
 a goal choice, relevant source/design/account steps and a review/check/run stage.
 Previous analyses and legacy tools remain separate and available.

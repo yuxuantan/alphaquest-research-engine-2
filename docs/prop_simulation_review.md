@@ -11857,3 +11857,43 @@ temporary test servers/pools stopped; stop the persistent user portal with
 `kill -TERM 28156` when no analysis needs to finish.
 
 [Exact normal-product journey, saved downloads, qualification evidence, boundaries and reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).
+
+### Current Evaluation/Funded IS and OOS methodology guide — 2026-11-14
+
+Documentation-only increment, traced against implementation `8f6d85a`.
+[The calculation guide](prop_simulation_methodology.md) now documents the current
+qualified Prop Sim tab end to end: source admission and already-accessed OOS,
+IS/OOS bounds, commission replacement and adverse paths, source/session/calendar
+clocks, Apex attempt-law/renewal acquisition, Lucid direct dated acquisition,
+fresh-Funded receipt accounting, automatic IS-only families, frozen OOS Monte
+Carlo plus chronological replay, historical confidence refits and exact verdict
+boundaries. It also distinguishes the native percentage-risk portfolio workflow
+and its finite observed-cash objective from independent fixed-size Monte Carlo
+searches. Percentage-grid optimization is explicitly not claimed implemented.
+
+The guide is linked near the top of `prop_simulation.md`, the documentation
+index and the repository README. Historical dated specifications/evidence are
+retained. No numerical source, account policy, saved report, server or running
+job was modified/restarted for this increment.
+
+Normal reader journey: open the guide from the documentation index, follow its
+product steps from a qualified backtest through Prop Sim configuration/Run and
+saved phase downloads, then compare `request.json`, candidate `metrics`, path
+outcomes and `prop_qualification`. Expected observations: Evaluation uses the
+cost/time frontier and at most three automatic choices; Funded uses received cash
+and at most two; OOS keeps those identities and never selects replacement sizes.
+Account cash includes zero-receipt paths and excludes pending receipts. Native
+portfolio policies use actual pre-entry stops/account state, with a separate
+replacement fee/receipt ledger and no claimed portfolio Monte Carlo GO.
+
+Verification: the exact seven-node pytest command in the guide executes **eight
+passing cases** because the tie test covers both phases. It checks the inclusive
+1.25×/95% selection boundaries, tie/duplicate behavior, unresolved-row handling,
+IS/phase independence, 1.50/0.70 OOS margins, insufficient-evidence distinctions,
+complete-month counting and the 12-test confidence tail. The existing Starlette
+httpx deprecation warning is unrelated. The guide's independent saved native ZIP
+audit also passes: frozen zero-purchase scenarios each retain zero fees/receipts;
+the diagnostic invested IS alternative retains one trade/decision, USD 80.50
+fees, zero receipts and net cash −USD 80.50. These are existing saved outputs,
+not new simulations or claimed future outcomes. Guide links/anchors and whitespace
+were checked. No browser server or full regression suite was needed.

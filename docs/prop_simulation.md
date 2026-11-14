@@ -1,5 +1,12 @@
 # AlphaQuest local prop simulation
 
+For the current Prop Sim tab, read the **[Evaluation/Funded IS and OOS
+calculation guide](prop_simulation_methodology.md)** (verified 14 November 2026).
+It explains Apex versus Lucid acquisition, fresh-Funded receipts, sampling and
+clocks, automatic IS selection, frozen OOS confidence gates, result columns and
+the separate native percentage-risk/portfolio mode. Earlier dated contracts and
+their saved reports remain preserved below.
+
 Current implementation (8 November 2026): later sections and the
 [execution checklist](robust_research_plan.md) supersede earlier dated pending
 statements. Native independent optimization, complete-procedure verification,

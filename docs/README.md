@@ -25,6 +25,9 @@
 - [Backtests](backtests_portal.md): configure runs and read reports.
 - [Optimizations](optimization.md): parameter searches and downloads.
 - [Prop simulation](prop_simulation.md): model, source checks and saved results.
+- [Evaluation/Funded calculation guide](prop_simulation_methodology.md): current
+  IS searches, automatic selection, OOS account simulation and confidence gates,
+  account rules, costs, result meanings and native percentage-risk portfolio scope.
 - [Phase research campaigns](research_campaign_api.md): cross-job IS candidates, budgets, independent objectives, freeze and exports.
 - [Prop review](prop_simulation_review.md): reproduction steps and dated evidence.
 - [Market benchmark](market_benchmark.md): holding comparisons and assumptions.
