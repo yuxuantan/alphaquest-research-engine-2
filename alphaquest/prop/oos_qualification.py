@@ -101,14 +101,15 @@ def decide(point, replicates, phase, evidence_rows, *, inner_precision_ok=True):
         historical_replicates=len(replicates),interpretation='GO supports forward review under the saved historical model. Insufficient evidence is not approval. The bounds do not imply a 95% probability of future success.')
 
 
-def _means(days,candidate,search,checkpoint):
+def _means(days,candidate,search,checkpoint,*,funded_preparation=None):
     """Same local phase calculation and path counts as the admitted search."""
     from .evaluation_profiles import calendar_evaluation_paths
     from .funded_profiles import _dated_funded_paths
     if candidate.sizing is not None:raise ValueError('Qualification currently supports the Prop Sim fixed-quantity saved-source policy only.')
     if search.mode=='funded_optimization':
         paths,_,_=_dated_funded_paths(days,candidate.profile,candidate.micros,search.horizon_calendar_days,
-            search.calendar,search.receipt_delay_calendar_days,candidate.simulation,candidate.sampling,checkpoint=checkpoint)
+            search.calendar,search.receipt_delay_calendar_days,candidate.simulation,candidate.sampling,checkpoint=checkpoint,
+            preparation=funded_preparation)
         cash=np.array([p['cash_received'] for p in paths]);mean=float(cash.mean())
         groups=[cash[[p['start_date']==s for p in paths]] for s in search.calendar.start_dates]
         se=float(np.sqrt(sum(np.var(g,ddof=1)/len(g) for g in groups))/len(groups))

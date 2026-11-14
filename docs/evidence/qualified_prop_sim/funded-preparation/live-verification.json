@@ -1,0 +1,25 @@
+{
+  "/": {
+    "status": 200,
+    "seconds": 0.0961845419369638
+  },
+  "/api/prop-sim/candidates": {
+    "status": 200,
+    "seconds": 0.8460880420170724,
+    "available": 1,
+    "unavailable": []
+  },
+  "/api/prop-sim/ede834c9fea44f2fa663e481dd8d4582": {
+    "status": 200,
+    "seconds": 0.047695624991320074
+  },
+  "/api/prop-sim/ede834c9fea44f2fa663e481dd8d4582/validation/funded": {
+    "status": 200,
+    "seconds": 0.0647115419851616,
+    "older_frozen_numerical_identity_rejected": true
+  },
+  "browser": {
+    "usable_form_seconds": 1.0081346669467166,
+    "errors": []
+  }
+}

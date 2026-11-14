@@ -9,6 +9,68 @@ from .phase_profiles import (
 )
 
 
+class DatedFundedPreparation:
+    """Worker-local immutable calendar/index preparation, never account results.
+
+    Admit entries until the accounted 32 MiB budget is full; retain that prefix
+    for later refits rather than evicting/thrashing on large declarations. A miss
+    that cannot fit uses the original streaming sampler and full path count.
+    Instances belong to one worker context and are not shared between threads.
+    """
+    VERSION = 'dated-funded-preparation-v1'
+    MAX_BYTES = 32 * 1024 * 1024
+
+    def __init__(self, max_bytes=MAX_BYTES):
+        if type(max_bytes) is not int or not 0 <= max_bytes <= self.MAX_BYTES:
+            raise ValueError('Funded preparation budget must be 0–32 MiB.')
+        self.max_bytes = max_bytes
+        self.bytes_used = 0
+        self._entries = {}
+
+    def calendar(self, identity, start, horizon, checkpoint):
+        from datetime import date, timedelta
+        key = ('calendar', identity, start, horizon)
+        if key in self._entries:
+            return self._entries[key]
+        # Conservative accounting for owned date/string/tuple objects and the
+        # entry/key overhead; source-owned identity strings are not duplicated.
+        charge = 512 + horizon * 192
+        if self.bytes_used + charge > self.max_bytes:
+            return None
+        first = date.fromisoformat(start)
+        closed = set(identity[4])
+        rows = []
+        for offset in range(horizon):
+            if offset % 32 == 0:
+                checkpoint()
+            day = first + timedelta(days=offset)
+            text = day.isoformat()
+            rows.append((day, day.weekday() < 5 and text not in closed, text))
+        value = (tuple(rows), sum(row[1] for row in rows))
+        self._entries[key] = value
+        self.bytes_used += charge
+        return value
+
+    def indices(self, seed, path, length, block, count):
+        from .native_engine import sampled_days
+        key = ('indices', seed, path, length, block, count)
+        if key in self._entries:
+            return iter(memoryview(self._entries[key]).cast('i'))
+        charge = 512 + count * np.dtype(np.int32).itemsize
+        rng = np.random.RandomState(np.random.SeedSequence([seed, path]).generate_state(1)[0])
+        stream = sampled_days(rng, length, block)
+        if self.bytes_used + charge > self.max_bytes:
+            return stream
+        # Keep the exact scalar MT19937 draws and their ordering. Prefetching
+        # unused suffixes cannot affect another independently seeded account.
+        values = np.fromiter((next(stream) for _ in range(count)), dtype=np.int32, count=count).tobytes()
+        self._entries[key] = values
+        self.bytes_used += charge
+        # A read-only native int32 buffer yields ordinary Python int values,
+        # retaining the original index type for sizing trace/capture callers.
+        return iter(memoryview(values).cast('i'))
+
+
 class NativeFundedController(NativeControlBase):
     """Fresh-funded actual-fill owner; no evaluation or replacement inputs."""
     phase='funded'
@@ -375,7 +437,8 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
 
 
 def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
-        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None):
+        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None,
+        preparation=None):
     """The same fresh-account dated kernel for original and resampled histories."""
     from dataclasses import replace
     from datetime import date, timedelta
@@ -389,20 +452,34 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     schedule = sha256()
     closed = set(calendar.closures)
     starts = sorted(calendar.start_dates)
+    # Calendar preparation also benefits ordinary one-off runs. Only a caller
+    # retaining a worker context prefetches indices for reuse across refits.
+    calendar_cache = preparation if preparation is not None else DatedFundedPreparation()
+    identity = (calendar.version, calendar.timezone, calendar.coverage_end,
+                tuple(starts), tuple(sorted(closed)))
+    calendars = {s: calendar_cache.calendar(identity, s, horizon_calendar_days, checkpoint) for s in starts}
     for i in range(1 if chronological else simulation.simulations):
         checkpoint()
         start = date.fromisoformat(starts[i % len(starts)])
         cutoff = start + timedelta(days=horizon_calendar_days)
-        rng = np.random.RandomState(np.random.SeedSequence([simulation.seed, i]).generate_state(1)[0])
-        stream = native_engine.sampled_days(rng, len(days), sampling.block_weekdays)
+        prepared_calendar = calendars[starts[i % len(starts)]]
+        if preparation is not None and prepared_calendar is not None and not chronological:
+            stream = preparation.indices(simulation.seed, i, len(days), sampling.block_weekdays, prepared_calendar[1])
+        else:
+            rng = np.random.RandomState(np.random.SeedSequence([simulation.seed, i]).generate_state(1)[0])
+            stream = native_engine.sampled_days(rng, len(days), sampling.block_weekdays)
         account = account_class(rules)
         events = []
         terminal_date = None
         source_cursor=0
         for offset in range(horizon_calendar_days):
             if offset%32==0:checkpoint()
-            day = start + timedelta(days=offset)
-            is_session = day.weekday() < 5 and day.isoformat() not in closed
+            if prepared_calendar is None:
+                day = start + timedelta(days=offset)
+                day_text = day.isoformat()
+                is_session = day.weekday() < 5 and day_text not in closed
+            else:
+                day, is_session, day_text = prepared_calendar[0][offset]
             if not is_session:
                 # Reuse the native calendar expiry check even across weekends or
                 # declared closures; never increment the account's session count.
@@ -413,10 +490,10 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
                     raise ValueError('Chronological OOS source does not cover the frozen Funded horizon.')
                 index = source_cursor if chronological else next(stream)
                 source_cursor+=1
-                schedule.update(f'{i}:{day.isoformat()}:{index};'.encode())
+                schedule.update(f'{i}:{day_text}:{index};'.encode())
                 before = len(account.payouts)
                 dynamic = (dict(**sizing.kernel_arguments(stage='funded_calendar_sample', path_index=i,
-                    source_session_index=index, calendar_date=day.isoformat()), trace=trace) if sizing is not None else {})
+                    source_session_index=index, calendar_date=day_text), trace=trace) if sizing is not None else {})
                 if lucid:
                     account.advance(days[index], micros, simulation.max_micros, calendar_day=offset, **dynamic)
                 else:
@@ -425,8 +502,8 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
                     entitlement = account.payouts[-1][1]
                     gross = account.withdrawals[-1][1] if lucid else entitlement
                     due = day + timedelta(days=receipt_delay_calendar_days)
-                    events.append(dict(eligibility_date=day.isoformat(), request_date=day.isoformat(),
-                        deduction_date=day.isoformat(), receipt_date=due.isoformat(),
+                    events.append(dict(eligibility_date=day_text, request_date=day_text,
+                        deduction_date=day_text, receipt_date=due.isoformat(),
                         gross_account_deduction=gross, trader_cash_entitlement=entitlement,
                         received_within_horizon=due < cutoff,
                         trader_cash_received=entitlement if due < cutoff else 0.))

@@ -1,0 +1,16 @@
+{
+  "previous_pid": 26317,
+  "new_pid": 28156,
+  "active_jobs_before_restart": 0,
+  "graceful_restart": true,
+  "source": "bounded funded preparation implementation",
+  "launcher": "scripts/serve_portal.sh",
+  "port": 8000,
+  "old_report_and_zip_seals_unchanged": true,
+  "preserved_analysis_ids": [
+    "0d0ddfa2a8a0469c8e5d8015dabc9ba5",
+    "58f37e6e937d4f41a95af9d31f54cf32",
+    "a11f6078cef3415c96ac0c8f1d423921",
+    "609ec63f9b2f4af2ad84c40d920eb484"
+  ]
+}

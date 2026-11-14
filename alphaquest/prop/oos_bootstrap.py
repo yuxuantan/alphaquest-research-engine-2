@@ -23,7 +23,11 @@ def _replicate(task):
         raw=Path(filename).read_bytes()
         if sha256(raw).hexdigest()!=expected:raise ValueError('Historical worker context changed.')
         _loaded_context=pickle.loads(raw)  # Trusted internal temporary calculation input only.
-        _loaded_context['caches']=({},{});_loaded_path=filename
+        from .funded_profiles import DatedFundedPreparation
+        _loaded_context['caches']=({},{})
+        _loaded_context['funded_preparation']=(DatedFundedPreparation()
+            if _loaded_context['search'].mode=='funded_optimization' else None)
+        _loaded_path=filename
     context=_loaded_context
     from .native_engine import sampled_days
     from .oos_qualification import _means
@@ -40,7 +44,8 @@ def _replicate(task):
         stream=sampled_days(np.random.RandomState(seed),len(days),context['outer_block'])
         indices=np.fromiter((next(stream) for _ in days),dtype=np.int32,count=len(days))
         key=labels[indices].tobytes()
-        if key not in cache:cache[key]=_means([days[int(i)] for i in indices],candidate,context['search'],checkpoint)
+        if key not in cache:cache[key]=_means([days[int(i)] for i in indices],candidate,context['search'],checkpoint,
+            funded_preparation=context['funded_preparation'])
         means,error=cache[key];values.append(means)
         precision=bool(precision and error is not None and error<=context['maximum_inner_relative_standard_error'])
         keys.append(sha256(key).hexdigest())
@@ -49,7 +54,8 @@ def _replicate(task):
     ratio={key:values[1][key]/values[0][key] if values[0].get(key,0)>0 and values[1].get(key) is not None else None
            for key in context['metrics']}
     return dict(replicate=dict(replicate=index,is_history=trace[0],oos_history=trace[1],ratios=ratio),
-        precision=precision,history_keys=keys)
+        precision=precision,history_keys=keys,
+        preparation_cache_bytes=context['funded_preparation'].bytes_used if context['funded_preparation'] is not None else 0)
 
 
 def run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress):
@@ -84,10 +90,17 @@ def run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress):
         tasks=[(str(context_path),signature,index) for index in range(total)]
         rows=map_reported(_replicate,tasks,checkpoint=checkpoint,notify=notify,cancel=marker.touch)
     checkpoint()
+    execution=dict(workers_used=worker_count,worker_pids=worker_pids,nested_pool=False,
+        elapsed_seconds=round(monotonic()-started,2),ordered_by='replicate_index',
+        context='Internal temporary input loaded once per process; removed after workers finish')
+    if phase=='funded':
+        from .funded_profiles import DatedFundedPreparation
+        execution['funded_preparation']=dict(version=DatedFundedPreparation.VERSION,
+            budget_bytes_per_worker=DatedFundedPreparation.MAX_BYTES,
+            maximum_accounted_bytes=max((r['preparation_cache_bytes'] for r in rows),default=0),
+            fallback='Original streaming sampler; all requested paths retained')
     return dict(replicates=[r['replicate'] for r in rows],inner_precision_ok=all(r['precision'] for r in rows),
         outer_block_weekdays=outer_block,
         unique_histories_evaluated=[len({r['history_keys'][role] for r in rows}) for role in (0,1)],
         memoization='Only numerically identical entire resampled daybooks reuse the same phase calculation. No requested path count is reduced.',
-        execution=dict(workers_used=worker_count,worker_pids=worker_pids,nested_pool=False,
-            elapsed_seconds=round(monotonic()-started,2),ordered_by='replicate_index',
-            context='Internal temporary input loaded once per process; removed after workers finish'))
+        execution=execution)

@@ -2896,3 +2896,35 @@ completion/cancellation. This is not an additional dataset or result store.
 When the zero-purchase baseline wins, the best invested **IS-only diagnostic** is
 also replayed/captured so its actual sizing, trades and fees can be inspected.
 It does not replace the frozen choice or run a new OOS selection.
+### Bounded Funded refit preparation reuse — 2026-11-14
+
+Saved-source Funded historical confidence now reuses immutable sampled-index
+prefixes and calendar rows inside the existing dated owner in `funded_profiles.py`.
+`oos_bootstrap.py` owns one preparation instance per loaded worker context;
+`oos_qualification._means` passes it to the same account calculation. No account
+answer is reused across different numerical daybooks. The seed/path-index law,
+scalar MT19937 draws, account transitions, receipts/cutoffs, ordered output and all
+requested inner paths/10,000 outer refits remain intact.
+
+Preparation has a 32 MiB accounted per-worker ceiling. Once full, the admitted
+prefix stays reusable and later entries use the original streaming sampler; no
+size-dependent path cap, clipping, eviction thrash or result-store duplication is
+introduced. Calendar-only reuse also applies within ordinary dated runs.
+Chronological replay never draws cached random indices. Workers continue to
+observe stop markers and retain the existing shared CPU reservations/four-worker
+default. The last context is released when replaced or its pool closes.
+
+Normal Funded OOS report downloads capture
+`qualification_bootstrap[].execution.funded_preparation`: preparation version,
+budget and maximum observed accounted bytes. These are execution diagnostics,
+not qualification rules. The numerical-owner and qualification file hashes
+change explicitly; prior reports/ZIPs and verdicts remain unchanged, and prior
+incompatible Funded freezes cannot launch under the new owner. No numerical
+source is excluded from identity to bypass that guard.
+
+Real-source comparisons matched 12,000 complete path/event/schedule records and
+sampled saved refit metrics exactly. Representative eight-refit timings improved
+2.55–2.64×; the projected full-workflow reduction from about 83 to 44 minutes has
+not been claimed as a completed full real-data run. Both account profiles are
+demonstrated through the normal backtest → configure → checked automatic Run →
+durable OOS report/download journey. [Saved evidence and reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).

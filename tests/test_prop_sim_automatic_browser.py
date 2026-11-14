@@ -69,7 +69,16 @@ def test_one_run_finishes_all_four_simulations_after_navigation(page,qualificati
         assert row['prop_qualification']['status']=='GO'
         assert row['prop_qualification']['forward_execution']['status']=='PENDING'
         assert all(c['lower']==c['upper']==1. for c in row['prop_qualification']['checks'])
-        if phase=='funded':assert row['metrics']['expected_funded_cash_payouts_within_horizon']==sum(p['cash_received'] for p in row['paths'])/8
+        if phase=='funded':
+            assert row['metrics']['expected_funded_cash_payouts_within_horizon']==sum(p['cash_received'] for p in row['paths'])/8
+            data,=report['calculations']['qualification_bootstrap']
+            preparation=data['execution']['funded_preparation']
+            assert preparation['version']=='dated-funded-preparation-v1'
+            assert 0<preparation['maximum_accounted_bytes']<=preparation['budget_bytes_per_worker']==32*1024*1024
+            assert len(data['replicates'])==10000
+            # Independent constant-day cash oracle: every account reaches all
+            # payout caps in the 90-day horizon, including the receipt lag.
+            assert row['metrics']['expected_funded_cash_payouts_within_horizon']==(13000 if profile=='apex-50k-eod' else 9000)
         assert len(page.request.get(base+f"/api/prop-sim/{saved['id']}/validation/{phase}").json()['assessments'])==1
         summary=page.request.get(base+f"/api/prop-sim/{saved['id']}/validation/{phase}/{state['oos_request_id']}?summary=true").json()
         (tmp_path/(phase+'-summary.json')).write_text(json.dumps(summary,indent=2))
@@ -89,3 +98,5 @@ def test_one_run_finishes_all_four_simulations_after_navigation(page,qualificati
         target=Path(destination)/profile;target.mkdir(parents=True,exist_ok=True)
         for p in tmp_path.iterdir():
             if p.is_file() and p.suffix in ('.json','.png','.zip'):shutil.copyfile(p,target/p.name)
+        if library:=os.environ.get('ALPHAQUEST_PROP_PREPARATION_SAVE_LIBRARY'):
+            shutil.copytree(qualification_portal['root'],Path(library)/profile,dirs_exist_ok=True)

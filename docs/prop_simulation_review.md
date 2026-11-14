@@ -11801,3 +11801,59 @@ and [restored validation](../artifacts/portal-responsiveness-20261114/live-resto
 The replacement server is intentionally persistent, PID 25985; stop it with
 `kill -TERM 25985` when no analysis needs to finish. Earlier temporary check
 servers remain stopped. See [the live recovery details](portal_responsiveness.md).
+
+### Prop Sim runtime audit and isolated speedup prototype — 2026-11-14
+
+The saved Apex run `ede834c9fea44f2fa663e481dd8d4582` took approximately 83 min
+09 s from parent creation to final ZIP publication. Direct recorded confidence
+timers account for 17 min 23 s Evaluation (three sizes) and 63 min 06 s Funded
+(two sizes), 96.8% of total time. The IS searches took approximately 1 min 07 s
+and 1 min respectively; remaining setup/base OOS/publication time is a residual,
+not a separately measured breakdown. Queue time is kept separate from execution.
+
+Isolated reuse of Funded fixed random-index sequences and calendar tables gave
+2.26×/2.32× speedups on interleaved real-source 13/14-MNQ refit samples. Metrics
+matched their saved bootstrap rows, and 12,000 full path records/events/schedules
+matched the existing owner exactly. Extrapolation projects about 28 minutes for
+Funded confidence and 48 minutes overall; a full optimized product run has not
+been performed. Four versus six workers gave only 1.16× on a separate baseline
+sample; all 86 concurrent portal metadata requests succeeded (maximum ~54 ms).
+
+This increment is an audit/design artifact, not a production numerical change.
+No saved report, frozen family, path count, policy or live worker setting changed.
+The existing insufficient-precision verdicts remain unchanged. Evidence, exact
+commands, limitations and the normal saved-simulation/download inspection journey
+are in [the runtime analysis](prop_simulation_performance.md). All audit-owned
+process pools closed; the user portal remains running under its existing launcher.
+
+### Delivered bounded Funded preparation reuse — 2026-11-14
+
+Implemented the primary performance recommendation in `funded_profiles.py`, with
+one worker-context preparation object connected through the existing
+`oos_bootstrap.py` / `oos_qualification._means` owners. The 32 MiB accounted cache
+retains immutable calendar/index preparation only; a full cache falls back to the
+original stream without truncating paths. Account arithmetic, seeds, policy,
+ordered outcomes and the four-worker default remain unchanged. New normal report
+downloads retain preparation version, budget and observed-byte diagnostics.
+
+The independent previous-owner comparison matches 12,000 complete real-source
+path records, payout events, schedule hashes/rules and sampled saved refit metrics.
+Interleaved implemented-owner timings improve 2.55×/2.64× at 13/14 MNQ, projecting
+about 44 minutes overall versus the earlier 83-minute run; no full optimized
+real-data qualification report is claimed. All 46 focused backend cases, the full
+qualified pipeline API case and both Apex/Lucid browser journeys pass. Synthetic
+examples preserve eight account paths and all 10,000 refits, independently expect
+$178 Apex Evaluation / $13,000 Funded and $80.50 Lucid Evaluation / $9,000 Funded,
+collapse equal IS objectives to 9 MNQ, and retain GO/PENDING outcomes. ZIP artifacts
+are verified by a standalone script importing no production calculator.
+
+The numerical-owner change is included in its actual phase hash; qualification
+hashes also change. No compatibility bypass was added. Old frozen Funded packages
+cannot relaunch with this owner, while original reports/ZIPs remain readable.
+The idle live server was gracefully restarted to PID 28156 using the stable
+launcher; all four original real report/ZIP seals match before/after and the live
+source picker/form/history were verified. No user simulation was rerun. All
+temporary test servers/pools stopped; stop the persistent user portal with
+`kill -TERM 28156` when no analysis needs to finish.
+
+[Exact normal-product journey, saved downloads, qualification evidence, boundaries and reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).

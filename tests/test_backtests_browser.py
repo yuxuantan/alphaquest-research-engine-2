@@ -3,6 +3,7 @@
 from research_fixtures import ResearchHTTPClient,declaration,declare_in_form
 
 from pathlib import Path
+import os
 import re
 import socket
 from threading import Event, Thread
@@ -25,7 +26,8 @@ FIXTURES = Path(__file__).parent / "fixtures/backtest_contract"
 @pytest.fixture(scope="module")
 def browser():
     with playwright.sync_playwright() as runtime:
-        instance = runtime.chromium.launch(headless=True)
+        channel=os.environ.get('ALPHAQUEST_TEST_BROWSER_CHANNEL')
+        instance = runtime.chromium.launch(headless=True,**({'channel':channel} if channel else {}))
         yield instance
         instance.close()
 

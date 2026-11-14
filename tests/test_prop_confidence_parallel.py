@@ -54,6 +54,10 @@ def test_parallel_matches_preceding_serial_owner_exactly_and_reports_workers(pha
     finally:runtime.close()
     assert updates[0]['completed']==0 and updates[-1]['completed']==updates[-1]['total']==24
     assert updates[-1]['active_workers']==0 and updates[-1]['worker_count']==2
+    if phase=='funded':
+        preparation=data['execution']['funded_preparation']
+        assert preparation['version']=='dated-funded-preparation-v1'
+        assert 0<preparation['maximum_accounted_bytes']<=preparation['budget_bytes_per_worker']==32*1024*1024
     (tmp_path/(phase+'-parity.json')).write_text(json.dumps(dict(exact=True,replicates=24,distinct_histories=unique,
         execution=data['execution'],progress=updates),indent=2))
 

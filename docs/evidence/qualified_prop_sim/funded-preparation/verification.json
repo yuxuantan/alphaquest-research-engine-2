@@ -1,0 +1,192 @@
+{
+  "synthetic": true,
+  "all_paths_and_refits_retained": true,
+  "results": [
+    {
+      "profile": "lucidflex-50k",
+      "phase": "evaluation",
+      "analysis_id": "cf11afe44ee04421a6f699987fa3db6c",
+      "replicates": 10000,
+      "metrics": {
+        "cost_per_funded": 80.5,
+        "expected_attempts_per_funded": 1.0,
+        "expected_calendar_days_to_funded": 3.0,
+        "mean_consistency_blocked_sessions": 2.0,
+        "mean_days_before_final_attempt": 0.0,
+        "mean_failed_attempts_after_target": 0.0,
+        "mean_failed_attempts_before_target": 0.0,
+        "mean_final_attempt_days_after_target": 2.0,
+        "mean_final_attempt_days_before_target": 0.0,
+        "mean_pass_to_ready_days": 1.0,
+        "median_calendar_days_to_funded": 3.0,
+        "p90_calendar_days_to_funded": 3.0,
+        "pass_probability": 1.0,
+        "pass_probability_bounds": [
+          1.0,
+          1.0
+        ],
+        "probability_acquisition_by_cutoff": 1.0,
+        "probability_funded_by_day_30": 1.0,
+        "probability_funded_by_day_60": 1.0,
+        "probability_funded_by_day_90": 1.0,
+        "restricted_mean_observed_calendar_days": 3.0,
+        "restricted_mean_paid_fees": 80.5
+      },
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 5.4,
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          28028,
+          28029,
+          28030,
+          28031
+        ],
+        "workers_used": 4
+      },
+      "all_zip_members_verified": true,
+      "verdict": "GO"
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "funded",
+      "analysis_id": "2374e6a3c3bc453b959aa28d15a99347",
+      "replicates": 10000,
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": 32.0,
+        "expected_days_to_first_payout_conditional_on_payout": 6.0,
+        "expected_funded_cash_payouts_within_horizon": 9000.0,
+        "expected_gross_account_deductions": 10000.0,
+        "expected_number_of_payouts": 5.0,
+        "expected_payouts": 9000.0,
+        "expected_pending_cash": 0.0,
+        "median_payouts": 9000.0,
+        "p10_payouts": 9000.0,
+        "p90_payouts": 9000.0,
+        "probability_first_payout": 1.0,
+        "probability_inactivity": 0.0,
+        "probability_payout_limit_completion": 1.0,
+        "probability_surviving_to_horizon": 0.0,
+        "probability_zero_payout": 0.0,
+        "restricted_mean_account_lifetime_calendar_days": 32.0
+      },
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 4.93,
+        "funded_preparation": {
+          "budget_bytes_per_worker": 33554432,
+          "fallback": "Original streaming sampler; all requested paths retained",
+          "maximum_accounted_bytes": 30144,
+          "version": "dated-funded-preparation-v1"
+        },
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          28028,
+          28029,
+          28030,
+          28031
+        ],
+        "workers_used": 4
+      },
+      "all_zip_members_verified": true,
+      "verdict": "GO"
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "evaluation",
+      "analysis_id": "dba059bef54a4181af66393de0dae229",
+      "replicates": 10000,
+      "metrics": {
+        "cost_per_funded": 178.0,
+        "expected_attempts_per_funded": 1.0,
+        "expected_calendar_days_to_funded": 2.0,
+        "funded_accounts_per_30_calendar_days": 15.0,
+        "median_calendar_days_to_funded": 2,
+        "p90_calendar_days_to_funded": 2,
+        "pass_probability": 1.0,
+        "pass_probability_bounds": [
+          1.0,
+          1.0
+        ],
+        "pass_probability_ci": [
+          0.6755843804891231,
+          1.0
+        ],
+        "probability_funded_by_day_30": 1.0,
+        "probability_funded_by_day_30_bounds": [
+          1.0,
+          1.0
+        ],
+        "probability_funded_by_day_60": 1.0,
+        "probability_funded_by_day_60_bounds": [
+          1.0,
+          1.0
+        ]
+      },
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 5.91,
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          27962,
+          27963,
+          27964,
+          27965
+        ],
+        "workers_used": 4
+      },
+      "all_zip_members_verified": true,
+      "verdict": "GO"
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "funded",
+      "analysis_id": "0090a7e2432642019f50c8ffee14db07",
+      "replicates": 10000,
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": 39.0,
+        "expected_days_to_first_payout_conditional_on_payout": 6.0,
+        "expected_funded_cash_payouts_within_horizon": 13000.0,
+        "expected_gross_account_deductions": 13000.0,
+        "expected_number_of_payouts": 6.0,
+        "expected_payouts": 13000.0,
+        "expected_pending_cash": 0.0,
+        "median_payouts": 13000.0,
+        "p10_payouts": 13000.0,
+        "p90_payouts": 13000.0,
+        "probability_first_payout": 1.0,
+        "probability_inactivity": 0.0,
+        "probability_payout_limit_completion": 1.0,
+        "probability_surviving_to_horizon": 0.0,
+        "probability_zero_payout": 0.0,
+        "restricted_mean_account_lifetime_calendar_days": 39.0
+      },
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 4.83,
+        "funded_preparation": {
+          "budget_bytes_per_worker": 33554432,
+          "fallback": "Original streaming sampler; all requested paths retained",
+          "maximum_accounted_bytes": 30144,
+          "version": "dated-funded-preparation-v1"
+        },
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          27962,
+          27963,
+          27964,
+          27965
+        ],
+        "workers_used": 4
+      },
+      "all_zip_members_verified": true,
+      "verdict": "GO"
+    }
+  ]
+}
