@@ -11734,3 +11734,70 @@ are saved beside the normal-product demonstration. The unrelated pre-existing
 `workflow.js` edit is unchanged and excluded from this increment's commit.
 All owned temporary test servers are stopped; the existing user-managed port-8000
 server continues running. No additional persistent server was introduced.
+
+### Saved Apex Evaluation/Pareto audit — 2026-11-14
+
+Read-only audit of simulation `ede834c9fea44f2fa663e481dd8d4582`, Evaluation IS
+report `0d0ddfa2a8a0469c8e5d8015dabc9ba5`. Independent source-cost/account arithmetic
+matches all 60,000 saved attempts and independent calendar/cash arithmetic matches
+all 53,000 resolved acquisition chains. Catalogue seals, 12 captured artifacts,
+13 ZIP members and all 33 recorded numerical source files match. The frontier
+correctly contains sizes 27, 46 and 48; the UI joins their discrete estimates with
+straight segments. No report, frozen choice, database or production code changed.
+
+For 27 versus 48, pass fractions are 33.4% versus 32.8%, making `49/p + 129`
+acquisition costs almost equal ($275.71 versus $278.39), while mean attempt
+durations fall from 10.153 to 7.201 sessions. Saved calendar means are 45.541 and
+32.686 days. For 49 the pass fraction falls to 30.7%, increasing cost to $288.61
+and calendar mean to 34.000 days. Three source winners cross the $1,000 DLL
+between 48 and 49: their commission-adjusted adverse bound is $984.96 versus
+$1,005.48. A fresh-account check on source trade 86 passes at 48 (+$3,671.04)
+but DLL-pauses at 49 (-$1,000, account remains open). These are conservative OHLC
+bounds, not tick measurements.
+
+The small IS price ordering is not precise: a 20,000-attempt IS-only audit
+diagnostic gives 27/48 approximately $286.30/$285.72, with independently solved
+fitted-law calendar means 47.281/34.273 days; 49 remains worse at $294.93/36.353
+days. This diagnostic does not replace normal reports, certify an optimum or
+reselect frozen candidates. The original report retains its explicit lack of
+provider parity: 21-session expiry differs from Apex's current 30 calendar days;
+activation, holiday calendars, prices and execution retain their saved assumptions.
+
+Evidence and exact reproduction, including the normal portal and existing ZIP
+download journey: [audit explanation and commands](../artifacts/apex-evaluation-audit-20261114-ede834c9/README.md),
+[independent verifier](../artifacts/apex-evaluation-audit-20261114-ede834c9/audit.py),
+[actual audit output](../artifacts/apex-evaluation-audit-20261114-ede834c9/audit-results.json).
+Nine focused arithmetic/calendar/Pareto checks passed. The requested port 8000
+was unreachable from this audit environment; saved catalogue/report evidence was
+read directly. No server was started or stopped and no browser check is claimed.
+
+### Portal responsiveness diagnosis and stable launch — 2026-11-14
+
+Subsequent live inspection found the port-8000 web main thread blocked writing
+terminal output while Funded confidence job `609ec63f9b2f4af2ad84c40d920eb484`
+continued with four workers. Both the static page and Prop Sim history timed out.
+The new `scripts/serve_portal.sh` removes per-request terminal logging and reload,
+uses rotating server log files, binds the port before initialization, and guards
+against duplicate ownership or accidental recovery of live jobs. The existing
+server and active numerical calculation were not restarted or cancelled.
+
+An isolated actual-portal check reproduces blocked inherited output, verifies
+responsive normal endpoints and an interactive Prop Sim form in Chrome, and
+checks duplicate-port/data-owner and active-job rejection. All temporary servers
+stopped. The isolated library was empty; no claim is made about large-history
+rendering or universal task isolation. Broader UI loading, read-path and
+asynchronous logging protections remain proposed in
+[the diagnosis and solution](portal_responsiveness.md), with
+[saved measurements](../artifacts/portal-responsiveness-20261114/validation.json)
+and [the normal-product screenshot](../artifacts/portal-responsiveness-20261114/usable-prop-sim.png).
+
+At the later terminal-restart follow-up, the last Funded confidence job completed
+before recovery. All four phase IS/OOS reports and ZIP seals were verified, the
+exact old idle portal process tree was stopped, and the stable file-logging
+launcher started detached on port 8000 at 09:58:51 Singapore time. All four report
+seals remained unchanged and no calculation reran. Live HTTP and real-data browser
+checks are in the [recovery record](../artifacts/portal-responsiveness-20261114/live-recovery.json)
+and [restored validation](../artifacts/portal-responsiveness-20261114/live-restored-validation.json).
+The replacement server is intentionally persistent, PID 25985; stop it with
+`kill -TERM 25985` when no analysis needs to finish. Earlier temporary check
+servers remain stopped. See [the live recovery details](portal_responsiveness.md).

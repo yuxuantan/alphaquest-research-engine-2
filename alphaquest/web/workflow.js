@@ -14,6 +14,19 @@
       id: "vwap_pullback_risk_sizing", name: "ORB + VWAP pullback",
       hypothesis: "A breakout of the day’s opening range followed by a pullback into VWAP signals continuation.",
       logic: ["Entry: opening-range break, then VWAP retest and reclaim.", "Stop: confirmed pivot or pullback extreme, with a configurable buffer.", "Take profit: confirmed pivot target, subject to reward/risk criteria."],
+      entryNotes: [
+        "VWAP and ADX are only part of entry eligibility. The opening-range break must be latched by a close beyond the range, followed by the selected VWAP retest/reclaim. When enabled, ADX must be at least its elevation threshold and no higher than its configured lookback value. Defaults are threshold 20 and a one-bar decay comparison; a separate chart indicator must use matching settings.",
+        "Retest mode 1 remembers a Low touching or falling below VWAP for longs, or a High touching or rising above VWAP for shorts, then requires a close back on the entry side. Mode 2 remembers a close through VWAP and requires a later reclaim. These latches survive delays from ADX or other entry gates until an entry submission or the configured day reset; the eventual entry bar need not touch VWAP again.",
+        "Pivots become usable only after the configured number of bars on both sides is complete; equal highs/lows do not qualify. With the default stop swing strength of 20, a fresh low needs 20 completed bars to its right before it can become a confirmed stop pivot. The target has its own strength, default 5. A visible turning point is not yet a confirmed pivot.",
+        "Stop mode 1 uses the latest confirmed stop pivot, with the outward buffer. During a sharp decline, the older confirmed low can still be above a long setup’s closing price while the new low awaits confirmation; that makes the long stop invalid and blocks entry. Stop mode 2 instead uses the extreme since the retest latch, with the buffer. Shorts mirror these rules.",
+        "On the decision bar, a long needs stop < close < confirmed target; a short needs confirmed target < close < stop. Missing pivots, a stop on the wrong side, or a target already passed block entry. MinRR=0 and MaxStopPoints=0 disable only those optional thresholds: they do not waive the positive stop distance, profitable target direction or required pivot checks. Any enabled reward/risk and maximum-stop limits must also pass.",
+        "The strategy must be flat, the direction enabled, the entry/VWAP windows and calendar cutoff eligible, and the submitted quantity positive. Risk sizing can round down to zero. The default daily allowance is one entry submission per configured reset day; exiting or losing that trade does not restore the allowance. Use the saved run’s actual inputs, which may differ from defaults.",
+        "A qualifying setup is evaluated on a completed bar and submits a market entry for the next observed bar’s Open. Inspect the decision bar before the fill marker. To explain a skipped setup, compare the retest/ADX gates, candidate stop and target, stop distance, reward/risk, quantity and used daily allowance; a chart image alone cannot establish which gate failed.",
+      ],
+      interpretationNotes: [
+        "The MultiCharts signal’s VWAP overlay shows the value used in that calculation run. If live prices or volume weights differ from later historical backfill, replacing data and recalculating can change VWAP, retest latches and reconstructed entry times. This is a possible explanation for live/backtest differences, not proof of missing data in a particular trade. Later bars alone do not rewrite earlier overlay segments.",
+        "Preserve the original live decision values and order source before comparing with refreshed history. Recalculated commentary describes the recalculated run; it cannot recover the original live decision or undo a broker fill.",
+      ],
       broad: ["Stop mode · 1: confirmed pivot; 2: pullback extreme.", "Retest mode · 1: touch VWAP; 2: close through VWAP, then reclaim."],
       narrow: ["ADX length and elevation threshold", "Stop / target swing strength", "Entry window and minimum reward/risk"],
     },
@@ -71,6 +84,8 @@
       host.append(node('div','CAMPAIGN DETAILS','eyebrow'),node('h2',campaign.name),node('h3','Hypothesis'),node('p',campaign.hypothesis));
       const research = node('p','Linked research: '); action(research,'No research linked yet','#research'); host.append(research);
       section(host,'Shared logic',campaign.logic.length ? campaign.logic : [definition?.description || 'Open a saved report to inspect its recorded logic.']);
+      if (campaign.entryNotes?.length) section(host,'Entry requirements and common blockers',campaign.entryNotes);
+      if (campaign.interpretationNotes?.length) section(host,'Live and backtest interpretation',campaign.interpretationNotes);
       const params = node('div',undefined,'workflow-parameter-layout');
       section(params,'Broad parameters',campaign.broad.length ? campaign.broad : ['Not classified yet']);
       section(params,'Narrow parameters',campaign.narrow.length ? campaign.narrow : ['Not classified yet']); host.append(params);

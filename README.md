@@ -127,8 +127,19 @@ Requires Python 3.12 or newer. From this repository:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]' -c requirements.lock
-python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000 --reload
+sh scripts/serve_portal.sh
 ```
+
+The stable launcher binds localhost, disables development reload and per-request
+terminal logging, and writes rotating logs to `data/portal_logs/server.log`
+(`ALPHAQUEST_DATA_DIR` overrides the data directory). Interpreter output goes to
+`portal_logs/process-output.log`. Stop the foreground server with Ctrl+C.
+Use `--port 8001` for an isolated data directory; it refuses a second owner of
+the same data. It also refuses queued/running jobs unless you explicitly request
+`--recover-interrupted` after the previous server has stopped. This prevents
+accidentally interrupting live analyses with a second application startup.
+For code development only, use `python -m uvicorn alphaquest.app:app --host
+127.0.0.1 --port 8000 --reload` while no long analysis needs to survive edits.
 
 Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the dataset name and source timezone, click **Validate CSV**, inspect the preview, then **Save dataset**. Saved datasets can be reopened and downloaded from the library. Use **Delete** in a dataset row or its details to remove its saved CSV and metadata after confirmation. Deletion is permanent; the original file on your computer is unaffected and can be uploaded again. Reloading the page or restarting the server retains the library.
 
