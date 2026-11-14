@@ -24,9 +24,12 @@ def _replicate(task):
         if sha256(raw).hexdigest()!=expected:raise ValueError('Historical worker context changed.')
         _loaded_context=pickle.loads(raw)  # Trusted internal temporary calculation input only.
         from .funded_profiles import DatedFundedPreparation
+        from .evaluation_profiles import DatedEvaluationPreparation
         _loaded_context['caches']=({},{})
         _loaded_context['funded_preparation']=(DatedFundedPreparation()
             if _loaded_context['search'].mode=='funded_optimization' else None)
+        _loaded_context['evaluation_preparation']=(DatedEvaluationPreparation()
+            if _loaded_context['search'].mode=='evaluation_optimization' else None)
         _loaded_path=filename
     context=_loaded_context
     from .native_engine import sampled_days
@@ -45,7 +48,7 @@ def _replicate(task):
         indices=np.fromiter((next(stream) for _ in days),dtype=np.int32,count=len(days))
         key=labels[indices].tobytes()
         if key not in cache:cache[key]=_means([days[int(i)] for i in indices],candidate,context['search'],checkpoint,
-            funded_preparation=context['funded_preparation'])
+            funded_preparation=context['funded_preparation'],evaluation_preparation=context['evaluation_preparation'])
         means,error=cache[key];values.append(means)
         precision=bool(precision and error is not None and error<=context['maximum_inner_relative_standard_error'])
         keys.append(sha256(key).hexdigest())
@@ -55,29 +58,40 @@ def _replicate(task):
            for key in context['metrics']}
     return dict(replicate=dict(replicate=index,is_history=trace[0],oos_history=trace[1],ratios=ratio),
         precision=precision,history_keys=keys,
-        preparation_cache_bytes=context['funded_preparation'].bytes_used if context['funded_preparation'] is not None else 0)
+        preparation_cache_bytes=(context['funded_preparation'] or context['evaluation_preparation']).bytes_used)
 
 
-def run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress):
+def run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress,*,resume=None):
     from .parallel import map_reported
     from .oos_qualification import RULES,_book_classes,definitions
+    from dataclasses import asdict
+    from .adapter import canonical
+    from .oos_qualification import implementation
+    from .phase_dispatch import module_for_mode
     started=monotonic();last_write=0.;worker_count=1;worker_pids=[]
+    # Excludes ephemeral worker paths/analysis IDs; includes the entire immutable
+    # source, numerical implementation, rules, phase search and RNG declaration.
+    context_key=sha256(canonical(dict(version='historical-refit-checkpoint-v1',books=[is_days,oos_days],
+        candidates=[asdict(is_candidate),asdict(oos_candidate)],search=asdict(search),rules=RULES,
+        implementation=implementation(),phase_implementation=module_for_mode(search.mode).implementation_identity())).encode()).hexdigest()
     total=RULES['historical_replicates'];phase=search.mode.removesuffix('_optimization')
+    restored=resume[0].load_refits(context_key,total) if resume is not None else {}
+    reused=len(restored)
     outer_block=max(RULES['minimum_outer_block_weekdays'],oos_candidate.sampling.block_weekdays)
     def notify(completed,count,workers,pids):
         nonlocal last_write,worker_count,worker_pids
         worker_count=workers;worker_pids=pids;now=monotonic()
         if completed not in (0,count) and now-last_write<1:return
         if completed==0 and last_write and now-last_write<1:return
-        elapsed=now-started;rate=completed/elapsed if elapsed and completed else None
+        elapsed=now-started;new_completed=completed-reused;rate=new_completed/elapsed if elapsed and new_completed>0 else None
         progress(dict(stage='historical_confidence',phase=phase,micros=oos_candidate.micros,
-            completed=completed,total=count,unit='resamples',worker_count=workers,
+            completed=completed,total=count,reused_resamples=reused,unit='resamples',worker_count=workers,
             active_workers=0 if completed==count else workers,elapsed_seconds=round(elapsed,2),
             resamples_per_second=round(rate,4) if rate else None,
             eta_seconds=round((count-completed)/rate,1) if rate and completed>=max(10,workers) else None,
             updated_at_utc=datetime.now(timezone.utc).isoformat()))
         last_write=now
-    checkpoint();notify(0,total,1,[])
+    checkpoint();notify(reused,total,1,[])
     with TemporaryDirectory(prefix='aq-historical-refits-') as temp:
         marker=Path(temp)/'stop';context_path=Path(temp)/'context.pkl'
         context=dict(books=(is_days,oos_days),candidates=(is_candidate,oos_candidate),search=search,
@@ -87,16 +101,36 @@ def run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress):
             metrics=[k for k,_,_,_ in definitions(phase)])
         raw=pickle.dumps(context,protocol=pickle.HIGHEST_PROTOCOL);context_path.write_bytes(raw)
         signature=sha256(raw).hexdigest()
-        tasks=[(str(context_path),signature,index) for index in range(total)]
-        rows=map_reported(_replicate,tasks,checkpoint=checkpoint,notify=notify,cancel=marker.touch)
+        tasks=[(str(context_path),signature,index) for index in range(total) if index not in restored]
+        pending=[];last_flush=monotonic()
+        def flush():
+            nonlocal last_flush
+            if resume is not None and pending:
+                resume[0].save_refits(resume[1],context_key,pending)
+                pending.clear()
+            last_flush=monotonic()
+        def completed(row):
+            if resume is not None:
+                pending.append(row)
+                if monotonic()-last_flush>=1:flush()
+        try:
+            fresh=map_reported(_replicate,tasks,checkpoint=checkpoint,
+                notify=lambda done,count,workers,pids:notify(done+reused,total,workers,pids),
+                cancel=marker.touch,on_result=completed)
+        finally:flush()
+        restored.update((row['replicate']['replicate'],row) for row in fresh)
+        rows=[restored[index] for index in range(total)]
+        notify(total,total,worker_count,worker_pids)
     checkpoint()
-    execution=dict(workers_used=worker_count,worker_pids=worker_pids,nested_pool=False,
+    execution=dict(reused_resamples=reused,checkpoint_context_sha256=context_key,workers_used=worker_count,worker_pids=worker_pids,nested_pool=False,
         elapsed_seconds=round(monotonic()-started,2),ordered_by='replicate_index',
-        context='Internal temporary input loaded once per process; removed after workers finish')
-    if phase=='funded':
-        from .funded_profiles import DatedFundedPreparation
-        execution['funded_preparation']=dict(version=DatedFundedPreparation.VERSION,
-            budget_bytes_per_worker=DatedFundedPreparation.MAX_BYTES,
+        context='Internal temporary input loaded once per process; removed after workers finish',
+        capture='Means and required within-start precision only; published point paths retain full evidence')
+    from .funded_profiles import DatedFundedPreparation
+    from .evaluation_profiles import DatedEvaluationPreparation
+    preparation_type=DatedFundedPreparation if phase=='funded' else DatedEvaluationPreparation
+    execution[phase+'_preparation']=dict(version=preparation_type.VERSION,
+            budget_bytes_per_worker=preparation_type.MAX_BYTES,
             maximum_accounted_bytes=max((r['preparation_cache_bytes'] for r in rows),default=0),
             fallback='Original streaming sampler; all requested paths retained')
     return dict(replicates=[r['replicate'] for r in rows],inner_precision_ok=all(r['precision'] for r in rows),

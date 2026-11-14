@@ -198,7 +198,7 @@ def _interval(values):
     return dict(mean=mean, se=se, ci=None if se is None else [max(0., mean-1.96*se), mean+1.96*se])
 
 
-def acquisition_metrics(component, profile, retry, calendar, sampling):
+def acquisition_metrics(component, profile, retry, calendar, sampling, *, preparation=None, summary_only=False, checkpoint=lambda:None):
     """IID empirical renewal model retaining outcome/duration dependence.
 
     Guards observe partial paths; no successful-only acquisition means. Per-path
@@ -246,52 +246,22 @@ def acquisition_metrics(component, profile, retry, calendar, sampling):
         return dict(metrics=metrics, status='unresolved', reason=reason, paths=paths,
             censoring=dict(attempt_paths=censored, chain_paths=None, chains_run=0),
             uncertainty=uncertainty, assumptions=assumptions)
-    first = min(map(date.fromisoformat, calendar.start_dates))
-    end = date.fromisoformat(calendar.coverage_end)
-    closed = set(calendar.closures)
-    sessions = [first + timedelta(days=i) for i in range((end-first).days+1)
-                if (first+timedelta(days=i)).weekday() < 5 and (first+timedelta(days=i)).isoformat() not in closed]
-    schedule_hash = sha256()
-    for i in range(sampling.chain_simulations):
-        rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence([sampling.chain_seed, i])))
-        start = date.fromisoformat(sorted(calendar.start_dates)[i % len(calendar.start_dates)])
-        cutoff = start + timedelta(days=retry.max_calendar_days)
-        cursor = start
-        cost = Decimal(0)
-        paid = False
-        attempts = 0
-        state = 'attempt_guard'
-        funded_date = None
-        observed = start
-        for _ in range(retry.max_attempts):
-            # A new attempt is bought at cursor; its first session may be later.
-            if cursor >= cutoff:
-                observed = cutoff; state = 'calendar_guard'; break
-            cost += fee; attempts += 1
-            index = int(rng.integers(n))
-            schedule_hash.update(f'{i}:{index};'.encode())
-            last_index = bisect_left(sessions, cursor) + durations[index] - 1
-            if last_index >= len(sessions) or sessions[last_index] >= cutoff:
-                observed = cutoff; state = 'calendar_guard'; break
-            last = sessions[last_index]
-            # All failed and passed attempts consume their own full durations.
-            observed = last + timedelta(days=1)
-            if outcomes[index] == 'passed':
-                eligible_index = last_index + retry.activation_delay_sessions
-                ready_index = eligible_index + 1
-                if eligible_index < len(sessions) and sessions[eligible_index] < cutoff:
-                    cost += activation; paid = True
-                if ready_index >= len(sessions) or sessions[ready_index] > cutoff:
-                    observed = cutoff; state = 'activation_guard'; break
-                funded_date = sessions[ready_index]
-                observed = funded_date; state = 'funded'; break
-            cursor = last + timedelta(days=1+retry.retry_delay_calendar_days)
-        paths.append(dict(path=i, start_date=start.isoformat(), attempts=attempts,
-            event=state, observed_calendar_days=(observed-start).days,
-            funded_date=funded_date.isoformat() if funded_date else None,
-            cost_accrued=str(cost), activation_paid=paid,
-            pending_activation=state == 'activation_guard' and not paid,
-            pending_readiness=state == 'activation_guard'))
+    from .evaluation_profiles import DatedEvaluationPreparation
+    from .native_backend import module
+    preparation=preparation if preparation is not None else DatedEvaluationPreparation()
+    paths,schedule_sha256=module().renewal_acquisition(outcomes,durations,fee,activation,retry,calendar,sampling,
+        preparation=preparation,summary_only=summary_only,checkpoint=checkpoint)
+    if summary_only:
+        complete=bool(np.all(paths['completed']))
+        if complete:
+            times=paths['times'];groups=[times[np.arange(len(times))%len(calendar.start_dates)==i]
+                for i,_ in enumerate(sorted(calendar.start_dates))]
+            se=(float(np.sqrt(sum(np.var(g,ddof=1)/len(g) for g in groups))/len(groups))
+                if all(len(g)>1 for g in groups) else None)
+            metrics.update(cost_per_funded=float(fee*Decimal(n)/Decimal(passed)+activation),
+                expected_calendar_days_to_funded=float(np.mean(times)))
+            uncertainty.update(cost_se=float(fee)*np.sqrt(p*(1-p)/n)/p**2,calendar_mean_se=se)
+        return dict(metrics=metrics,uncertainty=uncertainty,status='estimated' if complete else 'censored')
     unresolved = [r for r in paths if r['event'] != 'funded']
     for day in (30, 60):
         known = sum(r['event'] == 'funded' and r['observed_calendar_days'] <= day for r in paths)
@@ -327,7 +297,7 @@ def acquisition_metrics(component, profile, retry, calendar, sampling):
         for day in (30,60): uncertainty[f'probability_funded_by_day_{day}_ci'] = None
     return dict(metrics=metrics, status='censored' if unresolved else 'estimated',
         reason='chain_guard' if unresolved else None, paths=paths, assumptions=assumptions,
-        uncertainty=uncertainty, schedule_sha256=schedule_hash.hexdigest(),
+        uncertainty=uncertainty, schedule_sha256=schedule_sha256,
         censoring=dict(attempt_paths=censored, chain_paths=len(unresolved), chains_run=len(paths),
             mean_accrued_cost_lower_bound=float(np.mean([float(r['cost_accrued']) for r in paths])),
             mean_observed_days_lower_bound=float(np.mean(times)),

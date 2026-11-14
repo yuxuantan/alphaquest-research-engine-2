@@ -1,5 +1,6 @@
 """Evaluation-only orchestration over the existing provider kernels."""
 import numpy as np
+from .phase_profiles import DatedPhasePreparation
 from .native_control import NativeControlBase
 
 from .phase_profiles import (
@@ -587,108 +588,27 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
             'Saved fixed-signal-path approximation: account pauses/skips are not a strategy rerun. No native execution or future profitability is certified.',
             'Calendar, activation and receipt timing are declared model assumptions. An unfinished acquisition has no fabricated finite funding-time estimate.'])
 
-def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry, calendar,
-        *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None, chronological=False):
-    """Lucid saved-signal acquisition on actual modeled civil dates.
+class DatedEvaluationPreparation(DatedPhasePreparation):
+    """Bounded immutable calendar/index prefixes shared by Evaluation refits."""
+    VERSION = 'dated-evaluation-preparation-v1'
 
-    Reuses Lucid's session transitions, including empty-date inactivity checks.
-    Each fresh attempt has an independently addressed circular-block stream.
-    First/last attempt summaries are bounded; counts and paid fees cover all.
-    """
-    from datetime import date,timedelta
-    from decimal import Decimal
-    from hashlib import sha256
-    from . import lucid_engine,native_engine
-    from .cash_ledger import replay_calendar_sessions,acquisition_schedule
+
+def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry, calendar,
+        *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None, chronological=False,
+        preparation=None,summary_only=False):
+    """One dated owner; compact refits retain every path but omit unused capture."""
+    from . import lucid_backend,native_engine
     lucid=profile.profile_id=='lucidflex-50k'
     if type(profile) is not EvaluationProfile or (not lucid and not chronological) or not days:
         raise ValueError('Calendar saved-path acquisition requires LucidFlex and nonempty history.')
-    sessions=replay_calendar_sessions(calendar);session_set=set(sessions)
-    starts=sorted(calendar.start_dates);schedule=sha256();paths=[]
-    fee=Decimal(profile.evaluation_price);activation=Decimal(profile.activation_fee)
-    count=1 if chronological else simulation.simulations
-    for index in range(count):
-        checkpoint();start=date.fromisoformat(starts[index%len(starts)])
-        cutoff=start+timedelta(days=retry.max_calendar_days)
-        purchase=start;attempt=None;first_attempt=None;last_attempt=None;attempts=0
-        paid=Decimal(0);paid_activation=Decimal(0);passed_on=eligible=ready=None
-        outcome='calendar_guard';observed=retry.max_calendar_days;stream=None
-        failed_before=failed_after=blocked=source_cursor=0
-        for offset in range(retry.max_calendar_days):
-            if offset%32==0:checkpoint()
-            day=start+timedelta(days=offset)
-            if passed_on is not None:
-                if eligible==day:paid_activation+=activation
-                if ready==day:outcome='funded';observed=offset;break
-                continue
-            if attempt is None and day>=purchase:
-                if attempts>=retry.max_attempts:outcome='attempt_guard';observed=offset;break
-                attempts+=1;paid+=fee
-                attempt=dict(index=attempts,purchase_date=str(day),first_session=None,sessions=0,
-                    equity=0.,high=0.,best=0.,last_activity=0,outcome='open',first_target_date=None)
-                if first_attempt is None:first_attempt=attempt
-                last_attempt=attempt
-                rng=np.random.RandomState(np.random.SeedSequence([simulation.seed,index,attempts]).generate_state(1)[0])
-                stream=native_engine.sampled_days(rng,len(days),sampling.block_weekdays)
-            if attempt is None:continue
-            is_session=day in session_set
-            if not is_session and attempt['first_session'] is None:continue
-            if is_session:
-                if chronological and source_cursor>=len(days):
-                    outcome='source_window_censored';observed=offset;break
-                if attempt['first_session'] is None:attempt['first_session']=str(day)
-                source_index=source_cursor if chronological else next(stream)
-                source_cursor+=1;trades=days[source_index];attempt['sessions']+=1
-                schedule.update(f'{index}:{attempts}:{day}:{source_index};'.encode())
-            else:trades=[];source_index=None
-            elapsed=(day-date.fromisoformat(attempt['first_session'])).days
-            kwargs=(dict(**sizing.kernel_arguments(stage='evaluation_calendar_sample',path_index=index,
-                source_session_index=source_index,calendar_date=str(day),attempt=attempts),trace=trace) if sizing is not None and is_session else {})
-            if lucid:
-                result=lucid_engine.evaluation_session(trades,attempt['equity'],attempt['high'],attempt['best'],
-                    attempt['last_activity'],elapsed,min(micros,40,simulation.max_micros),
-                    1200. if profile.daily_loss_limit else None,consistency=profile.consistency_percent/100,
-                    max_micros=simulation.max_micros,**kwargs)
-                attempt['equity'],attempt['high'],attempt['best'],attempt['last_activity'],state,_,_=result
-            elif is_session:
-                attempt['equity'],attempt['high'],state,_,_=native_engine.evaluation_session(
-                    trades,attempt['equity'],attempt['high'],min(micros,simulation.max_micros),
-                    max_micros=simulation.max_micros,**kwargs)
-                if state=='open' and attempt['sessions']>=21:state='expired'
-            else:state='open'
-            if state not in ('blown','inactive','expired') and attempt['equity']>=3000:
-                if attempt['first_target_date'] is None:attempt['first_target_date']=str(day)
-                if state!='passed' and is_session:blocked+=1
-            attempt['outcome']=state
-            if state=='passed':
-                attempt['terminal_date']=str(day);passed_on=day
-                eligible,ready=acquisition_schedule(day,sessions,retry.activation_delay_sessions,allow_pending=True)
-                if eligible==day:paid_activation+=activation
-                attempt=None
-            elif state in ('blown','inactive','expired'):
-                if attempt['first_target_date'] is None:failed_before+=1
-                else:failed_after+=1
-                attempt['terminal_date']=str(day);purchase=day+timedelta(days=1+retry.retry_delay_calendar_days);attempt=None
-        if not chronological and ready==cutoff and eligible is not None and eligible<cutoff:
-            outcome='funded';observed=retry.max_calendar_days
-        complete=outcome=='funded'
-        summaries=[] if first_attempt is None else [first_attempt]
-        if last_attempt is not first_attempt:summaries.append(last_attempt)
-        diagnostics=dict(failed_attempts_before_target=failed_before,failed_attempts_after_target=failed_after,
-            consistency_blocked_sessions=blocked,
-            days_before_final_attempt=(date.fromisoformat(last_attempt['purchase_date'])-start).days if complete else None,
-            final_attempt_days_before_target=(date.fromisoformat(last_attempt['first_target_date'])-date.fromisoformat(last_attempt['purchase_date'])).days if complete else None,
-            final_attempt_days_after_target=(passed_on-date.fromisoformat(last_attempt['first_target_date'])).days if complete else None,
-            pass_to_ready_days=(ready-passed_on).days if complete else None)
-        paths.append(dict(path=index,start_date=str(start),outcome=outcome,acquisition_completed=complete,
-            censored=not complete,observed_calendar_days=observed,calendar_days_to_funded=observed if complete else None,
-            attempts_started=attempts,attempts=summaries,attempt_detail_policy='First and last only; aggregate counts/fees include every attempt.',
-            paid_evaluation_fees=float(paid),paid_activation_fees=float(paid_activation),paid_fees=float(paid+paid_activation),
-            pending_activation=passed_on is not None and (eligible is None or eligible>=cutoff),
-            pass_date=str(passed_on) if passed_on else None,ready_date=str(ready) if ready else None,
-            acquisition_diagnostics=diagnostics))
-        if (index+1)%max(1,simulation.simulations//10)==0:progress(f'Lucid Evaluation paths {index+1}/{simulation.simulations}')
-    return paths,schedule.hexdigest()
+    if summary_only and sizing is not None:
+        raise ValueError('Compact historical refits require the admitted fixed-quantity policy.')
+    preparation=preparation if preparation is not None else DatedEvaluationPreparation()
+    layouts=preparation.evaluation_layouts(calendar,retry.max_calendar_days,retry.activation_delay_sessions,checkpoint)
+    return lucid_backend.module().calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,
+        preparation=preparation,checkpoint=checkpoint,progress=progress,sizing=sizing,trace=trace,
+        chronological=chronological,summary_only=summary_only,native_session=native_engine.evaluation_session)
+
 
 
 def simulate_calendar_evaluation_profile(runs,candidate,calendar,*,observed_sessions=None,checkpoint=lambda:None,progress=lambda value:None):

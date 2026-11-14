@@ -850,3 +850,22 @@ All production calculations described here are local to AlphaQuest. No Bridge
 executable, external report table or notebook result is used as the runtime
 calculator. Provider-rule review, broker/fill parity and prospective execution
 validation remain separate from historical numerical correctness.
+
+### Exact acceleration of internal historical refits (2026-11-14)
+
+Internal refits now capture only phase means and their required precision. Each
+account still runs to the same outcome or guard. Full published IS/OOS point
+simulations retain their detailed evidence. Immutable calendars and independently
+seeded RNG prefixes are reused within a worker with a 32 MiB accounted budget;
+misses use the original stream. No history, path, retry or criterion is removed.
+The matching compiled Lucid calendar/Apex renewal loops share their phase owner's
+source with the Python reference. Funded uses its existing account transitions.
+
+Compatible retries restore checksummed completed outer refits from the existing
+catalogue, run missing indices only, then publish the same complete ordered family.
+The progress panel in both Prop Sim and Job history labels restored work. Its
+rate/ETA excludes those already completed indices. Source/rules/costs/seeds and
+numerical/runtime implementation must match. Partial work does not establish a
+qualification verdict; a source/implementation update needs a new simulation.
+Pre-update running work has no retroactive checkpoints. See the
+[contract and saved numerical evidence](evidence/qualified_prop_sim/refit-acceleration/README.md).

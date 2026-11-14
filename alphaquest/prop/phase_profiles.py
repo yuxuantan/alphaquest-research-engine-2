@@ -10,12 +10,161 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
+import numpy as np
 
 from .adapter import canonical, digest, source_record
 from .phase_lifecycle import instant, session_date, validate_phase_source
 
 CONTRACT_VERSION = 'phase-profiles-v1'
 ProfileId = Literal['apex-50k-eod', 'lucidflex-50k']
+
+
+class DatedPhasePreparation:
+    """Worker-local immutable calendar/index preparation, never account results.
+
+    Admit entries until the accounted 32 MiB budget is full; retain that prefix
+    for later refits rather than evicting/thrashing on large declarations. A miss
+    that cannot fit uses the original streaming sampler and full path count.
+    Instances belong to one worker context and are not shared between threads.
+    """
+    VERSION = 'dated-phase-preparation-v1'
+    MAX_BYTES = 32 * 1024 * 1024
+
+    def __init__(self, max_bytes=MAX_BYTES):
+        if type(max_bytes) is not int or not 0 <= max_bytes <= self.MAX_BYTES:
+            raise ValueError('Phase preparation budget must be 0–32 MiB.')
+        self.max_bytes = max_bytes
+        self.bytes_used = 0
+        self._entries = {}
+
+    def calendar(self, identity, start, horizon, checkpoint):
+        from datetime import date, timedelta
+        key = ('calendar', identity, start, horizon)
+        if key in self._entries:
+            return self._entries[key]
+        # Conservative accounting for owned date/string/tuple objects and the
+        # entry/key overhead; source-owned identity strings are not duplicated.
+        charge = 512 + horizon * 192
+        if self.bytes_used + charge > self.max_bytes:
+            return None
+        first = date.fromisoformat(start)
+        closed = set(identity[4])
+        rows = []
+        for offset in range(horizon):
+            if offset % 32 == 0:
+                checkpoint()
+            day = first + timedelta(days=offset)
+            text = day.isoformat()
+            rows.append((day, day.weekday() < 5 and text not in closed, text))
+        value = (tuple(rows), sum(row[1] for row in rows))
+        self._entries[key] = value
+        self.bytes_used += charge
+        return value
+
+    def indices(self, seed, path, length, block, count, *, attempt=None):
+        from .native_engine import sampled_days
+        key = ('indices', seed, path, length, block, count, attempt)
+        if key in self._entries:
+            return iter(memoryview(self._entries[key]).cast('i'))
+        charge = 512 + count * np.dtype(np.int32).itemsize
+        rng = np.random.RandomState(np.random.SeedSequence([seed, path] if attempt is None else [seed, path, attempt]).generate_state(1)[0])
+        stream = sampled_days(rng, length, block)
+        if self.bytes_used + charge > self.max_bytes:
+            return stream
+        # Keep the exact scalar MT19937 draws and their ordering. Prefetching
+        # unused suffixes cannot affect another independently seeded account.
+        values = np.fromiter((next(stream) for _ in range(count)), dtype=np.int32, count=count).tobytes()
+        self._entries[key] = values
+        self.bytes_used += charge
+        # A read-only native int32 buffer yields ordinary Python int values,
+        # retaining the original index type for sizing trace/capture callers.
+        return iter(memoryview(values).cast('i'))
+
+    def evaluation_indices(self, seed, path, length, block, count, attempt):
+        """Small immutable MT19937 prefix, then the unchanged unlimited stream.
+
+        End prefixes at a block boundary so restoring RNG state requires no
+        partially consumed block. Prefetch is independent of account outcomes.
+        """
+        from itertools import chain
+        from .native_engine import sampled_days
+        prefix=min(count,((128+block-1)//block)*block)
+        if prefix>=count:return self.indices(seed,path,length,block,count,attempt=attempt)
+        key=('evaluation_indices',seed,path,length,block,prefix,attempt)
+        if key in self._entries:
+            raw,state=self._entries[key]
+        else:
+            rng=np.random.RandomState(np.random.SeedSequence([seed,path,attempt]).generate_state(1)[0])
+            stream=sampled_days(rng,length,block);charge=4608+prefix*4
+            if self.bytes_used+charge>self.max_bytes:return stream
+            raw=np.fromiter((next(stream) for _ in range(prefix)),dtype=np.int32,count=prefix).tobytes()
+            state=rng.get_state();state[1].flags.writeable=False
+            self._entries[key]=(raw,state);self.bytes_used+=charge
+        def tail():
+            rng=np.random.RandomState(0);rng.set_state(state)
+            yield from sampled_days(rng,length,block)
+        return chain(memoryview(raw).cast('i'),tail())
+
+    def renewal_calendar(self, calendar):
+        from .cash_ledger import replay_calendar_sessions
+        from datetime import date
+        identity=(calendar.version,calendar.timezone,calendar.coverage_end,
+            tuple(sorted(calendar.start_dates)),tuple(sorted(calendar.closures)))
+        key=('renewal_calendar',identity)
+        if key in self._entries:return self._entries[key]
+        value=(tuple(d.toordinal() for d in replay_calendar_sessions(calendar)),
+            tuple(date.fromisoformat(d).toordinal() for d in sorted(calendar.start_dates)))
+        charge=1024+len(value[0])*48+len(value[1])*48
+        if self.bytes_used+charge<=self.max_bytes:
+            self._entries[key]=value;self.bytes_used+=charge
+        return value
+
+    def renewal_indices(self, seed, path, length, limit):
+        """Exact PCG64 scalar stream; cache only a bounded immutable prefix."""
+        from itertools import chain
+        import copy
+        count=min(limit,64);key=('renewal_indices',seed,path,length,count)
+        if key in self._entries:
+            raw,state=self._entries[key]
+        else:
+            rng=np.random.Generator(np.random.PCG64(np.random.SeedSequence([seed,path])))
+            charge=1024+count*4
+            if self.bytes_used+charge>self.max_bytes:
+                return (int(rng.integers(length)) for _ in range(limit))
+            raw=np.fromiter((int(rng.integers(length)) for _ in range(count)),dtype=np.int32,count=count).tobytes()
+            state=rng.bit_generator.state
+            self._entries[key]=(raw,state);self.bytes_used+=charge
+        def tail():
+            bit=np.random.PCG64(0);bit.state=copy.deepcopy(state);rng=np.random.Generator(bit)
+            for _ in range(max(0,limit-count)):yield int(rng.integers(length))
+        return chain(memoryview(raw).cast('i'),tail())
+
+    def evaluation_layouts(self, calendar, guard, delay, checkpoint):
+        """Immutable civil dates/readiness; no account state or market results."""
+        from datetime import date,timedelta
+        from .cash_ledger import replay_calendar_sessions
+        identity=(calendar.version,calendar.timezone,calendar.coverage_end,
+            tuple(sorted(calendar.start_dates)),tuple(sorted(calendar.closures)))
+        key=('evaluation_calendar',identity,guard,delay)
+        if key in self._entries:return self._entries[key]
+        sessions=replay_calendar_sessions(calendar);positions={d:i for i,d in enumerate(sessions)}
+        layouts=[];charge=1024
+        for start in sorted(calendar.start_dates):
+            first=date.fromisoformat(start);dates=[];flags=[];eligible=[];ready=[]
+            for offset in range(guard):
+                if offset%128==0:checkpoint()
+                day=first+timedelta(days=offset);dates.append(day);index=positions.get(day)
+                flags.append(index is not None)
+                ei=index+delay if index is not None else len(sessions)
+                eligible.append((sessions[ei]-first).days if ei<len(sessions) else -1)
+                ready.append((sessions[ei+1]-first).days if ei+1<len(sessions) else -1)
+            layouts.append((first,first+timedelta(days=guard),tuple(dates),bytes(flags),tuple(eligible),tuple(ready),tuple(map(str,dates))))
+            charge+=512+guard*320
+        result=tuple(layouts)
+        if self.bytes_used+charge<=self.max_bytes:
+            self._entries[key]=result;self.bytes_used+=charge
+        return result
+
 
 
 @dataclass(frozen=True)

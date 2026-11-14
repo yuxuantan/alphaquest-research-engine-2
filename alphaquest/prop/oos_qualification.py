@@ -101,7 +101,7 @@ def decide(point, replicates, phase, evidence_rows, *, inner_precision_ok=True):
         historical_replicates=len(replicates),interpretation='GO supports forward review under the saved historical model. Insufficient evidence is not approval. The bounds do not imply a 95% probability of future success.')
 
 
-def _means(days,candidate,search,checkpoint,*,funded_preparation=None):
+def _means(days,candidate,search,checkpoint,*,funded_preparation=None,evaluation_preparation=None):
     """Same local phase calculation and path counts as the admitted search."""
     from .evaluation_profiles import calendar_evaluation_paths
     from .funded_profiles import _dated_funded_paths
@@ -109,17 +109,18 @@ def _means(days,candidate,search,checkpoint,*,funded_preparation=None):
     if search.mode=='funded_optimization':
         paths,_,_=_dated_funded_paths(days,candidate.profile,candidate.micros,search.horizon_calendar_days,
             search.calendar,search.receipt_delay_calendar_days,candidate.simulation,candidate.sampling,checkpoint=checkpoint,
-            preparation=funded_preparation)
-        cash=np.array([p['cash_received'] for p in paths]);mean=float(cash.mean())
-        groups=[cash[[p['start_date']==s for p in paths]] for s in search.calendar.start_dates]
+            preparation=funded_preparation,summary_only=True)
+        cash=paths;mean=float(cash.mean())
+        groups=[cash[np.arange(len(cash))%len(search.calendar.start_dates)==i] for i,_ in enumerate(sorted(search.calendar.start_dates))]
         se=float(np.sqrt(sum(np.var(g,ddof=1)/len(g) for g in groups))/len(groups))
         return {'expected_funded_cash_payouts_within_horizon':mean},se/mean if mean>0 else None
     if candidate.profile.profile_id=='lucidflex-50k':
         paths,_=calendar_evaluation_paths(days,candidate.profile,candidate.micros,candidate.simulation,
-            candidate.sampling,candidate.retry,search.calendar,checkpoint=checkpoint)
-        if not all(p['acquisition_completed'] for p in paths):return {},None
-        arrays={'cost_per_funded':[p['paid_fees'] for p in paths],
-                'expected_calendar_days_to_funded':[p['calendar_days_to_funded'] for p in paths]}
+            candidate.sampling,candidate.retry,search.calendar,checkpoint=checkpoint,
+            preparation=evaluation_preparation,summary_only=True)
+        if not np.all(paths['completed']):return {},None
+        arrays={'cost_per_funded':paths['paid_fees'],
+                'expected_calendar_days_to_funded':paths['calendar_days']}
         means={k:float(np.mean(v)) for k,v in arrays.items()}
         errors=[float(np.std(v,ddof=1)/np.sqrt(len(v)))/means[k] for k,v in arrays.items() if means[k]>0]
         return means,max(errors) if len(errors)==2 else None
@@ -132,7 +133,8 @@ def _means(days,candidate,search,checkpoint,*,funded_preparation=None):
         candidate.sampling.block_weekdays,settings,max_micros=candidate.simulation.max_micros)
     component=SimpleNamespace(outcomes=[str(v) for v in raw['outcomes']],
         duration_weekdays=[int(v) for v in raw['days']],censoring=SimpleNamespace(censored_paths=0))
-    result=acquisition_metrics(component,candidate.profile,candidate.retry,search.calendar,candidate.sampling)
+    result=acquisition_metrics(component,candidate.profile,candidate.retry,search.calendar,candidate.sampling,
+        preparation=evaluation_preparation,summary_only=True,checkpoint=checkpoint)
     metrics=result['metrics'];keys=('cost_per_funded','expected_calendar_days_to_funded')
     means={k:float(metrics[k]) for k in keys if metrics.get(k) is not None}
     errors=[result['uncertainty'].get(se)/means[k] for k,se in zip(keys,('cost_se','calendar_mean_se'))
@@ -149,12 +151,12 @@ def _book_classes(days):
     return np.asarray(codes,dtype=np.int32)
 
 
-def historical_ratios(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress):
+def historical_ratios(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress,*,resume=None):
     from .oos_bootstrap import run
-    return run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress)
+    return run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress,resume=resume)
 
 
-def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses):
+def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,*,analysis_id=None):
     from .assessment_review import distribution,run_start_sensitivity
     from .phase_profiles import SavedTradeSource,ResearchPeriod,prepare_phase_source,verify_phase_source
     from .phase_search import capture_inputs
@@ -193,7 +195,8 @@ def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,stage
                 progress(dict(value,candidate_index=len(detail)+1,candidate_count=eligible_count,
                     overall_completed=len(detail)*value['total']+value['completed'],
                     overall_total=eligible_count*value['total']))
-            data=historical_ratios(is_days,oos_days,is_candidate,candidate,search,checkpoint,refit_progress)
+            data=historical_ratios(is_days,oos_days,is_candidate,candidate,search,checkpoint,refit_progress,
+                resume=(analyses,analysis_id) if analysis_id is not None else None)
             verify_phase_source(runs,candidate.source,oos_snapshot)
             result=decide(point,[r['ratios'] for r in data['replicates']],phase,evidence_rows,inner_precision_ok=data['inner_precision_ok'])
             detail.append(dict(frozen_candidate_id=check['frozen_candidate_id'],**data))

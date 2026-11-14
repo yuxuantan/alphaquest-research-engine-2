@@ -1,0 +1,13 @@
+{
+  "previous_simulation_id": "3444051a-2ad9-4a70-9a39-b362115792c3",
+  "new_simulation_id": "f0c73356f2f140b6ac22ebeed2e6ee82",
+  "server": {
+    "pid": 41520,
+    "port": 8000
+  },
+  "url": "http://127.0.0.1:8000/#prop-sim?analysis=f0c73356f2f140b6ac22ebeed2e6ee82",
+  "same_settings_except_request_id": true,
+  "compiled_kernels_rebuilt": true,
+  "focused_backend_tests": 49,
+  "stop_server": "kill 41520"
+}

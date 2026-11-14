@@ -2946,3 +2946,53 @@ sampled saved refit metrics exactly. Representative eight-refit timings improved
 not been claimed as a completed full real-data run. Both account profiles are
 demonstrated through the normal backtest → configure → checked automatic Run →
 durable OOS report/download journey. [Saved evidence and reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).
+
+## 2026-11-14: exact internal-refit acceleration and durable checkpoints
+
+Qualified fixed-quantity OOS historical refits now use compact capture in their
+existing phase owners: means and the required within-start Monte Carlo precision,
+without unused per-attempt/payout-event dictionaries, quantiles or schedule hashes.
+Published IS/OOS point simulations continue to retain their full path, schedule,
+cash and source evidence. The 10,000 historical refits, requested inner account
+counts, index-derived seeds, original retry/calendar guards and qualification
+policy are unchanged. Censored paths still withhold complete acquisition means;
+they are never dropped to improve results.
+
+`DatedPhasePreparation` in `phase_profiles.py` owns worker-local immutable civil
+calendars and exact RNG prefixes. Phase-specific compatibility names remain in
+`evaluation_profiles.py` and `funded_profiles.py`. The accounted budget is 32 MiB
+per worker. Evaluation MT19937 prefixes end at a block boundary and retain the
+unchanged tail; Apex renewal PCG64 prefixes restore the exact scalar tail. Budget
+misses stream the original draws and never shrink the requested path count.
+Lucid dated acquisition and Apex renewal execute their existing owner source
+through the matching optional compiled kernels; the Python reference remains
+available. Native percentage-risk session execution retains its original owner.
+Funded compact refits use the matching existing account class without event capture.
+
+Completed outer refits are checkpointed at most once per second and at cooperative
+exit in the existing AnalysisStore SQLite catalogue. Checkpoints bind full IS/OOS
+daybooks, candidates, search/calendar/costs, policy, seeds and numerical/runtime
+implementation identities. Retry evaluates only missing indices and restores
+ordered results. Hash corruption or conflicting numerical rows rejects reuse;
+a changed source, setting or implementation gets a different key. A partial
+checkpoint is operational work, never a published result or partial verdict.
+Successful publication clears the publishing attempt's checkpoints; deleting an
+inactive attempt removes its checkpoints. Older interrupted attempts may retain
+their checkpoint rows until deleted. Worker cancellation still drains siblings
+before releasing the shared CPU reservation. Abrupt process death can lose work
+since the last committed batch, and an unfinished refit restarts at its index.
+
+The existing **Retry incomplete phases** flow restores compatible completed refits.
+Prop Sim and Job history show the restored count; ETA uses newly computed refits
+rather than crediting restored work as new throughput. Full report downloads
+record compact-capture scope, preparation accounting and checkpoint identity/reuse.
+The four-worker default and shared reservations remain unchanged; the existing
+`ALPHAQUEST_PROP_WORKERS` setting can declare another supported count.
+
+Changed numerical sources receive new identities. Historical sealed reports are
+untouched, and old frozen numerical packages do not launch under the new owner.
+Start a new simulation for the new implementation; do not bypass frozen-package
+guards. Work started by a pre-checkpoint server cannot retroactively recover
+completed refits that it never saved.
+
+[Normal product evidence, exact oracles and reproduction](evidence/qualified_prop_sim/refit-acceleration/README.md).

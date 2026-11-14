@@ -15,6 +15,7 @@
     if(total){const bar=node('progress');bar.max=total;bar.value=completed;bar.setAttribute('aria-label','Historical confidence resamples for current size');parent.append(bar);}
     parent.append(node('p',`${d.active_workers} active / ${d.worker_count} workers · elapsed ${duration(d.elapsed_seconds)} · remaining for this size ${duration(d.eta_seconds)}`));
     const note=node('small','ETA is approximate and covers this size only. Confidence checks retain every requested account path.');parent.append(note);
+    if(d.reused_resamples)parent.append(node('p',`${Number(d.reused_resamples).toLocaleString()} completed resamples restored from a verified checkpoint.`));
     if(d.updated_at_utc)parent.append(node('p','Last update: '+new Date(d.updated_at_utc).toLocaleTimeString()));
   };
 })();

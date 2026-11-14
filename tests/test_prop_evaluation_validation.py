@@ -211,6 +211,7 @@ def test_variant_phase_independence_frozen_oos_robustness_precision_and_reopen(c
 
 def test_account_reaching_target_then_breaching_is_counted_as_retry(monkeypatch):
     from itertools import repeat
+    from alphaquest.prop.evaluation_profiles import DatedEvaluationPreparation
     from alphaquest.prop import native_engine
     calls=0
     def prescribed(*args):
@@ -223,7 +224,10 @@ def test_account_reaching_target_then_breaching_is_counted_as_retry(monkeypatch)
     days=[[(3000.,0.)],[(-4000.,4000.,((4000.,True),))],[(1000.,0.)]]
     profile=EvaluationProfile('lucidflex-50k',rule_version('lucidflex-50k'),'80.50','0')
     result=calendar_evaluation_paths(days,profile,10,SimulationConfig(8,42,40),EvaluationSamplingConfig(5,8,42),
-        SequentialRetry(activation_delay_sessions=0,max_calendar_days=15),PhaseCalendar(('2026-11-16',),'2027-01-31'))[0]
+        SequentialRetry(activation_delay_sessions=0,max_calendar_days=15),PhaseCalendar(('2026-11-16',),'2027-01-31'),
+        # This prescribed finite stream deliberately ends at a breach; do not
+        # prefetch its nonexistent suffix as if it were the real infinite RNG.
+        preparation=DatedEvaluationPreparation(0))[0]
     for p in result:
         assert p['calendar_days_to_funded']==7 and p['attempts_started']==2 and p['paid_fees']==161
         d=p['acquisition_diagnostics']

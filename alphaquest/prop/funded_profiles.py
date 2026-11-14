@@ -5,70 +5,13 @@ from .native_control import NativeControlBase
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, FundedProfile, FundedProfileResult, ResearchPeriod,
     SamplingConfig, SavedTradeSource, SimulationConfig, SourceCosts, SizingConfiguration, SizingTrace,
-    positive_integer, prepare_phase_source, provenance, verify_phase_source,
+    positive_integer, prepare_phase_source, provenance, verify_phase_source, DatedPhasePreparation,
 )
 
 
-class DatedFundedPreparation:
-    """Worker-local immutable calendar/index preparation, never account results.
-
-    Admit entries until the accounted 32 MiB budget is full; retain that prefix
-    for later refits rather than evicting/thrashing on large declarations. A miss
-    that cannot fit uses the original streaming sampler and full path count.
-    Instances belong to one worker context and are not shared between threads.
-    """
+class DatedFundedPreparation(DatedPhasePreparation):
+    """Compatibility name for shared immutable phase preparation."""
     VERSION = 'dated-funded-preparation-v1'
-    MAX_BYTES = 32 * 1024 * 1024
-
-    def __init__(self, max_bytes=MAX_BYTES):
-        if type(max_bytes) is not int or not 0 <= max_bytes <= self.MAX_BYTES:
-            raise ValueError('Funded preparation budget must be 0–32 MiB.')
-        self.max_bytes = max_bytes
-        self.bytes_used = 0
-        self._entries = {}
-
-    def calendar(self, identity, start, horizon, checkpoint):
-        from datetime import date, timedelta
-        key = ('calendar', identity, start, horizon)
-        if key in self._entries:
-            return self._entries[key]
-        # Conservative accounting for owned date/string/tuple objects and the
-        # entry/key overhead; source-owned identity strings are not duplicated.
-        charge = 512 + horizon * 192
-        if self.bytes_used + charge > self.max_bytes:
-            return None
-        first = date.fromisoformat(start)
-        closed = set(identity[4])
-        rows = []
-        for offset in range(horizon):
-            if offset % 32 == 0:
-                checkpoint()
-            day = first + timedelta(days=offset)
-            text = day.isoformat()
-            rows.append((day, day.weekday() < 5 and text not in closed, text))
-        value = (tuple(rows), sum(row[1] for row in rows))
-        self._entries[key] = value
-        self.bytes_used += charge
-        return value
-
-    def indices(self, seed, path, length, block, count):
-        from .native_engine import sampled_days
-        key = ('indices', seed, path, length, block, count)
-        if key in self._entries:
-            return iter(memoryview(self._entries[key]).cast('i'))
-        charge = 512 + count * np.dtype(np.int32).itemsize
-        rng = np.random.RandomState(np.random.SeedSequence([seed, path]).generate_state(1)[0])
-        stream = sampled_days(rng, length, block)
-        if self.bytes_used + charge > self.max_bytes:
-            return stream
-        # Keep the exact scalar MT19937 draws and their ordering. Prefetching
-        # unused suffixes cannot affect another independently seeded account.
-        values = np.fromiter((next(stream) for _ in range(count)), dtype=np.int32, count=count).tobytes()
-        self._entries[key] = values
-        self.bytes_used += charge
-        # A read-only native int32 buffer yields ordinary Python int values,
-        # retaining the original index type for sizing trace/capture callers.
-        return iter(memoryview(values).cast('i'))
 
 
 class NativeFundedController(NativeControlBase):
@@ -438,7 +381,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
 
 def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
         receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None,
-        preparation=None):
+        preparation=None, summary_only=False):
     """The same fresh-account dated kernel for original and resampled histories."""
     from dataclasses import replace
     from datetime import date, timedelta
@@ -448,8 +391,15 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
              else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts))
     account_class = lucid_engine.FundedAccount if lucid else native_engine.FundedAccount
+    if summary_only and (sizing is not None or chronological):
+        raise ValueError('Compact Funded capture requires fixed-quantity sampled paths.')
     paths = []
-    schedule = sha256()
+    cash_values = np.zeros(simulation.simulations)
+    if summary_only:
+        from .lucid_backend import module as lucid_module
+        from .native_backend import module as native_module
+        account_class = (lucid_module() if lucid else native_module()).FundedAccount
+    schedule = None if summary_only else sha256()
     closed = set(calendar.closures)
     starts = sorted(calendar.start_dates)
     # Calendar preparation also benefits ordinary one-off runs. Only a caller
@@ -470,6 +420,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
             stream = native_engine.sampled_days(rng, len(days), sampling.block_weekdays)
         account = account_class(rules)
         events = []
+        cash_received = 0.
         terminal_date = None
         source_cursor=0
         for offset in range(horizon_calendar_days):
@@ -490,7 +441,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
                     raise ValueError('Chronological OOS source does not cover the frozen Funded horizon.')
                 index = source_cursor if chronological else next(stream)
                 source_cursor+=1
-                schedule.update(f'{i}:{day_text}:{index};'.encode())
+                if schedule is not None:schedule.update(f'{i}:{day_text}:{index};'.encode())
                 before = len(account.payouts)
                 dynamic = (dict(**sizing.kernel_arguments(stage='funded_calendar_sample', path_index=i,
                     source_session_index=index, calendar_date=day_text), trace=trace) if sizing is not None else {})
@@ -502,7 +453,8 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
                     entitlement = account.payouts[-1][1]
                     gross = account.withdrawals[-1][1] if lucid else entitlement
                     due = day + timedelta(days=receipt_delay_calendar_days)
-                    events.append(dict(eligibility_date=day_text, request_date=day_text,
+                    if due < cutoff:cash_received += entitlement
+                    if not summary_only:events.append(dict(eligibility_date=day_text, request_date=day_text,
                         deduction_date=day_text, receipt_date=due.isoformat(),
                         gross_account_deduction=gross, trader_cash_entitlement=entitlement,
                         received_within_horizon=due < cutoff,
@@ -510,6 +462,9 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
             if account.outcome != 'open':
                 terminal_date = day
                 break
+        if summary_only:
+            cash_values[i] = cash_received
+            continue
         receipts = [e for e in events if e['received_within_horizon']]
         paths.append(dict(path=i, start_date=start.isoformat(), cutoff_exclusive=cutoff.isoformat(),
             outcome=account.outcome, observed_sessions=account.day,
@@ -523,7 +478,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
             pending_cash=sum(e['trader_cash_entitlement'] for e in events if not e['received_within_horizon']),
             number_of_payouts=len(receipts),
             days_to_first_payout=(date.fromisoformat(receipts[0]['receipt_date'])-start).days if receipts else None))
-    return paths, schedule.hexdigest(), rules
+    return (cash_values if summary_only else paths), schedule.hexdigest() if schedule is not None else None, rules
 
 
 def native_historical_preflight(catalogue_metadata, forecast_plan, configuration, family_size):

@@ -62,6 +62,8 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_progress (analysis_id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS historical_refit_checkpoints (analysis_id TEXT NOT NULL, context_key TEXT NOT NULL, replicate INTEGER NOT NULL, payload TEXT NOT NULL, sha256 TEXT NOT NULL, PRIMARY KEY(analysis_id,context_key,replicate))')
+            db.execute('CREATE INDEX IF NOT EXISTS historical_refits_by_context ON historical_refit_checkpoints(context_key)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
             from ..campaign_monte_carlo import initialize as initialize_sanity
             initialize_sanity(db)
@@ -150,10 +152,38 @@ class AnalysisStore:
             raise ValueError('This prop analysis is queued or running. Stop it or wait for completion before deleting.')
         return record
 
+    def load_refits(self, context_key, total):
+        """Verified completed work only; never publish partial qualification."""
+        with self.connect() as db:
+            records=db.execute('SELECT c.replicate,c.payload,c.sha256 FROM historical_refit_checkpoints c '
+                'JOIN analyses a ON a.id=c.analysis_id WHERE c.context_key=?', (context_key,)).fetchall()
+        rows={}
+        for index,payload,expected in records:
+            if sha256(payload.encode()).hexdigest()!=expected:
+                raise ValueError('Historical refit checkpoint checksum changed; completed work was not reused.')
+            row=json.loads(payload)
+            if not 0<=index<total or row['replicate']['replicate']!=index:
+                raise ValueError('Historical refit checkpoint index changed.')
+            if index in rows:
+                if any(rows[index][key]!=row[key] for key in ('replicate','precision','history_keys')):
+                    raise ValueError('Historical refit checkpoints disagree for the same immutable input.')
+                row['preparation_cache_bytes']=max(row['preparation_cache_bytes'],rows[index]['preparation_cache_bytes'])
+            rows[index]=row
+        return rows
+
+    def save_refits(self, id, context_key, rows):
+        if not rows:return
+        values=[]
+        for row in rows:
+            payload=canonical(row)
+            values.append((id,context_key,row['replicate']['replicate'],payload,sha256(payload.encode()).hexdigest()))
+        with self.lock,self.connect() as db:
+            db.executemany('INSERT OR REPLACE INTO historical_refit_checkpoints VALUES (?,?,?,?,?)',values)
+
     def remove_catalogue_record(self, db, id):
         """Release one report's catalogue/cache rows within the caller transaction."""
         for table,key in (('calculation_reuse','id'),('analysis_report_checks','id'),
-                ('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analyses','id')):
+                ('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analyses','id')):
             db.execute(f'DELETE FROM {table} WHERE {key}=?',(id,))
 
     def delete(self, id):
@@ -504,7 +534,7 @@ class AnalysisStore:
                     if review_options:
                         if review_options.get('qualification'):
                             from .oos_qualification import qualify
-                            calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self)
+                            calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self,analysis_id=id)
                         else:
                             from .assessment_review import enrich
                             # A business-policy review can reuse the point paths
@@ -570,6 +600,7 @@ class AnalysisStore:
                     with self.connect() as db:
                         db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
                         db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
+                        db.execute('DELETE FROM historical_refit_checkpoints WHERE analysis_id=?',(id,))
         except AnalysisCancelled as exc:
             self._update(id,'cancelled','Phase search stopped; run again from the saved declaration',str(exc))
             if raise_errors:raise

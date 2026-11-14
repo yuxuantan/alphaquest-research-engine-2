@@ -345,3 +345,52 @@ def evaluation_opening(equity,high):
 
 def evaluation_finish(equity,high,result):
     return equity,max(high,equity),result
+
+
+@cython.locals(i=cython.long,index=cython.long,cursor=cython.long,cutoff=cython.long,
+    last_index=cython.long,last=cython.long,eligible_index=cython.long,
+    ready_index=cython.long,attempts=cython.long,observed=cython.long,
+    start=cython.long,n=cython.long,session_count=cython.long,guard=cython.long,
+    retry_delay=cython.long,activation_delay=cython.long)
+def renewal_acquisition(outcomes,durations,fee,activation,retry,calendar,sampling,*,
+        preparation,summary_only=False,checkpoint=lambda:None):
+    """Existing IID renewal law, one source for full paths and compact refits."""
+    from bisect import bisect_left
+    from datetime import date
+    from decimal import Decimal
+    from hashlib import sha256
+    ordinals,starts=preparation.renewal_calendar(calendar)
+    n=len(outcomes);session_count=len(ordinals);guard=retry.max_calendar_days
+    retry_delay=retry.retry_delay_calendar_days;activation_delay=retry.activation_delay_sessions
+    schedule=None if summary_only else sha256();paths=[]
+    times=np.empty(sampling.chain_simulations,dtype=np.int64);complete=np.zeros(sampling.chain_simulations,dtype=np.bool_)
+    for i in range(sampling.chain_simulations):
+        if i%32==0:checkpoint()
+        start=starts[i%len(starts)];cutoff=start+guard;cursor=start
+        cost=Decimal(0);paid=False;attempts=0;state='attempt_guard';funded_date=None;observed=start
+        stream=preparation.renewal_indices(sampling.chain_seed,i,n,retry.max_attempts)
+        for _ in range(retry.max_attempts):
+            if cursor>=cutoff:observed=cutoff;state='calendar_guard';break
+            if not summary_only:cost+=fee
+            attempts+=1;index=next(stream)
+            if schedule is not None:schedule.update(f'{i}:{index};'.encode())
+            last_index=bisect_left(ordinals,cursor)+durations[index]-1
+            if last_index>=session_count or ordinals[last_index]>=cutoff:
+                observed=cutoff;state='calendar_guard';break
+            last=ordinals[last_index];observed=last+1
+            if outcomes[index]=='passed':
+                eligible_index=last_index+activation_delay;ready_index=eligible_index+1
+                if eligible_index<session_count and ordinals[eligible_index]<cutoff:
+                    if not summary_only:cost+=activation
+                    paid=True
+                if ready_index>=session_count or ordinals[ready_index]>cutoff:
+                    observed=cutoff;state='activation_guard';break
+                funded_date=ordinals[ready_index];observed=funded_date;state='funded';break
+            cursor=last+1+retry_delay
+        times[i]=observed-start;complete[i]=state=='funded'
+        if not summary_only:
+            paths.append(dict(path=i,start_date=str(date.fromordinal(start)),attempts=attempts,event=state,
+                observed_calendar_days=observed-start,funded_date=str(date.fromordinal(funded_date)) if funded_date is not None else None,
+                cost_accrued=str(cost),activation_paid=paid,pending_activation=state=='activation_guard' and not paid,
+                pending_readiness=state=='activation_guard'))
+    return (dict(times=times,completed=complete) if summary_only else paths),schedule.hexdigest() if schedule is not None else None

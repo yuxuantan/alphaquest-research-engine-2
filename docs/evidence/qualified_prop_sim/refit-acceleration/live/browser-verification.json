@@ -1,0 +1,7 @@
+{
+  "url": "http://127.0.0.1:8000/#prop-sim?analysis=f0c73356f2f140b6ac22ebeed2e6ee82",
+  "evaluation_text": "RUNNING \u00b7 Lucid Evaluation paths 100/1000",
+  "job_id": "387dd5ef2b29418cb8f1a93aaf319279",
+  "job_history_text": "Prop analysis\nrunning\n\nvwap pullback risk sizing \u00b7 ofb_bars_NQ\n\nLucid Evaluation paths 300/1000\n\nJob ID\n387dd5ef2b29418cb8f1a93aaf319279\nRecorded\n14/11/2026, 15:49:18 GMT+8\nStarted\nNot recorded\nFinished\nNot recorded\nOpen Prop Sim\nStop running job",
+  "read_only": true
+}

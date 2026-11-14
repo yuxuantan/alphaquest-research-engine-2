@@ -103,7 +103,7 @@ class Runtime:
                     except BaseException:pass
                 raise
 
-    def map_reported(self,function,values,*,checkpoint,notify,cancel):
+    def map_reported(self,function,values,*,checkpoint,notify,cancel,on_result=lambda result:None):
         """Bounded completion-order dispatch, ordered output and responsive stop.
 
         Uses this same pool/budget; the worker does not recursively dispatch.
@@ -115,7 +115,7 @@ class Runtime:
             if slots==1:
                 results=[]
                 for value in values:
-                    checkpoint();results.append(function(value));notify(len(results),total,1,[os.getpid()])
+                    checkpoint();result=function(value);on_result(result);results.append(result);notify(len(results),total,1,[os.getpid()])
                 return results
             with self.pool_lock:
                 if self.pool is None:self.pool=ProcessPoolExecutor(max_workers=CAPACITY,mp_context=mp.get_context('spawn'))
@@ -131,7 +131,7 @@ class Runtime:
                     checkpoint()
                     done,_=wait(pending,timeout=.25,return_when=FIRST_COMPLETED)
                     for future in done:
-                        result,pid=future.result();results[pending.pop(future)]=result
+                        result,pid=future.result();on_result(result);results[pending.pop(future)]=result
                         completed+=1;pids.add(pid)
                         if next_index<total:submit()
                     notify(completed,total,slots,sorted(pids))
@@ -164,13 +164,13 @@ def diagnostics():
     return dict(_diagnostics.get() or dict(workers_used=1,worker_pids=[os.getpid()],nested_pool=False))
 
 
-def map_reported(function,values,*,checkpoint,notify,cancel):
+def map_reported(function,values,*,checkpoint,notify,cancel,on_result=lambda result:None):
     runtime=_active.get()
     # The uvicorn reload child is a legitimate owner. Actual pool children have
     # no active runtime context; never infer nesting from the process's name.
     if runtime is not None and not _optimizing.get():
-        return runtime.map_reported(function,values,checkpoint=checkpoint,notify=notify,cancel=cancel)
+        return runtime.map_reported(function,values,checkpoint=checkpoint,notify=notify,cancel=cancel,on_result=on_result)
     results=[]
     for value in values:
-        checkpoint();results.append(function(value));notify(len(results),len(values),1,[os.getpid()])
+        checkpoint();result=function(value);on_result(result);results.append(result);notify(len(results),len(values),1,[os.getpid()])
     return results

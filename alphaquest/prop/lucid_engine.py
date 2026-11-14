@@ -169,6 +169,25 @@ class FundedAccount:
                daily_floor=cython.double, previous=cython.double, consistency=cython.double,
                last_activity=cython.longlong, calendar=cython.longlong,
                hit=cython.longlong, consumed=cython.longlong)
+def _fixed_evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4):
+    """Compiled fixed-quantity transition; public native sizing retains its owner."""
+    if calendar-last_activity>30:return equity,high,best_day,last_activity,'inactive',0,0
+    opening=equity;floor=min(high-2000.,100.)
+    daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')
+    result='open';hit=consumed=0
+    for trade in trades:
+        consumed+=1;previous=equity
+        equity,hit=trade_result(trade,equity,size,daily_floor,floor)
+        if abs(equity-previous)>=1:last_activity=calendar
+        if hit==2:result='blown';break
+        if hit:break
+    best_day=max(best_day,equity-opening);high=max(high,equity)
+    if result!='blown':
+        if equity>=3000. and best_day<=consistency*equity:result='passed'
+        elif calendar-last_activity>=30:result='inactive'
+    return equity,high,best_day,last_activity,result,hit,consumed
+
+
 def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None,max_micros=40):
     """One Lucid evaluation session on a caller-owned calendar clock."""
     runtime=resolve_runtime(sizing_policy,sizing_context,trace)
@@ -353,3 +372,130 @@ def evaluation_finish(equity,high,best_day,opening,last_activity,calendar,result
         if equity>=3000. and best_day<=money_mul(consistency,equity):result='passed'
         elif calendar-last_activity>=30:result='inactive'
     return equity,high,best_day,last_activity,result
+
+
+@cython.locals(index=cython.long,offset=cython.long,attempts=cython.long,
+    source_index=cython.long,source_cursor=cython.long,first_offset=cython.long,
+    first_target=cython.long,purchase_offset=cython.long,passed_offset=cython.long,
+    eligible_offset=cython.long,ready_offset=cython.long,sessions_used=cython.long,
+    observed=cython.long,elapsed=cython.long,failed_before=cython.long,
+    failed_after=cython.long,blocked=cython.long,guard=cython.long,
+    size=cython.long,equity=cython.double,high=cython.double,best=cython.double,
+    last_activity=cython.long,consistency=cython.double)
+def calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,*,
+        preparation,checkpoint,progress,sizing=None,trace=None,chronological=False,
+        summary_only=False,native_session=None):
+    """One authoritative dated acquisition loop for full and compact capture.
+
+    Civil calendars and independent random prefixes are prepared outside account
+    state. The compiled build executes this same source with strict arithmetic.
+    Compact capture discards no account path and changes no transition or clock.
+    """
+    from decimal import Decimal
+    from datetime import date,timedelta
+    from hashlib import sha256
+    lucid=profile.profile_id=='lucidflex-50k';guard=retry.max_calendar_days
+    fee=Decimal(profile.evaluation_price);activation=Decimal(profile.activation_fee)
+    count=1 if chronological else simulation.simulations
+    size=min(micros,40 if lucid else simulation.max_micros,simulation.max_micros)
+    consistency=profile.consistency_percent/100
+    daily_loss=1200. if profile.daily_loss_limit else None
+    prefix_count=max(sum(layout[3]) for layout in layouts)
+    schedule=None if summary_only else sha256();paths=[]
+    fees=np.empty(count,dtype=np.float64);times=np.empty(count,dtype=np.float64);completed=np.zeros(count,dtype=np.bool_)
+    for index in range(count):
+        checkpoint()
+        start,cutoff,dates,flags,eligibility,readiness,texts=layouts[index%len(layouts)]
+        purchase_offset=0;attempt_open=False;first_attempt=last_attempt=attempt=None;attempts=0
+        paid=Decimal(0);paid_activation=Decimal(0);passed_offset=eligible_offset=ready_offset=-1
+        outcome='calendar_guard';observed=guard;stream=None
+        failed_before=failed_after=blocked=source_cursor=0
+        first_offset=first_target=-1;sessions_used=0;equity=high=best=0.;last_activity=0
+        for offset in range(guard):
+            if offset%32==0:checkpoint()
+            if passed_offset>=0:
+                if eligible_offset==offset:paid_activation+=activation
+                if ready_offset==offset:outcome='funded';observed=offset;break
+                continue
+            if not attempt_open and offset>=purchase_offset:
+                if attempts>=retry.max_attempts:outcome='attempt_guard';observed=offset;break
+                attempts+=1;paid+=fee;attempt_open=True
+                equity=high=best=0.;last_activity=0;first_offset=first_target=-1;sessions_used=0
+                if not summary_only:
+                    attempt=dict(index=attempts,purchase_date=texts[offset],first_session=None,sessions=0,
+                        equity=0.,high=0.,best=0.,last_activity=0,outcome='open',first_target_date=None)
+                    if first_attempt is None:first_attempt=attempt
+                    last_attempt=attempt
+                if not chronological:
+                    stream=preparation.evaluation_indices(simulation.seed,index,len(days),sampling.block_weekdays,prefix_count,attempts)
+            if not attempt_open:continue
+            is_session=bool(flags[offset])
+            if not is_session and first_offset<0:continue
+            if is_session:
+                if chronological and source_cursor>=len(days):
+                    outcome='source_window_censored';observed=offset;break
+                if first_offset<0:first_offset=offset
+                source_index=source_cursor if chronological else next(stream)
+                source_cursor+=1;trades=days[source_index];sessions_used+=1
+                if schedule is not None:schedule.update(f'{index}:{attempts}:{texts[offset]}:{source_index};'.encode())
+            else:trades=[];source_index=-1
+            elapsed=offset-first_offset
+            kwargs=(dict(**sizing.kernel_arguments(stage='evaluation_calendar_sample',path_index=index,
+                source_session_index=source_index,calendar_date=texts[offset],attempt=attempts),trace=trace)
+                if sizing is not None and is_session else {})
+            if lucid:
+                if kwargs:
+                    result=evaluation_session(trades,equity,high,best,last_activity,elapsed,size,
+                        daily_loss,consistency=consistency,max_micros=simulation.max_micros,**kwargs)
+                else:
+                    if cython.compiled:
+                        result=_fixed_evaluation_session(trades,equity,high,best,last_activity,elapsed,size,daily_loss,consistency)
+                    else:
+                        result=evaluation_session(trades,equity,high,best,last_activity,elapsed,size,
+                            daily_loss,consistency,None,None,None,simulation.max_micros)
+                equity,high,best,last_activity,state,_,_=result
+            elif is_session:
+                equity,high,state,_,_=native_session(trades,equity,high,size,max_micros=simulation.max_micros,**kwargs)
+                if state=='open' and sessions_used>=21:state='expired'
+            else:state='open'
+            if state not in ('blown','inactive','expired') and equity>=3000:
+                if first_target<0:first_target=offset
+                if state!='passed' and is_session:blocked+=1
+            if not summary_only:
+                attempt.update(first_session=texts[first_offset],sessions=sessions_used,equity=equity,
+                    high=high,best=best,last_activity=last_activity,outcome=state,
+                    first_target_date=texts[first_target] if first_target>=0 else None)
+            if state=='passed':
+                if not summary_only:attempt['terminal_date']=texts[offset]
+                passed_offset=offset;eligible_offset=eligibility[offset];ready_offset=readiness[offset]
+                if eligible_offset==offset:paid_activation+=activation
+                attempt_open=False
+            elif state in ('blown','inactive','expired'):
+                if first_target<0:failed_before+=1
+                else:failed_after+=1
+                if not summary_only:attempt['terminal_date']=texts[offset]
+                purchase_offset=offset+1+retry.retry_delay_calendar_days;attempt_open=False
+        if not chronological and ready_offset==guard and 0<=eligible_offset<guard:
+            outcome='funded';observed=guard
+        complete=outcome=='funded';fees[index]=float(paid+paid_activation);times[index]=observed;completed[index]=complete
+        if not summary_only:
+            summaries=[] if first_attempt is None else [first_attempt]
+            if last_attempt is not first_attempt:summaries.append(last_attempt)
+            diagnostics=dict(failed_attempts_before_target=failed_before,failed_attempts_after_target=failed_after,
+                consistency_blocked_sessions=blocked,
+                days_before_final_attempt=(date.fromisoformat(last_attempt['purchase_date'])-start).days if complete else None,
+                final_attempt_days_before_target=(date.fromisoformat(last_attempt['first_target_date'])-date.fromisoformat(last_attempt['purchase_date'])).days if complete else None,
+                final_attempt_days_after_target=(dates[passed_offset]-date.fromisoformat(last_attempt['first_target_date'])).days if complete else None,
+                pass_to_ready_days=ready_offset-passed_offset if complete else None)
+            # Readiness can be exactly the exclusive computation guard.
+            ready_date=(start+timedelta(days=ready_offset)) if ready_offset>=0 else None
+            paths.append(dict(path=index,start_date=str(start),outcome=outcome,acquisition_completed=complete,
+                censored=not complete,observed_calendar_days=observed,calendar_days_to_funded=observed if complete else None,
+                attempts_started=attempts,attempts=summaries,attempt_detail_policy='First and last only; aggregate counts/fees include every attempt.',
+                paid_evaluation_fees=float(paid),paid_activation_fees=float(paid_activation),paid_fees=float(paid+paid_activation),
+                pending_activation=passed_offset>=0 and (eligible_offset<0 or eligible_offset>=guard),
+                pass_date=texts[passed_offset] if passed_offset>=0 else None,ready_date=str(ready_date) if ready_date else None,
+                acquisition_diagnostics=diagnostics))
+        if (index+1)%max(1,simulation.simulations//10)==0:progress(f'Lucid Evaluation paths {index+1}/{simulation.simulations}')
+    return ((dict(paid_fees=fees,calendar_days=times,completed=completed) if summary_only else paths),
+        schedule.hexdigest() if schedule is not None else None)

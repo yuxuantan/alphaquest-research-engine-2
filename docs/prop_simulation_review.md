@@ -11942,3 +11942,45 @@ All owned temporary test servers/browser/worker processes were stopped; the
 original user portal remains the only server intentionally retained.
 
 [Screenshots, original summaries, exact normal-product steps, test commands and preservation evidence](evidence/qualified_prop_sim/conclusions/README.md).
+
+## 2026-11-14 — exact refit acceleration and resumable confidence work
+
+Implemented compact internal fixed-quantity refits, bounded Evaluation preparation,
+matching compiled Lucid calendar/Apex renewal loops, and checksummed outer-refit
+checkpoints in the existing AnalysisStore catalogue. Full published point evidence,
+all 10,000 refits and requested inner paths, policy/streams and four-worker default
+are retained. Actual saved-data parity covers twenty refits with 1,000 IS/OOS
+accounts each; 78 full-capture boundary oracles match the preceding owner exactly.
+Small warm samples show 2.75–6.50× Lucid Evaluation, 3.84× Apex Evaluation and
+1.45–1.61× Funded speedups; these are not complete production runtime promises.
+
+Reproduce through the existing report → Prop Sim configuration → source admission
+inside Run → automatic IS selection/freezing → OOS results flow. Use the labeled
+synthetic constant-day source in the saved journey, 9–10 MNQ, eight paths, and
+2026-11-16. Expected independent outcomes: Apex Evaluation USD 178 (49+129),
+Lucid USD 80.50; Funded mean received cash USD 13,000 / USD 9,000 respectively.
+Both phases retain 10,000 ordered historical refits with ratios/bounds exactly one,
+historical GO and forward-review PENDING. These arithmetic fixtures imply no
+future trading result or provider certification.
+
+For restart behavior, use normal **Stop running analyses** after confidence work
+has begun, then **Retry incomplete phases**. Prop Sim and the new job's Job history
+show restored completed resamples; the final sealed report still contains the
+entire 10,000-index family. Changed source/settings/implementation cannot reuse
+old checkpoints; checksum corruption rejects. No partial result/GO is published.
+Old numerical freezes remain readable but reject current-owner launch. A job
+started before this feature cannot recover unsaved historical rows retroactively.
+
+See [saved normal-product reports, screenshots, oracles and commands](evidence/qualified_prop_sim/refit-acceleration/README.md).
+Temporary browser servers are stopped by their fixtures; no demo-only page,
+service, result store, source rewrite or external Bridge execution was introduced.
+
+Application was explicitly authorized after isolated validation. The matching
+compiled kernels are rebuilt in `epic/revamp-workflow`, 49 focused checks pass
+there, and the stable port-8000 portal was restarted as PID 41520. Old simulation
+`3444051a2ad94a709a39b362115792c3` is preserved as stopped; replacement
+`f0c73356f2f140b6ac22ebeed2e6ee82` launches the same automatic configuration under
+the new numerical identity. Six historical report/ZIP seals are verified unchanged.
+See the delivery evidence's `live/` snapshots. This verifies launch/progress,
+not completion of the full real-data confidence work. Stop the persistent server
+with `kill 41520` after cooperatively stopping active jobs in the portal.

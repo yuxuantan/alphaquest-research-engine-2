@@ -1,0 +1,18 @@
+{
+  "baseline_commit": "dda9399",
+  "applied_to_live_workspace": true,
+  "files": {
+    "alphaquest/prop/store.py": "c01c6887919b167a483f66e46f9581b7e195c4f220e9d00c8f5db3204f14600e",
+    "alphaquest/prop/lucid_engine.py": "b07134a156cdef3f17dda173970f26d2cb3689c66025a09b8756a9203e065c74",
+    "alphaquest/prop/phase_profiles.py": "8a3ee7cf173f4b4f36f573a6eb7b9a9ccf77364b97e34c2a89dc265f25508dc2",
+    "alphaquest/prop/funded_profiles.py": "530f0e6fa990fc052e3af0ca04b7d9100681f9f2988d4c3619ab4ff4270384eb",
+    "alphaquest/prop/oos_qualification.py": "6a6658aa9baf99bf0bc71ede0685ab175ce27e1e9a50c223360c271f9a73273d",
+    "alphaquest/prop/oos_bootstrap.py": "4f21f75d209d8e39fed4acf889b6f07d26e2ab0cb55702071dfe9a839ab14961",
+    "alphaquest/prop/evaluation_optimization.py": "dc055abf3706ef74f15f977d5dd958cda0294efa5db114f6c0a12a11a9051c3e",
+    "alphaquest/prop/evaluation_profiles.py": "5598c6921d86ca2311ed33aa352974f4088b01717a9629d66622f004abbf53f3",
+    "alphaquest/prop/native_engine.py": "983b92aeac8e55964f6f52ce6c0f5db50197a51b4f4fb400a720db71686cefda",
+    "alphaquest/prop/parallel.py": "77fd2d02584fdc6d403d9af87c49564d57cf7d671e58d20d7159c83b9e162345",
+    "alphaquest/web/prop-progress.js": "8ee6c60fbb04bef36e57986dfe7c59536d931c25bf86714dd821e45f0c0dd5a9"
+  },
+  "application_authorized": true
+}

@@ -217,3 +217,43 @@ altering their historical reports.
 [Delivery, saved downloads, real-source qualification and exact reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).
 Evaluation preparation changes, additional stage timing and a six-worker default
 remain separate proposals; they were not activated by this delivery.
+
+## Additional exact refit acceleration delivered — 2026-11-14
+
+The existing Evaluation/Funded owners now offer compact internal capture. Lucid
+calendar acquisition and Apex renewal use matching compiled loops, both phases
+reuse bounded immutable preparation, and completed historical refits checkpoint
+in the existing catalogue. Full published point paths retain their original detail.
+No path/refit counts, random streams or statistical rules changed.
+
+Twenty real-source refits (indices 0, 1, 2, 17 for each row below) matched the
+preceding implementation exactly: all phase means, inner relative errors, outer
+source-index hashes and ratios. Each refit retained 1,000 inner paths in each of
+IS and OOS. Seventy-eight independent full-capture boundary cases also matched,
+including events, fees, dates, censoring and schedule hashes.
+
+| Saved source / phase / size | Original warm median | Accelerated warm median | Sample speedup |
+| --- | ---: | ---: | ---: |
+| Apex Evaluation 27 MNQ | 0.120 s | 0.031 s | 3.84× |
+| Apex Funded 13 MNQ | 0.362 s | 0.225 s | 1.61× |
+| Lucid Evaluation 3 MNQ | 8.847 s | 1.362 s | 6.50× |
+| Lucid Evaluation 21 MNQ | 2.700 s | 0.983 s | 2.75× |
+| Lucid Funded 21 MNQ | 0.292 s | 0.202 s | 1.45× |
+
+These are serial read-only samples while the live server was doing other work,
+not a completed accelerated real-data 10,000-refit run or controlled capacity
+benchmark. Each warm median uses three refits after one cold call. The saved raw
+files include cold times, which include preparation and can exceed the preceding
+implementation's first call. Preparation is reused throughout a long worker run.
+Do not promise the table's multiplier for every size or the total workflow.
+
+The four-worker default remains. Earlier six-worker measurements above showed a
+modest benefit rather than linear scaling; this delivery does not automatically
+increase live CPU contention. Additional queue/admission/publication timing
+instrumentation remains separate from these refit changes.
+
+Both account types completed actual normal-product automatic IS selection and
+OOS qualification in isolated browser journeys. A separate normal Stop → Retry
+journey checks checkpoint restoration in Prop Sim and Job history and a complete
+sealed 10,000-refit report. Downloadable evidence and exact reproduction are in
+[the delivery evidence](evidence/qualified_prop_sim/refit-acceleration/README.md).
