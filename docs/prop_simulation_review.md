@@ -12008,14 +12008,14 @@ schedules, quantities, account cash and dates:
 
 | Local account / phase | Original seconds | Prepared seconds | Complete output parity |
 | --- | ---: | ---: | --- |
-| Apex Evaluation | 1.28 | 0.49 | Exact |
-| Apex Funded | 1.16 | 0.49 | Exact |
-| LucidFlex Evaluation | 1.23 | 0.49 | Exact |
-| LucidFlex Funded | 1.18 | 0.68 | Exact |
+| Apex Evaluation | 1.61 | 0.54 | Exact |
+| Apex Funded | 1.29 | 0.55 | Exact |
+| LucidFlex Evaluation | 1.34 | 0.51 | Exact |
+| LucidFlex Funded | 1.28 | 0.53 | Exact |
 
 These timings are illustrative measurements on this machine, not production
-runtime promises. Source preparation was about 0.17 seconds, accounted snapshots
-15,168 bytes, process peak RSS about 100 MB. A 10,000-refit × 1,000-inner-path ×
+runtime promises. Source preparation was about 0.20 seconds, accounted snapshots
+15,168 bytes, process peak RSS about 108 MB. A 10,000-refit × 1,000-inner-path ×
 two-history assessment has 20 million account paths per frozen policy. Even this
 small horizon costs about 0.12–0.17 seconds per prepared path; extrapolation is
 multiple weeks serial and is not a measured full-history benchmark. It cannot
@@ -12076,3 +12076,16 @@ No campaign screening policy or backend threshold changed.
 Existing sealed reports and prior confirmations remain intact. Numerical source
 identity changes are explicit; old frozen native launches may require compatible
 requalification rather than bypassing their saved implementation guards.
+
+Applied-product verification: the existing port-8000 normal report
+`/#backtests/report/bfa89f7e4714444391e19ef577efeeb4` displays all 480/480 trades
+with valid NQ risk evidence, point value 20, and mean planned net R 0.19. This was
+derived from the original saved trades/decisions without a new backtest. Both
+source files retained their SHA-256 hashes. Inspect
+`artifacts/percentage-risk-research-20261114/existing-nq-verification.json`,
+`existing-nq-risk-diagnostics.json`, `existing-nq-risk-download.json` and
+`existing-nq-risk-panel.png`. The saved source period and campaign verdicts were
+not altered. The idle stable portal was restarted to load commit `baec9a3`; no
+queued/running optimization, mechanic or prop jobs were interrupted. Its new PID
+is 51439; stop it with `kill 51439` if needed. All temporary test servers were
+closed.
