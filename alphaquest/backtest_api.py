@@ -514,6 +514,13 @@ def result_page(request, run_id, kind, offset, limit):
     return page
 
 
+@router.get('/api/backtests/{run_id}/risk-diagnostics')
+def risk_diagnostics(run_id:UUID,request:Request):
+    from .risk_metrics import from_report
+    try:return from_report(request.app.state.runs,run_id.hex)
+    except (ValueError,OSError,KeyError,TypeError) as exc:raise HTTPException(409,str(exc)) from exc
+
+
 @router.get("/api/backtests/{run_id}/trades")
 def trade_page(run_id: UUID, request: Request, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)):
     return result_page(request, run_id, "trades", offset, limit)
@@ -572,6 +579,7 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
 
 @router.get("/api/backtests/{run_id}/exports/{kind}")
 def download(run_id: UUID, kind: str, request: Request):
+    if kind=='risk_metrics':return JSONResponse(risk_diagnostics(run_id,request),headers={'Content-Disposition':'attachment; filename="risk_metrics.json"'})
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
     if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control", "is_screening", "oos_screening") or record is None:

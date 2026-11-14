@@ -57,6 +57,9 @@ def artifacts(root, record):
         if record.get("artifacts", {}).get("execution_decisions_jsonl") != SIDE_CAR:
             raise ValueError("Unsupported native decision artifact.")
         names.add(SIDE_CAR)
+    if record.get('risk_diagnostics'):
+        if record.get('artifacts',{}).get('risk_metrics_json')!='risk_metrics.json':raise ValueError('Unsupported risk diagnostic artifact.')
+        names.add('risk_metrics.json')
     if record.get('native_account_control'):
         if record.get('artifacts', {}).get('native_account_control_json') != 'native_account_control.json':
             raise ValueError('Unsupported native account-control artifact.')

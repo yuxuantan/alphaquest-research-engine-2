@@ -144,6 +144,7 @@
     const balances = node("p", `Initial equity ${summary.initial_capital} ${reportCurrency} → Final equity ${summary.final_equity} ${reportCurrency}.${external ? ' Imported completed trades; open-position equity is not reconstructed.' : ' Account currency unspecified.'}`, "report-balances small");
     balances.id = "report-balances";
     holder.append(balances);
+    if(!external)window.attachRiskDiagnostics(holder,record.id);
   }
   const usd = (value, digits = 0) => value == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);
   const probability = (value) => value == null ? "N/A" : `${number.format(Number((value * 100).toFixed(1)))}%`;

@@ -157,6 +157,7 @@
       row.append(node('td',metric.label),node('td',metric.value == null ? 'N/A' : String(metric.value)),checkbox('metric_checks',metric.id,`MC parity · ${metric.label}`,workflow,passed)); metrics.body.append(row);
     }
     host.append(metrics.section);
+    window.attachRiskDiagnostics(host,workflow.run_id,{tradeIds:workflow.trade_samples.map(s=>String(s.id))});
     const samples = table('Trade samples',['Why chosen','Trade details · UTC','P&L and costs · CU','Same as MultiCharts?','Execution correct?']); samples.section.id = 'mechanic-trades';
     for (const sample of workflow.trade_samples) {
       const trade = sample.trade, row = node('tr'); row.dataset.tradeNumber = trade.trade_number;

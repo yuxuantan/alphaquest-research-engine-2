@@ -2996,3 +2996,42 @@ guards. Work started by a pre-checkpoint server cannot retroactively recover
 completed refits that it never saved.
 
 [Normal product evidence, exact oracles and reproduction](evidence/qualified_prop_sim/refit-acceleration/README.md).
+
+## Percentage-risk research increment — 2026-11-14
+
+The target extension is specified in [percentage risk research plan](percentage_risk_research_plan.md).
+The main Prop Sim automatic percentage optimizer is **not released**. Its existing
+fixed-size workflow, thresholds and path/refit counts are retained. The native
+research routes retain their existing explicit workload bounds and do not supply
+the proposed two-history OOS qualification.
+
+Campaign/backtest reports now expose **Risk-normalized research · diagnostics**.
+New decision-captured reports save `risk_metrics.json`; Broad/Narrow grids offer
+optional planned-net-R mean, median, total and coverage columns. The default
+varied-parameter visibility/freezing is unchanged. These measurements never add
+campaign eligibility conditions or mechanic-parity checkboxes.
+
+Planned net R divides actual net P&L by the filled quantity times causal initial
+stop loss, with that report's tick/point values, planned entry/stop-exit slippage
+and round-trip commission. The P&L is already net; these costs are not charged
+twice. Missing, invalid or late initial stops are unavailable. Full-history R
+summary statistics require every trade to have valid evidence. Complete observed
+calendar months use the source timezone, include zero-trade months, and retain
+coverage counts. Division uses 80-digit Decimal precision; UI values show 2dp.
+Actual-fill/initial-stop distance is a later diagnostic and never sizes an entry.
+
+Historical reports are not rewritten: verified saved trades and decision sidecars
+can derive the diagnostics on request without replaying the strategy. Sources
+without captured causal initial stops retain unavailable R values. The normal
+JSON download contains all rows and the input artifact hashes; the portal limits
+its visible trade-detail table to 100 rows. Panels load only when opened and do
+not start background calculations or alter saved screening verdicts.
+
+The existing native phase-research optimizers now prepare verified source-prefix
+snapshots once per candidate, with at most 32 MiB accounted snapshot storage.
+Every snapshot precedes its source block with entries disabled. Provider state,
+orders, positions and accepted quantities remain path-local. A cache miss uses
+the original full warmup. The source/strategy/account execution and requested
+paths remain unchanged; numerical implementation identities include the shared
+planned-loss owner. This is a verified preparation improvement, not production
+capacity qualification or a provider-parity claim.

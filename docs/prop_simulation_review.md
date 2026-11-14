@@ -11984,3 +11984,95 @@ the new numerical identity. Six historical report/ZIP seals are verified unchang
 See the delivery evidence's `live/` snapshots. This verifies launch/progress,
 not completion of the full real-data confidence work. Stop the persistent server
 with `kill 41520` after cooperatively stopping active jobs in the portal.
+
+## Percentage-risk research increment — 2026-11-14
+
+Scope and status: M1 of `percentage_risk_research_plan.md` is delivered; exact
+percentage-grid contracts and native prefix preparation are foundations. The main
+one-click percentage optimizer, native two-history OOS estimator and forward
+percentage review are not delivered. Do not infer their implementation from the
+presence of a pure grid helper or bounded native research simulations.
+
+The M0 release gate remains unmet. The live IS source inspected read-only was
+`bfa89f7e4714444391e19ef577efeeb4`, NQ point value 20, with observed coverage
+2021-01-03 through 2024-12-31. Its dataset has 3,210,351 rows. Current native
+research admission requires actual MNQ point value 2, at most 366 source calendar
+days/510,000 bars and complete one-minute sessions. Forecasts retain 512-path,
+365-day and separate work/capture bounds. No source was relabeled or resized and
+no native or OOS count was lowered to manufacture support. Checked NQ-to-MNQ
+adaptation and production-scale exact native execution remain required.
+
+Bounded capacity experiment (synthetic three-session source; four 3-day paths per
+profile/phase) compared full output dictionaries, including paths, captures,
+schedules, quantities, account cash and dates:
+
+| Local account / phase | Original seconds | Prepared seconds | Complete output parity |
+| --- | ---: | ---: | --- |
+| Apex Evaluation | 1.28 | 0.49 | Exact |
+| Apex Funded | 1.16 | 0.49 | Exact |
+| LucidFlex Evaluation | 1.23 | 0.49 | Exact |
+| LucidFlex Funded | 1.18 | 0.68 | Exact |
+
+These timings are illustrative measurements on this machine, not production
+runtime promises. Source preparation was about 0.17 seconds, accounted snapshots
+15,168 bytes, process peak RSS about 100 MB. A 10,000-refit × 1,000-inner-path ×
+two-history assessment has 20 million account paths per frozen policy. Even this
+small horizon costs about 0.12–0.17 seconds per prepared path; extrapolation is
+multiple weeks serial and is not a measured full-history benchmark. It cannot
+establish practical production capacity. The approved plan's section 14 therefore
+keeps the qualified main percentage option off while shipping the useful risk
+diagnostics. No production job was stopped to run the experiment.
+
+Normal product reproduction:
+
+1. Open an ordinary saved backtest report, or a campaign's mechanic validation,
+   Broad, Narrow or OOS results. Expand **Risk-normalized research · diagnostics**.
+2. Inspect causal-risk coverage, the saved baseline quantity/sizing owner, point
+   value, commission/slippage assumptions, mean/median/total/worst planned net R,
+   complete-month evidence when available, and the initial-risk trade details.
+   Mechanic validation restricts displayed rows to its existing trade samples;
+   no additional parity checkbox appears.
+3. In a new Broad/Narrow grid, use **Columns** to show the optional planned-R
+   metrics. Existing varied input parameters stay visible/frozen by default;
+   R columns are initially hidden. Historical grids keep their saved columns.
+4. Use **Risk diagnostics JSON ↓** to retain every trade row and source hashes.
+   Reload/reopen without recalculating the backtest. Missing old stop evidence
+   remains unavailable; changed or missing captured files reject with HTTP 409.
+
+The labeled synthetic product example uses the normal dataset -> IS backtest ->
+report -> diagnostic download workflow. Its independent fixture expects initial
+unit risks 10, 10, 20 USD and trade net profits -10, +20, +20 USD: planned net R
+is -1, +2, +1; mean 2/3, median 1, total 2 and worst -1. The UI shows 0.67, 1.00,
+2.00 and -1.00 respectively. A 0.20% initial-capital budget of 50,000 USD is 100
+USD; a 20-point MNQ stop with 0.50 USD commission each side and no slippage costs
+41 USD per contract and permits two contracts. NQ/ES diagnostic point values are
+independently checked; the MNQ sizing admission guard is not loosened for them.
+
+Reproduce the saved normal-product evidence and capacity experiment:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_RISK_EVIDENCE_DIR="$PWD/artifacts/percentage-risk-research-20261114/product" \
+.venv/bin/python -m pytest -q tests/test_research_risk_browser.py
+.venv/bin/python tests/review_percentage_native_capacity.py \
+  --output artifacts/percentage-risk-research-20261114/prepared-capacity.json
+```
+
+Evidence: `artifacts/percentage-risk-research-20261114/product/risk_metrics.json`,
+`risk-panel.png`, `risk-mobile.png`, `journey.json`, and the capacity JSON.
+Temporary browser servers are shut down by fixture teardown; no additional
+persistent server is needed. Analytical oracle data remains in tests, not in a
+new product endpoint or secondary result store.
+
+Focused checks cover arithmetic, reporting (including compact/streamed legacy
+reports), source/tamper/download/historical derivation, unchanged campaign parity,
+exact grids, native zero/full-cache parity and cancellation, ordinary native
+campaign persistence/freezing, and the affected report/mechanics/Broad/Narrow/OOS
+browser journeys. Two old browser expectations were aligned with already-approved
+behavior: campaign dataset selection resumes the latest selectable phase, and
+Narrow's tested-grid plateau requires 70% rather than the former two-thirds text.
+No campaign screening policy or backend threshold changed.
+
+Existing sealed reports and prior confirmations remain intact. Numerical source
+identity changes are explicit; old frozen native launches may require compatible
+requalification rather than bypassing their saved implementation guards.

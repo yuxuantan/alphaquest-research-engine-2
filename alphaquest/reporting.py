@@ -302,6 +302,15 @@ def generate_report(
             manifest['artifacts']['execution_decisions_jsonl'] = DECISION_FILE
             manifest['execution_decisions'] = dict(decision_summary, sha256=sha256((staging / DECISION_FILE).read_bytes()).hexdigest(),
                 policy='Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry.')
+        if decision_summary is not None:
+            from .risk_metrics import from_artifacts
+            diagnostic_record=json.loads(json.dumps(manifest,default=json_value,allow_nan=False))
+            risk_diagnostics=from_artifacts(staging,diagnostic_record)
+            risk_path=staging/'risk_metrics.json'
+            risk_path.write_text(json.dumps(risk_diagnostics,allow_nan=False,indent=2)+'\n')
+            manifest['risk_diagnostics']=dict(version=risk_diagnostics['version'],sha256=sha256(risk_path.read_bytes()).hexdigest(),
+                status=risk_diagnostics['status'],coverage=risk_diagnostics['coverage'],summary=risk_diagnostics['summary'])
+            manifest['artifacts']['risk_metrics_json']='risk_metrics.json'
         if market_benchmark is not None:
             manifest["market_benchmark"] = market_benchmark.finish(staging, summary)
             manifest["artifacts"].update(market_benchmark_json="market_benchmark.json", strategy_equity_day_csv="strategy_equity_day.csv")

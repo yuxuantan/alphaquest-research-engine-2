@@ -212,10 +212,14 @@ def choose_quantity(policy, state, risk=None, execution=None):
         ctx.prec = 256
         unit = None
         if needs_stop:
-            distance = (risk.decision_reference_price-risk.initial_stop_price)*(1 if risk.side == 'long' else -1)
             if any(price % execution.tick_size for price in (risk.decision_reference_price, risk.initial_stop_price)):
                 raise ValueError('Decision and stop prices must obey the declared executable tick grid.')
-            unit = (distance + execution.tick_size*(execution.entry_slippage_ticks+execution.stop_exit_slippage_ticks))*Decimal(execution.point_value) + 2*execution.commission_per_contract_per_side
+            from ..risk_metrics import planned_unit_loss
+            unit = planned_unit_loss(risk.decision_reference_price, risk.initial_stop_price, risk.side,
+                tick_size=execution.tick_size, point_value=execution.point_value,
+                entry_slippage_ticks=execution.entry_slippage_ticks,
+                stop_exit_slippage_ticks=execution.stop_exit_slippage_ticks,
+                commission_per_side=execution.commission_per_contract_per_side)
         cushion = state.equity_change_from_initial-state.account_floor_from_initial
         daily = state.equity_change_from_initial-state.daily_floor_from_initial if state.daily_floor_from_initial is not None else None
         basis = None

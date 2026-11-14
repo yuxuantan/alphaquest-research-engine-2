@@ -22,7 +22,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     playwright.expect(rules.locator('[data-stage="is_broad"]')).to_contain_text('24 calendar months')
     playwright.expect(rules.locator('[data-stage="is_broad"]')).to_contain_text('one extra tick')
     rules.locator('[data-stage="is_narrow"] summary').click()
-    playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('at least two-thirds')
+    playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('every neighbor must retain at least 70%')
     playwright.expect(rules.locator('[data-stage="is_narrow"]')).to_contain_text('confidence bound are shown for review')
     playwright.expect(rules.locator('[data-stage="is_narrow"] summary')).to_contain_text('IS Narrow · Implemented')
     rules.locator('[data-stage="is_narrow"] summary').click()

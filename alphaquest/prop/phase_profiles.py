@@ -837,7 +837,7 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
              'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
-             'native_draws.py', 'native_replay.py', 'native_search.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             'native_draws.py', 'native_replay.py', 'native_search.py', '../risk_metrics.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
              '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']

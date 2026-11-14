@@ -153,7 +153,7 @@ def check_native_candidates(datasets,runs,search,*,assessment=None,training_cont
     return sorted(rows,key=lambda row:row['candidate_id'])
 
 
-def prepare_native_candidate(datasets,runs,search,candidate,check,*,private_admission=False):
+def prepare_native_candidate(datasets,runs,search,candidate,check,*,private_admission=False,checkpoint=lambda:None):
     """Return execution inputs to a phase owner; never execute or select here."""
     from decimal import Decimal
     from ..strategies.registry import get_strategy
@@ -174,6 +174,8 @@ def prepare_native_candidate(datasets,runs,search,candidate,check,*,private_admi
     inputs=dict(catalogue=catalogue,target_contexts_by_cohort=cohorts,strategy_factory=factory,config=config,
         profile=candidate.profile,sizing=SizingConfiguration(**current['sizing']),micros=candidate.micros,
         forecast=request.native_forecast,max_micros=candidate.simulation.max_micros)
+    from .native_draws import NativePathPreparation
+    inputs['preparation']=NativePathPreparation(catalogue,factory,config,checkpoint=checkpoint)
     return inputs,plan
 
 

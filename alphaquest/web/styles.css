@@ -2106,3 +2106,7 @@ dialog::backdrop {
 .prop-portfolio-metrics .prop-sim-insight { margin: 0; }
 @media (max-width: 640px) { .prop-portfolio-panel { padding: 18px; } }
 .prop-portfolio-metrics .prop-sim-insight h3 { font-size: 28px; letter-spacing: -.03em; margin-block: 12px; }
+
+.research-risk-diagnostics { grid-column: 1 / -1; min-width: 0; }
+.research-risk-diagnostics > div { margin-top: 1rem; min-width: 0; }
+.research-risk-diagnostics .optimization-scroll { max-height: 24rem; }

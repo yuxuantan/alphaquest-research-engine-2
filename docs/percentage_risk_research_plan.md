@@ -1,6 +1,24 @@
 # Campaign edge research and independent percentage-risk optimization
 
-Status: **proposed implementation plan, not a claim of implemented support**.
+Status: **implementation in progress; campaign risk diagnostics delivered, main
+percentage optimizer not released**. The sections below remain the target design,
+not a claim that every milestone is implemented.
+
+Implementation checkpoint, 2026-11-14:
+
+| Milestone | Current implementation status |
+| --- | --- |
+| M0 | Bounded synthetic capacity experiment and source-gap audit completed. The production release gate is not met: no representative real-source 1,000-path result; current native bounds and NQ adaptation gaps remain. |
+| M1 | Instrument-aware planned net R, coverage, monthly/trade evidence, normal report and campaign panels, optional Broad/Narrow columns, verified downloads and historical derivation implemented. No screening or parity gate changed. |
+| M2 | Exact Decimal percentage-grid and policy-label contracts implemented internally and checked. Public grid declarations, complete API/report integration and automatic selection remain pending. |
+| M3 | Existing bounded native phase simulations retained; shared planned-loss arithmetic and exact source-prefix preparation added. This is not qualification of the planned production percentage workflow. |
+| M4 | Bounded 32 MiB prior-only feature snapshots remove repeated warmup and catalogue validation within native research candidates; full trace parity checked. Production-size compilation, streaming, counts/horizons and checkpoint qualification remain pending. |
+| M5–M7 | Native two-history OOS qualification, main automatic percentage controls and forward percentage-policy migration remain pending. Fixed-size workflow remains the available main Prop Sim mode. |
+
+The measured experiment, normal-product evidence and reproduction commands are
+recorded in [the implementation review](prop_simulation_review.md#percentage-risk-research-increment-2026-11-14).
+Following the capacity condition in section 14, the independently useful M1
+increment ships while the full native workload remains a release blocker.
 Prepared 2026-11-14 for `epic/revamp-workflow`, following the percentage-risk
 research-design discussion. Production behavior continues to be defined by
 [workflow screening](workflow_screening.md), [prop simulation](prop_simulation.md)

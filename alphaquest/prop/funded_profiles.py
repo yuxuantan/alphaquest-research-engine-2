@@ -142,7 +142,7 @@ class NativeFundedController(NativeControlBase):
 def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factory, config,
         profile, sizing, micros, *, forecast, receipt_delay_calendar_days,
         receipt_amount_convention, max_micros=40, checkpoint=lambda: None,
-        progress=lambda message: None, origin_weights=None):
+        progress=lambda message: None, origin_weights=None, preparation=None):
     """One fresh funded account per modeled path; receipt means include zeros."""
     from collections import Counter
     from dataclasses import asdict
@@ -165,7 +165,7 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             receipt_amount_convention=receipt_amount_convention)
         detailed = path_index < forecast.capture_paths
         output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
-            capture=detailed, checkpoint=checkpoint)
+            capture=detailed, checkpoint=checkpoint,preparation=preparation)
         result = output['result']
         row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
             cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],

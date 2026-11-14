@@ -163,12 +163,12 @@
                 else info.append(node('p','This historical grid only checked positive net profit. New selections require a grid with measured screening evidence.'));
                 td.append(info);
               }
-              else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
+              else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);window.attachRiskDiagnostics(td,row.run_id);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
               else td.textContent=key==='trial'?String(row.trial):key.startsWith('param.')?String(row.parameters[key.slice(6)]):metricValue(key,row.metrics[key]);tr.append(td);
             }table.tBodies[0].append(tr);}
           columns.defaultFrozen=['select','trial',...varying.map(name=>'param.'+name)];
           columns.configure('campaign-broad:'+workflow.declaration.strategy_id+':'+job.id,headers,
-            headers.filter(([key])=>!key.startsWith('param.')||varying.includes(key.slice(6))).map(([key])=>key));
+            headers.filter(([key])=>(!key.startsWith('param.')||varying.includes(key.slice(6)))&&!['planned_net_r_mean','planned_net_r_median','planned_net_r_total','risk_coverage_pct'].includes(key)).map(([key])=>key));
           previous.disabled=!offset;next.disabled=offset+page.items.length>=page.total;pageInfo.textContent=page.total?`${offset+1}–${offset+page.items.length} of ${page.total}`:'No saved results yet';
           frozen.replaceChildren();
           if(state.confirmed_at_utc){frozen.append(node('p','Selection is confirmed and locked.'));for(const item of state.selection){frozen.append(node('pre',JSON.stringify(item.parameters,null,2)));}action(frozen,'Continue to IS Narrow →',`#campaigns/workflows/${workflow.id}/is_narrow`);}

@@ -188,7 +188,7 @@ class NativeEvaluationController(NativeControlBase):
 
 def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_factory, config,
         profile, sizing, micros, *, forecast, retry, max_micros=40, checkpoint=lambda: None,
-        progress=lambda message: None):
+        progress=lambda message: None, preparation=None):
     """Actual native execution under the declared draw law, ending at acquisition.
 
     Unresolved paths retain every paid fee. They cannot identify an untruncated
@@ -214,7 +214,7 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
             calendar=calendar, retry=retry)
         detailed = path_index < forecast.capture_paths
         output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
-            capture=detailed, checkpoint=checkpoint)
+            capture=detailed, checkpoint=checkpoint,preparation=preparation)
         result = output['result']
         elapsed = (result['calendar_days_to_funded'] if result['acquisition_completed'] else
                    (date.fromisoformat(result['effective_observation_cutoff_exclusive'])-first).days)

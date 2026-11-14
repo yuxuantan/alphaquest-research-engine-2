@@ -180,7 +180,7 @@ def implementation_identity():
         'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py',
         'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
         'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
-        'native_draws.py', 'native_replay.py', 'native_search.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+        'native_draws.py', 'native_replay.py', 'native_search.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
         '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
@@ -409,7 +409,7 @@ def optimize_native_funded(datasets,runs,search,checks,progress,*,assessment=Fal
     for check in checks:
         c=configurations[canonical(check['manifest']['configuration'])]
         progress(f'Native Funded candidate {len(rows)+1}/{len(checks)}')
-        inputs,plan=prepare_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None)
+        inputs,plan=prepare_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None,checkpoint=checkpoint)
         forecast=forecast_native_funded(**inputs,receipt_delay_calendar_days=search.receipt_delay_calendar_days,
             receipt_amount_convention='kernel_entitlement_unrounded',progress=progress,checkpoint=checkpoint)
         if canonical(forecast['schedules'])!=canonical(plan['schedules']):raise ValueError('Native candidate schedule changed.')

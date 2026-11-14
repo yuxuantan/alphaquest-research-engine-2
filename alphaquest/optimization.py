@@ -169,6 +169,8 @@ class OptimizationStore:
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()},
                "metric_columns": list(METRICS if request.automatic_prop else BACKTEST_METRICS)}
+        from .risk_metrics import METRIC_COLUMNS as RISK_COLUMNS
+        job['metric_columns'].extend(RISK_COLUMNS)
         if candidates is not None:
             job['candidate_parameters'] = candidates
             job['research'] = dict(research, oos_job_id=job['id'])
@@ -475,6 +477,8 @@ class OptimizationStore:
                "parameters": record["run_metadata"]["strategy"]["parameters"],
                "metrics": {name: record["summary"][name] for name in BACKTEST_METRICS},
                "execution": result["execution"]}
+        from .risk_metrics import result_metrics
+        row['metrics'].update(result_metrics(record))
         if record.get('is_screening'):
             row['screening'] = record['is_screening']
             row['metrics'].update(record['is_screening']['metrics'])

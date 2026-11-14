@@ -401,11 +401,15 @@ class _ClockView:
 
 
 def run_path(catalogue, schedule, owner, strategy_factory, config, target_contexts, *,
-             capture=False, checkpoint=lambda: None):
+             capture=False, checkpoint=lambda: None, preparation=None):
     """Run one full declared path; failures invalidate the path, never redraw it."""
     if type(capture) is not bool:
         raise ValueError('Detailed path capture must be a strict boolean.')
-    catalogue = verify_catalogue(catalogue, checkpoint=checkpoint)
+    if preparation is not None:
+        if type(preparation) is not NativePathPreparation or preparation.catalogue is not catalogue or preparation.config!=config:
+            raise ValueError('Native preparation source/configuration differs.')
+        catalogue=preparation.checked
+    else:catalogue = verify_catalogue(catalogue, checkpoint=checkpoint)
     strategy = strategy_factory()
     if type(strategy) is not VwapPullbackRiskSizing or strategy.config != config:
         raise ValueError('Native draws require the actual supported VWAP strategy and exact execution configuration.')
@@ -440,13 +444,14 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
         if (type(strategy) is not VwapPullbackRiskSizing or strategy.config != config
                 or _parameters(strategy.parameters) != catalogue.parameters_json):
             raise ValueError('Strategy factory changed its immutable block parameters.')
-        for index in range(first):
-            value = catalogue.bars[index]
-            strategy.validate_holding_bar(value, None)
-            if strategy.on_bar_controlled(value, None, lambda proposal: None) is not None:
-                raise ValueError('Feature-only prefix produced an executable intent.')
-            if index % 1000 == 0:
-                checkpoint()
+        if preparation is not None:strategy=preparation.strategy(first,checkpoint)
+        else:
+            for index in range(first):
+                value = catalogue.bars[index]
+                strategy.validate_holding_bar(value, None)
+                if strategy.on_bar_controlled(value, None, lambda proposal: None) is not None:
+                    raise ValueError('Feature-only prefix produced an executable intent.')
+                if index % 1000 == 0:checkpoint()
         mapping = {s.context.session:date.fromisoformat(target)
                    for s, target in zip(selected, draw['target_sessions'], strict=True)}
         for source_day, target_day in mapping.items():
@@ -496,3 +501,59 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
                 source_session=None, target_session=day)))
     return dict(result=result, source_model_clock_mapping=mappings, captures=captures,
                 schedule_sha256=fresh['schedule_sha256'], catalogue_sha256=catalogue.catalogue_sha256)
+
+
+class NativePathPreparation:
+    """Checked immutable source and feature-only prefix snapshots for one worker.
+
+    Snapshots precede all sampled-block decisions. Accepted orders, positions and
+    provider state are never shared between accounts. A budget miss replays the
+    original prefix, preserving exact behavior instead of truncating history.
+    """
+    VERSION='native-prefix-preparation-v1'
+    MAX_BYTES=32*1024*1024
+
+    def __init__(self,catalogue,strategy_factory,config,*,max_bytes=MAX_BYTES,checkpoint=lambda:None):
+        if type(max_bytes) is not int or not 0<=max_bytes<=self.MAX_BYTES:raise ValueError('Native preparation budget must be 0–32 MiB.')
+        self.catalogue=catalogue;self.checked=verify_catalogue(catalogue,checkpoint=checkpoint)
+        self.factory=strategy_factory;self.config=config;self.max_bytes=max_bytes;self.bytes_used=0;self.snapshots={}
+        warm=strategy_factory()
+        if type(warm) is not VwapPullbackRiskSizing or warm.config!=config or _parameters(warm.parameters)!=catalogue.parameters_json:
+            raise ValueError('Native prefix strategy identity differs.')
+        boundaries={s.first_bar for s in catalogue.sessions}
+        # No need to advance through the final session: no future prefix uses it.
+        end=max(boundaries)
+        for index in range(end+1):
+            if index in boundaries:
+                charge=4096+32*(len(warm._history)+len(warm._adx_history))
+                if self.bytes_used+charge<=self.max_bytes:
+                    self.snapshots[index]=self.clone(warm);self.bytes_used+=charge
+            if index==end:break
+            if index%1000==0:checkpoint()
+            bar=catalogue.bars[index];warm.validate_holding_bar(bar,None)
+            if warm.on_bar_controlled(bar,None,lambda proposal:None) is not None:
+                raise ValueError('Feature-only prefix produced an executable intent.')
+
+    @staticmethod
+    def clone(strategy):
+        import copy
+        from collections import deque
+        result=copy.copy(strategy)
+        result._history=deque(strategy._history,maxlen=strategy._history.maxlen)
+        result._adx_history=deque(strategy._adx_history,maxlen=strategy._adx_history.maxlen)
+        result._adx=copy.copy(strategy._adx)
+        result._session_digest=strategy._session_digest.copy()
+        result.session_flattening=copy.deepcopy(strategy.session_flattening)
+        # Parameters/config, source Bar/Decimal values and reviewed calendar/plan
+        # objects are immutable. Latches and counters are scalar value fields.
+        return result
+
+    def strategy(self,first,checkpoint):
+        if first in self.snapshots:return self.clone(self.snapshots[first])
+        strategy=self.factory()
+        for index in range(first):
+            if index%1000==0:checkpoint()
+            bar=self.catalogue.bars[index];strategy.validate_holding_bar(bar,None)
+            if strategy.on_bar_controlled(bar,None,lambda proposal:None) is not None:
+                raise ValueError('Feature-only prefix produced an executable intent.')
+        return strategy
