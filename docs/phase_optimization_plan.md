@@ -21,6 +21,16 @@ and product boundary in [prop simulation](prop_simulation.md). The portal extens
 below is implemented; provider rules are not newly verified. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
 
+## Proposed percentage-risk research extension — 2026-11-14
+
+[The end-to-end implementation plan](percentage_risk_research_plan.md) proposes
+one-contract campaign baselines with causal planned-R diagnostics, then independent
+percentage-risk grids for Evaluation and Funded in Apex/Lucid Prop Sim. It includes
+native execution, explicit sampling/OOS qualification, capacity gaps, automatic
+freezing, paper review, compatibility and milestone evidence. This is a proposed
+extension; the current main form remains a fixed-contract optimizer. Existing
+native research/portfolio policies are foundations, not completion of this plan.
+
 ## Campaign-qualified single-source portal — 2026-11-12
 
 Current extension on this date: the main Prop Sim portal also supports explicit
