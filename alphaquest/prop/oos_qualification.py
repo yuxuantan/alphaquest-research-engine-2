@@ -34,12 +34,15 @@ LIMITATIONS = [
 
 
 def implementation():
-    from . import assessment_review,oos_bootstrap,parallel
+    from . import assessment_review,oos_bootstrap,parallel,native_oos_bootstrap,native_percentage_qualification,native_account_starts
     from .. import prop_sim_forward,forward_monitoring
     return dict(version=RULES['version'], files={
         'oos_qualification.py':sha256(Path(__file__).read_bytes()).hexdigest(),
         'assessment_review.py':sha256(Path(assessment_review.__file__).read_bytes()).hexdigest(),
         'oos_bootstrap.py':sha256(Path(oos_bootstrap.__file__).read_bytes()).hexdigest(),
+        'native_percentage_qualification.py':sha256(Path(native_percentage_qualification.__file__).read_bytes()).hexdigest(),
+        'native_account_starts.py':sha256(Path(native_account_starts.__file__).read_bytes()).hexdigest(),
+        'native_oos_bootstrap.py':sha256(Path(native_oos_bootstrap.__file__).read_bytes()).hexdigest(),
         'parallel.py':sha256(Path(parallel.__file__).read_bytes()).hexdigest(),
         'prop_sim_forward.py':sha256(Path(prop_sim_forward.__file__).read_bytes()).hexdigest()},
         forward_implementation=forward_monitoring.implementation_identity(),numpy=np.__version__)
@@ -156,7 +159,10 @@ def historical_ratios(is_days,oos_days,is_candidate,oos_candidate,search,checkpo
     return run(is_days,oos_days,is_candidate,oos_candidate,search,checkpoint,progress,resume=resume)
 
 
-def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,*,analysis_id=None):
+def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,*,analysis_id=None,datasets=None):
+    if search.native_execution is not None and search.native_execution.prepared_execution:
+        from .native_percentage_qualification import qualify_native
+        return qualify_native(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,analysis_id=analysis_id,datasets=datasets)
     from .assessment_review import distribution,run_start_sensitivity
     from .phase_profiles import SavedTradeSource,ResearchPeriod,prepare_phase_source,verify_phase_source
     from .phase_search import capture_inputs

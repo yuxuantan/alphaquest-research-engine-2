@@ -1,6 +1,6 @@
 """Fresh-funded orchestration; acquisition inputs never enter these runners."""
 import numpy as np
-from .native_control import NativeControlBase
+from .native_control import NativeControlBase,verified_native_profile
 
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, FundedProfile, FundedProfileResult, ResearchPeriod,
@@ -27,7 +27,7 @@ class NativeFundedController(NativeControlBase):
         from .native_control import exact_rule_values
         from .phase_profiles import profile_settings
         if type(profile) is not FundedProfile:raise ValueError('Native funded control requires a FundedProfile.')
-        profile_settings(profile,SourceCosts())
+        verified_native_profile(profile)
         if type(receipt_delay_calendar_days) is not int or not 0<=receipt_delay_calendar_days<=365:
             raise ValueError('Native funded receipts require an explicit calendar-day lag.')
         if receipt_amount_convention not in ('kernel_entitlement_unrounded','usd_cents_half_up'):
@@ -53,6 +53,7 @@ class NativeFundedController(NativeControlBase):
 
     def _advance_calendar(self,until):
         from datetime import timedelta
+        if self.account.outcome!='open':self._calendar_cursor=max(self._calendar_cursor,until);return
         while self._calendar_cursor<until:
             self._calendar_cursor+=timedelta(days=1)
             if self.lucid and self.account.outcome=='open':
@@ -132,7 +133,7 @@ class NativeFundedController(NativeControlBase):
             modeled_rules=dict(profile_id=self.profile.profile_id,rule_version=self.profile.rule_version,
                 initial_configured_capital='50000',parameters=asdict(self.rules),
                 arithmetic='Exact Decimal state for native actual fills; legacy fixed-book float arithmetic is unchanged.'),
-            lifetime_censored=self.account.outcome=='open',observed_sessions=len(self.session_trace),active_sessions=self.account.day,
+            lifetime_censored=self.account.outcome=='open',observed_sessions=len(self._visited_sessions),active_sessions=self.account.day,
             gross_account_deductions=str(gross),raw_trader_entitlement=str(raw),provider_retained_share=str(share),
             cash_received=str(received),pending_cash=str(pending),net_cash=str(received),receipt_rounding_delta=str(rounding),
             receipt_amount_convention=self.receipt_convention,payout_events=events,cash_ledger=ledger,
@@ -142,30 +143,40 @@ class NativeFundedController(NativeControlBase):
 def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factory, config,
         profile, sizing, micros, *, forecast, receipt_delay_calendar_days,
         receipt_amount_convention, max_micros=40, checkpoint=lambda: None,
-        progress=lambda message: None, origin_weights=None, preparation=None):
+        progress=lambda message: None, origin_weights=None, preparation=None,parallel=True):
     """One fresh funded account per modeled path; receipt means include zeros."""
     from collections import Counter
     from dataclasses import asdict
     from .native_draws import build_schedule, run_path
     from .phase_profiles import equal_stratum_mean, native_forecast_layout
-    _, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue)
+    _, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,preparation=preparation)
     parameters = strategy_factory().parameters
     paths, schedules, captures = [], [], []
+    prepared_outputs=None
+    if forecast.model=='native_percentage_observed_blocks_v2':
+        from .native_preparation import prepared_forecast_outputs
+        prepared_outputs=prepared_forecast_outputs(catalogue,target_contexts_by_cohort,strategy_factory,config,profile,sizing,micros,forecast,
+            phase='funded',max_micros=max_micros,checkpoint=checkpoint,progress=progress,preparation=preparation,
+            origin_weights=origin_weights,parallel=parallel,receipt_delay_calendar_days=receipt_delay_calendar_days,receipt_amount_convention=receipt_amount_convention)
     for path_index in range(forecast.simulations):
         checkpoint()
         cohort_index = path_index % len(cohorts)
         start, first, cutoff, contexts = cohorts[cohort_index]
-        progress(f'Native Funded forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
-        schedule = build_schedule(catalogue, contexts, parameters, phase='funded',
-            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff,
-            **({'origin_weights':origin_weights} if origin_weights is not None else {}))
-        owner = NativeFundedController(profile, sizing, micros, max_micros=max_micros,
-            session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
-            receipt_delay_calendar_days=receipt_delay_calendar_days,
-            receipt_amount_convention=receipt_amount_convention)
-        detailed = path_index < forecast.capture_paths
-        output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
-            capture=detailed, checkpoint=checkpoint,preparation=preparation)
+        if prepared_outputs is None:progress(f'Native Funded forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
+        detailed=path_index<forecast.capture_paths
+        if prepared_outputs is not None:
+            output=prepared_outputs[path_index];schedule=output['schedule']
+        else:
+            schedule = build_schedule(catalogue, contexts, parameters, phase='funded',
+                seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff,
+                **({'origin_weights':origin_weights} if origin_weights is not None else {}))
+            owner = NativeFundedController(profile, sizing, micros, max_micros=max_micros,
+                session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
+                receipt_delay_calendar_days=receipt_delay_calendar_days,
+                receipt_amount_convention=receipt_amount_convention)
+            detailed = path_index < forecast.capture_paths
+            output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
+                capture=detailed, checkpoint=checkpoint,preparation=preparation)
         result = output['result']
         row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
             cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
@@ -179,8 +190,8 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             row[key] = result[key]
         paths.append(row); schedules.append(schedule)
         if detailed:
-            captures.append(dict(path_index=path_index, cohort_index=cohort_index, **output))
-        progress(f'Native Funded forecast completed path {path_index+1}/{forecast.simulations}.')
+            captures.append({**output,'path_index':path_index,'cohort_index':cohort_index})
+        if prepared_outputs is None:progress(f'Native Funded forecast completed path {path_index+1}/{forecast.simulations}.')
     def estimate(key):
         return equal_stratum_mean([[row[key] for row in paths if row['cohort_index']==index]
                                   for index in range(len(cohorts))])

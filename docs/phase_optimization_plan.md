@@ -21,7 +21,21 @@ and product boundary in [prop simulation](prop_simulation.md). The portal extens
 below is implemented; provider rules are not newly verified. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
 
-## Proposed percentage-risk research extension — 2026-11-14
+## Independent percentage-risk optimizer — 2026-11-15
+
+The [percentage research plan](percentage_risk_research_plan.md) is implemented
+through M0–M7 in the existing main Prop Sim workflow: independent exact percentage
+grids for Apex/Lucid Evaluation and Funded, causal native execution, automatic IS
+selection/freeze, native OOS forecasts plus chronology, the versioned 10,000-refit
+qualification law and supplied-event forward review. Supported strategy capability
+and resource/evidence limits are explicit in [the current contract](prop_simulation.md).
+Current product evidence and reproduction are in [the review](prop_simulation_review.md).
+Existing fixed-contract objectives, historical reports and portfolio work remain.
+
+## Proposed percentage-risk research extension — 2026-11-14 (historical)
+
+The following proposal describes the earlier checkpoint, superseded by the
+implementation above.
 
 [The end-to-end implementation plan](percentage_risk_research_plan.md) proposes
 one-contract campaign baselines with causal planned-R diagnostics, then independent

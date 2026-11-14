@@ -55,7 +55,7 @@ Keep the opt-out eligibility covered in `tests/test_campaign_narrow.py`.
 The main Prop Sim tab is orchestrated by `alphaquest/prop_sim.py` and
 `alphaquest/web/prop-sim.js`. Keep campaign mechanics/Broad/Narrow/current OOS/
 latest current-policy Monte Carlo qualification server-owned and rechecked at
-launch. Exactly one configuration is supported by independent fixed-size searches. Reuse the independent
+launch. Exactly one configuration is supported by independent fixed-contract or percentage-risk searches. Reuse the independent
 phase campaigns/AnalysisStore; do not duplicate their numerical engines or turn
 the parent phase-reference record into another result store. Select
 `tests/test_prop_sim.py` explicitly for admission/orchestration changes and the
@@ -299,3 +299,50 @@ only, throttled to one-second writes. Prop Sim and Job history share
 `web/prop-progress.js`; no polling-triggered calculations. Check exact serial
 parity/cancellation with `test_prop_confidence_parallel.py` and the actual product
 journey in `test_prop_confidence_parallel_browser.py`. Preserve old sealed reports.
+
+
+# Independent percentage-risk optimizer (2026-11-15)
+
+The main Prop Sim supports fixed contracts and independent percentage-risk grids
+for Evaluation and Funded, for Apex 50K EOD and LucidFlex 50K. See the completed
+M0–M7 contract in `docs/percentage_risk_research_plan.md` and the dated implementation
+and evidence in `docs/prop_simulation.md` / `docs/prop_simulation_review.md`.
+Percentage policies use `prop/sizing_search.py` exact decimal axes and the native
+V2 observed-block execution law. `micros` in their manifests is a ceiling, never
+a fixed executed quantity. Display the policy and separate quantity diagnostics.
+
+`native_preparation.py` compiles actual causal VWAP opportunities and indexes
+observed prices; ordinary `execution.execute` and the existing phase controllers
+still own fills and cash. Never replace it with post-hoc trade scaling. Admission
+currently requires EOD flat, local volume sizing off, one accepted entry per reset
+day and a supported same-day entry window. Unknown/unsupported capability rejects.
+Historical CME maintenance pauses are explicitly reviewed in
+`native_market_hours.py`; genuine holding-price gaps still reject.
+
+Retain all requested paths (8–20,000), all policy members and all 10,000 OOS outer
+refits. Bound regenerable prefix/uniform caches and first-five-source-session
+diagnostic captures separately from complete financial outcomes and payout events.
+Do not restore V1 aggregate work/report caps for V2. V1 limits and sealed reports
+remain historical. Existing Runtime, AnalysisStore, cancellation and completed-refit
+checkpoints own work; no second scheduler or result store.
+
+`native_oos_bootstrap.py` / `native_percentage_qualification.py` own the separately
+versioned native two-history origin-frequency law. Freeze the complete IS policy
+before OOS; never resample IS into OOS or optimize a replacement inside a refit.
+Preserve full counts, role/index-derived seeds and source/engine identity guards.
+GO still requires supplied-event forward review; it does not authorize live trading.
+
+Focused verification: `test_percentage_grid.py`, `test_native_event_preparation.py`,
+`test_percentage_native_forecasts.py`, `test_percentage_native_bootstrap.py`,
+`test_percentage_source_spool.py`, `test_percentage_market_hours.py`,
+`test_percentage_phase_api.py`, `test_percentage_oos_api.py`,
+`test_percentage_automatic.py`, `test_percentage_account_starts.py`, and opt-in
+`test_percentage_prop_browser.py`. Use existing fixed-size/forward compatibility
+checks when touching those owners. Fixture-only evidence overrides must remain
+explicitly labeled in tests and must never appear in production admission.
+
+Native OOS campaign launch must use `saved_oos_period()` in the campaign builder
+as well as the frozen-family validator. Historical reports can retain a partial
+extra session beyond their declared split. Do not expand the frozen OOS window or
+weaken parent/strategy/dataset/plan/cost checks to accept it. The regression is in
+`tests/test_percentage_oos_api.py`.

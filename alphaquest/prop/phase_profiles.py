@@ -175,12 +175,21 @@ class NativeExecution:
     early_closes: dict = field(default_factory=dict)
     capture_paths: int = 1
 
+    @property
+    def prepared_execution(self):return self.model=='native_percentage_observed_blocks_v2'
+
+    @property
+    def source_adaptation(self):return 'NQ_or_MNQ_reference_MNQ_execution' if self.prepared_execution else 'saved_MNQ'
+
     def __post_init__(self):
         import re
-        if self.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+        if self.model not in ('observed_contiguous_blocks_with_prior_prefix_v1','native_percentage_observed_blocks_v2'):
             raise ValueError('Unknown native execution law.')
-        if type(self.horizon_calendar_days) is not int or not 1 <= self.horizon_calendar_days <= 365:
-            raise ValueError('Native execution horizon must be 1 through 365 calendar days.')
+        if type(self.horizon_calendar_days) is not int or not 1 <= self.horizon_calendar_days <= (3650 if self.model=='native_percentage_observed_blocks_v2' else 365):
+            raise ValueError('Native execution horizon exceeds the declared model range (legacy: 365; prepared percentage: 3650 calendar days).')
+        if type(self.prepared_execution) is not bool or self.source_adaptation not in ('saved_MNQ','NQ_or_MNQ_reference_MNQ_execution'):
+            raise ValueError('Unknown native execution preparation/adaptation.')
+        if self.model=='native_percentage_observed_blocks_v2' and not self.prepared_execution:raise ValueError('Percentage native model requires checked event preparation.')
         if type(self.capture_paths) is not int or not 1 <= self.capture_paths <= 20:
             raise ValueError('Native detailed path capture must be 1 through 20.')
         if type(self.early_closes) is not dict:
@@ -214,11 +223,11 @@ def equal_stratum_mean(groups):
         precision_status='conditional_mc_only' if enough else 'insufficient_within_cohort_replication')
 
 
-def assessment_scenarios(candidate, assessment):
+def assessment_scenarios(candidate, assessment, *, native=False):
     """Declared frozen-choice diagnostics; never enumerate other sizes or policies."""
     from dataclasses import replace
     if assessment['kind']!='is_robustness':return [('full_period',candidate)]
-    blocks=sorted({1,5,20,candidate.sampling.block_weekdays})
+    blocks=sorted({1,5,10 if native else 20,candidate.sampling.block_weekdays})
     result=[(f'block_{block}',replace(candidate,sampling=replace(candidate.sampling,block_weekdays=block))) for block in blocks]
     grid=pd.bdate_range(candidate.period.first_session,candidate.period.last_session)
     if len(grid)<4:raise ValueError('Robustness halves require at least four source weekdays.')
@@ -228,16 +237,24 @@ def assessment_scenarios(candidate, assessment):
     return result
 
 
-def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
+def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,*,preparation=None):
     """Validate the shared declared calendar/layout, without running a phase."""
     from datetime import timedelta, timezone
     from .cash_ledger import replay_calendar_sessions
     from .phase_search import PhaseCalendar
-    if forecast.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+    from .adapter import canonical
+    prepared=forecast.model=='native_percentage_observed_blocks_v2'
+    from .native_control import NativeSessionInventory
+    cache_key=None
+    if prepared and preparation is not None and all(type(c) is NativeSessionInventory for c in target_contexts_by_cohort.values()):
+        cache_key=(tuple((s,id(c)) for s,c in target_contexts_by_cohort.items()),forecast.model,forecast.simulations,forecast.seed,forecast.block_sessions,forecast.horizon_calendar_days,canonical(forecast.calendar),canonical(forecast.early_closes))
+        if not hasattr(preparation,'native_layouts'):preparation.native_layouts={}
+        if cache_key in preparation.native_layouts:return preparation.native_layouts[cache_key]
+    if forecast.model not in ('observed_contiguous_blocks_with_prior_prefix_v1','native_percentage_observed_blocks_v2'):
         raise ValueError('Unknown native forecast law.')
-    if type(forecast.simulations) is not int or not 2 <= forecast.simulations <= 512:
-        raise ValueError('Native forecasts require 2 through 512 paths.')
-    if type(forecast.capture_paths) is not int or not 1 <= forecast.capture_paths <= min(20, forecast.simulations):
+    if type(forecast.simulations) is not int or not 2 <= forecast.simulations <= (20000 if prepared else 512):
+        raise ValueError('Native forecasts require 2 through 20,000 paths in V2, or at most 512 in legacy V1.')
+    if type(forecast.capture_paths) is not int or not (0 if prepared else 1) <= forecast.capture_paths <= min(20, forecast.simulations):
         raise ValueError('Native forecasts require an explicitly bounded path capture count.')
     if catalogue.block_sessions != forecast.block_sessions:
         raise ValueError('Native forecast source block length differs from its declaration.')
@@ -268,6 +285,7 @@ def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
                for day, context in contexts.items()):
             raise ValueError('Native forecast contexts differ from the saved modeled calendar declaration.')
         result.append((start, first, cutoff, contexts))
+    if cache_key is not None:preparation.native_layouts[cache_key]=(calendar,result)
     return calendar, result
 
 
@@ -837,7 +855,7 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
              'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
-             'native_draws.py', 'native_replay.py', 'native_search.py', '../risk_metrics.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', '../risk_metrics.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
              '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']

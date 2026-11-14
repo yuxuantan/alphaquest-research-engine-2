@@ -9,11 +9,15 @@ import re
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, field_serializer, model_validator
 
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True)
+
+    @field_serializer('*',check_fields=False)
+    def plain_decimal(self,value):
+        return format(value,'f') if isinstance(value,Decimal) else value
 
 
 def amount(value):
@@ -195,6 +199,16 @@ def ratio_floor(numerator, denominator, *, strict=False):
     return max(0, (a*d-int(strict))//(b*c))
 
 
+from functools import lru_cache
+@lru_cache(maxsize=8192)
+def _distance_loss(distance,tick,point,entry_ticks,exit_ticks,commission):
+    # All original price-grid and direction checks precede this pure memo.
+    # Distance, costs and arithmetic are exact; no trade/account outcome enters.
+    from ..risk_metrics import planned_unit_loss
+    return planned_unit_loss(distance,Decimal(0),'long',tick_size=tick,point_value=point,
+        entry_slippage_ticks=entry_ticks,stop_exit_slippage_ticks=exit_ticks,commission_per_side=commission)
+
+
 def choose_quantity(policy, state, risk=None, execution=None):
     """Return an auditable whole-MNQ decision without changing source or state.
 
@@ -214,12 +228,9 @@ def choose_quantity(policy, state, risk=None, execution=None):
         if needs_stop:
             if any(price % execution.tick_size for price in (risk.decision_reference_price, risk.initial_stop_price)):
                 raise ValueError('Decision and stop prices must obey the declared executable tick grid.')
-            from ..risk_metrics import planned_unit_loss
-            unit = planned_unit_loss(risk.decision_reference_price, risk.initial_stop_price, risk.side,
-                tick_size=execution.tick_size, point_value=execution.point_value,
-                entry_slippage_ticks=execution.entry_slippage_ticks,
-                stop_exit_slippage_ticks=execution.stop_exit_slippage_ticks,
-                commission_per_side=execution.commission_per_contract_per_side)
+            distance=(risk.decision_reference_price-risk.initial_stop_price)*(1 if risk.side=='long' else -1)
+            unit=_distance_loss(distance,execution.tick_size,execution.point_value,
+                execution.entry_slippage_ticks,execution.stop_exit_slippage_ticks,execution.commission_per_contract_per_side)
         cushion = state.equity_change_from_initial-state.account_floor_from_initial
         daily = state.equity_change_from_initial-state.daily_floor_from_initial if state.daily_floor_from_initial is not None else None
         basis = None

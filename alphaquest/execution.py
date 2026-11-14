@@ -497,7 +497,7 @@ def _protect_entry(account, entry, bar, strategy, reference, phase):
 
 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
-            account_control=None,continuation=None,completion='strategy_finish') -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
+            account_control=None,continuation=None,completion='strategy_finish',prepared_path=None) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     Preparation is optional. The calendar-based VWAP strategy uses the causal
@@ -508,11 +508,11 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
         raise ExecutionError('Controlled native execution cannot run a strategy historical preparation pass.')
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
         yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
-                            account_control=account_control,continuation=continuation,completion=completion)
+                            account_control=account_control,continuation=continuation,completion=completion,prepared_path=prepared_path)
 
 
 def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
-             account_control=None,continuation=None,completion='strategy_finish') -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
+             account_control=None,continuation=None,completion='strategy_finish',prepared_path=None) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -542,6 +542,11 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
     if continuation is not None and (account_control is None or type(continuation) is not ExecutionContinuation
                                      or continuation.engine_initial_capital!=config.initial_capital):
         raise ExecutionError('A continuation requires controlled execution and the unchanged original capital.')
+    if prepared_path is not None:
+        from .prop.native_preparation import NativeEventPath
+        if (type(prepared_path) is not NativeEventPath or bars is not prepared_path or strategy is not prepared_path
+                or account_control is not prepared_path.adapter or capture_decisions or capture_risk or observe_bar is not None):
+            raise ExecutionError('Prepared execution requires its checked private native event path and no per-bar/risk capture.')
     account = _Account(config, capture_risk, fill_assumptions, capture_decisions)
     if continuation is not None:
         account.cash=continuation.trading_cash
@@ -555,6 +560,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             yield pending
         _validate_bar(bar, previous)
         if control is not None:
+            if prepared_path is not None:control.session_bars+=prepared_path.skipped
             control.begin_bar(bar,previous,next_order)
         holding_check = getattr(strategy, "validate_holding_bar", None)
         if holding_check is not None:
@@ -652,6 +658,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         yield from account.drain_decisions()
         pending = account.mark(bar)
         previous = bar
+        if prepared_path is not None:prepared_path.after_bar(account,next_order,control.snapshot(bar))
     if previous is None:
         raise ExecutionError("Cannot execute an empty dataset: no last bar for on_finish.")
     if completion=='require_flat':

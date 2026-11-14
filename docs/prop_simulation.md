@@ -3035,3 +3035,183 @@ the original full warmup. The source/strategy/account execution and requested
 paths remain unchanged; numerical implementation identities include the shared
 planned-loss owner. This is a verified preparation improvement, not production
 capacity qualification or a provider-parity claim.
+
+## Independent percentage-risk searches — 2026-11-15
+
+The main Prop Sim workflow supports **fixed contracts** and **percentage risk**.
+Percentage mode uses one qualified VWAP configuration and separate exact grids
+for Evaluation and Funded. It is available for Apex 50K EOD and LucidFlex 50K.
+This extends the independent optimizers; it does not change campaign screening,
+replace their one-contract research baseline, or optimize portfolio allocation.
+
+Choose the account, select Percentage of account risk, declare each phase's
+minimum/maximum/increment, reference and whole-MNQ ceiling, and click **Run IS and
+OOS**. The expanded grids and initial dollar budgets appear before Run. Source
+checking is integrated. The existing worker completes IS searches, automatic
+selection, immutable freezes and OOS qualification without another confirmation.
+The page can be closed; Job history and Prop Sim show the same saved progress.
+Preparation, account paths and historical refits are distinct progress stages.
+
+The references are initial configured USD 50,000 capital (default), current
+account balance, or available account drawdown cushion. `0.20` means **0.20%**.
+For an initial-capital reference it requests USD 100, or 5% of the account's
+initial USD 2,000 drawdown allowance. The existing sizing owner divides that
+budget by causal initial-stop loss per MNQ, including declared entry/stop-exit
+slippage and both commissions, then rounds down to whole contracts. It applies
+policy, user and current provider caps. Below-one-MNQ opportunities skip. Account
+and daily-cushion planning guards are explicit default-off options; actual account
+breach/DLL rules remain enforced. A daily planning guard requires DLL enabled.
+Gaps can exceed planned loss. Planned risk is never deducted from net P&L again.
+
+Each phase admits at most 60 aligned, positive exact Decimal percentages; decimal
+spellings normalize before candidate identity. Percentages and fixed-contract
+range fields cannot be mixed. The phase ceilings remain Apex Evaluation 60 MNQ,
+Apex Funded 40, and LucidFlex 40 in both, with Funded provider tiers applied at
+actual admission. A native candidate's legacy `micros` field is explicitly its
+user ceiling, not an executed quantity. Selection, labels and charts use the
+percentage policy, not that ceiling. JSON retains the complete policy and exact
+plain-decimal values, including values requiring more than two decimal places.
+
+### Native source and execution
+
+The new model is `native_percentage_observed_blocks_v2`. It requires VWAP,
+EOD-flat execution, strategy-local volume sizing disabled, one accepted entry
+per reset day, a same-day entry window ending by 17:00 Chicago, and an observed
+reset before every source day's first possible entry. Complete verified causal
+initial-stop evidence is required. Unsupported campaigns reject explicitly.
+
+NQ or MNQ supplies the observed reference prices. Execution uses MNQ's USD 2
+point value and the declared replacement MNQ commission once; the source report,
+its original multiplier and its own net results remain unchanged. This is an NQ
+reference-price model, not measured NQ/MNQ basis or live-fill parity.
+
+Original rows and timestamps are retained. Flat pre-entry gaps do not manufacture
+quotes. All possible holding minutes through actual next-open liquidation must
+be present, excluding reviewed venue closures. In particular, the historical
+15:15–15:30 Chicago pause ended on June 28, 2021; close-labelled 15:16 through
+15:30 bars before that date are closed-market time, not missing observations.
+See the [CME change notice](https://www.cmegroup.com/notices/electronic-trading/2021/06/20210614.html)
+and `prop/native_market_hours.py`. Genuine missing holding-period prices reject.
+Historical pauses remain inside their sampled original price paths; modeled
+target dates are not claims of observed future quotes.
+
+`native_preparation.py` compiles all causal opportunities, including opportunities
+a low budget might reject, using the actual strategy and original prior-only
+prefixes. It indexes observed price extrema to skip bars proved unable to fill
+an active order. The ordinary `execution.execute` still fills entries, resolves
+stops/targets/gaps and enforces provider floors through the existing phase
+controllers. It never scales the baseline's completed trade tape. Quantity,
+skipped opportunities, pauses, withdrawals and account state are recalculated.
+A proved flat session with no causal entry still runs the real calendar/account
+transitions. Terminal accounts omit only later economically inactive sessions.
+
+Preparation keeps bounded 32 MiB prior-prefix snapshots and 32 MiB common-uniform
+caches; overflow uses the exact uncached route. Source prices use an immutable
+integer-tick index. Worker source spools retain original UTC microseconds, row
+numbers and all nine original CSV fields through a checksummed read-only mapping.
+They do not repeatedly deserialize complete sessions. Detailed captures use the
+full original execution path for the first five source sessions of each declared
+captured path, then continue that same account through the exact indexed route.
+The report states where detail ends. All financial totals, payout events, sizing
+aggregates and requested path outcomes remain; every point path retains its
+source-index/schedule provenance. V2 has no aggregate report-byte ceiling. Quiet indexed paths do
+not claim to retain an intermediate MTM equity curve or measured tick MAE/MFE.
+Legacy V1 native requests keep their older 512-path/365-day bounds. V2 accepts the
+main 8–20,000 path range and up to 3,650 native calendar days; the normal Funded
+form retains its 365-day maximum. Full qualification is substantially more work
+than the point estimate; counts are never secretly reduced.
+
+### Separate objectives and automatic choices
+
+* **Apex Evaluation:** actual native first-attempt outcomes and session durations
+  feed the existing independent fresh-attempt IID renewal/calendar owner. Every
+  retry fee, activation and readiness interval remains included. The normal
+  native first-attempt window is 64 calendar days; unresolved attempts withhold
+  acquisition estimates. The separate renewal computation guard is 3,650 days.
+* **LucidFlex Evaluation:** actual dated acquisition/retries continue inside the
+  existing Evaluation controller, with 40% standard or explicitly priced 50%
+  consistency, no consistency cushion, fixed USD 1,200 DLL when enabled, and
+  30 calendar days' inactivity. The 3,650-day guard is computational, not a
+  provider deadline. Acquisition means require complete all-path outcomes.
+* **Funded:** actual native execution in one fresh Funded account per path
+  maximizes expected trader cash received within the frozen horizon. Zero-cash
+  accounts remain included. Requests, account deductions, pending receipts and
+  received cash remain separate. Evaluation fees, pass rates and acquisition
+  time do not enter this optimizer. No replacement account is implied.
+
+IS-only selection retains Evaluation's cheapest, fastest, and cheapest within
+1.25 times the fastest time (at most three), plus Funded's highest mean receipts
+and lowest percentage retaining 95% of that peak (at most two). Exact ties prefer
+the lower percentage, then candidate identity. Duplicate roles collapse. OOS
+cannot substitute a different percentage or rerank these frozen policies.
+Lower nominal percentage does not guarantee lower breach risk.
+
+Comparison/report evidence includes admitted quantity mean, median, p95/range,
+all pre-sizing opportunities, budget skips, account-halted opportunities, binding
+caps, and requested versus admitted planned risk. Quantity statistics concern
+admitted submissions; fills, cancellations and completed trades remain separately
+recorded. A skip rate excludes account-halted opportunities. Cap-binding counts
+count a decision once, even when multiple caps bind. Detailed reason counts can
+overlap. Normal downloads retain the full search, rules, source captures,
+financial paths, quantity summaries, selections and numerical identities.
+
+### Frozen percentage OOS qualification
+
+OOS uses the same complete frozen policy, rules, costs, horizon, seed and inner
+path count. Each candidate receives both an OOS observed-block forecast and a
+separately labeled actual chronological OOS replay. Neither selects replacements.
+
+`native_oos_bootstrap.py` supplies `native-percentage-two-history-v1` to the
+existing bounded Runtime and verified completed-refit checkpoints. There are
+10,000 historical refits. IS and OOS are resampled independently:
+
+1. Keep each catalogue's ordered original block origins. Resample circular runs
+   of origin-index positions, length `max(5, inner block sessions)`, until exactly
+   the original origin count is drawn. Only the last run is truncated.
+2. Derive role seed `SeedSequence([13742, role]).generate_state(1)[0]`, with IS=0,
+   OOS=1. `history_origin_weights` addresses each replicate by that role seed and
+   its index. Save derived seeds, origin-weight hashes and inner schedule hashes.
+3. Condition the frozen inner sampler on those origin frequencies within each
+   admissible calendar-shape pool. A required pool with zero weight is unavailable
+   evidence. Never redraw that historical refit or substitute uniform weights.
+4. Run the full native phase estimator on each history. All requested inner paths
+   remain. Only identical complete origin-frequency laws may reuse an identical
+   full calculation; the worker memo is bounded to 64 laws per role. Every outer
+   index is still recorded. No percentage is optimized inside a refit.
+
+V2 inner schedules use index-addressed PCG64 uniforms with
+`SeedSequence([seed, phase_index, path_index])`, then draw-slot order and weighted
+CDF selection. Worker count and percentage enumeration do not change these
+coordinates. This separately versioned native law is not numerically equivalent
+to the old saved-daybook bootstrap. Original prices and causal prefixes are
+never shuffled between IS and OOS. Overlapping origins and stationarity remain
+limitations, not additional independent market evidence.
+
+The existing economic policy remains: at least 12 complete OOS months and 100
+closed source trades, complete estimates and the full Funded horizon; nominal
+simultaneous 95% bounds with family budget 12; Evaluation OOS/IS cost and time
+upper bounds at most 1.50; Funded mean-receipts lower bound at least 0.70; maximum
+relative inner standard error 0.05. These are historical-model checks, not a
+universal safe-trading threshold. Missing ratios, sparse pools, censoring or
+inadequate precision yield **INSUFFICIENT EVIDENCE**. A clearly adverse interval
+can yield **NO-GO**. **GO** opens paper execution review, not live authorization.
+
+Completed-refit reuse binds the complete policy, both sources/catalogues, code,
+calendars, rules, counts and seeds. Stops drain active siblings before releasing
+CPU reservations. A partially computed refit restarts at that index. Point reports
+and historical reports remain sealed; reopening does not rerun or mutate them.
+
+### Forward review and compatibility
+
+The existing supplied-event forward conformance owner already supports the full
+percentage policy. It recomputes whole quantity from the causal signal/stop and
+pre-decision account state, verifies capital/caps/costs and prior cash/position
+reconciliation, and checks accepted versus skipped outcomes. Later fills never
+size the earlier decision. Provider state remains supplied evidence requiring
+manual review. Keep the existing minimum 20 distinct sessions, 30 closed trades,
+zero unexplained discrepancies and signal/execution parity review.
+
+Earlier fixed-size and V1 reports stay readable and unchanged. Numerical/source
+identity changes fail closed for a new frozen-package execution; they do not
+rewrite historical verdicts. Existing portfolio objectives and declared-risk
+portfolio execution remain separate from these independent phase searches.

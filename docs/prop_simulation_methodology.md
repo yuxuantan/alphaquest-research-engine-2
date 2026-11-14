@@ -869,3 +869,25 @@ numerical/runtime implementation must match. Partial work does not establish a
 qualification verdict; a source/implementation update needs a new simulation.
 Pre-update running work has no retroactive checkpoints. See the
 [contract and saved numerical evidence](evidence/qualified_prop_sim/refit-acceleration/README.md).
+
+## Percentage policies in the independent phase optimizers (2026-11-15)
+
+The current implementation and exact source/execution, sampling and qualification
+contracts are in [Independent percentage-risk searches](prop_simulation.md#independent-percentage-risk-searches--2026-11-15).
+The campaign's one-contract dollar/planned-R research evidence remains separate
+from the native percentage policy's Prop Sim qualification.
+
+Example: a 0.20% initial-capital policy requests USD 100 from the declared
+USD 50,000 account. With a known 20-point MNQ stop and USD 0.50 per-side commission,
+zero slippage gives USD 41 unit planned risk, hence two MNQ and USD 82 planned
+risk. A 40-point stop gives USD 81 unit risk, hence one MNQ. Unit risk above
+USD 100 skips that opportunity. Actual next-open gaps, account caps, withdrawals,
+subsequent opportunity eligibility and provider stops are resolved natively.
+This is not a retrospective multiplication of baseline trades.
+
+Evaluation and Funded retain independent objectives and separate grids. An outer
+historical refit changes each IS/OOS catalogue's origin frequencies, then reruns
+that phase's entire frozen native estimator at the original path count. It does
+not mix the two histories, reselect a percentage, or bootstrap the already saved
+account outcome list. The result's new native resampling identity and original
+source hashes distinguish it from older fixed-contract historical refits.

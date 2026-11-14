@@ -27,3 +27,13 @@ def test_ambiguous_invalid_or_overlarge_explicit_grids_reject(changes):
 def test_profile_ceiling_is_explicit_and_never_clipped():
  g=grid();assert g.check_ceiling(60) is g
  with pytest.raises(ValueError,match='at most 20'):g.check_ceiling(20)
+
+
+def test_tiny_exact_percentages_and_costs_round_trip_without_exponent_strings():
+ from dataclasses import asdict
+ from alphaquest.prop.phase_profiles import SizingConfiguration
+ g=PercentageGrid(minimum='0.0000001',maximum='0.0000002',step='0.0000001',maximum_contracts=40)
+ policies=g.policies(dict(tick_size='.25',point_value='2',commission_per_contract_per_side='0.00000001'))
+ assert [p.policy['risk_percent'] for p in policies]==g.values()
+ assert all(SizingConfiguration(**asdict(p))==p for p in policies)
+ assert policies[0].planning_execution['commission_per_contract_per_side']=='0.00000001'

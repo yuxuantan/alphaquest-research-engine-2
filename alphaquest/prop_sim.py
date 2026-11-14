@@ -7,7 +7,7 @@ from typing import Literal
 from uuid import UUID, uuid5
 
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator,model_serializer
 
 from .campaign_broad import invoke
 from .campaign_monte_carlo import POLICY as MC_POLICY
@@ -16,6 +16,7 @@ from .optimization_cache import artifacts, digest
 from .research_campaigns import CampaignRequest,FreezeRequest
 from .prop.phase_profiles import rule_version
 from .prop.assessment_review import AssessmentLimits
+from .prop.sizing_search import PercentageGrid
 
 
 PROFILE='apex-50k-eod'
@@ -50,6 +51,9 @@ class Configuration(BaseModel):
     daily_loss_limit: StrictBool = True
     evaluation_consistency_percent: StrictInt = 40
     selections: list[Selection] = Field(min_length=1,max_length=1)
+    search_kind: Literal['fixed_contracts','percentage_risk'] = 'fixed_contracts'
+    evaluation_percentage_grid: PercentageGrid | None = None
+    funded_percentage_grid: PercentageGrid | None = None
     evaluation_minimum_micros: StrictInt = Field(default=1,ge=1,le=60)
     evaluation_maximum_micros: StrictInt = Field(default=10,ge=1,le=60)
     funded_minimum_micros: StrictInt = Field(default=1,ge=1,le=40)
@@ -65,6 +69,26 @@ class Configuration(BaseModel):
     receipt_delay_calendar_days: StrictInt = Field(default=2,ge=0,le=365)
     maximum_funded_breach_probability: float | None = Field(default=None,ge=0,le=1)
     commission_per_mnq_side: StrictStr = '0.51'
+
+    @model_validator(mode='before')
+    @classmethod
+    def disjoint_search_axes(cls,value):
+        if isinstance(value,dict):
+            percent=value.get('search_kind')=='percentage_risk'
+            fixed={'minimum_micros','maximum_micros',*(f'{p}_{b}_micros' for p in SIZE_LIMITS for b in ('minimum','maximum'))}
+            if percent and fixed&value.keys():raise ValueError('Declare percentage grids or fixed-contract ranges, not both.')
+            if not percent and any(value.get(p+'_percentage_grid') is not None for p in SIZE_LIMITS):raise ValueError('Percentage grids require percentage_risk search kind.')
+        return value
+
+    @model_serializer(mode='wrap')
+    def disjoint_saved_configuration(self,handler):
+        value=handler(self)
+        if self.search_kind=='percentage_risk':
+            for phase in SIZE_LIMITS:
+                for bound in ('minimum','maximum'):value.pop(f'{phase}_{bound}_micros',None)
+        else:
+            for key in ('search_kind','evaluation_percentage_grid','funded_percentage_grid'):value.pop(key,None)
+        return value
 
     @model_validator(mode='before')
     @classmethod
@@ -97,6 +121,12 @@ class Configuration(BaseModel):
         if self.profile_id != 'lucidflex-50k' and self.evaluation_consistency_percent != 40:
             raise ValueError('The consistency add-on applies only to LucidFlex.')
         for phase in SIZE_LIMITS:
+            if self.search_kind=='percentage_risk':
+                grid=getattr(self,phase+'_percentage_grid')
+                if grid is None:raise ValueError('Declare independent Evaluation and Funded percentage grids.')
+                grid.check_ceiling(PROFILES[self.profile_id]['limits'][phase])
+                if grid.constrain_to_daily_cushion and not self.daily_loss_limit:raise ValueError('A daily-cushion planning guard requires the daily loss limit to be enabled.')
+                continue
             if getattr(self,f'{phase}_maximum_micros')>PROFILES[self.profile_id]['limits'][phase]:
                 raise ValueError(f'{PROFILES[self.profile_id]["name"]} {phase} supports at most {PROFILES[self.profile_id]["limits"][phase]} MNQ.')
             if getattr(self,f'{phase}_minimum_micros')>getattr(self,f'{phase}_maximum_micros'):
@@ -196,7 +226,8 @@ def declarations(body,source):
     calendar=dict(start_dates=[body.start_date],closures=body.closures)
     definitions={}
     for phase in ('evaluation','funded'):
-        minimum=getattr(body,f'{phase}_minimum_micros');maximum=getattr(body,f'{phase}_maximum_micros')
+        percentage=getattr(body,phase+'_percentage_grid') if body.search_kind=='percentage_risk' else None
+        minimum=getattr(body,f'{phase}_minimum_micros');maximum=percentage.maximum_contracts if percentage else getattr(body,f'{phase}_maximum_micros')
         phase_profile=dict(profile)
         sampling=dict(block_weekdays=body.block_weekdays)
         settings=dict(calendar=calendar)
@@ -209,8 +240,17 @@ def declarations(body,source):
             settings.update(horizon_calendar_days=body.funded_horizon_calendar_days,
                 receipt_delay_calendar_days=body.receipt_delay_calendar_days,bootstrap_replicates=100,
                 constraints=dict(maximum_account_breach_probability=body.maximum_funded_breach_probability,maximum_position_size=maximum))
+        reference=dict(backtest_id=source['source_backtest_id'],sizes=list(range(minimum,maximum+1)))
+        if percentage:
+            planning=dict(tick_size='0.25',point_value='2',entry_slippage_ticks=native['execution_settings']['slippage_ticks'],
+                stop_exit_slippage_ticks=native['execution_settings']['slippage_ticks'],commission_per_contract_per_side=body.commission_per_mnq_side)
+            reference.update(sizes=[percentage.maximum_contracts],sizing_policies=[asdict(p) for p in percentage.policies(planning)])
+            # Apex fits complete native first attempts, then uses its unchanged
+            # unlimited IID renewal owner. Lucid retains dated acquisition paths.
+            horizon=64 if phase=='evaluation' and body.profile_id==PROFILE else 3650 if phase=='evaluation' else body.funded_horizon_calendar_days
+            settings['native_execution']=dict(model='native_percentage_observed_blocks_v2',horizon_calendar_days=horizon,capture_paths=1,early_closes={})
         definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,
-            sources=[dict(backtest_id=source['source_backtest_id'],sizes=list(range(minimum,maximum+1)))],
+            sources=[reference],
             simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=account['limits'][phase]),
             phase=phase,profile=phase_profile,sampling=sampling,search_settings=settings,
             **(dict(retry=dict(activation_delay_sessions=0)) if phase=='evaluation' and body.profile_id=='lucidflex-50k' else {})))
@@ -218,6 +258,10 @@ def declarations(body,source):
 
 
 def check(request,body):
+    from .prop.native_search import shared_admission
+    with shared_admission():return _check(request,body)
+
+def _check(request,body):
     source=qualified(request,body.selections[0])
     source['_native']=request.app.state.runs.get(source['source_backtest_id'])
     definitions=declarations(body,source);source.pop('_native')
@@ -225,7 +269,8 @@ def check(request,body):
     for phase,declaration in definitions.items():
         try:checks[phase]=request.app.state.campaigns.expand(declaration)
         except ValueError as exc:raise ValueError(f'{phase.title()} sizing search: {exc}') from exc
-    return dict(status='compatible',source=source,phases=checks,disclosure=DISCLOSURE),definitions
+    disclosure=(DISCLOSURE if body.search_kind=='fixed_contracts' else 'Percentage policies rerun causal native VWAP opportunities and actual MNQ execution/account rules on observed NQ/MNQ reference prices. Quantities, skips, withdrawals and account state are recalculated. NQ-to-MNQ basis, fills and provider rules remain unverified assumptions. IS selects each phase independently; frozen OOS assesses without reselection. Strategy OOS was already accessed.')
+    return dict(status='compatible',source=source,phases=checks,disclosure=disclosure),definitions
 
 
 def public(request,id):
@@ -244,6 +289,10 @@ def public(request,id):
 
 
 def launch(request,body):
+    from .prop.native_search import shared_admission
+    with shared_admission():return _launch(request,body)
+
+def _launch(request,body):
     analyses=request.app.state.prop_analyses;id=body.request_id.hex
     with analyses.lock:
         with analyses.connect() as db:
@@ -261,7 +310,7 @@ def launch(request,body):
         checked,definitions=check(request,body)
         for declaration in definitions.values():request.app.state.campaigns.create(declaration)
         result=dict(id=id,created_at_utc=datetime.now(timezone.utc).isoformat(),configuration=body.model_dump(mode='json'),
-                    qualification=checked['source'],disclosure=DISCLOSURE,campaign_ids={p:d.campaign_id for p,d in definitions.items()})
+                    qualification=checked['source'],disclosure=checked['disclosure'],campaign_ids={p:d.campaign_id for p,d in definitions.items()})
         if body.automatic:
             from .prop_sim_automation import initial_state
             result['automation']=initial_state()
@@ -306,7 +355,7 @@ def account_defaults(id):
 @router.get('/defaults')
 def defaults():
     profiles={id:account_defaults(id) for id in PROFILES}
-    return dict(profiles[PROFILE],profiles=profiles)
+    return dict(profiles[PROFILE],profiles=profiles,supported_search_kinds=['fixed_contracts','percentage_risk'],percentage_grid=dict(minimum='0.1',maximum='0.5',step='0.1',reference='initial_configured_capital',maximum_policies_per_phase=60),percentage_capability='VWAP EOD-flat; strategy-local volume sizing disabled; at most one accepted entry per reset day; complete observed holding intervals and causal stops required.')
 
 
 @router.post('/check')
@@ -669,7 +718,7 @@ async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,su
         if summary:
             calculations=dict(report['calculations'])
             calculations.pop('qualification_bootstrap',None)
-            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification')
+            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification','quantity_summary')
             calculations['candidates']=[{k:r[k] for k in fields if k in r} for r in calculations['candidates']]
             return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)
         return report

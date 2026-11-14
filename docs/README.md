@@ -48,7 +48,7 @@
 - [Independent phase optimization](phase_optimization_plan.md): implemented phase optimizers/campaigns
   with frozen OOS, native sizing and nested selection; dated generation/refinement
   milestones distinguish implemented controls from remaining optional work.
-- [Percentage-risk research design](percentage_risk_research_plan.md): proposed
+- [Percentage-risk research design](percentage_risk_research_plan.md): implemented
   one-contract/R-diagnostic campaign workflow and independent percentage-risk
   searches, native OOS qualification, performance gates and delivery milestones.
 - [Prop portfolio plan](prop_portfolio_plan.md): completed phase/cash-ledger

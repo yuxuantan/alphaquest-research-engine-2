@@ -645,14 +645,11 @@ class CampaignStore:
                 if config['source']['trade_file']:
                     raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
                 config['source']['source_backtest_id'] = source_id
-                if raw.get('native_execution') is not None:
-                    from .prop.phase_lifecycle import instant,session_date
-                    observed=source_record(self.runs,source_id)
-                    config['period']=dict(first_session=str(session_date(instant(observed['period_start_utc']))),
-                        last_session=str(session_date(instant(observed['period_end_utc']))))
-                else:
-                    from .prop.phase_search import saved_oos_period
-                    config['period'] = saved_oos_period(source_record(self.runs, source_id))
+                # Both native and saved-signal assessments use the unchanged
+                # declared split, clipped to actual saved CME-session coverage.
+                # Legacy reports may retain a partial extra session after OOS.
+                from .prop.phase_search import saved_oos_period
+                config['period'] = saved_oos_period(source_record(self.runs, source_id))
                 selected.append(config)
                 mappings.append(dict(source_id=source_id, frozen_candidate_id=row['candidate_id'], frozen_manifest=manifest,
                     name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))

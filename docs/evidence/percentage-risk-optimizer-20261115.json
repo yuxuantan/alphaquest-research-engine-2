@@ -1,0 +1,728 @@
+{
+  "schema_version": "percentage-risk-delivery-evidence-v1",
+  "branch": "epic/revamp-workflow",
+  "date": "2026-11-15",
+  "source": {
+    "workflow_id": "3a9a24936f3d4034b722650547baedc3",
+    "candidate": 2,
+    "is_backtest_id": "bfa89f7e4714444391e19ef577efeeb4",
+    "dataset_id": "094287965d4444f69cb7eefe0d2f054c",
+    "dataset_sha256": "2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377",
+    "source_bars": 1415817,
+    "source_sessions": 1034
+  },
+  "capacity": [
+    {
+      "profile": "apex-50k-eod",
+      "phase": "evaluation",
+      "simulation_id": "850678abcdc449f090616e9b2e8b46db",
+      "analysis_id": "8f86b65e9df74009ac8761d5e7c7a1f3",
+      "paths": 1000,
+      "metrics": {
+        "cost_per_funded": null,
+        "expected_attempts_per_funded": null,
+        "expected_calendar_days_to_funded": null,
+        "funded_accounts_per_30_calendar_days": null,
+        "median_calendar_days_to_funded": 546,
+        "p90_calendar_days_to_funded": 1907,
+        "pass_probability": 0.035,
+        "pass_probability_bounds": [
+          0.035,
+          0.035
+        ],
+        "pass_probability_ci": [
+          0.025272112485012703,
+          0.0482869032003305
+        ],
+        "probability_funded_by_day_30": 0.034,
+        "probability_funded_by_day_30_bounds": [
+          0.034,
+          0.034
+        ],
+        "probability_funded_by_day_60": 0.075,
+        "probability_funded_by_day_60_bounds": [
+          0.075,
+          0.075
+        ]
+      },
+      "quantity_summary": {
+        "account_halted_opportunities": 0,
+        "admitted_entries": 9240,
+        "all_recorded_opportunities": 78732,
+        "cap_binding_count": 230,
+        "cap_binding_rate": 0.0029213026469542243,
+        "cap_binding_reason_counts": {
+          "policy_cap": 230,
+          "provider_cap": 230,
+          "user_cap": 230
+        },
+        "maximum_quantity": 60,
+        "mean_admitted_planned_risk": "9.737987349489407102575826856",
+        "mean_quantity": 6.048268398268398,
+        "mean_requested_risk_budget": "100.0",
+        "median_quantity": 1,
+        "minimum_quantity": 1,
+        "opportunities": 78732,
+        "p95_quantity": 39,
+        "quantity_counts": {
+          "0": 69492,
+          "1": 4834,
+          "2": 1160,
+          "3": 710,
+          "4": 341,
+          "5": 289,
+          "6": 202,
+          "7": 144,
+          "8": 119,
+          "9": 191,
+          "10": 96,
+          "11": 48,
+          "13": 32,
+          "14": 36,
+          "15": 71,
+          "16": 89,
+          "18": 70,
+          "19": 40,
+          "24": 159,
+          "28": 88,
+          "33": 39,
+          "39": 173,
+          "49": 79,
+          "60": 230
+        },
+        "reason_counts": {
+          "below_minimum_tradable_quantity": 69492,
+          "policy_cap": 230,
+          "provider_cap": 230,
+          "user_cap": 230
+        },
+        "scope": "Every eligible pre-sizing opportunity on every native point path. Quantity distribution covers admitted submissions, with fills/cancellations separate. Account-halted opportunities are not sizing-budget skips.",
+        "skipped_entries": 69492,
+        "skipped_rate": 0.8826398414875781
+      },
+      "rss_bytes": 4507418624,
+      "report_status": "censored",
+      "report_bytes": 3433745,
+      "queue_reservation_to_report_seconds": 204.67,
+      "timing_scope": "Includes queueing, source checks, preparation, simulation and publication; not isolated native kernel time.",
+      "rss_scope": "Peak parent RSS, including earlier phases in this harness process; not aggregate workers/system memory.",
+      "phase_numerical_implementation_sha256": "bc1dfeac7522545921a88545fb0a62a0a313a5b069ef8f440a962fa235101d52",
+      "phase_numerical_implementation_matches_current": true,
+      "full_admission_identity_note": "Capacity reports precede the admission-only OOS split-clipping correction. Phase numerical source identity is unchanged. Fresh final-identity launch evidence is recorded separately."
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "funded",
+      "simulation_id": "850678abcdc449f090616e9b2e8b46db",
+      "analysis_id": "dc5d7511221442b2ba0446eca8ad027a",
+      "paths": 1000,
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": null,
+        "expected_days_to_first_payout_conditional_on_payout": 74.0,
+        "expected_funded_cash_payouts_within_horizon": 1.5,
+        "expected_gross_account_deductions": 1.5,
+        "expected_number_of_payouts": 0.001,
+        "expected_payouts": 1.5,
+        "expected_pending_cash": 0.0,
+        "median_payouts": 0.0,
+        "p10_payouts": 0.0,
+        "p90_payouts": 0.0,
+        "probability_first_payout": 0.001,
+        "probability_inactivity": 0.91,
+        "probability_payout_limit_completion": 0.0,
+        "probability_surviving_to_horizon": 0.09,
+        "probability_zero_payout": 0.999,
+        "restricted_mean_account_lifetime_calendar_days": 45.158
+      },
+      "quantity_summary": {
+        "account_halted_opportunities": 0,
+        "admitted_entries": 14731,
+        "all_recorded_opportunities": 122436,
+        "cap_binding_count": 1209,
+        "cap_binding_rate": 0.009874546701950407,
+        "cap_binding_reason_counts": {
+          "policy_cap": 23,
+          "provider_cap": 1209,
+          "user_cap": 23
+        },
+        "maximum_quantity": 40,
+        "mean_admitted_planned_risk": "9.545132150674638178313567905",
+        "mean_quantity": 4.394813658271672,
+        "mean_requested_risk_budget": "100.0",
+        "median_quantity": 1,
+        "minimum_quantity": 1,
+        "opportunities": 122436,
+        "p95_quantity": 20,
+        "quantity_counts": {
+          "0": 107705,
+          "1": 7511,
+          "2": 1938,
+          "3": 1089,
+          "4": 601,
+          "5": 500,
+          "6": 379,
+          "7": 235,
+          "8": 179,
+          "9": 281,
+          "10": 145,
+          "11": 83,
+          "13": 36,
+          "14": 80,
+          "15": 109,
+          "16": 127,
+          "18": 107,
+          "19": 71,
+          "20": 1163,
+          "24": 21,
+          "28": 9,
+          "30": 23,
+          "33": 6,
+          "39": 15,
+          "40": 23
+        },
+        "reason_counts": {
+          "below_minimum_tradable_quantity": 107705,
+          "policy_cap": 23,
+          "provider_cap": 1209,
+          "user_cap": 23
+        },
+        "scope": "Every eligible pre-sizing opportunity on every native point path. Quantity distribution covers admitted submissions, with fills/cancellations separate. Account-halted opportunities are not sizing-budget skips.",
+        "skipped_entries": 107705,
+        "skipped_rate": 0.879684079845797
+      },
+      "rss_bytes": 4507418624,
+      "report_status": "estimated",
+      "report_bytes": 4254327,
+      "queue_reservation_to_report_seconds": 385.13,
+      "timing_scope": "Includes queueing, source checks, preparation, simulation and publication; not isolated native kernel time.",
+      "rss_scope": "Peak parent RSS, including earlier phases in this harness process; not aggregate workers/system memory.",
+      "phase_numerical_implementation_sha256": "549b9eb76a7aa036f664f2ee4bb03cb99fbfa8c424840d8f719e0712d4a628d7",
+      "phase_numerical_implementation_matches_current": true,
+      "full_admission_identity_note": "Capacity reports precede the admission-only OOS split-clipping correction. Phase numerical source identity is unchanged. Fresh final-identity launch evidence is recorded separately."
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "evaluation",
+      "simulation_id": "c7e1b87e784349fc95d0ea1a58405934",
+      "analysis_id": "e5fbe74241aa444c892f40c20fe159bf",
+      "paths": 1000,
+      "metrics": {
+        "cost_per_funded": null,
+        "expected_attempts_per_funded": null,
+        "expected_calendar_days_to_funded": null,
+        "mean_consistency_blocked_sessions": null,
+        "mean_days_before_final_attempt": null,
+        "mean_failed_attempts_after_target": null,
+        "mean_failed_attempts_before_target": null,
+        "mean_final_attempt_days_after_target": null,
+        "mean_final_attempt_days_before_target": null,
+        "mean_pass_to_ready_days": null,
+        "median_calendar_days_to_funded": null,
+        "p90_calendar_days_to_funded": null,
+        "pass_probability": null,
+        "pass_probability_bounds": [
+          0.41,
+          0.423
+        ],
+        "probability_acquisition_by_cutoff": 0.919,
+        "probability_funded_by_day_30": null,
+        "probability_funded_by_day_60": null,
+        "probability_funded_by_day_90": null,
+        "restricted_mean_observed_calendar_days": 1605.557,
+        "restricted_mean_paid_fees": 183.4595
+      },
+      "quantity_summary": {
+        "account_halted_opportunities": 0,
+        "admitted_entries": 512894,
+        "all_recorded_opportunities": 4300676,
+        "cap_binding_count": 17425,
+        "cap_binding_rate": 0.004051688618254432,
+        "cap_binding_reason_counts": {
+          "policy_cap": 17425,
+          "provider_cap": 17425,
+          "user_cap": 17425
+        },
+        "maximum_quantity": 40,
+        "mean_admitted_planned_risk": "9.784308327342027160381298196",
+        "mean_quantity": 5.491729285193432,
+        "mean_requested_risk_budget": "100.0",
+        "median_quantity": 1,
+        "minimum_quantity": 1,
+        "opportunities": 4300676,
+        "p95_quantity": 39,
+        "quantity_counts": {
+          "0": 3787782,
+          "1": 265067,
+          "2": 66234,
+          "3": 37666,
+          "4": 20065,
+          "5": 17454,
+          "6": 12186,
+          "7": 8033,
+          "8": 6788,
+          "9": 9418,
+          "10": 5434,
+          "11": 2634,
+          "12": 1,
+          "13": 1396,
+          "14": 2728,
+          "15": 3961,
+          "16": 5421,
+          "18": 4043,
+          "19": 2690,
+          "24": 8178,
+          "28": 3988,
+          "33": 2619,
+          "39": 9465,
+          "40": 17425
+        },
+        "reason_counts": {
+          "below_minimum_tradable_quantity": 3787782,
+          "policy_cap": 17425,
+          "provider_cap": 17425,
+          "user_cap": 17425
+        },
+        "scope": "Every eligible pre-sizing opportunity on every native point path. Quantity distribution covers admitted submissions, with fills/cancellations separate. Account-halted opportunities are not sizing-budget skips.",
+        "skipped_entries": 3787782,
+        "skipped_rate": 0.8807410741939175
+      },
+      "rss_bytes": 4623253504,
+      "report_status": "unresolved",
+      "report_bytes": 5216389,
+      "queue_reservation_to_report_seconds": 362.57,
+      "timing_scope": "Includes queueing, source checks, preparation, simulation and publication; not isolated native kernel time.",
+      "rss_scope": "Peak parent RSS, including earlier phases in this harness process; not aggregate workers/system memory.",
+      "phase_numerical_implementation_sha256": "bc1dfeac7522545921a88545fb0a62a0a313a5b069ef8f440a962fa235101d52",
+      "phase_numerical_implementation_matches_current": true,
+      "full_admission_identity_note": "Capacity reports precede the admission-only OOS split-clipping correction. Phase numerical source identity is unchanged. Fresh final-identity launch evidence is recorded separately."
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "funded",
+      "simulation_id": "c7e1b87e784349fc95d0ea1a58405934",
+      "analysis_id": "5a83d79cea0346ec96f1fd5ec34eef1a",
+      "paths": 1000,
+      "metrics": {
+        "account_breach_probability": 0.003,
+        "expected_account_lifetime": null,
+        "expected_days_to_first_payout_conditional_on_payout": 72.64285714285714,
+        "expected_funded_cash_payouts_within_horizon": 59.405922,
+        "expected_gross_account_deductions": 72.36398000000001,
+        "expected_number_of_payouts": 0.056,
+        "expected_payouts": 59.405922,
+        "expected_pending_cash": 5.72166,
+        "median_payouts": 0.0,
+        "p10_payouts": 0.0,
+        "p90_payouts": 0.0,
+        "probability_first_payout": 0.056,
+        "probability_inactivity": 0.0,
+        "probability_payout_limit_completion": 0.0,
+        "probability_surviving_to_horizon": 0.997,
+        "probability_zero_payout": 0.944,
+        "restricted_mean_account_lifetime_calendar_days": 89.94
+      },
+      "quantity_summary": {
+        "account_halted_opportunities": 0,
+        "admitted_entries": 28596,
+        "all_recorded_opportunities": 236795,
+        "cap_binding_count": 2244,
+        "cap_binding_rate": 0.009476551447454549,
+        "cap_binding_reason_counts": {
+          "policy_cap": 45,
+          "provider_cap": 2244,
+          "user_cap": 45
+        },
+        "maximum_quantity": 40,
+        "mean_admitted_planned_risk": "9.606108912772651449566080365",
+        "mean_quantity": 4.4054413204644005,
+        "mean_requested_risk_budget": "100.0",
+        "median_quantity": 1,
+        "minimum_quantity": 1,
+        "opportunities": 236795,
+        "p95_quantity": 20,
+        "quantity_counts": {
+          "0": 208199,
+          "1": 14612,
+          "2": 3752,
+          "3": 2107,
+          "4": 1140,
+          "5": 950,
+          "6": 709,
+          "7": 484,
+          "8": 378,
+          "9": 548,
+          "10": 295,
+          "11": 159,
+          "13": 79,
+          "14": 159,
+          "15": 219,
+          "16": 282,
+          "18": 208,
+          "19": 147,
+          "20": 2102,
+          "24": 60,
+          "28": 27,
+          "30": 97,
+          "33": 7,
+          "39": 30,
+          "40": 45
+        },
+        "reason_counts": {
+          "below_minimum_tradable_quantity": 208199,
+          "policy_cap": 45,
+          "provider_cap": 2244,
+          "user_cap": 45
+        },
+        "scope": "Every eligible pre-sizing opportunity on every native point path. Quantity distribution covers admitted submissions, with fills/cancellations separate. Account-halted opportunities are not sizing-budget skips.",
+        "skipped_entries": 208199,
+        "skipped_rate": 0.8792373149770899
+      },
+      "rss_bytes": 4623253504,
+      "report_status": "estimated",
+      "report_bytes": 4378576,
+      "queue_reservation_to_report_seconds": 548.74,
+      "timing_scope": "Includes queueing, source checks, preparation, simulation and publication; not isolated native kernel time.",
+      "rss_scope": "Peak parent RSS, including earlier phases in this harness process; not aggregate workers/system memory.",
+      "phase_numerical_implementation_sha256": "549b9eb76a7aa036f664f2ee4bb03cb99fbfa8c424840d8f719e0712d4a628d7",
+      "phase_numerical_implementation_matches_current": true,
+      "full_admission_identity_note": "Capacity reports precede the admission-only OOS split-clipping correction. Phase numerical source identity is unchanged. Fresh final-identity launch evidence is recorded separately."
+    }
+  ],
+  "ordinary_engine_parity": [
+    {
+      "profile": "apex-50k-eod",
+      "phase": "evaluation",
+      "seed": 42,
+      "source_indices": [
+        90
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6825,
+      "indexed_execution_bars": 32
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "evaluation",
+      "seed": 1729,
+      "source_indices": [
+        794
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6899,
+      "indexed_execution_bars": 8
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "funded",
+      "seed": 42,
+      "source_indices": [
+        661
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6899,
+      "indexed_execution_bars": 21
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "funded",
+      "seed": 1729,
+      "source_indices": [
+        428
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6900,
+      "indexed_execution_bars": 0
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "evaluation",
+      "seed": 42,
+      "source_indices": [
+        90
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6825,
+      "indexed_execution_bars": 32
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "evaluation",
+      "seed": 1729,
+      "source_indices": [
+        794
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6899,
+      "indexed_execution_bars": 8
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "funded",
+      "seed": 42,
+      "source_indices": [
+        661
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6899,
+      "indexed_execution_bars": 21
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "funded",
+      "seed": 1729,
+      "source_indices": [
+        428
+      ],
+      "full_bar_financial_event_quantity_equality": true,
+      "normalized_identifier": "engine-local trade_number only; prepared calls restart per session",
+      "ordinary_bar_count": 6900,
+      "indexed_execution_bars": 0
+    }
+  ],
+  "synthetic_automatic": {
+    "simulation_id": "eb80590e13b741fa935962e5603a62dd",
+    "source": "SYNTHETIC; fixture-only prior campaign admission; actual native phase math/stores/UI",
+    "expected": {
+      "risk_percent": "0.2",
+      "initial_budget_usd": "100",
+      "planned_unit_loss_usd": "10",
+      "admitted_quantity": 10,
+      "evaluation_cost_usd": 178,
+      "evaluation_calendar_days": 2,
+      "funded_received_usd": 1500,
+      "oos_status": "INSUFFICIENT_EVIDENCE",
+      "reason": "Only seven OOS sessions, not twelve complete months and one hundred trades."
+    }
+  },
+  "verification": {
+    "real_source_engine_parity_cases": 8,
+    "focused_final_backend": "43 passed",
+    "applied_fixed_and_percentage_compatibility": "30 passed",
+    "lucid_automatic_and_complete_native_refit_branch": "2 passed",
+    "native_oos_clipped_window_api": "3 passed",
+    "gap_floor_cash_oracles": "2 passed",
+    "final_browser_journey": "1 passed",
+    "chart_progress_and_legacy_native_oos": "3 passed",
+    "full_native_refit_branch_scope": "Synthetic numerical-branch exercise with explicit evidence override confined to tests; both 10,000-index families preserve eight inner paths per role. Not a market GO claim.",
+    "full_20000_path_boundary": true,
+    "legacy_reports_preserved": true
+  },
+  "files": {
+    "artifacts/percentage-risk-optimizer-20261115/live-percentage-config.png": {
+      "bytes": 158217,
+      "sha256": "d2d091fb7fb1a201a9c7b8281b171adfcef12bcf3342828c2290956b17dc56ce"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/live-ui-verification.json": {
+      "bytes": 243,
+      "sha256": "2c57d9600e816a6b63f086d328b354ae2db1c787e44f8722656df22d1c2fceea"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/original-source-integrity.json": {
+      "bytes": 618,
+      "sha256": "2ceb0ec844859d9d5b99709c2e62a0e922b615025079e9de88988debec7b4822"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/portal-restart.json": {
+      "bytes": 67,
+      "sha256": "deddf9adb2ba3cd8baff7c9bf3c20307e9fa8ec13f0f5f3772f2cd562ee13882"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-evaluation-analysis.zip": {
+      "bytes": 1883760,
+      "sha256": "9c046a1198a9d7c9e6103048390fb173ef04dd1d4881342ed3e68782e9e5ba47"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-evaluation-report.json": {
+      "bytes": 3678765,
+      "sha256": "e2655249e90ab7412f8ee7004d47696334ad6b90cb19b63afe447ff2ace1d939"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-evaluation-sealed-report.json": {
+      "bytes": 3433745,
+      "sha256": "e8b40aba48c870597400eeab5462e4e9ba1b1bb58e7daee485035d3af8a96ac1"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-funded-analysis.zip": {
+      "bytes": 2046216,
+      "sha256": "25b01cf7fe3d50b27571c7b0c828118900d6d8de566c8a86e860556a071a9dc0"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-funded-report.json": {
+      "bytes": 4560850,
+      "sha256": "221dc2a063cfb6be70dc86cfe5015b398bf271840228f4ca7b3856df96dfbb94"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-funded-sealed-report.json": {
+      "bytes": 4254327,
+      "sha256": "dc2ada26b0fbe01ab6b2c6b44cfb2306e97fe55d423e0d912cebb97593a86af8"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/apex-50k-eod-simulation.json": {
+      "bytes": 5317,
+      "sha256": "7536812eaecb2d5632f2091fec29aa9917b1b15e761287577c8c63c6ae27236c"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/fresh-real-oos-admission.json": {
+      "bytes": 2041,
+      "sha256": "c618d9fee936dbfaab76e7bed18c33e2fab301787dd3b0039ad8190eb5475465"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/fresh-real-parent.json": {
+      "bytes": 5314,
+      "sha256": "8e0e057927b619ec39657860f7be36d57e4bb38f80545c8046ee2c9d697787be"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/fresh-real-validation.json": {
+      "bytes": 5485,
+      "sha256": "21e0d7db5c95863e9e0406c8cf877cb43b14a23b2a68824b23fa6666f4208b92"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-evaluation-analysis.zip": {
+      "bytes": 5063663,
+      "sha256": "865e87c501a7cf5f648badc61c9c4289fbd0105486f9cb9298e347054d38314a"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-evaluation-report.json": {
+      "bytes": 5971260,
+      "sha256": "219a889ea27884de497db01eaf2748c73061abafef1bc98c42aa82a20164a686"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-evaluation-sealed-report.json": {
+      "bytes": 5216389,
+      "sha256": "cdad4d7a6e9756351961fb95f3575daf093f0cb95450a66700d561fab8683018"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-funded-analysis.zip": {
+      "bytes": 2097582,
+      "sha256": "5f9afc79b70a490c6db5cada7a6dd2bc346e5deb79852cf319c351450f688ef4"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-funded-report.json": {
+      "bytes": 4703044,
+      "sha256": "6b666ebba05883bff2b02c88b2ca0549031db34a5eb4a56f20142a17029e5bbf"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-funded-sealed-report.json": {
+      "bytes": 4378576,
+      "sha256": "52a409a5360cd20b7a69486f1f97caf6351790215a561fe332a5f8e98d2a351e"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/lucidflex-50k-simulation.json": {
+      "bytes": 5319,
+      "sha256": "a07eb43e99c3d4495449883059c553420a9c4f0259d1b69e8ecf62bd1097a053"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/percentage-real-benchmark-release.log": {
+      "bytes": 31192,
+      "sha256": "4fda8a90557519cbe99724380186f4ff93db808bbcf93bbf394b0aef9c4eb1f4"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/percentage-real-parity-release.log": {
+      "bytes": 308,
+      "sha256": "f60ee6797eb37f6ca7e89bc0422cdb1bc0a49cae9b15eee38b44be45e05fc6fc"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/real-1000-path-results.json": {
+      "bytes": 10647,
+      "sha256": "26f279ed322b7c0a3a9fbeba4e8396adf1f3792a873f37518de20e2f52e7210f"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/real-native-full-engine-parity.json": {
+      "bytes": 1684732,
+      "sha256": "0e766ece3fd4d42aff2db0ef0b97aa66764d3c008ac5f825e15d9a5598ba953e"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-capacity/simulation-ids.json": {
+      "bytes": 111,
+      "sha256": "6664d0b6d913a3007002fe68c7ea0dc51d46c68c3c8675a93d76f59839d4207f"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-native-cash-oracles.json": {
+      "bytes": 2267,
+      "sha256": "9addc55c1dbdda2b9e3ea6f4b2558e7a8f2b679b0fd0609db454f6542a96007c"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-native-full-engine-parity.json": {
+      "bytes": 1684732,
+      "sha256": "0e766ece3fd4d42aff2db0ef0b97aa66764d3c008ac5f825e15d9a5598ba953e"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/real-oos-source-gap.json": {
+      "bytes": 1105,
+      "sha256": "ba6b33631586501253282f14d8013ed61f216096d39cb700d769e68579c6d59e"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/percentage-config.png": {
+      "bytes": 208990,
+      "sha256": "f3dd4a3efae7db66ae5944768149ed9717b045ec45dc7b34976d9f11889c4632"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/percentage-evaluation.png": {
+      "bytes": 235157,
+      "sha256": "485f758209df906a55e40217adb0b15c992be46f8dccd33aba874629c6ab481a"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/sealed-assessments.json": {
+      "bytes": 580,
+      "sha256": "f597b19971c81c9436ee043c5e18e936bbbeca61e3e335002f6c6b6b5b3e532a"
+    },
+    "artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/simulation.json": {
+      "bytes": 15397,
+      "sha256": "cca389999572c2042883833300842be964b18cd4992f0834787aad3884df4909"
+    }
+  },
+  "fresh_final_identity_real_oos_admission": {
+    "simulation_id": "c373e39312fa41bf833a992d6a10e961",
+    "current_identity_is_analyses": {
+      "evaluation": "0b9c90f799b445f38f367d8c828d3b03",
+      "funded": "66fea9bba10542b98019b2ac6ea12040"
+    },
+    "frozen_candidate_ids": [
+      "16606fd0f28a28c06cbe1ab85629b60266422c08ec87fc6cfe025280fdde224f"
+    ],
+    "oos_outcome": "REJECTED_BEFORE_QUEUE",
+    "reason": "Native session 2025-04-02 requires observed one-minute prices throughout every possible holding interval and actual liquidation, excluding reviewed venue pauses; flat pre-entry gaps are retained, never filled.",
+    "source_gap": {
+      "dataset_id": "094287965d4444f69cb7eefe0d2f054c",
+      "source_timezone": "America/New_York",
+      "date": "2025-04-02",
+      "actual_source_rows_in_civil_date": 1377,
+      "missing_chicago_minutes": [
+        "2025-04-02T15:32:00-05:00"
+      ],
+      "source_timezone_minutes": [
+        "2025-04-02T16:32:00-04:00"
+      ],
+      "cutoff_chicago": "2025-04-02T15:40:00-05:00",
+      "source_neighbors": [
+        [
+          "04/02/2025",
+          "16:30",
+          "19485.75",
+          "19529.75",
+          "19370.00",
+          "19392.25",
+          "3471",
+          "1419",
+          "2052"
+        ],
+        [
+          "04/02/2025",
+          "16:31",
+          "19400.00",
+          "19406.75",
+          "19358.00",
+          "19358.00",
+          "569",
+          "217",
+          "352"
+        ],
+        [
+          "04/02/2025",
+          "16:33",
+          "19412.25",
+          "19442.75",
+          "19351.00",
+          "19423.00",
+          "3485",
+          "1569",
+          "1916"
+        ],
+        [
+          "04/02/2025",
+          "16:34",
+          "19423.50",
+          "19428.75",
+          "19342.75",
+          "19343.75",
+          "1982",
+          "894",
+          "1088"
+        ]
+      ],
+      "cause": "Missing observation; no exchange-status evidence was supplied or inferred."
+    },
+    "reported_extra_coverage_clipped": true,
+    "source_parent_guards_preserved": true,
+    "unknown_prices_filled": false,
+    "qualification_result": "Not run; incomplete holding-price evidence cannot produce a native OOS verdict."
+  }
+}

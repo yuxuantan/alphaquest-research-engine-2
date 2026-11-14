@@ -32,6 +32,14 @@ def _hash(value):
     return sha256(_json(value).encode()).hexdigest()
 
 
+def _encoded_bar(bar):
+    # Identical canonical bytes to _json(asdict(bar)), without recursive
+    # deepcopy/Decimal conversion of the immutable validated source row.
+    return (canonical(dict(bar_number=bar.bar_number,timestamp_utc=bar.timestamp_utc.isoformat(),
+        date=bar.date,time=bar.time,open=str(bar.open),high=str(bar.high),low=str(bar.low),close=str(bar.close),
+        volume=str(bar.volume),up_vol=str(bar.up_vol),down_vol=str(bar.down_vol),source_fields=list(bar.source_fields)))+'\n').encode()
+
+
 def _integer(value, name, minimum=0, maximum=2**32-1):
     if type(value) is not int or not minimum <= value <= maximum:
         raise ValueError(f'{name} must be an integer from {minimum} through {maximum}.')
@@ -82,7 +90,7 @@ def _parameters(parameters):
     return _json(asdict(parameters))
 
 
-def _shape(context, parameters, *, kind):
+def _shape(context, parameters, *, kind,allow_sparse=False):
     if type(context) is not SessionContext or context.kind != kind:
         raise ValueError(f'Native draw calendar requires explicitly {kind} contexts.')
     close = context.scheduled_close_utc.astimezone(CT)
@@ -96,7 +104,7 @@ def _shape(context, parameters, *, kind):
         raise ValueError('Native draw session must have whole complete minute bars.')
     count = int(seconds/60)+1
     declared = context.observed_bar_count if kind == 'observed' else context.expected_bar_count
-    if declared != count:
+    if declared != count and not allow_sparse:
         raise ValueError('Native draw session count differs from its complete calendar shape.')
     configured = datetime.combine(day, time(parameters.eod_flat_time//100,
                                             parameters.eod_flat_time % 100), CT)
@@ -181,24 +189,30 @@ def build_catalogue(bars, source_contexts, parameters, *, block_sessions, source
     running = sha256()
     previous = None
     for context in contexts:
-        shape = _shape(context, parameters, kind='observed')
+        sparse=bool(source_identity.get('complete_holding_intervals'))
+        shape = _shape(context, parameters, kind='observed',allow_sparse=sparse)
         start = cursor
         prefix = running.hexdigest()
         content = sha256()
         beginning = datetime.combine(context.session-timedelta(days=1), time(17, 1), CT).astimezone(timezone.utc)
-        for offset in range(shape[2]):
+        for offset in range(context.observed_bar_count if sparse else shape[2]):
             if cursor >= len(values):
                 raise ValueError('Incomplete source session rows; no bars are invented.')
             bar = values[cursor]
             _validate_bar(bar, previous)
             if (session_date(bar.timestamp_utc) != context.session
-                    or bar.timestamp_utc != beginning+timedelta(minutes=offset)):
+                    or (not sparse and bar.timestamp_utc != beginning+timedelta(minutes=offset))):
                 raise ValueError('Source bars differ from complete ordered observed session contexts.')
-            encoded = (_json(asdict(bar))+'\n').encode()
+            encoded = _encoded_bar(bar)
             content.update(encoded); running.update(encoded)
             previous = bar; cursor += 1
             if cursor % 1000 == 0:
                 checkpoint()
+        if sparse:
+            from .native_market_hours import required_holding_minutes
+            seen={b.timestamp_utc for b in values[start:cursor]}
+            needed=required_holding_minutes(context.session,parameters,context.scheduled_close_utc)
+            if needed-seen:raise ValueError('Native source has missing possible holding prices; no interpolation is allowed.')
         groups.append(SourceSession(context, start, cursor, shape, content.hexdigest(), prefix))
     if cursor != len(values):
         raise ValueError('Source contains bars outside the permitted observed inventory.')
@@ -227,7 +241,8 @@ def verify_catalogue(catalogue, *, checkpoint=lambda: None):
 
 
 def _target(contexts, parameters):
-    if type(contexts) is not dict or not contexts:
+    from .native_control import NativeSessionInventory
+    if type(contexts) not in (dict,NativeSessionInventory) or not contexts:
         raise ValueError('Supply a nonempty explicit modeled target session calendar.')
     days = sorted(contexts)
     if any(type(day) is not date or contexts[day].session != day for day in days):
@@ -263,7 +278,7 @@ def build_schedule(catalogue, target_contexts, parameters, *, phase, seed, path_
         start_date = date.fromisoformat(start_date)
     if type(start_date) is not date or start_date > target[0][0]:
         raise ValueError('Modeled start date must precede or equal its first open session.')
-    if start_date <= catalogue.sessions[-1].context.session:
+    if start_date <= catalogue.sessions[-1].context.session and json.loads(catalogue.source_identity_json).get('forecast_model')!='native_percentage_observed_blocks_v2':
         raise ValueError('Modeled forecast starts must follow the admitted source IS history.')
     if cutoff_date_exclusive is None:
         cutoff_date_exclusive = target[-1][0]+timedelta(days=1)

@@ -1,24 +1,24 @@
 # Campaign edge research and independent percentage-risk optimization
 
-Status: **implementation in progress; campaign risk diagnostics delivered, main
-percentage optimizer not released**. The sections below remain the target design,
-not a claim that every milestone is implemented.
+Status: **implementation covers M0–M7; final release verification is recorded in
+`docs/prop_simulation_review.md`**. The initial capacity checkpoint is historical;
+it is not the current implementation boundary.
 
-Implementation checkpoint, 2026-11-14:
-
-| Milestone | Current implementation status |
+| Milestone | Current implementation |
 | --- | --- |
-| M0 | Bounded synthetic capacity experiment and source-gap audit completed. The production release gate is not met: no representative real-source 1,000-path result; current native bounds and NQ adaptation gaps remain. |
-| M1 | Instrument-aware planned net R, coverage, monthly/trade evidence, normal report and campaign panels, optional Broad/Narrow columns, verified downloads and historical derivation implemented. No screening or parity gate changed. |
-| M2 | Exact Decimal percentage-grid and policy-label contracts implemented internally and checked. Public grid declarations, complete API/report integration and automatic selection remain pending. |
-| M3 | Existing bounded native phase simulations retained; shared planned-loss arithmetic and exact source-prefix preparation added. This is not qualification of the planned production percentage workflow. |
-| M4 | Bounded 32 MiB prior-only feature snapshots remove repeated warmup and catalogue validation within native research candidates; full trace parity checked. Production-size compilation, streaming, counts/horizons and checkpoint qualification remain pending. |
-| M5–M7 | Native two-history OOS qualification, main automatic percentage controls and forward percentage-policy migration remain pending. Fixed-size workflow remains the available main Prop Sim mode. |
+| M0 | Exact contracts and native origin-frequency law; real NQ source admission, including the reviewed pre-June-2021 venue pause. |
+| M1 | Planned-R evidence, coverage and campaign/report integration; screening gates unchanged. |
+| M2 | Disjoint fixed/percentage contracts, exact independent grids, full policy identity and percentage-aware automatic selection. |
+| M3 | Native causal Evaluation/Funded execution for both accounts, including actual quantity, skips, caps and cash transitions. |
+| M4 | Prepared event/price indexing, bounded prefixes/uniforms, checksummed read-only worker source, full counts, four-worker progress and existing checkpoints. |
+| M5 | Frozen OOS forecast plus chronology and separately versioned full-count two-history qualification. |
+| M6 | Main portal percentage controls, initial budgets, automatic IS selection/freeze/OOS and policy-aware tables/charts. |
+| M7 | Existing percentage-aware supplied-event forward review, immutable historical compatibility, documentation and inspectable product evidence. |
 
-The measured experiment, normal-product evidence and reproduction commands are
-recorded in [the implementation review](prop_simulation_review.md#percentage-risk-research-increment-2026-11-14).
-Following the capacity condition in section 14, the independently useful M1
-increment ships while the full native workload remains a release blocker.
+The initial M1-only delivery and capacity findings remain preserved in the dated
+implementation review. See the later independent percentage optimizer section for
+current reproduction, actual outputs, verification scope and measured capacity.
+
 Prepared 2026-11-14 for `epic/revamp-workflow`, following the percentage-risk
 research-design discussion. Production behavior continues to be defined by
 [workflow screening](workflow_screening.md), [prop simulation](prop_simulation.md)
@@ -87,7 +87,7 @@ accessed data as untouched after this change.
 - Existing fixed-contract behavior, reports and portfolio objectives remain.
   This does not add portfolio Monte Carlo or independent replacement cash flow.
 
-## 3. Current foundations and concrete gaps
+## 3. Design-time foundations and gaps (historical inventory)
 
 | Surface | Implemented foundation | Work required |
 | --- | --- | --- |
@@ -101,7 +101,7 @@ accessed data as untouched after this change.
 | Execution infrastructure | Existing AnalysisStore, bounded Runtime, source capture, stop, canonical reuse, progress and completed-refit checkpoints. | Include native source/catalogue/schedule/policy identity and publish mode-aware progress. |
 | Forward review | Existing supplied-event monitor and frozen policy comparison. | Reconcile percentage quantity decisions, skipped entries, caps and account state as well as fills. |
 
-The current native forecast request is bounded to 512 paths and 365 calendar days;
+At design time the native forecast request was bounded to 512 paths and 365 calendar days;
 its search also has separate bar-work, schedule and capture bounds. The normal
 Prop Sim form supports 8–20,000 paths, and Evaluation acquisition can have a
 3,650-day computation guard. These are **real implementation gaps**. Do not
@@ -565,8 +565,9 @@ Release acceptance requires all of the following:
 Recommended work order: M0, then M1, M2, M3, M4, M5, M6 and M7. If M0/M4 exposes
 unacceptable exact-native cost, deliver the independently useful R diagnostics
 and resolve that bottleneck before claiming the percentage optimizer complete.
-A calendar-time estimate for the remaining work should follow the measured M0
-benchmark and integration inventory; a form-only estimate would omit the main risk.
+The capacity checkpoint does not authorize stopping after a partial milestone.
+Resolve the execution bottleneck and complete all remaining implementation and
+verification work; retain full counts and exact native execution.
 
 ## References
 

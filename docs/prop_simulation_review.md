@@ -12089,3 +12089,229 @@ not altered. The idle stable portal was restarted to load commit `baec9a3`; no
 queued/running optimization, mechanic or prop jobs were interrupted. Its new PID
 is 51439; stop it with `kill 51439` if needed. All temporary test servers were
 closed.
+
+## Independent percentage-risk Prop Sim optimizer — 2026-11-15
+
+The M0–M7 extension is implemented in the existing product. The earlier capacity
+checkpoint remains historical. Main Prop Sim now has independent exact-decimal
+Evaluation/Funded percentage grids for Apex 50K EOD and LucidFlex 50K, actual
+causal native execution, automatic IS selection/freeze, frozen OOS forecasts and
+chronology, versioned native historical qualification and supplied-event forward
+review. Campaign screening rules and the separate portfolio objective are unchanged.
+
+### Normal user journey
+
+1. Open a qualified campaign source backtest, then **Prop Sim**. Qualification is
+   rechecked by the server; an unqualified or unsupported source cannot launch.
+2. Select the prop account and **Percentage of account risk**. Set independent
+   minimum/maximum/increment and whole-MNQ ceilings for Evaluation and Funded.
+   The default reference is initial $50,000 capital. Advanced controls expose
+   current balance or available drawdown cushion and default-off planning guards.
+   The form shows the initial dollar budget and its share of the initial $2,000
+   account drawdown; 0.20 means 0.20%, not 20%.
+3. Click **Run IS and OOS** once. Both independent IS searches run, the documented
+   phase selectors freeze their percentage families, and OOS qualification runs
+   without another selection or confirmation. Navigating away does not stop it.
+4. Follow source preparation, account paths and historical refits in Prop Sim or
+   Job history. The normal stop/retry controls preserve stop intent and completed
+   refits. A partially computed refit restarts at its own index.
+5. Reopen the simulation from Previous analyses. Inspect percentage policies,
+   separate admitted-quantity/skip/cap diagnostics, objective-specific results,
+   current OOS verdicts, chronology, source evidence and ordinary sealed downloads.
+   The cap is never presented as a fixed executed quantity. GO still opens paper
+   review; it does not authorize live trading.
+
+Supported native capability is explicit: the existing VWAP strategy, EOD flat,
+strategy-local volume sizing off, one accepted entry per reset day, and a
+same-day entry window ending by 17:00 Chicago with its reset before entries.
+Unknown capabilities reject rather than falling back to resizing saved trades.
+NQ/MNQ reference prices execute as MNQ with point value 2 and explicit replacement
+commissions charged once. Basis/liquidity and future provider rules are not newly
+certified. Source CSVs, baseline trades, existing campaign verdicts and reports
+remain unchanged.
+
+### Independent expected values and the actual portal journey
+
+The saved browser journey uses a clearly labeled **SYNTHETIC native percentage
+orchestration** source. Only prior campaign admission is a test fixture; source
+backtests, native phase execution, freezing, OOS calculations, stores and portal
+routes are actual. It must not be treated as a newly qualified real campaign.
+
+For its known signal 118, stop 113, target 268, MNQ point value 2 and zero costs:
+
+- At 0.20% of $50,000, the budget is $100. One MNQ risks `(118−113)×2 = $10`;
+  quantity is `floor(100/10) = 10`, rather than the 60/40-MNQ ceiling. A target
+  trade earns `(268−118)×2×10 = $3,000`.
+- At 0.30%, quantity is 15. These policies remain distinct even when their
+  acquisition metrics tie. Apex Evaluation costs $49+$129 = **$178**, with
+  **2 calendar days** including the saved readiness convention. Both Funded
+  policies receive **$1,500** within the nine-day modeled horizon, including
+  zero/pending receipt handling through the ordinary owner.
+- Automatic exact-tie selection freezes **0.20%** for both phases. It does not
+  freeze "60 MNQ" or "40 MNQ" as an executed quantity.
+- Its seven OOS sessions correctly produce **INSUFFICIENT_EVIDENCE**: there are
+  neither twelve complete months nor one hundred closed source trades. A ratio
+  of 1.00 alone cannot turn that into GO. No production evidence gate is bypassed.
+
+The complete 10,000-refit publication branch is additionally exercised in an
+explicitly labeled numerical-branch test. Its short-history evidence override is
+confined to that test; it is not a product report or a market qualification claim.
+Both histories retain eight inner paths at every addressed outer index, independent
+IS/OOS role seeds and exact equal-law results. Separate tests retain the real
+short-history rejection above.
+
+Saved normal-product evidence is under
+`artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/`: configuration
+and result screenshots, parent record, sealed-assessment hashes and a copy of the
+ordinary completed synthetic library. The saved one-click parent is
+`eb80590e13b741fa935962e5603a62dd`; its OOS reports are
+`6e4e3ad51c774535984c0a65bb838f06` (Evaluation) and
+`14442b64e3f940d193fe626fdf36ba23` (Funded). Reopen without simulation:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/data" /bin/sh scripts/serve_portal.sh --port 8018
+```
+
+Open `http://127.0.0.1:8018/#prop-sim?analysis=eb80590e13b741fa935962e5603a62dd`.
+Expected: complete automatic workflow, one frozen 0.20% family member per phase,
+$178 / two-day Evaluation estimate, $1,500 Funded receipts and explicit OOS
+insufficiency. The source is synthetic, with fixture-only prior admission, so it
+is not a template for bypassing admission on a new run. Stop the temporary server
+with Ctrl-C. No separate demonstration page, API or result store was introduced.
+
+### Real-source execution parity and capacity
+
+The real admission/capacity work uses an isolated read-only-derived copy of the
+existing qualified NQ workflow `3a9a24936f3d4034b722650547baedc3`, candidate 2,
+IS backtest `bfa89f7e4714444391e19ef577efeeb4`. The dataset is
+`094287965d4444f69cb7eefe0d2f054c`, SHA-256
+`2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377`.
+Its 2021–2024 native source has 1,415,817 observed rows across 1,034 sessions.
+The explicit reviewed historical venue pause is preserved; no prices are imputed.
+
+Eight comparisons cover both accounts, both phases and two addressed source
+schedules. Ordinary full-bar execution is the independent expected owner. All
+quantities, fills, monetary state, calendar transitions and controller events
+match; only the engine-local trade ordinal is normalized because it restarts
+with each execution call. Five-session samples consume 6,825–6,900 observed source
+bars, versus 0–32 actual event bars in the indexed route. Full inputs and actual
+outcomes are in `real-native-full-engine-parity.json`; zero event bars denote a
+proved no-entry slice with real account/calendar transitions, not invented data.
+
+Reproduce the comparison against a compatible saved library and its saved normal
+Evaluation report:
+
+```sh
+PYTHONPATH=. .venv/bin/python scripts/verify_percentage_real_trace.py /private/tmp/aq-percentage-product/data /private/tmp/aq-percentage-product/evidence
+```
+
+The four normal API capacity runs each use **1,000 actual native paths**, 0.20%
+of initial capital, seed 42, five-session source blocks, explicit $0.51 MNQ
+commission per side and the ordinary phase cap. Funded uses 90 calendar days;
+Lucid Evaluation retains the full 3,650-day computation guard. This is a
+single-policy capacity measurement, not a claim that 0.20% is optimal. The
+supplemental harness explicitly disables automatic follow-on OOS while measuring
+these point workloads; the normal one-click automatic journey is tested separately.
+The real campaign's prior admission is not stubbed.
+
+| Account | Phase | Retained paths | Actual point result | Reservation → publication |
+| --- | --- | --- | --- | --- |
+| apex-50k-eod | evaluation | 1,000 | Censored; acquisition means withheld | 204.67 s |
+| apex-50k-eod | funded | 1,000 | $1.50 mean received / 90 days | 385.13 s |
+| lucidflex-50k | evaluation | 1,000 | Censored; acquisition means withheld | 362.57 s |
+| lucidflex-50k | funded | 1,000 | $59.41 mean received / 90 days | 548.74 s |
+
+These elapsed times include queueing, source admission/preparation and publication;
+they are not isolated account-kernel timings. Peak parent RSS was 4.31 GiB.
+Apex Evaluation first-attempt pass probability was 3.50%; Funded received $1.50
+on average, with 99.90% zero receipts. Lucid acquisition completed on 919/1,000
+paths; 81 guard-censored paths correctly withhold untruncated means. Lucid Funded
+mean received cash was $59.41, with 94.40% zero receipts. None of these
+single-policy capacity measurements is a live qualification or optimality claim.
+
+The capacity reports predate a later admission-only correction to the native OOS
+launch window. Their phase numerical implementation hashes exactly match the
+final owners; the broader captured admission identity remains historical.
+No identity guard was bypassed to reuse them for a new frozen launch.
+
+The real-source launch check found legacy OOS coverage ending in a partial extra
+session beyond the saved split. `research_campaigns.finish_assessment` now uses
+`saved_oos_period` for native and fixed sources alike, matching the frozen-family
+validator. Parent, parameters, dataset, plan and execution-cost guards remain. A
+focused regression overstates saved coverage beyond the frozen end date and
+proves only the admitted in-window data reaches the native OOS owner. Direct
+individual campaign reruns remain rejected; Prop Sim binds the already-qualified
+complete campaign OOS source.
+
+A fresh current-identity NQ run (`c373e39312fa41bf833a992d6a10e961`, eight
+paths per phase) completes both IS searches. Its frozen Prop Sim OOS request now
+passes the family/parent/window checks and correctly rejects **before queueing**:
+the supplied source lacks **2025-04-02 15:32 America/Chicago** (16:32 New York),
+inside the strategy's possible holding interval before its 15:40 cutoff. The
+surrounding original rows are saved in `real-oos-source-gap.json`; the cause is
+unverified, so no price or venue pause was inferred. No native OOS performance or
+qualification verdict was published for this source. Compatible observed prices
+or verified market-status evidence are needed to use it for native OOS.
+
+`fresh-real-oos-admission.json` and the normal parent/validation snapshots retain
+that expected rejection. Independent fill/cash oracles also check the real
+long-only IS samples: `(exit−entry) × 2 × quantity − commissions`, with exactly
+$1.02 commission per closed MNQ. Dataset bytes and original IS/OOS trade/equity
+files match their preimplementation copy; see `original-source-integrity.json`.
+The source-data rejection is preserved alongside the positive synthetic native
+OOS journeys and full-count numerical qualification tests, without manufacturing
+an empirical GO result.
+
+
+The real run artefacts, normal analysis ZIPs, requests, source checks, progress
+logs and compact measured results are saved under
+`artifacts/percentage-risk-optimizer-20261115/`. The committed compact evidence
+index is `docs/evidence/percentage-risk-optimizer-20261115.json`. Timings reflect
+this machine and concurrent verification work. Peak RSS measurements explicitly
+refer to the parent process, not total worker/system memory. Full native OOS can
+remain substantially more expensive than a point estimate; it retains all
+10,000 outer refits and every requested inner account path.
+
+### Boundaries, retention and focused verification
+
+Preparation bounds its prefix and common-uniform caches at 32 MiB each; a cache
+miss takes the same exact uncached route. Checksummed read-only worker spools
+preserve original source fields. Detailed captures cover the first five source
+sessions of each explicitly captured path and label where they end; complete
+financial outcomes, payout events, aggregate quantities and every requested
+point path/schedule remain. V2 basic searches do not inherit V1's aggregate
+bar-work or 128-MiB publication bound. Legacy V1 and separately bounded optional
+research methods retain their own contracts.
+
+Focused checks verify exact grid endpoints/tiny-percent serialization, phase
+independence, 20,000 retained paths, both 3,650-day guard cases, ordinary-engine
+parity, all four account/phase API paths, native OOS chronology, no OOS reselection,
+current-mode automatic selection, full-count refits and deterministic completed-
+refit reuse. Cancellation drains siblings; completed outer indices survive a
+stop and match serial resume. Source-spool corruption, genuine holding gaps,
+unsupported strategy capabilities, invalid phase caps and changed source/code
+identities reject. Economic-review arithmetic and existing fixed-size automatic,
+native replay and parallel-confidence journeys remain covered.
+
+The final chart checks include opening the intentionally collapsed chart,
+exact-tie inspection, linked-row highlighting, numeric sorting of decimal-string
+metrics, dense frontiers and the shared native progress renderer. The legacy
+native OOS journey also passes after the source-window correction.
+
+Release verification commands (focused, not the old 180-check/full suite):
+
+```sh
+PYTHONPATH=. .venv/bin/pytest -xq tests/test_native_event_preparation.py tests/test_percentage_native_forecasts.py tests/test_percentage_account_starts.py tests/test_percentage_grid.py tests/test_percentage_market_hours.py tests/test_percentage_source_spool.py tests/test_prop_assessment_review.py tests/test_prop_confidence_parallel.py
+PYTHONPATH=. .venv/bin/pytest -xq tests/test_percentage_grid.py tests/test_percentage_native_bootstrap.py tests/test_percentage_account_starts.py tests/test_prop_sim_automatic.py::test_full_pipeline_needs_only_run_preserves_frozen_family_and_reopens tests/test_native_replay_api.py::test_real_native_report_workflow tests/test_prop_assessment_review.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome PYTHONPATH=. .venv/bin/pytest -xq tests/test_percentage_prop_browser.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome PYTHONPATH=. .venv/bin/pytest -xq tests/test_prop_sim_browser.py::test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows tests/test_percentage_prop_browser.py::test_shared_progress_labels_percentage_paths_and_refits tests/test_native_phase_campaigns.py::test_native_manual_oos_is_actual_chronology_with_frozen_horizon_and_no_reselection
+```
+
+The final real port-8000 form was also inspected with Chrome against the existing
+qualified source: independent percentage controls, Apex/Lucid phase ceilings,
+mode-correct assumptions, 390-pixel layout and no page errors. No simulation was
+launched in the user's library for that inspection. Its idle stable portal was
+restarted with zero interrupted jobs, PID **62236**; stop it with `kill 62236`.
+All temporary browser servers were closed. Real performance work and synthetic
+product evidence remain in isolated libraries; original user datasets, backtests,
+simulations, Windows VM and other processes were preserved.

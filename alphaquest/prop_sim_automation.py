@@ -116,7 +116,7 @@ class PropSimAutomation:
         selection=state['selection']
         if selection['status']!='selected':
             state['stage']='no_eligible_candidates';self._write(saved);return
-        names={c['candidate_id']:f"{c['micros']} MNQ · "+' / '.join(c['roles']) for c in selection['candidates']}
+        names={c['candidate_id']:(c.get('sizing_label') or f"{c['micros']} MNQ")+' · '+' / '.join(c['roles']) for c in selection['candidates']}
         # Freeze is idempotent and immutable, including recovery between writes.
         frozen=store.freeze(cid,FreezeRequest(candidate_ids=list(names),names=names,
             rationale='Automatically selected from IS only. '+json.dumps(dict(policy=selection['selection_identity'],

@@ -90,6 +90,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         fresh_scope=not dataset_path.exists()
         app.state.store = DatasetStore(dataset_path)
         app.state.runs = RunStore(app.state.store.path.parent)
+        app.state.store.replay_cache=app.state.runs.replay_cache
         app.state.research = ResearchStore(app.state.runs)
         from .campaign_workflow import CampaignWorkflowStore
         app.state.campaign_workflows = CampaignWorkflowStore(app.state.runs)

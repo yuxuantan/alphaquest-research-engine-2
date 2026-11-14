@@ -473,7 +473,7 @@ class AnalysisStore:
         module = module_for_mode(search.mode)
         optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
-        reserved_children=[]
+        reserved_children=[];reused_children=[]
         def reserve_child(child_id):
             with self.lock,self.connect() as db:
                 db.execute('INSERT INTO analysis_sources VALUES (?,?)',(id,child_id))
@@ -491,8 +491,9 @@ class AnalysisStore:
             checkpoint()
             details=message if isinstance(message,dict) else None
             if details:
-                message=(f"Historical confidence · {details['micros']} MNQ · "
-                    f"{details['completed']:,}/{details['total']:,} block resamples · {details['worker_count']} workers")
+                label=details.get('sizing_label') or f"{details['micros']} MNQ"
+                stage=({'native_execution':'Native account execution','native_preparation':'Preparing native source'}.get(details.get('stage'),'Historical confidence'))
+                message=(f"{stage} · {label} · {details['completed']:,}/{details['total']:,} {details.get('unit','resamples')} · {details['worker_count']} workers")
             self._update(id, 'running', message,progress_details=details)
             progress(message)
         try:
@@ -524,17 +525,21 @@ class AnalysisStore:
                         original = {r['candidate_id']:r['manifest'] for r in report['calculations']['candidates']}
                         if original != {c['candidate_id']:c['manifest'] for c in checks}:
                             raise ValueError('Saved OOS candidate/source identity changed; no results were reused.')
+                        if getattr(search,'native_execution',None) is not None and not self.native_children_unchanged(runs,report['id']):raise ValueError('Saved OOS native child capture changed.')
                         return report
                     if base:
                         from copy import deepcopy
                         update('Reusing verified OOS numerical results; applying declared review')
-                        calculations = deepcopy(verified_base()['calculations'])
+                        previous=verified_base();calculations = deepcopy(previous['calculations'])
+                        reused_children=list(previous.get('native_backtests',{}))
+                        with self.connect() as db:
+                            for child in reused_children:db.execute('INSERT OR IGNORE INTO analysis_sources VALUES (?,?)',(id,child))
                     else:
                         calculations = optimize(runs, search, checks, update, **options)
                     if review_options:
                         if review_options.get('qualification'):
                             from .oos_qualification import qualify
-                            calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self,analysis_id=id)
+                            calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self,analysis_id=id,datasets=datasets)
                         else:
                             from .assessment_review import enrich
                             # A business-policy review can reuse the point paths
@@ -542,12 +547,12 @@ class AnalysisStore:
                             for key in list(calculations):
                                 if key.startswith('qualification_') or key=='forward_execution_review':calculations.pop(key)
                             for row in calculations['candidates']:row.pop('prop_qualification',None)
-                            calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update)
+                            calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update,datasets=datasets)
                 if assessment:
                     calculations['assessment'] = assessment
                 result = module.write_report(runs, staged, search, checks, calculations)
-                if reserved_children:
-                    self.capture_native_children(runs, staged, result, reserved_children)
+                if reserved_children or reused_children:
+                    self.capture_native_children(runs, staged, result, [*reserved_children,*reused_children])
 
                 if assessment:
                     result['assessment'] = assessment
@@ -593,7 +598,7 @@ class AnalysisStore:
                         if review_options.get('forward_capture'):
                             from ..prop_sim_forward import verified_observation
                             verified_observation(review_options['forward_capture'],review_options['simulation_id'],phase.lower(),base['analysis_id'],self)
-                    size_limit = (128*1024*1024 if getattr(search,'native_execution',None) is not None
+                    size_limit = (128*1024*1024 if (getattr(search,'native_execution',None) is not None and not search.native_execution.prepared_execution)
                                   or getattr(search,'conservative_objective',None) is not None else None)
                     seal_report(staged, result, id, self.get(id)['created'],size_limit_bytes=size_limit)
                     staged.rename(self.root/id)

@@ -4,8 +4,9 @@
   const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const fmt=v=>v==null?'unavailable':Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   function candidate(row){
-    const q=row.prop_qualification,size=row.configuration?.micros??row.manifest?.configuration?.micros;
-    const result={size,status:q?.status||'NOT_ASSESSED',reasons:[],next:'Complete OOS qualification for this frozen size.',action:'Await qualification'};
+    const configuration=row.configuration??row.manifest?.configuration??{},q=row.prop_qualification,size=configuration.micros;
+    const policy=configuration.sizing?.policy,label=policy?.kind==='percentage_risk'?`${policy.risk_percent}% · ${policy.reference.replaceAll('_',' ')} (cap ${size} MNQ)`:`${size} MNQ`;
+    const result={size,label,status:q?.status||'NOT_ASSESSED',reasons:[],next:'Complete OOS qualification for this frozen size.',action:'Await qualification'};
     if(!q)return result;
     for(const e of q.evidence||[])if(e.passed!==true)result.reasons.push(`${e.label}: ${e.actual??'unavailable'}; required ${e.required}.`);
     for(const c of q.checks||[]){
@@ -70,7 +71,7 @@
       if(model.campaignPassed)host.append(node('p','Campaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.','prop-sim-campaign-standing'));
       if(issues){
         const why=node('details',undefined,'prop-sim-conclusion-reasons');why.open=!model.passed;why.append(node('summary','Why this is the next step'));
-        for(const c of model.candidates){if(!c.reasons.length)continue;why.append(node('h4',`${c.size} MNQ · ${c.action}`));const list=node('ul');for(const reason of c.reasons)list.append(node('li',reason));why.append(list);}
+        for(const c of model.candidates){if(!c.reasons.length)continue;why.append(node('h4',`${c.label} · ${c.action}`));const list=node('ul');for(const reason of c.reasons)list.append(node('li',reason));why.append(list);}
         if(precision)why.append(node('p','More account paths may improve numerical precision. More historical refits do not add market history. An extra-path diagnostic does not automatically update this saved OOS verdict.','field-help'));
         if(model.uncertain)why.append(node('p','A confidence interval crossing the limit is inconclusive, not a demonstrated failure. More account paths cannot guarantee that historical uncertainty will disappear.','field-help'));
         host.append(why);

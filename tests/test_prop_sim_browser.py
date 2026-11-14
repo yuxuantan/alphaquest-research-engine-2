@@ -115,6 +115,7 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     for size,cost,days,frontier in [(1,100,10,True),(2,200,5,True),(3,300,12,False),(4,None,None,False),(5,100,10,True)]:
         rows.append(dict(candidate_id=str(size),manifest=dict(configuration=dict(micros=size)),
             status='estimated' if cost is not None else 'unresolved',pareto_member=frontier,
+            quantity_summary=dict(mean_requested_risk_budget=str(50*size)),
             metrics=dict(cost_per_funded=cost,expected_calendar_days_to_funded=days)))
     report=dict(calculations=dict(candidates=rows,frontier=['1','2','5']))
     page.route('**/api/prop-sim',lambda route:route.fulfill(json=dict(items=[])))
@@ -122,6 +123,7 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     page.route('**/api/prop-sim/'+id+'/results/evaluation',lambda route:route.fulfill(json=report))
     page.route('**/api/prop-sim/'+id+'/results/funded',lambda route:route.fulfill(json=dict(calculations=dict(candidates=[],winner=None))))
     page.goto(portal['url']+'/#prop-sim?analysis='+id)
+    page.locator('#prop-sim-evaluation-results .prop-sim-chart-details > summary').click()
     chart=page.locator('#prop-sim-evaluation-pareto')
     playwright.expect(chart).to_have_attribute('data-candidate-count','4')
     playwright.expect(chart).to_have_attribute('data-view','frontier')
@@ -136,10 +138,13 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     assert first[0]<last[0] and first[1]<last[1]  # Faster is left, greater cost is up.
     chart.locator('circle[data-sizes="1,5"]').focus()
     page.keyboard.press('Enter')
-    playwright.expect(page.locator('#prop-sim-pareto-readout')).to_contain_text('1, 5 MNQ')
+    playwright.expect(page.locator('#prop-sim-pareto-readout')).to_contain_text('1 MNQ / 5 MNQ')
     playwright.expect(page.locator('#prop-sim-evaluation-table tr.prop-sim-chart-highlight')).to_have_count(2)
+    page.locator('#prop-sim-evaluation-table th button').filter(has_text='Mean requested risk').click()
+    playwright.expect(page.locator('#prop-sim-evaluation-table tbody tr').first).to_have_attribute('data-size','1')
     rows[:]=[rows[0],rows[4]];report['calculations']['frontier']=['1','5']
     page.reload()
+    page.locator('#prop-sim-evaluation-results .prop-sim-chart-details > summary').click()
     playwright.expect(chart).to_have_attribute('data-visible-count','2')
     playwright.expect(chart.locator('circle')).to_have_count(1)
     playwright.expect(chart.locator('polyline')).to_have_count(0)
@@ -152,6 +157,7 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
             status='estimated',pareto_member=False,metrics=dict(cost_per_funded=cost,expected_calendar_days_to_funded=days)))
     report['calculations']['frontier']=[str(size) for size in range(1,41)]
     page.reload()
+    page.locator('#prop-sim-evaluation-results .prop-sim-chart-details > summary').click()
     playwright.expect(chart).to_have_attribute('data-visible-count','40')
     playwright.expect(chart).to_have_attribute('data-candidate-count','42')
     assert not any('MNQ' in text for text in chart.locator('text').all_text_contents())
@@ -174,12 +180,14 @@ def test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows(page,portal)
     for row in rows:row['pareto_member']=False
     report['calculations']['frontier']=[]
     page.reload()
+    page.locator('#prop-sim-evaluation-results .prop-sim-chart-details > summary').click()
     playwright.expect(chart).to_have_attribute('data-view','all')
     playwright.expect(page.locator('#prop-sim-pareto-focus')).to_be_disabled()
     playwright.expect(chart.locator('polyline')).to_have_count(0)
     for row in rows:
         row['status']='unresolved';row['metrics'].update(cost_per_funded=None,expected_calendar_days_to_funded=None)
     page.reload()
+    page.locator('#prop-sim-evaluation-results .prop-sim-chart-details > summary').click()
     playwright.expect(page.locator('.prop-sim-pareto')).to_contain_text('No resolved cost/time points')
     playwright.expect(page.locator('#prop-sim-evaluation-pareto')).to_have_count(0)
     playwright.expect(page.locator('#prop-sim-evaluation-table tbody tr')).to_have_count(42)

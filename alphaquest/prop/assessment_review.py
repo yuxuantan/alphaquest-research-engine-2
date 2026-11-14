@@ -52,7 +52,9 @@ class AssessmentLimits(BaseModel):
 
 
 def implementation():
-    return dict(version=VERSION, source_sha256=sha256(Path(__file__).read_bytes()).hexdigest())
+    from . import native_account_starts
+    return dict(version=VERSION, source_sha256=sha256(Path(__file__).read_bytes()).hexdigest(),
+        native_account_starts_sha256=sha256(Path(native_account_starts.__file__).read_bytes()).hexdigest())
 
 
 def start_plan(period, horizon, count, closures=()):
@@ -149,7 +151,7 @@ def review(row, phase, policy, horizon):
         interpretation='PASS means the declared economic limits and evidence minimums were met. Adverse IS changes are review warnings, not extra gates or proof of statistically significant degradation. MC precision is not future/regime uncertainty. OOS has already been accessed during strategy qualification.')
 
 
-def run_start_sensitivity(runs, search, checks, policy, checkpoint, progress):
+def run_start_sensitivity(runs, search, checks, policy, checkpoint, progress, *, datasets=None):
     """Invoke existing chronological owners on each predetermined covered slice."""
     from .phase_profiles import prepare_phase_source, verify_phase_source
     from .phase_search import PhaseCalendar
@@ -157,6 +159,23 @@ def run_start_sensitivity(runs, search, checks, policy, checkpoint, progress):
     from .funded_profiles import _dated_funded_paths
     from .adapter import canonical
     phase = search.mode.removesuffix('_optimization')
+    if search.native_execution and search.native_execution.prepared_execution:
+        if datasets is None:raise ValueError('Native account starts require the verified dataset store.')
+        from .native_search import prepare_native_candidate,verify_native_candidate
+        from .native_account_starts import run
+        from dataclasses import asdict
+        configs={canonical(asdict(c)):c for c in search.candidates};output=[];cache={}
+        for check in checks:
+            candidate=configs[canonical(check['manifest']['configuration'])]
+            if policy['phase']!=phase or policy['start_plan']['period']!=check['manifest']['configuration']['period']:
+                raise ValueError('Account-start plan does not match the frozen OOS coverage.')
+            inputs,_=prepare_native_candidate(datasets,runs,search,candidate,check,private_admission=True,checkpoint=checkpoint,cache=cache,progress=progress)
+            item=run(inputs,candidate,search,policy,checkpoint,progress)
+            item['frozen_candidate_id']=check['frozen_candidate_id'];output.append(item)
+            verify_native_candidate(datasets,runs,search,candidate,check,private_admission=True,cache=cache)
+        plan=policy['start_plan']
+        return dict(plan=plan,candidates=output,status='COMPLETE' if plan['starts'] else 'INCONCLUSIVE',
+            simulations=len(plan['starts'])*len(output),interpretation='Actual native observed-order accounts at coverage-only starts; dependent windows, no resampling, replacement or selection.')
     plan = policy['start_plan']; output=[]
     from dataclasses import asdict
     configs = {canonical(asdict(c)):c for c in search.candidates}
@@ -207,7 +226,7 @@ def start_summary(paths, phase):
         interpretation='Cash ranges include zero-receipt accounts. Open accounts are observed for the full horizon; lifetime remains censored. No replacement accounts.')
 
 
-def enrich(calculations, search, assessment, runs, checks, checkpoint, progress):
+def enrich(calculations, search, assessment, runs, checks, checkpoint, progress, *, datasets=None):
     options=assessment['prop_sim_review']
     if options['implementation']!=implementation():
         raise ValueError('Assessment review implementation changed after declaration.')
@@ -225,5 +244,5 @@ def enrich(calculations, search, assessment, runs, checks, checkpoint, progress)
     calculations['assessment_kind']=options['kind']
     calculations.pop('account_start_sensitivity',None)
     if options['kind']=='account_starts':
-        calculations['account_start_sensitivity']=run_start_sensitivity(runs,search,checks,options['policy'],checkpoint,progress)
+        calculations['account_start_sensitivity']=run_start_sensitivity(runs,search,checks,options['policy'],checkpoint,progress,datasets=datasets)
     return calculations

@@ -31,7 +31,11 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 The current **Prop Sim** tab's [Evaluation/Funded calculation guide](docs/prop_simulation_methodology.md)
 details IS selection, frozen OOS simulation and confidence checks, account rules,
-costs, result columns, and the separate percentage-risk portfolio workflow.
+costs, result columns, independent percentage-risk sizing and the separate
+portfolio workflow. Main Prop Sim can independently optimize risk percentages
+for Evaluation and Funded in Apex 50K EOD or LucidFlex 50K, then automatically
+freeze IS choices and assess OOS. See the [percentage research contract](docs/percentage_risk_research_plan.md)
+for supported native strategy capabilities and qualification evidence.
 
 [Guided prop configuration](docs/prop_setup.md) starts from a saved report with
 a goal choice, relevant source/design/account steps and a review/check/run stage.

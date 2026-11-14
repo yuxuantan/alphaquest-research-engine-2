@@ -180,7 +180,7 @@ def implementation_identity():
         'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py',
         'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
         'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
-        'native_draws.py', 'native_replay.py', 'native_search.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+        'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
         '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
@@ -353,7 +353,7 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
             unresolved_candidates=[r['candidate_id'] for r in rows if r['status'] != 'estimated'])
     from .phase_search import stable_phase_policy_identity
     tie_key = (lambda row: stable_phase_policy_identity(row, 'funded')) if training_context is not None else None
-    return dict(model_version=MODEL_VERSION,phase='funded',**rank_candidates(rows,search,tie_key=tie_key))
+    return dict(model_version=('independent-native-percentage-v2' if search.native_execution is not None and search.native_execution.prepared_execution else MODEL_VERSION),phase='funded',**rank_candidates(rows,search,tie_key=tie_key))
 
 
 def assess_saved_funded(runs,search,checks,assessment,progress,checkpoint):
@@ -391,7 +391,7 @@ def assess_saved_funded(runs,search,checks,assessment,progress,checkpoint):
             rows.append(row)
         verify_phase_source(runs,c.source,check['manifest']['source'])
     apply_constraints(rows,search)
-    return dict(model_version=MODEL_VERSION,phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
+    return dict(model_version=('independent-native-percentage-v2' if search.native_execution is not None and search.native_execution.prepared_execution else MODEL_VERSION),phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
         certified_optimum=False,selection_status='assessment_only_no_reselection',assessment_kind=assessment['kind'],
         objective=objective_metric(search),unresolved_candidates=[r['candidate_id'] for r in rows if r['status']!='estimated'])
 
@@ -404,15 +404,15 @@ def optimize_native_funded(datasets,runs,search,checks,progress,*,assessment=Fal
         return assess_native_funded(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child)
     current=check_search(runs,search,datasets=datasets,training_context=training_context)
     if checks is not None and canonical(checks)!=canonical(current):raise ValueError('Native candidate membership changed.')
-    checks=current;rows=[]
+    checks=current;rows=[];prepared_cache={}
     configurations={canonical(asdict(candidate)):candidate for candidate in search.candidates}
     for check in checks:
         c=configurations[canonical(check['manifest']['configuration'])]
         progress(f'Native Funded candidate {len(rows)+1}/{len(checks)}')
-        inputs,plan=prepare_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None,checkpoint=checkpoint)
+        inputs,plan=prepare_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None,checkpoint=checkpoint,cache=prepared_cache,progress=progress)
         forecast=forecast_native_funded(**inputs,receipt_delay_calendar_days=search.receipt_delay_calendar_days,
             receipt_amount_convention='kernel_entitlement_unrounded',progress=progress,checkpoint=checkpoint)
-        if canonical(forecast['schedules'])!=canonical(plan['schedules']):raise ValueError('Native candidate schedule changed.')
+        if not search.native_execution.prepared_execution and canonical(forecast['schedules'])!=canonical(plan['schedules']):raise ValueError('Native candidate schedule changed.')
         paths=native_funded_metric_paths(forecast)
         row=dict(candidate_id=check['candidate_id'],**funded_metrics(paths,search),paths=paths,
             native_forecast=forecast,schedule_sha256=plan['plan_sha256'],
@@ -427,14 +427,21 @@ def optimize_native_funded(datasets,runs,search,checks,progress,*,assessment=Fal
             row['metrics'][CONSERVATIVE_OBJECTIVE]=historical['lower_mean_cash']
             if historical['status']!='estimated':row.update(status='unresolved',reason='insufficient_native_historical_mean_evidence')
         rows.append(row)
+    if search.native_execution.prepared_execution:
+        from .native_preparation import quantity_summary
+        for row in rows:row['quantity_summary']=quantity_summary(row['native_forecast'])
+    progress('Verifying saved source and preparing durable results')
     for check in checks:
         c=configurations[canonical(check['manifest']['configuration'])]
-        verify_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None)
-    return dict(model_version=MODEL_VERSION,phase='funded',execution_model=search.native_execution.model,
+        verify_native_candidate(datasets,runs,search,c,check,private_admission=training_context is not None,cache=prepared_cache)
+    return dict(model_version=('independent-native-percentage-v2' if search.native_execution is not None and search.native_execution.prepared_execution else MODEL_VERSION),phase='funded',execution_model=search.native_execution.model,
         **rank_candidates(rows,search,tie_key=lambda row:stable_phase_policy_identity(row,'funded')))
 
 
 def assess_native_funded(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child):
+    if search.native_execution.prepared_execution:
+        from .native_search import assess_prepared_candidates
+        return assess_prepared_candidates(datasets,runs,search,checks,assessment,progress,checkpoint,reserve_child)
     from .phase_search import check_candidates
     from .native_search import execute_native_assessment
     current=check_candidates(runs,search,assessment,datasets=datasets)
@@ -453,7 +460,7 @@ def assess_native_funded(datasets,runs,search,checks,assessment,progress,checkpo
             censoring=dict(lifetime_censored=actual['lifetime_censored'],horizon_complete=True),
             feasible=None,constraint_violations=[],rank=None,paths=[],schedule_sha256=None,
             provenance=dict(source=check['manifest']['source'],sizing=actual['sizing'])))
-    return dict(model_version=MODEL_VERSION,phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
+    return dict(model_version=('independent-native-percentage-v2' if search.native_execution is not None and search.native_execution.prepared_execution else MODEL_VERSION),phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
         certified_optimum=False,selection_status='assessment_only_no_reselection',unresolved_candidates=[],
         objective=objective_metric(search),execution_model='native_actual_chronological_frozen_oos')
 
