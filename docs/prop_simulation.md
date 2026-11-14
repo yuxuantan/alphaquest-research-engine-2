@@ -1,5 +1,16 @@
 # AlphaQuest local prop simulation
 
+**Portal conclusions (14 November 2026):** saved independent Prop Sim results
+now lead with **Conclusion & next steps**, separately for Evaluation and Funded.
+Each phase explains its original server verdict, blockers and next action above
+the IS finding. Inconclusive qualification means hold deployment/gather evidence;
+NO-GO means do not deploy that sizing plan under the saved policy; historical GO
+leads to the existing paper execution review. Forward GO still calls for economic
+and deployment-control review, not automatic live approval. Older numerical or
+policy versions remain clearly historical. No calculation, eligibility threshold,
+freeze or report is changed by this presentation. See the
+[normal-product demonstration](evidence/qualified_prop_sim/conclusions/README.md).
+
 For the current Prop Sim tab, read the **[Evaluation/Funded IS and OOS
 calculation guide](prop_simulation_methodology.md)** (verified 14 November 2026).
 It explains Apex versus Lucid acquisition, fresh-Funded receipts, sampling and

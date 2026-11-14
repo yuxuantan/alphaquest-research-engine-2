@@ -1,5 +1,6 @@
 """One initial Run -> both IS searches -> automatic freeze -> both OOS reports."""
 import json
+from copy import deepcopy
 import os
 from pathlib import Path
 import shutil
@@ -61,6 +62,11 @@ def test_one_run_finishes_all_four_simulations_after_navigation(page,qualificati
         assert panel.locator('.prop-sim-auto-status').inner_text().count('9 MNQ')==1
         panel.screenshot(path=str(tmp_path/(phase+'-complete.png')))
         current=panel.locator('.prop-sim-current-assessment')
+        conclusion=page.locator('#prop-sim-'+phase+'-conclusion')
+        playwright.expect(conclusion).to_contain_text('Historical checks passed · paper review next')
+        playwright.expect(conclusion).to_contain_text('Campaign checks passed at assessment time')
+        playwright.expect(current.get_by_role('columnheader',name='Next step',exact=True)).to_be_visible()
+        playwright.expect(current.get_by_role('cell',name='Paper execution review',exact=True)).to_be_visible()
         with page.expect_download() as download:current.get_by_role('link',name='Assessment evidence ZIP ↓',exact=True).click()
         filename=tmp_path/(phase+'-oos.zip');download.value.save_as(filename)
         with ZipFile(filename) as z:report=json.loads(z.read('report.json'))
@@ -85,6 +91,8 @@ def test_one_run_finishes_all_four_simulations_after_navigation(page,qualificati
         reports[phase]=dict(analysis_id=report['id'],selection=state['selection'],metrics=row['metrics'])
     page.reload()
     playwright.expect(page.locator('#prop-sim-funded-validation .prop-sim-auto-status')).to_contain_text('Workflow: complete',timeout=60000)
+    page.locator('#prop-sim-funded-conclusion').get_by_role('button',name='Open paper execution review',exact=True).click()
+    playwright.expect(page.locator('#prop-sim-funded-validation').get_by_role('button',name='Configure paper observation',exact=True)).to_be_visible(timeout=30000)
     page.set_viewport_size(dict(width=390,height=844))
     page.locator('#prop-sim-funded-validation').screenshot(path=str(tmp_path/'mobile.png'))
     assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
@@ -100,3 +108,89 @@ def test_one_run_finishes_all_four_simulations_after_navigation(page,qualificati
             if p.is_file() and p.suffix in ('.json','.png','.zip'):shutil.copyfile(p,target/p.name)
         if library:=os.environ.get('ALPHAQUEST_PROP_PREPARATION_SAVE_LIBRARY'):
             shutil.copytree(qualification_portal['root'],Path(library)/profile,dirs_exist_ok=True)
+
+
+def test_saved_conclusions_distinguish_inconclusive_failure_forward_and_history(page,qualification_portal,tmp_path):
+    """Normal sealed run, then display-only boundary fixtures; no verdict rewrite."""
+    from test_prop_sim import body
+    from test_prop_sim_automatic import wait_automatic
+    portal=qualification_portal;base=portal['url']
+    with httpx.Client(base_url=base,timeout=180) as client:
+        config=dict(body(portal['source']),automatic=True,simulations=8,
+            evaluation_minimum_micros=10,evaluation_maximum_micros=10,
+            funded_minimum_micros=10,funded_maximum_micros=10,maximum_funded_breach_probability=None)
+        reply=client.post('/api/prop-sim',json=config);assert reply.status_code==202,reply.text
+        saved=wait_automatic(client,reply.json()['id'])
+        assert all(s['stage']=='complete' for s in saved['automation']['phases'].values()),saved
+        prefix=f"/api/prop-sim/{saved['id']}/validation/funded"
+        metadata=client.get(prefix).json();attempt=metadata['assessments'][0]
+        original=client.get(prefix+'/'+attempt['request_id']+'?summary=true').json()
+    seal_before=portal['app'].state.prop_analyses.fingerprint(attempt['analysis_id'])
+    display={'name':'inconclusive','summary':None};posts=[]
+    def summary(route):
+        if '?summary=true' in route.request.url:route.fulfill(json=display['summary'])
+        else:route.fallback()
+    def meta(route):
+        if route.request.method!='GET':route.fallback();return
+        value=deepcopy(metadata)
+        if display['name']=='historical':value.update(current_assessments={},numerical_implementation_compatible=False)
+        if display['name']=='running':
+            for a in value['assessments']:
+                if a['request_id']==attempt['request_id']:a.update(status='running',analysis=dict(a.get('analysis') or {},status='running',progress='SYNTHETIC display-only progress'))
+        route.fulfill(json=value)
+    page.route('**'+prefix+'/*?summary=true',summary);page.route('**'+prefix,meta)
+    page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
+    observations=[]
+    for case in ['inconclusive','precision','evidence','failed','mixed','forward_failed','forward_passed','historical','running','unassessed']:
+        display['name']=case;study=deepcopy(original);row=study['calculations']['candidates'][0];q=row['prop_qualification']
+        if case in ('inconclusive','precision','evidence'):
+            q['status']='INSUFFICIENT_EVIDENCE';q['inner_precision_ok']=case=='evidence'
+            if case=='inconclusive':q['checks'][0].update(status='INSUFFICIENT_EVIDENCE',point_ratio=.8,lower=.13,upper=3.64)
+            if case=='evidence':q['evidence'][0].update(actual=4,passed=False)
+        elif case=='failed':
+            q['status']='NO_GO';q['checks'][0].update(status='FAIL',point_ratio=.4,lower=.1,upper=.6)
+        elif case=='mixed':
+            other=deepcopy(row);other['configuration']['micros']=11;other['prop_qualification']['status']='INSUFFICIENT_EVIDENCE'
+            other['prop_qualification']['checks'][0].update(status='INSUFFICIENT_EVIDENCE',lower=.4,upper=1.2)
+            study['calculations']['candidates'].append(other)
+        elif case.startswith('forward_'):
+            q['forward_execution'].update(status='NO_GO' if case=='forward_failed' else 'GO',
+                checks=[dict(label='Unexplained execution discrepancies',actual=1 if case=='forward_failed' else 0,required=0,passed=case!='forward_failed')])
+        elif case=='unassessed':row.pop('prop_qualification')
+        display['summary']=study
+        page.goto(base+'/#prop-sim?analysis='+saved['id']);page.reload()
+        conclusion=page.locator('#prop-sim-funded-conclusion')
+        expected=('Hold live deployment · qualification inconclusive' if case in ('inconclusive','precision','evidence') else
+            'Do not deploy these sizes · assessment failed' if case=='failed' else
+            'Hold live deployment · resolve execution issues' if case=='forward_failed' else
+            'Paper checks passed · deployment review next' if case=='forward_passed' else
+            'Hold live deployment · historical assessment only' if case=='historical' else
+            'Assessment running · hold live deployment' if case=='running' else
+            'Qualification pending · hold live deployment' if case=='unassessed' else
+            'Historical checks passed · paper review next')
+        playwright.expect(conclusion.get_by_role('heading',name=expected,exact=True)).to_be_visible(timeout=60000)
+        if case not in ('running','unassessed'):playwright.expect(conclusion).to_contain_text('Campaign checks passed at assessment time')
+        if case in ('inconclusive','precision'):
+            playwright.expect(conclusion).to_contain_text('Account-simulation precision is insufficient')
+            playwright.expect(conclusion).to_contain_text('does not automatically update this saved OOS verdict')
+        if case=='inconclusive':
+            playwright.expect(conclusion).to_contain_text('historical interval [0.13, 3.64]')
+            playwright.expect(conclusion).to_contain_text('inconclusive, not a demonstrated failure')
+        if case=='evidence':playwright.expect(conclusion).to_contain_text('Complete OOS calendar months: 4; required 12')
+        if case=='mixed':
+            playwright.expect(conclusion).to_contain_text('Other frozen sizes remain on hold or rejected')
+            playwright.expect(conclusion).to_contain_text('1 historical GO · 1 inconclusive')
+        if case in ('inconclusive','failed','mixed','historical'):conclusion.screenshot(path=str(tmp_path/(case+'.png')))
+        if case=='inconclusive':
+            page.set_viewport_size(dict(width=390,height=844));conclusion.screenshot(path=str(tmp_path/'mobile.png'))
+            assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
+            page.set_viewport_size(dict(width=1440,height=1100))
+        assert conclusion.get_by_role('button',name='Open paper execution review',exact=True).count()==(1 if case in ('mixed','forward_failed','forward_passed') else 0)
+        observations.append(dict(display_only_fixture=case,title=expected,text=conclusion.inner_text()))
+    assert posts==[],posts
+    assert portal['app'].state.prop_analyses.fingerprint(attempt['analysis_id'])==seal_before
+    with httpx.Client(base_url=base,timeout=180) as client:
+        assert client.get(prefix+'/'+attempt['request_id']+'?summary=true').json()==original
+        assert len(client.get(prefix).json()['assessments'])==len(metadata['assessments'])
+    (tmp_path/'conclusion-boundaries.json').write_text(json.dumps(dict(synthetic=True,display_only_fixtures=True,
+        saved_report_unchanged=True,new_jobs_from_display=0,cases=observations),indent=2))

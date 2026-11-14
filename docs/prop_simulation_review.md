@@ -11897,3 +11897,48 @@ the diagnostic invested IS alternative retains one trade/decision, USD 80.50
 fees, zero receipts and net cash −USD 80.50. These are existing saved outputs,
 not new simulations or claimed future outcomes. Guide links/anchors and whitespace
 were checked. No browser server or full regression suite was needed.
+
+### Prop Sim conclusions and next steps — 2026-11-14
+
+Added a shared presentation owner, `web/prop-sim-conclusion.js`, to the existing
+independent Prop Sim screen. The top **Conclusion & next steps** view summarizes
+Evaluation/Funded separately; a phase-level explanation appears before the IS
+finding, with actual saved confidence/evidence/precision blockers. OOS rows name
+their next action. Inconclusive prop sizing is distinguished from a failed
+campaign, historical GO leads to supplied paper review, and forward GO still
+requires economic/deployment-control review. The existing paper-review controls
+are now accessible from a current GO conclusion on automatic runs as well.
+
+No account calculation, policy, source admission, worker, path count, source
+hash or frozen report changes. Conclusions use saved server verdicts, not a new
+client acceptance rule. Historical versions remain historical. When current
+qualification is unavailable, only the latest saved qualification summary is
+read for its original explanation; other history stays lazy. Viewing a conclusion
+or opening evidence/diagnostic controls submits no new analysis. Additional-path
+diagnostics are not described as automatically updating an OOS verdict.
+
+Normal product demonstration: the user's saved simulation
+`ede834c9fea44f2fa663e481dd8d4582` now shows three Evaluation and two Funded
+inconclusive outcomes, original campaign prerequisites recorded as passed,
+and actual confidence/inner-MC blockers. Its pre-existing numerical-version
+incompatibility is explicit. GET-only browser inspection on the existing live
+port-8000 portal verified unchanged report/ZIP seals, unchanged frozen choices
+and assessment history, zero POSTs, no JS errors and no mobile body overflow.
+The live user server was not restarted and no user job was stopped or rerun.
+
+Three focused Chrome journeys pass: the automatic saved-backtest → configure →
+Run → navigate away → durable results → existing paper-review action journey;
+ten display-only conclusion boundaries over a normal sealed run; and current
+result reuse with lazy historical loading. The existing history test's stale
+policy-layout selector was corrected to target the already-collapsed diagnostics.
+The normal synthetic account oracle remains USD 178/2 days Evaluation and
+USD 13,000 fresh-Funded receipts, historical ratio bounds 1.00 and forward PENDING.
+Boundary fixtures cover confidence/precision/source evidence, NO-GO, mixed
+families, forward issues/pass, historical versions, running and unassessed
+states without rewriting the source report. JavaScript syntax, evidence links,
+saved-verdict preservation and diff whitespace checks pass. The only warning
+is the existing Starlette httpx deprecation. No full/180-check suite was run.
+All owned temporary test servers/browser/worker processes were stopped; the
+original user portal remains the only server intentionally retained.
+
+[Screenshots, original summaries, exact normal-product steps, test commands and preservation evidence](evidence/qualified_prop_sim/conclusions/README.md).

@@ -258,7 +258,13 @@ separate. Admission/reuse/queueing share the existing AnalysisStore lock; verify
 sealed reports and IS/OOS source captures before complete reuse. Failed/stopped
 attempts remain retryable. Do not rewrite or delete old reports or add a second
 result store. The portal shows one current OOS table per phase, collapsed sizing
-and criteria, and lazy individual historical report loading. Keep checks focused
+and criteria, and lazy individual historical report loading. The conclusion view
+in `web/prop-sim-conclusion.js` explains saved server verdicts only; do not change
+qualification or numerical identities to generate UI advice. Distinguish
+inconclusive sizing from campaign failure, historical GO from forward readiness,
+and historical-version results from current qualification. Expose confidence,
+source-evidence and inner-MC precision blockers without promising that diagnostic
+extra paths will update an OOS verdict. Keep checks focused
 on `tests/test_prop_sim_assessment_reuse.py` and its browser journey for this
 orchestration/presentation surface. Preserve numerical/qualification hashes.
 

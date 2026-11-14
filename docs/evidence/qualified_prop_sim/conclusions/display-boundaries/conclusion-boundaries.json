@@ -1,0 +1,58 @@
+{
+  "synthetic": true,
+  "display_only_fixtures": true,
+  "saved_report_unchanged": true,
+  "new_jobs_from_display": 0,
+  "cases": [
+    {
+      "display_only_fixture": "inconclusive",
+      "title": "Hold live deployment \u00b7 qualification inconclusive",
+      "text": "Hold live deployment \u00b7 qualification inconclusive\n\nKeep this campaign in research. The prop-sizing evidence is not sufficient for deployment under the saved policy; review confidence, precision and account economics before deciding the next study.\n\n0 historical GO \u00b7 1 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n10 MNQ \u00b7 Gather evidence\nMean trader receipts check is inconclusive: OOS / IS 0.80, historical interval [0.13, 3.64]; required lower bound \u2265 0.70.\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n\nMore account paths may improve numerical precision. More historical refits do not add market history. An extra-path diagnostic does not automatically update this saved OOS verdict.\n\nA confidence interval crossing the limit is inconclusive, not a demonstrated failure. More account paths cannot guarantee that historical uncertainty will disappear.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "precision",
+      "title": "Hold live deployment \u00b7 qualification inconclusive",
+      "text": "Hold live deployment \u00b7 qualification inconclusive\n\nKeep this campaign in research. The prop-sizing evidence is not sufficient for deployment under the saved policy; review confidence, precision and account economics before deciding the next study.\n\n0 historical GO \u00b7 1 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n10 MNQ \u00b7 Gather evidence\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n\nMore account paths may improve numerical precision. More historical refits do not add market history. An extra-path diagnostic does not automatically update this saved OOS verdict.\n\nA confidence interval crossing the limit is inconclusive, not a demonstrated failure. More account paths cannot guarantee that historical uncertainty will disappear.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "evidence",
+      "title": "Hold live deployment \u00b7 qualification inconclusive",
+      "text": "Hold live deployment \u00b7 qualification inconclusive\n\nKeep this campaign in research. The prop-sizing evidence is not sufficient for deployment under the saved policy; review confidence, precision and account economics before deciding the next study.\n\n0 historical GO \u00b7 1 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n10 MNQ \u00b7 Gather evidence\nComplete OOS calendar months: 4; required 12.\n\nA confidence interval crossing the limit is inconclusive, not a demonstrated failure. More account paths cannot guarantee that historical uncertainty will disappear.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "failed",
+      "title": "Do not deploy these sizes \u00b7 assessment failed",
+      "text": "Do not deploy these sizes \u00b7 assessment failed\n\nInvestigate the failed checks and replacement-account economics. Any revised sizing research needs a new IS plan; do not choose replacement sizes from OOS.\n\n0 historical GO \u00b7 0 inconclusive \u00b7 1 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n10 MNQ \u00b7 Do not deploy\nMean trader receipts failed the saved limit: OOS / IS 0.40, historical interval [0.10, 0.60]; required lower bound \u2265 0.70.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "mixed",
+      "title": "Historical checks passed \u00b7 paper review next",
+      "text": "Historical checks passed \u00b7 paper review next\n\nUse only historical GO sizes for the existing paper execution review. Complete signal/fill parity checks and review replacement cash flow before considering live deployment. Other frozen sizes remain on hold or rejected; OOS does not select replacements.\n\n1 historical GO \u00b7 1 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nOpen paper execution review\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "forward_failed",
+      "title": "Hold live deployment \u00b7 resolve execution issues",
+      "text": "Hold live deployment \u00b7 resolve execution issues\n\nThe historical checks passed for some sizes, but their supplied execution reviews failed. Resolve those issues before proceeding.\n\n1 historical GO \u00b7 0 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nOpen paper execution review\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "forward_passed",
+      "title": "Paper checks passed \u00b7 deployment review next",
+      "text": "Paper checks passed \u00b7 deployment review next\n\nOnly sizes with both historical GO and forward GO reached this step. Review cash-flow economics and deployment controls; these checks do not authorize live trading.\n\n1 historical GO \u00b7 0 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nOpen paper execution review\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "historical",
+      "title": "Hold live deployment \u00b7 historical assessment only",
+      "text": "Hold live deployment \u00b7 historical assessment only\n\nSaved outcome: some sizes passed the historical checks. This result belongs to an earlier numerical or policy version and does not establish current qualification. Preserve it; a current assessment requires a compatible new simulation.\n\n1 historical GO \u00b7 0 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "running",
+      "title": "Assessment running \u00b7 hold live deployment",
+      "text": "Assessment running \u00b7 hold live deployment\n\nWait for the saved OOS verdict. A running job has not established historical qualification.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    },
+    {
+      "display_only_fixture": "unassessed",
+      "title": "Qualification pending \u00b7 hold live deployment",
+      "text": "Qualification pending \u00b7 hold live deployment\n\nComplete a compatible OOS qualification for the frozen sizes. Job completion and IS profitability alone do not establish live readiness.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+    }
+  ]
+}

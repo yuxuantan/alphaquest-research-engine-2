@@ -755,6 +755,13 @@ joint score is not the fresh-account horizon receipt objective.
 4. Reopen the saved simulation. Inspect each phase's current OOS table and
    frozen-choice/criteria details; expand IS results or the Evaluation Pareto
    exploration when needed.
+   **Conclusion & next steps** summarizes both phases at the top. A phase's
+   expanded explanation identifies confidence, source-evidence and account-MC
+   precision blockers, and each OOS table row names its next step. Inconclusive
+   prop sizing does not revoke prior campaign checks. An extra-path diagnostic
+   does not automatically update an OOS verdict. Historical-version results
+   remain readable but cannot establish current qualification. Historical GO
+   offers the existing paper review; even forward GO is not live authorization.
 5. Download the phase report/evidence. Inspect `report.json` (or
    `calculations.json`) for `calculations.candidates`; each row holds its
    `metrics`, source/configuration manifest, uncertainty and censoring. OOS rows

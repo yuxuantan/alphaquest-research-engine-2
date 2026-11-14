@@ -40,7 +40,7 @@ def test_current_result_reopens_without_jobs_and_history_loads_on_demand(page,qu
     playwright.expect(panel.get_by_role('button',name='View OOS results',exact=True)).to_be_enabled(timeout=10000)
     assert panel.locator('.prop-sim-review-details').first.get_attribute('open') is None
     assert page.locator('#prop-sim-funded-results > .prop-sim-is-panel').get_attribute('open') is None
-    assert panel.locator(':scope > details.prop-sim-policy').get_attribute('open') is None
+    assert panel.locator('.prop-sim-diagnostics > details.prop-sim-policy').first.get_attribute('open') is None
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' and '/validation/funded' in r.url else None)
     panel.get_by_role('button',name='View OOS results',exact=True).click()
     assert posts==[]

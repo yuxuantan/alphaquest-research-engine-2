@@ -1,0 +1,36 @@
+{
+  "simulation_id": "ede834c9fea44f2fa663e481dd8d4582",
+  "source": "Existing live portal and sealed reports; GET-only inspection",
+  "conclusions": {
+    "evaluation": "Hold live deployment \u00b7 historical assessment only\n\nSaved outcome: qualification was inconclusive. This result belongs to an earlier numerical or policy version and does not establish current qualification. Preserve it; a current assessment requires a compatible new simulation.\n\n0 historical GO \u00b7 3 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n48 MNQ \u00b7 Gather evidence\nAcquisition cost check is inconclusive: OOS / IS 1.17, historical interval [0.79, 2.23]; required upper bound \u2264 1.50.\nFunding time check is inconclusive: OOS / IS 1.00, historical interval [0.49, 2.76]; required upper bound \u2264 1.50.\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n27 MNQ \u00b7 Gather evidence\nAcquisition cost check is inconclusive: OOS / IS 1.03, historical interval [0.70, 1.87]; required upper bound \u2264 1.50.\nFunding time check is inconclusive: OOS / IS 0.81, historical interval [0.40, 2.11]; required upper bound \u2264 1.50.\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n46 MNQ \u00b7 Gather evidence\nAcquisition cost check is inconclusive: OOS / IS 1.14, historical interval [0.76, 2.07]; required upper bound \u2264 1.50.\nFunding time check is inconclusive: OOS / IS 1.01, historical interval [0.46, 2.54]; required upper bound \u2264 1.50.\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n\nMore account paths may improve numerical precision. More historical refits do not add market history. An extra-path diagnostic does not automatically update this saved OOS verdict.\n\nA confidence interval crossing the limit is inconclusive, not a demonstrated failure. More account paths cannot guarantee that historical uncertainty will disappear.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow",
+    "funded": "Hold live deployment \u00b7 historical assessment only\n\nSaved outcome: qualification was inconclusive. This result belongs to an earlier numerical or policy version and does not establish current qualification. Preserve it; a current assessment requires a compatible new simulation.\n\n0 historical GO \u00b7 2 inconclusive \u00b7 0 NO-GO \u00b7 0 not assessed\n\nCampaign checks passed at assessment time. An inconclusive or failed prop-sizing result does not revoke those campaign results.\n\nWhy this is the next step\n13 MNQ \u00b7 Gather evidence\nMean trader receipts check is inconclusive: OOS / IS 0.80, historical interval [0.13, 3.64]; required lower bound \u2265 0.70.\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n14 MNQ \u00b7 Gather evidence\nMean trader receipts check is inconclusive: OOS / IS 0.74, historical interval [0.12, 3.69]; required lower bound \u2265 0.70.\nAccount-simulation precision is insufficient: the saved inner Monte Carlo relative standard error requirement was not met.\n\nMore account paths may improve numerical precision. More historical refits do not add market history. An extra-path diagnostic does not automatically update this saved OOS verdict.\n\nA confidence interval crossing the limit is inconclusive, not a demonstrated failure. More account paths cannot guarantee that historical uncertainty will disappear.\n\nDecision scope: this is an account-sizing research conclusion, not a guarantee about future profitability. Keep frozen choices and original verdicts; do not relax limits just to obtain a pass.\n\nInspect saved evidence\nReview diagnostic options\nReview replacement cash flow"
+  },
+  "report_zip_hashes_before": {
+    "609ec63f9b2f4af2ad84c40d920eb484": {
+      "report.json": "475b9551fd529acdeee6ca1aa99adc906f5ad30d29d1a64db698632da6a059fe",
+      "analysis.zip": "1a7ad46e77e40a8ca17543f9c83dd0738ac52c4e487371a22907016e2f1c5541"
+    },
+    "a11f6078cef3415c96ac0c8f1d423921": {
+      "report.json": "813825752d34c268c96e125bd2a6be68ba96b94bac5a52aa26957b5b68c7cecc",
+      "analysis.zip": "0235de898faf752bbfe5c97f334280fb895ea28cdd5749c3982e3d9743452622"
+    }
+  },
+  "report_zip_hashes_after": {
+    "609ec63f9b2f4af2ad84c40d920eb484": {
+      "report.json": "475b9551fd529acdeee6ca1aa99adc906f5ad30d29d1a64db698632da6a059fe",
+      "analysis.zip": "1a7ad46e77e40a8ca17543f9c83dd0738ac52c4e487371a22907016e2f1c5541"
+    },
+    "a11f6078cef3415c96ac0c8f1d423921": {
+      "report.json": "813825752d34c268c96e125bd2a6be68ba96b94bac5a52aa26957b5b68c7cecc",
+      "analysis.zip": "0235de898faf752bbfe5c97f334280fb895ea28cdd5749c3982e3d9743452622"
+    }
+  },
+  "saved_reports_unchanged": true,
+  "frozen_choices_unchanged": true,
+  "assessment_history_unchanged": true,
+  "new_posts": [],
+  "javascript_errors": [],
+  "mobile_width": 390,
+  "body_overflow": false,
+  "server": "Existing port-8000 user server; no restart or new live job"
+}
