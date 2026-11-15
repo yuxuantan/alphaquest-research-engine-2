@@ -3215,3 +3215,123 @@ Earlier fixed-size and V1 reports stay readable and unchanged. Numerical/source
 identity changes fail closed for a new frozen-package execution; they do not
 rewrite historical verdicts. Existing portfolio objectives and declared-risk
 portfolio execution remain separate from these independent phase searches.
+
+## Complementary Prop Sim evidence replaces nested refits (2026-11-15)
+
+Current default policy: `prop-complementary-evidence-v2`. This supersedes the
+10,000-history nested qualification gate for **new** fixed-contract and native
+percentage-risk Prop Sim assessments, for Apex 50K EOD and LucidFlex 50K, in both
+independent phases. Historical reports retain their original rules, captures and
+verdicts. The campaign OOS / final Monte Carlo gates and IS-only size selector are
+unchanged. This replacement is a different evidence design; it does not claim the
+same historical confidence coverage with fewer simulations.
+
+A single initial Run still performs source admission, both IS sizing searches,
+IS-only automatic selection/freeze, and both OOS assessments. No later user action
+is required to calculate the complementary package. The original IS searches keep
+the requested path count (default 1,000). The frozen comparison runs 5,000 accounts
+per IS/OOS history and measurement horizon; five predefined sensitivity scenarios
+use 1,000 accounts each. There are **zero outer historical refits**. Financial
+outcomes and source/policy/configuration identities are stored in the existing
+sealed phase report and `complementary_evidence.json`, not another result store.
+Summary API responses omit the full path payload. Identical current assessments
+reuse the canonical completed/running report; compatible completed comparison
+stages survive interruption using checksummed existing AnalysisStore checkpoints.
+Native execution keeps the existing shared Runtime, index-derived streams,
+ordinary strategy/execution and account controllers. Fixed-contract owners retain
+their saved-signal model; no filled trades are retrospectively risk-resized.
+
+### Measurements and resource budget
+
+Evaluation separately observes 90, 180 and 365 calendar-day acquisition windows.
+Each account can buy/retry under its saved account rules until funding or cutoff;
+every fee is charged. At each deadline report funding probability, all-path mean
+fees spent and capped waiting time, with conditional simulation intervals.
+Unfunded accounts remain in every denominator and expenditure/waiting mean. A
+365-day cutoff is a modeled observation window, not a provider expiry. Capped
+waiting is `min(time to funded, deadline)`, never eventual mean time to funding.
+Median/P90 acquisition time is available only when that fraction of **all** paths
+has reached funding. Early attempt/model guards are separately counted and make
+observation incomplete, rather than fabricating a 365-day observation. For native
+Apex, retain its causal first-attempt sample and existing independent empirical
+renewal owner; Lucid retains its calendar acquisition owner. Thus the original
+account-specific laws remain explicit.
+
+Fresh Funded comparison uses the original frozen calendar horizon and receipt
+lag. Report mean, median and P10 received cash, no-receipt probability, breach
+probability and pending cash. Include zero-receipt paths. Pending entitlements and
+gross account deductions are not receipts. Neither Evaluation fees nor implicit
+replacement accounts enter Funded selection or this objective.
+
+The primary/stress budget per frozen configuration is 35,000 Evaluation account
+paths (three deadlines × two histories × 5,000, plus 5 × 1,000), or 15,000 Funded
+paths (two histories × 5,000, plus 5 × 1,000), plus up to 24 chronological accounts.
+This excludes the original search and its ordinary OOS result. Relative to the
+former 20,000,000 nested paths per configuration/phase, those are approximately
+571× and 1,333× fewer path simulations; they are not wall-clock guarantees or
+equivalent statistical assurance. Different deadlines are executed explicitly so
+fees by deadline come from actual account transitions, not estimates from
+incomplete first/last-attempt captures. There is no automatic escalation or repeat
+until pass. Extra-path diagnostics remain explicit and do not overwrite a verdict.
+
+### Chronology and predefined stress
+
+Up to 24 evenly spaced, full-window OOS start dates are chosen using coverage and
+closures alone, before inspecting outcomes. Evaluation starts observe 180 days;
+Funded starts observe the frozen horizon. Use the existing actual-order owners;
+no shuffling or replacement sizes. Overlapping windows are dependent scenarios,
+not 24 independent market observations. Fewer than two covered starts is an
+explicit coverage gap; shorter substitute windows are not invented.
+
+The five stress scenarios are OOS blocks 1 and 10, OOS additional execution cost
+of USD 0.50 **per MNQ per side**, and the earlier/later chronological halves of IS
+(using the original sampling block). The fee surcharge is a cost stress, not a
+claim to model one-tick worse actual stop/limit fills. Native percentage policies
+rerun causal execution with the changed costs; fixed paths use their existing
+cost adaptation. Both IS halves keep the same policy/size. No OOS observation
+selects, replaces or reranks a candidate.
+
+### Reading the conclusion
+
+The server supplies six findings: historical coverage, account economics,
+simulation precision, IS→OOS stability, account-start sensitivity and stress
+resilience. A frozen optional Funded breach cap adds its own finding.
+
+- Evidence minima remain 12 complete OOS months and 100 closed source trades;
+  Funded needs its full horizon. Missing minima skip the expensive package and
+  explain that additional simulated paths do not add market history.
+- Pointwise nominal 95% simulation intervals use Wilson intervals for probabilities
+  and mean ± 1.96 MCSE for nonnegative fees/waiting/receipts. These are conditional
+  numerical intervals, not historical or simultaneous non-inferiority intervals.
+  Precision targets are ≤5% relative MCSE for positive monetary/waiting means and
+  probability interval half-width ≤2.5 percentage points. Zero receipts/funding
+  remain visible; zero observed means do not prove zero future probability.
+- Positive OOS modeled receipts or observed funding by 365 days establish a
+  positive account outcome, not full replacement-account profitability.
+- OOS/IS funding probability or Funded mean receipts below 0.70, or Evaluation
+  capped waiting above 1.50× IS, triggers **review**. Undefined comparisons also
+  trigger review. These are engineering review guardrails on point estimates,
+  not a statistical rejection or a historical confidence-bound requirement.
+- Any unsuccessful chronological start triggers a timing-sensitivity watch. A
+  stress scenario retaining below 70% of its comparable full-history funding
+  probability/receipts triggers a stress watch; an incomplete scenario is an
+  evidence gap. Neither check selects a different size.
+- `GO`: evidence ready for paper execution review. `REVIEW_REQUIRED`: usable
+  estimates but timing/deterioration/stress warrants investigation.
+  `INSUFFICIENT_EVIDENCE`: coverage, observation or precision unresolved.
+  `NO_GO`: no positive modeled account outcome, violated frozen constraint, or
+  failed prerequisite. No status grants live-trading authorization.
+
+The portal leads with the next step and compact labeled findings. The account
+comparison is visible; scenario/date tables and policy details are expandable.
+Older v1 results render their saved historical intervals and original verdicts;
+they are not reinterpreted as v2 outcomes. Supplied paper observations still need
+20 recorded sessions, 30 closed trades and zero unexplained sizing/execution
+issues, followed by cash-flow and deployment-control review.
+
+A completed compatible older automatic family exposes **Run current evidence
+review**. This explicitly applies the new policy to the same frozen choices,
+reusing a verified compatible OOS point capture and retaining the old assessment.
+It does not restart IS optimization. Incompatible numerical/source identities
+continue to reject. No upgrade or recalculation is triggered by merely opening a
+historical report.

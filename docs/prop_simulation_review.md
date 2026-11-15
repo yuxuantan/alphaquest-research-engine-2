@@ -12315,3 +12315,133 @@ restarted with zero interrupted jobs, PID **62236**; stop it with `kill 62236`.
 All temporary browser servers were closed. Real performance work and synthetic
 product evidence remain in isolated libraries; original user datasets, backtests,
 simulations, Windows VM and other processes were preserved.
+
+## Complementary Prop Sim evidence — 2026-11-15
+
+Delivered policy `prop-complementary-evidence-v2` through the existing Prop Sim
+workflow, for Apex 50K EOD and LucidFlex 50K, fixed contracts and native percentage
+risk, Evaluation and Funded. New assessments run no nested historical refits.
+The original IS-only selector and immutable family remain unchanged. Old reports
+retain their verdicts; a compatible completed automatic family can explicitly
+**Run current evidence review** without repeating its IS search. Incompatible
+numerical/source captures still reject instead of bypassing the freeze.
+
+The normal Run includes both IS searches, automatic selection/freeze, 5,000-path
+IS/OOS account comparisons, up to 24 covered chronological starts and five
+1,000-path stress scenarios. Evaluation has three explicit 90/180/365-day
+observations so each deadline's expenditure is an actual all-path calculation.
+Funded retains its configured fresh-account horizon and receipt lag. It does not
+use acquisition inputs. Sampling, costs, source identities, rules, complete
+financial paths and the new review identity are in the sealed ordinary report
+and evidence ZIP. Identical current assessments reopen the existing report.
+Compatible original path captures and checksummed completed stages can be reused;
+no separate result store or new scheduler was introduced.
+
+The page leads with a phase conclusion and next step, followed by one expandable
+candidate at a time. Each candidate has six labeled findings: coverage, account
+economics, numerical precision, IS→OOS change, chronological starts and stress.
+The visible account table includes conditional simulation intervals and all-path
+outcomes. Stress and date tables expand independently and show expenditure/cash,
+clustering/cost sensitivity and unsuccessful windows. Source/policy detail remains
+available without obscuring the findings. Review warnings, insufficient evidence
+and unsupported account outcomes have different explanations/actions. Historical
+intervals are not fabricated from the new design. Paper execution/controls remain
+separate; a ready research package is not live-trading approval.
+
+### Saved normal-product evidence and independent expected observations
+
+The committed compact index is `docs/evidence/complementary-prop-20261115.json`.
+Full inspectable outputs, ZIPs and screenshots are under
+`artifacts/complementary-prop-evidence-20261115/`. These are **synthetic market
+sources**, actual production phase calculations, normal APIs, immutable freezes
+and sealed reports, not future-return or provider-parity evidence.
+
+Fixed-contract normal-product API parents:
+
+- Apex: `6f0124f8f96f4407bd0a79a7f539a240`;
+  Evaluation `4c338b79d23e4e2a8c01b3a9af43a2db`,
+  Funded `f5e62d76ecce42549021fa3d219931b8`.
+- LucidFlex: `2ee77853b37b491f97c2270eeef210dd`;
+  Evaluation `60599fd017964fb78dfd6cb90e654dfb`,
+  Funded `a127c19bbb364d1e84a1e187df2cc9e0`.
+
+Both use the complete qualified synthetic campaign from the existing backtest
+report, 10 MNQ, eight original IS search paths, seed 42, five-day blocks,
+2026-11-16 modeled start, 90-day Funded horizon, two-day receipt lag and $0.51/MNQ
+per-side commission. The **comparison still executes 5,000 paths per history and
+deadline**; the small original search is not a reduced-count qualification fixture.
+The source has constant profitable daily opportunities, so independently:
+
+- Every Evaluation observation becomes funded. There is exactly one purchase
+  and one activation payment: Apex $49 + $129 = **$178** per path; Lucid's explicit
+  50% add-on test fee $99.50 and no activation = **$99.50** per path.
+- In the full 90-day Funded window, all capped modeled receipts arrive: **$13,000**
+  for Apex and **$9,000** trader receipts for Lucid. They are fresh-Funded receipts,
+  not acquisition-adjusted profit or full replacement-account economics.
+- Both histories and all deadlines contain 5,000 paths; all five stress scenarios
+  contain 1,000. There are 24 actual-order start windows per candidate and zero
+  outer refits. All six findings are checked; the result is ready for **paper
+  review**, with supplied forward evidence still pending.
+- The mean intervals can collapse on this deliberately constant source. That is
+  conditional numerical precision, not zero uncertainty about real markets.
+- A second identical request returns the same report; the original sealed IS
+  report hash remains unchanged. The summary API omits full comparison paths.
+
+The two browser journeys start at the actual backtest report, select account and
+size ranges, click Run once, navigate to Dataset while work runs, and return to
+the saved analysis. Both phases finish without subsequent input. JSON/ZIP
+outputs, desktop screenshots and 390-pixel mobile screenshots are saved under
+`browser/<profile>/`. The final saved-result/browser boundary check captures the
+final UI under `browser/final-reopen/`; its warning/failure inputs are **DOM-only
+analytical fixtures**, not rewritten reports or production verdicts.
+
+Native percentage branch evidence is under `native/<profile>/`. This exercises
+actual VWAP execution, phase controls, both histories/deadlines and all five
+stress scenarios at the full production counts. Its short synthetic source has
+**test-only prior-admission and history-minimum overrides**, clearly recorded in
+`scope.json`; it is not a production-qualified campaign. The missing 180-day
+chronological coverage stays an evidence gap. Independent 9-day first-receipt
+oracles are Apex $1,500 and Lucid $2,000 gross × 90% = $1,800; no Evaluation fees
+enter those Funded receipts. Ordinary seven-session sources still fail the real
+12-month/100-trade admission and skip the expensive package.
+
+Boundary arithmetic checks retain unfunded accounts: five funded in 10 days and
+five unfunded at day 365 gives 50% funding and **187.5 capped waiting days**, not
+10-day completed-only waiting. A path guarded at day 30 cannot claim a complete
+365-day observation. Funded examples retain zero receipts and pending cash
+separately. Wilson probability precision, review versus failure, uncovered start
+windows and cancellation are checked. Explicit legacy-bound arithmetic and
+forward-evidence checks remain valid; no broad/180-test suite was run.
+
+### Reproduce through the final product
+
+1. Use an isolated library, preserving the user's live workspace. Saved normal
+   libraries from the API journey are at
+   `/private/tmp/aq-complementary-libraries/apex-50k-eod` and
+   `/private/tmp/aq-complementary-libraries/lucidflex-50k`.
+2. From the repository, start one when needed:
+   `ALPHAQUEST_DATA_DIR=/private/tmp/aq-complementary-libraries/apex-50k-eod /bin/sh scripts/serve_portal.sh --port 8008`.
+   Open `http://127.0.0.1:8008/#prop-sim?analysis=6f0124f8f96f4407bd0a79a7f539a240`
+   to inspect the saved result without resimulation. Stop that server using its
+   PID from the isolated library's `.portal-server.lock` when finished.
+3. For a fresh one-click journey, open the source backtest recorded in
+   `<profile>/journey.json`, choose Configure Prop Sim, the desired profile,
+   10–10 MNQ for each phase, and the configuration above. Set explicit account
+   fees as listed. Run once. No freeze/OOS confirmation is required for new runs.
+4. Observe the six findings, the 90/180/365-day Evaluation rows, 90-day Funded
+   cash, five predefined stress scenarios and 24 chronological windows. Expand
+   the scenario/date details; verify the fee/receipt arithmetic above. Download
+   report JSON and evidence ZIP, navigate away and reload the saved analysis.
+5. Reproduce targeted automation:
+   `ALPHAQUEST_QUALIFICATION_SEED_LIBRARY=/private/tmp/aq-complementary-libraries/apex-50k-eod .venv/bin/pytest -q tests/test_prop_complementary_api.py`.
+   For browser journeys also set `ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome` and
+   select `tests/test_prop_complementary_browser.py`. Native numerical branches
+   are explicitly in `tests/test_prop_complementary_native.py`; do not interpret
+   their labeled short-history overrides as market qualification.
+
+Temporary browser servers stopped in fixture teardown. The live port-8000 portal
+was refreshed only after checking there were **no active user jobs**. Persistent
+replacement PID: **74499**, stop with `kill 74499`. No jobs were interrupted. The
+user's original Evaluation report `257e20f97a644d12bce7d108a1ba1a77` retained SHA256
+`2b714a6957b5c1eb3851ea9515b0c8dbd4c84bac2f86140244413fe8c6478f3c` across restart.
+The application record is `portal-application.json` in the artifact directory.

@@ -891,3 +891,16 @@ that phase's entire frozen native estimator at the original path count. It does
 not mix the two histories, reselect a percentage, or bootstrap the already saved
 account outcome list. The result's new native resampling identity and original
 source hashes distinguish it from older fixed-contract historical refits.
+
+## Current default qualification: complementary evidence v2 (2026-11-15)
+
+The current automatic Prop Sim assessment no longer runs the nested historical
+refit procedure described in the dated sections above. See **Complementary Prop
+Sim evidence replaces nested refits** in `prop_simulation.md` for the complete
+measurement, budget and interpretation contract. New fixed-contract and native
+percentage-risk runs use 5,000-account IS/OOS comparisons, finite acquisition
+windows, coverage-only chronological starts and five 1,000-path stress scenarios.
+Conditional Monte Carlo error, historical-period sensitivity and supplied forward
+execution evidence are shown separately. No historical confidence interval or
+equivalent old-policy confidence claim is produced. Sealed v1 reports remain
+unchanged and readable under their original policy.

@@ -492,7 +492,7 @@ class AnalysisStore:
             details=message if isinstance(message,dict) else None
             if details:
                 label=details.get('sizing_label') or f"{details['micros']} MNQ"
-                stage=({'native_execution':'Native account execution','native_preparation':'Preparing native source'}.get(details.get('stage'),'Historical confidence'))
+                stage=({'complementary_evidence':'Complementary evidence','native_execution':'Native account execution','native_preparation':'Preparing native source'}.get(details.get('stage'),'Historical confidence'))
                 message=(f"{stage} · {label} · {details['completed']:,}/{details['total']:,} {details.get('unit','resamples')} · {details['worker_count']} workers")
             self._update(id, 'running', message,progress_details=details)
             progress(message)
@@ -563,7 +563,10 @@ class AnalysisStore:
                         (staged/'oos_qualification.json').write_text(canonical([
                             dict(candidate_id=r['candidate_id'],frozen_candidate_id=r['frozen_candidate_id'],
                                 micros=r['configuration']['micros'],qualification=r['prop_qualification']) for r in calculations['candidates']]))
-                        (staged/'historical_bootstrap.json').write_text(canonical(calculations['qualification_bootstrap']))
+                        if 'qualification_bootstrap' in calculations:
+                            (staged/'historical_bootstrap.json').write_text(canonical(calculations['qualification_bootstrap']))
+                        if 'qualification_complementary' in calculations:
+                            (staged/'complementary_evidence.json').write_text(canonical(calculations['qualification_complementary']))
                         if calculations.get('account_start_sensitivity') is not None:
                             (staged/'account_start_sensitivity.json').write_text(canonical(calculations['account_start_sensitivity']))
                         if calculations.get('forward_execution_review') is not None:

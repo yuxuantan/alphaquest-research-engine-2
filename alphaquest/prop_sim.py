@@ -489,7 +489,7 @@ async def validation(id:UUID,phase:str,request:Request):
         from .prop.phase_dispatch import implementations_compatible, module_for
         compatible=implementations_compatible(campaign['manifest']['numerical_implementation'],module_for(phase).implementation_identity())
         from .prop.assessment_review import implementation
-        from .prop.oos_qualification import RULES
+        from .prop.complementary_assessment import RULES
         policy=saved.get('assessment_policies',{}).get(phase)
         attempts=store.assessments(cid)
         return dict(campaign_id=cid,numerical_implementation_compatible=compatible,assessment_policy=policy,qualification_rules=RULES,
@@ -718,6 +718,7 @@ async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,su
         if summary:
             calculations=dict(report['calculations'])
             calculations.pop('qualification_bootstrap',None)
+            calculations.pop('qualification_complementary',None)
             fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification','quantity_summary')
             calculations['candidates']=[{k:r[k] for k in fields if k in r} for r in calculations['candidates']]
             return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)

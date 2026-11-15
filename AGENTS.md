@@ -346,3 +346,27 @@ as well as the frozen-family validator. Historical reports can retain a partial
 extra session beyond their declared split. Do not expand the frozen OOS window or
 weaken parent/strategy/dataset/plan/cost checks to accept it. The regression is in
 `tests/test_percentage_oos_api.py`.
+
+# Complementary Prop Sim evidence v2 (2026-11-15; supersedes nested refit default)
+
+For new qualified Prop Sim assessments, `prop/complementary_assessment.py` owns
+the policy, finite-deadline measurements and server-owned actionable findings.
+The earlier requirements above to run all 10,000 outer refits apply to historical
+v1 only; new fixed-contract and native percentage assessments run **zero** outer
+refits. Keep legacy numerical readers/tests and original verdicts. Do not call
+`oos_bootstrap.run` or `native_oos_bootstrap.run` in the new default journey.
+Use existing phase owners, Runtime, source checks, AnalysisStore, canonical reuse
+and checksummed completed-stage checkpoints. Never weaken the frozen family or
+source/engine guards. Keep the requested IS search count; frozen comparisons use
+5,000 paths per IS/OOS history and deadline, five stress checks use 1,000 each.
+Do not automatically increase work until a configuration passes.
+
+See the dated current contract in `docs/prop_simulation.md`. Deadline fees/waiting
+include unfunded accounts; conditional simulation intervals are not historical
+confidence or future assurance. Start windows overlap and are dependent. Stress
+and deterioration watches require investigation and never select replacement
+sizes in OOS. Preserve the paper-execution gate and optional business policies.
+UI findings must distinguish account-fit failure, evidence gaps and sensitivity
+review. Main evidence leads; tables/provenance expand on demand. Focus checks on
+`test_prop_complementary.py`, `test_prop_complementary_api.py`,
+`test_prop_complementary_native.py` and the complementary browser journey.

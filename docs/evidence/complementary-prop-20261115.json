@@ -1,0 +1,458 @@
+{
+  "version": "complementary-prop-delivery-20261115",
+  "policy": "prop-complementary-evidence-v2",
+  "synthetic_product_evidence": true,
+  "scope": "Local account arithmetic and actual final-product integration. No real paper execution, future-confidence or provider-parity claim.",
+  "checks": {
+    "arithmetic_compatibility": 22,
+    "fixed_profile_api": 2,
+    "browser_one_click": 2,
+    "browser_final_reopen": 1,
+    "stop_intent": 1,
+    "native_profiles": 2
+  },
+  "profiles": {
+    "apex-50k-eod": {
+      "api_parent": "6f0124f8f96f4407bd0a79a7f539a240",
+      "browser_parent": "ab5e1dee28eb4c9eaa4167212cee0772",
+      "reports": {
+        "evaluation": {
+          "analysis_id": "4c338b79d23e4e2a8c01b3a9af43a2db",
+          "sha256": "01660280c96912238f0e2b06cbc65961eca48c9e110bfa96cd7b485f2e476da3",
+          "verdict": "GO",
+          "account_comparison": {
+            "is": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 178.0,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 180,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 178.0,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 365,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 178.0,
+                "capped_wait": 2.0
+              }
+            ],
+            "oos": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 178.0,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 180,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 178.0,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 365,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 178.0,
+                "capped_wait": 2.0
+              }
+            ]
+          },
+          "workload": {
+            "chronological_starts": 24,
+            "declared_account_paths": 35000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          },
+          "findings": [
+            {
+              "key": "coverage",
+              "state": "PASS"
+            },
+            {
+              "key": "economics",
+              "state": "PASS"
+            },
+            {
+              "key": "precision",
+              "state": "PASS"
+            },
+            {
+              "key": "deterioration",
+              "state": "PASS"
+            },
+            {
+              "key": "starts",
+              "state": "PASS"
+            },
+            {
+              "key": "stress",
+              "state": "PASS"
+            }
+          ],
+          "zip_sha256": "8089e18a12f16761cac72d469b001a739aeef58e01fd1dbec5ccb5cb2b13790f"
+        },
+        "funded": {
+          "analysis_id": "f5e62d76ecce42549021fa3d219931b8",
+          "sha256": "b36e78f1c4efb802f67438d96f214397103f6e0efe91c9625d40ddca4be9246a",
+          "verdict": "GO",
+          "account_comparison": {
+            "is": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "received_cash": 13000.0,
+                "zero_receipts": 0.0,
+                "breach": 0.0,
+                "pending_cash": 0.0
+              }
+            ],
+            "oos": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "received_cash": 13000.0,
+                "zero_receipts": 0.0,
+                "breach": 0.0,
+                "pending_cash": 0.0
+              }
+            ]
+          },
+          "workload": {
+            "chronological_starts": 24,
+            "declared_account_paths": 15000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          },
+          "findings": [
+            {
+              "key": "coverage",
+              "state": "PASS"
+            },
+            {
+              "key": "economics",
+              "state": "PASS"
+            },
+            {
+              "key": "precision",
+              "state": "PASS"
+            },
+            {
+              "key": "deterioration",
+              "state": "PASS"
+            },
+            {
+              "key": "starts",
+              "state": "PASS"
+            },
+            {
+              "key": "stress",
+              "state": "PASS"
+            }
+          ],
+          "zip_sha256": "46e71b9e878dcae186ab71589274aa4b19f32fc4dc189bff8d8bfc5a135c453f"
+        }
+      },
+      "native": {
+        "evaluation": {
+          "analysis_id": "79a8ae56ec1f4727893b84999838f535",
+          "sha256": "85e453d035981366f284a3f62837a6d6d04e9fdecacc8f5913143d2d9f729ae9",
+          "test_only_short_history_override": true,
+          "verdict": "INSUFFICIENT_EVIDENCE",
+          "comparison": {
+            "horizon_calendar_days": 90,
+            "paths": 5000,
+            "observation_complete": true,
+            "funded_probability": 1.0,
+            "fees_spent": 178.0,
+            "capped_wait": 2.0
+          },
+          "actual_path_counts": {
+            "chronological_starts": 0,
+            "declared_account_paths": 35000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          }
+        },
+        "funded": {
+          "analysis_id": "f1333bf0914f436ea3c434500392eca9",
+          "sha256": "52780da29ce6e78c58740b7ee15da7e32f70555f8fce18d69ca57e2a19449b01",
+          "test_only_short_history_override": true,
+          "verdict": "GO",
+          "comparison": {
+            "horizon_calendar_days": 9,
+            "paths": 5000,
+            "observation_complete": true,
+            "received_cash": 1500.0,
+            "zero_receipts": 0.0,
+            "breach": 0.0,
+            "pending_cash": 0.0
+          },
+          "actual_path_counts": {
+            "chronological_starts": 6,
+            "declared_account_paths": 15000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          }
+        }
+      }
+    },
+    "lucidflex-50k": {
+      "api_parent": "2ee77853b37b491f97c2270eeef210dd",
+      "browser_parent": "1679d692f14b4ce9b1789dab19e662ba",
+      "reports": {
+        "evaluation": {
+          "analysis_id": "60599fd017964fb78dfd6cb90e654dfb",
+          "sha256": "126b2e0feb7cf3f88c095af3657a64cf467c68fbd5ef4d742b32eaf592108703",
+          "verdict": "GO",
+          "account_comparison": {
+            "is": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 99.5,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 180,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 99.5,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 365,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 99.5,
+                "capped_wait": 2.0
+              }
+            ],
+            "oos": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 99.5,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 180,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 99.5,
+                "capped_wait": 2.0
+              },
+              {
+                "horizon_calendar_days": 365,
+                "paths": 5000,
+                "observation_complete": true,
+                "funded_probability": 1.0,
+                "fees_spent": 99.5,
+                "capped_wait": 2.0
+              }
+            ]
+          },
+          "workload": {
+            "chronological_starts": 24,
+            "declared_account_paths": 35000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          },
+          "findings": [
+            {
+              "key": "coverage",
+              "state": "PASS"
+            },
+            {
+              "key": "economics",
+              "state": "PASS"
+            },
+            {
+              "key": "precision",
+              "state": "PASS"
+            },
+            {
+              "key": "deterioration",
+              "state": "PASS"
+            },
+            {
+              "key": "starts",
+              "state": "PASS"
+            },
+            {
+              "key": "stress",
+              "state": "PASS"
+            }
+          ],
+          "zip_sha256": "90e504fc9a58c812d43ed544ff61c2f0f2b364dd5b4626df833380014206ffe2"
+        },
+        "funded": {
+          "analysis_id": "a127c19bbb364d1e84a1e187df2cc9e0",
+          "sha256": "616c4a2ccdce7d5b95be7bd968693f606cef18f6bd62e22f2825158b87ce446b",
+          "verdict": "GO",
+          "account_comparison": {
+            "is": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "received_cash": 9000.0,
+                "zero_receipts": 0.0,
+                "breach": 0.0,
+                "pending_cash": 0.0
+              }
+            ],
+            "oos": [
+              {
+                "horizon_calendar_days": 90,
+                "paths": 5000,
+                "observation_complete": true,
+                "received_cash": 9000.0,
+                "zero_receipts": 0.0,
+                "breach": 0.0,
+                "pending_cash": 0.0
+              }
+            ]
+          },
+          "workload": {
+            "chronological_starts": 24,
+            "declared_account_paths": 15000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          },
+          "findings": [
+            {
+              "key": "coverage",
+              "state": "PASS"
+            },
+            {
+              "key": "economics",
+              "state": "PASS"
+            },
+            {
+              "key": "precision",
+              "state": "PASS"
+            },
+            {
+              "key": "deterioration",
+              "state": "PASS"
+            },
+            {
+              "key": "starts",
+              "state": "PASS"
+            },
+            {
+              "key": "stress",
+              "state": "PASS"
+            }
+          ],
+          "zip_sha256": "d0dd0d44d138064f1a93f9e7a25b1fa01162bb3ac3eaca6e3ce678ec5df57862"
+        }
+      },
+      "native": {
+        "evaluation": {
+          "analysis_id": "a70e0d558ac04da18d2c57d0edd10e58",
+          "sha256": "2bd1b4ad4dda121405ef4d2e066ddc116b80c2bc2b4a280b5ca12d3099a15db8",
+          "test_only_short_history_override": true,
+          "verdict": "INSUFFICIENT_EVIDENCE",
+          "comparison": {
+            "horizon_calendar_days": 90,
+            "paths": 5000,
+            "observation_complete": true,
+            "funded_probability": 1.0,
+            "fees_spent": 99.5,
+            "capped_wait": 2.0
+          },
+          "actual_path_counts": {
+            "chronological_starts": 0,
+            "declared_account_paths": 35000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          }
+        },
+        "funded": {
+          "analysis_id": "106c1030748544599f2fff9954ed34a0",
+          "sha256": "f2a46cffe7a5ef8e0f108b466dbda3441acc0412d5202fe7788de242b9e30608",
+          "test_only_short_history_override": true,
+          "verdict": "GO",
+          "comparison": {
+            "horizon_calendar_days": 9,
+            "paths": 5000,
+            "observation_complete": true,
+            "received_cash": 1800.0,
+            "zero_receipts": 0.0,
+            "breach": 0.0,
+            "pending_cash": 0.0
+          },
+          "actual_path_counts": {
+            "chronological_starts": 6,
+            "declared_account_paths": 15000,
+            "nested_refits": 0,
+            "reused_account_paths": 0
+          }
+        }
+      }
+    }
+  },
+  "portal": {
+    "old_pid": 62236,
+    "new_pid": 74499,
+    "port": 8000,
+    "interrupted_jobs": [],
+    "current_policy": {
+      "version": "prop-complementary-evidence-v2",
+      "account_paths": 5000,
+      "stress_paths": 1000,
+      "evaluation_deadlines": [
+        90,
+        180,
+        365
+      ],
+      "account_starts": 24,
+      "evaluation_start_horizon": 180,
+      "confidence": 0.95,
+      "maximum_relative_mcse": 0.05,
+      "maximum_probability_half_width": 0.025,
+      "minimum_complete_months": 12,
+      "minimum_closed_trades": 100,
+      "funded_receipts_watch_ratio": 0.7,
+      "evaluation_probability_watch_ratio": 0.7,
+      "evaluation_wait_watch_ratio": 1.5,
+      "stress_retention_watch_ratio": 0.7,
+      "stress_blocks": [
+        1,
+        10
+      ],
+      "additional_mnq_cost_per_side": "0.50",
+      "historical_replicates": 0
+    },
+    "historical_report_unchanged": true,
+    "historical_report_sha256": "2b714a6957b5c1eb3851ea9515b0c8dbd4c84bac2f86140244413fe8c6478f3c",
+    "stop_command": "kill 74499"
+  }
+}

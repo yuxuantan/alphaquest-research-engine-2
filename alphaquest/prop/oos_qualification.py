@@ -33,7 +33,7 @@ LIMITATIONS = [
 ]
 
 
-def implementation():
+def legacy_implementation():
     from . import assessment_review,oos_bootstrap,parallel,native_oos_bootstrap,native_percentage_qualification,native_account_starts
     from .. import prop_sim_forward,forward_monitoring
     return dict(version=RULES['version'], files={
@@ -48,7 +48,7 @@ def implementation():
         forward_implementation=forward_monitoring.implementation_identity(),numpy=np.__version__)
 
 
-def policy(phase, period, horizon, *, prior_access=True, closures=()):
+def legacy_policy(phase, period, horizon, *, prior_access=True, closures=()):
     from .assessment_review import start_plan
     value=dict(version=RULES['version'],phase=phase,rules=deepcopy(RULES),
         implementation=implementation(),declared_at_utc=datetime.now(timezone.utc).isoformat(),
@@ -57,6 +57,16 @@ def policy(phase, period, horizon, *, prior_access=True, closures=()):
         interpretation='Fixed robustness policy; no required dollar declaration. Strategy OOS was already accessed. Economic limits remain optional historical assessments.')
     value['policy_sha256']=sha256(canonical(value).encode()).hexdigest()
     return value
+
+
+def implementation():
+    from .complementary_assessment import implementation as current
+    return current()
+
+
+def policy(phase, period, horizon, *, prior_access=True, closures=()):
+    from .complementary_assessment import policy as current
+    return current(phase,period,horizon,prior_access=prior_access,closures=closures)
 
 
 def complete_months(period):
@@ -160,6 +170,9 @@ def historical_ratios(is_days,oos_days,is_candidate,oos_candidate,search,checkpo
 
 
 def qualify(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,*,analysis_id=None,datasets=None):
+    from .complementary_assessment import VERSION,qualify as current
+    if assessment['prop_sim_review']['policy'].get('version')==VERSION:
+        return current(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,analysis_id=analysis_id,datasets=datasets)
     if search.native_execution is not None and search.native_execution.prepared_execution:
         from .native_percentage_qualification import qualify_native
         return qualify_native(calculations,search,assessment,runs,checks,checkpoint,progress,staged,analyses,analysis_id=analysis_id,datasets=datasets)
