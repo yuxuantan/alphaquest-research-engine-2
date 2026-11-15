@@ -11985,6 +11985,34 @@ See the delivery evidence's `live/` snapshots. This verifies launch/progress,
 not completion of the full real-data confidence work. Stop the persistent server
 with `kill 41520` after cooperatively stopping active jobs in the portal.
 
+## 2026-11-14 — audit of Lucid 3-MNQ IS funding within 60 days
+
+Read-only investigation of saved Prop Sim `3444051a2ad94a709a39b362115792c3`,
+Evaluation `203112a3eedc47ca80d4e7dc082c655f`, reproduces **5/1,000 = 0.50%**.
+An independent integer-cent calculator reconciles all 480 captured one-NQ source
+trades against fill prices and costs, scales to three MNQ, and matches all 1,000
+saved account paths, funding dates, retry counts, fees, captured first/last account
+states and sampling-schedule hash. Existing report/source seals verify. The saved
+run uses 50% add-on consistency, DLL on and the 2021–2024 IS history.
+
+At three MNQ this source has USD 151.99 mean winners, USD -181.02 mean losers,
+USD 13.99 net expectancy per trade and no absolute trade result above USD 1,000.
+The independent unrestricted 60-day sample averages 19.271 trades and USD 294.53
+net; the same five paths reach USD 3,000 even with all account barriers removed.
+The full replay matches 488.848 mean acquisition calendar days and USD 182.9478
+mean fees. No DLL pauses or consistency delays explain this size's low rate.
+This verifies the saved calculation under its empirical model, not future odds
+or provider parity; the nominal conditional MC interval is about 0.21%–1.17%.
+
+Reopen the existing portal at
+`#prop-sim?analysis=3444051a2ad94a709a39b362115792c3`, expand Evaluation IS sizing,
+and inspect 3 MNQ: 0.50%, USD 182.95 and 488.85 days. Download its normal report
+JSON/ZIP and inspect the matching candidate's metrics and paths. Exact read-only
+reproduction, assumptions and inspectable audit output are in
+[the audit evidence](../artifacts/lucid-is-sizing-audit-20261114/README.md).
+No new production report, OOS access, server or numerical-engine change was made
+for this audit. Concurrent performance work and its replacement run remain separate.
+
 ## Percentage-risk research increment — 2026-11-14
 
 Scope and status: M1 of `percentage_risk_research_plan.md` is delivered; exact
