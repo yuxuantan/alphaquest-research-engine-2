@@ -27,12 +27,12 @@ DESCRIPTION = (
     "One position, setup-owned exits; Chicago one-minute close-labelled bars. "
     "Next-bar market/stop entries with immediate fill-activated SL/TP by default. "
     "Uncertain entry-bar protection uses a conservative adverse-first OHLC assumption with a full-strategy favorable sensitivity replay. "
-    "Ambiguous two-sided entries reject; "
+    "Ambiguous two-sided entries use fixed upper-entry-first priority with lower-entry-first sensitivity replays; "
     "Open-entry and later held-bar brackets use stop first. "
     "Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; "
     "source Momentum half-day heuristic is retained."
 )
-EXECUTION_ASSUMPTION = "twin_immediate_protection_adverse_first_entry_sensitivity_calendar_v4"
+EXECUTION_ASSUMPTION = "twin_immediate_protection_adverse_first_oco_priority_sensitivity_calendar_v5"
 ENTRY_PROTECTION_POLICY = "adverse_first"
 SUPPORTS_DECISION_CAPTURE = False
 SESSION_CALENDAR = dict(NQ_CALENDAR, instrument="NQ / MNQ futures",
@@ -146,6 +146,7 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
     return dict(enabled=enabled, mode="twin_csv_session_close_v2", lookahead=False,
                 protection_activation="on_entry_fill" if parameters.immediate_protection else "following_bar_legacy",
                 entry_protection_ambiguity_policy=ENTRY_PROTECTION_POLICY if parameters.immediate_protection else 'not_applicable',
+                oco_entry_policy='upper_entry_first' if parameters.immediate_protection else 'reject',
                 entry_bar_path=("adverse_first OHLC assumption for ambiguous post-stop-entry SL timing/order; market/Open entries use full remaining range"
                                 if parameters.immediate_protection else "following_bar_legacy; no attached entry-bar protection"),
                 calendar=(calendar or load_calendar(symbol=instrument_symbol)).metadata() if enabled else None,
@@ -167,6 +168,7 @@ class TwinContinuation:
         self.instrument_symbol = instrument_symbol
         self.tick_size = execution_config.tick_size if execution_config is not None else D("0.25")
         self.entry_protection_policy = ENTRY_PROTECTION_POLICY
+        self.oco_entry_policy = 'upper_entry_first' if self.p.immediate_protection else 'reject'
         self.calendar = load_calendar(symbol=instrument_symbol) if self.p.use_session_calendar else None
         self.session_plan = None
         self.session_digest = hashlib.sha256()

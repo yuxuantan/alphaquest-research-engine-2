@@ -79,7 +79,22 @@ def upload_case(client):
     return raw, payload
 
 
-def campaign_source():
+def upload_inconclusive_case(client):
+    """Adverse entry exit is flat; favorable hold crosses a missing close bar."""
+    rows = breakout_rows()
+    later = rows[0].timestamp_utc + timedelta(days=1)
+    rows.append(prices(108,later,120,121,119,120))
+    raw, split = reserved_source(csv_bytes(rows))
+    response=client.post('/api/datasets',params=dict(filename='SYNTHETIC-diagnostic-gap.csv',
+        name='SYNTHETIC diagnostic holding gap',symbol='NQ',source_timezone='UTC',tick_size='.25',point_value='20'),content=raw)
+    assert response.status_code == 201,response.text
+    p=Parameters(max_bars_back=0,use_momentum=False,bo_pivot_tf=15,bo_atr_period=1,
+                 bo_max_stop_mult=D('.25'),bo_target_mult=D(0))
+    return raw,dict(dataset_id=response.json()['id'],strategy_id='twin_continuation',strategy_parameters=values(p),sample_split=split,
+        execution_settings=dict(initial_capital='10000',slippage_ticks=1,commission_per_contract_per_side='1'))
+
+
+def campaign_source(oco=False, diagnostic_gap=False):
     """Seven session-aligned 6h swing candles, then one labeled breakout.
 
     The short last candle of session one is 300 minutes. No maintenance rows
@@ -95,16 +110,18 @@ def campaign_source():
         for i in range(count):
             rows.append(prices(len(rows)+1,start+timedelta(minutes=i),100,*ranges[offset+i//360],100))
     end = rows[-1].timestamp_utc
-    rows += [prices(len(rows)+1,end+timedelta(minutes=1),109,160,99,111),
+    rows += [prices(len(rows)+1,end+timedelta(minutes=1),109,160,60 if oco else 99,111),
              prices(len(rows)+2,end+timedelta(minutes=2),120,160,119,126)]
+    if diagnostic_gap:
+        rows.append(prices(len(rows)+1,datetime(2024,1,17,17,1,tzinfo=CT),120,121,119,120))
     return reserved_source(csv_bytes(rows))
 
 
-def start_twin_broad(client, workers=1):
+def start_twin_broad(client, workers=1, oco=False, diagnostic_gap=False):
     """Normal mechanics -> attested test checklist -> native IS Broad worker."""
     from test_campaign_mechanics import run_validation, checks
     from test_campaign_broad import start_grid
-    raw, split = campaign_source()
+    raw, split = campaign_source(oco=oco,diagnostic_gap=diagnostic_gap)
     saved = client.post('/api/datasets',params=dict(filename='SYNTHETIC-twin-campaign.csv',
         name='SYNTHETIC Twin conservative campaign',symbol='NQ',source_timezone='UTC',tick_size='.25',point_value='20'),content=raw)
     assert saved.status_code == 201, saved.text
@@ -122,6 +139,9 @@ def start_twin_broad(client, workers=1):
     assert confirmed.status_code == 200, confirmed.text
     axes = {k:dict(start=v,end=v,step='0' if isinstance(v,str) else 0) for k,v in values(Parameters()).items()}
     axes['bo_max_stop_mult'] = dict(start='0',end='.25',step='.25')
+    if diagnostic_gap:
+        axes['bo_target_mult'] = dict(start='0',end='0',step='0')
+        axes['bo_max_stop_mult'] = dict(start='.25',end='.25',step='0')
     job, _ = start_grid(client,prefix,dict(workers=workers,parameter_ranges=axes))
     return client.get(prefix).json(), job, raw
 

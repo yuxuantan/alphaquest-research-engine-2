@@ -66,7 +66,128 @@ $1 round-trip NQ slippage is not representable by AQ's integer 0.25-point ticks
 ($5 per NQ tick). Match an explicitly representable fill-cost setup for platform
 comparison; the examples below use one tick each side and 1 commission each side.
 
-## Current entry-bar OHLC policy and sensitivity — 2026-11-15
+## Current OCO entry priority and diagnostic isolation — 2026-11-15 (v5)
+
+The v5 AlphaQuest model keeps immediate protection and stop-first uncertain exits.
+It also resolves two-sided OCO entry ambiguity with a **fixed upper-entry-first**
+assumption in the primary calculation: when the Open does not determine a winner
+and both entry stops touch, choose the upper buy-stop and cancel the lower
+sell-stop. Opening fills retain priority over all intrabar assumptions. This
+entry choice is declared before replay and never selected using P&L. An upper
+entry is not inherently more conservative than a lower entry.
+
+The primary plus three complete strategy replays form this fixed matrix:
+
+| Role | Both entry stops touched | Uncertain protection after entry |
+| --- | --- | --- |
+| Primary, used for screening | Upper entry first | Stop first |
+| Diagnostic | Upper entry first | Favorable first |
+| Diagnostic | Lower entry first | Stop first |
+| Diagnostic | Lower entry first | Favorable first |
+
+These are priorities between entry thresholds, not a fabricated monotone
+Open/High/Low/Close path. Once one OCO threshold is assumed first, the opposite
+threshold cannot have occurred before it. Consequently the adverse extreme is
+post-entry in that case: a stop-only touch cannot be discarded as pre-entry even
+in a favorable diagnostic. If stop and target are both possible after entry,
+the declared protection assumption resolves that remaining uncertainty.
+
+Each replay has independent strategy/account state on the exact selected bars
+with identical costs; later signals and trade counts can diverge. The report
+shows per-scenario status, net profit, drawdown, trades, protection/OCO ambiguity
+counts and net difference from the primary. Expand **Evidence and downloads**
+for primary and scenario OCO CSVs showing bar time/OHLC, both trigger prices,
+chosen parent and cancelled side, alongside protection and trade evidence.
+The same primary policy applies to extra-slippage screening. Diagnostic profit
+does not rescue a failed primary or choose a replacement in IS/OOS.
+
+A model/data limitation in a diagnostic now saves **inconclusive** sensitivity,
+its exception type, reason and failed bar/time. Its summary and comparison are
+null; no zero profit or partial report is substituted. Other completed scenarios
+and the independently valid primary remain durable. Primary source/holding gaps
+still reject. Cancellation, I/O and implementation/reporting failures propagate;
+they are never relabelled as inconclusive market evidence. Existing workers,
+publication and catalogue own all work, with no diagnostic result jobs or store.
+
+The `entry-protection-ohlc-sensitivity-v2` evidence participates in existing
+cache/deletion and integrity checks. Historical v1 reports and files remain
+readable without requiring OCO files or modifying their verdicts. New numerical
+and strategy source identities require a new mechanics workflow; old approvals
+and failed jobs remain historical. Legacy delayed protection still rejects
+ambiguous two-sided entries. Generic strategies still reject unless they
+explicitly declare a supported OCO priority. No tick/broker/platform parity or
+whole-strategy profit bounds are claimed. Four full replays replace v4's two;
+the requested grid and normal source/cost evidence remain intact.
+
+Reproduce the normal synthetic mechanics -> IS Broad -> durable report journey:
+
+```sh
+PYTHONPATH=.:tests ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python \
+  tests/review_entry_protection.py --oco --output artifacts/twin-oco-sensitivity-NEW
+```
+
+The source deliberately crosses buy-stop 110 and sell-stop 90 in the same bar.
+The primary cap-enabled long fills 110.25, stops at reference 108 and fills
+107.75: `(107.75 - 110.25) * 20 - 2 = -52`. The extra-slippage primary is -57.
+Upper-first favorable exits earn 338; lower-first stop-first loses 52 and
+lower-first favorable earns 338, all after costs. Every scenario records one
+OCO ambiguity. The uncapped primary is -412. These independent fixture values
+belong to a labeled 3-day example that fails campaign evidence minima.
+
+The same review also saves a second ordinary backtest where an adverse entry
+stop exits safely at -47, but favorable holds would cross a missing scheduled
+session-close price. Those diagnostics are inconclusive; the primary completes,
+and no close price or diagnostic P&L is invented. The worker regression exercises
+this condition inside IS Broad's cost-stress pass as well. Temporary review
+servers stop on exit. Earlier evidence directories remain unchanged.
+
+Saved normal-product evidence is in
+`artifacts/twin-oco-sensitivity-qualified-20261115/verification.json`, with
+source CSVs, report/download JSON and screenshots of complete and inconclusive
+sensitivity. To reopen that isolated library:
+
+```sh
+ALPHAQUEST_DATA_DIR=artifacts/twin-oco-sensitivity-qualified-20261115 \
+  .venv/bin/uvicorn alphaquest.app:app --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#campaigns/workflows/8ca6f38346944fbba31d9c168d8910e5/is_broad`
+for the completed two-member grid, then
+`http://127.0.0.1:8019/#backtests/report/a6303ff35d0444e2a39abb1437a4c90a`
+for the four-model table and its OCO CSVs. The independent diagnostic-gap example
+is `http://127.0.0.1:8019/#backtests/report/1e9734015d924de4b67c8c96c15b8e82`:
+expect primary -47, two inconclusive favorable scenarios with missing-close
+reasons, one completed lower/stop-first diagnostic, and unavailable comparisons
+for incomplete scenarios. Reopening performs no replay. Stop with Ctrl-C.
+
+Focused checks are `tests/test_entry_oco_sensitivity.py` and
+`tests/test_entry_protection_sensitivity.py`; they cover independent OCO/cost
+arithmetic, opening priority, forced post-entry stops, generic/legacy rejection,
+unchanged source bytes, diagnostic-only and primary failures, cancellation,
+historical v1 evidence, cache/download tamper checks and the real IS Broad
+cost-stress owner. The affected browser journeys are
+`tests/test_campaign_broad_browser.py::test_twin_conservative_entry_sensitivity_report`
+and `tests/test_campaign_broad_browser.py::test_twin_oco_entry_priorities_and_inconclusive_diagnostics`.
+
+The actual failure was also rechecked on a verified private copy of job
+`bec2ce0ceddb43cbb424948a0b819c7e`, trial 1's 2021–2024 IS source and original
+extra-slippage settings (1 tick, 1.99 commission per side). All 1,415,817 selected
+bars completed under all four models. The primary captured 2 OCO entry
+ambiguities and 19 protection ambiguities. Saved qualification outputs are
+`artifacts/twin-oco-real-trial1-20261115/verification.json` and its `report/`
+directory, including all scenario trades, checksums and OCO/protection CSVs.
+Their trade counts, net P&L and commissions independently reconcile to the saved
+CSV sums. The primary net is 88,654.24; upper/favorable is 117,094.24,
+lower/stop-first 88,654.24 and lower/favorable 118,884.24. These are retrospective
+model results, not observed tick execution or forward forecasts. This isolated
+check used the normal report/execution owners without publishing into the user's
+catalogue; the original failed 2/36 job remains unchanged. It did not execute OOS
+or rerun the full 36-member grid, and does not establish a campaign verdict.
+
+## Entry-bar OHLC policy and sensitivity — 2026-11-15 (historical v4)
+
+The current v5 contract above supersedes this original v4 OCO rejection and
+mandatory diagnostic completion behavior for new reports.
 
 Immediate protection remains the default. AlphaQuest v4 resolves uncertain
 post-stop-entry protection with the explicit `adverse_first` assumption: if a

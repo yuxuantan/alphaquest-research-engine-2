@@ -105,7 +105,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         if protection:
             if account_control is not None:
                 raise ExecutionError('Controlled native replay does not support attached entry protection.')
-            from .entry_protection import sensitivity_replay
+            from .entry_protection import sensitivity_replays
             from .prepared_data import PreparedData, write_stream
             workspace = Path(stack.enter_context(TemporaryDirectory(prefix='.entry-protection-')))
             replay = prepared
@@ -117,7 +117,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 replay = PreparedData(path, selected.metadata)
                 selected = stack.enter_context(replay.selected())
             with timings.span('entry_protection_sensitivity'):
-                sensitivity = sensitivity_replay(workspace / 'favorable', definition, parameters, config,
+                sensitivity = sensitivity_replays(workspace / 'scenarios', definition, parameters, config,
                     replay, feature_paths, dataset, metadata, fill_assumptions, progress)
         comparison = MarketBenchmark(config, market_benchmark, metadata, total, source_backtest_id=Path(output).name)
         # The source iterator advances here only after the engine's current
@@ -604,9 +604,8 @@ def download(run_id: UUID, kind: str, request: Request):
     if kind=='risk_metrics':return JSONResponse(risk_diagnostics(run_id,request),headers={'Content-Disposition':'attachment; filename="risk_metrics.json"'})
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    protection_kinds = ('entry_protection_ambiguities', 'entry_protection_sensitivity',
-        'entry_protection_favorable_report', 'entry_protection_favorable_trades', 'entry_protection_favorable_equity',
-        'entry_protection_favorable_intratrade_risk', 'entry_protection_favorable_entry_protection_ambiguities')
+    from .entry_protection import export_kinds, evidence_hash
+    protection_kinds = export_kinds()
     if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control", "is_screening", "oos_screening", *protection_kinds) or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
     _verify_external(request, record)
@@ -619,8 +618,7 @@ def download(run_id: UUID, kind: str, request: Request):
             if name not in evidence_names(record):
                 raise ValueError('Unknown entry protection artifact.')
             path = runs.root / run_id.hex / name
-            descriptor = record['entry_protection'] if kind == 'entry_protection_ambiguities' else record['entry_protection_sensitivity']
-            expected = descriptor['sha256'] if kind in ('entry_protection_ambiguities', 'entry_protection_sensitivity') else descriptor['favorable_artifacts_sha256'][name]
+            expected = evidence_hash(record, name)
             if path.is_symlink() or not path.is_file() or file_hash(path) != expected:
                 raise ValueError('Saved entry protection evidence is missing or changed.')
         except (OSError, ValueError, KeyError, TypeError) as exc:

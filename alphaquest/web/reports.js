@@ -154,33 +154,49 @@
     if (!evidence) return;
     panel.append(node('h2', 'Immediate protection · entry-bar sensitivity'));
     const count = evidence.primary_ambiguities.ambiguous_entries;
-    panel.append(node('p', `Conservative result: ${count} ambiguous ${count === 1 ? 'entry' : 'entries'} assumed stop first. SL/TP remain active from entry fill.`));
+    panel.append(node('p', `Primary result: ${count} ambiguous protection ${count === 1 ? 'entry' : 'entries'} assumed stop first. SL/TP remain active from entry fill.`));
+    if (evidence.scenarios) {
+      const ocoCount = evidence.primary_ambiguities.oco_ambiguous_entries;
+      panel.append(node('p', `${ocoCount} ambiguous OCO ${ocoCount === 1 ? 'entry uses' : 'entries use'} the fixed upper-entry-first assumption. Neither upper nor lower entry priority is inherently conservative; diagnostic profits never select the primary.`));
+      if (evidence.status === 'inconclusive') panel.append(node('p', 'Sensitivity inconclusive: at least one diagnostic could not complete. The primary completed independently; missing diagnostic totals are unavailable.', 'notice'));
+    }
+    const labels = {favorable: 'Upper entry first · favorable exits', lower_adverse: 'Lower entry first · stop-first exits', lower_favorable: 'Lower entry first · favorable exits'};
+    const rows = [{label: 'Primary · used for screening', status: 'complete', summary: evidence.primary_summary, ambiguities: evidence.primary_ambiguities, minus_primary_net_pnl: '0'}];
+    if (evidence.scenarios) {
+      for (const [key, scenario] of Object.entries(evidence.scenarios)) rows.push({...scenario, label: labels[key] || key});
+    } else {
+      rows.push({label: 'Favorable · diagnostic only', status: 'complete', summary: evidence.favorable_summary, ambiguities: evidence.favorable_ambiguities, minus_primary_net_pnl: evidence.favorable_minus_primary_net_pnl});
+    }
     const table = node('table', undefined, 'library-table');
     const head = node('thead'), headings = node('tr');
-    for (const label of ['Full strategy replay', 'Net P&L · '+reportCurrency, 'Trades', 'Ambiguous entries', 'Maximum drawdown · '+reportCurrency]) headings.append(node('th', label));
+    for (const label of ['Full strategy replay', 'Status', 'Net P&L · '+reportCurrency, 'Trades', 'Protection ambiguities', 'OCO ambiguities', 'Maximum drawdown · '+reportCurrency, 'Net P&L minus primary']) headings.append(node('th', label));
     head.append(headings); table.append(head);
     const body = node('tbody');
-    for (const [label, summary, ambiguities] of [
-      ['Conservative · used for screening', evidence.primary_summary, evidence.primary_ambiguities],
-      ['Favorable · diagnostic only', evidence.favorable_summary, evidence.favorable_ambiguities],
-    ]) {
-      const row = node('tr');
-      for (const value of [label, summary.total_net_pnl, summary.trades_taken, ambiguities.ambiguous_entries, summary.max_drawdown_amount]) row.append(node('td', String(value)));
+    for (const item of rows) {
+      const row = node('tr'), summary = item.summary, ambiguities = item.ambiguities;
+      for (const value of [item.label, item.status, summary?.total_net_pnl, summary?.trades_taken, ambiguities?.ambiguous_entries, ambiguities?.oco_ambiguous_entries, summary?.max_drawdown_amount, item.minus_primary_net_pnl]) row.append(node('td', value == null ? 'Unavailable' : String(value)));
       body.append(row);
+      if (item.reason) {
+        const detail = node('tr'), cell = node('td', `${item.label}: ${item.reason}${item.failure_location?.timestamp_utc ? ' · '+item.failure_location.timestamp_utc : ''}`, 'entry-sensitivity-reason');
+        cell.colSpan = 8; detail.append(cell); body.append(detail);
+      }
     }
     table.append(body);
     const scroll = node('div', undefined, 'report-table-scroll'); scroll.append(table); panel.append(scroll);
-    panel.append(node('p', `Favorable minus conservative net P&L: ${evidence.favorable_minus_primary_net_pnl} ${reportCurrency}. Trade-count difference: ${evidence.favorable_minus_primary_trades}. A large difference requires review of execution sensitivity; no automatic pass threshold is applied.`));
+    panel.append(node('p', 'Each diagnostic replays the full strategy with its own positions and later signals. Large differences require execution sensitivity review; no automatic pass threshold is applied.'));
     panel.append(node('p', evidence.interpretation, 'small muted'));
     const downloads = node('details'); downloads.append(node('summary', 'Evidence and downloads'));
     const links = node('p', undefined, 'report-downloads');
-    for (const [kind, label] of [
-      ['entry_protection_sensitivity', 'Sensitivity JSON ↓'], ['entry_protection_ambiguities', 'Conservative ambiguity CSV ↓'],
-      ['entry_protection_favorable_report', 'Favorable report JSON ↓'], ['entry_protection_favorable_trades', 'Favorable trade CSV ↓'],
-      ['entry_protection_favorable_equity', 'Favorable equity CSV ↓'],
-      ['entry_protection_favorable_entry_protection_ambiguities', 'Favorable ambiguity CSV ↓'],
-      ['entry_protection_favorable_intratrade_risk', 'Favorable intratrade risk CSV ↓'],
-    ]) { const link = node('a', label); link.href = `/api/backtests/${record.id}/exports/${kind}`; links.append(link); }
+    const primaryLabels = {entry_protection_sensitivity: 'Sensitivity JSON ↓', entry_protection_ambiguities: 'Primary protection ambiguity CSV ↓', entry_oco_ambiguities: 'Primary OCO ambiguity CSV ↓'};
+    const suffixLabels = {report: 'report JSON', trades: 'trade CSV', equity: 'equity CSV', intratrade_risk: 'intratrade risk CSV', entry_protection_ambiguities: 'protection ambiguity CSV', entry_oco_ambiguities: 'OCO ambiguity CSV'};
+    for (const kind of Object.keys(record.artifacts)) {
+      let label = primaryLabels[kind];
+      if (!label) for (const [key, title] of Object.entries(labels)) {
+        const prefix = 'entry_protection_'+key+'_';
+        if (kind.startsWith(prefix)) label = title+' · '+(suffixLabels[kind.slice(prefix.length)] || kind)+' ↓';
+      }
+      if (label) { const link = node('a', label); link.href = `/api/backtests/${record.id}/exports/${encodeURIComponent(kind)}`; links.append(link); }
+    }
     downloads.append(links); panel.append(downloads);
   }
   const usd = (value, digits = 0) => value == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);

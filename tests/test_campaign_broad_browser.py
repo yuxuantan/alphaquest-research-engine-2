@@ -23,9 +23,10 @@ def test_twin_conservative_entry_sensitivity_report(page, portal, tmp_path):
     page.goto(portal['url']+'/#backtests/report/'+run)
     panel = page.locator('#report-entry-protection')
     playwright.expect(panel).to_be_visible()
-    playwright.expect(panel).to_contain_text('1 ambiguous entry assumed stop first')
-    playwright.expect(panel).to_contain_text('Conservative · used for screening')
-    playwright.expect(panel).to_contain_text('Favorable · diagnostic only')
+    playwright.expect(panel).to_contain_text('1 ambiguous protection entry assumed stop first')
+    playwright.expect(panel).to_contain_text('Primary · used for screening')
+    playwright.expect(panel).to_contain_text('Upper entry first · favorable exits')
+    playwright.expect(panel.locator('tbody tr')).to_have_count(4)
     playwright.expect(panel.locator('tbody tr').nth(0)).to_contain_text('-52.00')
     playwright.expect(panel.locator('tbody tr').nth(1)).to_contain_text('338.00')
     panel.get_by_text('Evidence and downloads', exact=True).click()
@@ -43,6 +44,37 @@ def test_twin_conservative_entry_sensitivity_report(page, portal, tmp_path):
     page.goto(portal['url']+'/#backtests/new')
     page.locator('#backtest-strategy').select_option('twin_continuation')
     playwright.expect(page.locator('#backtest-fill-assumption')).to_contain_text('possible stop occurs first')
+
+
+def test_twin_oco_entry_priorities_and_inconclusive_diagnostics(page, portal, tmp_path):
+    from test_entry_protection_sensitivity import start_twin_broad, upload_inconclusive_case
+    with httpx.Client(base_url=portal['url'], timeout=40) as client:
+        workflow, _, _ = start_twin_broad(client, oco=True)
+        rows=client.get('/api/campaign-workflows/'+workflow['id']+'/broad/results').json()['items']
+        run=rows[1]['run_id']
+        page.goto(portal['url']+'/#backtests/report/'+run)
+        panel=page.locator('#report-entry-protection')
+        playwright.expect(panel).to_contain_text('1 ambiguous OCO entry uses')
+        playwright.expect(panel.locator('tbody tr')).to_have_count(4)
+        playwright.expect(panel).to_contain_text('Lower entry first · stop-first exits')
+        panel.get_by_text('Evidence and downloads', exact=True).click()
+        with page.expect_download() as download:
+            panel.get_by_role('link',name='Primary OCO ambiguity CSV ↓',exact=True).click()
+        download.value.save_as(tmp_path/'oco.csv')
+        assert 'upper_entry_first' in (tmp_path/'oco.csv').read_text()
+        _,payload=upload_inconclusive_case(client)
+        response=client.post('/api/backtests',json=payload)
+        assert response.status_code == 201, response.text
+        incomplete=response.json()['id']
+    page.goto(portal['url']+'/#backtests/report/'+incomplete)
+    playwright.expect(panel).to_contain_text('Sensitivity inconclusive')
+    playwright.expect(panel).to_contain_text('No session-close fill was invented')
+    playwright.expect(panel).to_contain_text('Unavailable')
+    playwright.expect(panel.locator('tbody tr').nth(0)).to_contain_text('-47.00')
+    panel.get_by_text('Evidence and downloads',exact=True).click()
+    playwright.expect(panel.get_by_role('link',name='Upper entry first · favorable exits · report JSON ↓',exact=True)).to_have_count(0)
+    page.reload()
+    playwright.expect(panel).to_contain_text('Sensitivity inconclusive')
 
 
 def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp_path):

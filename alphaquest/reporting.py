@@ -19,7 +19,8 @@ from .intratrade import IntratradeRisk, VERSION as RISK_VERSION
 from .decision_capture import DecisionEvent, DecisionRecorder, SIDE_CAR as DECISION_FILE
 from .execution import EquityPoint, TIMESTAMP_CONVENTION, Trade
 from .strategy import ExecutionConfig
-from .entry_protection import ProtectionAmbiguity, FILE as PROTECTION_FILE, VERSION as PROTECTION_VERSION
+from .entry_protection import (ProtectionAmbiguity, OCOEntryAmbiguity, FILE as PROTECTION_FILE,
+                               OCO_FILE, VERSION as PROTECTION_VERSION)
 
 
 ZERO = Decimal(0)
@@ -114,6 +115,7 @@ def generate_report(
     decision_capture = decision_summary = None
     protection_counts = dict(ambiguous_entries=0, assumed_stop_losses=0, assumed_take_profits=0, assumed_remain_open=0)
     assumed_exit_net = ZERO
+    oco_count = 0
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
         staging.mkdir()
@@ -141,11 +143,19 @@ def generate_report(
                 protection_csv = stack.enter_context((staging / PROTECTION_FILE).open('w', encoding='utf-8', newline=''))
                 protection_writer = csv.DictWriter(protection_csv, fieldnames=[f.name for f in fields(ProtectionAmbiguity)])
                 protection_writer.writeheader()
+                oco_csv = stack.enter_context((staging / OCO_FILE).open('w', encoding='utf-8', newline=''))
+                oco_writer = csv.DictWriter(oco_csv, fieldnames=[f.name for f in fields(OCOEntryAmbiguity)])
+                oco_writer.writeheader()
             trade_writer = csv.DictWriter(trades_csv, fieldnames=TRADE_FIELDS)
             equity_writer = csv.DictWriter(equity_csv, fieldnames=EQUITY_FIELDS)
             trade_writer.writeheader()
             equity_writer.writeheader()
             for event in events:
+                if type(event) is OCOEntryAmbiguity:
+                    _check(capture_entry_protection, 'OCO entry events require explicit capture.')
+                    oco_writer.writerow(_csv_record(_record(event)))
+                    oco_count += 1
+                    continue
                 if type(event) is ProtectionAmbiguity:
                     _check(capture_entry_protection, 'Entry protection events require explicit capture.')
                     protection_writer.writerow(_csv_record(_record(event)))
@@ -306,9 +316,13 @@ def generate_report(
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
         if capture_entry_protection:
             manifest['artifacts']['entry_protection_ambiguities'] = PROTECTION_FILE
+            manifest['artifacts']['entry_oco_ambiguities'] = OCO_FILE
             with (staging / PROTECTION_FILE).open('rb') as stream:
                 protection_sha = file_digest(stream, 'sha256').hexdigest()
+            with (staging / OCO_FILE).open('rb') as stream:
+                oco_sha = file_digest(stream, 'sha256').hexdigest()
             manifest['entry_protection'] = dict(version=PROTECTION_VERSION, **protection_counts,
+                oco_ambiguous_entries=oco_count, oco_sha256=oco_sha,
                 assumed_same_bar_exits_net_pnl=assumed_exit_net,
                 interpretation='Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.',
                 sha256=protection_sha)

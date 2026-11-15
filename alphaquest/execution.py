@@ -12,7 +12,7 @@ from .intratrade import IntratradeRisk, RiskCapture
 from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, StopEntriesIntent, Strategy
 from .execution_scenarios import FillAssumptions
 from .decision_capture import DecisionEvent
-from .entry_protection import ProtectionAmbiguity
+from .entry_protection import ProtectionAmbiguity, OCOEntryAmbiguity
 from .prop.native_control import (EntryAcceptance, ExecutionSnapshot, KnownEntryProposal,
                                   SessionContext, SessionRiskOrders, executable_floor_reference)
 from .session_calendar import session_date
@@ -119,6 +119,7 @@ class _Account:
         self.decision_events = []
         self.capture_entry_protection = capture_entry_protection
         self.protection_events = []
+        self.oco_events = []
         self.fill_assumptions = fill_assumptions or FillAssumptions()
         self.capture_risk = capture_risk
         self.risk = self.closed_risk = None
@@ -430,19 +431,31 @@ def _fill_entry_stops(account, orders, bar, strategy):
             if (bar.open >= price if entry.side == "long" else bar.open <= price)]
     hits = gaps or [(entry, price, "entry_stop") for entry, price in orders.orders
                     if (bar.high >= price if entry.side == "long" else bar.low <= price)]
+    oco_ambiguous = len(hits) > 1
     if len(hits) > 1:
-        raise ExecutionError("Both OCO entry stops touched: one-minute OHLC cannot determine entry order; supply finer data or remove the ambiguity.")
+        policy = getattr(strategy, 'oco_entry_policy', 'reject')
+        levels = {entry.side: price for entry, price in orders.orders}
+        if policy == 'reject' or gaps or levels['long'] <= levels['short']:
+            raise ExecutionError(f"Both OCO entry stops touched on bar {bar.bar_number} ({bar.timestamp_utc.isoformat()}): "
+                f"buy stop {levels['long']}, sell stop {levels['short']}. "
+                "One-minute OHLC cannot determine entry order; supply finer data or declare a supported entry-order policy.")
+        chosen = 'long' if policy == 'upper_entry_first' else 'short'
+        hits = [hit for hit in hits if hit[0].side == chosen]
+        if account.capture_entry_protection:
+            account.oco_events.append(OCOEntryAmbiguity(account.trade_count + 1, bar.bar_number,
+                bar.timestamp_utc, policy, levels['long'], levels['short'],
+                bar.open, bar.high, bar.low, bar.close, chosen, 'short' if chosen == 'long' else 'long'))
     if hits:
         entry, reference, phase = hits[0]
         account.apply(entry, bar, reference=reference, phase=phase)
-        return _protect_entry(account, entry, bar, strategy, reference, phase)
+        return _protect_entry(account, entry, bar, strategy, reference, phase, adverse_after_entry=oco_ambiguous)
 
 
-def _protect_entry(account, entry, bar, strategy, reference, phase):
+def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_after_entry=False):
     """Activate a precommitted bracket at fill without invoking on_bar twice.
 
-    Market/open fills may use the remaining bar range. For an intrabar stop
-    entry, an adverse extreme may precede entry: ambiguous stop timing rejects.
+    Market/open fills may use the remaining bar range. Intrabar stop timing
+    follows the plan's declared policy; generic plans default to rejection.
     """
     plan = entry.protection
     if plan is None:
@@ -485,7 +498,10 @@ def _protect_entry(account, entry, bar, strategy, reference, phase):
         trigger = (_add if long else _sub)(trigger, penetration)
     target_hit = trigger is not None and (bar.high >= trigger if long else bar.low <= trigger)
     stop_in_range = bar.low <= stop if long else bar.high >= stop
-    stop_after_entry = bar.close <= stop if long else bar.close >= stop
+    # Under a declared two-sided entry priority, the opposite entry threshold
+    # cannot have been crossed before the chosen parent. Its adverse extreme
+    # must follow entry; a stop-only touch cannot be discarded as pre-entry.
+    stop_after_entry = adverse_after_entry or (bar.close <= stop if long else bar.close >= stop)
     ambiguous = stop_in_range and (target_hit or not stop_after_entry)
     if ambiguous and plan.ambiguity_policy == 'reject':
         raise ExecutionError(
@@ -521,7 +537,7 @@ def _protect_entry(account, entry, bar, strategy, reference, phase):
 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
             account_control=None,continuation=None,completion='strategy_finish',prepared_path=None,
-            capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity]:
+            capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity | OCOEntryAmbiguity]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     Preparation is optional. The calendar-based VWAP strategy uses the causal
@@ -538,7 +554,7 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
 
 def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
              account_control=None,continuation=None,completion='strategy_finish',prepared_path=None,
-             capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity]:
+             capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity | OCOEntryAmbiguity]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -563,6 +579,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         raise ExecutionError('capture_decisions must be a boolean.')
     if type(capture_entry_protection) is not bool:
         raise ExecutionError('capture_entry_protection must be a boolean.')
+    if getattr(strategy, 'oco_entry_policy', 'reject') not in ('reject', 'upper_entry_first', 'lower_entry_first'):
+        raise ExecutionError('Unknown OCO entry-order policy.')
     if completion not in ('strategy_finish','require_flat'):
         raise ExecutionError('Unknown execution completion policy.')
     if account_control is not None and (completion!='require_flat' or not callable(getattr(strategy,'on_bar_controlled',None))):
@@ -644,6 +662,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         yield from account.drain_decisions()
         yield from account.protection_events
         account.protection_events.clear()
+        yield from account.oco_events
+        account.oco_events.clear()
         if account.risk is not None:
             account.risk.observe_bar(bar)
         intent = control.strategy_bar(strategy,bar) if control is not None else strategy.on_bar(bar, account.position)
