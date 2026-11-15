@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 import json
 import gzip
-from hashlib import sha256
+from hashlib import sha256, file_digest
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
@@ -19,6 +19,7 @@ from .intratrade import IntratradeRisk, VERSION as RISK_VERSION
 from .decision_capture import DecisionEvent, DecisionRecorder, SIDE_CAR as DECISION_FILE
 from .execution import EquityPoint, TIMESTAMP_CONVENTION, Trade
 from .strategy import ExecutionConfig
+from .entry_protection import ProtectionAmbiguity, FILE as PROTECTION_FILE, VERSION as PROTECTION_VERSION
 
 
 ZERO = Decimal(0)
@@ -68,7 +69,7 @@ def generate_report(
     on_saving: Callable[[], None] | None = None,
     execution_assumption: str = "same_close_full_fill",
     detail: str = "full", compress: bool = False, capture_risk: bool = False,
-    market_benchmark=None, capture_decisions=False,
+    market_benchmark=None, capture_decisions=False, capture_entry_protection=False, entry_protection_sensitivity=None,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -111,6 +112,8 @@ def generate_report(
         from .workflow_criteria import ScreeningCapture
         screening = ScreeningCapture(config.initial_capital, research, metadata['dataset']['source_timezone'], phase='oos')
     decision_capture = decision_summary = None
+    protection_counts = dict(ambiguous_entries=0, assumed_stop_losses=0, assumed_take_profits=0, assumed_remain_open=0)
+    assumed_exit_net = ZERO
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
         staging.mkdir()
@@ -134,11 +137,25 @@ def generate_report(
             if capture_decisions:
                 decision_stream = stack.enter_context((staging / DECISION_FILE).open('w', encoding='utf-8', newline=''))
                 decision_capture = DecisionRecorder(decision_stream, asdict(config))
+            if capture_entry_protection:
+                protection_csv = stack.enter_context((staging / PROTECTION_FILE).open('w', encoding='utf-8', newline=''))
+                protection_writer = csv.DictWriter(protection_csv, fieldnames=[f.name for f in fields(ProtectionAmbiguity)])
+                protection_writer.writeheader()
             trade_writer = csv.DictWriter(trades_csv, fieldnames=TRADE_FIELDS)
             equity_writer = csv.DictWriter(equity_csv, fieldnames=EQUITY_FIELDS)
             trade_writer.writeheader()
             equity_writer.writeheader()
             for event in events:
+                if type(event) is ProtectionAmbiguity:
+                    _check(capture_entry_protection, 'Entry protection events require explicit capture.')
+                    protection_writer.writerow(_csv_record(_record(event)))
+                    protection_counts['ambiguous_entries'] += 1
+                    key = {'stop_loss': 'assumed_stop_losses', 'take_profit': 'assumed_take_profits',
+                           'remain_open': 'assumed_remain_open'}[event.assumed_outcome]
+                    protection_counts[key] += 1
+                    if event.assumed_exit_net_pnl is not None:
+                        assumed_exit_net = add(assumed_exit_net, event.assumed_exit_net_pnl)
+                    continue
                 if type(event) is DecisionEvent:
                     _check(decision_capture is not None, 'Decision events require capture_decisions=True.')
                     decision_capture.observe(event, pending_trade)
@@ -287,6 +304,17 @@ def generate_report(
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+        if capture_entry_protection:
+            manifest['artifacts']['entry_protection_ambiguities'] = PROTECTION_FILE
+            with (staging / PROTECTION_FILE).open('rb') as stream:
+                protection_sha = file_digest(stream, 'sha256').hexdigest()
+            manifest['entry_protection'] = dict(version=PROTECTION_VERSION, **protection_counts,
+                assumed_same_bar_exits_net_pnl=assumed_exit_net,
+                interpretation='Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.',
+                sha256=protection_sha)
+        if entry_protection_sensitivity is not None:
+            from .entry_protection import attach_sensitivity
+            attach_sensitivity(staging, manifest, entry_protection_sensitivity)
         if screening is not None:
             if research.get('workflow_phase') == 'oos':
                 from .oos_criteria import FILE

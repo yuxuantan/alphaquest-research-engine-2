@@ -9,6 +9,42 @@ from test_backtests_browser import browser,page,portal,playwright
 from test_campaign_broad import passed_mechanics,start_grid,broad_grid
 
 
+def test_twin_conservative_entry_sensitivity_report(page, portal, tmp_path):
+    from test_entry_protection_sensitivity import start_twin_broad
+    with httpx.Client(base_url=portal['url'], timeout=40) as client:
+        workflow, job, _ = start_twin_broad(client)
+    prefix = portal['url']+'/api/campaign-workflows/'+workflow['id']
+    page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_broad')
+    playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE · 2 / 2 trials')
+    row = page.locator('#broad-results tr[data-trial="2"]')
+    playwright.expect(row.locator('td[data-column="total_net_pnl"]')).to_have_text('-52.00')
+    rows = page.request.get(prefix+'/broad/results').json()['items']
+    run = rows[1]['run_id']
+    page.goto(portal['url']+'/#backtests/report/'+run)
+    panel = page.locator('#report-entry-protection')
+    playwright.expect(panel).to_be_visible()
+    playwright.expect(panel).to_contain_text('1 ambiguous entry assumed stop first')
+    playwright.expect(panel).to_contain_text('Conservative · used for screening')
+    playwright.expect(panel).to_contain_text('Favorable · diagnostic only')
+    playwright.expect(panel.locator('tbody tr').nth(0)).to_contain_text('-52.00')
+    playwright.expect(panel.locator('tbody tr').nth(1)).to_contain_text('338.00')
+    panel.get_by_text('Evidence and downloads', exact=True).click()
+    with page.expect_download() as downloaded:
+        panel.get_by_role('link',name='Sensitivity JSON ↓',exact=True).click()
+    downloaded.value.save_as(tmp_path/'sensitivity.json')
+    evidence=json.loads((tmp_path/'sensitivity.json').read_bytes())
+    assert evidence['favorable_minus_primary_net_pnl']=='390.00'
+    original=page.request.get(portal['url']+f'/api/backtests/{run}/exports/report').body()
+    page.screenshot(path=str(tmp_path/'twin-entry-protection-report.png'),full_page=True)
+    page.reload()
+    playwright.expect(panel).to_be_visible()
+    assert page.request.get(portal['url']+f'/api/backtests/{run}/exports/report').body()==original
+    # The normal configuration explains the model before a run is submitted.
+    page.goto(portal['url']+'/#backtests/new')
+    page.locator('#backtest-strategy').select_option('twin_continuation')
+    playwright.expect(page.locator('#backtest-fill-assumption')).to_contain_text('possible stop occurs first')
+
+
 def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp_path):
     with httpx.Client(base_url=portal['url'],timeout=30) as client:
         dataset,body,workflow=passed_mechanics(client)

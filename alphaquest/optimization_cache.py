@@ -40,6 +40,8 @@ def trial_key(job, values):
 
 def artifacts(root, record):
     names = {"trades.csv", "equity.csv", record["artifacts"]["report"]}
+    from .entry_protection import evidence_names
+    names.update(evidence_names(record))
     if record.get('is_screening'):
         from .workflow_criteria import FILE
         if record['artifacts'].get('is_screening_json') != FILE:

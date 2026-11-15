@@ -12,6 +12,7 @@ from .intratrade import IntratradeRisk, RiskCapture
 from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, StopEntriesIntent, Strategy
 from .execution_scenarios import FillAssumptions
 from .decision_capture import DecisionEvent
+from .entry_protection import ProtectionAmbiguity
 from .prop.native_control import (EntryAcceptance, ExecutionSnapshot, KnownEntryProposal,
                                   SessionContext, SessionRiskOrders, executable_floor_reference)
 from .session_calendar import session_date
@@ -109,12 +110,15 @@ def _validate_bar(bar: Bar, previous: Bar | None) -> None:
 
 
 class _Account:
-    def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None, capture_decisions=False):
+    def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None, capture_decisions=False,
+                 capture_entry_protection=False):
         self.config = config
         self.capture_decisions = capture_decisions
         self.decision_count = self.decision_sequence = 0
         self.pending_decision = self.active_decision = None
         self.decision_events = []
+        self.capture_entry_protection = capture_entry_protection
+        self.protection_events = []
         self.fill_assumptions = fill_assumptions or FillAssumptions()
         self.capture_risk = capture_risk
         self.risk = self.closed_risk = None
@@ -482,12 +486,31 @@ def _protect_entry(account, entry, bar, strategy, reference, phase):
     target_hit = trigger is not None and (bar.high >= trigger if long else bar.low <= trigger)
     stop_in_range = bar.low <= stop if long else bar.high >= stop
     stop_after_entry = bar.close <= stop if long else bar.close >= stop
-    if stop_in_range and (target_hit or not stop_after_entry):
+    ambiguous = stop_in_range and (target_hit or not stop_after_entry)
+    if ambiguous and plan.ambiguity_policy == 'reject':
         raise ExecutionError(
             f"Immediate entry protection is ambiguous on bar {bar.bar_number} ({bar.timestamp_utc.isoformat()}): "
             "the adverse extreme may precede the stop-entry fill, or SL/TP order is unknown. "
             "One-minute OHLC cannot establish the post-entry path; finer-grained intrabar execution support is required to resolve it. "
             "immediate_protection=false explicitly reproduces the earlier delayed strategy.")
+    if ambiguous:
+        # Possible post-entry outcomes under OHLC, not measured tick ordering.
+        if plan.ambiguity_policy == 'adverse_first':
+            outcome = 'stop_loss'
+            trade = account.apply(CloseIntent(outcome), bar, reference=stop, phase='stop', stop_exit=True)
+        elif target_hit:
+            outcome = 'take_profit'
+            trade = account.apply(CloseIntent(outcome), bar, reference=target, limit=True,
+                                  phase='target', risk_reference=trigger)
+        else:
+            outcome, trade = 'remain_open', None
+        if account.capture_entry_protection:
+            account.protection_events.append(ProtectionAmbiguity(
+                account.trade_count if trade is not None else account.trade_count + 1,
+                bar.bar_number, bar.timestamp_utc, position.side, plan.ambiguity_policy,
+                reference, fill, stop, target, bar.open, bar.high, bar.low, bar.close,
+                stop_after_entry, target_hit, outcome, trade.net_pnl if trade is not None else None))
+        return trade
     if stop_in_range:
         return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop", stop_exit=True)
     if target_hit:
@@ -497,7 +520,8 @@ def _protect_entry(account, entry, bar, strategy, reference, phase):
 
 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
-            account_control=None,continuation=None,completion='strategy_finish',prepared_path=None) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
+            account_control=None,continuation=None,completion='strategy_finish',prepared_path=None,
+            capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     Preparation is optional. The calendar-based VWAP strategy uses the causal
@@ -508,11 +532,13 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
         raise ExecutionError('Controlled native execution cannot run a strategy historical preparation pass.')
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
         yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
-                            account_control=account_control,continuation=continuation,completion=completion,prepared_path=prepared_path)
+                            account_control=account_control,continuation=continuation,completion=completion,prepared_path=prepared_path,
+                            capture_entry_protection=capture_entry_protection)
 
 
 def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
-             account_control=None,continuation=None,completion='strategy_finish',prepared_path=None) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent]:
+             account_control=None,continuation=None,completion='strategy_finish',prepared_path=None,
+             capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -535,6 +561,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         raise ExecutionError("Strategy must supply on_bar and on_finish callbacks.")
     if type(capture_decisions) is not bool:
         raise ExecutionError('capture_decisions must be a boolean.')
+    if type(capture_entry_protection) is not bool:
+        raise ExecutionError('capture_entry_protection must be a boolean.')
     if completion not in ('strategy_finish','require_flat'):
         raise ExecutionError('Unknown execution completion policy.')
     if account_control is not None and (completion!='require_flat' or not callable(getattr(strategy,'on_bar_controlled',None))):
@@ -545,9 +573,10 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
     if prepared_path is not None:
         from .prop.native_preparation import NativeEventPath
         if (type(prepared_path) is not NativeEventPath or bars is not prepared_path or strategy is not prepared_path
-                or account_control is not prepared_path.adapter or capture_decisions or capture_risk or observe_bar is not None):
+                or account_control is not prepared_path.adapter or capture_decisions or capture_risk
+                or capture_entry_protection or observe_bar is not None):
             raise ExecutionError('Prepared execution requires its checked private native event path and no per-bar/risk capture.')
-    account = _Account(config, capture_risk, fill_assumptions, capture_decisions)
+    account = _Account(config, capture_risk, fill_assumptions, capture_decisions, capture_entry_protection)
     if continuation is not None:
         account.cash=continuation.trading_cash
     control=_ControlledExecution(account_control,account) if account_control is not None else None
@@ -613,6 +642,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                 if capture_risk:
                     yield account.closed_risk
         yield from account.drain_decisions()
+        yield from account.protection_events
+        account.protection_events.clear()
         if account.risk is not None:
             account.risk.observe_bar(bar)
         intent = control.strategy_bar(strategy,bar) if control is not None else strategy.on_bar(bar, account.position)

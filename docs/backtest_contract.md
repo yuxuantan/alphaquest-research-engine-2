@@ -12,8 +12,13 @@ one-bar OCO stop entries and stop-only exits. Opening gaps take priority;
 two entry stops touched without a determining Open reject as ambiguous.
 Twin now defaults to a precommitted fill-activated `EntryProtection` plan;
 `immediate_protection=false` retains the original delayed model. Market/Open
-entry protection can use the remaining bar range; uncertain post-stop-entry
-SL timing/order rejects. An adverse extreme is not automatically after entry.
+entry protection can use the remaining bar range. Twin's current v4 model assumes
+a possible post-entry stop occurs first when entry-bar SL timing/order is unknown.
+It saves ambiguity CSVs and a complete favorable entry-bar strategy replay in
+the same report. Only conservative results enter screening. These are explicit
+OHLC sensitivity assumptions, not measured tick order or whole-strategy bounds.
+Generic attached plans still default to rejecting ambiguity unless they declare
+a policy. An adverse extreme is not automatically after entry.
 Other strategies without attached plans retain their existing timing. Native
 decision capture/phase-controlled replay reject attached plans.
 Intrabar entry-bar extrema remain excursion bounds. Its guide records

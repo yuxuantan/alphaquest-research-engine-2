@@ -89,7 +89,7 @@ def test_zero_atr_rejects_enabled_native_target_or_cap_but_allows_absolute_stop_
     s=TwinContinuation(Parameters())
     with pytest.raises(ValueError,match='positive frozen 15-minute ATR'):s._protection(stop=D(90))
     s=TwinContinuation(Parameters(bo_target_mult=D(0)))
-    assert s._protection(stop=D(90))==EntryProtection(stop_price=D(90))
+    assert s._protection(stop=D(90))==EntryProtection(stop_price=D(90), ambiguity_policy='adverse_first')
 
 
 def test_stop_cap_normalizes_adversely_and_is_active_on_entry_bar():

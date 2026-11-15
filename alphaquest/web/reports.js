@@ -146,6 +146,43 @@
     holder.append(balances);
     if(!external)window.attachRiskDiagnostics(holder,record.id);
   }
+  function entryProtection(record) {
+    const panel = get('#report-entry-protection');
+    panel.replaceChildren();
+    const evidence = record.entry_protection_sensitivity;
+    panel.hidden = !evidence;
+    if (!evidence) return;
+    panel.append(node('h2', 'Immediate protection · entry-bar sensitivity'));
+    const count = evidence.primary_ambiguities.ambiguous_entries;
+    panel.append(node('p', `Conservative result: ${count} ambiguous ${count === 1 ? 'entry' : 'entries'} assumed stop first. SL/TP remain active from entry fill.`));
+    const table = node('table', undefined, 'library-table');
+    const head = node('thead'), headings = node('tr');
+    for (const label of ['Full strategy replay', 'Net P&L · '+reportCurrency, 'Trades', 'Ambiguous entries', 'Maximum drawdown · '+reportCurrency]) headings.append(node('th', label));
+    head.append(headings); table.append(head);
+    const body = node('tbody');
+    for (const [label, summary, ambiguities] of [
+      ['Conservative · used for screening', evidence.primary_summary, evidence.primary_ambiguities],
+      ['Favorable · diagnostic only', evidence.favorable_summary, evidence.favorable_ambiguities],
+    ]) {
+      const row = node('tr');
+      for (const value of [label, summary.total_net_pnl, summary.trades_taken, ambiguities.ambiguous_entries, summary.max_drawdown_amount]) row.append(node('td', String(value)));
+      body.append(row);
+    }
+    table.append(body);
+    const scroll = node('div', undefined, 'report-table-scroll'); scroll.append(table); panel.append(scroll);
+    panel.append(node('p', `Favorable minus conservative net P&L: ${evidence.favorable_minus_primary_net_pnl} ${reportCurrency}. Trade-count difference: ${evidence.favorable_minus_primary_trades}. A large difference requires review of execution sensitivity; no automatic pass threshold is applied.`));
+    panel.append(node('p', evidence.interpretation, 'small muted'));
+    const downloads = node('details'); downloads.append(node('summary', 'Evidence and downloads'));
+    const links = node('p', undefined, 'report-downloads');
+    for (const [kind, label] of [
+      ['entry_protection_sensitivity', 'Sensitivity JSON ↓'], ['entry_protection_ambiguities', 'Conservative ambiguity CSV ↓'],
+      ['entry_protection_favorable_report', 'Favorable report JSON ↓'], ['entry_protection_favorable_trades', 'Favorable trade CSV ↓'],
+      ['entry_protection_favorable_equity', 'Favorable equity CSV ↓'],
+      ['entry_protection_favorable_entry_protection_ambiguities', 'Favorable ambiguity CSV ↓'],
+      ['entry_protection_favorable_intratrade_risk', 'Favorable intratrade risk CSV ↓'],
+    ]) { const link = node('a', label); link.href = `/api/backtests/${record.id}/exports/${kind}`; links.append(link); }
+    downloads.append(links); panel.append(downloads);
+  }
   const usd = (value, digits = 0) => value == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);
   const probability = (value) => value == null ? "N/A" : `${number.format(Number((value * 100).toFixed(1)))}%`;
   function propMetric(parent, key, label, value, note, exact) {
@@ -450,6 +487,7 @@
       get("#report-back-strategies").href=back;
       tradeTimezone(record);
       metrics(record);
+      entryProtection(record);
       const remove = get("#report-delete");
       remove.dataset.deleteRun = record.id;
       remove.disabled = deleting.has(record.id);

@@ -66,7 +66,108 @@ $1 round-trip NQ slippage is not representable by AQ's integer 0.25-point ticks
 ($5 per NQ tick). Match an explicitly representable fill-cost setup for platform
 comparison; the examples below use one tick each side and 1 commission each side.
 
-## Fill-activated protection — 2026-11-09
+## Current entry-bar OHLC policy and sensitivity — 2026-11-15
+
+Immediate protection remains the default. AlphaQuest v4 resolves uncertain
+post-stop-entry protection with the explicit `adverse_first` assumption: if a
+stop could have been touched after entry, assume that stop occurs first. The
+ordinary engine applies the stop fill, configured slippage and commissions.
+It never fills at the earlier Open for an intrabar entry. Unambiguous exits,
+Open-entry brackets and later held-bar stop-first behavior retain their rules.
+Ambiguous two-sided OCO entries still reject; this policy does not decide which
+entry happened. Calendar/source gaps and unsupported native capture still reject.
+
+Every new immediate-protection report includes a second **complete strategy
+replay**, with identical selected bars, parameters and costs, under
+`favorable_first` entry-bar assumptions. An eligible target wins a stop/target
+conflict; a stop-only touch whose post-entry timing is unknown is treated as
+pre-entry, leaving the position open. A stop forced by the Close with no reached
+target still executes. Each replay has a fresh strategy and actual position
+state: changed exits can change later entries, trade counts and P&L.
+
+The saved report shows both net profits, drawdowns, trade counts, ambiguous-entry
+counts and favorable-minus-conservative net P&L. Expand **Evidence and downloads**
+for checksummed ambiguity CSVs (bar OHLC, entry, bracket, chosen assumption and
+modeled outcome), the favorable report/trades/equity/risk, and the sensitivity
+JSON. The net P&L attached to assumed same-bar exits already includes costs; its
+sum is not the whole-strategy impact. The comparison comes from full replays.
+Large differences require investigation; no arbitrary sensitivity threshold or
+new acceptance criterion is imposed. Screening and its extra-slippage run use
+only their own conservative results. Favorable results never replace an IS/OOS
+configuration or rescue a failed screening decision.
+Each ordinary and cost-stress backtest adds one complete diagnostic replay;
+grid computation increases accordingly. Source spools and ambiguity CSVs stream
+with bounded memory; evidence publishes atomically with its parent report and
+participates in existing reuse/integrity checks. Cancellation retains no completed
+report for that attempt.
+
+These scenarios cannot determine the actual intrabar sequence, bound whole-strategy
+profitability or establish MultiCharts/broker parity. Excursions remain OHLC
+bounds. Full intrabar certainty requires additional ordered market observations.
+This AlphaQuest assumption does not change the MultiCharts host's own fill model.
+
+The execution/source identities change. Old reports, verdicts and snapshots remain
+readable without mutation; old mechanics approval does not authorize the new model.
+Create a new workflow, rerun and review mechanics, then launch IS Broad with
+**Immediate protection = true**. The previous failed job remains historical.
+The original delayed mode remains available explicitly; generic `EntryProtection`
+defaults to rejection unless its plan declares a policy.
+
+Reproduce a normal-product synthetic demonstration (temporary server stops on
+exit; output must be a new directory):
+
+```sh
+PYTHONPATH=.:tests ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python \
+  tests/review_entry_protection.py --output artifacts/twin-entry-protection-NEW
+```
+
+The normal mechanics -> IS Broad -> report journey runs two settings of the stop cap
+on a labeled synthetic NQ source. The cap-enabled member has one ambiguous entry:
+entry 110.25, stop reference 108.00, stop fill 107.75, $20/point and $2 commission
+produce **-52.00**. Extra-slippage stress produces **-57.00**. Favorable target
+127.25 produces **338.00**, a **390.00** sensitivity difference. The 3-day source
+fails historical evidence requirements; this demonstration claims no qualified
+campaign, OOS result or MultiCharts parity. Saved evidence is described below.
+
+Saved normal-product evidence:
+`artifacts/twin-entry-protection-qualified-20261115/verification.json`, with
+source CSV, job/workflow/results JSON, downloads and browser screenshots. Its
+temporary review server shut down after verification. To inspect that isolated
+library, start an unused local port:
+
+```sh
+ALPHAQUEST_DATA_DIR=artifacts/twin-entry-protection-qualified-20261115 \
+  .venv/bin/uvicorn alphaquest.app:app --host 127.0.0.1 --port 8019
+```
+
+Open `http://127.0.0.1:8019/#campaigns/workflows/21332f5efab147018d92f9d57d68b32e/is_broad`
+to see both completed trials. Open
+`http://127.0.0.1:8019/#backtests/report/da8110346d7943b4baff326f9aa8e678`
+to inspect the cap-enabled member, its one modeled ambiguity and the -52/338
+comparison. Expand **Evidence and downloads**, inspect both trade CSVs and
+the JSON provenance, then reload; the report bytes and results stay unchanged.
+Stop the inspection server with Ctrl-C. No OOS was executed. Existing user
+datasets, workflows and historical reports were not altered by the demonstration.
+
+Focused regression coverage:
+
+```sh
+.venv/bin/python -m pytest tests/test_entry_protection_sensitivity.py \
+  tests/test_twin_immediate_protection.py -q
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest \
+  tests/test_campaign_broad_browser.py::test_twin_conservative_entry_sensitivity_report -q
+```
+
+Tests retain generic rejection, long/short symmetry, the reported real price
+example, certain-stop and uncertain stop-only cases, unchanged legacy timing,
+later strategy-state divergence, compact/full replay parity, zero-ambiguity
+reports, cancellation, tamper rejection, and actual two-worker Broad cost-stress
+screening. Old shared execution, risk and native decision checks remain intact.
+
+## Fill-activated protection introduced — 2026-11-09 (historical v3 rejection policy)
+
+The rejection behavior in this dated section records the earlier model. The
+2026-11-15 policy above supersedes it for newly generated AlphaQuest reports.
 
 **Immediate SL/TP is now the default in both implementations.** Set
 `ImmediateProtection=true` in MultiCharts and `immediate_protection=true` in

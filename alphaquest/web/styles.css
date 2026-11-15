@@ -1356,6 +1356,9 @@ dialog::backdrop {
 
 /* Saved backtest reports: bounded chart and table, native document controls. */
 .report-panel { margin-top: 24px; }
+#report-entry-protection { padding: 24px; }
+#report-entry-protection p { line-height: 1.7; }
+#report-entry-protection summary { padding: 16px 0; }
 .report-heading { gap: 20px; }
 .report-heading h1 { margin-top: 12px; }
 .report-heading .run-identifier { font-size: 11px; overflow-wrap: anywhere; }

@@ -108,8 +108,11 @@ class EntryProtection:
     stop_distance: Decimal | None = None
     target_distance: Decimal | None = None
     max_stop_distance: Decimal | None = None
+    ambiguity_policy: Literal["reject", "adverse_first", "favorable_first"] = "reject"
 
     def __post_init__(self):
+        if self.ambiguity_policy not in ("reject", "adverse_first", "favorable_first"):
+            raise ValueError("Unknown entry protection ambiguity policy.")
         if (self.stop_price is None) == (self.stop_distance is None):
             raise ValueError("Entry protection requires exactly one stop basis.")
         if self.stop_price is not None:

@@ -99,6 +99,26 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["selection"] = selected.metadata
         if hasattr(strategy, "session_flattening"):
             metadata["strategy"]["session_flattening"] = strategy.session_flattening
+        protection = bool(getattr(definition.module, 'ENTRY_PROTECTION_POLICY', None)
+                          and parameters.immediate_protection)
+        sensitivity = None
+        if protection:
+            if account_control is not None:
+                raise ExecutionError('Controlled native replay does not support attached entry protection.')
+            from .entry_protection import sensitivity_replay
+            from .prepared_data import PreparedData, write_stream
+            workspace = Path(stack.enter_context(TemporaryDirectory(prefix='.entry-protection-')))
+            replay = prepared
+            if replay is None:
+                # Keep one identical checked source for both strategy replays.
+                path = workspace / 'bars.bin'
+                write_stream(path, selected.bars,
+                    lambda count: progress('preparing_entry_protection', count, total))
+                replay = PreparedData(path, selected.metadata)
+                selected = stack.enter_context(replay.selected())
+            with timings.span('entry_protection_sensitivity'):
+                sensitivity = sensitivity_replay(workspace / 'favorable', definition, parameters, config,
+                    replay, feature_paths, dataset, metadata, fill_assumptions, progress)
         comparison = MarketBenchmark(config, market_benchmark, metadata, total, source_backtest_id=Path(output).name)
         # The source iterator advances here only after the engine's current
         # callback/fill. Final-bar count is visible before report publication.
@@ -119,12 +139,14 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         stage("replaying")
         events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True,
             observe_bar=comparison.set_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
-            account_control=account_control, completion='require_flat' if account_control is not None else 'strategy_finish'), 'replay')
+            account_control=account_control, completion='require_flat' if account_control is not None else 'strategy_finish',
+            capture_entry_protection=protection), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
                                        execution_assumption=definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
-                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions)
+                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions,
+                                       capture_entry_protection=protection, entry_protection_sensitivity=sensitivity)
     if account_control is not None:
         result = account_control.finish_replay()
         path = Path(output) / 'native_account_control.json'
@@ -582,9 +604,29 @@ def download(run_id: UUID, kind: str, request: Request):
     if kind=='risk_metrics':return JSONResponse(risk_diagnostics(run_id,request),headers={'Content-Disposition':'attachment; filename="risk_metrics.json"'})
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control", "is_screening", "oos_screening") or record is None:
+    protection_kinds = ('entry_protection_ambiguities', 'entry_protection_sensitivity',
+        'entry_protection_favorable_report', 'entry_protection_favorable_trades', 'entry_protection_favorable_equity',
+        'entry_protection_favorable_intratrade_risk', 'entry_protection_favorable_entry_protection_ambiguities')
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control", "is_screening", "oos_screening", *protection_kinds) or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
     _verify_external(request, record)
+    if kind in protection_kinds:
+        name = record.get('artifacts', {}).get(kind)
+        if name is None:
+            raise HTTPException(404, 'This report has no saved entry protection evidence of this kind.')
+        from .entry_protection import evidence_names
+        try:
+            if name not in evidence_names(record):
+                raise ValueError('Unknown entry protection artifact.')
+            path = runs.root / run_id.hex / name
+            descriptor = record['entry_protection'] if kind == 'entry_protection_ambiguities' else record['entry_protection_sensitivity']
+            expected = descriptor['sha256'] if kind in ('entry_protection_ambiguities', 'entry_protection_sensitivity') else descriptor['favorable_artifacts_sha256'][name]
+            if path.is_symlink() or not path.is_file() or file_hash(path) != expected:
+                raise ValueError('Saved entry protection evidence is missing or changed.')
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return FileResponse(path, media_type='application/json' if name.endswith('.json') else 'text/csv',
+                            filename=f'{run_id.hex}-{name}')
     if kind == 'oos_screening':
         from .oos_criteria import FILE, verified_oos
         try:verified_oos(runs,record)

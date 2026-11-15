@@ -26,12 +26,14 @@ DESCRIPTION = (
     "Twin Continuation: 6-hour confirmed swing breakout plus 10-minute morning momentum. "
     "One position, setup-owned exits; Chicago one-minute close-labelled bars. "
     "Next-bar market/stop entries with immediate fill-activated SL/TP by default. "
-    "Ambiguous two-sided entries and uncertain post-stop-entry protection reject; "
+    "Uncertain entry-bar protection uses a conservative adverse-first OHLC assumption with a full-strategy favorable sensitivity replay. "
+    "Ambiguous two-sided entries reject; "
     "Open-entry and later held-bar brackets use stop first. "
     "Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; "
     "source Momentum half-day heuristic is retained."
 )
-EXECUTION_ASSUMPTION = "twin_selectable_fill_or_legacy_protection_reject_ambiguous_entry_path_calendar_session_close_v3"
+EXECUTION_ASSUMPTION = "twin_immediate_protection_adverse_first_entry_sensitivity_calendar_v4"
+ENTRY_PROTECTION_POLICY = "adverse_first"
 SUPPORTS_DECISION_CAPTURE = False
 SESSION_CALENDAR = dict(NQ_CALENDAR, instrument="NQ / MNQ futures",
                         symbol_pattern="(?:" + NQ_CALENDAR['symbol_pattern'] + "|" + MNQ_SYMBOL_PATTERN + ")")
@@ -74,7 +76,8 @@ class Parameters:
     clock_shift: int = number(0, "Source clock offset in minutes; AQ bars already close-labelled: use 0.", -1440, 1440)
     debug_log: bool = False
     immediate_protection: bool = field(default=True, metadata={"description":
-        "Activate SL/TP on entry fill, including the entry bar. Ambiguous intrabar stop-entry paths reject. "
+        "Activate SL/TP on entry fill, including the entry bar. Uncertain post-entry paths assume stop first; "
+        "reports include a full-strategy favorable entry-bar sensitivity replay. These are OHLC assumptions. "
         "False reproduces the original next-bar protection timing."})
     max_bars_back: int = number(5, "Leading records skipped, matching manual MC Max Bars Back.", 0)
     use_session_calendar: bool = field(default=True, metadata={"description":
@@ -120,7 +123,7 @@ def source_fingerprint():
     root = Path(__file__).resolve().parents[1]
     digest = hashlib.sha256()
     for path in (Path(__file__), root / "strategy.py", root / "execution.py", root / "intratrade.py",
-                 root / "session_calendar.py", calendar_path()):
+                 root / "session_calendar.py", root / "entry_protection.py", calendar_path()):
         digest.update(path.name.encode() + b"\0" + path.read_bytes() + b"\0")
     return digest.hexdigest()
 
@@ -142,7 +145,9 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
     enabled = parameters.use_session_calendar
     return dict(enabled=enabled, mode="twin_csv_session_close_v2", lookahead=False,
                 protection_activation="on_entry_fill" if parameters.immediate_protection else "following_bar_legacy",
-                entry_bar_path="reject ambiguous post-stop-entry SL timing/order; market/Open entries use full remaining range",
+                entry_protection_ambiguity_policy=ENTRY_PROTECTION_POLICY if parameters.immediate_protection else 'not_applicable',
+                entry_bar_path=("adverse_first OHLC assumption for ambiguous post-stop-entry SL timing/order; market/Open entries use full remaining range"
+                                if parameters.immediate_protection else "following_bar_legacy; no attached entry-bar protection"),
                 calendar=(calendar or load_calendar(symbol=instrument_symbol)).metadata() if enabled else None,
                 calendar_selection="instrument_symbol", instrument_symbol=instrument_symbol,
                 calendar_id=resolve_calendar(instrument_symbol)['id'] if enabled else None,
@@ -161,6 +166,7 @@ class TwinContinuation:
         validate_instrument(self.p, instrument_symbol)
         self.instrument_symbol = instrument_symbol
         self.tick_size = execution_config.tick_size if execution_config is not None else D("0.25")
+        self.entry_protection_policy = ENTRY_PROTECTION_POLICY
         self.calendar = load_calendar(symbol=instrument_symbol) if self.p.use_session_calendar else None
         self.session_plan = None
         self.session_digest = hashlib.sha256()
@@ -315,10 +321,11 @@ class TwinContinuation:
         if not self.p.immediate_protection:
             return None
         if momentum:
-            return EntryProtection(stop_distance=self.p.mo_stop_points)
+            return EntryProtection(stop_distance=self.p.mo_stop_points, ambiguity_policy=self.entry_protection_policy)
         if self.arm_atr <= 0 and (self.p.bo_target_mult > 0 or self.p.bo_max_stop_mult > 0):
             raise ValueError("Immediate BO target/cap protection requires a positive frozen 15-minute ATR.")
         return EntryProtection(stop_price=stop,
+            ambiguity_policy=self.entry_protection_policy,
             max_stop_distance=self.p.bo_max_stop_mult*self.arm_atr if self.p.bo_max_stop_mult>0 else None,
             target_distance=self.p.bo_target_mult*self.arm_atr if self.p.bo_target_mult>0 else None)
 
