@@ -152,7 +152,7 @@ def implementation():
         'execution.py','prop/native_control.py','prop/evaluation_profiles.py','prop/funded_profiles.py','prop/sizing.py',
         'prop/native_engine.py','prop/lucid_engine.py','prop/native_money.py','prop/cash_ledger.py','strategy.py',
         'strategies/vwap_pullback_risk_sizing.py','strategies/vwap_features.py','strategies/registry.py',
-        'decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py')}
+        'tick_data.py','decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py')}
     result[os.path.relpath(calendar_path(),root)]=sha256(calendar_path().read_bytes()).hexdigest()
     from .prop import native_backend,lucid_backend
     for backend in (native_backend,lucid_backend):

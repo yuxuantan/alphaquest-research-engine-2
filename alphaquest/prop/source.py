@@ -131,7 +131,9 @@ def prepare_source(runs, source_id, trade_file, export_timezone='America/Chicago
         if risk is not None:
             snapshot['native_risk'] = record['intratrade_risk']
             snapshot['excursion_provenance'] = 'Held OHLC account-equity excursion bounds, including entry costs and realized exit costs once. Uses the conservative MAE upper bound; target-exit ordering may be ambiguous. These are bar observations, not measured tick MAE/MFE. Observed opening gaps and actual exit-cost jumps can overshoot a DLL and breach the account floor. Other intrabar DLL fills assume the threshold price; unobserved tick gaps and liquidity are not modeled.'
-            snapshot['excursion_input'].update(native_risk_sha256=record['intratrade_risk']['sha256'], native_ohlc_count=len(risk), ambiguous_mae_count=record['intratrade_risk']['ambiguous_trades'], risk_policy='conservative_held_ohlc_upper')
+            if record.get('run_metadata',{}).get('dataset',{}).get('tick_data'):
+                snapshot['excursion_provenance']='Observed ordered trade-price account-equity excursions while actually holding, with declared execution costs. Each adverse record is retained as an observed jump for first-crossing account floors. Full fills, no queue/latency model; NQ-to-MNQ scaling remains a declared approximation.'
+            snapshot['excursion_input'].update(native_risk_sha256=record['intratrade_risk']['sha256'], native_ohlc_count=len(risk), ambiguous_mae_count=record['intratrade_risk']['ambiguous_trades'], risk_policy='ordered_trade_ticks' if record.get('run_metadata',{}).get('dataset',{}).get('tick_data') else 'conservative_held_ohlc_upper')
             for row, r in zip(comparisons, risk):
                 row.update(ohlc_mae_lower=r['mae_lower'], ohlc_mae_upper=r['mae_upper'], ohlc_mfe_lower=r['mfe_lower'], ohlc_mfe_upper=r['mfe_upper'], risk_cross_session=r['cross_session']=='True', ohlc_adverse_path=r['adverse_path'])
         return snapshot, comparisons

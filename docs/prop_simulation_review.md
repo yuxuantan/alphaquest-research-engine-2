@@ -12473,3 +12473,52 @@ replacement PID: **74499**, stop with `kill 74499`. No jobs were interrupted. Th
 user's original Evaluation report `257e20f97a644d12bce7d108a1ba1a77` retained SHA256
 `2b714a6957b5c1eb3851ea9515b0c8dbd4c84bac2f86140244413fe8c6478f3c` across restart.
 The application record is `portal-application.json` in the artifact directory.
+
+## Ordered trade source delivery — 15 November 2026
+
+The Dataset → Trade ticks workflow imports checked SCID or canonical trade CSV,
+retains trade ordering and derives completed-minute flow. The existing execution
+engine resolves fills and account floors; prepared/date-selected/worker/portfolio
+spools preserve the source references. The optional VWAP order-flow filter runs
+through the same ordinary and controlled strategy callbacks. No separate prop
+engine or result catalogue was created.
+
+Normal-product proof is retained in
+`/private/tmp/alphaquest-tick-product-proof-reviewed-20261115`; its temporary
+server and Chrome closed after verification. Inputs are explicitly SYNTHETIC.
+The [downloaded evidence](evidence/trade-ticks-20261115/product-evidence.json) binds
+the original SCID, source report, source trade/risk CSVs, native trade CSV, sealed
+prop report and ZIP by hash. [Upload](evidence/trade-ticks-20261115/tick-source-upload.png),
+[rejection](evidence/trade-ticks-20261115/rejected-aggregated-record.png) and
+[result](evidence/trade-ticks-20261115/tick-percentage-prop-result.png) screenshots
+show the actual portal. No test-only page or API was added.
+
+Saved source report: `0124509025e94ed89aa1a0bca52ebfd4`. Saved Funded percentage replay:
+`269c83578b56458a8699cfe3349440fb`, child backtest `5faf1bf7e0a044099da253d2066065d2`.
+Expected quantities are 10, 9, 5 and trade net results are -120, 180, 100.
+The first source stop is 113; the next actual recorded price is 112 after entry
+at 118, producing `(112 - 118) × 2 × 10 = -120`. Final provider trading balance
+is 50,160. This is historical execution arithmetic, not a forecast or GO verdict.
+An intentionally aggregated record was rejected before saving.
+
+Reproduce from the [tick source guide](tick_datasets.md#verification-and-normal-product-demonstration).
+Use a fresh `AQ_TICK_PRODUCT_DIR`, then reopen that normal data directory through
+uvicorn. Reports reopen from existing sealed files. The original raw path and
+minute index must remain at their saved locations for new calculations; report
+reads do not resimulate. No extra persistent server was left running by tests.
+
+Validation: 26 focused tick import/execution/API checks passed, including the real
+Mechanics → Broad → Narrow → OOS → final Monte Carlo → automatic Prop Sim IS/OOS
+pipeline without gate bypasses. Both account profiles and phases passed native
+percentage replay; indexed/full replay and shared/separate portfolio cash matched
+independent oracles. The final native disclosure update was checked again across
+all four profile/phase combinations. The Chrome journey passed with negative
+import and successful durable replay. Relevant existing decision-capture, immediate
+protection and prepared-execution checks passed (52 checks); the broader legacy
+suite was not run.
+
+Observed ordering does not certify completeness, liquidity, spread, latency or
+provider parity. Trade-sized records are not inferred parent orders. Campaign
+criteria retain their documented minute-close MTM sampling and campaign Monte
+Carlo retains its daily inputs. Old reports are preserved; changed numerical
+identities are not silently applied to old frozen packages.

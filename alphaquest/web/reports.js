@@ -71,6 +71,7 @@
     get("#report-exit-time-header").textContent = `Exit · ${tradeTimeZone}`;
     get("#report-trade-timezone-note").textContent = `${tradeTimeZone} timestamps · P&L in ${reportCurrency}`;
     get("#report-trade-timezone-hint").textContent = `Entry and exit times use ${tradeTimeZone} (source timezone). CSV exports use UTC. Scroll horizontally for all trade fields.`;
+    if(record.run_metadata.dataset.tick_data) get("#report-trade-timezone-hint").textContent += " Ordered trade prices resolve entries, protective exits and account barriers. Decisions use completed minutes; full fills and declared slippage remain modeling assumptions.";
   }
   const moneyClass = (value) => Number(value) < 0 ? "negative" : Number(value) > 0 ? "positive" : "";
   async function read(url, signal) {

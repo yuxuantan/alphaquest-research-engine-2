@@ -1,0 +1,103 @@
+{
+  "dataset_id": "b10582098fc54ea0b14289fe1295097b",
+  "source_id": "0124509025e94ed89aa1a0bca52ebfd4",
+  "analysis_id": "269c83578b56458a8699cfe3349440fb",
+  "native_backtest_id": "5faf1bf7e0a044099da253d2066065d2",
+  "source_sha256": "af7964f24e6c20ee08be9f914eff9a68c9ed93a0aa88e6ece7b5e49523e2020f",
+  "downloads": {
+    "source-report.json": "51b6e14515296203726a7879d3bd89262e103c546e72dd8a16175dec34f85258",
+    "source-trades.csv": "c8cb6cb18da3b550ec3cce7d7f91f71cf7daa58e05fcf62637388831d9752d15",
+    "source-risk.csv": "9bf9aaf8533273425ee3929f55d1a7f4cc988677daae9b118a765c3277e438c7",
+    "native-trades.csv": "5163f4c068759b670a08f6ecdaa55dc5ab7df0afb245e69d44a0c61ea0cec661",
+    "prop-report.json": "e279dfa5d284f654249f41edad6bd07385adfddf0a0b734d7383137de84ed1f0",
+    "prop-analysis.zip": "3d2b7f4c5da1991c9e738fb84e3d97a92631834dea66d4d6049fc4613c68971c"
+  },
+  "expected": {
+    "quantities": [
+      10,
+      9,
+      5
+    ],
+    "net_pnls": [
+      -120,
+      180,
+      100
+    ],
+    "cash_balance": 50160,
+    "scope": "SYNTHETIC historical execution oracle, no forecast or trading qualification"
+  },
+  "trades": [
+    {
+      "trade_number": 1,
+      "side": "long",
+      "entry_bar_number": 962,
+      "exit_bar_number": 963,
+      "entry_time_utc": "2026-01-05T15:01:00Z",
+      "exit_time_utc": "2026-01-05T15:02:30Z",
+      "exit_deadline_utc": "2026-01-05T21:55:00Z",
+      "contracts": 10,
+      "entry_reference_price": "118.0",
+      "exit_reference_price": "112.0",
+      "entry_fill_price": "118.00",
+      "exit_fill_price": "112.00",
+      "entry_commission": "0",
+      "exit_commission": "0",
+      "total_commissions": "0",
+      "reference_gross_pnl": "-120.0",
+      "slippage_cost": "0.00",
+      "gross_pnl": "-120.00",
+      "net_pnl": "-120.00",
+      "actual_holding_minutes": "1.5",
+      "entry_reason": "vwap_pullback",
+      "exit_reason": "stop_loss"
+    },
+    {
+      "trade_number": 2,
+      "side": "long",
+      "entry_bar_number": 2342,
+      "exit_bar_number": 2343,
+      "entry_time_utc": "2026-01-06T15:01:00Z",
+      "exit_time_utc": "2026-01-06T15:02:15Z",
+      "exit_deadline_utc": "2026-01-06T21:55:00Z",
+      "contracts": 9,
+      "entry_reference_price": "118.0",
+      "exit_reference_price": "128.0",
+      "entry_fill_price": "118.00",
+      "exit_fill_price": "128.0",
+      "entry_commission": "0",
+      "exit_commission": "0",
+      "total_commissions": "0",
+      "reference_gross_pnl": "180.0",
+      "slippage_cost": "0.00",
+      "gross_pnl": "180.00",
+      "net_pnl": "180.00",
+      "actual_holding_minutes": "1.25",
+      "entry_reason": "vwap_pullback",
+      "exit_reason": "take_profit"
+    },
+    {
+      "trade_number": 3,
+      "side": "long",
+      "entry_bar_number": 3722,
+      "exit_bar_number": 3723,
+      "entry_time_utc": "2026-01-07T15:01:00Z",
+      "exit_time_utc": "2026-01-07T15:02:15Z",
+      "exit_deadline_utc": "2026-01-07T21:55:00Z",
+      "contracts": 5,
+      "entry_reference_price": "118.0",
+      "exit_reference_price": "128.0",
+      "entry_fill_price": "118.00",
+      "exit_fill_price": "128.0",
+      "entry_commission": "0",
+      "exit_commission": "0",
+      "total_commissions": "0",
+      "reference_gross_pnl": "100.0",
+      "slippage_cost": "0.00",
+      "gross_pnl": "100.00",
+      "net_pnl": "100.00",
+      "actual_holding_minutes": "1.25",
+      "entry_reason": "vwap_pullback",
+      "exit_reason": "take_profit"
+    }
+  ]
+}

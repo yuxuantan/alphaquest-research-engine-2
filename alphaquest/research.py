@@ -94,7 +94,7 @@ class ResearchStore:
             digest=hashlib.sha256();size=0
             for chunk in source.iter_csv(dataset['id']):
                 snapshot.write(chunk);digest.update(chunk);size+=len(chunk)
-            if size!=dataset['bytes'] or digest.hexdigest()!=dataset['sha256']:
+            if size!=dataset['bytes'] or digest.hexdigest()!=dataset.get('csv_sha256',dataset['sha256']):
                 raise DatasetReadError('Saved CSV bytes do not match the dataset metadata.')
             snapshot.seek(0)
             counts = {}

@@ -254,6 +254,10 @@ def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=N
         result['source_check']['full_session_completeness_required']=False
         result['source_check']['limitations'][0]='Observed NQ/MNQ reference prices, explicit MNQ costs and complete holding intervals, with reviewed historical venue pauses.'
         result['source_check']['complete_holding_intervals']=True
+    if dataset.get('tick_data'):
+        result['source_check'].update(execution_data='ordered_trade_ticks',decision_clock='completed_one_minute_bars',
+            source_total_trade_records=dataset['tick_data']['records'])
+        result['source_check']['limitations'][-1]='Recorded trade order resolves the observed price path. Full fills, spread, latency, feed completeness, provider rules and payout settlement remain modeling assumptions; no order-book queue reconstruction.'
     make_controller(request, result)
     if request.native_forecast is not None:
         result['native_forecast_plan'], _, _ = prepare_native_forecast(datasets, request, result,cache=forecast_cache)

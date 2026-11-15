@@ -2140,3 +2140,11 @@ dialog::backdrop {
 .workflow-removed-datasets { margin-top:18px; padding:14px; border:1px solid var(--line); border-radius:8px; }
 .workflow-removed-datasets > summary { cursor:pointer; font-weight:600; }
 .workflow-removed-datasets .workflow-link-actions { margin-top:14px; }
+
+/* Trade-source controls stay readable beside the compact OHLC download icon. */
+.tick-source-downloads > a { display:block; white-space:nowrap; margin:.35rem 0; font-size:.75rem; }
+.tick-source-downloads details { font-size:.75rem; min-width:8rem; }
+.tick-source-downloads details a { display:block; margin:.5rem 0; }
+.tick-roll-box { margin:1.5rem; padding:1.25rem; }
+.tick-roll-box > summary { cursor:pointer; font-weight:600; }
+.tick-roll-box label { display:block; margin:.8rem 0; }

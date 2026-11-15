@@ -198,7 +198,7 @@ class _Account:
                     raise ExecutionError('Filled entry lacks a causal captured decision.')
                 self.active_decision, self.pending_decision = self.pending_decision, None
                 self.emit_decision('entry_fill', self.active_decision.decision_id, bar, intent.side, intent.contracts,
-                    trade_number=self.trade_count + 1, reference_price=reference, fill_price=fill, reason='actual_native_fill')
+                    trade_number=self.trade_count + 1, reference_price=reference, fill_price=fill, reason='actual_ordered_trade_fill' if getattr(self,'_tick_execution',False) else 'actual_native_fill')
             self.cash = _sub(self.cash, commission)
             if self.capture_risk:
                 self.risk = RiskCapture(self.position, self.config, commission, reference, phase)
@@ -339,6 +339,8 @@ class _ControlledExecution:
     def entry_filled(self,bar):
         if self.acceptance is None:
             raise ExecutionError('Controlled entry fill lacks its causal acceptance.')
+        if bar.tick_window is not None:
+            bar=replace(bar,timestamp_utc=self.account.position.entry_time_utc,tick_window=None)
         self.owner.after_entry_fill(self.snapshot(bar),self.acceptance)
         self.acceptance=None
 
@@ -349,7 +351,39 @@ class _ControlledExecution:
         self.acceptance=None
 
     def closed(self,trade,bar,trigger=None):
+        if bar.tick_window is not None:
+            bar=replace(bar,timestamp_utc=trade.exit_time_utc,tick_window=None)
         self.owner.after_trade_close(trade,self.snapshot(bar),triggering_floor=trigger)
+
+
+def _tick_exit(account, bracket, bar, *, floor=None, floor_reason=None):
+    window = getattr(account, '_held_ticks', None) or bar.tick_window
+    position = account.position
+    long = position.side == 'long'
+    stop = bracket.stop_price if bracket else floor
+    reason = 'stop_loss' if bracket else floor_reason
+    if floor is not None and (stop is None or (floor >= stop if long else floor <= stop)):
+        stop, reason = floor, floor_reason
+    target = bracket.target_price if bracket else None
+    trigger = target
+    if target is not None:
+        penetration = account.config.tick_size * account.fill_assumptions.limit_penetration_ticks
+        trigger = target + penetration if long else target - penetration
+    hit = window.first_hit(stop if long else trigger, trigger if long else stop)
+    if hit is None:
+        return None, None
+    point = window.point(bar, hit)
+    window.observe(account.risk, bar, hit + 1)
+    is_stop = (point.close <= stop if long else point.close >= stop) if stop is not None else False
+    if is_stop:
+        # Market stops execute at the first observed trade beyond the barrier.
+        trade = account.apply(CloseIntent(reason), point, reference=point.close, phase='stop', stop_exit=True)
+        return trade, reason
+    price = point.close if account.fill_assumptions.limit_price_improvement else target
+    # Price improvement applies only when the first observation is already beyond
+    # the limit. Crossing later fills at the submitted limit, without a queue claim.
+    if hit != 0: price = target
+    return account.apply(CloseIntent('take_profit'), point, reference=price, limit=True, phase='target'), None
 
 
 def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=None,phase='open'):
@@ -362,6 +396,15 @@ def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=
     if account.position is None:
         return None,None
     orders=control.orders(bar);position=account.position
+    if bar.tick_window is not None and include_range:
+        floor=orders.account_floor_engine_equity;trigger='account'
+        if orders.daily_floor_engine_equity is not None and orders.daily_floor_engine_equity>floor:
+            floor=orders.daily_floor_engine_equity;trigger='daily'
+        stop=executable_floor_reference(control.snapshot(bar),floor,account.config.tick_size,account.config.point_value)
+        trade,reason=_tick_exit(account,bracket,bar,floor=stop,floor_reason='native_'+trigger+'_floor')
+        return trade, trigger if reason=='native_'+trigger+'_floor' else None
+    if bar.tick_window is not None and not include_range and phase=='open':
+        bar=bar.tick_window.point(bar,0)
     price=bar.open if reference is None else reference
     signed=position.contracts*(1 if position.side=='long' else -1)
     marked=_add(account.cash,_pnl(price,position.entry_fill_price,signed,account.config.point_value))
@@ -404,6 +447,8 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
     position = account.position
     if position is None:
         raise ExecutionError("Pending bracket has no position.")
+    if bar.tick_window is not None:
+        return _tick_exit(account, bracket, bar)[0]
     stop, target = bracket.stop_price, bracket.target_price
     long = position.side == "long"
     assumptions = account.fill_assumptions
@@ -425,8 +470,22 @@ def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade 
 
 def _fill_entry_stops(account, orders, bar, strategy):
     allow_entry = getattr(strategy, "allow_entry_fill", None)
-    if allow_entry is not None and not allow_entry(bar):
+    if allow_entry is not None and not allow_entry(replace(bar,tick_window=None) if bar.tick_window is not None else bar):
         return
+    if bar.tick_window is not None:
+        window=bar.tick_window
+        hits=[]
+        for entry,price in orders.orders:
+            hit=window.first_hit(upper=price) if entry.side=='long' else window.first_hit(lower=price)
+            if hit is not None:hits.append((hit,entry))
+        if not hits:return None
+        hit,entry=min(hits,key=lambda item:item[0])
+        if sum(h==hit for h,_ in hits)>1:
+            raise ExecutionError('Overlapping OCO entry thresholds trigger at the same trade; invalid entry geometry.')
+        point=window.point(bar,hit)
+        account.apply(entry,point,reference=point.close,phase='open')
+        account._held_ticks=window.tail(hit)
+        return _protect_entry(account,entry,bar,strategy,point.close,'tick')
     gaps = [(entry, bar.open, "open") for entry, price in orders.orders
             if (bar.open >= price if entry.side == "long" else bar.open <= price)]
     hits = gaps or [(entry, price, "entry_stop") for entry, price in orders.orders
@@ -485,6 +544,8 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
             target = (target / account.config.tick_size).to_integral_value(
                 rounding=ROUND_CEILING if long else ROUND_FLOOR) * account.config.tick_size
     bracket = BracketIntent(stop, target)
+    if bar.tick_window is not None:
+        return _fill_bracket(account,bracket,bar)
     if phase == "open":
         return _fill_bracket(account, bracket, bar)
     # A very tight cap can already be breached at the known entry reference
@@ -611,9 +672,11 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             control.begin_bar(bar,previous,next_order)
         holding_check = getattr(strategy, "validate_holding_bar", None)
         if holding_check is not None:
-            holding_check(bar, account.position)
+            holding_check(replace(bar,tick_window=None) if bar.tick_window is not None else bar, account.position)
         if observe_bar is not None:
             observe_bar(bar)
+        account._tick_execution = bar.tick_window is not None
+        account._held_ticks = bar.tick_window if account.position is not None else None
         closed_on_bar = False
         risk_checked=False
         if next_order is not None:
@@ -628,7 +691,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                     trade = _fill_bracket(account, next_order, bar)
             else:
                 allow_entry = getattr(strategy, "allow_entry_fill", None)
-                if type(next_order) is EntryIntent and allow_entry is not None and not allow_entry(bar):
+                if type(next_order) is EntryIntent and allow_entry is not None and not allow_entry(replace(bar,tick_window=None) if bar.tick_window is not None else bar):
                     account.cancel_decision(bar, 'entry_guard_rejected')
                     if control is not None:
                         control.entry_cancelled(bar,'entry_guard_rejected')
@@ -637,7 +700,9 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                     trade,trigger=(_controlled_fill(account,None,bar,control,include_range=False,reference=bar.open)
                         if control is not None and type(next_order) is CloseIntent else (None,None))
                     if trade is None:
-                        trade = account.apply(next_order, bar, reference=bar.open, phase="open")
+                        fill_bar=bar.tick_window.point(bar,0) if bar.tick_window is not None else bar
+                        trade = account.apply(next_order, fill_bar, reference=bar.open, phase="open")
+                        if type(next_order) is EntryIntent: account._held_ticks=bar.tick_window
                         if type(next_order) is EntryIntent and next_order.protection is not None:
                             if control is not None:
                                 raise ExecutionError("Controlled native replay does not support attached entry protection.")
@@ -665,8 +730,11 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         yield from account.oco_events
         account.oco_events.clear()
         if account.risk is not None:
-            account.risk.observe_bar(bar)
-        intent = control.strategy_bar(strategy,bar) if control is not None else strategy.on_bar(bar, account.position)
+            if account._held_ticks is not None: account._held_ticks.observe(account.risk,bar)
+            elif bar.tick_window is None: account.risk.observe_bar(bar)
+        # Execution windows are private. Strategies receive completed flow only.
+        decision_bar=replace(bar,tick_window=None) if bar.tick_window is not None else bar
+        intent = control.strategy_bar(strategy,decision_bar) if control is not None else strategy.on_bar(decision_bar, account.position)
         if type(intent) is EntryIntent:
             if intent.protection is not None and (capture_decisions or control is not None):
                 raise ExecutionError("Attached entry protection is unsupported by decision capture and controlled native replay.")
@@ -719,7 +787,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             control.end_session(previous,next_order)
         trade=None
     else:
-        trade = account.apply(strategy.on_finish(previous, account.position), previous, finishing=True)
+        trade = account.apply(strategy.on_finish(replace(previous,tick_window=None) if previous.tick_window is not None else previous, account.position), previous, finishing=True)
     if trade is not None:
         yield trade
         if capture_risk:

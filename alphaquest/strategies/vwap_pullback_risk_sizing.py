@@ -50,6 +50,10 @@ def boolean(default, description):
 
 @dataclass(frozen=True, slots=True)
 class Parameters:
+    use_order_flow: bool = boolean(False, "Require completed-minute trade delta aligned with entry direction. Requires a trade tick dataset.")
+    minimum_delta_pct: Decimal = decimal("10", "Minimum signed ask-minus-bid volume / classified volume percent for order-flow entries.")
+    maximum_unknown_volume_pct: Decimal = decimal("10", "Maximum unclassified trade volume percent for order-flow entries.")
+    minimum_trade_records: int = integer(1, "Minimum individual trade records in the completed signal minute.")
     use_vol_sizing: bool = boolean(False, "Use risk-budget sizing instead of fixed contracts.")
     position_size: int = integer(1, "Fixed contracts; source Inputs default is 1.")
     mm_capital_usd: Decimal = decimal("500000", "Capital used only for the sizing risk budget.")
@@ -99,6 +103,8 @@ class Parameters:
                     raise ValueError(f"{item.name} must be a valid HHMM time.")
             elif not isinstance(value, Decimal) or not value.is_finite() or value < 0:
                 raise ValueError(f"{item.name} must be a non-negative finite Decimal.")
+        if self.minimum_delta_pct>100 or self.maximum_unknown_volume_pct>100:
+            raise ValueError('Order-flow percentages must be between 0 and 100.')
         if self.max_bars_back < max(2 * self.stop_swing_len, 2 * self.target_swing_len, self.adx_len, self.adx_decay_lb):
             raise ValueError("max_bars_back must cover both pivot windows, ADX length and decay lookback.")
 
@@ -358,6 +364,16 @@ class VwapPullbackRiskSizing:
             ("long", long_signal, p.trade_longs, long_latched, self.last_stop_low, self.pullback_low, self.last_target_high),
             ("short", short_signal, p.trade_shorts, short_latched, self.last_stop_high, self.pullback_high, self.last_target_low),
         ):
+            if p.use_order_flow:
+                flow=bar.flow
+                if flow is None:
+                    raise ValueError('Order-flow entries require a trade tick dataset; OHLC up/down volume is not aggressor evidence.')
+                volume=flow.known_volume+flow.unknown_volume
+                direction=1 if side=='long' else -1
+                if (flow.records<p.minimum_trade_records or not flow.known_volume
+                    or flow.unknown_volume*100>volume*p.maximum_unknown_volume_pct
+                    or direction*flow.delta_pct<p.minimum_delta_pct):
+                    continue
             if not signal or not enabled or target is None or (p.stop_mode == 1 and pivot is None) or (p.stop_mode == 2 and not latched):
                 continue
             direction = 1 if side == "long" else -1

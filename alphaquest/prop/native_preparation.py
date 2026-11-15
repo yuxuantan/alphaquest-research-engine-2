@@ -92,7 +92,7 @@ class NativeEventPreparation:
                 offered.append((intent,BracketIntent(intent.initial_stop,target)))
                 return None
             strategy.validate_holding_bar(bar,None)
-            strategy.on_bar_controlled(bar,None,admit)
+            strategy.on_bar_controlled(replace(bar,tick_window=None),None,admit)
             # Reset detection uses the same observed HHMM crossing as the actual
             # strategy, including sparse pre-entry source inputs.
             from ..session_calendar import CT
@@ -539,13 +539,14 @@ class NativeBarSequence:
         from datetime import datetime,timezone
         import struct
         directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
-        path=directory/'observed.rows';self.length=len(catalogue.bars);self.strings=[];labels={};digest=sha256()
+        path=directory/'observed.rows';self.length=len(catalogue.bars);self.strings=[];labels={};digest=sha256();self.tick_features={}
         epoch=datetime(1970,1,1,tzinfo=timezone.utc)
         with path.open('wb') as stream:
             buffer=bytearray()
             for index,bar in enumerate(catalogue.bars):
                 if index%1000==0:checkpoint()
                 if len(bar.source_fields)!=9:raise ValueError('Prepared source requires all nine original CSV fields.')
+                if bar.tick_window is not None:self.tick_features[index]=(bar.tick_window,bar.flow)
                 indices=[]
                 for value in bar.source_fields:
                     if value not in labels:labels[value]=len(self.strings);self.strings.append(value)
@@ -579,6 +580,9 @@ class NativeBarSequence:
         stamp,number,*indices=struct.unpack_from('<qq9I',self._mapping,index*52)
         fields=tuple(self.strings[i] for i in indices)
         bar=Bar(number,datetime(1970,1,1,tzinfo=timezone.utc)+timedelta(microseconds=stamp),fields[0],fields[1],*map(Decimal,fields[2:]),fields)
+        if index in self.tick_features:
+            from dataclasses import replace
+            bar=replace(bar,tick_window=self.tick_features[index][0],flow=self.tick_features[index][1])
         if len(self._cache)>=128:self._cache.pop(next(iter(self._cache)))
         self._cache[index]=bar;return bar
     def __iter__(self):

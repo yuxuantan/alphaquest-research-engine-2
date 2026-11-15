@@ -133,6 +133,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.prop_analyses.close()
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
+    from .tick_data import router as tick_router
+    app.include_router(tick_router)
     app.include_router(research_router)
     app.include_router(optimization_router)
     app.include_router(backtest_router)
@@ -306,7 +308,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         if dataset is not None:
             try:request.app.state.research_access.assert_deletable(dataset)
             except ResearchConflict as exc:raise HTTPException(409,str(exc)) from exc
-        if not request.app.state.store.delete(dataset_id):
+        try:
+            deleted=request.app.state.store.delete(dataset_id)
+        except ValueError as exc:
+            raise HTTPException(409,str(exc)) from exc
+        if not deleted:
             raise HTTPException(404, "Dataset not found.")
         return Response(status_code=204)
 

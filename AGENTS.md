@@ -370,3 +370,20 @@ UI findings must distinguish account-fit failure, evidence gaps and sensitivity
 review. Main evidence leads; tables/provenance expand on demand. Focus checks on
 `test_prop_complementary.py`, `test_prop_complementary_api.py`,
 `test_prop_complementary_native.py` and the complementary browser journey.
+
+# Ordered trade tick datasets
+
+`alphaquest/tick_data.py` owns SCID/trade-CSV import, exact source/index identity,
+explicit contract-session composition, completed-minute TradeFlow and private
+TickWindow execution references. See `docs/tick_datasets.md`. Reuse the existing
+execution/account/phase/portfolio owners; do not introduce another tick simulator.
+Never discard windows/flow in date selection, prepared caches or worker/session
+spools. Strategy callbacks see completed bars/flow, without the private window or
+future source handle. Preserve record order at equal timestamps, reject inversions
+and aggregated records, and use Last trade prices (Sierra High/Low can be quotes).
+Account stops use first recorded crossings, including jumps; exact held-risk
+frontiers retain every new adverse observation, not just a minute minimum.
+Keep the adapter in numerical provenance. Run `tests/test_tick_datasets.py` and
+explicitly select `tests/test_tick_datasets_browser.py` for the affected journey.
+Actual imported archives must pass validation; synthetic demos are not data,
+liquidity, provider, strategy-edge or live-parity qualification.

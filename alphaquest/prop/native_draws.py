@@ -35,9 +35,11 @@ def _hash(value):
 def _encoded_bar(bar):
     # Identical canonical bytes to _json(asdict(bar)), without recursive
     # deepcopy/Decimal conversion of the immutable validated source row.
+    if bar.tick_window is not None:
+        return (_json(asdict(bar))+'\n').encode()
     return (canonical(dict(bar_number=bar.bar_number,timestamp_utc=bar.timestamp_utc.isoformat(),
         date=bar.date,time=bar.time,open=str(bar.open),high=str(bar.high),low=str(bar.low),close=str(bar.close),
-        volume=str(bar.volume),up_vol=str(bar.up_vol),down_vol=str(bar.down_vol),source_fields=list(bar.source_fields)))+'\n').encode()
+        volume=str(bar.volume),up_vol=str(bar.up_vol),down_vol=str(bar.down_vol),source_fields=list(bar.source_fields),tick_window=None,flow=None))+'\n').encode()
 
 
 def _integer(value, name, minimum=0, maximum=2**32-1):

@@ -52,13 +52,15 @@ class Bar:
     up_vol: Decimal
     down_vol: Decimal
     source_fields: tuple[str, ...]
+    tick_window: object = None
+    flow: object = None
 
     def __reduce__(self):
         # Reconstruct through the fixed constructor instead of dataclasses'
         # reflective per-field slot restoration in every worker replay.
         return type(self), (self.bar_number, self.timestamp_utc, self.date, self.time,
                             self.open, self.high, self.low, self.close, self.volume,
-                            self.up_vol, self.down_vol, self.source_fields)
+                            self.up_vol, self.down_vol, self.source_fields, self.tick_window, self.flow)
 
 
 @dataclass(frozen=True, slots=True)

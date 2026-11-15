@@ -856,7 +856,7 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
              'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
              'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', '../risk_metrics.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
-             '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
+             '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']
     kernel_file = 'lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py'

@@ -19,6 +19,10 @@ class StrategyDefinition:
 
     def parameters(self, values: dict):
         names = {field.name for field in fields(self.module.Parameters)}
+        if self.module is vwap_pullback_risk_sizing:
+            defaults=self.module.Parameters()
+            added={'use_order_flow','minimum_delta_pct','maximum_unknown_volume_pct','minimum_trade_records'}
+            values={**{k:(str(getattr(defaults,k)) if isinstance(getattr(defaults,k),Decimal) else getattr(defaults,k)) for k in added if k not in values},**values}
         if values.keys() != names:
             raise ValueError(f"strategy_parameters must contain exactly: {', '.join(sorted(names))}.")
         converted = dict(values)
@@ -43,6 +47,8 @@ class StrategyDefinition:
 
     def validate_source(self, parameters, dataset):
         self.validate_instrument(parameters, dataset.get("symbol"))
+        if getattr(parameters,'use_order_flow',False) and not dataset.get('tick_data'):
+            raise ValueError('Order-flow entries require an ordered trade tick dataset.')
         validate = getattr(self.module, "validate_dataset", None)
         if validate is not None:
             validate(dataset)

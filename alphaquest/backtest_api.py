@@ -78,6 +78,14 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "instrument": {key:dataset.get(key) for key in ("symbol","interval_seconds","interval_kind")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
+    if dataset.get('tick_data'):
+        metadata['dataset']['tick_data']=dataset['tick_data']
+        metadata['dataset']['csv_sha256']=dataset['csv_sha256']
+        metadata['execution_data']=dict(kind='ordered_trade_ticks', version=dataset['tick_data']['version'],
+            fills='first recorded trade crossing stops; submitted limits; declared slippage; no queue/latency model',
+            decisions='completed one-minute bars and completed-minute trade flow')
+    if getattr(parameters,'use_order_flow',False) and not dataset.get('tick_data'):
+        raise ValueError('Order-flow strategy parameters require a trade tick dataset.')
     metadata["full_dataset"] = {key:dataset.get(key) for key in ("id","name","sha256","source_timezone","row_count","start","end","symbol")}
     if source_run_id:
         metadata["risk_from_run_id" if risk_replay else "detailed_from_run_id"] = source_run_id
@@ -102,7 +110,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         protection = bool(getattr(definition.module, 'ENTRY_PROTECTION_POLICY', None)
                           and parameters.immediate_protection)
         sensitivity = None
-        if protection:
+        if protection and not dataset.get('tick_data'):
             if account_control is not None:
                 raise ExecutionError('Controlled native replay does not support attached entry protection.')
             from .entry_protection import sensitivity_replays
@@ -143,7 +151,7 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
             capture_entry_protection=protection), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
-                                       execution_assumption=definition.execution_assumption,
+                                       execution_assumption='ordered_trade_ticks_completed_minute_decisions' if dataset.get('tick_data') else definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
                                        detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions,
                                        capture_entry_protection=protection, entry_protection_sensitivity=sensitivity)

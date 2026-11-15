@@ -1,0 +1,4 @@
+trade_number,side,entry_time_utc,exit_time_utc,contracts,net_pnl,mae_lower,mae_upper,mfe_lower,mfe_upper,entry_phase,exit_phase,full_bars,cross_session,adverse_path
+1,long,2026-01-05T15:01:00Z,2026-01-05T15:02:30Z,1,-12.00,12.00,12.00,6.00,6.00,open,stop,1,False,"[[""2.00"",true],[""12.00"",true]]"
+2,long,2026-01-06T15:01:00Z,2026-01-06T15:02:15Z,1,20.00,2.00,2.00,22.00,22.00,open,target,1,False,"[[""2.00"",true]]"
+3,long,2026-01-07T15:01:00Z,2026-01-07T15:02:15Z,1,20.00,2.00,2.00,22.00,22.00,open,target,1,False,"[[""2.00"",true]]"

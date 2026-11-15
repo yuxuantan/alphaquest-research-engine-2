@@ -3335,3 +3335,18 @@ reusing a verified compatible OOS point capture and retaining the old assessment
 It does not restart IS optimization. Incompatible numerical/source identities
 continue to reject. No upgrade or recalculation is triggered by merely opening a
 historical report.
+
+## Ordered trade source support — 15 November 2026
+
+[Trade tick datasets](tick_datasets.md) are now usable through normal campaign and
+Prop Sim routes. Fixed-size phase simulations consume saved tick-executed trade
+outcomes and observed ordered adverse jumps. Native percentage-risk searches and
+shared/separate portfolios retain source windows and rerun the supported VWAP
+strategy/account controllers against real trade prices. The optional completed-
+minute order-flow filter participates in those reruns. Evaluation/Funded goals,
+profile rules, qualification, frozen OOS selection and cash accounting are unchanged.
+
+Tick-based fill timestamps and minute-close decision/equity timestamps are distinct.
+Observed jumps can worsen stop fills. No queue/latency/liquidity reconstruction or
+new provider-parity claim is implied. Earlier sealed reports remain readable;
+numerical changes have new identities and incompatible frozen launches reject.

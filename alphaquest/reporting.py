@@ -238,7 +238,7 @@ def generate_report(
                             equity_array.write(",\n")
                     if pending_trade is not None:
                         _check(event.bar_number == pending_trade.exit_bar_number
-                               and event.timestamp_utc == pending_trade.exit_time_utc and event.position_contracts == 0,
+                               and ((metadata and metadata.get('dataset',{}).get('tick_data') and (last.timestamp_utc is None or last.timestamp_utc <= pending_trade.exit_time_utc) and pending_trade.exit_time_utc <= event.timestamp_utc) or event.timestamp_utc == pending_trade.exit_time_utc) and event.position_contracts == 0,
                                "Exit equity must match the trade's exit bar/time and finish flat.")
                         _check(last.position_contracts == (pending_trade.contracts if pending_trade.entry_bar_number < pending_trade.exit_bar_number else 0),
                                "Closing trade quantity does not match the preceding position.")
@@ -314,6 +314,9 @@ def generate_report(
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
             manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+        if metadata and metadata.get('dataset',{}).get('tick_data') and capture_risk:
+            manifest['intratrade_risk']['policy']='Observed ordered trade-price equity excursions and record adverse jumps, restricted to the actual holding interval, with declared entry/exit costs. No order-book queue or latency reconstruction.'
+            manifest['timestamp_convention']='completed-minute decisions; ordered observed trade fill timestamps; same-close orders retain the completed-minute clock'
         if capture_entry_protection:
             manifest['artifacts']['entry_protection_ambiguities'] = PROTECTION_FILE
             manifest['artifacts']['entry_oco_ambiguities'] = OCO_FILE
@@ -326,6 +329,8 @@ def generate_report(
                 assumed_same_bar_exits_net_pnl=assumed_exit_net,
                 interpretation='Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.',
                 sha256=protection_sha)
+        if capture_entry_protection and metadata and metadata.get('dataset',{}).get('tick_data'):
+            manifest['entry_protection']['interpretation']='Entry and immediate bracket ordering resolve from observed trade records; no OHLC ambiguity scenarios are substituted.'
         if entry_protection_sensitivity is not None:
             from .entry_protection import attach_sensitivity
             attach_sensitivity(staging, manifest, entry_protection_sensitivity)

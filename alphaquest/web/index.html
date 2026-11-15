@@ -123,8 +123,8 @@
           <div class="stat format-stat">
             <span class="stat-label">DATA CONTRACT</span>
             <div>
-              <strong>OHLCV</strong
-              ><span class="pill neutral">CSV · 9 columns</span>
+              <strong>Bars + trades</strong
+              ><span class="pill neutral">CSV / Sierra SCID</span>
             </div>
           </div>
         </section>
@@ -136,11 +136,16 @@
                 <span class="step-number">01</span>
                 <h2 id="upload-heading">Add a dataset</h2>
               </div>
-              <span class="muted small">Validate before saving</span>
+              <span class="muted small">Full source validation</span>
             </div>
             <form id="upload-form">
+              <label>Source format<select id="dataset-format">
+                <option value="bars">Minute OHLCV CSV</option>
+                <option value="ticks">Trade ticks · Sierra SCID or trade CSV</option>
+              </select></label>
+              <p id="tick-format-help" class="small muted" hidden>Individual trades only. SCID v1 or CSV columns: timestamp,price,volume,bid_volume,ask_volume. CSV timestamps must use UTC; equal timestamps retain file order. SCID timestamps are UTC. Set the root instrument (e.g. NQ), tick size and point value. Import validates the whole source, retains the original price path and builds completed-minute order flow. Aggregated records and timestamp inversions reject. <a href="/api/datasets/ticks/example">Download CSV example</a>.</p>
               <label class="dropzone" id="dropzone" for="csv-file">
-                <input type="file" id="csv-file" accept=".csv,text/csv" />
+                <input type="file" id="csv-file" accept=".csv,.scid,text/csv,application/octet-stream" />
                 <span class="upload-icon" aria-hidden="true">↥</span>
                 <strong id="file-label"
                   >Drop your CSV here, or <span>browse files</span></strong
@@ -748,5 +753,6 @@
       </div>
       <div id="detail-content"></div>
     </dialog>
-  </body>
+  <script src="/static/tick-datasets.js?v=ASSET_VERSION" defer></script>
+</body>
 </html>
