@@ -116,6 +116,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         from .research_workspace import ResearchWorkspace
         app.state.research_workspace = ResearchWorkspace(app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
+        from .campaign_dataset_links import CampaignDatasetLinks
+        app.state.campaign_dataset_links=CampaignDatasetLinks(app.state.runs)
         app.state.progress = ProgressTracker()
         from .prop_sim_automation import PropSimAutomation
         app.state.prop_sim_automation=PropSimAutomation(app)
@@ -146,6 +148,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(strategy_library_router)
     from .campaign_workflow import router as workflow_router
     app.include_router(workflow_router)
+    from .campaign_dataset_links import router as campaign_dataset_links_router
+    app.include_router(campaign_dataset_links_router)
     from .job_history import router as jobs_router
     app.include_router(jobs_router)
     from .campaign_broad import router as broad_router

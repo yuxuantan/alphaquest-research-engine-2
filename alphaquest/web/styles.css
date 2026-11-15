@@ -2129,3 +2129,13 @@ dialog::backdrop {
 .prop-evidence-candidate .optimization-scroll { max-width:100%; margin-top:12px; }
 
 .prop-evidence-candidate > summary { cursor:pointer; font-weight:650; margin-bottom:14px; }
+
+/* Dataset links are removable; campaigns and execution evidence are retained. */
+.workflow-link-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.workflow-link-actions > span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.workflow-link-actions > p { flex-basis:100%; margin:0; }
+.workflow-link-notice { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px; margin-block:14px; background:var(--accent-soft,#e9f4f1); border:1px solid var(--line); border-radius:8px; }
+.workflow-link-notice > span { flex:1; min-width:160px; }
+.workflow-removed-datasets { margin-top:18px; padding:14px; border:1px solid var(--line); border-radius:8px; }
+.workflow-removed-datasets > summary { cursor:pointer; font-weight:600; }
+.workflow-removed-datasets .workflow-link-actions { margin-top:14px; }

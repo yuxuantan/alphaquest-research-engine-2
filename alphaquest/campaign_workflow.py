@@ -409,7 +409,9 @@ async def create(body: CreateWorkflow, request: Request):
                            default_parameters=parameters, strategy_source_sha256=description['source_sha256'],
                            engine_identity=engine_identity(), execution_settings=json.loads(json.dumps(asdict(config), default=str)),
                            plan=plan, market_benchmark=body.market_benchmark.model_dump())
-        return request.app.state.campaign_workflows.create(declaration)
+        saved=request.app.state.campaign_workflows.create(declaration)
+        request.app.state.campaign_dataset_links.relink(body.strategy_id,snapshot)
+        return saved
     try:
         saved = await run_in_threadpool(prepare)
     except (TypeError, ValueError) as exc:
