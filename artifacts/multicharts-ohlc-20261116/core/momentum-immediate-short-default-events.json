@@ -1,0 +1,304 @@
+[
+  {
+    "bar_number": 0,
+    "timestamp_utc": null,
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 1,
+    "timestamp_utc": "2024-01-16T14:16:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 2,
+    "timestamp_utc": "2024-01-16T14:17:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 3,
+    "timestamp_utc": "2024-01-16T14:18:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 4,
+    "timestamp_utc": "2024-01-16T14:19:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 5,
+    "timestamp_utc": "2024-01-16T14:20:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 6,
+    "timestamp_utc": "2024-01-16T14:21:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 7,
+    "timestamp_utc": "2024-01-16T14:22:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 8,
+    "timestamp_utc": "2024-01-16T14:23:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 9,
+    "timestamp_utc": "2024-01-16T14:24:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 10,
+    "timestamp_utc": "2024-01-16T14:25:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 11,
+    "timestamp_utc": "2024-01-16T14:26:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 12,
+    "timestamp_utc": "2024-01-16T14:27:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 13,
+    "timestamp_utc": "2024-01-16T14:28:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 14,
+    "timestamp_utc": "2024-01-16T14:29:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 15,
+    "timestamp_utc": "2024-01-16T14:30:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 16,
+    "timestamp_utc": "2024-01-16T14:31:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 17,
+    "timestamp_utc": "2024-01-16T14:32:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 18,
+    "timestamp_utc": "2024-01-16T14:33:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 19,
+    "timestamp_utc": "2024-01-16T14:34:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 20,
+    "timestamp_utc": "2024-01-16T14:35:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 21,
+    "timestamp_utc": "2024-01-16T14:36:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 22,
+    "timestamp_utc": "2024-01-16T14:37:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 23,
+    "timestamp_utc": "2024-01-16T14:38:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 24,
+    "timestamp_utc": "2024-01-16T14:39:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 25,
+    "timestamp_utc": "2024-01-16T14:40:00Z",
+    "cash_balance": "10000",
+    "realized_net_pnl": "0",
+    "unrealized_pnl": "0",
+    "equity": "10000",
+    "position_contracts": 0
+  },
+  {
+    "trade_number": 1,
+    "side": "short",
+    "entry_bar_number": 26,
+    "exit_bar_number": 26,
+    "entry_time_utc": "2024-01-16T14:41:00Z",
+    "exit_time_utc": "2024-01-16T14:41:00Z",
+    "exit_deadline_utc": null,
+    "contracts": 1,
+    "entry_reference_price": "88",
+    "exit_reference_price": "162.75",
+    "entry_fill_price": "87.75",
+    "exit_fill_price": "163.00",
+    "entry_commission": "1",
+    "exit_commission": "1",
+    "total_commissions": "2",
+    "reference_gross_pnl": "-1495.00",
+    "slippage_cost": "10.00",
+    "gross_pnl": "-1505.00",
+    "net_pnl": "-1507.00",
+    "actual_holding_minutes": "0",
+    "entry_reason": "MO-S",
+    "exit_reason": "stop_loss"
+  },
+  {
+    "trade_number": 1,
+    "side": "short",
+    "entry_time_utc": "2024-01-16T14:41:00Z",
+    "exit_time_utc": "2024-01-16T14:41:00Z",
+    "contracts": 1,
+    "net_pnl": "-1507.00",
+    "mae_lower": "1507.00",
+    "mae_upper": "1507.00",
+    "mfe_lower": "34.00",
+    "mfe_upper": "34.00",
+    "entry_phase": "open",
+    "exit_phase": "stop",
+    "full_bars": 0,
+    "cross_session": false,
+    "adverse_path": "[[\"6.00\",true],[\"1501.00\",false],[\"1507.00\",true]]"
+  },
+  {
+    "bar_number": 26,
+    "timestamp_utc": "2024-01-16T14:41:00Z",
+    "cash_balance": "8493.00",
+    "realized_net_pnl": "-1507.00",
+    "unrealized_pnl": "0",
+    "equity": "8493.00",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 27,
+    "timestamp_utc": "2024-01-16T20:50:00Z",
+    "cash_balance": "8493.00",
+    "realized_net_pnl": "-1507.00",
+    "unrealized_pnl": "0",
+    "equity": "8493.00",
+    "position_contracts": 0
+  },
+  {
+    "bar_number": 28,
+    "timestamp_utc": "2024-01-16T20:51:00Z",
+    "cash_balance": "8493.00",
+    "realized_net_pnl": "-1507.00",
+    "unrealized_pnl": "0",
+    "equity": "8493.00",
+    "position_contracts": 0
+  }
+]

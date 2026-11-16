@@ -153,15 +153,17 @@
     const evidence = record.entry_protection_sensitivity;
     panel.hidden = !evidence;
     if (!evidence) return;
-    panel.append(node('h2', 'Immediate protection · entry-bar sensitivity'));
+    const mc = evidence.primary_policy === 'multicharts';
+    panel.append(node('h2', mc ? 'MultiCharts OHLC path · execution sensitivity' : 'Immediate protection · entry-bar sensitivity'));
     const count = evidence.primary_ambiguities.ambiguous_entries;
-    panel.append(node('p', `Primary result: ${count} ambiguous protection ${count === 1 ? 'entry' : 'entries'} assumed stop first. SL/TP remain active from entry fill.`));
-    if (evidence.scenarios) {
+    panel.append(node('p', mc ? 'Primary: visit the extreme nearer Open first; Low first on ties. Entries and exits follow that modeled path. Protection starts at fill, using only the remaining path.' : `Primary result: ${count} ambiguous protection ${count === 1 ? 'entry' : 'entries'} assumed stop first. SL/TP remain active from entry fill.`));
+    if (evidence.scenarios && !mc) {
       const ocoCount = evidence.primary_ambiguities.oco_ambiguous_entries;
       panel.append(node('p', `${ocoCount} ambiguous OCO ${ocoCount === 1 ? 'entry uses' : 'entries use'} the fixed upper-entry-first assumption. Neither upper nor lower entry priority is inherently conservative; diagnostic profits never select the primary.`));
       if (evidence.status === 'inconclusive') panel.append(node('p', 'Sensitivity inconclusive: at least one diagnostic could not complete. The primary completed independently; missing diagnostic totals are unavailable.', 'notice'));
     }
-    const labels = {favorable: 'Upper entry first · favorable exits', lower_adverse: 'Lower entry first · stop-first exits', lower_favorable: 'Lower entry first · favorable exits'};
+    if (mc && evidence.status === 'inconclusive') panel.append(node('p', 'Sensitivity inconclusive: a diagnostic could not complete; its result is unavailable. The primary completed independently.', 'notice'));
+    const labels = {high_first: 'Open → High → Low → Close · diagnostic', low_first: 'Open → Low → High → Close · diagnostic', favorable: 'Upper entry first · favorable exits', lower_adverse: 'Lower entry first · stop-first exits', lower_favorable: 'Lower entry first · favorable exits'};
     const rows = [{label: 'Primary · used for screening', status: 'complete', summary: evidence.primary_summary, ambiguities: evidence.primary_ambiguities, minus_primary_net_pnl: '0'}];
     if (evidence.scenarios) {
       for (const [key, scenario] of Object.entries(evidence.scenarios)) rows.push({...scenario, label: labels[key] || key});

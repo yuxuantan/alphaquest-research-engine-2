@@ -3350,3 +3350,17 @@ Tick-based fill timestamps and minute-close decision/equity timestamps are disti
 Observed jumps can worsen stop fills. No queue/latency/liquidity reconstruction or
 new provider-parity claim is implied. Earlier sealed reports remain readable;
 numerical changes have new identities and incompatible frozen launches reject.
+
+
+## 2026-11-16 — MultiCharts-compatible OHLC execution
+
+For new native backtest/account replays, the shared execution owner follows
+[the MultiCharts minute-bar contract](multicharts_execution.md). Provider floors
+and active strategy brackets compete on the same nearest-extreme-first path,
+Low first on ties. Risk capture is restricted to the post-entry/pre-exit modeled
+path and identifies `held-price-path-equity-v2`; it is not measured tick MAE/MFE.
+Earlier held-OHLC-bound descriptions and sealed source reports retain their
+historical meaning. Saved-source simulations use their immutable captured risk;
+no report, qualification or frozen selection is silently migrated. Current
+source guards fail closed on incompatible new replays. Tick sources still use
+their observed chronological records; no additional tick work is introduced.

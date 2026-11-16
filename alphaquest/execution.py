@@ -16,6 +16,7 @@ from .entry_protection import ProtectionAmbiguity, OCOEntryAmbiguity
 from .prop.native_control import (EntryAcceptance, ExecutionSnapshot, KnownEntryProposal,
                                   SessionContext, SessionRiskOrders, executable_floor_reference)
 from .session_calendar import session_date
+from .ohlc_path import prices as ohlc_prices, first_hit as path_hit, rank as path_rank, POLICIES as PATH_POLICIES
 
 
 TIMESTAMP_CONVENTION = "bar_close"
@@ -389,9 +390,8 @@ def _tick_exit(account, bracket, bar, *, floor=None, floor_reason=None):
 def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=None,phase='open'):
     """Arbitrate real strategy orders and provider floors through Account.apply.
 
-    A gap is observed before intrabar touches. Otherwise the nearest adverse
-    executable stop precedes an ambiguous target, exactly as the ordinary OCO
-    convention. Same-close entry risk uses only the current close.
+    A gap is observed before intrabar touches. Provider floors and strategy
+    brackets share the same modeled path. Same-close entry risk uses only Close.
     """
     if account.position is None:
         return None,None
@@ -415,15 +415,6 @@ def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=
             phase=phase,stop_exit=True),hit
     if not include_range:
         return None,None
-    if bracket is not None:
-        target=bracket.target_price
-        if target is not None:
-            penetration=_mul(account.config.tick_size,Decimal(account.fill_assumptions.limit_penetration_ticks))
-            target=(_add if position.side=='long' else _sub)(target,penetration)
-        gap=((bar.open<=bracket.stop_price or (target is not None and bar.open>=target)) if position.side=='long' else
-             (bar.open>=bracket.stop_price or (target is not None and bar.open<=target)))
-        if gap:
-            return _fill_bracket(account,bracket,bar),None
     floor=orders.account_floor_engine_equity;trigger='account'
     if orders.daily_floor_engine_equity is not None and orders.daily_floor_engine_equity>floor:
         floor=orders.daily_floor_engine_equity;trigger='daily'
@@ -431,41 +422,57 @@ def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=
     reason='native_'+trigger+'_floor'
     if bracket is not None and (bracket.stop_price>stop if position.side=='long' else bracket.stop_price<stop):
         stop=bracket.stop_price;reason='stop_loss';trigger=None
-    touched=bar.low<=stop if position.side=='long' else bar.high>=stop
-    if touched:
-        return account.apply(CloseIntent(reason),bar,reference=stop,phase='stop',stop_exit=True),trigger
-    return (_fill_bracket(account,bracket,bar),None) if bracket is not None else (None,None)
+    trade, hit_reason = _ohlc_exit(account, BracketIntent(stop, bracket.target_price if bracket else None), bar, stop_reason=reason)
+    return trade, trigger if hit_reason == reason and reason.startswith('native_') else None
 
 
 def _fill_bracket(account: _Account, bracket: BracketIntent, bar: Bar) -> Trade | None:
-    """Open gaps first; otherwise stop wins an ambiguous two-level bar.
+    """Opening gaps first, then MultiCharts continuous OHLC path crossings.
 
     Optional limit penetration is required before filling; opening improvement
     can be disabled. Stops include explicitly declared extra stop slippage.
-    No intrabar path or queue position is invented.
+    The path is a declared model, never an observed tick or queue claim.
     """
     position = account.position
     if position is None:
         raise ExecutionError("Pending bracket has no position.")
     if bar.tick_window is not None:
         return _tick_exit(account, bracket, bar)[0]
-    stop, target = bracket.stop_price, bracket.target_price
-    long = position.side == "long"
-    assumptions = account.fill_assumptions
-    trigger = target
-    if target is not None and assumptions.limit_penetration_ticks:
-        penetration = _mul(account.config.tick_size, Decimal(assumptions.limit_penetration_ticks))
-        trigger = (_add if long else _sub)(target, penetration)
-    if (bar.open <= stop if long else bar.open >= stop):
-        return account.apply(CloseIntent("stop_loss"), bar, reference=bar.open, phase="open", stop_exit=True)
-    if trigger is not None and (bar.open >= trigger if long else bar.open <= trigger):
-        reference = bar.open if assumptions.limit_price_improvement else target
-        return account.apply(CloseIntent("take_profit"), bar, reference=reference, limit=True, phase="open")
-    if (bar.low <= stop if long else bar.high >= stop):
-        return account.apply(CloseIntent("stop_loss"), bar, reference=stop, phase="stop", stop_exit=True)
-    if trigger is not None and (bar.high >= trigger if long else bar.low <= trigger):
-        return account.apply(CloseIntent("take_profit"), bar, reference=target, limit=True, phase="target", risk_reference=trigger)
-    return None
+    return _ohlc_exit(account, bracket, bar)[0]
+
+
+def _observe_path(account, bar, path, *, full=False):
+    if account.risk is None:
+        return
+    account.risk.cross_session |= session_date(bar.timestamp_utc) != session_date(account.position.entry_time_utc)
+    for i, price in enumerate(path):
+        account.risk.observe_price(price, gap=i == 0 and account.position.entry_bar_number != bar.bar_number)
+    if full:
+        account.risk.full_bars += account.position.entry_bar_number != bar.bar_number or account.risk.entry_phase == 'open'
+
+
+def _ohlc_exit(account, bracket, bar, *, stop_reason='stop_loss'):
+    """One path for ordinary brackets, fill-attached exits and provider floors."""
+    path = getattr(account, '_held_ohlc', None) or ohlc_prices(bar, getattr(account, '_ohlc_policy', 'multicharts'))
+    long = account.position.side == 'long'
+    target = bracket.target_price
+    if target is not None:
+        penetration = _mul(account.config.tick_size, Decimal(account.fill_assumptions.limit_penetration_ticks))
+        target = (_add if long else _sub)(target, penetration)
+    hit = path_hit(path, lower=bracket.stop_price if long else target, upper=target if long else bracket.stop_price)
+    if hit is None:
+        return None, None
+    _observe_path(account, bar, hit.prefix(path))
+    is_stop = hit.price <= bracket.stop_price if long else hit.price >= bracket.stop_price
+    reason = stop_reason if is_stop else 'take_profit'
+    # In non-magnified MC emulation the penetration level is the first eligible
+    # price. Opening limits improve to Open unless explicitly disabled.
+    reference = hit.price
+    if not is_stop and hit.segment == 0 and not account.fill_assumptions.limit_price_improvement:
+        reference = bracket.target_price
+    phase = 'open' if hit.segment == 0 and path[0] == bar.open else 'stop' if is_stop else 'target'
+    return account.apply(CloseIntent(reason), bar, reference=reference, limit=not is_stop,
+        phase=phase, stop_exit=is_stop, entry_fill_exit=True), reason
 
 
 def _fill_entry_stops(account, orders, bar, strategy):
@@ -486,6 +493,24 @@ def _fill_entry_stops(account, orders, bar, strategy):
         account.apply(entry,point,reference=point.close,phase='open')
         account._held_ticks=window.tail(hit)
         return _protect_entry(account,entry,bar,strategy,point.close,'tick')
+    if getattr(strategy, 'oco_entry_policy', 'multicharts') == 'multicharts':
+        path = ohlc_prices(bar, getattr(account, '_ohlc_policy', 'multicharts'))
+        hits = [(hit, entry) for entry, price in orders.orders
+                if (hit := path_hit(path, upper=price) if entry.side == 'long' else path_hit(path, lower=price)) is not None]
+        if not hits:
+            return None
+        hit, entry = min(hits, key=lambda item: path_rank(item[0], path))
+        if sum(path_rank(other, path) == path_rank(hit, path) for other, _ in hits) > 1:
+            raise ExecutionError('Overlapping OCO entry thresholds trigger simultaneously; invalid entry geometry.')
+        if len(hits) > 1 and account.capture_entry_protection:
+            levels = {order.side: price for order, price in orders.orders}
+            account.oco_events.append(OCOEntryAmbiguity(account.trade_count + 1, bar.bar_number,
+                bar.timestamp_utc, account._ohlc_policy, levels['long'], levels['short'],
+                bar.open, bar.high, bar.low, bar.close, entry.side, 'short' if entry.side == 'long' else 'long'))
+        phase = 'open' if hit.segment == 0 else 'entry_stop'
+        account.apply(entry, bar, reference=hit.price, phase=phase)
+        account._held_ohlc = hit.suffix(path)
+        return _protect_entry(account, entry, bar, strategy, hit.price, phase)
     gaps = [(entry, bar.open, "open") for entry, price in orders.orders
             if (bar.open >= price if entry.side == "long" else bar.open <= price)]
     hits = gaps or [(entry, price, "entry_stop") for entry, price in orders.orders
@@ -514,7 +539,7 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
     """Activate a precommitted bracket at fill without invoking on_bar twice.
 
     Market/open fills may use the remaining bar range. Intrabar stop timing
-    follows the plan's declared policy; generic plans default to rejection.
+    follows the remaining MultiCharts path by default; explicit older policies remain supported.
     """
     plan = entry.protection
     if plan is None:
@@ -546,6 +571,20 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
     bracket = BracketIntent(stop, target)
     if bar.tick_window is not None:
         return _fill_bracket(account,bracket,bar)
+    if plan.ambiguity_policy == 'multicharts':
+        trade = _fill_bracket(account, bracket, bar)
+        if account.capture_entry_protection and phase != 'open':
+            # Count uncertain OHLC entry bars for audit even when the modeled
+            # path shows that the apparent adverse touch preceded entry.
+            stop_in_range = bar.low <= stop if long else bar.high >= stop
+            if stop_in_range:
+                account.protection_events.append(ProtectionAmbiguity(
+                    account.trade_count if trade else account.trade_count + 1,
+                    bar.bar_number, bar.timestamp_utc, position.side, account._ohlc_policy,
+                    reference, fill, stop, target, bar.open, bar.high, bar.low, bar.close,
+                    False, target is not None and (bar.high >= target if long else bar.low <= target),
+                    trade.exit_reason if trade else 'remain_open', trade.net_pnl if trade else None))
+        return trade
     if phase == "open":
         return _fill_bracket(account, bracket, bar)
     # A very tight cap can already be breached at the known entry reference
@@ -640,7 +679,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         raise ExecutionError('capture_decisions must be a boolean.')
     if type(capture_entry_protection) is not bool:
         raise ExecutionError('capture_entry_protection must be a boolean.')
-    if getattr(strategy, 'oco_entry_policy', 'reject') not in ('reject', 'upper_entry_first', 'lower_entry_first'):
+    if getattr(strategy, 'oco_entry_policy', 'multicharts') not in ('multicharts', 'reject', 'upper_entry_first', 'lower_entry_first'):
         raise ExecutionError('Unknown OCO entry-order policy.')
     if completion not in ('strategy_finish','require_flat'):
         raise ExecutionError('Unknown execution completion policy.')
@@ -655,7 +694,11 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                 or account_control is not prepared_path.adapter or capture_decisions or capture_risk
                 or capture_entry_protection or observe_bar is not None):
             raise ExecutionError('Prepared execution requires its checked private native event path and no per-bar/risk capture.')
+    path_policy = getattr(strategy, 'ohlc_path_policy', 'multicharts')
+    if path_policy not in PATH_POLICIES:
+        raise ExecutionError('Unknown OHLC path policy.')
     account = _Account(config, capture_risk, fill_assumptions, capture_decisions, capture_entry_protection)
+    account._ohlc_policy = path_policy
     if continuation is not None:
         account.cash=continuation.trading_cash
     control=_ControlledExecution(account_control,account) if account_control is not None else None
@@ -677,6 +720,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             observe_bar(bar)
         account._tick_execution = bar.tick_window is not None
         account._held_ticks = bar.tick_window if account.position is not None else None
+        account._held_ohlc = None  # Build a modeled path only when exposure/orders need it.
         closed_on_bar = False
         risk_checked=False
         if next_order is not None:
@@ -731,7 +775,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         account.oco_events.clear()
         if account.risk is not None:
             if account._held_ticks is not None: account._held_ticks.observe(account.risk,bar)
-            elif bar.tick_window is None: account.risk.observe_bar(bar)
+            elif bar.tick_window is None: _observe_path(account, bar, account._held_ohlc or ohlc_prices(bar, path_policy), full=True)
         # Execution windows are private. Strategies receive completed flow only.
         decision_bar=replace(bar,tick_window=None) if bar.tick_window is not None else bar
         intent = control.strategy_bar(strategy,decision_bar) if control is not None else strategy.on_bar(decision_bar, account.position)

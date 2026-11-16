@@ -1,3 +1,9 @@
+> **Current minute-bar execution (2026-11-16):**
+> [MultiCharts execution contract](multicharts_execution.md) supersedes the older
+> stop-first/entry-priority policies below for new OHLC runs. Nearest extreme
+> first, Low first on ties, and only post-activation path prices can fill orders.
+> Historical report policies and the same-close-only baseline remain preserved.
+
 # Backtest contract — v1 proposal for review
 
 The v1 same-close descriptions below continue to define the sample strategy.

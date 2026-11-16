@@ -22,12 +22,12 @@ DESCRIPTION = (
     "PowerLanguage VWAP pullback: close-latched opening-range break, VWAP retest/reclaim, "
     "confirmed pivot target, pivot or pullback stop, ADX elevation/decay gates, fixed or risk sizing. "
     "Chicago time; full-session 1-minute close-labelled bars. Next-bar Open market fills; "
-    "brackets start after the entry bar, stop first if both levels hit. With EOD flatten on, "
+    "brackets start after the entry bar and follow the MultiCharts nearest-extreme-first OHLC path (Low first on ties). With EOD flatten on, "
     "the instrument's reviewed calendar supplies the scheduled close without future bars. Submit flatten "
     "the configured minutes earlier (default five, bounded by the EOD cutoff), fill next observed Open; "
     "no entries at/after the cutoff."
 )
-EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_stop_first_eod_next_open_csv_session_calendar_v1"
+EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_multicharts_ohlc_eod_csv_calendar_v2"
 CT = ZoneInfo("America/Chicago")
 LOG = logging.getLogger(__name__)
 D = Decimal

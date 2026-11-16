@@ -82,6 +82,9 @@ def upload_case(client):
 def upload_inconclusive_case(client):
     """Adverse entry exit is flat; favorable hold crosses a missing close bar."""
     rows = breakout_rows()
+    # Nearer High makes primary stop after entry; Low-first diagnostic holds
+    # because its adverse touch precedes entry, then encounters the missing close.
+    rows[-2] = replace(rows[-2], high=D(115))
     later = rows[0].timestamp_utc + timedelta(days=1)
     rows.append(prices(108,later,120,121,119,120))
     raw, split = reserved_source(csv_bytes(rows))
@@ -110,7 +113,7 @@ def campaign_source(oco=False, diagnostic_gap=False):
         for i in range(count):
             rows.append(prices(len(rows)+1,start+timedelta(minutes=i),100,*ranges[offset+i//360],100))
     end = rows[-1].timestamp_utc
-    rows += [prices(len(rows)+1,end+timedelta(minutes=1),109,160,60 if oco else 99,111),
+    rows += [prices(len(rows)+1,end+timedelta(minutes=1),109,160,85 if oco else 99,111),
              prices(len(rows)+2,end+timedelta(minutes=2),120,160,119,126)]
     if diagnostic_gap:
         rows.append(prices(len(rows)+1,datetime(2024,1,17,17,1,tzinfo=CT),120,121,119,120))
@@ -146,24 +149,24 @@ def start_twin_broad(client, workers=1, oco=False, diagnostic_gap=False):
     return client.get(prefix).json(), job, raw
 
 
-def test_campaign_workers_screen_only_conservative_and_verify_sensitivity(tmp_path):
+def test_campaign_workers_screen_only_mc_primary_and_verify_sensitivity(tmp_path):
     with TestClient(create_app(tmp_path/'datasets.sqlite3')) as client:
-        workflow, job, raw = start_twin_broad(client, workers=2)
+        workflow, job, raw = start_twin_broad(client, workers=2, oco=True)
         assert job['status'] == 'complete' and job['completed_trials'] == 2
         prefix = '/api/campaign-workflows/'+workflow['id']
         rows = client.get(prefix+'/broad/results').json()['items']
-        assert [D(r['metrics']['total_net_pnl']) for r in rows] == [338,-52]
+        assert [D(r['metrics']['total_net_pnl']) for r in rows] == [-412,-52]
         report = client.get('/api/backtests/'+rows[1]['run_id']).json()
-        assert D(report['entry_protection_sensitivity']['favorable_summary']['total_net_pnl']) == 338
+        assert D(report['entry_protection_sensitivity']['scenarios']['high_first']['summary']['total_net_pnl']) == 338
         assert D(rows[1]['screening']['total_net_pnl']) == -52
         assert D(rows[1]['screening']['metrics']['is_stress_net_profit']) == -57
         assert not rows[1]['qualifies']  # Neither positivity nor insufficient history is rescued by diagnostic profit.
         stress = client.get('/api/backtests/'+report['is_screening']['cost_stress']['run_id']).json()
         assert stress['entry_protection']['assumed_stop_losses'] == 1
-        assert D(stress['entry_protection_sensitivity']['favorable_summary']['total_net_pnl']) == 338
+        assert D(stress['entry_protection_sensitivity']['scenarios']['high_first']['summary']['total_net_pnl']) == 338
         from alphaquest.workflow_criteria import verified_screening
         verified_screening(client.app.state.runs, report)
-        path = client.app.state.runs.root / stress['id'] / stress['artifacts']['entry_protection_favorable_trades']
+        path = client.app.state.runs.root / stress['id'] / stress['artifacts']['entry_protection_high_first_trades']
         original = path.read_bytes(); path.write_bytes(original+b'\n')
         with pytest.raises(ValueError, match='artifacts'):
             verified_screening(client.app.state.runs, report)
@@ -178,12 +181,12 @@ def test_normal_api_reports_downloads_reuse_detail_and_tamper(tmp_path):
         response = client.post('/api/backtests', json=payload)
         assert response.status_code == 201, response.text
         record = response.json(); run = record['id']
-        assert D(record['summary']['total_net_pnl']) == -47
+        assert D(record['summary']['total_net_pnl']) == 318
         sensitivity = record['entry_protection_sensitivity']
-        assert D(sensitivity['favorable_summary']['total_net_pnl']) == 318
-        assert D(sensitivity['favorable_minus_primary_net_pnl']) == 365
+        assert D(sensitivity['scenarios']['high_first']['summary']['total_net_pnl']) == 318
+        assert D(sensitivity['scenarios']['high_first']['minus_primary_net_pnl']) == 0
         assert record['entry_protection']['ambiguous_entries'] == 1
-        assert sensitivity['favorable_ambiguities']['assumed_take_profits'] == 1
+        assert sensitivity['scenarios']['high_first']['ambiguities']['assumed_take_profits'] == 1
         assert sensitivity['source_identity']['id'] == payload['dataset_id']
         assert client.get('/api/datasets/'+payload['dataset_id']+'/csv').content == raw
         assert client.get('/api/backtests').json()['total'] == 1  # Diagnostic is evidence inside its parent.
@@ -196,15 +199,15 @@ def test_normal_api_reports_downloads_reuse_detail_and_tamper(tmp_path):
         detail = client.post(f'/api/backtests/{run}/detailed')
         assert detail.status_code == 201, detail.text
         assert detail.json()['summary'] == record['summary']
-        assert detail.json()['entry_protection_sensitivity']['favorable_summary'] == sensitivity['favorable_summary']
+        assert detail.json()['entry_protection_sensitivity']['scenarios']['high_first']['summary'] == sensitivity['scenarios']['high_first']['summary']
         assert client.get(f'/api/backtests/{run}/exports/report').content == before
         from alphaquest.optimization_cache import artifacts
         root = client.app.state.runs.root
         fingerprint = artifacts(root, record)
         assert evidence_names(record) <= fingerprint.keys()
-        path = root / run / record['artifacts']['entry_protection_favorable_trades']
+        path = root / run / record['artifacts']['entry_protection_high_first_trades']
         original = path.read_bytes(); path.write_bytes(original+b'\n')
-        assert client.get(f'/api/backtests/{run}/exports/entry_protection_favorable_trades').status_code == 409
+        assert client.get(f'/api/backtests/{run}/exports/entry_protection_high_first_trades').status_code == 409
         assert artifacts(root, record) != fingerprint
         path.write_bytes(original)
     with TestClient(create_app(db)) as client:
@@ -238,7 +241,7 @@ def test_unambiguous_immediate_and_legacy_timing_remain_distinct(tmp_path):
         assert immediate.status_code == 201, immediate.text
         record = immediate.json()
         assert record['entry_protection']['ambiguous_entries'] == 0
-        assert record['entry_protection_sensitivity']['favorable_summary'] == record['summary']
+        assert record['entry_protection_sensitivity']['scenarios']['high_first']['summary'] == record['summary']
         payload['strategy_parameters']['immediate_protection'] = False
         legacy = client.post('/api/backtests',json=payload)
         assert legacy.status_code == 201, legacy.text

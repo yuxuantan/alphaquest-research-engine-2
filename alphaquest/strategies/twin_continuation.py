@@ -26,14 +26,13 @@ DESCRIPTION = (
     "Twin Continuation: 6-hour confirmed swing breakout plus 10-minute morning momentum. "
     "One position, setup-owned exits; Chicago one-minute close-labelled bars. "
     "Next-bar market/stop entries with immediate fill-activated SL/TP by default. "
-    "Uncertain entry-bar protection uses a conservative adverse-first OHLC assumption with a full-strategy favorable sensitivity replay. "
-    "Ambiguous two-sided entries use fixed upper-entry-first priority with lower-entry-first sensitivity replays; "
-    "Open-entry and later held-bar brackets use stop first. "
+    "Minute OHLC uses the MultiCharts nearest-extreme-first continuous path (Low first on ties). "
+    "OCO entries and immediate/later protection share that path, with high-first and low-first full-strategy diagnostics. "
     "Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; "
     "source Momentum half-day heuristic is retained."
 )
-EXECUTION_ASSUMPTION = "twin_immediate_protection_adverse_first_oco_priority_sensitivity_calendar_v5"
-ENTRY_PROTECTION_POLICY = "adverse_first"
+EXECUTION_ASSUMPTION = "twin_immediate_protection_multicharts_ohlc_calendar_v6"
+ENTRY_PROTECTION_POLICY = "multicharts"
 SUPPORTS_DECISION_CAPTURE = False
 SESSION_CALENDAR = dict(NQ_CALENDAR, instrument="NQ / MNQ futures",
                         symbol_pattern="(?:" + NQ_CALENDAR['symbol_pattern'] + "|" + MNQ_SYMBOL_PATTERN + ")")
@@ -76,8 +75,8 @@ class Parameters:
     clock_shift: int = number(0, "Source clock offset in minutes; AQ bars already close-labelled: use 0.", -1440, 1440)
     debug_log: bool = False
     immediate_protection: bool = field(default=True, metadata={"description":
-        "Activate SL/TP on entry fill, including the entry bar. Uncertain post-entry paths assume stop first; "
-        "reports include a full-strategy favorable entry-bar sensitivity replay. These are OHLC assumptions. "
+        "Activate SL/TP on entry fill, including the remaining modeled MultiCharts OHLC path; "
+        "reports include complete high-first and low-first sensitivity replays. These are OHLC assumptions. "
         "False reproduces the original next-bar protection timing."})
     max_bars_back: int = number(5, "Leading records skipped, matching manual MC Max Bars Back.", 0)
     use_session_calendar: bool = field(default=True, metadata={"description":
@@ -123,7 +122,7 @@ def source_fingerprint():
     root = Path(__file__).resolve().parents[1]
     digest = hashlib.sha256()
     for path in (Path(__file__), root / "strategy.py", root / "execution.py", root / "intratrade.py",
-                 root / "session_calendar.py", root / "entry_protection.py", calendar_path()):
+                 root / "session_calendar.py", root / "entry_protection.py", root / "ohlc_path.py", calendar_path()):
         digest.update(path.name.encode() + b"\0" + path.read_bytes() + b"\0")
     return digest.hexdigest()
 
@@ -146,8 +145,8 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
     return dict(enabled=enabled, mode="twin_csv_session_close_v2", lookahead=False,
                 protection_activation="on_entry_fill" if parameters.immediate_protection else "following_bar_legacy",
                 entry_protection_ambiguity_policy=ENTRY_PROTECTION_POLICY if parameters.immediate_protection else 'not_applicable',
-                oco_entry_policy='upper_entry_first' if parameters.immediate_protection else 'reject',
-                entry_bar_path=("adverse_first OHLC assumption for ambiguous post-stop-entry SL timing/order; market/Open entries use full remaining range"
+                oco_entry_policy='multicharts',
+                entry_bar_path=("multicharts nearest extreme first; Low first on ties; only the path suffix after fill activates SL/TP"
                                 if parameters.immediate_protection else "following_bar_legacy; no attached entry-bar protection"),
                 calendar=(calendar or load_calendar(symbol=instrument_symbol)).metadata() if enabled else None,
                 calendar_selection="instrument_symbol", instrument_symbol=instrument_symbol,
@@ -168,7 +167,8 @@ class TwinContinuation:
         self.instrument_symbol = instrument_symbol
         self.tick_size = execution_config.tick_size if execution_config is not None else D("0.25")
         self.entry_protection_policy = ENTRY_PROTECTION_POLICY
-        self.oco_entry_policy = 'upper_entry_first' if self.p.immediate_protection else 'reject'
+        self.oco_entry_policy = 'multicharts'
+        self.ohlc_path_policy = 'multicharts'
         self.calendar = load_calendar(symbol=instrument_symbol) if self.p.use_session_calendar else None
         self.session_plan = None
         self.session_digest = hashlib.sha256()

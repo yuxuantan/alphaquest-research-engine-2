@@ -94,7 +94,7 @@ def test_breakout_confirmed_seven_candles_frozen_atr_and_stop_entry(short):
     assert trade.exit_fill_price == D('73.75' if short else '126.25')
     assert trade.net_pnl == 318  # 16 points * $20 - $2 commission
     risk=next(e for e in events if type(e) is IntratradeRisk)
-    assert risk.entry_phase == 'entry_stop' and risk.mae_lower < risk.mae_upper
+    assert risk.entry_phase == 'entry_stop' and risk.mae_lower == risk.mae_upper
     assert s.arm_atr == 8
 
 
@@ -152,8 +152,8 @@ def test_entry_stop_gap_priority_expiry_dual_touch_and_no_future_fill():
     trade=next(e for e in execute([a,b],Orders({1:stop}),config()) if type(e) is Trade)
     assert trade.side=='long' and trade.entry_fill_price==D('112.25')
     both=replace(b,open=D(100))
-    with pytest.raises(ExecutionError,match='Both OCO entry stops'):
-        list(execute([a,both],Orders({1:stop}),config()))
+    dual=next(e for e in execute([a,both],Orders({1:stop}),config()) if type(e) is Trade)
+    assert dual.side=='long'  # High is closer to Open than Low.
     missed=replace(b,open=D(100),high=D(105),low=D(95))
     c=replace(b,bar_number=3,timestamp_utc=b.timestamp_utc+timedelta(minutes=1))
     assert not any(type(e) is Trade for e in execute([a,missed,c],Orders({1:stop}),config()))

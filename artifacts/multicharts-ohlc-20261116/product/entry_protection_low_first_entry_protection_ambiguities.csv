@@ -1,0 +1,2 @@
+trade_number,bar_number,timestamp_utc,side,policy,entry_reference_price,entry_fill_price,stop_price,target_price,open,high,low,close,stop_required_after_entry,target_reached,assumed_outcome,assumed_exit_net_pnl
+1,2461,2024-01-17T17:01:00Z,short,low_first,90,89.75,92.00,72.75,109,160,85,111,False,False,stop_loss,-52.00

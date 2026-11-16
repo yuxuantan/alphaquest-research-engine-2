@@ -18,16 +18,16 @@ from review_optimization_portal import serve_review
 from test_entry_protection_sensitivity import start_twin_broad, upload_inconclusive_case
 
 
-def review(output, url, *, oco=False):
+def review(output, url, *, oco=True):
     with httpx.Client(base_url=url, timeout=60) as client:
         workflow, job, raw = start_twin_broad(client, workers=2, oco=oco)
         prefix = '/api/campaign-workflows/'+workflow['id']
         rows = client.get(prefix+'/broad/results').json()['items']
-        assert [Decimal(r['metrics']['total_net_pnl']) for r in rows] == ([-412,-52] if oco else [338,-52])
+        assert [Decimal(r['metrics']['total_net_pnl']) for r in rows] == ([-412,-52] if oco else [338,338])
         record = client.get('/api/backtests/'+rows[1]['run_id']).json()
         run = record['id']
-        assert Decimal(record['entry_protection_sensitivity']['favorable_minus_primary_net_pnl']) == 390
-        assert Decimal(rows[1]['screening']['metrics']['is_stress_net_profit']) == -57
+        assert Decimal(record['entry_protection_sensitivity']['scenarios']['high_first']['minus_primary_net_pnl']) == (390 if oco else 0)
+        assert Decimal(rows[1]['screening']['metrics']['is_stress_net_profit']) == (-57 if oco else 338)
         (output/'SYNTHETIC-twin-campaign.csv').write_bytes(raw)
         (output/'job.json').write_text(json.dumps(job, indent=2)+'\n')
         (output/'workflow.json').write_text(json.dumps(workflow, indent=2)+'\n')
@@ -54,7 +54,8 @@ def review(output, url, *, oco=False):
                 expect(panel).to_be_visible()
                 expect(panel.locator('tbody tr').nth(0)).to_contain_text('-52.00')
                 expect(panel.locator('tbody tr').nth(1)).to_contain_text('338.00')
-                expect(panel.locator('tbody tr')).to_have_count(4)
+                expect(panel.locator('tbody tr')).to_have_count(3)
+                expect(panel).to_contain_text('Low first on ties')
                 panel.scroll_into_view_if_needed()
                 panel.get_by_text('Evidence and downloads',exact=True).click()
                 panel.screenshot(path=str(output/'entry-protection-sensitivity.png'))
@@ -78,8 +79,8 @@ def review(output, url, *, oco=False):
                 browser.close()
         result=dict(synthetic=True, workflow_id=workflow['id'], job_id=job['id'], run_id=run,
             mechanics_attestation='Synthetic fixture checklist only; no MultiCharts parity claim.',
-            expected=dict(primary_net_pnl='-52.00', stress_net_pnl='-57.00', favorable_net_pnl='338.00',
-                          favorable_minus_primary='390.00', ambiguous_entries=1, oco_ambiguous_entries=1 if oco else 0),
+            expected=dict(primary_net_pnl='-52.00', stress_net_pnl='-57.00', high_first_net_pnl='338.00', low_first_net_pnl='-52.00',
+                          high_first_minus_primary='390.00', ambiguous_entries=1, oco_ambiguous_entries=1 if oco else 0),
             inconclusive_run_id=gap_id,
             actual=record['entry_protection_sensitivity'], downloads_sha256=downloads,
             report_reopened_unchanged=True, browser_errors=errors, oos_run=False,
@@ -91,6 +92,6 @@ def review(output, url, *, oco=False):
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
-    parser.add_argument('--oco',action='store_true',help='Exercise both OCO entry stops in the synthetic campaign.')
+    parser.add_argument('--oco',action='store_true',default=True,help='Exercise both OCO entry stops in the synthetic campaign.')
     args=parser.parse_args()
     serve_review(args.output,lambda output,url:review(output,url,oco=args.oco))

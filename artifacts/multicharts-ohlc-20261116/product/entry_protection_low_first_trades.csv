@@ -1,0 +1,2 @@
+trade_number,side,entry_bar_number,exit_bar_number,entry_time_utc,exit_time_utc,exit_deadline_utc,contracts,entry_reference_price,exit_reference_price,entry_fill_price,exit_fill_price,entry_commission,exit_commission,total_commissions,reference_gross_pnl,slippage_cost,gross_pnl,net_pnl,actual_holding_minutes,entry_reason,exit_reason
+1,short,2461,2461,2024-01-17T17:01:00Z,2024-01-17T17:01:00Z,,1,90,92.00,89.75,92.25,1,1,2,-40.00,10.00,-50.00,-52.00,0,BO-S,stop_loss

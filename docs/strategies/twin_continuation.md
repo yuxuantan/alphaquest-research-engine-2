@@ -66,7 +66,18 @@ $1 round-trip NQ slippage is not representable by AQ's integer 0.25-point ticks
 ($5 per NQ tick). Match an explicitly representable fill-cost setup for platform
 comparison; the examples below use one tick each side and 1 commission each side.
 
-## Current OCO entry priority and diagnostic isolation — 2026-11-15 (v5)
+## Current minute-bar execution — 2026-11-16 (v6)
+
+[MultiCharts execution contract](../multicharts_execution.md) is now authoritative
+for new AQ minute-bar fills: nearest extreme first, Low first on ties, continuous
+order-level crossings and protection only on the post-entry path. Both BO OCO
+parents compete in that path order. Immediate protection stays enabled by default.
+The report compares two full continuous-path diagnostics (High first / Low first),
+replacing the v5 priority matrix. Native C# stop/target distances are explicitly
+rounded outward to ticks to match AQ. The original PowerLanguage source and older
+results below remain historical; this is not a claim of installed-host parity.
+
+## Historical OCO entry priority and diagnostic isolation — 2026-11-15 (v5)
 
 The v5 AlphaQuest model keeps immediate protection and stop-first uncertain exits.
 It also resolves two-sided OCO entry ambiguity with a **fixed upper-entry-first**

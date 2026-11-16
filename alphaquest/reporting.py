@@ -311,9 +311,15 @@ def generate_report(
             },
             "artifacts": {"report": report_name, "trades_csv": "trades.csv", "equity_csv": "equity.csv"},
         }
+        from .ohlc_path import VERSION as OHLC_VERSION
+        manifest['price_path'] = dict(version=OHLC_VERSION,
+            mode='observed_trades' if metadata and metadata.get('dataset', {}).get('tick_data') else 'modeled_ohlc',
+            policy=((metadata or {}).get('entry_protection_sensitivity') or {}).get('role', 'nearest_extreme_first_low_on_tie'), magnifier=False,
+            order_activation='next_bar; attached exits start at parent fill; no pre-entry extrema',
+            documentation='docs/multicharts_execution.md')
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
-            manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+            manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held MultiCharts modeled OHLC path excursions, restricted to entry-through-exit, including entry and final costs. Model estimates, not measured tick MAE/MFE.")
         if metadata and metadata.get('dataset',{}).get('tick_data') and capture_risk:
             manifest['intratrade_risk']['policy']='Observed ordered trade-price equity excursions and record adverse jumps, restricted to the actual holding interval, with declared entry/exit costs. No order-book queue or latency reconstruction.'
             manifest['timestamp_convention']='completed-minute decisions; ordered observed trade fill timestamps; same-close orders retain the completed-minute clock'

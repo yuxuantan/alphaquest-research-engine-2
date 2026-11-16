@@ -207,8 +207,8 @@ def test_continuation_retains_original_capital_and_default_path_rejects_it():
 
 
 @pytest.mark.parametrize('stop,expected,reason',[('75','-500','stop_loss'),('25','-1000','native_daily_floor')])
-def test_nearest_adverse_strategy_or_account_stop_precedes_ambiguous_target(stop,expected,reason):
-    bars=[bar(1),bar(2),bar(3,low='0',high='160')]
+def test_nearest_adverse_strategy_or_account_stop_on_low_first_path(stop,expected,reason):
+    bars=[bar(1),bar(2),bar(3,low='40',high='180')]
     strategy=ControlledSignals({1:EntryIntent(1,'signal',initial_stop=D(95)),2:BracketIntent(D(stop),D(150))})
     control=owner(bars,dict(kind='fixed_contracts',contracts=10))
     trade,=[v for v in controlled(bars,strategy,control) if type(v) is Trade]

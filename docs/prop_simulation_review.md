@@ -12522,3 +12522,21 @@ provider parity. Trade-sized records are not inferred parent orders. Campaign
 criteria retain their documented minute-close MTM sampling and campaign Monte
 Carlo retains its daily inputs. Old reports are preserved; changed numerical
 identities are not silently applied to old frozen packages.
+
+
+## 2026-11-16 — shared MultiCharts OHLC execution contract
+
+New native strategy/account replays now arbitrate strategy stops/targets and
+account/daily floors on the documented MultiCharts non-magnified OHLC path.
+A target reached before a later floor touch wins. Held risk excludes prices before
+entry and after exit; saved source reports and prior verdicts remain immutable.
+The change introduces no prop optimizer or extra account simulation. Numerical
+source guards require compatible new source/workflows when old freezes reject.
+See `docs/multicharts_execution.md` for setup, independent arithmetic oracles,
+reproduction and the installed-platform qualification boundary. The normal-product
+mechanics → IS Broad → backtest report review is
+`tests/review_entry_protection.py`; expected synthetic primary338.00, High-first
+-52.00, Low-first338.00 for its capped second row, with declared 1-tick slippage
+and 1.00 commission per side. These are modeled results on labeled synthetic data,
+not a new qualified campaign or prop GO. Fixed-source historical prop reports keep
+their captured path/risk identity; no existing dataset, backtest or report is changed.

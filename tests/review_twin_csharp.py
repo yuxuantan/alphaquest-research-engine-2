@@ -69,7 +69,8 @@ def active_orders(actual,expected):
 def review(output,dotnet):
     output.mkdir(parents=True,exist_ok=False)
     env=dict(os.environ,DOTNET_CLI_HOME='/private/tmp/aq-twin-dotnet-home',DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1')
-    build=subprocess.run([dotnet,'build',str(ROOT/'tests/multicharts_twin/TwinCheck.csproj'),'--nologo','-v','quiet'],capture_output=True,text=True,env=env)
+    nuget=output/'NuGet.Config';nuget.write_text('<configuration><packageSources><clear /></packageSources></configuration>')
+    build=subprocess.run([dotnet,'build',str(ROOT/'tests/multicharts_twin/TwinCheck.csproj'),'--configfile',str(nuget),'-p:NuGetAudit=false','--nologo','-v','quiet'],capture_output=True,text=True,env=env,timeout=120)
     (output/'build.txt').write_text(build.stdout+build.stderr)
     assert build.returncode==0,build.stdout+build.stderr
     rng=random.Random(8197)
@@ -90,6 +91,15 @@ def review(output,dotnet):
            ('breakout-short',breakout_rows(True),Parameters(max_bars_back=0,use_momentum=False,bo_pivot_tf=15,bo_atr_period=1),True),
            ('gaps-sessions',flat,Parameters(max_bars_back=5,bo_vol_lookback=2),False),
            ('clock-shift',flat,Parameters(max_bars_back=5,bo_vol_lookback=2,clock_shift=1),False)]
+    # Both OCO parents touch, but the near-side path does not reach its target
+    # before reversing through the stop. Also cover a gapped entry.
+    for short in (False,True):
+        oco=breakout_rows(short)
+        oco[-2]=replace(oco[-2],open=Decimal(91 if short else 109),high=Decimal(115),low=Decimal(85),close=Decimal(89 if short else 111))
+        cases.append(('breakout-oco-'+('short' if short else 'long'),oco,
+                      Parameters(max_bars_back=0,use_momentum=False,bo_pivot_tf=15,bo_atr_period=1),True))
+    gap=breakout_rows();gap[-2]=replace(gap[-2],open=Decimal(112),high=Decimal(131),low=Decimal(85))
+    cases.append(('breakout-gap',gap,Parameters(max_bars_back=0,use_momentum=False,bo_pivot_tf=15,bo_atr_period=1),True))
     observations=[]
     for name,rows,p,replay in cases:
         capture=Capture(p)
@@ -109,7 +119,25 @@ def review(output,dotnet):
             for a,b in zip(wanted,got):
                 assert a[:2]==b[:2] and math.isclose(a[2],b[2],rel_tol=1e-10,abs_tol=1e-10),(name,actual['bar_number'],a,b)
         observations.append(dict(case=name,completed_bars=len(capture.inputs),state_fields=15,orders_match=True))
-    (output/'verification.json').write_text(json.dumps(dict(core_only=True,platform_parity=False,observations=observations),indent=2)+'\n')
+    # Independently drive actual C# decisions and protection back into the sole
+    # AQ fill owner. C# now sees its own replay positions, not Python's positions.
+    from twin_csharp_replay import replay as csharp_replay
+    from alphaquest.reporting import json_value
+    from alphaquest.execution import Trade, EquityPoint
+    full=[]
+    for name, rows, p, enabled in cases:
+        if not enabled:continue
+        for suffix, overrides in [('default',{}),('fractional',dict(mo_stop_points=Decimal('2.1'),
+                                      bo_target_mult=Decimal('1.03'),bo_max_stop_mult=Decimal('.26')))]:
+            params=replace(p,**overrides)
+            expected=list(execute(rows,TwinContinuation(params),config(),capture_risk=True))
+            actual=csharp_replay(dotnet,ROOT/'tests/multicharts_twin/bin/Debug/net8.0/TwinCheck.dll',
+                rows,params,config(),NAMES,output/(name+'-'+suffix+'-independent.jsonl'))
+            assert actual==expected,(name,suffix,actual,expected)
+            (output/(name+'-'+suffix+'-events.json')).write_text(json.dumps([asdict(e) for e in actual],default=json_value,indent=2)+'\n')
+            full.append(dict(case=name+'-'+suffix,events=len(actual),trades=sum(type(e) is Trade for e in actual),
+                             independently_driven_orders=True,exact_events_match=True))
+    (output/'verification.json').write_text(json.dumps(dict(core_only=True,platform_parity=False,observations=observations,independent_replays=full),indent=2)+'\n')
     print(json.dumps(observations,indent=2))
 
 

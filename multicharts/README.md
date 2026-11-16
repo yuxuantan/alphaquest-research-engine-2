@@ -1,5 +1,10 @@
 # MultiCharts .NET signals
 
+Current minute-bar fill assumptions and matching chart settings are documented in
+[MultiCharts execution](../docs/multicharts_execution.md). New AQ backtests use the
+same nearest-extreme-first path (Low first on ties), with post-entry protection.
+Older stop-first notes and dated numerical examples below remain historical.
+
 [Twin Continuation](../docs/strategies/twin_continuation.md) is implemented in
 [`Twin_Continuation.cs`](Twin_Continuation.cs): the supplied Swing Breakout and
 Morning Momentum signal, with setup-owned exits and all original Inputs.
@@ -248,8 +253,9 @@ reload/recalculate. A running calculation keeps its initial snapshot.
 At dataset EOF AQ explicitly closes remaining exposure at the last actual
 Close with reason `end_of_data`. MC's end-of-history/report policy must be
 matched or excluded from a platform comparison. It is not an early-close fill.
-Decimal arithmetic versus MC doubles/ADX, volume provenance and stop-first
-ambiguity also remain the existing platform qualification boundaries.
+Decimal arithmetic versus MC doubles/ADX, volume provenance and the configured
+modeled OHLC path remain platform qualification boundaries; see the current
+[execution contract](../docs/multicharts_execution.md).
 
 ## Reproduce the compiled calendar comparison
 

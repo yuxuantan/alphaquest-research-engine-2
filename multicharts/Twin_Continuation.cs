@@ -1,5 +1,7 @@
 // Decision-state port of docs/strategies/twin_continuation.pl, with optional
-// fill-activated protection in the host. See the versioned execution guide.
+// fill-activated protection in the host. See docs/multicharts_execution.md.
+// IOG disabled, one-minute close-labelled bars, Bar Magnifier OFF. The host
+// owns the documented nearest-extreme-first path (Low first on exact ties).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,6 +13,28 @@ using PowerLanguage;
 
 namespace AlphaQuest.Twin
 {
+    // AQ returns one effective action per bar. Resolve parent ownership and
+    // explicit close/next-market precedence before submitting native exits.
+    public static class TwinOrderRouting
+    {
+        public static List<TwinOrder> Active(IList<TwinOrder> orders,double position,string setup)
+        {
+            var result=new List<TwinOrder>();
+            if(position==0)
+            {
+                foreach(var order in orders) if(order.Entry==null) result.Add(order);
+                return result;
+            }
+            if(setup!="BO" && setup!="MO") throw new InvalidOperationException("Unknown filled entry setup.");
+            string owner=setup+(position>0 ? "-L" : "-S");
+            foreach(string kind in new[]{"close","market"})
+                foreach(var order in orders)
+                    if(order.Entry==owner && order.Kind==kind) { result.Add(order); return result; }
+            foreach(var order in orders) if(order.Entry==owner) result.Add(order);
+            return result;
+        }
+    }
+
     // Prepared while the parent entry is still pending. Native special orders
     // resolve distances from the actual fill; absolute swing stops remain
     // conditional exits bound to BO-L / BO-S, including on the entry bar.
@@ -26,6 +50,17 @@ namespace AlphaQuest.Twin
                 throw new ArgumentException("Immediate protection requires finite prices and a positive symbol tick size.");
             decimal step=(decimal)tick,q=(decimal)price/step;
             return (double)((longPosition ? decimal.Floor(q) : decimal.Ceiling(q))*step);
+        }
+
+        // Normalize the distance explicitly before using native special orders.
+        // At an on-grid fill this equals AQ's outward rounding of exit prices.
+        public static double DistancePoints(double distance,double tick)
+        {
+            if(double.IsNaN(distance) || double.IsInfinity(distance) || distance<=0 ||
+               double.IsNaN(tick) || double.IsInfinity(tick) || tick<=0)
+                throw new ArgumentException("Protection requires a positive finite distance and tick.");
+            decimal step=(decimal)tick;
+            return (double)(decimal.Ceiling((decimal)distance/step)*step);
         }
 
         public static TwinProtectionPlan Build(TwinCore c, IList<TwinOrder> orders, double position, string pendingSetup)
@@ -50,6 +85,11 @@ namespace AlphaQuest.Twin
                     throw new InvalidOperationException("Filled position has no known parent setup for immediate protection.");
                 plan.Setup=pendingSetup;
             }
+            // An explicit closing action replaces next-bar brackets in AQ.
+            // Do not also issue a fresh native SL/TP for that closing action.
+            if(position!=0)
+                foreach(var order in orders)
+                    if(order.Kind=="close" || order.Kind=="market") return plan;
             if(plan.Setup=="MO") plan.StopDistance=c.MO_StopPoints;
             else if(plan.Setup=="BO")
             {
@@ -897,8 +937,8 @@ namespace PowerLanguage.Strategy
                 throw new InvalidOperationException("Immediate protection requires a positive symbol BigPointValue.");
             // Reissue each completed bar while the parent is pending or held.
             // No IOG/core replay is needed for these native fill-activated exits.
-            if(plan.TargetDistance.HasValue) GenerateProfitTarget(plan.TargetDistance.Value*pointValue);
-            if(plan.StopDistance.HasValue) GenerateStopLoss(plan.StopDistance.Value*pointValue);
+            if(plan.TargetDistance.HasValue) GenerateProfitTarget(AlphaQuest.Twin.TwinProtectionPlan.DistancePoints(plan.TargetDistance.Value,Bars.Info.MinMove*Bars.Info.PriceScale)*pointValue);
+            if(plan.StopDistance.HasValue) GenerateStopLoss(AlphaQuest.Twin.TwinProtectionPlan.DistancePoints(plan.StopDistance.Value,Bars.Info.MinMove*Bars.Info.PriceScale)*pointValue);
             foreach(var stop in plan.SwingStops)
                 prices[stop.Name].Send(AlphaQuest.Twin.TwinProtectionPlan.StopPrice(stop.Price,
                     Bars.Info.MinMove*Bars.Info.PriceScale,stop.Action=="Sell"),Qty);
@@ -964,6 +1004,13 @@ namespace PowerLanguage.Strategy
             var orders = core.Step(stamp, Bars.High[0], Bars.Low[0], Bars.Close[0],
                                    position, StrategyInfo.AvgEntryPrice, TotalTrades);
             lastProcessedBar=Bars.CurrentBar;
+            if(position==0)
+            {
+                protectionSetup=null;
+                foreach(var order in orders)
+                    if(order.Entry==null) protectionSetup=order.Name.StartsWith("MO-",StringComparison.Ordinal) ? "MO" : "BO";
+            }
+            orders=AlphaQuest.Twin.TwinOrderRouting.Active(orders,position,protectionSetup);
             if(ImmediateProtection) PrepareImmediateProtection(orders,position);
             foreach (var order in orders)
             {

@@ -1,0 +1,2 @@
+trade_number,side,entry_time_utc,exit_time_utc,contracts,net_pnl,mae_lower,mae_upper,mfe_lower,mfe_upper,entry_phase,exit_phase,full_bars,cross_session,adverse_path
+1,short,2024-01-17T17:01:00Z,2024-01-17T17:01:00Z,1,-52.00,52.00,52.00,94.00,94.00,entry_stop,stop,0,False,"[[""6.00"",true],[""46.00"",false],[""52.00"",true]]"

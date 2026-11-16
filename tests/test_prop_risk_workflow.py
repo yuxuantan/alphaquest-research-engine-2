@@ -28,7 +28,7 @@ def test_native_risk_capture_default_source_hashes_downloads_and_fail_closed(cli
     assert check.status_code==200,check.text
     inp=check.json()['source']['excursion_input']
     assert inp['native_ohlc_count']==2 and inp['measured_mae_count']==0
-    assert inp['risk_policy']=='conservative_held_ohlc_upper'
+    assert inp['risk_policy']=='modeled_multicharts_ohlc_path'
     prop=record['run_metadata']['automatic_prop_analysis']
     report=client.get('/api/prop-analyses/'+prop['id']+'/downloads/report.json').json()
     assert client.get('/api/prop-analyses/'+prop['id']+'/files/inputs/intratrade_risk.csv').content==raw

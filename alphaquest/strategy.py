@@ -103,17 +103,18 @@ class EntryProtection:
     """Conditional exits prepared before entry; distances resolve from actual fill.
 
     Exactly one stop basis is required. No completed entry-bar prices are used
-    to construct this plan. None target disables the profit-taking leg.
+    to construct this plan. None target disables the profit-taking leg. The
+    default policy follows only the post-fill MultiCharts modeled OHLC path.
     """
 
     stop_price: Decimal | None = None
     stop_distance: Decimal | None = None
     target_distance: Decimal | None = None
     max_stop_distance: Decimal | None = None
-    ambiguity_policy: Literal["reject", "adverse_first", "favorable_first"] = "reject"
+    ambiguity_policy: Literal["multicharts", "reject", "adverse_first", "favorable_first"] = "multicharts"
 
     def __post_init__(self):
-        if self.ambiguity_policy not in ("reject", "adverse_first", "favorable_first"):
+        if self.ambiguity_policy not in ("multicharts", "reject", "adverse_first", "favorable_first"):
             raise ValueError("Unknown entry protection ambiguity policy.")
         if (self.stop_price is None) == (self.stop_distance is None):
             raise ValueError("Entry protection requires exactly one stop basis.")
@@ -186,8 +187,9 @@ class BracketIntent:
 class StopEntriesIntent:
     """Flat-only OCO entry stops, active for the next observed bar only.
 
-    Entries retain their own direction, quantity and reason. If both stops
-    touch after the Open, OHLC cannot determine the winner: execution rejects.
+    Entries retain their own direction, quantity and reason. The default
+    MultiCharts modeled path chooses the first crossing and cancels its sibling.
+    Simultaneously eligible overlapping thresholds reject.
     """
 
     orders: tuple[tuple[EntryIntent, Decimal], ...]

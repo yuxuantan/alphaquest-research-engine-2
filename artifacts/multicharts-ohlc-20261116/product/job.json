@@ -1,0 +1,741 @@
+{
+  "id": "723fb9de3a134a0bbaf27b91a54e8e78",
+  "created_at_utc": "2026-11-16T05:53:54.110880+00:00",
+  "status": "complete",
+  "stage": "done",
+  "completed_trials": 2,
+  "total_trials": 2,
+  "bars_processed": 0,
+  "total_bars": 0,
+  "active_trials": [],
+  "results_snapshot_rowid": 2,
+  "worker_count": 2,
+  "worker_pids": [
+    11222,
+    11223
+  ],
+  "failed_trials": [],
+  "request": {
+    "dataset_id": "bedc4d6ba38940dca8dceaf0942b39c9",
+    "strategy_id": "twin_continuation",
+    "method": "exhaustive",
+    "parameter_ranges": {
+      "use_breakout": {
+        "start": true,
+        "end": true,
+        "step": 0
+      },
+      "use_momentum": {
+        "start": true,
+        "end": true,
+        "step": 0
+      },
+      "qty": {
+        "start": 1,
+        "end": 1,
+        "step": 0
+      },
+      "bo_target_mult": {
+        "start": "2.0",
+        "end": "2.0",
+        "step": "0"
+      },
+      "bo_max_stop_mult": {
+        "start": "0",
+        "end": ".25",
+        "step": ".25"
+      },
+      "bo_atr_period": {
+        "start": 14,
+        "end": 14,
+        "step": 0
+      },
+      "bo_vol_cap": {
+        "start": "2.0",
+        "end": "2.0",
+        "step": "0"
+      },
+      "bo_vol_lookback": {
+        "start": 50,
+        "end": 50,
+        "step": 0
+      },
+      "bo_session_open": {
+        "start": 1700,
+        "end": 1700,
+        "step": 0
+      },
+      "bo_session_close": {
+        "start": 1600,
+        "end": 1600,
+        "step": 0
+      },
+      "bo_last_fill": {
+        "start": 1530,
+        "end": 1530,
+        "step": 0
+      },
+      "bo_exit_time": {
+        "start": 1545,
+        "end": 1545,
+        "step": 0
+      },
+      "bo_pivot_tf": {
+        "start": 360,
+        "end": 360,
+        "step": 0
+      },
+      "mo_basis_len": {
+        "start": 21,
+        "end": 21,
+        "step": 0
+      },
+      "mo_range_len": {
+        "start": 14,
+        "end": 14,
+        "step": 0
+      },
+      "mo_signal_len": {
+        "start": 3,
+        "end": 3,
+        "step": 0
+      },
+      "mo_trigger": {
+        "start": "100",
+        "end": "100",
+        "step": "0"
+      },
+      "mo_window_start": {
+        "start": 840,
+        "end": 840,
+        "step": 0
+      },
+      "mo_window_end": {
+        "start": 930,
+        "end": 930,
+        "step": 0
+      },
+      "mo_exit_time": {
+        "start": 1450,
+        "end": 1450,
+        "step": 0
+      },
+      "mo_stop_points": {
+        "start": "75",
+        "end": "75",
+        "step": "0"
+      },
+      "mo_warmup": {
+        "start": 60,
+        "end": 60,
+        "step": 0
+      },
+      "mo_full_bars_only": {
+        "start": true,
+        "end": true,
+        "step": 0
+      },
+      "mo_allow_long": {
+        "start": true,
+        "end": true,
+        "step": 0
+      },
+      "mo_allow_short": {
+        "start": true,
+        "end": true,
+        "step": 0
+      },
+      "clock_shift": {
+        "start": 0,
+        "end": 0,
+        "step": 0
+      },
+      "debug_log": {
+        "start": false,
+        "end": false,
+        "step": 0
+      },
+      "immediate_protection": {
+        "start": true,
+        "end": true,
+        "step": 0
+      },
+      "max_bars_back": {
+        "start": 5,
+        "end": 5,
+        "step": 0
+      },
+      "use_session_calendar": {
+        "start": true,
+        "end": true,
+        "step": 0
+      }
+    },
+    "workers": 2,
+    "reuse_results": true,
+    "prepare_data": true,
+    "automatic_prop": false,
+    "execution_settings": {
+      "initial_capital": "10000",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1",
+      "tick_size": "0.25",
+      "point_value": "20"
+    },
+    "sample_split": {
+      "mode": "dates",
+      "is_start": "2024-01-15",
+      "is_end": "2024-01-17",
+      "oos_start": "2024-01-18",
+      "oos_end": "2024-01-18",
+      "is_percent": null
+    },
+    "market_benchmark": {
+      "contracts": 1
+    },
+    "from_date": null,
+    "to_date": null
+  },
+  "axes": {
+    "use_breakout": [
+      true
+    ],
+    "use_momentum": [
+      true
+    ],
+    "qty": [
+      1
+    ],
+    "bo_target_mult": [
+      "2"
+    ],
+    "bo_max_stop_mult": [
+      "0",
+      "0.25"
+    ],
+    "bo_atr_period": [
+      14
+    ],
+    "bo_vol_cap": [
+      "2"
+    ],
+    "bo_vol_lookback": [
+      50
+    ],
+    "bo_session_open": [
+      1700
+    ],
+    "bo_session_close": [
+      1600
+    ],
+    "bo_last_fill": [
+      1530
+    ],
+    "bo_exit_time": [
+      1545
+    ],
+    "bo_pivot_tf": [
+      360
+    ],
+    "mo_basis_len": [
+      21
+    ],
+    "mo_range_len": [
+      14
+    ],
+    "mo_signal_len": [
+      3
+    ],
+    "mo_trigger": [
+      "100"
+    ],
+    "mo_window_start": [
+      840
+    ],
+    "mo_window_end": [
+      930
+    ],
+    "mo_exit_time": [
+      1450
+    ],
+    "mo_stop_points": [
+      "75"
+    ],
+    "mo_warmup": [
+      60
+    ],
+    "mo_full_bars_only": [
+      true
+    ],
+    "mo_allow_long": [
+      true
+    ],
+    "mo_allow_short": [
+      true
+    ],
+    "clock_shift": [
+      0
+    ],
+    "debug_log": [
+      false
+    ],
+    "immediate_protection": [
+      true
+    ],
+    "max_bars_back": [
+      5
+    ],
+    "use_session_calendar": [
+      true
+    ]
+  },
+  "dataset": {
+    "filename": "SYNTHETIC-twin-campaign.csv",
+    "bytes": 103499,
+    "sha256": "aa07b3bcbc88af558d75be0099122bba69ca25a76fd7c10a0c3b6091003f83a8",
+    "row_count": 2463,
+    "start": "2024-01-15T23:01:00Z",
+    "end": "2024-01-18T17:02:00Z",
+    "source_timezone": "UTC",
+    "interval_seconds": null,
+    "interval_kind": "irregular",
+    "columns": [
+      "Date",
+      "Time",
+      "Open",
+      "High",
+      "Low",
+      "Close",
+      "Volume",
+      "UpVol",
+      "DownVol"
+    ],
+    "preview": [
+      {
+        "Date": "01/15/2024",
+        "Time": "23:01",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:01:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:02",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:02:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:03",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:03:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:04",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:04:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:05",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:05:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:06",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:06:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:07",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:07:00Z"
+      },
+      {
+        "Date": "01/15/2024",
+        "Time": "23:08",
+        "Open": "100",
+        "High": "104",
+        "Low": "96",
+        "Close": "100",
+        "Volume": "100",
+        "UpVol": "50",
+        "DownVol": "50",
+        "datetime": "2024-01-15T23:08:00Z"
+      }
+    ],
+    "warnings": [
+      "Bar spacing varies. Gaps are preserved; no bars are filled or removed."
+    ],
+    "instrument_settings": {
+      "tick_size": ".25",
+      "point_value": "20"
+    },
+    "id": "bedc4d6ba38940dca8dceaf0942b39c9",
+    "name": "SYNTHETIC Twin conservative campaign",
+    "symbol": "NQ",
+    "created_at": "2026-11-16T05:53:53.354084Z"
+  },
+  "strategy": {
+    "id": "twin_continuation",
+    "description": "Twin Continuation: 6-hour confirmed swing breakout plus 10-minute morning momentum. One position, setup-owned exits; Chicago one-minute close-labelled bars. Next-bar market/stop entries with immediate fill-activated SL/TP by default. Minute OHLC uses the MultiCharts nearest-extreme-first continuous path (Low first on ties). OCO entries and immediate/later protection share that path, with high-first and low-first full-strategy diagnostics. Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; source Momentum half-day heuristic is retained.",
+    "source_sha256": "de18b68eb8b863d82322cf3add19110f7933fbbf9a062b57381176fbf77ce90f",
+    "execution_assumption": "twin_immediate_protection_multicharts_ohlc_calendar_v6",
+    "session_calendar": {
+      "id": "cme_nq",
+      "file": "calendars/cme_nq_closures.csv",
+      "instrument": "NQ / MNQ futures",
+      "timezone": "America/Chicago",
+      "symbol_pattern": "(?:@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?|@?MNQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?)"
+    },
+    "parameters": [
+      {
+        "name": "use_breakout",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "use_momentum",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "qty",
+        "type": "int",
+        "default": 1,
+        "description": "Contracts of the saved instrument; no NQ/MNQ conversion.",
+        "minimum": 1
+      },
+      {
+        "name": "bo_target_mult",
+        "type": "Decimal",
+        "default": "2.0"
+      },
+      {
+        "name": "bo_max_stop_mult",
+        "type": "Decimal",
+        "default": "0"
+      },
+      {
+        "name": "bo_atr_period",
+        "type": "int",
+        "default": 14,
+        "description": "Completed 15-minute bars for Wilder ATR.",
+        "minimum": 1
+      },
+      {
+        "name": "bo_vol_cap",
+        "type": "Decimal",
+        "default": "2.0"
+      },
+      {
+        "name": "bo_vol_lookback",
+        "type": "int",
+        "default": 50,
+        "description": "Previous session ranges; source clamps to 1..99.",
+        "minimum": 1,
+        "maximum": 99
+      },
+      {
+        "name": "bo_session_open",
+        "type": "int",
+        "default": 1700,
+        "description": "Session open, Chicago HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "bo_session_close",
+        "type": "int",
+        "default": 1600,
+        "description": "Fixed session close, Chicago HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "bo_last_fill",
+        "type": "int",
+        "default": 1530,
+        "description": "Last BO fill boundary, Chicago HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "bo_exit_time",
+        "type": "int",
+        "default": 1545,
+        "description": "BO same-close flatten time, Chicago HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "bo_pivot_tf",
+        "type": "int",
+        "default": 360,
+        "description": "Session-aligned swing candle length in minutes.",
+        "minimum": 1,
+        "maximum": 1440
+      },
+      {
+        "name": "mo_basis_len",
+        "type": "int",
+        "default": 21,
+        "description": "Momentum basis EMA length.",
+        "minimum": 1
+      },
+      {
+        "name": "mo_range_len",
+        "type": "int",
+        "default": 14,
+        "description": "Momentum Wilder range length.",
+        "minimum": 1
+      },
+      {
+        "name": "mo_signal_len",
+        "type": "int",
+        "default": 3,
+        "description": "Momentum oscillator EMA length.",
+        "minimum": 1
+      },
+      {
+        "name": "mo_trigger",
+        "type": "Decimal",
+        "default": "100"
+      },
+      {
+        "name": "mo_window_start",
+        "type": "int",
+        "default": 840,
+        "description": "Inclusive completed 10-minute bucket end HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "mo_window_end",
+        "type": "int",
+        "default": 930,
+        "description": "Inclusive completed 10-minute bucket end HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "mo_exit_time",
+        "type": "int",
+        "default": 1450,
+        "description": "MO next-Open flatten submission HHMM.",
+        "minimum": 0,
+        "maximum": 2359
+      },
+      {
+        "name": "mo_stop_points",
+        "type": "Decimal",
+        "default": "75"
+      },
+      {
+        "name": "mo_warmup",
+        "type": "int",
+        "default": 60,
+        "description": "Minimum completed 10-minute buckets.",
+        "minimum": 1
+      },
+      {
+        "name": "mo_full_bars_only",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "mo_allow_long",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "mo_allow_short",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "clock_shift",
+        "type": "int",
+        "default": 0,
+        "description": "Source clock offset in minutes; AQ bars already close-labelled: use 0.",
+        "minimum": -1440,
+        "maximum": 1440
+      },
+      {
+        "name": "debug_log",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "immediate_protection",
+        "type": "bool",
+        "default": true,
+        "description": "Activate SL/TP on entry fill, including the remaining modeled MultiCharts OHLC path; reports include complete high-first and low-first sensitivity replays. These are OHLC assumptions. False reproduces the original next-bar protection timing."
+      },
+      {
+        "name": "max_bars_back",
+        "type": "int",
+        "default": 5,
+        "description": "Leading records skipped, matching manual MC Max Bars Back.",
+        "minimum": 0
+      },
+      {
+        "name": "use_session_calendar",
+        "type": "bool",
+        "default": true,
+        "description": "Match MC End of Day Exit at the local calendar's scheduled Close, including holidays. Requires NQ/MNQ and 17:00\u201316:00 session Inputs. Off retains the earlier fixed-clock model."
+      }
+    ]
+  },
+  "report_detail": "compact",
+  "research": {
+    "phase": "is",
+    "plan": {
+      "strategy_id": "twin_continuation",
+      "source_sha256": "aa07b3bcbc88af558d75be0099122bba69ca25a76fd7c10a0c3b6091003f83a8",
+      "source_timezone": "UTC",
+      "is_start": "2024-01-15",
+      "is_end": "2024-01-17",
+      "oos_start": "2024-01-18",
+      "oos_end": "2024-01-18",
+      "is_bars": 2462,
+      "oos_bars": 1,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "workflow_id": "1bf611a3db90441b903016519578bb6b",
+    "workflow_phase": "is_broad",
+    "screening_policy": {
+      "version": "is-broad-v4",
+      "minimum_history_months": 24,
+      "minimum_closed_trades": 100,
+      "profitable_months_pct_gt": "50",
+      "extra_slippage_ticks_per_fill": 1,
+      "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+      "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+      "annualization_days": "365.2425"
+    }
+  },
+  "engine_identity": "e5febb2965eaeee949ea00c4193a5decbda3474ea1201eb8e2a377c54ccaf17b",
+  "reused_trials": 0,
+  "default_prop_profile": null,
+  "prop_unavailable_trials": 0,
+  "prop_error_trials": 0,
+  "execution_settings": {
+    "initial_capital": "10000",
+    "tick_size": "0.25",
+    "point_value": "20",
+    "slippage_ticks": 1,
+    "commission_per_contract_per_side": "1"
+  },
+  "step_counts": {
+    "use_breakout": 1,
+    "use_momentum": 1,
+    "qty": 1,
+    "bo_target_mult": 1,
+    "bo_max_stop_mult": 2,
+    "bo_atr_period": 1,
+    "bo_vol_cap": 1,
+    "bo_vol_lookback": 1,
+    "bo_session_open": 1,
+    "bo_session_close": 1,
+    "bo_last_fill": 1,
+    "bo_exit_time": 1,
+    "bo_pivot_tf": 1,
+    "mo_basis_len": 1,
+    "mo_range_len": 1,
+    "mo_signal_len": 1,
+    "mo_trigger": 1,
+    "mo_window_start": 1,
+    "mo_window_end": 1,
+    "mo_exit_time": 1,
+    "mo_stop_points": 1,
+    "mo_warmup": 1,
+    "mo_full_bars_only": 1,
+    "mo_allow_long": 1,
+    "mo_allow_short": 1,
+    "clock_shift": 1,
+    "debug_log": 1,
+    "immediate_protection": 1,
+    "max_bars_back": 1,
+    "use_session_calendar": 1
+  },
+  "metric_columns": [
+    "total_net_pnl",
+    "total_gross_pnl",
+    "total_commissions",
+    "total_slippage_cost",
+    "final_equity",
+    "trades_taken",
+    "winning_trades",
+    "losing_trades",
+    "breakeven_trades",
+    "win_rate_pct",
+    "max_drawdown_amount",
+    "max_drawdown_pct",
+    "max_drawdown_duration_seconds",
+    "planned_net_r_mean",
+    "planned_net_r_median",
+    "planned_net_r_total",
+    "risk_coverage_pct",
+    "is_history_months",
+    "is_annual_net_profit",
+    "is_mtm_max_drawdown",
+    "is_annual_profit_dd_ratio",
+    "is_profitable_months_pct",
+    "is_full_months",
+    "is_longest_dd_pct",
+    "is_stress_net_profit"
+  ],
+  "started_at_utc": "2026-11-16T05:53:54.144453+00:00",
+  "preparation_seconds": 0.002970541943795979,
+  "prepared_data": false,
+  "cached_feature_series": 0,
+  "temporary_bytes": 103499,
+  "elapsed_seconds": 3.1063004169845954,
+  "finished_at_utc": "2026-11-16T05:53:57.252557+00:00"
+}

@@ -12,7 +12,7 @@ from .decimal_math import add
 from .strategy import ExecutionConfig
 
 
-VERSION = 'deterministic-execution-scenarios-v1'
+VERSION = 'deterministic-execution-scenarios-multicharts-v2'
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +99,9 @@ def scenario_metadata(config, scenario):
         fill_assumptions=asdict(assumptions),
         interpretation='Actual ordinary-engine rerun with declared deterministic fill/cost assumptions; not P&L scaling or observed execution evidence.',
         limitations=[
-            'OHLC bars do not reveal queue position, tick order, available depth or partial fills. Penetration is a deterministic fill hurdle, not a calibrated fill probability.',
+            'OHLC bars do not reveal queue position, tick order, available depth or partial fills. Penetration emulates the first eligible price beyond the limit, not a calibrated fill probability.',
             'Stop exits include the configured market slippage plus extra stop ticks, including opening gaps; liquidity and market impact remain unverified.',
-            'Opening events precede intrabar events. If both stop and eligible target can be reached intrabar, the stop executes first; no favorable tick sequence is invented.',
+            'Opening events precede intrabar events. MultiCharts modeled OHLC visits the extreme nearer Open first (Low first on ties); active orders fill along the remaining path. This is not observed tick chronology.',
             'Additional commissions apply per contract per side. Additional market slippage applies to market entries/exits; limit exits retain their price constraint.',
             'Strategy callbacks receive the actual scenario position and fill price. Changed fills can change later signals and trades.'])
 

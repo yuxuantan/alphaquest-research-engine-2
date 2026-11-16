@@ -13,26 +13,26 @@ import json
 import shutil
 
 LEGACY_VERSION = 'entry-protection-ohlc-sensitivity-v1'
-VERSION = 'entry-protection-ohlc-sensitivity-v2'
+PRIOR_VERSION = 'entry-protection-ohlc-sensitivity-v2'
+VERSION = 'entry-protection-multicharts-path-sensitivity-v3'
 FILE = 'entry_protection_ambiguities.csv'
 OCO_FILE = 'entry_oco_ambiguities.csv'
 PREFIX = 'entry_protection_favorable_'
-SCENARIOS = {
+PRIOR_SCENARIOS = {
     'favorable': ('upper_entry_first', 'favorable_first'),
     'lower_adverse': ('lower_entry_first', 'adverse_first'),
     'lower_favorable': ('lower_entry_first', 'favorable_first'),
 }
+SCENARIOS = {'high_first': ('multicharts', 'multicharts'), 'low_first': ('multicharts', 'multicharts')}
+
 FILES = ('report.json', 'trades.csv', 'equity.csv', 'intratrade_risk.csv', FILE, OCO_FILE)
-NOTE = ('One-minute OHLC cannot establish the post-entry sequence. Adverse-first assumes a possible '
-        'post-entry stop occurs first; favorable-first takes an eligible target first or treats an uncertain '
-        'stop-only touch as preceding entry. Both replay the complete strategy with actual scenario positions '
-        'and costs. Open-entry and later held-bar brackets retain stop first. These are entry-bar sensitivity '
-        'scenarios, not observed fills, profit bounds, historical confidence or future assurance. '
-        'When both OCO entries touch without an opening winner, the primary always assumes the upper '
-        '(long) entry first; lower-entry-first is replayed separately. These are entry-threshold priorities, '
-        'not a monotone Open/High/Low/Close path. Neither entry priority is inherently conservative. '
-        'Entry priority is fixed before replay, never selected using scenario profit. A diagnostic model '
-        'failure is inconclusive, with no invented summary; the primary must independently complete.')
+NOTE = ('Primary minute-bar execution follows the MultiCharts non-magnified path: '
+        'Open/High/Low/Close when High is closer to Open; otherwise Open/Low/High/Close, including ties. '
+        'Orders fill in path order, with SL/TP active only after entry; the sibling entry cancels. '
+        'High-first and Low-first diagnostics replay the entire strategy, including later positions and costs. '
+        'These are continuous modeled OHLC paths, not observed tick chronology, profit bounds or future assurance. '
+        'Only the fixed primary policy screens candidates. Diagnostic failures remain inconclusive.')
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +74,7 @@ class ProtectionAmbiguity:
 
 def sensitivity_replay(directory, definition, parameters, config, replay, feature_paths,
                        dataset, metadata, fill_assumptions, progress, *,
-                       oco_policy='upper_entry_first', protection_policy='favorable_first'):
+                       oco_policy='multicharts', protection_policy='multicharts', path_policy='multicharts'):
     """Fresh strategy on frozen bars/costs under declared entry/exit assumptions."""
     from .execution import execute, ExecutionError
     from .session_calendar import CalendarError
@@ -87,16 +87,17 @@ def sensitivity_replay(directory, definition, parameters, config, replay, featur
     # Diagnostic replay must not create a second campaign acceptance decision.
     saved.pop('research', None)
     saved.pop('automatic_prop_analysis', None)
-    role = oco_policy + '/' + protection_policy
+    role = path_policy + '/' + oco_policy + '/' + protection_policy
     saved['entry_protection_sensitivity'] = dict(version=VERSION, role=role, interpretation=NOTE)
     last = dict(bar_number=None, timestamp_utc=None)
     with replay.selected() as selected, create_strategy(definition, parameters, config, feature_paths or {},
                                                         instrument_symbol=dataset.get('symbol')) as strategy:
+        strategy.ohlc_path_policy = path_policy
         strategy.entry_protection_policy = protection_policy
         strategy.oco_entry_policy = oco_policy
         strategy.session_flattening['oco_entry_policy'] = oco_policy
         strategy.session_flattening['entry_protection_ambiguity_policy'] = protection_policy
-        strategy.session_flattening['entry_bar_path'] = role + ' diagnostic; unknown OHLC sequence'
+        strategy.session_flattening['entry_bar_path'] = role + ' diagnostic modeled OHLC path'
         saved['strategy']['session_flattening'] = strategy.session_flattening
         def bars():
             for bar in selected.bars:
@@ -121,7 +122,7 @@ def sensitivity_replay(directory, definition, parameters, config, replay, featur
 
 def sensitivity_replays(directory, *args):
     return {key: sensitivity_replay(Path(directory) / key, *args,
-                                   oco_policy=oco, protection_policy=protection)
+                                   oco_policy=oco, protection_policy=protection, path_policy=key)
             for key, (oco, protection) in SCENARIOS.items()}
 
 
@@ -133,7 +134,7 @@ def scenario_artifacts(key, *, legacy=False):
 
 def export_kinds():
     return {'entry_protection_ambiguities', 'entry_oco_ambiguities', 'entry_protection_sensitivity',
-            *(kind for key in SCENARIOS for kind in scenario_artifacts(key))}
+            *(kind for key in (*SCENARIOS, *PRIOR_SCENARIOS) for kind in scenario_artifacts(key))}
 
 
 def attach_sensitivity(staging, manifest, evidence):
@@ -151,24 +152,18 @@ def attach_sensitivity(staging, manifest, evidence):
                     checksums[target] = hashlib.file_digest(stream, 'sha256').hexdigest()
                 manifest['artifacts'][kind] = target
                 kinds[kind] = target
-        scenarios[key] = dict(status=result['status'], oco_entry_policy=oco, protection_policy=protection,
+        scenarios[key] = dict(status=result['status'], oco_entry_policy=oco, protection_policy=protection, ohlc_path_policy=key,
             summary=result['summary'], ambiguities=result['entry_protection'], artifacts_sha256=checksums,
             artifact_kinds=kinds, reason=result.get('reason'), failure_location=result.get('failure_location'),
             error_type=result.get('error_type'),
             minus_primary_net_pnl=subtract(result['summary']['total_net_pnl'], manifest['summary']['total_net_pnl']) if complete else None)
-    favorable = scenarios['favorable']
-    complete = favorable['status'] == 'complete'
-    comparison = dict(version=VERSION, primary_policy='adverse_first', diagnostic_policy='favorable_first',
-        primary_oco_entry_policy='upper_entry_first', scenarios=scenarios,
+    comparison = dict(version=VERSION, primary_policy='multicharts', diagnostic_policy='continuous_path_alternatives',
+        primary_oco_entry_policy='multicharts', scenarios=scenarios,
         status='complete' if all(s['status'] == 'complete' for s in scenarios.values()) else 'inconclusive',
-        interpretation=NOTE, selection='Only the primary conservative result participates in campaign screening; no replacement selection.',
-        primary_summary=manifest['summary'], favorable_summary=favorable['summary'],
-        primary_ambiguities=manifest['entry_protection'], favorable_ambiguities=favorable['ambiguities'],
-        favorable_minus_primary_net_pnl=favorable['minus_primary_net_pnl'],
-        favorable_minus_primary_trades=favorable['summary']['trades_taken'] - manifest['summary']['trades_taken'] if complete else None,
+        interpretation=NOTE, selection='Only the primary MultiCharts-modeled result participates in campaign screening; no replacement selection.',
+        primary_summary=manifest['summary'], primary_ambiguities=manifest['entry_protection'],
         source_identity=manifest['run_metadata']['dataset'], selection_window=manifest['run_metadata']['selection'],
-        strategy_identity=manifest['run_metadata']['strategy'], execution_settings=manifest['execution_settings'],
-        favorable_artifacts_sha256=favorable['artifacts_sha256'])
+        strategy_identity=manifest['run_metadata']['strategy'], execution_settings=manifest['execution_settings'])
     path = staging / 'entry_protection_sensitivity.json'
     from .reporting import json_value
     path.write_text(json.dumps(comparison, default=json_value, allow_nan=False, indent=2) + '\n', encoding='utf-8')
@@ -182,7 +177,7 @@ def evidence_names(record):
         if record.get('artifacts', {}).get('entry_protection_ambiguities') != FILE:
             raise ValueError('Unsupported entry protection evidence.')
         names.add(FILE)
-        if record['entry_protection']['version'] == VERSION:
+        if record['entry_protection']['version'] in (PRIOR_VERSION, VERSION):
             if record['artifacts'].get('entry_oco_ambiguities') != OCO_FILE:
                 raise ValueError('Unsupported OCO entry evidence.')
             names.add(OCO_FILE)
@@ -193,8 +188,9 @@ def evidence_names(record):
             if set(saved['favorable_artifacts_sha256']) != expected:
                 raise ValueError('Unsupported entry protection sensitivity evidence.')
             names.update(expected)
-        elif saved['version'] == VERSION:
-            if set(saved['scenarios']) != set(SCENARIOS):
+        elif saved['version'] in (PRIOR_VERSION, VERSION):
+            expected_scenarios = SCENARIOS if saved['version'] == VERSION else PRIOR_SCENARIOS
+            if set(saved['scenarios']) != set(expected_scenarios):
                 raise ValueError('Unsupported entry sensitivity scenarios.')
             for key, scenario in saved['scenarios'].items():
                 expected = scenario_artifacts(key) if scenario['status'] == 'complete' else {}
