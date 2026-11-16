@@ -39,7 +39,7 @@
     },
   ];
   const list = get("#workflow-campaign-list");
-  let catalogue, definitions, generation = 0, removalNotice = null;
+  let catalogue, definitions, generation = 0, deletionNotice = null;
   const read = async (url, method='GET', payload) => {
     const response = await fetch(url, {cache:'no-store',method,headers:payload?{'Content-Type':'application/json'}:undefined,body:payload?JSON.stringify(payload):undefined});
     const body = await response.json();
@@ -94,70 +94,102 @@
       action(source,'Browse existing saved runs →',`#strategies/${encodeURIComponent(id)}`); host.append(source);
       const datasets = node('section',undefined,'workflow-datasets');
       datasets.append(node('h3','Datasets'),node('p','Saved sources and their current validation phase','muted small')); host.append(datasets);
-      const [workflows, groups, removals] = await Promise.all([read(`/api/campaign-workflows?${new URLSearchParams({strategy_id:id})}`), read(`/api/strategies/${encodeURIComponent(id)}/datasets?limit=100`), read(`/api/campaign-dataset-links?${new URLSearchParams({strategy_id:id})}`)]);
+      const [workflows, groups] = await Promise.all([read(`/api/campaign-workflows?${new URLSearchParams({strategy_id:id})}`), read(`/api/strategies/${encodeURIComponent(id)}/datasets?limit=100`)]);
       if (current !== generation) return;
       const sourceOf = dataset => ({sha256:dataset.sha256,source_timezone:dataset.source_timezone,source_kind:dataset.source_kind||'native'});
-      const sourceKey = source => JSON.stringify([source.sha256,source.source_timezone,source.source_kind||'native']);
-      const removed = new Set(removals.items.map(item=>sourceKey(item.source)));
       const currentPage = () => current===generation && /^#campaigns(?:\/[^/]+)?$/.test(location.hash);
-      const restore = async (receipt,button,notice) => {
-        button.disabled=true;
-        try { await read(`/api/campaign-dataset-links/${encodeURIComponent(id)}/${receipt.source_key}/restore`,'POST');
-          removalNotice=null;if(currentPage())await renderCampaign();
-        } catch(error) { notice.textContent=error.message;button.disabled=false; }
-      };
-      datasets.append(node('p','Remove a dataset link here to keep the campaign tidy. Dataset files, saved results and phase progress are kept.','muted small'));
-      if(removalNotice?.strategy_id===id){
+      datasets.append(node('p','Delete one workflow and its unshared results at a time. Other workflows using the same dataset stay available. Original dataset files and the campaign definition are kept.','muted small'));
+      if(deletionNotice?.strategy_id===id){
         const notice=node('div',undefined,'workflow-link-notice');notice.setAttribute('role','status');
-        notice.append(node('span',`${removalNotice.dataset_name} removed from this campaign. Dataset and saved results kept.`));
-        const undo=node('button','Undo','button secondary');undo.type='button';undo.onclick=()=>restore(removalNotice,undo,notice);notice.append(undo);datasets.append(notice);
+        notice.append(node('span',deletionNotice.text));datasets.append(notice);
       }
-      const removeButton = (card,dataset) => {
-        const controls=node('div',undefined,'workflow-link-actions'),button=node('button','Remove dataset link','button secondary'),notice=node('p',undefined,'small');
-        button.type='button';button.setAttribute('aria-label',`Remove ${dataset.name} from campaign`);notice.setAttribute('role','status');controls.append(button);card.append(controls,notice);
+      const deleteButton = (card,dataset,target) => {
+        const controls=node('div',undefined,'workflow-link-actions'),button=node('button',target.workflow_id?'Delete workflow and results…':'Delete saved results…','button secondary danger'),notice=node('p',undefined,'small');
+        button.type='button';button.setAttribute('aria-label',target.workflow_id?`Delete workflow ${target.workflow_id.slice(0,8)} for ${dataset.name}`:`Delete saved results for ${dataset.name}`);notice.setAttribute('role','status');controls.append(button);card.append(controls,notice);
         button.onclick=async()=>{
           button.disabled=true;
           try {
-            const body={strategy_id:id,source:sourceOf(dataset)},preview=await read('/api/campaign-dataset-links/preview','POST',body);
+            const body={strategy_id:id,source:sourceOf(dataset),...target},preview=await read('/api/campaign-dataset-links/preview','POST',body);
             if(!currentPage())return;
-            if(!preview.removed&&!window.confirm(`Remove “${preview.dataset_name}” from this campaign?\n\nThis removes the dataset link and its ${preview.retained_workflows} saved workflow(s) from this campaign view. The campaign, dataset files, phase progress and all saved results are kept. Running jobs continue in Job history.\n\nYou can undo this or restore it from Removed datasets.`))return;
-            removalNotice=await read('/api/campaign-dataset-links','DELETE',{...body,confirmation_sha256:preview.confirmation_sha256});
-            if(currentPage())await renderCampaign();
+            const dialog=node('dialog',undefined,'workflow-delete-dialog');dialog.setAttribute('aria-labelledby','workflow-delete-title');
+            const title=node('h2','Permanently delete workflow and results');title.id='workflow-delete-title';
+            dialog.append(title,node('p',`${campaign.name} · ${preview.dataset_name}`),node('p',preview.workflow_id?`Selected workflow: ${preview.workflow_id}`:'Selected saved-results group'),node('p',preview.interpretation));
+            const summary=node('ul');
+            for(const text of [`${preview.workflow_ids.length} workflow(s), including their reviews and frozen selections`,`${preview.job_ids.length} backtest batch(es) and ${preview.run_ids.length} backtest report(s)`,`${preview.simulation_ids.length} downstream Prop Sim / portfolio simulation(s) and ${preview.phase_campaign_ids.length} phase package(s)`,`${preview.analysis_ids.length} Monte Carlo / prop report(s)`,`${preview.file_count} files · ${(preview.bytes/1024/1024).toFixed(2)} MB`])summary.append(node('li',text));
+            dialog.append(summary);
+            const detail=(label,items,href)=>{
+              if(!items.length)return;
+              const box=node('details');box.append(node('summary',label));const values=node('ul');
+              for(const value of items){const row=node('li');if(href)action(row,value,href(value));else row.textContent=value;values.append(row);}box.append(values);dialog.append(box);
+            };
+            detail('Affected workflows',preview.workflow_ids,value=>`#campaigns/workflows/${value}/mechanic_validation`);
+            detail('Downstream simulations that will also be deleted',preview.simulation_ids,value=>`#prop-sim?analysis=${value}`);
+            detail('Backtest batches',preview.job_ids,value=>`#jobs/backtest_batch/${value}`);
+            detail('Backtest reports',preview.run_ids,value=>`#backtests/report/${value}`);
+            detail('Monte Carlo / prop reports',preview.analysis_ids,value=>`#jobs/prop_analysis/${value}`);
+            detail('Files to delete',preview.files.map(f=>`${f.kind}: ${f.path} (${f.bytes.toLocaleString()} bytes)`));
+            const retained=[...preview.retained_jobs.map(r=>`Batch ${r.id}: ${r.reasons.join('; ')}`),...preview.retained_runs.map(r=>`Backtest ${r.id}: ${r.reasons.join('; ')}`),...preview.retained_analyses.map(r=>`Analysis ${r.id}: ${r.reasons.join('; ')}`)];
+            detail(`Shared evidence kept · ${retained.length}`,retained);
+            if(retained.length)dialog.append(node('p','Shared reports stay under Saved results and may still have a saved-results card. Other workflows using this dataset remain linked.','muted small'));
+            if(preview.blockers.length){
+              const blocked=node('div',undefined,'workflow-delete-blockers');blocked.setAttribute('role','alert');blocked.append(node('h3','Deletion is blocked'));
+              for(const item of preview.blockers){const line=node('p',item.message);if(item.href)action(line,' Open dependency →',item.href);blocked.append(line);}dialog.append(blocked);
+            }
+            const consent=node('label',undefined,'workflow-delete-consent'),check=node('input');check.type='checkbox';
+            consent.append(check,node('span','I understand that the selected workflow or saved-results group, listed downstream simulations and unshared results will be permanently deleted. There is no Undo.'));dialog.append(consent);
+            const status=node('p',undefined,'small');status.setAttribute('role','status');dialog.append(status);
+            const buttons=node('div',undefined,'workflow-link-actions'),cancel=node('button','Cancel','button secondary'),confirm=node('button','Permanently delete','button danger');
+            cancel.type=confirm.type='button';confirm.disabled=true;check.onchange=()=>{confirm.disabled=!check.checked||!preview.deletable;};cancel.onclick=()=>dialog.close();
+            buttons.append(cancel,confirm);dialog.append(buttons);document.body.append(dialog);
+            const navigation=()=>dialog.close();window.addEventListener('hashchange',navigation);
+            dialog.addEventListener('close',()=>{window.removeEventListener('hashchange',navigation);dialog.remove();if(button.isConnected)button.disabled=false;},{once:true});
+            confirm.onclick=async()=>{
+              confirm.disabled=cancel.disabled=check.disabled=true;status.textContent='Deleting the listed records and files…';
+              // Escape must not dismiss an in-flight deletion and hide its receipt.
+              const prevent=event=>event.preventDefault();dialog.addEventListener('cancel',prevent);
+              try {
+                const receipt=await read('/api/campaign-dataset-links','DELETE',{...body,confirmation_sha256:preview.confirmation_sha256});
+                if(receipt.cleanup_pending.length){
+                  status.textContent='Catalogue deletion is complete, but some files still need cleanup. Click Retry file cleanup.';confirm.textContent='Retry file cleanup';confirm.disabled=false;cancel.disabled=false;return;
+                }
+                deletionNotice={strategy_id:id,text:`${preview.dataset_name}: selected ${preview.workflow_id?'workflow':'saved results'} and unshared results permanently deleted. Original dataset and campaign kept.${retained.length?' Shared evidence retained.':''}`};
+                dialog.close();if(currentPage())await renderCampaign();
+              }catch(error){status.textContent=error.message+' Close this preview and review again before retrying.';cancel.disabled=false;}
+              finally{dialog.removeEventListener('cancel',prevent);}
+            };
+            dialog.showModal();cancel.focus();
           } catch(error) { if(card.isConnected)notice.textContent=error.message; }
-          finally { if(button.isConnected)button.disabled=false; }
+          finally { if(button.isConnected&&!document.querySelector('.workflow-delete-dialog'))button.disabled=false; }
         };
       };
       const seen = new Set();
       for (const workflow of workflows.items) {
         const saved = workflow.declaration, dataset = saved.dataset;
-        if(removed.has(sourceKey(sourceOf(dataset))))continue;
         seen.add(dataset.id);
         const card = node('div',undefined,'workflow-dataset workflow-real-dataset');
+        card.dataset.workflowId=workflow.id;
         const latest=workflow.phases.find(phase=>phase.id===workflow.latest_phase);
         const pendingNarrow=latest.id==='is_narrow' ? workflow.narrow.find(branch=>!branch.confirmed_at_utc) : null;
         const destination=`#campaigns/workflows/${workflow.id}/${latest.id}${pendingNarrow?`?broad_trial=${pendingNarrow.broad_trial}`:''}`;
         const heading = node('a',dataset.name,'workflow-inline-link');
         heading.href = destination;
         card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
+        card.append(node('span',`Created ${new Date(workflow.created_at_utc).toLocaleString()} · Workflow ${workflow.id.slice(0,8)}`,'muted small'));
+        const version=node('details');version.append(node('summary','Saved version'),node('code',`Strategy ${String(saved.strategy_source_sha256||'unknown').slice(0,12)} · Engine ${String(saved.engine_identity||'unknown').slice(0,12)}`));card.append(version);
         card.append(node('span',`${latest.label} · ${latest.status.replaceAll('_',' ')}`,'workflow-stage'));
         if (!workflow.review) action(card,'Resume backtest →',destination);
-        removeButton(card,dataset);datasets.append(card);
+        deleteButton(card,dataset,{workflow_id:workflow.id});datasets.append(card);
       }
       for (const group of groups.items) {
         if (seen.has(group.available_dataset_id)) continue;
         const d = group.dataset, card = node('div',undefined,'workflow-dataset workflow-real-dataset');
-        if(removed.has(sourceKey(sourceOf(d))))continue;
         const start = group.available_dataset_id && definition ? `#backtests/new?${new URLSearchParams({workflow:'mechanic',strategy:id,dataset:group.available_dataset_id})}` : `#strategies/${id}/datasets/${group.id}`;
         action(card, d.name, start);
-        card.append(node('span',`${group.instrument} · ${d.start_date || 'Unknown start'} → ${d.end_date || 'Unknown end'}`),node('span','Mechanic validation · not started','workflow-stage'));
+        card.append(node('span',`${group.instrument} · ${d.start_date || 'Unknown start'} → ${d.end_date || 'Unknown end'}`),node('span',`Saved results · ${group.reports} report(s) · no active workflow`,'workflow-stage'));
         action(card,'Inspect saved results →',`#strategies/${id}/datasets/${group.id}`);
-        removeButton(card,d);datasets.append(card);
+        deleteButton(card,d,{group_id:group.id});datasets.append(card);
       }
       if (!datasets.querySelector('.workflow-real-dataset')) datasets.append(node('p','No saved datasets for this campaign. Choose New backtest to select or upload a dataset.'));
-      if(removals.items.length){
-        const history=node('details',undefined,'workflow-removed-datasets');history.append(node('summary',`Removed datasets · ${removals.items.length}`));
-        for(const receipt of removals.items){const row=node('div',undefined,'workflow-link-actions'),label=node('span',receipt.dataset_name),button=node('button','Restore link','button secondary'),notice=node('p',undefined,'small');button.type='button';button.setAttribute('aria-label',`Restore ${receipt.dataset_name} to campaign`);notice.setAttribute('role','status');button.onclick=()=>restore(receipt,button,notice);row.append(label,button,notice);history.append(row);}datasets.append(history);
-      }
       if (groups.total > groups.items.length) action(datasets,'Browse all saved datasets →',`#strategies/${id}`);
     } catch (error) {
       if (current === generation) {

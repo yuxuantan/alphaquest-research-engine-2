@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "metadata_graph_only": true,
+  "real_mechanics_run": true,
+  "workflow_id": "3f64092616b14590bb70902371c4cd81",
+  "simulation_id": "9a42c0feb5134405bbb8494fbde5579e",
+  "analysis_ids": {
+    "evaluation": "35d1321d6e7f453e84a36993d36fe645",
+    "funded": "9c8cb270bf5d463d8de34ff2c5555f50",
+    "monte_carlo": "e6e2da82472a415f8ea6db33082d856d"
+  },
+  "downstream_listed_before_confirmation": true,
+  "unshared_files_removed": true
+}

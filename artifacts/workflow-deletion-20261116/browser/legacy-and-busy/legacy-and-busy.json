@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "legacy_run_deleted": true,
+  "dataset_kept": true,
+  "running_job_blocks_delete": true,
+  "temporary_server": "Stopped by fixture teardown"
+}

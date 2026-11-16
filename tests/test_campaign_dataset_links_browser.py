@@ -1,6 +1,5 @@
-"""Actual Campaigns removal, cancellation, Undo and durable restoration."""
+"""Real Campaigns permanent-delete preview and destructive confirmation journeys."""
 from pathlib import Path
-from hashlib import sha256
 import json
 import os
 import shutil
@@ -9,6 +8,7 @@ from research_fixtures import ResearchHTTPClient
 from test_backtests_browser import browser,page,portal,playwright
 from test_campaign_mechanics import create_workflow,run_validation
 from test_research_workflow import save,start_is
+from test_campaign_dataset_links import seed_family
 
 
 def evidence(tmp_path,name,data):
@@ -16,71 +16,96 @@ def evidence(tmp_path,name,data):
     if destination:=os.environ.get('ALPHAQUEST_LINK_EVIDENCE_DIR'):
         target=Path(destination)/name;target.mkdir(parents=True,exist_ok=True)
         for p in tmp_path.iterdir():
-            if p.is_file():shutil.copyfile(p,target/p.name)
+            if p.is_file() and p.suffix in ('.json','.png'):shutil.copyfile(p,target/p.name)
 
 
-def test_remove_workflow_link_cancel_undo_reload_and_restore(page,portal,tmp_path):
+def test_permanent_workflow_preview_cancel_delete_and_reload(page,portal,tmp_path):
     base=portal['url'];campaign=base+'/#campaigns/consecutive_green_hold'
     with ResearchHTTPClient(base_url=base,timeout=120) as client:
-        dataset,body,workflow=create_workflow(client);result=run_validation(client,workflow)
-        before_campaigns=client.get('/api/strategies/library').json()
-        before_dataset=client.get('/api/datasets/'+dataset['id']).json()
-        report_dir=portal['app'].state.runs.root/result['run_id']
-        hashes={p.name:sha256(p.read_bytes()).hexdigest() for p in report_dir.iterdir() if p.is_file()}
-        page.goto(campaign);card=page.locator('.workflow-real-dataset').filter(has_text=dataset['name'])
+        dataset,config,workflow=create_workflow(client);result=run_validation(client,workflow)
+        folder=portal['app'].state.runs.root/result['run_id']
+        other=client.post('/api/campaign-workflows',json=dict(config,execution_settings=dict(config['execution_settings'],slippage_ticks=2))).json()
+        second=run_validation(client,other)
+        from hashlib import sha256
+        other_folder=portal['app'].state.runs.root/second['run_id']
+        before={p.name:sha256(p.read_bytes()).hexdigest() for p in other_folder.iterdir() if p.is_file()}
+        page.goto(campaign)
+        card=page.locator(f'.workflow-real-dataset[data-workflow-id="{workflow["id"]}"]')
+        other_card=page.locator(f'.workflow-real-dataset[data-workflow-id="{other["id"]}"]')
+        playwright.expect(other_card).to_have_count(1)
+        playwright.expect(card).to_contain_text('Created')
+        button=card.get_by_role('button',name=f'Delete workflow {workflow["id"][:8]} for {dataset["name"]}',exact=True)
+        button.click();dialog=page.get_by_role('dialog',name='Permanently delete workflow and results')
+        playwright.expect(dialog).to_be_visible()
+        playwright.expect(dialog).to_contain_text('1 workflow(s)')
+        playwright.expect(dialog.get_by_role('button',name='Permanently delete',exact=True)).to_be_disabled()
+        dialog.get_by_text('Backtest reports',exact=True).click()
+        playwright.expect(dialog.get_by_role('link',name=result['run_id'],exact=True)).to_have_attribute('href',f'#backtests/report/{result["run_id"]}')
+        dialog.get_by_text('Files to delete',exact=True).click();playwright.expect(dialog).to_contain_text('trades.csv')
+        dialog.screenshot(path=str(tmp_path/'delete-preview.png'))
+        dialog.get_by_role('button',name='Cancel',exact=True).click();assert folder.exists()
         playwright.expect(card).to_have_count(1)
-        assert page.get_by_role('button',name='Delete campaign',exact=True).count()==0
-        deletions=[];page.on('request',lambda r:deletions.append(r.url) if r.method=='DELETE' else None)
-        remove=card.get_by_role('button',name=f'Remove {dataset["name"]} from campaign',exact=True)
-        page.once('dialog',lambda d:d.dismiss());remove.click()
-        playwright.expect(remove).to_be_enabled()
-        assert not deletions
-        playwright.expect(card).to_have_count(1)
-        page.once('dialog',lambda d:d.accept());remove.click()
-        playwright.expect(card).to_have_count(0)
-        notice=page.locator('.workflow-link-notice')
-        playwright.expect(notice).to_contain_text('Dataset and saved results kept')
-        notice.get_by_role('button',name='Undo',exact=True).click()
-        playwright.expect(card).to_have_count(1)
-        page.once('dialog',lambda d:d.accept());remove.click()
-        playwright.expect(card).to_have_count(0)
+        button.click();dialog.get_by_role('checkbox').check()
+        dialog.get_by_role('button',name='Permanently delete',exact=True).click()
+        playwright.expect(dialog).to_have_count(0);playwright.expect(card).to_have_count(0)
+        assert not folder.exists() and client.get('/api/backtests/'+result['run_id']).status_code==404
+        assert client.get('/api/campaign-workflows/'+workflow['id']).status_code==404
+        assert client.get('/api/datasets/'+dataset['id']).status_code==200
+        playwright.expect(other_card).to_have_count(1)
+        assert client.get('/api/campaign-workflows/'+other['id']).json()==second
+        assert before=={p.name:sha256(p.read_bytes()).hexdigest() for p in other_folder.iterdir() if p.is_file()}
+        playwright.expect(page.locator('#workflow-campaign-detail')).to_contain_text('permanently deleted')
+        assert page.get_by_role('button',name='Undo',exact=True).count()==0
         page.reload();playwright.expect(card).to_have_count(0)
-        playwright.expect(page.locator('#workflow-campaign-detail')).to_contain_text('No saved datasets for this campaign')
-        removed=page.locator('.workflow-removed-datasets');removed.get_by_text('Removed datasets · 1',exact=True).click()
-        playwright.expect(removed).to_contain_text(dataset['name'])
-        page.locator('#workflow-campaign-detail').screenshot(path=str(tmp_path/'removed.png'))
-        page.set_viewport_size(dict(width=390,height=844))
-        assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
-        page.locator('#workflow-campaign-detail').screenshot(path=str(tmp_path/'removed-mobile.png'))
-        assert client.get('/api/datasets/'+dataset['id']).json()==before_dataset
-        assert client.get('/api/campaign-workflows/'+workflow['id']).json()==result
-        assert client.get('/api/strategies/library').json()==before_campaigns
-        assert {p.name:sha256(p.read_bytes()).hexdigest() for p in report_dir.iterdir() if p.is_file()}==hashes
-        removed.get_by_role('button',name=f'Restore {dataset["name"]} to campaign',exact=True).click()
-        playwright.expect(card).to_have_count(1)
-        playwright.expect(card.get_by_role('link',name=dataset['name'],exact=True)).to_have_attribute('href',f'#campaigns/workflows/{workflow["id"]}/mechanic_validation')
-        page.locator('#workflow-campaign-detail').screenshot(path=str(tmp_path/'restored-mobile.png'))
-        evidence(tmp_path,'workflow-link',dict(synthetic=True,workflow_id=workflow['id'],dataset_id=dataset['id'],
-            cancel_no_delete=True,undo=True,durable_removed_state=True,restore=True,campaign_preserved=True,source_and_report_hashes_unchanged=hashes,temporary_server='Stopped by fixture teardown'))
+        assert any(s['id']==config['strategy_id'] for s in client.get('/api/strategies/library').json()['items'])
+        page.set_viewport_size(dict(width=390,height=844));page.locator('#workflow-campaign-detail').screenshot(path=str(tmp_path/'deleted-mobile.png'))
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        evidence(tmp_path,'permanent-workflow',dict(synthetic=True,dataset_id=dataset['id'],workflow_id=workflow['id'],run_id=result['run_id'],
+            real_mechanics_run=True,preview_lists_files=True,cancel_preserves_all=True,unchecked_confirmation_disabled=True,
+            files_and_results_deleted=True,durable_after_reload=True,campaign_and_dataset_preserved=True,other_same_dataset_workflow_id=other['id'],other_workflow_and_all_files_unchanged=True,temporary_server='Stopped by fixture teardown'))
 
 
-def test_remove_legacy_link_does_not_reappear_from_saved_runs(page,portal,tmp_path):
+def test_legacy_run_permanent_delete_and_busy_preview(page,portal,tmp_path):
     base=portal['url']
     with ResearchHTTPClient(base_url=base,timeout=120) as client:
         dataset=save(client);record=start_is(client,dataset)
         page.goto(base+'/#campaigns/consecutive_green_hold')
         card=page.locator('.workflow-real-dataset').filter(has_text=dataset['name'])
-        playwright.expect(card).to_have_count(1)
-        playwright.expect(card).to_contain_text('Mechanic validation · not started')
-        page.once('dialog',lambda d:d.accept())
-        card.get_by_role('button',name=f'Remove {dataset["name"]} from campaign',exact=True).click()
+        card.get_by_role('button',name=f'Delete saved results for {dataset["name"]}',exact=True).click()
+        dialog=page.get_by_role('dialog');playwright.expect(dialog).to_contain_text('0 workflow(s)')
+        dialog.get_by_role('checkbox').check();dialog.get_by_role('button',name='Permanently delete',exact=True).click()
         playwright.expect(card).to_have_count(0)
         page.reload();playwright.expect(card).to_have_count(0)
-        assert client.get('/api/strategies/consecutive_green_hold/datasets').json()['total']==1
-        assert client.get('/api/backtests/'+record['id']).status_code==200
-        assert any(s['id']=='consecutive_green_hold' for s in client.get('/api/strategies/library').json()['items'])
-        page.locator('#workflow-campaign-detail').screenshot(path=str(tmp_path/'legacy-removed.png'))
-        config=dict(dataset_id=dataset['id'],strategy_id='consecutive_green_hold',sample_split=dict(mode='percentage',is_percent=50),execution_settings=dict(initial_capital='10000',slippage_ticks=0,commission_per_contract_per_side='0'))
-        created=client.post('/api/campaign-workflows',json=config);assert created.status_code==201,created.text
-        page.reload();playwright.expect(card).to_have_count(1)
-        evidence(tmp_path,'legacy-link',dict(synthetic=True,dataset_id=dataset['id'],run_id=record['id'],legacy_fallback_stays_removed=True,new_explicit_workflow_relinks=True,results_retained=True))
+        assert client.get('/api/backtests/'+record['id']).status_code==404
+        assert client.get('/api/datasets/'+dataset['id']).status_code==200
+        # A real workflow with synthetic running metadata is visibly protected.
+        dataset,_,workflow=create_workflow(client)
+        from uuid import uuid4
+        with portal['app'].state.runs.connect() as db:
+            db.execute("INSERT INTO mechanic_job_attempts VALUES (?,?,?,NULL,NULL,'running',NULL,NULL)",(uuid4().hex,workflow['id'],'2026-11-15'))
+        page.reload();card=page.locator('.workflow-real-dataset').filter(has_text=dataset['name'])
+        card.get_by_role('button',name=f'Delete workflow {workflow["id"][:8]} for {dataset["name"]}',exact=True).click()
+        dialog=page.get_by_role('dialog');playwright.expect(dialog).to_contain_text('Deletion is blocked')
+        dialog.get_by_role('checkbox').check();playwright.expect(dialog.get_by_role('button',name='Permanently delete',exact=True)).to_be_disabled()
+        dialog.screenshot(path=str(tmp_path/'blocked-running-job.png'));dialog.get_by_role('button',name='Cancel',exact=True).click()
+        evidence(tmp_path,'legacy-and-busy',dict(synthetic=True,legacy_run_deleted=True,dataset_kept=True,running_job_blocks_delete=True,temporary_server='Stopped by fixture teardown'))
+
+
+def test_downstream_simulations_explicit_in_preview_and_cascade(page,portal,tmp_path):
+    # Report membership is a labelled metadata graph fixture; no numerical claims.
+    # Use the running app's actual store; seed uses normal mechanics execution and
+    # explicit fixture-only phase files (not a duplicate product endpoint).
+    with ResearchHTTPClient(base_url=portal['url'],timeout=120) as client:
+        client.app=portal['app']
+        dataset,config,w,result,batches,sim,analyses=seed_family(client)
+        page.goto(portal['url']+'/#campaigns/consecutive_green_hold')
+        page.get_by_role('button',name=f'Delete workflow {w["id"][:8]} for {dataset["name"]}',exact=True).click()
+        dialog=page.get_by_role('dialog');playwright.expect(dialog).to_contain_text('1 downstream Prop Sim / portfolio simulation(s)')
+        dialog.get_by_text('Downstream simulations that will also be deleted',exact=True).click()
+        playwright.expect(dialog.get_by_role('link',name=sim['id'],exact=True)).to_have_attribute('href',f'#prop-sim?analysis={sim["id"]}')
+        dialog.screenshot(path=str(tmp_path/'downstream-preview.png'))
+        dialog.get_by_role('checkbox').check();dialog.get_by_role('button',name='Permanently delete',exact=True).click()
+        playwright.expect(dialog).to_have_count(0)
+        assert client.get('/api/prop-sim/'+sim['id']).status_code==404
+        assert all(not (portal['app'].state.prop_analyses.root/aid).exists() for aid in analyses.values())
+        evidence(tmp_path,'downstream-cascade',dict(synthetic=True,metadata_graph_only=True,real_mechanics_run=True,workflow_id=w['id'],simulation_id=sim['id'],analysis_ids=analyses,downstream_listed_before_confirmation=True,unshared_files_removed=True))

@@ -1,59 +1,107 @@
-# Remove campaign–dataset links
+# Permanently delete one campaign dataset workflow
 
-On **Campaigns → select a campaign**, each dataset card has **Remove dataset
-link**. Confirming removes the dataset from that campaign's main-page list.
-Entire campaigns cannot be deleted through this feature.
+Implemented 2026-11-16. This replaces reversible **Remove dataset link**. The
+campaign/strategy and original dataset files cannot be deleted by this feature.
 
-The confirmation identifies the dataset and how many saved workflows use that
-link. It explicitly retains the campaign/strategy code, dataset files, phase
-progress, backtests, reports and Job history. Running jobs continue; removal
-neither cancels them nor invalidates their saved evidence or Prop Sim references.
-Saved results remain inspectable through Job history and Saved runs.
+## Use it
 
-Use **Undo** immediately afterward, or expand **Removed datasets** and choose
-**Restore link** later. Removal survives reloads and application restarts. Explicitly
-creating a new backtest workflow with the same source relinks it; merely viewing
-results or completing a background job does not. Restore does not rerun a backtest.
+1. Open **Campaigns → select a campaign**. Each workflow card shows its creation
+   date, short workflow ID and an expandable saved-version identifier. Two cards
+   with the same dataset name can represent independent workflows on one upload.
+2. On the intended card, choose **Delete workflow and results…**. Only that
+   workflow ID is selected. Other workflows using the same dataset are preserved.
+3. Review the exact workflow, batch, report and file lists. Downstream Prop Sim,
+   Monte Carlo and portfolio analyses to be deleted are explicitly listed and
+   linked. Evidence used by another owner is listed under **Shared evidence kept**.
+   A downstream multi-strategy portfolio is deleted as a whole if included in the
+   preview; its other source workflows and datasets remain intact.
+4. Cancel to leave everything unchanged. To proceed, acknowledge irreversible
+   deletion and choose **Permanently delete**. There is no Undo or Restore.
+5. The selected workflow, its unshared evidence files and listed downstream
+   results disappear from Campaigns, saved results and Job history. Reloading does
+   not bring them back. The dataset remains available for a new backtest.
 
-A link identifies a campaign plus source content SHA256, source timezone and
-native/external source kind. All workflow variants for that logical source are
-removed together, including the saved-run fallback cards. The same source in
-another campaign stays linked. This also prevents old reports or reuploaded
-aliases from silently making a removed source reappear.
+Legacy cards without a workflow instead offer **Delete saved results…**. That
+selects their specific saved-results group, while preserving reports pinned by
+existing workflows or other owners. It never implicitly selects every workflow
+sharing a dataset name or content hash. Shared evidence can remain visible under
+saved results after its original workflow is deleted.
 
-## Implementation and checks
+Old reversible-removal markers no longer hide cards. Previously hidden workflows
+become visible so they can be individually inspected or permanently deleted.
+The old restore and source-wide delete contracts are retired.
 
-`alphaquest/campaign_dataset_links.py` stores only reversible navigation state in
-`campaign_dataset_removals`, in the existing backtest SQLite catalogue. It never
-removes workflow rows, source files, calculation records or frozen packages.
+## What is removed and retained
 
-- `GET /api/campaign-dataset-links?strategy_id=…` lists removed links.
-- `POST /api/campaign-dataset-links/preview` validates a linked source and returns
-  a confirmation hash and retained workflow/report counts.
-- `DELETE /api/campaign-dataset-links` requires the exact campaign/source plus
-  that confirmation hash. A changed workflow scope rejects a stale confirmation.
-  Repeated removal is idempotent. A campaign-only request is invalid.
-- `POST /api/campaign-dataset-links/{strategy_id}/{source_key}/restore` restores
-  that one association. There is no whole-campaign deletion route here.
+The preview covers mechanics attempts/reviews; Broad/Narrow/OOS batches and frozen
+state; backtest, native cost-stress, detailed and controlled percentage-risk child
+reports; workflow Monte Carlo; dependent Prop Sim/portfolio records; their unused
+independent phase packages and unshared analysis files. Downloads in deleted
+report directories are removed too. The current numerical version is not required
+for deleting an old workflow: this is metadata/ownership cleanup, not a rerun.
 
-Focused verification: four API/storage checks, the existing mechanics lifecycle
-regression, two real browser journeys and the existing main-navigation journey
-(eight checks). Temporary browser servers stop in fixture teardown. Run:
+Other workflows using the same dataset remain linked and retain their own files.
+Reports used by surviving workflows, batches, research campaigns, analyses or
+monitors are preserved with their transitive source/stress evidence. Running or
+queued work, active detail generation and unfinished automation block deletion.
+Forward-monitor/procedure dependencies that retain a downstream package also
+block it; the preview identifies the dependency instead of silently removing it.
+
+Original datasets, strategy code, shared market/replay caches, research plans,
+price/outcome access history and manual OOS execution counts are retained. Deletion
+never makes previously accessed OOS data untouched. Minimal receipts/tombstones
+retain IDs, membership/counts, file names and cleanup state; they do not retain
+trade tables, metric outputs, declarations or frozen phase packages as another
+result store. Deleted phase/simulation IDs cannot be reused. This is application
+file deletion, not forensic erasure of backups or disk blocks.
+
+## API and recovery
+
+`POST /api/campaign-dataset-links/preview` requires:
+
+```json
+{
+  "strategy_id": "vwap_pullback_risk_sizing",
+  "source": {
+    "sha256": "<64 lowercase hex characters>",
+    "source_timezone": "America/New_York",
+    "source_kind": "native"
+  },
+  "workflow_id": "<32 lowercase hex characters>"
+}
+```
+
+Use `group_id` (64 hex characters) instead of `workflow_id` for a legacy
+saved-results group. Exactly one target is required; source-only, campaign-only
+and mixed-scope requests reject. `DELETE /api/campaign-dataset-links` requires
+that same body plus the preview's `confirmation_sha256`. Changed membership,
+files, dependencies or state require a fresh preview. Repeating a successful
+DELETE with its exact target/token retries cleanup safely without deleting new
+workflows created later.
+
+The existing backtest and AnalysisStore catalogues participate in a single SQLite
+ATTACH transaction with rollback journals. WAL/in-memory journal modes reject
+before files are moved. A durable prepare record precedes renaming owned report
+folders into private staging. SQL/filesystem failure rolls back catalogue changes
+and restores moved folders. Startup restores pre-commit staging; committed cleanup
+is retried after a crash or through **Retry file cleanup**. Symbolic-link report
+folders reject. Only canonical report UUIDs below the owned report roots can be
+removed; manifest-provided source paths are never deletion targets.
+
+## Verification
+
+Run only the affected checks:
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_campaign_dataset_links.py
+.venv/bin/python -m pytest -q tests/test_campaign_dataset_links.py tests/test_prop_sim_deletion.py
 ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q tests/test_campaign_dataset_links_browser.py
 ```
 
-Saved synthetic product evidence is under
-`artifacts/campaign-dataset-links-20261115/`: screenshots and retention hashes in
-`workflow-link/`, legacy-list persistence/relink evidence in `legacy-link/`, and
-the idle-only portal application record. Reproduce by opening a synthetic
-campaign dataset, cancelling removal once, confirming it, using Undo, removing
-again, reloading, and restoring through Removed datasets. The campaign remains
-listed and the original dataset, workflow, report and file hashes stay unchanged.
-
-The user validation job `6ac1127dcf03420687757192e2dbbbcf` was allowed to finish
-before application. The port-8000 portal restarted with no interrupted jobs;
-all nine completed-job file hashes stayed unchanged. Persistent server PID:
-`79681`; stop with `kill 79681`.
+The native mechanics and Broad reports are real backtest outputs over explicitly
+synthetic input prices. Downstream graph fixtures are labelled metadata-only and
+make no prop numerical or qualification claim. Tests cover two same-dataset
+workflows, shared report/analysis ownership, OOS access retention, real Broad-grid
+cleanup, controlled-child ownership, stale previews, cancellation, blockers,
+transaction rollback, crash recovery, cleanup retry and mobile/reload persistence.
+Temporary browser servers stop in fixture teardown. Evidence and reproduction:
+`artifacts/workflow-deletion-20261116/README.md`.

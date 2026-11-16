@@ -1,0 +1,17 @@
+{
+  "base_commit": "cbb542b9cf623b0b6c5009efdaffd7febc52b8fc",
+  "synthetic": true,
+  "backend_checks": 25,
+  "browser_checks": 4,
+  "temporary_browser_servers_stopped": true,
+  "scope": "one explicit workflow or legacy saved-results group",
+  "same_dataset_other_workflow_preserved": true,
+  "shared_report_and_other_workflow_prop_sim_preserved": true,
+  "native_controlled_children_included": true,
+  "hyphenated_uuid_configuration_verified": true,
+  "oos_access_history_preserved": true,
+  "rollback_crash_recovery_and_cleanup_retry_verified": true,
+  "source_wide_delete_rejected": true,
+  "original_datasets_and_campaign_definitions_preserved": true,
+  "live_user_deletions_executed": false
+}

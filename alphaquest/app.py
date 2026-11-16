@@ -98,6 +98,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.mechanic_stops = {}
         app.state.backtest_stops = {}
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
+        from .campaign_dataset_links import CampaignDatasetLinks
+        app.state.campaign_dataset_links=CampaignDatasetLinks(app.state.runs,app.state.prop_analyses)
         from .research_access import ResearchAccess
         app.state.research_access=ResearchAccess(app.state.prop_analyses,fresh_scope=fresh_scope)
         app.state.store.research_access=app.state.research_access
@@ -116,8 +118,6 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         from .research_workspace import ResearchWorkspace
         app.state.research_workspace = ResearchWorkspace(app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
-        from .campaign_dataset_links import CampaignDatasetLinks
-        app.state.campaign_dataset_links=CampaignDatasetLinks(app.state.runs)
         app.state.progress = ProgressTracker()
         from .prop_sim_automation import PropSimAutomation
         app.state.prop_sim_automation=PropSimAutomation(app)

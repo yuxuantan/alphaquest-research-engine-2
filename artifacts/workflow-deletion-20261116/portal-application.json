@@ -1,0 +1,9 @@
+{
+  "port": 8000,
+  "pid": 19312,
+  "protected_workflows_unchanged": 2,
+  "protected_files_unchanged": 17,
+  "user_workflows_deleted": 0,
+  "new_ui_served": true,
+  "live_preview_targets_one_workflow": true
+}

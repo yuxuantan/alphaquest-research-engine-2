@@ -2148,3 +2148,14 @@ dialog::backdrop {
 .tick-roll-box { margin:1.5rem; padding:1.25rem; }
 .tick-roll-box > summary { cursor:pointer; font-weight:600; }
 .tick-roll-box label { display:block; margin:.8rem 0; }
+
+.workflow-delete-dialog { width:min(720px,calc(100vw - 32px)); max-height:85vh; overflow:auto; border:1px solid var(--border,#dce3e8); border-radius:16px; padding:24px; color:var(--text,#1d2c35); }
+.workflow-delete-dialog::backdrop { background:rgba(20,35,45,.45); }
+.workflow-delete-dialog h2 { margin-top:0; }
+.workflow-delete-dialog details { margin:12px 0; padding:12px; border:1px solid var(--border,#dce3e8); border-radius:8px; }
+.workflow-delete-dialog li { overflow-wrap:anywhere; margin:6px 0; }
+.workflow-delete-dialog a { overflow-wrap:anywhere; }
+.workflow-delete-consent { display:flex; align-items:flex-start; gap:12px; margin:20px 0; }
+.workflow-delete-consent input { flex:0 0 auto; width:18px; height:18px; margin-top:3px; }
+.workflow-delete-blockers { padding:12px; background:#fff3df; border-radius:8px; }
+.workflow-delete-dialog .workflow-link-actions { justify-content:flex-end; flex-wrap:wrap; }

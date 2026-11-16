@@ -410,7 +410,6 @@ async def create(body: CreateWorkflow, request: Request):
                            engine_identity=engine_identity(), execution_settings=json.loads(json.dumps(asdict(config), default=str)),
                            plan=plan, market_benchmark=body.market_benchmark.model_dump())
         saved=request.app.state.campaign_workflows.create(declaration)
-        request.app.state.campaign_dataset_links.relink(body.strategy_id,snapshot)
         return saved
     try:
         saved = await run_in_threadpool(prepare)

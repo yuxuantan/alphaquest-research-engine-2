@@ -12540,3 +12540,32 @@ mechanics → IS Broad → backtest report review is
 and 1.00 commission per side. These are modeled results on labeled synthetic data,
 not a new qualified campaign or prop GO. Fixed-source historical prop reports keep
 their captured path/risk identity; no existing dataset, backtest or report is changed.
+
+
+## 2026-11-16 — permanent deletion scoped to an individual workflow
+
+The staged November 15 source-family cleanup was recovered and changed to require
+one explicit workflow ID (or a legacy saved-results group). Campaign cards now
+show creation dates and saved versions. On **Campaigns → a dataset workflow →
+Delete workflow and results…**, the preview lists every affected workflow/batch,
+report/file and downstream Prop Sim/portfolio analysis, plus shared evidence kept.
+The destructive confirmation is disabled until acknowledged; running work blocks
+it. Only the selected workflow is removed, even when another card references the
+identical uploaded dataset. There is no reversible unlink, Undo or Restore.
+
+The normal-product browser journey creates two workflows on the same synthetic
+native source, runs mechanics in both, cancels deletion once, deletes one, reloads
+and verifies the other's complete file hashes. Further journeys show legacy saved
+results, running-job blockers and an explicit downstream cascade. The dependency
+graph files are marked test metadata; they do not claim simulated economic results.
+A native Broad-grid API journey verifies removal of actual phase reports and jobs.
+Controlled percentage/OOS child backtests are included through their owning
+analyses. Shared owners retain complete source/stress dependencies; original raw
+datasets, campaign definitions and research/OOS access history remain.
+
+Both existing catalogues commit together; pre-commit file staging rolls back or
+recovers on startup, and post-commit cleanup can be retried. Minimal package ID
+tombstones prevent accidental reuse without retaining deleted metric/frozen output.
+Inspect `docs/campaign_dataset_links.md` and the saved browser/verification outputs
+under `artifacts/workflow-deletion-20261116/`. No user workflow or saved analysis is
+deleted when installing this increment.
