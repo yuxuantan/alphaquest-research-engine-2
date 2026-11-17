@@ -115,7 +115,7 @@
             const title=node('h2','Permanently delete workflow and results');title.id='workflow-delete-title';
             dialog.append(title,node('p',`${campaign.name} · ${preview.dataset_name}`),node('p',preview.workflow_id?`Selected workflow: ${preview.workflow_id}`:'Selected saved-results group'),node('p',preview.interpretation));
             const summary=node('ul');
-            for(const text of [`${preview.workflow_ids.length} workflow(s), including their reviews and frozen selections`,`${preview.job_ids.length} backtest batch(es) and ${preview.run_ids.length} backtest report(s)`,`${preview.simulation_ids.length} downstream Prop Sim / portfolio simulation(s) and ${preview.phase_campaign_ids.length} phase package(s)`,`${preview.analysis_ids.length} Monte Carlo / prop report(s)`,`${preview.file_count} files · ${(preview.bytes/1024/1024).toFixed(2)} MB`])summary.append(node('li',text));
+            for(const text of [`${preview.workflow_ids.length} workflow(s), including their reviews and frozen selections`,`${preview.job_ids.length} backtest batch(es) and ${preview.run_ids.length} backtest report(s)`,`${preview.simulation_ids.length} downstream Prop Sim / portfolio simulation(s) and ${preview.phase_campaign_ids.length} phase package(s)`,`${(preview.research_studies||[]).length} dependent research ${(preview.research_studies||[]).length===1?'study':'studies'}`,`${preview.analysis_ids.length} Monte Carlo / prop / research report(s)`,`${preview.file_count} files · ${(preview.bytes/1024/1024).toFixed(2)} MB`])summary.append(node('li',text));
             dialog.append(summary);
             const detail=(label,items,href)=>{
               if(!items.length)return;
@@ -124,6 +124,14 @@
             };
             detail('Affected workflows',preview.workflow_ids,value=>`#campaigns/workflows/${value}/mechanic_validation`);
             detail('Downstream simulations that will also be deleted',preview.simulation_ids,value=>`#prop-sim?analysis=${value}`);
+            if(preview.research_studies?.length){
+              const box=node('details');box.append(node('summary','Dependent research studies that will also be deleted'));const list=node('ul');
+              for(const study of preview.research_studies){
+                const row=node('li'),text=`${study.name} · ${study.status} · ${study.saved_steps} saved steps · created ${study.created_at_utc.slice(0,10)} · ${study.id}`;
+                if(study.analysis_id)action(row,text,`#backtests/prop/job/${study.analysis_id}`);else row.textContent=text;
+                list.append(row);
+              }box.append(list,node('p','These saved study plans, checkpoints and unshared results will be removed. Shared reports and research-access history are retained.','muted small'));dialog.append(box);
+            }
             detail('Backtest batches',preview.job_ids,value=>`#jobs/backtest_batch/${value}`);
             detail('Backtest reports',preview.run_ids,value=>`#backtests/report/${value}`);
             detail('Monte Carlo / prop reports',preview.analysis_ids,value=>`#jobs/prop_analysis/${value}`);
@@ -136,7 +144,7 @@
               for(const item of preview.blockers){const line=node('p',item.message);if(item.href)action(line,' Open dependency →',item.href);blocked.append(line);}dialog.append(blocked);
             }
             const consent=node('label',undefined,'workflow-delete-consent'),check=node('input');check.type='checkbox';
-            consent.append(check,node('span','I understand that the selected workflow or saved-results group, listed downstream simulations and unshared results will be permanently deleted. There is no Undo.'));dialog.append(consent);
+            consent.append(check,node('span','I understand that the selected workflow or saved-results group, listed downstream research studies, simulations and unshared results will be permanently deleted. There is no Undo.'));dialog.append(consent);
             const status=node('p',undefined,'small');status.setAttribute('role','status');dialog.append(status);
             const buttons=node('div',undefined,'workflow-link-actions'),cancel=node('button','Cancel','button secondary'),confirm=node('button','Permanently delete','button danger');
             cancel.type=confirm.type='button';confirm.disabled=true;check.onchange=()=>{confirm.disabled=!check.checked||!preview.deletable;};cancel.onclick=()=>dialog.close();

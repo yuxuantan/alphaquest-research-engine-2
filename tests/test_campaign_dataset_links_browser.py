@@ -8,7 +8,7 @@ from research_fixtures import ResearchHTTPClient
 from test_backtests_browser import browser,page,portal,playwright
 from test_campaign_mechanics import create_workflow,run_validation
 from test_research_workflow import save,start_is
-from test_campaign_dataset_links import seed_family
+from test_campaign_dataset_links import seed_family,seed_nested_study
 
 
 def evidence(tmp_path,name,data):
@@ -109,3 +109,36 @@ def test_downstream_simulations_explicit_in_preview_and_cascade(page,portal,tmp_
         assert client.get('/api/prop-sim/'+sim['id']).status_code==404
         assert all(not (portal['app'].state.prop_analyses.root/aid).exists() for aid in analyses.values())
         evidence(tmp_path,'downstream-cascade',dict(synthetic=True,metadata_graph_only=True,real_mechanics_run=True,workflow_id=w['id'],simulation_id=sim['id'],analysis_ids=analyses,downstream_listed_before_confirmation=True,unshared_files_removed=True))
+
+
+def test_dependent_nested_study_preview_cancel_confirm_and_reload(page,portal,tmp_path):
+    with ResearchHTTPClient(base_url=portal['url'],timeout=120) as client:
+        client.app=portal['app']
+        dataset,config,w=create_workflow(client);result=run_validation(client,w)
+        id,aid=seed_nested_study(client,w,result)
+        folder=portal['app'].state.prop_analyses.root/aid
+        page.goto(portal['url']+'/#campaigns/'+config['strategy_id'])
+        button=page.get_by_role('button',name=f'Delete workflow {w["id"][:8]} for {dataset["name"]}',exact=True)
+        button.click();dialog=page.get_by_role('dialog',name='Permanently delete workflow and results')
+        playwright.expect(dialog).to_contain_text('1 dependent research study')
+        dialog.get_by_text('Dependent research studies that will also be deleted',exact=True).click()
+        playwright.expect(dialog).to_contain_text('SYNTHETIC dependent nested study')
+        playwright.expect(dialog.get_by_role('link').filter(has_text=id)).to_have_attribute('href','#backtests/prop/job/'+aid)
+        playwright.expect(dialog.get_by_role('button',name='Permanently delete',exact=True)).to_be_disabled()
+        dialog.screenshot(path=str(tmp_path/'nested-study-preview.png'))
+        dialog.get_by_role('button',name='Cancel',exact=True).click()
+        assert folder.exists()
+        with portal['app'].state.prop_analyses.connect() as db:assert db.execute('SELECT 1 FROM robust_research WHERE id=?',(id,)).fetchone()
+        button.click();dialog.get_by_role('checkbox').check()
+        dialog.get_by_role('button',name='Permanently delete',exact=True).click()
+        playwright.expect(dialog).to_have_count(0)
+        assert not folder.exists() and client.get('/api/research-campaigns/robust/'+id).status_code==404
+        assert client.get('/api/datasets/'+dataset['id']).status_code==200
+        assert any(c['id']==config['strategy_id'] for c in client.get('/api/strategies/library').json()['items'])
+        page.reload();playwright.expect(page.locator(f'[data-workflow-id="{w["id"]}"]')).to_have_count(0)
+        page.set_viewport_size(dict(width=390,height=844))
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+        evidence(tmp_path,'nested-study-cascade',dict(synthetic=True,metadata_graph_only=True,real_mechanics_run=True,
+            workflow_id=w['id'],research_study_id=id,analysis_id=aid,study_name_and_report_link_visible=True,
+            cancel_preserves_study=True,confirmation_required=True,study_checkpoints_and_unshared_files_removed=True,
+            dataset_and_campaign_preserved=True,reload_persistent=True,temporary_server='Stopped by fixture teardown'))

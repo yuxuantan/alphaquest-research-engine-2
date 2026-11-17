@@ -217,11 +217,44 @@ class CampaignDatasetLinks:
         analysis_sources=rows('prop.analysis_sources')
         analysis_ids.update(r[0] for r in analysis_sources if r[1] in candidates)
         analysis_ids.update(id for id,r in analysis_rows.items() if r[2] in candidates)
+        # Nested studies are explicit downstream owners, not undeletable locks.
+        # Use real source/step edges, never historical prior_access inventories:
+        # merely observing another report must not select its entire study.
+        studies={r[0]:r for r in rows('prop.robust_research')}
+        study_steps={id:[] for id in studies}
+        for row in rows('prop.robust_research_steps'):
+            study_steps.setdefault(row[0],[]).append(row)
+        study_refs={};study_outputs={};study_analyses={}
+        for id,row in studies.items():
+            declaration=json.loads(row[2]);plan=json.loads(row[3])
+            refs=references(declaration.get('source_backtest_id')) | references(declaration.get('sources',[]))
+            refs.update(reference_id(c.get('source_backtest_id')) for c in plan.get('candidates',[]))
+            refs.update(rid for cid,rid in rows('prop.campaign_sources') if cid==id)
+            refs.update(jid for cid,jid in rows('prop.campaign_jobs') if cid==id)
+            aids={aid for cid,aid in campaign_analyses if cid==id}
+            if row[4]:aids.add(row[4])
+            outputs={rid for rid,r in runs.items() if reference_id(r.get('run_metadata',{}).get('research',{}).get('campaign_id'))==id}
+            for step in study_steps.get(id,[]):
+                payload=json.loads(step[2])
+                if payload.get('kind','backtest')=='phase_analysis' and payload.get('analysis_id'):
+                    aids.add(reference_id(payload['analysis_id']))
+                for phase in payload.get('result',{}).get('phases',[]):
+                    if phase.get('analysis_id'):aids.add(reference_id(phase['analysis_id']))
+                for baseline in payload.get('result',{}).get('baseline_results',[]):
+                    if baseline.get('analysis_id'):aids.add(reference_id(baseline['analysis_id']))
+            study_refs[id]=refs | aids | outputs
+            study_outputs[id]=outputs;study_analyses[id]=aids
+        study_ids=set()
         # Native percentage/OOS assessments publish controlled backtests in the
         # normal RunStore. Include those owned outputs, not just their source
         # reports, and follow any analyses of those outputs to a fixed point.
         while True:
-            before=(len(candidates),len(analysis_ids))
+            before=(len(candidates),len(analysis_ids),len(study_ids))
+            for id,refs in study_refs.items():
+                if refs & (candidates | analysis_ids | job_ids | campaign_ids | sim_ids | selected):
+                    study_ids.add(id)
+            for id in study_ids:
+                candidates.update(study_outputs[id]);analysis_ids.update(study_analyses[id] & analysis_rows.keys())
             for id,r in runs.items():
                 meta=r.get('run_metadata',{});research=meta.get('research') or {}
                 control=meta.get('native_account_control') or r.get('native_account_control') or {}
@@ -233,7 +266,8 @@ class CampaignDatasetLinks:
                     candidates.add(id)
             analysis_ids.update(aid for aid,rid in analysis_sources if rid in candidates)
             analysis_ids.update(id for id,r in analysis_rows.items() if r[2] in candidates)
-            if before==(len(candidates),len(analysis_ids)):break
+            if before==(len(candidates),len(analysis_ids),len(study_ids)):break
+        owner_ids=campaign_ids | study_ids
         groups.update(r[1] for r in rows('library_runs') if r[0] in candidates)
         # External owners keep shared evidence. Never recursively delete an
         # unrelated research campaign, another dataset workflow or live monitor.
@@ -245,13 +279,15 @@ class CampaignDatasetLinks:
             for rid,r in runs.items():
                 if rid not in candidates and id in run_refs[rid]:keep(keep_analyses,id,f'Saved backtest {rid}')
             for cid,aid in campaign_analyses:
-                if aid==id and cid not in campaign_ids:keep(keep_analyses,id,f'Research campaign {cid}')
+                if aid==id and cid not in owner_ids:keep(keep_analyses,id,f'Research campaign {cid}')
             for row in campaign_rows:
                 if row[4]==id and row[0] not in campaign_ids:keep(keep_analyses,id,f'Research campaign {row[0]}')
             for aid,wid,_ in sanity:
                 if aid==id and wid not in selected:keep(keep_analyses,id,f'Workflow {wid}')
             for sid,s in sims.items():
                 if sid not in sim_ids and id in references(s):keep(keep_analyses,id,f'Prop Sim {sid}')
+            for sid,refs in study_refs.items():
+                if sid not in study_ids and id in refs:keep(keep_analyses,id,f'Nested research {sid}')
             for table in ('forward_report_refs','forward_assessments'):
                 for r in rows('prop.'+table):
                     if id in r:keep(keep_analyses,id,f'Forward monitor {r[0]}')
@@ -269,7 +305,7 @@ class CampaignDatasetLinks:
             for wid,pins in workflow_pins.items():
                 if wid not in selected and id in pins:keep(keep_runs,id,f'Workflow {wid}')
             for cid,rid in rows('prop.campaign_sources'):
-                if rid==id and cid not in campaign_ids:keep(keep_runs,id,f'Research campaign {cid}')
+                if rid==id and cid not in owner_ids:keep(keep_runs,id,f'Research campaign {cid}')
             for monitor,rid in rows('prop.forward_source_refs'):
                 if rid==id:keep(keep_runs,id,f'Forward monitor {monitor}')
             for aid,rid in analysis_sources:
@@ -278,6 +314,7 @@ class CampaignDatasetLinks:
                 if r[2]==id and (aid not in analysis_ids or aid in keep_analyses):keep(keep_runs,id,f'Prop analysis {aid}')
         for table in ('research_procedures','research_procedure_applications','robust_research','robust_research_steps'):
             for row in rows('prop.'+table):
+                if table in ('robust_research','robust_research_steps') and row[0] in study_ids:continue
                 refs=set()
                 for value in row:
                     if isinstance(value,str):
@@ -314,14 +351,15 @@ class CampaignDatasetLinks:
         # These owners have live/research semantics outside this cleanup action.
         for table in ('research_procedures','research_procedure_applications','robust_research','robust_research_steps','forward_monitors','lifecycle_comparisons'):
             for r in rows('prop.'+table):
+                if table in ('robust_research','robust_research_steps') and r[0] in study_ids:continue
                 refs=set()
                 for v in r:
                     if isinstance(v,str):
                         try:refs.update(references(json.loads(v)))
                         except (ValueError,TypeError):refs.add(v)
-                if refs & (campaign_ids | sim_ids | job_ids | selected | analysis_ids):block(table,r[0],f'{table} {r[0]} retains a downstream package. Remove that dependency first.')
+                if refs & (owner_ids | sim_ids | job_ids | selected | analysis_ids):block(table,r[0],f'{table} {r[0]} retains a downstream package. Remove that dependency first.')
         for cid,jid in rows('prop.campaign_jobs'):
-            if jid in job_ids and cid not in campaign_ids:block('research_campaign',cid,'A separate research campaign retains this backtest batch.',f'#backtests/prop/campaign/{cid}')
+            if jid in job_ids and cid not in owner_ids:block('research_campaign',cid,'A separate research campaign retains this backtest batch.',f'#backtests/prop/campaign/{cid}')
         run_ids=sorted(candidates-keep_runs.keys());delete_analyses=sorted(analysis_ids-keep_analyses.keys())
         files=[]
         for kind,root,ids in [('backtest',self.runs.root,run_ids),('analysis',self.analyses.root,delete_analyses)]:
@@ -335,16 +373,23 @@ class CampaignDatasetLinks:
         # Bind confirmation to frozen packages, dependencies and result membership.
         for table,ids,index in [('campaign_workflows',selected,0),('runs',candidates,0),('optimizations',job_ids,0),('prop.workflow_prop_simulations',sim_ids,0),('prop.research_campaigns',campaign_ids,0),('prop.analyses',analysis_ids,0)]:
             snapshots.extend([table,list(r)] for r in rows(table) if r[index] in ids)
+        for table in ('robust_research','robust_research_steps','campaign_sources','campaign_jobs','campaign_analyses'):
+            snapshots.extend(['prop.'+table,list(r)] for r in rows('prop.'+table) if r[0] in study_ids)
         dataset=next((workflows[id]['declaration']['dataset'] for id in sorted(selected)),None)
         if dataset is None:dataset=next((runs[id]['run_metadata']['dataset'] for id in sorted(candidates)),{})
         result=dict(strategy_id=strategy_id,source=source,source_key=key,workflow_id=workflow_id,group_id=group_id,
             dataset_name=dataset.get('name','Saved dataset'),retained_jobs=retained_jobs,
             workflow_ids=sorted(selected),group_ids=sorted(groups),job_ids=sorted(job_ids),run_ids=run_ids,
             simulation_ids=sorted(sim_ids),phase_campaign_ids=sorted(campaign_ids),analysis_ids=delete_analyses,
+            research_study_ids=sorted(study_ids),
+            research_studies=[dict(id=id,name=json.loads(studies[id][2]).get('name','Nested research'),
+                created_at_utc=studies[id][1],analysis_id=studies[id][4],
+                status=analysis_rows[studies[id][4]][4] if studies[id][4] in analysis_rows else 'planned',
+                saved_steps=len(study_steps.get(id,[]))) for id in sorted(study_ids)],
             retained_runs=[dict(id=id,reasons=sorted(reasons)) for id,reasons in sorted(keep_runs.items())],
             retained_analyses=[dict(id=id,reasons=sorted(reasons)) for id,reasons in sorted(keep_analyses.items())],
             files=files,file_count=len(files),bytes=sum(f['bytes'] for f in files),blockers=blockers,deletable=not blockers,
-            interpretation='Permanently delete only the selected workflow (or saved-results group), its unshared phase evidence and the listed downstream Prop Sim/portfolio analyses. Other workflows using this dataset remain. Original datasets, campaign definitions, shared evidence and research-access history stay intact. There is no Undo.')
+            interpretation='Permanently delete only the selected workflow (or saved-results group), its unshared phase evidence and the listed downstream research studies and Prop Sim/portfolio analyses. Other workflows using this dataset remain. Original datasets, campaign definitions, shared evidence and research-access history stay intact. There is no Undo.')
         result['confirmation_sha256']=fingerprint([result,snapshots])
         return result
 
@@ -397,7 +442,8 @@ class CampaignDatasetLinks:
                          workflow_deletion=p['source_key'])
             db.execute('INSERT OR IGNORE INTO prop.workflow_prop_sim_deletions VALUES (?,?,?)',
                        (sid,stamp,json.dumps(dict(receipt=receipt))))
-        for cid in p['phase_campaign_ids']:
+        study_ids=p.get('research_study_ids',[])
+        for cid in p['phase_campaign_ids']+study_ids:
             receipt=dict(campaign_id=cid,deleted=True,deletable=False,deleted_at_utc=stamp,
                          confirmation_sha256=p['confirmation_sha256'],blockers=[],retained_analyses=[],
                          source_reference_count=0,workflow_deletion=p['source_key'])
@@ -408,7 +454,9 @@ class CampaignDatasetLinks:
         delete('prop.workflow_prop_sim_phases','simulation_id',p['simulation_ids'])
         delete('prop.workflow_prop_simulations','id',p['simulation_ids'])
         for table in ('campaign_sources','campaign_jobs','campaign_analyses','campaign_assessments'):
-            delete('prop.'+table,'campaign_id',p['phase_campaign_ids'])
+            delete('prop.'+table,'campaign_id',p['phase_campaign_ids']+study_ids)
+        delete('prop.robust_research_steps','campaign_id',study_ids)
+        delete('prop.robust_research','id',study_ids)
         delete('prop.research_campaigns','id',p['phase_campaign_ids'])
         delete('prop.campaign_sanity_jobs','workflow_id',p['workflow_ids'])
         for table,column in [('calculation_reuse','id'),('analysis_report_checks','id'),('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analyses','id')]:

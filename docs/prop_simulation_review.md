@@ -12649,3 +12649,24 @@ or a passing result. Provider parity and live readiness are not claimed.
 Numerical identities include the new contract/adapters. Existing sealed results
 are preserved. A source whose strategy implementation differs must be regenerated
 before a new native execution; earlier reports are not silently recertified.
+
+## 2026-11-17: dependent research-study deletion preview
+
+Campaign dataset/result deletion now explicitly lists dependent nested-research
+studies and removes their study records, checkpoints and unshared generated
+reports in the existing cross-catalogue cleanup transaction. Surviving Prop Sim,
+phase, workflow and live owners retain their shared evidence. Original strategy
+definitions, datasets and research/OOS-access history remain. Running research,
+stale previews and frozen-procedure/live bindings still block deletion.
+
+Normal product reproduction: Campaigns → intended dataset workflow or legacy
+saved-results card → Delete → expand **Dependent research studies that will also
+be deleted**. Expect name, date, state, checkpoint count, ID and report link.
+Cancel preserves all evidence; permanent deletion requires the existing explicit
+checkbox and confirmation. Reload confirms removal without losing the dataset
+or strategy. `tests/test_campaign_dataset_links.py` includes a real completed
+nested study and access-retention check; its browser journey is in
+`test_campaign_dataset_links_browser.py`. Screenshots and the real user's
+inspection-only preview are saved in
+`artifacts/dependent-research-deletion-20261117/`. User data was not deleted to
+demonstrate this feature, and temporary browser servers stop in fixture teardown.

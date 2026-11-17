@@ -199,6 +199,8 @@ def test_busy_work_and_forward_binding_block_entire_delete(client,kind):
 def test_cross_catalogue_rollback_file_cleanup_retry_and_crash_recovery(client,monkeypatch):
     import shutil
     _,config,w,result,batches,sim,analyses=seed_family(client)
+    study,study_analysis=seed_nested_study(client,w,result)
+    analyses['nested_research']=study_analysis
     runs=client.app.state.runs;owner=client.app.state.campaign_dataset_links;store=client.app.state.prop_analyses
     body,p=preview(client,w)
     with runs.connect() as db:
@@ -206,6 +208,7 @@ def test_cross_catalogue_rollback_file_cleanup_retry_and_crash_recovery(client,m
     assert remove(client,body,p).status_code==409
     assert client.get('/api/campaign-workflows/'+w['id']).status_code==200 and client.get('/api/prop-sim/'+sim['id']).status_code==200
     assert (runs.root/result['run_id']).exists() and all((store.root/id).exists() for id in analyses.values())
+    with store.connect() as db:assert db.execute('SELECT 1 FROM robust_research WHERE id=?',(study,)).fetchone()
     with runs.connect() as db:db.execute('DROP TRIGGER fail_delete')
     original=shutil.rmtree
     def fail(path,*args,**kwargs):
@@ -215,6 +218,7 @@ def test_cross_catalogue_rollback_file_cleanup_retry_and_crash_recovery(client,m
     deleted=remove(client,body,p);assert deleted.status_code==200,deleted.text
     assert deleted.json()['cleanup_pending']
     assert client.get('/api/prop-sim/'+sim['id']).status_code==404
+    with store.connect() as db:assert not db.execute('SELECT 1 FROM robust_research WHERE id=?',(study,)).fetchone()
     monkeypatch.setattr(shutil,'rmtree',original)
     # Startup recovery finishes committed physical cleanup without reintroducing evidence.
     owner.recover();assert remove(client,body,p).json()['cleanup_pending']==[]
@@ -382,3 +386,110 @@ def test_wal_catalogue_rejects_before_any_files_move(client):
         source=identity(w['declaration']['dataset']),workflow_id=w['id']))
     assert response.status_code==409 and 'rollback-journal' in response.text
     assert before=={p.name:sha256(p.read_bytes()).hexdigest() for p in folder.iterdir() if p.is_file()}
+
+
+def seed_nested_study(client,workflow,result,*,status='complete'):
+    """Metadata-only dependency graph over real mechanics evidence, no numerical claim."""
+    id,aid=uuid4().hex,uuid4().hex
+    store=client.app.state.prop_analyses
+    declaration=dict(name='SYNTHETIC dependent nested study',source_backtest_id=result['run_id'],sources=[dict(backtest_id=result['run_id'])])
+    with store.connect() as db:
+        db.execute('INSERT INTO robust_research VALUES (?,?,?,?,?,0)',(id,'2026-11-17',json.dumps(declaration),'{}',aid))
+        db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,NULL)',(aid,uuid4().hex,result['run_id'],'2026-11-17',status,'SYNTHETIC dependency graph only'))
+        db.execute('INSERT INTO campaign_sources VALUES (?,?)',(id,result['run_id']))
+        db.execute('INSERT INTO campaign_analyses VALUES (?,?)',(id,aid))
+        db.execute('INSERT INTO analysis_sources VALUES (?,?)',(aid,result['run_id']))
+        db.execute('INSERT INTO robust_research_steps VALUES (?,?,?)',(id,'fixture',json.dumps(dict(kind='fixture_only',label='No numerical result'))))
+    folder=store.root/aid;folder.mkdir();(folder/'fixture.txt').write_text('SYNTHETIC ownership fixture; no numerical research claim.')
+    return id,aid
+
+
+def test_real_nested_research_cascade_preserves_access_and_prevents_id_reuse(client):
+    from test_robust_research_api import PREFIX,save_grid,declaration,save,run
+    dataset,job,reports=save_grid(client)
+    request=declaration(job,reports)
+    study=save(client,request);complete=run(client,study['campaign_id'])
+    id=study['campaign_id'];store=client.app.state.prop_analyses
+    with store.connect() as db:
+        before_access=db.execute('SELECT * FROM research_access_intervals ORDER BY id').fetchall()
+        generated={rid for rid, in db.execute('SELECT source_id FROM campaign_sources WHERE campaign_id=?',(id,))}-{r['id'] for r in reports}
+    assert generated and before_access
+    body,p=preview(client,dict(declaration=dict(strategy_id='consecutive_green_hold',dataset=reports[0]['run_metadata']['dataset'])))
+    assert p['deletable'] and p['research_study_ids']==[id]
+    assert p['research_studies'][0]['name']==request['name'] and p['research_studies'][0]['status']=='complete'
+    assert generated<=set(p['run_ids']) and complete['analysis_id'] in p['analysis_ids']
+    assert remove(client,body,p).status_code==200
+    assert client.get(PREFIX+'/'+id).status_code==404
+    assert client.post(PREFIX,json=request).status_code==409
+    assert client.get('/api/datasets/'+dataset['id']).status_code==200
+    with store.connect() as db:
+        assert db.execute('SELECT * FROM research_access_intervals ORDER BY id').fetchall()==before_access
+        assert not db.execute('SELECT 1 FROM robust_research_steps WHERE campaign_id=?',(id,)).fetchone()
+        assert not db.execute('SELECT 1 FROM campaign_sources WHERE campaign_id=?',(id,)).fetchone()
+    assert not (store.root/complete['analysis_id']).exists()
+
+
+@pytest.mark.parametrize('change',['checkpoint','plan','running'])
+def test_nested_study_changes_or_running_work_invalidate_confirmation(client,change):
+    _,_,w=create_workflow(client);result=run_validation(client,w)
+    id,aid=seed_nested_study(client,w,result)
+    body,p=preview(client,w);assert p['deletable'] and p['research_study_ids']==[id]
+    store=client.app.state.prop_analyses
+    with store.connect() as db:
+        if change=='checkpoint':db.execute('UPDATE robust_research_steps SET payload=? WHERE campaign_id=?',(json.dumps(dict(kind='fixture_only',value='changed')),id))
+        elif change=='plan':db.execute('UPDATE robust_research SET plan=? WHERE id=?',(json.dumps(dict(changed=True)),id))
+        else:db.execute("UPDATE analyses SET status='running' WHERE id=?",(aid,))
+    assert remove(client,body,p).status_code==409
+    assert client.get('/api/campaign-workflows/'+w['id']).status_code==200
+    assert (store.root/aid).exists()
+    if change=='running':
+        _,fresh=preview(client,w)
+        assert not fresh['deletable'] and any(b['id']==aid for b in fresh['blockers'])
+
+
+def test_shared_nested_report_and_source_are_kept_while_study_owner_is_removed(client):
+    _,_,w=create_workflow(client);result=run_validation(client,w)
+    id,aid=seed_nested_study(client,w,result);store=client.app.state.prop_analyses
+    external=uuid4().hex
+    with store.connect() as db:
+        db.execute('INSERT INTO research_campaigns VALUES (?,?,?,?,?,NULL)',(external,'2026-11-17','{}','{}',aid))
+        db.execute('INSERT INTO campaign_analyses VALUES (?,?)',(external,aid))
+        db.execute('INSERT INTO campaign_sources VALUES (?,?)',(external,result['run_id']))
+    before=(store.root/aid/'fixture.txt').read_bytes()
+    body,p=preview(client,w)
+    assert p['research_study_ids']==[id] and aid not in p['analysis_ids'] and result['run_id'] not in p['run_ids']
+    assert remove(client,body,p).status_code==200
+    with store.connect() as db:
+        assert not db.execute('SELECT 1 FROM robust_research WHERE id=?',(id,)).fetchone()
+        assert db.execute('SELECT 1 FROM research_campaigns WHERE id=?',(external,)).fetchone()
+    assert (store.root/aid/'fixture.txt').read_bytes()==before
+    assert client.get('/api/backtests/'+result['run_id']).status_code==200
+
+
+def test_historical_access_inventory_does_not_select_unrelated_study(client):
+    _,_,w=create_workflow(client);result=run_validation(client,w)
+    id=uuid4().hex;store=client.app.state.prop_analyses
+    with store.connect() as db:
+        db.execute('INSERT INTO robust_research VALUES (?,?,?,?,NULL,0)',(id,'2026-11-17',json.dumps(dict(name='Independent study',source_backtest_id=uuid4().hex)),json.dumps(dict(prior_access=dict(reports=[dict(run_id=result['run_id'])])))))
+    body,p=preview(client,w)
+    assert p['research_study_ids']==[] and p['deletable']
+    assert result['run_id'] in {r['id'] for r in p['retained_runs']}
+    assert remove(client,body,p).status_code==200
+    with store.connect() as db:assert db.execute('SELECT 1 FROM robust_research WHERE id=?',(id,)).fetchone()
+
+
+@pytest.mark.parametrize('owner_kind',['forward','procedure'])
+def test_live_or_frozen_procedure_bound_to_nested_study_still_blocks_deletion(client,owner_kind):
+    _,_,w=create_workflow(client);result=run_validation(client,w)
+    id,aid=seed_nested_study(client,w,result);store=client.app.state.prop_analyses
+    with store.connect() as db:
+        # Metadata-only protection fixtures; neither owner may be cascaded.
+        monitor=uuid4().hex
+        if owner_kind=='forward':
+            db.execute('INSERT INTO forward_monitors VALUES (?,?,?,?,0,0)',(monitor,json.dumps(dict(research_campaign_id=id)),'{}','2026-11-17'))
+        else:
+            db.execute('INSERT INTO research_procedures VALUES (?,?,?,?,?)',(monitor,id,'a'*64,'b'*64,json.dumps(dict(campaign_id=id))))
+    body,p=preview(client,w)
+    assert not p['deletable'] and any(b['id']==monitor for b in p['blockers'])
+    assert remove(client,body,p).status_code==409
+    assert (store.root/aid).exists()
