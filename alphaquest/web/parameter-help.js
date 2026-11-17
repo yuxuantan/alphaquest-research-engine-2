@@ -35,15 +35,13 @@
     use_session_calendar: 'Use the reviewed NQ/MNQ holiday and early-close calendar to liquidate at the scheduled session Close. Requires session inputs 1700–1600. Off uses the configured fixed-clock session close.'
   };
   const catalogue = {twin_continuation: twin};
-  const summaries = {
-    twin_continuation: 'BO = breakout; MO = momentum; ATR = average true range. BO target and stop-cap multipliers use the 15-minute ATR frozen when the setup is armed. Times use Chicago HHMM.'
-  };
   const text = (strategyId, parameter) => catalogue[strategyId]?.[parameter.name] || parameter.description || '';
   function attach(cell, strategyId, parameter, prefix) {
     const description = text(strategyId, parameter);
     if (!description) return null;
     const help = document.createElement('small');
     help.className = 'field-help parameter-help';help.id = `${prefix}-${parameter.name}`;
+    help.hidden = true;
     help.textContent = description;cell.title = description;cell.append(help);
     return help;
   }
@@ -52,5 +50,5 @@
     input.setAttribute('aria-describedby', help.id);
     input.title = help.textContent;
   }
-  window.strategyParameterHelp = Object.freeze({text, attach, describeInput, summary: id => summaries[id] || ''});
+  window.strategyParameterHelp = Object.freeze({text, attach, describeInput});
 })();

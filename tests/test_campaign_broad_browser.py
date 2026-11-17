@@ -16,7 +16,7 @@ def test_broad_parameter_meanings_and_accessible_hover_help(page, portal, tmp_pa
     page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_broad')
     rows = page.locator('#broad-config tr[data-parameter]')
     playwright.expect(rows).to_have_count(30)
-    playwright.expect(page.locator('.parameter-help-summary')).to_contain_text('BO = breakout; MO = momentum')
+    playwright.expect(page.locator('.parameter-help-summary')).to_have_count(0)
     descriptions = rows.evaluate_all('''rows => rows.map(row => {
       const help = row.querySelector('.parameter-help');
       return {name:row.dataset.parameter, text:help?.textContent,
@@ -35,6 +35,7 @@ def test_broad_parameter_meanings_and_accessible_hover_help(page, portal, tmp_pa
             else:
                 assert Decimal(control['value']) == Decimal(str(expected))
     target = page.locator('#broad-parameter-help-bo_target_mult')
+    playwright.expect(target).to_be_hidden()
     playwright.expect(target).to_contain_text('15-minute ATR frozen')
     playwright.expect(target).to_contain_text('0 disables')
     stop = page.locator('#broad-parameter-help-bo_max_stop_mult')
@@ -53,13 +54,17 @@ def test_broad_parameter_meanings_and_accessible_hover_help(page, portal, tmp_pa
     playwright.expect(page.locator('#broad-count')).to_have_text('2 iterations · IS only')
     page.screenshot(path=str(tmp_path/'broad-parameter-help.png'), full_page=True)
     page.set_viewport_size({'width':390,'height':844})
-    stop.scroll_into_view_if_needed()
-    playwright.expect(stop).to_be_visible()
+    stop_row = page.locator('#broad-config tr[data-parameter="bo_max_stop_mult"]')
+    stop_row.scroll_into_view_if_needed()
+    stop_row.locator('th').hover()
+    playwright.expect(stop).to_be_hidden()
+    playwright.expect(stop_row.locator('th')).to_have_attribute('title', stop.text_content())
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     # This is the same help on the existing general backtest grid; no new runs.
     page.goto(portal['url']+'/#backtests/new')
     page.locator('#backtest-strategy').select_option('twin_continuation')
     legacy = page.locator('#optimization-ranges tr[data-parameter="bo_target_mult"]')
+    playwright.expect(legacy.locator('.parameter-help')).to_be_hidden()
     playwright.expect(legacy.locator('.parameter-help')).to_contain_text('15-minute ATR frozen')
     assert legacy.locator('input[data-range="start"]').get_attribute('aria-describedby') == 'optimization-parameter-help-bo_target_mult'
 

@@ -7,10 +7,10 @@ rules, including while later phases remain locked.
 
 ## Parameter help in the search grids
 
-Broad, Narrow and the general backtest grid display each parameter's meaning
-below its name and as hover help on the name and range inputs. Inputs also
-reference the visible explanation with `aria-describedby`. Narrow keeps this
-help visible beside the selected Broad value, including locked parameters.
+Broad, Narrow and the general backtest grid show each parameter's meaning only
+as a native hover tooltip on the name and range inputs. Inputs also reference
+the hidden explanation with `aria-describedby` for screen readers. Narrow keeps
+the selected Broad value visible, including locked parameters.
 
 `alphaquest/web/parameter-help.js` supplies presentation-only explanations where
 the strategy's existing parameter metadata is incomplete; otherwise it uses the

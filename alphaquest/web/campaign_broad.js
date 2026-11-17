@@ -25,8 +25,6 @@
       if(state.confirmed_at_utc&&state.screening_policy?.version==='is-broad-v2'&&!state.selection_policy)parent.append(node('p','Historical selection: confirmed under the earlier six-rule policy and preserved unchanged.','broad-legacy-note'));
       const config=node('section',undefined,'panel broad-panel');config.id='broad-config';
       config.append(node('h2','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
-      const helpSummary=window.strategyParameterHelp.summary(data.strategy.id);
-      if(helpSummary)config.append(node('p',helpSummary,'parameter-help-summary'));
       const form=node('form'),fieldset=node('fieldset');form.append(fieldset);
       const region=node('div',undefined,'optimization-scroll'),grid=node('table',undefined,'library-table optimization-grid');
       grid.innerHTML='<thead><tr><th>Parameter</th><th>Start</th><th>End</th><th>Step</th><th>Count</th></tr></thead><tbody></tbody>';
