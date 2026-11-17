@@ -31,6 +31,11 @@ def test_running_narrow_progress_polls_job_without_reloading_results(page,portal
     page.route('**/api/optimizations/'+job_id,job_progress)
     page.on('request',lambda request: result_calls.append(request.url) if '/narrow/results?' in request.url else None)
     page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_narrow?broad_trial=1')
+    locked = page.locator('#narrow-config tr[data-parameter="contracts"]')
+    playwright.expect(locked.locator('.parameter-help')).to_contain_text('Fixed contract quantity')
+    playwright.expect(locked.locator('th')).to_contain_text('Selected Broad value: 1')
+    playwright.expect(locked.locator('input').first).to_be_disabled()
+    assert locked.locator('input').first.get_attribute('aria-describedby') == 'narrow-parameter-help-contracts'
     playwright.expect(page.locator('#narrow-active-trials')).to_contain_text('2,000 / 2,400 bars',timeout=10000)
     assert len(progress_calls)>=2
     assert len(result_calls)==1

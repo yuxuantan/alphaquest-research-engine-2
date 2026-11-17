@@ -56,7 +56,9 @@
       for(const parameter of parameters){
         const row=node('tr');row.dataset.parameter=parameter.name;
         const isBroad=fixed.has(parameter.name),canRefine=Object.hasOwn(refinable,parameter.name);
-        const name=node('th',label(parameter.name));name.scope='row';name.append(node('small',isBroad?`Selected Broad value: ${state.broad_selection.parameters[parameter.name]}`:parameter.description||'','field-help'));row.append(name);
+        const name=node('th',label(parameter.name));name.scope='row';row.append(name);
+        const helpId=window.strategyParameterHelp.attach(name,detail.strategy.id,parameter,'narrow-parameter-help');
+        if(isBroad)name.append(node('small',`Selected Broad value: ${state.broad_selection.parameters[parameter.name]}`,'field-help'));
         const treatment=node('td');
         if(canRefine){const choice=node('label'),toggle=node('input');toggle.type='checkbox';toggle.setAttribute('aria-label',`Refine ${label(parameter.name)} in Narrow`);toggle.checked=refined.has(parameter.name);choice.append(toggle,document.createTextNode(' Refine in Narrow'));treatment.append(choice,node('small',`Broad minimum step ${refinable[parameter.name].broad_min_step}; use a finer step and include the selected value.`,'field-help'));toggle.onchange=()=>{if(toggle.checked)refined.add(parameter.name);else refined.delete(parameter.name);for(const part of ['start','end','step']){const input=ranges.get(parameter.name)[part];input.disabled=!toggle.checked;input.value=part==='step'?'0':String(state.broad_selection.parameters[parameter.name]);}invalidate('Refinement changed. Calculate iterations again.');};}
         else treatment.textContent=isBroad?'Locked from IS Broad':'Choose range';
@@ -67,6 +69,7 @@
           if(input.tagName==='SELECT'){input.add(new Option('False','false'));input.add(new Option('True','true'));}
           else{input.type='text';input.inputMode=parameter.type==='Decimal'?'decimal':'numeric';input.maxLength=128;}
           input.required=true;input.setAttribute('aria-label',`${label(parameter.name)} ${part}`);
+          window.strategyParameterHelp.describeInput(input,helpId);
           const baseline=isBroad?state.broad_selection.parameters[parameter.name]:parameter.default;
           input.value=String(isBroad&&!refined.has(parameter.name)?part==='step'?0:baseline:initial?.[parameter.name]?.[part]??(part==='step'?0:baseline));
           input.disabled=isBroad&&!refined.has(parameter.name);inputs[part]=input;cell.append(input);row.append(cell);

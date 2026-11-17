@@ -5,6 +5,26 @@ IS Narrow, and frozen-family OOS assessment are implemented.
 The portal's **Passing criteria by stage** panel shows the same server-owned
 rules, including while later phases remain locked.
 
+## Parameter help in the search grids
+
+Broad, Narrow and the general backtest grid display each parameter's meaning
+below its name and as hover help on the name and range inputs. Inputs also
+reference the visible explanation with `aria-describedby`. Narrow keeps this
+help visible beside the selected Broad value, including locked parameters.
+
+`alphaquest/web/parameter-help.js` supplies presentation-only explanations where
+the strategy's existing parameter metadata is incomplete; otherwise it uses the
+registry's `description`. Twin Continuation help defines BO (breakout), MO
+(momentum), timeframes, units, time rules and disabled values. In particular,
+`bo_target_mult` and `bo_max_stop_mult` multiply the 15-minute ATR frozen at
+arming; the stop cap tightens the swing stop rather than filtering out an entry.
+Zero disables the target or the stop cap respectively. Times use Chicago HHMM.
+
+Keep wording-only updates in this UI resource so they do not change numerical
+strategy source hashes or invalidate frozen workflow sources. New parameters
+should still declare their normal description in strategy metadata when first
+implemented. This help does not change defaults, grid values or calculations.
+
 ## Mechanic validation — implemented
 
 Run the strategy's default parameters on the frozen IS source/settings. Every

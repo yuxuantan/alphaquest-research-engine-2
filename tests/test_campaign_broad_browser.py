@@ -9,6 +9,61 @@ from test_backtests_browser import browser,page,portal,playwright
 from test_campaign_broad import passed_mechanics,start_grid,broad_grid
 
 
+def test_broad_parameter_meanings_and_accessible_hover_help(page, portal, tmp_path):
+    from test_entry_protection_sensitivity import start_twin_broad
+    with httpx.Client(base_url=portal['url'], timeout=40) as client:
+        workflow, job, _ = start_twin_broad(client, oco=True)
+    page.goto(portal['url']+f'/#campaigns/workflows/{workflow["id"]}/is_broad')
+    rows = page.locator('#broad-config tr[data-parameter]')
+    playwright.expect(rows).to_have_count(30)
+    playwright.expect(page.locator('.parameter-help-summary')).to_contain_text('BO = breakout; MO = momentum')
+    descriptions = rows.evaluate_all('''rows => rows.map(row => {
+      const help = row.querySelector('.parameter-help');
+      return {name:row.dataset.parameter, text:help?.textContent,
+        header:row.querySelector('th').title,
+        inputs:[...row.querySelectorAll('input,select')].map(input => ({
+          described:input.getAttribute('aria-describedby') === help?.id,
+          title:input.title, value:input.value}))};
+    })''')
+    for row in descriptions:
+        assert row['text'] and row['header'] == row['text'], row
+        for part, control in zip(('start', 'end', 'step'), row['inputs'], strict=True):
+            assert control['described'] and control['title'] == row['text'], row
+            expected = job['request']['parameter_ranges'][row['name']][part]
+            if type(expected) is bool:
+                assert control['value'] == str(expected).lower()
+            else:
+                assert Decimal(control['value']) == Decimal(str(expected))
+    target = page.locator('#broad-parameter-help-bo_target_mult')
+    playwright.expect(target).to_contain_text('15-minute ATR frozen')
+    playwright.expect(target).to_contain_text('0 disables')
+    stop = page.locator('#broad-parameter-help-bo_max_stop_mult')
+    playwright.expect(stop).to_contain_text('tightens the opposite-swing stop rather than rejecting')
+    playwright.expect(stop).to_contain_text('0 leaves the swing stop uncapped')
+    # The existing registry descriptions continue to cover every other campaign.
+    assert page.evaluate('''async () => {
+      const items = await (await fetch('/api/strategies')).json();
+      return items.flatMap(strategy => strategy.parameters
+        .filter(parameter => !window.strategyParameterHelp.text(strategy.id, parameter))
+        .map(parameter => `${strategy.id}.${parameter.name}`));
+    }''') == []
+    page.get_by_label('Bo target mult start', exact=True).focus()
+    playwright.expect(page.get_by_label('Bo target mult start', exact=True)).to_have_value('2.0')
+    page.locator('#broad-preview').click()
+    playwright.expect(page.locator('#broad-count')).to_have_text('2 iterations · IS only')
+    page.screenshot(path=str(tmp_path/'broad-parameter-help.png'), full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    stop.scroll_into_view_if_needed()
+    playwright.expect(stop).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    # This is the same help on the existing general backtest grid; no new runs.
+    page.goto(portal['url']+'/#backtests/new')
+    page.locator('#backtest-strategy').select_option('twin_continuation')
+    legacy = page.locator('#optimization-ranges tr[data-parameter="bo_target_mult"]')
+    playwright.expect(legacy.locator('.parameter-help')).to_contain_text('15-minute ATR frozen')
+    assert legacy.locator('input[data-range="start"]').get_attribute('aria-describedby') == 'optimization-parameter-help-bo_target_mult'
+
+
 def test_twin_multicharts_path_sensitivity_report(page, portal, tmp_path):
     from test_entry_protection_sensitivity import start_twin_broad
     with httpx.Client(base_url=portal['url'], timeout=40) as client:

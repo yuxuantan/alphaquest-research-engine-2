@@ -234,8 +234,8 @@
       row.dataset.parameter = parameter.name;
       const title = node("th", label(parameter.name));
       title.scope = "row";
-      title.append(node("small", parameter.description, "field-help"));
       row.append(title);
+      const helpId=window.strategyParameterHelp.attach(title,strategy.id,parameter,'optimization-parameter-help');
       for (const part of ["start", "end", "step", "step_count"]) {
         const cell = node("td");
         const input = node(parameter.type === "bool" && ["start", "end"].includes(part) ? "select" : "input");
@@ -265,6 +265,7 @@
         input.required = true;
         input.dataset.range = part;
         input.setAttribute("aria-label", `${label(parameter.name)} ${part === "step_count" ? "step count" : part}`);
+        if(part!=='step_count')window.strategyParameterHelp.describeInput(input,helpId);
         input.addEventListener("input", () => { rowCount(row, parameter, part === "start" || part === "end"); count(); get("#backtest-error").hidden = true; });
         cell.append(input);
         row.append(cell);

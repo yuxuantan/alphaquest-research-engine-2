@@ -25,6 +25,8 @@
       if(state.confirmed_at_utc&&state.screening_policy?.version==='is-broad-v2'&&!state.selection_policy)parent.append(node('p','Historical selection: confirmed under the earlier six-rule policy and preserved unchanged.','broad-legacy-note'));
       const config=node('section',undefined,'panel broad-panel');config.id='broad-config';
       config.append(node('h2','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
+      const helpSummary=window.strategyParameterHelp.summary(data.strategy.id);
+      if(helpSummary)config.append(node('p',helpSummary,'parameter-help-summary'));
       const form=node('form'),fieldset=node('fieldset');form.append(fieldset);
       const region=node('div',undefined,'optimization-scroll'),grid=node('table',undefined,'library-table optimization-grid');
       grid.innerHTML='<thead><tr><th>Parameter</th><th>Start</th><th>End</th><th>Step</th><th>Count</th></tr></thead><tbody></tbody>';
@@ -36,13 +38,15 @@
       const initial=state.confirmed_at_utc||state.archived?job?.request.parameter_ranges:draft || job?.request.parameter_ranges;
       for(const parameter of parameters) {
         const row=node('tr');row.dataset.parameter=parameter.name;
-        const title=node('th',label(parameter.name));title.scope='row';title.append(node('small',parameter.description || '', 'field-help'));row.append(title);
+        const title=node('th',label(parameter.name));title.scope='row';row.append(title);
+        const helpId=window.strategyParameterHelp.attach(title,data.strategy.id,parameter,'broad-parameter-help');
         const inputs={};
         for(const part of ['start','end','step']) {
           const cell=node('td'),input=node(parameter.type==='bool'&&part!=='step'?'select':'input');
           if(input.tagName==='SELECT'){input.add(new Option('False','false'));input.add(new Option('True','true'));}
           else{input.type='text';input.inputMode=parameter.type==='Decimal'?'decimal':'numeric';input.maxLength=128;}
           input.required=true;input.setAttribute('aria-label',`${label(parameter.name)} ${part}`);
+          window.strategyParameterHelp.describeInput(input,helpId);
           input.value=String(initial?.[parameter.name]?.[part] ?? (part==='step'?0:parameter.default));
           inputs[part]=input;cell.append(input);row.append(cell);
           input.oninput=()=>{

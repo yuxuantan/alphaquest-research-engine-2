@@ -1558,6 +1558,8 @@ dialog::backdrop {
 .optimization-grid th { font-size:12px; text-transform:none; letter-spacing:normal; min-width:110px; }
 .optimization-grid th:first-child { min-width:210px; }
 .optimization-grid th small { display:block; font-size:11px; white-space:normal; font-weight:400; max-width:300px; }
+.optimization-grid th .parameter-help { color:#52636d; line-height:1.5; margin:6px 0 0; overflow-wrap:anywhere; }
+.parameter-help-summary { color:#52636d; font-size:12px; line-height:1.6; }
 .optimization-grid input, .optimization-grid select { min-width:100px; width:100%; }
 #narrow-config .optimization-grid td:nth-child(2) { min-width:230px; max-width:280px; }
 #narrow-config .optimization-grid td:nth-child(2) label { display:flex; align-items:center; gap:8px; white-space:nowrap; }
