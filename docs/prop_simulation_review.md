@@ -12569,3 +12569,83 @@ tombstones prevent accidental reuse without retaining deleted metric/frozen outp
 Inspect `docs/campaign_dataset_links.md` and the saved browser/verification outputs
 under `artifacts/workflow-deletion-20261116/`. No user workflow or saved analysis is
 deleted when installing this increment.
+## 2026-11-17: strategy-owned fixed/native sizing admission
+
+Implemented contract: [strategy_sizing.md](strategy_sizing.md). Every registered
+strategy declares parameter-dependent fixed-path and native sizing support;
+registration rejects a missing declaration. Twin's real protected momentum and
+breakout OCO orders now use the shared account/execution owners. VWAP retains
+its exact fast path and uses general bar replay outside that accelerator's
+restrictions. Consecutive Green Hold remains fixed-path only: no stop or EOD
+exit has been invented to make percentage sizing possible.
+
+Normal-product checks:
+
+- `tests/test_strategy_sizing_api.py` uploads an explicitly SYNTHETIC minute
+  dataset, creates a real Twin IS backtest, declares independent prop phase
+  searches, checks admission, runs existing workers, and downloads sealed JSON
+  and ZIP evidence. Both Apex and LucidFlex Evaluation/Funded are exercised.
+  Separate checks cover fixed-path searches in all four combinations and an
+  immutable frozen native percentage policy assessed on actual OOS bars. The
+  latter publishes a normal controlled backtest and does not reselect its IS
+  candidate or shorten the saved horizon.
+- `tests/test_prop_sim_browser.py::test_strategy_sizing_capability_is_visible_before_running`
+  uses a normally qualified synthetic Green Hold campaign in the actual Prop
+  Sim portal. Fixed size is available. Selecting percentage risk displays the
+  missing-stop/session-exit reason and disables Check/Run before any work is
+  queued. Switching back restores fixed-size admission.
+- The existing `shared-range` Prop Sim browser journey still completes normal
+  source checking, both independent searches, sorting, Pareto inspection and
+  downloads, navigation away, Job history and saved-result reopening. Its
+  chart inspection now explicitly opens the existing collapsed chart section.
+
+Independent arithmetic/boundaries live in
+`tests/test_strategy_sizing_contract.py`: every current fixed path preserves
+entry/exit decisions when quantity changes from 1 to 3 and triples net/costs;
+Twin's real long/short momentum and breakout orders run through native sizing;
+a USD 100 budget with USD 10 planned unit risk admits 10 contracts before a
+later gap, both at 110 and at 130 actual entry; a USD 150 unit-risk opportunity
+is skipped. OCO siblings cancel and unfilled orders expire. A pre-entry adverse
+extreme cannot breach a future position. With the initial Funded tier clipping
+40 requested MNQ to 20, a 30-point win returns USD 1,200; a later provider daily
+floor takes USD 1,000 before a farther strategy stop. Cash reconciles to the
+actual completed trades. These are execution/model oracles, not provider parity.
+
+Reproduce focused product evidence from the repository root:
+
+```sh
+ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR=artifacts/strategy-sizing-20261117 \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_native_percentage_both_account_profiles_and_phases
+
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR=artifacts/strategy-sizing-20261117 \
+  .venv/bin/python -m pytest -q \
+  tests/test_prop_sim_browser.py::test_strategy_sizing_capability_is_visible_before_running
+```
+
+Saved local evidence: `artifacts/strategy-sizing-20261117/summary.json`, four
+profile/phase subdirectories with source CSV, source manifest, request, sealed
+report and ZIP, plus `unsupported-percentage.png`. Each phase also retains its
+ordinary product library in `library/`; this uses the existing catalogue/store,
+not another evidence service. To inspect one through the existing portal:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/strategy-sizing-20261117/apex-50k-eod-evaluation/library" \
+  sh scripts/serve_portal.sh --port 8011
+```
+
+Use the `analysis_id` in `summary.json` at
+`http://127.0.0.1:8011/#backtests/prop/job/ANALYSIS_ID`, or open its source
+backtest and saved independent phase campaign. Stop that inspection server
+with Ctrl-C. The tests themselves stop their temporary servers. Synthetic
+short histories do not satisfy campaign qualification and are not admitted to
+the main qualified-campaign selector by this demonstration. Eight paths are
+retained per native phase example. The supplied weak synthetic 0.2% policy
+produces no funded receipts and no completed acquisition in these examples;
+unresolved means remain unavailable rather than inventing an acquisition mean
+or a passing result. Provider parity and live readiness are not claimed.
+
+Numerical identities include the new contract/adapters. Existing sealed results
+are preserved. A source whose strategy implementation differs must be regenerated
+before a new native execution; earlier reports are not silently recertified.

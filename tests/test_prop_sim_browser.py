@@ -11,6 +11,27 @@ from test_backtests_browser import browser,page,portal,playwright
 from test_prop_sim import qualified_source
 
 
+def test_strategy_sizing_capability_is_visible_before_running(page,portal,tmp_path):
+    """A real qualified no-stop campaign permits fixed size, explains risk rejection."""
+    with httpx.Client(base_url=portal['url'],timeout=120) as client:
+        workflow,source=qualified_source(client)
+    page.goto(portal['url']+'/#prop-sim')
+    page.locator('#prop-sim-source').select_option('0')
+    playwright.expect(page.locator('#prop-sim-source-details')).to_contain_text('Fixed contracts: supported')
+    playwright.expect(page.locator('#prop-sim-source-details')).to_contain_text('no pre-entry protective stop')
+    page.locator('#prop-sim-search-kind').select_option('percentage_risk')
+    playwright.expect(page.locator('#prop-sim-status')).to_contain_text('no pre-entry protective stop')
+    playwright.expect(page.locator('#prop-sim-run')).to_be_disabled()
+    playwright.expect(page.locator('#prop-sim-check')).to_be_disabled()
+    page.screenshot(path=str(tmp_path/'unsupported-percentage.png'),full_page=True)
+    page.locator('#prop-sim-search-kind').select_option('fixed_contracts')
+    playwright.expect(page.locator('#prop-sim-check')).to_be_enabled()
+    if destination:=os.environ.get('ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR'):
+        target=Path(destination);target.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(tmp_path/'unsupported-percentage.png',target/'unsupported-percentage.png')
+        (target/'portal-source.json').write_text(json.dumps(source,indent=2))
+
+
 @pytest.mark.parametrize('profile_id,evaluation_sizes,funded_sizes',[
     ('apex-50k-eod',(1,2,3),(1,2,3)),('apex-50k-eod',(58,59,60),(38,39,40)),
     ('lucidflex-50k',(1,2,3),(1,2,3))],ids=['shared-range','phase-limits','lucidflex'])
@@ -48,11 +69,16 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
     assert record['configuration']['profile_id']==profile_id
     page.get_by_role('navigation',name='Main navigation',exact=True).get_by_role('link',name='Dataset',exact=True).click()
     page.goto(portal['url']+'/#prop-sim?analysis='+record['id'])
+    # A final phase refresh replaces both charts. Inspect after both settle.
     for phase in ('evaluation','funded'):
+        playwright.expect(page.locator('#prop-sim-'+phase+'-progress')).to_contain_text('COMPLETE',timeout=90000)
+    for phase in ('evaluation','funded'):
+        page.get_by_role('button',name='View '+phase.title(),exact=True).click()
         playwright.expect(page.locator('#prop-sim-'+phase+'-progress')).to_contain_text('COMPLETE',timeout=90000)
         playwright.expect(page.locator('#prop-sim-'+phase+'-table tbody tr')).to_have_count(3)
         assert page.locator('#prop-sim-'+phase+'-table tbody tr').evaluate_all('(rows)=>rows.map(r=>Number(r.dataset.size))')==list(evaluation_sizes if phase=='evaluation' else funded_sizes)
         if phase=='evaluation':
+            page.get_by_text('Explore the cost / time trade-off',exact=True).click()
             chart=page.locator('#prop-sim-evaluation-pareto')
             playwright.expect(chart).to_have_attribute('data-candidate-count','3')
             point=chart.locator('circle').first;point.focus()

@@ -142,16 +142,17 @@ class _Account:
         self.decision_events.append(event)
         return event
 
-    def record_decision(self, intent, bar):
+    def record_decision(self, intent, bar, *, reference=None):
         if not self.capture_decisions:
             return
         if self.pending_decision is not None or self.position is not None:
             raise ExecutionError('An entry decision requires no active or pending position.')
-        if intent.initial_stop is not None and not (intent.initial_stop < bar.close if intent.side == 'long' else intent.initial_stop > bar.close):
+        reference = bar.close if reference is None else reference
+        if intent.initial_stop is not None and not (intent.initial_stop < reference if intent.side == 'long' else intent.initial_stop > reference):
             raise ExecutionError('Initial stop must be adverse to the causal decision close.')
         self.decision_count += 1
         self.pending_decision = self.emit_decision('entry_decision', self.decision_count, bar, intent.side, intent.contracts,
-            trade_number=None, reference_price=bar.close, stop_price=intent.initial_stop,
+            trade_number=None, reference_price=reference, stop_price=intent.initial_stop,
             execution_timing=intent.timing, reason=intent.reason)
 
     def cancel_decision(self, bar, reason):
@@ -271,6 +272,7 @@ class _ControlledExecution:
     def __init__(self, owner, account):
         self.owner,self.account=owner,account
         self.context=None;self.session_bars=0;self.acceptance=None;self.offered=None
+        self.oco_quotes={};self.oco_bar=None;self.entry_trigger=None
 
     def snapshot(self,bar):
         return ExecutionSnapshot(bar.timestamp_utc,bar.bar_number,self.account.config.initial_capital,
@@ -291,6 +293,8 @@ class _ControlledExecution:
                 or context.fully_observed_or_flat_after_entry_cutoff is not True):
             raise ExecutionError('Controlled execution requires a verified observed session context.')
         if self.context is not None and context.session!=self.context.session:
+            if type(next_order) is StopEntriesIntent:
+                self.expire_oco(previous, 'session_boundary');next_order=None
             self.end_session(previous,next_order)
         if self.context is None:
             self.context=context;self.session_bars=0
@@ -311,6 +315,23 @@ class _ControlledExecution:
     def strategy_bar(self,strategy,bar):
         self.offered=None
         def admit(intent):
+            if type(intent) is StopEntriesIntent:
+                if self.account.position is not None or self.acceptance is not None or self.oco_quotes:
+                    raise ExecutionError('Controlled OCO admission requires a flat account without pending entries.')
+                accepted=[];self.oco_bar=bar
+                for entry,price in intent.orders:
+                    if entry.initial_stop is None or not (entry.initial_stop<price if entry.side=='long' else entry.initial_stop>price):
+                        raise ExecutionError('Controlled OCO entries require a causal stop adverse to the declared entry trigger.')
+                    proposal=KnownEntryProposal(bar.timestamp_utc,bar.bar_number,entry.side,entry.timing,price,
+                        entry.initial_stop,bar.timestamp_utc,entry.reason,entry.exit_deadline_utc,entry.protection)
+                    quote=self.owner.admit_entry(proposal,self.snapshot(bar),provisional=True)
+                    if quote.action=='accept':
+                        result=quote.accepted_intent
+                        if type(result) is not EntryIntent or replace(result,contracts=entry.contracts)!=entry:
+                            raise ExecutionError('Controlled OCO admission may change quantity only.')
+                        accepted.append((result,price));self.oco_quotes[result]=quote
+                self.offered=StopEntriesIntent(tuple(accepted)) if accepted else None
+                return self.offered
             if type(intent) is not EntryIntent or intent.initial_stop is None:
                 raise ExecutionError('A controlled opportunity requires an EntryIntent and causal initial stop.')
             if self.account.position is not None or self.acceptance is not None or self.offered is not None:
@@ -318,7 +339,7 @@ class _ControlledExecution:
             if not (intent.initial_stop<bar.close if intent.side=='long' else intent.initial_stop>bar.close):
                 raise ExecutionError('Initial stop must be adverse to the causal decision close.')
             proposal=KnownEntryProposal(bar.timestamp_utc,bar.bar_number,intent.side,intent.timing,bar.close,
-                intent.initial_stop,bar.timestamp_utc,intent.reason,intent.exit_deadline_utc)
+                intent.initial_stop,bar.timestamp_utc,intent.reason,intent.exit_deadline_utc,intent.protection)
             accepted=self.owner.admit_entry(proposal,self.snapshot(bar))
             if type(accepted) is not EntryAcceptance or accepted.action not in ('accept','skip','halt'):
                 raise ExecutionError('Phase owner returned an invalid entry acceptance.')
@@ -333,9 +354,21 @@ class _ControlledExecution:
             self.acceptance=accepted;self.offered=result
             return result
         intent=strategy.on_bar_controlled(bar,self.account.position,admit)
-        if (type(intent) is EntryIntent and intent!=self.offered) or (self.offered is not None and intent!=self.offered):
+        if (type(intent) in (EntryIntent,StopEntriesIntent) and intent!=self.offered) or (self.offered is not None and intent!=self.offered):
             raise ExecutionError('Controlled strategy must return exactly its accepted provisional entry.')
         return intent
+
+    def expire_oco(self,bar,reason='oco_expired'):
+        for quote in self.oco_quotes.values():
+            self.owner.cancel_quoted_entry(quote,self.snapshot(bar),reason)
+        self.oco_quotes.clear()
+
+    def activate_oco(self,entry,bar,price):
+        quote=self.oco_quotes.pop(entry)
+        self.owner.activate_quoted_entry(quote,self.snapshot(bar))
+        self.acceptance=quote
+        self.account.record_decision(entry,self.oco_bar,reference=price)
+        self.expire_oco(bar,'oco_sibling_cancelled')
 
     def entry_filled(self,bar):
         if self.acceptance is None:
@@ -475,7 +508,9 @@ def _ohlc_exit(account, bracket, bar, *, stop_reason='stop_loss'):
         phase=phase, stop_exit=is_stop, entry_fill_exit=True), reason
 
 
-def _fill_entry_stops(account, orders, bar, strategy):
+def _fill_entry_stops(account, orders, bar, strategy, control=None):
+    if control is not None and not control.oco_quotes:
+        return None
     allow_entry = getattr(strategy, "allow_entry_fill", None)
     if allow_entry is not None and not allow_entry(replace(bar,tick_window=None) if bar.tick_window is not None else bar):
         return
@@ -490,9 +525,11 @@ def _fill_entry_stops(account, orders, bar, strategy):
         if sum(h==hit for h,_ in hits)>1:
             raise ExecutionError('Overlapping OCO entry thresholds trigger at the same trade; invalid entry geometry.')
         point=window.point(bar,hit)
+        if control is not None:control.activate_oco(entry,bar,dict(orders.orders)[entry])
         account.apply(entry,point,reference=point.close,phase='open')
+        if control is not None:control.entry_filled(bar)
         account._held_ticks=window.tail(hit)
-        return _protect_entry(account,entry,bar,strategy,point.close,'tick')
+        return _protect_entry(account,entry,bar,strategy,point.close,'tick',control=control)
     if getattr(strategy, 'oco_entry_policy', 'multicharts') == 'multicharts':
         path = ohlc_prices(bar, getattr(account, '_ohlc_policy', 'multicharts'))
         hits = [(hit, entry) for entry, price in orders.orders
@@ -508,9 +545,13 @@ def _fill_entry_stops(account, orders, bar, strategy):
                 bar.timestamp_utc, account._ohlc_policy, levels['long'], levels['short'],
                 bar.open, bar.high, bar.low, bar.close, entry.side, 'short' if entry.side == 'long' else 'long'))
         phase = 'open' if hit.segment == 0 else 'entry_stop'
+        if control is not None:control.activate_oco(entry,bar,dict(orders.orders)[entry])
         account.apply(entry, bar, reference=hit.price, phase=phase)
+        if control is not None:control.entry_filled(bar)
         account._held_ohlc = hit.suffix(path)
-        return _protect_entry(account, entry, bar, strategy, hit.price, phase)
+        return _protect_entry(account, entry, bar, strategy, hit.price, phase,control=control)
+    if control is not None:
+        raise ExecutionError("Controlled OCO execution requires the shared MultiCharts price path.")
     gaps = [(entry, bar.open, "open") for entry, price in orders.orders
             if (bar.open >= price if entry.side == "long" else bar.open <= price)]
     hits = gaps or [(entry, price, "entry_stop") for entry, price in orders.orders
@@ -535,7 +576,7 @@ def _fill_entry_stops(account, orders, bar, strategy):
         return _protect_entry(account, entry, bar, strategy, reference, phase, adverse_after_entry=oco_ambiguous)
 
 
-def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_after_entry=False):
+def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_after_entry=False, control=None):
     """Activate a precommitted bracket at fill without invoking on_bar twice.
 
     Market/open fills may use the remaining bar range. Intrabar stop timing
@@ -543,8 +584,11 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
     """
     plan = entry.protection
     if plan is None:
+        if control is not None:
+            trade,control.entry_trigger=_controlled_fill(account,None,bar,control,reference=reference,phase=phase)
+            return trade
         return None
-    if account.capture_decisions:
+    if account.capture_decisions and control is None:
         raise ExecutionError("Attached entry protection is not supported by native decision capture.")
     filled = getattr(strategy, "on_entry_fill", None)
     if filled is not None:
@@ -569,6 +613,11 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
             target = (target / account.config.tick_size).to_integral_value(
                 rounding=ROUND_CEILING if long else ROUND_FLOOR) * account.config.tick_size
     bracket = BracketIntent(stop, target)
+    if control is not None:
+        if plan.ambiguity_policy != 'multicharts':
+            raise ExecutionError('Controlled protection requires the shared MultiCharts price path.')
+        trade,control.entry_trigger=_controlled_fill(account,bracket,bar,control,reference=reference,phase=phase)
+        return trade
     if bar.tick_window is not None:
         return _fill_bracket(account,bracket,bar)
     if plan.ambiguity_policy == 'multicharts':
@@ -726,7 +775,11 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         if next_order is not None:
             trigger=None
             if type(next_order) is StopEntriesIntent:
-                trade = _fill_entry_stops(account, next_order, bar, strategy)
+                if control is not None:control.entry_trigger=None
+                trade = _fill_entry_stops(account, next_order, bar, strategy,control)
+                if control is not None:
+                    control.expire_oco(bar);trigger=control.entry_trigger
+                    risk_checked=True
             elif type(next_order) is BracketIntent:
                 if control is not None:
                     trade,trigger=_controlled_fill(account,next_order,bar,control)
@@ -746,13 +799,12 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
                     if trade is None:
                         fill_bar=bar.tick_window.point(bar,0) if bar.tick_window is not None else bar
                         trade = account.apply(next_order, fill_bar, reference=bar.open, phase="open")
-                        if type(next_order) is EntryIntent: account._held_ticks=bar.tick_window
+                        if type(next_order) is EntryIntent:
+                            account._held_ticks=bar.tick_window
+                            if control is not None:control.entry_filled(bar)
                         if type(next_order) is EntryIntent and next_order.protection is not None:
-                            if control is not None:
-                                raise ExecutionError("Controlled native replay does not support attached entry protection.")
-                            trade = _protect_entry(account, next_order, bar, strategy, bar.open, "open")
-                        if control is not None and type(next_order) is EntryIntent:
-                            control.entry_filled(bar)
+                            trade = _protect_entry(account, next_order, bar, strategy, bar.open, "open",control=control)
+                            if control is not None:trigger=control.entry_trigger;risk_checked=True
             if trade is not None:
                 closed_on_bar = True
                 if control is not None:
@@ -780,7 +832,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         decision_bar=replace(bar,tick_window=None) if bar.tick_window is not None else bar
         intent = control.strategy_bar(strategy,decision_bar) if control is not None else strategy.on_bar(decision_bar, account.position)
         if type(intent) is EntryIntent:
-            if intent.protection is not None and (capture_decisions or control is not None):
+            if intent.protection is not None and capture_decisions and control is None:
                 raise ExecutionError("Attached entry protection is unsupported by decision capture and controlled native replay.")
             account.record_decision(intent, bar)
             yield from account.drain_decisions()
@@ -788,8 +840,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         if type(intent) is StopEntriesIntent:
             if account.position is not None:
                 raise ExecutionError("StopEntriesIntent requires a flat account.")
-            if capture_decisions or control is not None:
-                raise ExecutionError("OCO stop entry decision capture and controlled native replay are not supported.")
+            if capture_decisions and control is None:
+                raise ExecutionError("OCO stop entry decision capture requires controlled native replay.")
             next_order = intent
         elif type(intent) is BracketIntent:
             if account.position is None:

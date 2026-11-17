@@ -172,7 +172,7 @@
         return Array.from({length:Number(count)},(_,i)=>{const v=String(lo+step*BigInt(i)).padStart(digits+1,'0');return digits?(v.slice(0,-digits)+'.'+v.slice(-digits)).replace(/0+$/,'').replace(/\.$/,''):v;});
       }
       const disclosure=node('p',defaults.disclosure,'field-help');
-      function toggleSizing(){disclosure.textContent=sizingMode.value==='percentage_risk'?'Percentage policies rerun causal native VWAP opportunities and actual MNQ fills under the Evaluation/Funded account controllers. Account state changes quantities, skipped opportunities and cash. Original NQ/MNQ prices, basis, liquidity and future provider behavior remain modeling assumptions. Each phase selects on IS independently; frozen OOS never reselects. Strategy OOS was already accessed.':defaults.disclosure;const percentage=sizingMode.value==='percentage_risk';for(const phase of ['evaluation','funded']){riskGroups[phase].hidden=!percentage;for(const field of Object.values(riskFields[phase]))field.disabled=!percentage;for(const bound of ['minimum','maximum']){const field=fields[phase+'_'+bound+'_micros'];field.disabled=percentage;field.closest('label').hidden=percentage;}}}
+      function toggleSizing(){disclosure.textContent=sizingMode.value==='percentage_risk'?'Percentage policies rerun causal native strategy opportunities and actual MNQ fills under the Evaluation/Funded account controllers. Account state changes quantities, skipped opportunities and cash. Original NQ/MNQ prices, basis, liquidity and future provider behavior remain modeling assumptions. Each phase selects on IS independently; frozen OOS never reselects. Strategy OOS was already accessed.':defaults.disclosure;const percentage=sizingMode.value==='percentage_risk';for(const phase of ['evaluation','funded']){riskGroups[phase].hidden=!percentage;for(const field of Object.values(riskFields[phase]))field.disabled=!percentage;for(const bound of ['minimum','maximum']){const field=fields[phase+'_'+bound+'_micros'];field.disabled=percentage;field.closest('label').hidden=percentage;}}}
       sizingMode.onchange=()=>{toggleSizing();resourcePreview();};toggleSizing();
       const rules=node('div');advanced.append(rules);
       advanced.append(disclosure);
@@ -206,7 +206,7 @@
         host.prepend(message);
       }
 
-      const update=()=>{check.disabled=busy||picker.value==='';run.disabled=busy||picker.value===''||!form.checkValidity();};
+      const update=()=>{const item=picker.value===''?null:sources.items[Number(picker.value)],support=item?.sizing_support?.[sizingMode.value],blocked=support?.supported===false;check.disabled=busy||picker.value===''||blocked;run.disabled=busy||picker.value===''||blocked||!form.checkValidity();if(blocked)notice.textContent=support.reason;};
       function resourcePreview(){
         const paths=Number(fields.simulations.value),counts={};
         for(const phase of ['evaluation','funded']){
@@ -230,7 +230,7 @@
       consistency.onchange=()=>{fields.evaluation_price.value='';fields.evaluation_price.required=true;fields.evaluation_price.placeholder='Enter your checkout price including add-on';applyAccount(false);notice.textContent='Enter the actual purchase fee for this account variant, then check again.';};
       function select(){
         checked=false;sourceInfo.replaceChildren();const item=sources.items[Number(picker.value)];
-        if(picker.value!==''&&item){sourceInfo.append(node('p',`IS sizing window ${item.plan.is_start} → ${item.plan.is_end}.`,'field-help'));detail(sourceInfo,'Frozen parameters',item.parameters);const links=node('div',undefined,'mechanic-downloads');link(links,'Open IS source backtest',`#backtests/report/${item.source_backtest_id}`);link(links,'Open campaign and OOS evidence',`#campaigns/workflows/${item.selection.workflow_id.replaceAll('-','')}/oos?job=${item.selection.oos_job_id.replaceAll('-','')}`);sourceInfo.append(links);}update();
+        if(picker.value!==''&&item){sourceInfo.append(node('p',`IS sizing window ${item.plan.is_start} → ${item.plan.is_end}.`,'field-help'));if(item.sizing_support){for(const [mode,label] of [['fixed_contracts','Fixed contracts'],['percentage_risk','Percentage risk']]){const support=item.sizing_support[mode];sourceInfo.append(node('p',`${label}: ${support.supported?'supported':support.reason}`,'field-help'));}}detail(sourceInfo,'Frozen parameters',item.parameters);const links=node('div',undefined,'mechanic-downloads');link(links,'Open IS source backtest',`#backtests/report/${item.source_backtest_id}`);link(links,'Open campaign and OOS evidence',`#campaigns/workflows/${item.selection.workflow_id.replaceAll('-','')}/oos?job=${item.selection.oos_job_id.replaceAll('-','')}`);sourceInfo.append(links);}update();
       }
       picker.onchange=select;form.oninput=()=>{checked=false;notice.textContent='Settings changed. Run will check the source and execute both IS and OOS phases automatically.';resourcePreview();};form.onsubmit=e=>e.preventDefault();
       function body(){

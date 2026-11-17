@@ -34,6 +34,14 @@ DESCRIPTION = (
 EXECUTION_ASSUMPTION = "twin_immediate_protection_multicharts_ohlc_calendar_v6"
 ENTRY_PROTECTION_POLICY = "multicharts"
 SUPPORTS_DECISION_CAPTURE = False
+from ..strategy_sizing import SizingSupport
+SIZING_SUPPORT = SizingSupport(
+    fixed_path_check=lambda p: None,
+    native_check=lambda p: ('Native Twin sizing requires immediate protection, the session calendar, Chicago clock_shift=0 and the 17:00–16:00 session.'
+                            if not p.immediate_protection or not p.use_session_calendar or p.clock_shift != 0
+                            or p.bo_session_open != 1700 or p.bo_session_close != 1600 else None),
+    session_settings=lambda p: (1600, 0),
+    holding_start=lambda p: (1701, True))
 SESSION_CALENDAR = dict(NQ_CALENDAR, instrument="NQ / MNQ futures",
                         symbol_pattern="(?:" + NQ_CALENDAR['symbol_pattern'] + "|" + MNQ_SYMBOL_PATTERN + ")")
 
@@ -161,6 +169,8 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
 class TwinContinuation:
     def __init__(self, parameters=None, *, execution_config=None, instrument_symbol="NQ"):
         self.p = parameters if parameters is not None else Parameters()
+        self.parameters = self.p
+        self.config = execution_config
         if type(self.p) is not Parameters:
             raise ValueError("parameters must be Twin Continuation Parameters.")
         validate_instrument(self.p, instrument_symbol)
@@ -202,6 +212,7 @@ class TwinContinuation:
         self.setup = self.pending_setup = None
         self.was_holding = False
         self.previous_stamp = None
+        self.observed_bars = 0
 
     def _set_session(self, bar):
         if self.calendar is None:
@@ -312,6 +323,10 @@ class TwinContinuation:
             ctx.prec = 50
             return self._on_bar(bar, position)
 
+    def on_bar_controlled(self, bar, position, admit_entry):
+        from ..strategy_sizing import controlled_orders
+        return controlled_orders(self, bar, position, admit_entry)
+
     def on_entry_fill(self, entry, position):
         # Execution notification only: no candle/oscillator/entry calculation.
         # It also lets a same-bar round trip consume exactly one completed trade
@@ -333,13 +348,14 @@ class TwinContinuation:
 
     def _on_bar(self, bar, position):
         p = self.p
+        self.observed_bars += 1
         if bar.timestamp_utc.second or bar.timestamp_utc.microsecond:
             raise DatasetReadError("Twin Continuation requires minute-aligned one-minute bars.")
         if self.previous_stamp is not None and (bar.timestamp_utc - self.previous_stamp).total_seconds() < 60:
             raise DatasetReadError("Twin Continuation requires one-minute bars; subminute input is unsupported.")
         self.previous_stamp = bar.timestamp_utc
         plan = self._set_session(bar)
-        if bar.bar_number <= p.max_bars_back:
+        if self.observed_bars <= p.max_bars_back:
             return None
         stamp = bar.timestamp_utc.astimezone(CT)
         date = stamp.date()  # Source Date is unshifted, even when ClockShift wraps.

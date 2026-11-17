@@ -32,6 +32,16 @@ CT = ZoneInfo("America/Chicago")
 LOG = logging.getLogger(__name__)
 D = Decimal
 
+from ..strategy_sizing import SizingSupport
+SIZING_SUPPORT = SizingSupport(
+    fixed_path_check=lambda p: ('Fixed size scaling requires strategy-local Use Vol Sizing disabled.' if p.use_vol_sizing else None),
+    native_check=lambda p: ('Native prop sizing requires Use EOD Flat enabled and strategy-local Use Vol Sizing disabled.'
+                            if not p.use_eod_flat or p.use_vol_sizing else None),
+    session_settings=lambda p: (p.eod_flat_time, p.close_buffer_minutes),
+    holding_start=lambda p: (p.entry_start_time, False),
+    accelerated_check=lambda p: (p.max_trades_per_day == 1 and 0 <= p.entry_start_time < p.entry_end_time <= 1700
+                               and (p.day_reset_time >= 1700 or p.day_reset_time < p.entry_start_time)))
+
 
 def integer(default, description, minimum=1, maximum=None):
     metadata = {"description": description, "minimum": minimum}

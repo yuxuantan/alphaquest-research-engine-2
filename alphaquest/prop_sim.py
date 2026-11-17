@@ -183,7 +183,11 @@ def qualified(request,selection):
     from .prop.commissions import source_instrument
     native=workflows.runs.get(candidate['is_run_id'])
     if source_instrument(native) not in ('NQ','MNQ'):raise ValueError('This local prop model requires a saved NQ or MNQ dataset symbol.')
+    from .strategies.registry import get_strategy
+    definition=get_strategy(saved['declaration']['strategy_id'])
+    support=definition.sizing.describe(definition.parameters(candidate['parameters']))
     return dict(selection=selection.model_dump(mode='json'),source_backtest_id=candidate['is_run_id'],
+        sizing_support=support,
         strategy_id=saved['declaration']['strategy_id'],dataset=saved['declaration']['dataset'],parameters=candidate['parameters'],
         plan=saved['declaration']['plan'],broad_trial=candidate['broad_trial'],narrow_trial=candidate['narrow_trial'],
         oos_report_id=candidate['run_id'],monte_carlo_report_sha256=analyses.fingerprint(mc_id)['files']['report.json'],
@@ -263,13 +267,17 @@ def check(request,body):
 
 def _check(request,body):
     source=qualified(request,body.selections[0])
+    support=source.get('sizing_support')
+    if support is not None:
+        mode='percentage_risk' if body.search_kind=='percentage_risk' else 'fixed_contracts'
+        if not support[mode]['supported']:raise ValueError(support[mode]['reason'])
     source['_native']=request.app.state.runs.get(source['source_backtest_id'])
     definitions=declarations(body,source);source.pop('_native')
     checks={}
     for phase,declaration in definitions.items():
         try:checks[phase]=request.app.state.campaigns.expand(declaration)
         except ValueError as exc:raise ValueError(f'{phase.title()} sizing search: {exc}') from exc
-    disclosure=(DISCLOSURE if body.search_kind=='fixed_contracts' else 'Percentage policies rerun causal native VWAP opportunities and actual MNQ execution/account rules on observed NQ/MNQ reference prices. Quantities, skips, withdrawals and account state are recalculated. NQ-to-MNQ basis, fills and provider rules remain unverified assumptions. IS selects each phase independently; frozen OOS assesses without reselection. Strategy OOS was already accessed.')
+    disclosure=(DISCLOSURE if body.search_kind=='fixed_contracts' else 'Percentage policies rerun causal native strategy opportunities and actual MNQ execution/account rules on observed NQ/MNQ reference prices. Quantities, skips, withdrawals and account state are recalculated. NQ-to-MNQ basis, fills and provider rules remain unverified assumptions. IS selects each phase independently; frozen OOS assesses without reselection. Strategy OOS was already accessed.')
     return dict(status='compatible',source=source,phases=checks,disclosure=disclosure),definitions
 
 

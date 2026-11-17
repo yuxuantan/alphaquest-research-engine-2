@@ -3364,3 +3364,14 @@ historical meaning. Saved-source simulations use their immutable captured risk;
 no report, qualification or frozen selection is silently migrated. Current
 source guards fail closed on incompatible new replays. Tick sources still use
 their observed chronological records; no additional tick work is introduced.
+
+## Strategy-owned sizing admission (2026-11-17)
+
+The current shared sizing contract and compatibility matrix are documented in
+[strategy_sizing.md](strategy_sizing.md). Fixed-path admission no longer enumerates
+strategy IDs. Native account execution uses the same controllers and execution
+engine for fixed and percentage policies; strategy-specific acceleration is
+optional. Twin's protected market and OCO entries are integrated. Consecutive
+Green Hold explicitly cannot supply stop-based percentage risk without a change
+to its trading rules. Earlier dated implementation descriptions remain
+historical where they refer to VWAP-only native admission.

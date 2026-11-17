@@ -13,6 +13,11 @@ DESCRIPTION = (
     "the deadline, and close remaining exposure at end of data. No pyramiding."
 )
 
+from ..strategy_sizing import SizingSupport
+SIZING_SUPPORT = SizingSupport(
+    fixed_path_check=lambda p: None,
+    native_check=lambda p: 'Consecutive Green Hold has no pre-entry protective stop or guaranteed session liquidation. Stop-based percentage risk and native prop account execution are unsupported; no stop or session exit is invented.')
+
 
 @dataclass(frozen=True, slots=True)
 class Parameters:

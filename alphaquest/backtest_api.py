@@ -107,12 +107,12 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["selection"] = selected.metadata
         if hasattr(strategy, "session_flattening"):
             metadata["strategy"]["session_flattening"] = strategy.session_flattening
-        protection = bool(getattr(definition.module, 'ENTRY_PROTECTION_POLICY', None)
+        # A controlled account replay keeps its actual native protection/floors.
+        # Independent ordinary-strategy sensitivity runs are not account paths.
+        protection = bool(account_control is None and getattr(definition.module, 'ENTRY_PROTECTION_POLICY', None)
                           and parameters.immediate_protection)
         sensitivity = None
         if protection and not dataset.get('tick_data'):
-            if account_control is not None:
-                raise ExecutionError('Controlled native replay does not support attached entry protection.')
             from .entry_protection import sensitivity_replays
             from .prepared_data import PreparedData, write_stream
             workspace = Path(stack.enter_context(TemporaryDirectory(prefix='.entry-protection-')))

@@ -12,9 +12,13 @@ PAUSE_REMOVED=date(2021,6,28)
 
 
 def required_holding_minutes(day,parameters,scheduled_close):
-    start=datetime.combine(day,time(parameters.entry_start_time//100,parameters.entry_start_time%100),CT).astimezone(timezone.utc)
-    configured=datetime.combine(day,time(parameters.eod_flat_time//100,parameters.eod_flat_time%100),CT).astimezone(timezone.utc)
-    cutoff=min(configured,scheduled_close-timedelta(minutes=parameters.close_buffer_minutes))
+    from ..strategy_sizing import definition_for_parameters, native_settings
+    support=definition_for_parameters(parameters).sizing
+    flat_time,buffer=native_settings(parameters)
+    entry_start,prior_day=support.holding_start(parameters)
+    start=datetime.combine(day-timedelta(days=int(prior_day)),time(entry_start//100,entry_start%100),CT).astimezone(timezone.utc)
+    configured=datetime.combine(day,time(flat_time//100,flat_time%100),CT).astimezone(timezone.utc)
+    cutoff=min(configured,scheduled_close-timedelta(minutes=buffer))
     # Require the cutoff and actual next-open execution bar. Every later source
     # row is retained; flat post-liquidation rows are not invented requirements.
     end=min(cutoff+timedelta(minutes=1),scheduled_close)

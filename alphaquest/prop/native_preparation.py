@@ -7,7 +7,7 @@ an order. No completed trade tape is scaled. Detailed captures use full replay.
 """
 from array import array
 from bisect import bisect_right,bisect_left
-from dataclasses import replace
+from dataclasses import asdict, replace
 from decimal import Decimal
 from ..decimal_math import subtract
 from .native_draws import NativePathPreparation,verify_catalogue,_parameters
@@ -19,13 +19,10 @@ VERSION='native-vwap-causal-event-index-v1'
 
 
 def capability(parameters):
-    if not parameters.use_eod_flat or parameters.use_vol_sizing or parameters.max_trades_per_day!=1:
-        raise ValueError('Prepared percentage execution requires VWAP EOD-flat, local volume sizing disabled, and one accepted entry per reset day.')
-    if not 0<=parameters.entry_start_time<parameters.entry_end_time<=1700:
-        raise ValueError('Prepared percentage execution requires a same-day entry window ending by 17:00 Chicago.')
-    reset=parameters.day_reset_time
-    if not (reset>=1700 or reset<parameters.entry_start_time):
-        raise ValueError('The strategy daily reset must precede every permitted entry; an intraday reset inside the entry window is unsupported.')
+    from ..strategy_sizing import definition_for_parameters
+    support=definition_for_parameters(parameters).sizing
+    support.require(parameters,'percentage_risk')
+    return support.describe(parameters)['accelerated_native']
 
 
 class PriceIndex:
@@ -71,6 +68,13 @@ class NativeEventPreparation:
         report('causal_features',0)
         self.config=config;self.factory=strategy_factory
         strategy=strategy_factory()
+        self.parameters=strategy.parameters
+        self.accelerated=capability(strategy.parameters)
+        self.schedule_patterns={};self.native_layouts={}
+        if not self.accelerated:
+            self.legacy=NativePathPreparation(catalogue,strategy_factory,config,checkpoint=checkpoint)
+            report('causal_features',total)
+            return
         if type(strategy) is not VwapPullbackRiskSizing or strategy.config!=config or _parameters(strategy.parameters)!=catalogue.parameters_json:
             raise ValueError('Prepared native strategy or source identity differs.')
         capability(strategy.parameters);self.offers={};self.cutoffs={};self.session_endpoints={};self.calendar_sha256=strategy._calendar.sha256;self.symbol=strategy.instrument_symbol
@@ -186,6 +190,64 @@ class NativeEventPath:
         return offers[j] if j<len(offers) and offers[j]<end else end-1
 
 
+def run_generic_path(catalogue,schedule,owner,config,target_contexts,*,preparation,checkpoint,capture,terminal_early_exit):
+    """Universal controlled replay; acceleration is optional, never admission.
+
+    One signal state per sampled block, warmed on its actual prior prefix.
+    Every holding bar uses execution.execute; no completed trade is resized.
+    """
+    from ..execution import execute, EquityPoint, ExecutionContinuation
+    from .native_control import json_native
+    from datetime import date
+    if preparation.legacy is None:
+        preparation.legacy=NativePathPreparation(catalogue,preparation.factory,config,checkpoint=checkpoint)
+    continuation=None;captures=[];mappings=[];provenance={};captured=0;terminal=False
+    for draw in schedule['draws']:
+        checkpoint()
+        block=catalogue.blocks[draw['source_block_index']]
+        selected=catalogue.sessions[block.first_session:block.first_session+draw['used_sessions']]
+        mapping={s.context.session:date.fromisoformat(d) for s,d in zip(selected,draw['target_sessions'],strict=True)}
+        adapter=PreparedClockView(owner,{s.context.session:s.context for s in selected},target_contexts,mapping)
+        strategy=preparation.legacy.strategy(selected[0].first_bar,checkpoint)
+        for session in selected:
+            checkpoint();adapter.active_source=session.context.session
+            detailed=capture and captured<5
+            if capture and not detailed and owner.retain_details:owner.finish_detail_capture()
+            if detailed:captured+=1
+            def bars():
+                for i in range(session.first_bar,session.end_bar):
+                    if i%1000==0:checkpoint()
+                    yield replace(catalogue.bars[i],bar_number=i-session.first_bar+1)
+            final=None;events=[]
+            for value in execute(bars(),strategy,config,account_control=adapter,continuation=continuation,
+                    completion='require_flat',capture_decisions=detailed,capture_risk=detailed):
+                final=value
+                if detailed and type(value) is not EquityPoint:events.append(dict(event_type=type(value).__name__,**json_native(asdict(value))))
+            if type(final) is not EquityPoint or final.position_contracts:
+                raise ValueError('Native generic replay must finish actually flat; no boundary liquidation is invented.')
+            continuation=ExecutionContinuation(config.initial_capital,final.cash_balance)
+            if detailed:captures.append(dict(source_session=str(session.context.session),target_session=str(mapping[session.context.session]),events=events))
+            if owner.retain_details:
+                provenance[str(mapping[session.context.session])]=dict(path_index=schedule['path_index'],draw_slot=draw['slot'],
+                    source_session=str(session.context.session),target_session=str(mapping[session.context.session]))
+                mappings.append(dict(source_session=str(session.context.session),target_session=str(mapping[session.context.session]),
+                    observed_source_bars=session.end_bar-session.first_bar,processed_execution_bars=session.end_bar-session.first_bar,no_op_observed_bars_skipped=0))
+            if terminal_early_exit:
+                terminal=(owner.phase=='funded' and owner.account_outcome!='open') or (owner.phase=='evaluation' and
+                    (owner.pass_date is not None or (getattr(owner,'first_attempt_only',False) and owner.attempts and owner.attempts[0]['outcome']!='open')))
+            if terminal:break
+        if terminal:break
+    if terminal:owner.omit_terminal_sessions()
+    result=owner.finish_replay()
+    if capture:result['detail_capture']=dict(maximum_source_sessions=5,captured_source_sessions=captured,
+        complete=len(owner._visited_sessions)<=captured,financial_outcomes_complete=True,all_requested_paths_retained=True)
+    for name,field in (('control_events','session'),('trace','date'),('sizing_decisions','session')):
+        for row in result.get(name,[]):row.update(provenance.get(row.get(field),{}))
+    return dict(result=result,source_model_clock_mapping=mappings,captures=captures,
+        schedule_sha256=schedule['schedule_sha256'],catalogue_sha256=catalogue.catalogue_sha256,
+        preparation=dict(version='generic-controlled-bars-v1',intermediate_mtm_retained=False))
+
+
 def run_prepared_path(catalogue,schedule,owner,strategy_factory,config,target_contexts,*,preparation,checkpoint=lambda:None,capture=False,terminal_early_exit=False):
     """Same account/fill owners, checked observed event inputs, no MTM claim."""
     from .native_draws import _ClockView
@@ -193,6 +255,9 @@ def run_prepared_path(catalogue,schedule,owner,strategy_factory,config,target_co
     from datetime import date
     if preparation.catalogue is not catalogue or preparation.config!=config:
         raise ValueError('Prepared execution source/configuration differs.')
+    if not preparation.accelerated:
+        return run_generic_path(catalogue,schedule,owner,config,target_contexts,
+            preparation=preparation,checkpoint=checkpoint,capture=capture,terminal_early_exit=terminal_early_exit)
     continuation=None;mappings=[];provenance={};captures=[];terminal=False;captured_sessions=0
     for draw in schedule['draws']:
         block=catalogue.blocks[draw['source_block_index']]
@@ -314,7 +379,9 @@ class NativeStrategyFactory:
     parameters:object
     config:object
     symbol:str
-    def __call__(self):return VwapPullbackRiskSizing(self.parameters,execution_config=self.config,instrument_symbol=self.symbol)
+    def __call__(self):
+        from ..strategy_sizing import definition_for_parameters
+        return definition_for_parameters(self.parameters).create(self.parameters,self.config,instrument_symbol=self.symbol)
 
 
 

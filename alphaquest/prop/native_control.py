@@ -35,6 +35,7 @@ class KnownEntryProposal:
     initial_stop_known_at_utc: datetime
     reason: str
     exit_deadline_utc: datetime | None
+    protection: object = None
 
 
 @dataclass(frozen=True)
@@ -88,7 +89,9 @@ class SessionContext:
 class NativePhaseOwner(Protocol):
     """Methods implemented by the existing evaluation/funded phase owners."""
     def begin_session(self, session: SessionContext, snapshot: ExecutionSnapshot) -> None: ...
-    def admit_entry(self, proposal: KnownEntryProposal, snapshot: ExecutionSnapshot) -> EntryAcceptance: ...
+    def admit_entry(self, proposal: KnownEntryProposal, snapshot: ExecutionSnapshot, *, provisional: bool = False) -> EntryAcceptance: ...
+    def activate_quoted_entry(self, acceptance: EntryAcceptance, snapshot: ExecutionSnapshot) -> None: ...
+    def cancel_quoted_entry(self, acceptance: EntryAcceptance, snapshot: ExecutionSnapshot, reason: str) -> None: ...
     def risk_orders(self, snapshot: ExecutionSnapshot) -> SessionRiskOrders: ...
     def after_entry_fill(self, snapshot: ExecutionSnapshot, acceptance: EntryAcceptance) -> None: ...
     def after_trade_close(self, trade, snapshot: ExecutionSnapshot, *, triggering_floor: str | None) -> None: ...
@@ -240,6 +243,7 @@ class NativeControlBase:
         self.sizing_trace=SizingTrace(sizing);self.events=[];self.session_trace=[];self._visited_sessions=set()
         self._session=None;self._last_session=None;self._last_snapshot=None;self._engine_initial=None
         self._pending=None;self._active_acceptance=None;self._last_exit=None;self._decision_count=0
+        self._quoted_entries={}
         self._daily_halt=False;self._finalized=False;self._trading_net=Decimal(0)
         self.retain_details=True;self._event_counts={};self._terminal_session_count=0
         self._sizing_cap_count=0;self._sizing_halt_count=0;self._sizing_budget_count=0;self._sizing_budget=Decimal(0);self._sizing_admitted_risk=Decimal(0)
@@ -293,7 +297,7 @@ class NativeControlBase:
         self._session_before=self._state() if self.retain_details else None;self._session_trades=0;self._session_skips=0
         self._emit('session_begin',state=self._session_before)
 
-    def admit_entry(self,proposal,snapshot):
+    def admit_entry(self,proposal,snapshot,*,provisional=False):
         from .sizing import KnownDecisionRisk,AccountSizingState,choose_quantity
         if self._session is None or snapshot.position is not None or self._pending is not None:
             raise ValueError('Native entry admission requires an active flat session without a pending order.')
@@ -324,9 +328,11 @@ class NativeControlBase:
             state_before=before,sizing_decision_time_utc=proposal.decision_time_utc.isoformat(),
             decision_reference_price=str(proposal.decision_reference_price),initial_stop_price=str(proposal.initial_stop_price),
             session=str(self._session.session),phase=self.phase)
-        intent=EntryIntent(q,proposal.reason,proposal.exit_deadline_utc,proposal.side,proposal.timing,proposal.initial_stop_price) if q else None
+        intent=EntryIntent(q,proposal.reason,proposal.exit_deadline_utc,proposal.side,proposal.timing,proposal.initial_stop_price,proposal.protection) if q else None
         acceptance=EntryAcceptance(self._decision_count,'accept' if q else ('skip' if self.can_trade and not self._daily_halt else 'halt'),intent,decision)
-        if q:self._pending=acceptance
+        if q:
+            if provisional:self._quoted_entries[acceptance.opportunity_id]=acceptance
+            else:self._pending=acceptance
         else:self._session_skips+=1
         self._sizing_halt_count+=acceptance.action=='halt'
         self._sizing_cap_count+=bool(q and any(reason.endswith('_cap') for reason in decision['reasons']))
@@ -335,6 +341,19 @@ class NativeControlBase:
             self._sizing_admitted_risk=add(self._sizing_admitted_risk,Decimal(decision['planned_total_risk']))
         self.sizing_trace(decision);self._emit('entry_admission',**decision)
         return acceptance
+
+    def activate_quoted_entry(self,acceptance,snapshot):
+        """Commit one pre-sized OCO child; never choose quantity from its fill."""
+        if (self._quoted_entries.pop(acceptance.opportunity_id,None)!=acceptance
+                or self._pending is not None or self._active_acceptance is not None or snapshot.position is not None):
+            raise ValueError('OCO activation requires its original pending causal quote and a flat account.')
+        self._sync(snapshot)
+        self._pending=acceptance
+
+    def cancel_quoted_entry(self,acceptance,snapshot,reason):
+        if self._quoted_entries.pop(acceptance.opportunity_id,None)!=acceptance:
+            raise ValueError('Unknown or already consumed OCO quote.')
+        self._emit('entry_cancelled',opportunity_id=acceptance.opportunity_id,reason=reason)
 
     def risk_orders(self,snapshot):
         if self._session is None:raise ValueError('Native risk orders require an active session.')
@@ -385,7 +404,7 @@ class NativeControlBase:
         self._emit('entry_cancelled',opportunity_id=acceptance.opportunity_id,reason=reason)
 
     def end_session(self,session,snapshot):
-        if self._session!=session or snapshot.position is not None or self._pending is not None or self._active_acceptance is not None:
+        if self._session!=session or snapshot.position is not None or self._pending is not None or self._active_acceptance is not None or self._quoted_entries:
             raise ValueError('Native session must finish once while actually flat without pending orders.')
         self._sync(snapshot);self._phase_end(session,snapshot)
         reconciliation=self.bridge.reconcile(snapshot.engine_trade_cash,snapshot.engine_initial_capital,self.equity)
@@ -407,7 +426,7 @@ class NativeControlBase:
         self._terminal_session_count=len(self.context_keys)-len(visited)
 
     def finish_replay(self):
-        if self._session is not None or self._pending is not None or self._active_acceptance is not None or self._last_snapshot is None:
+        if self._session is not None or self._pending is not None or self._active_acceptance is not None or self._quoted_entries or self._last_snapshot is None:
             raise ValueError('Native replay must be exhausted and flat before publication.')
         visited=self._visited_sessions
         if not visited<=self.context_keys or len(visited)+self._terminal_session_count!=len(self.context_keys):

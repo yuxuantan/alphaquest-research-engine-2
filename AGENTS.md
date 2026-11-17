@@ -52,6 +52,16 @@ Keep the opt-out eligibility covered in `tests/test_campaign_narrow.py`.
 
 # Prop simulation deliverables
 
+New strategies must declare `SIZING_SUPPORT` in their own module under the
+shared `alphaquest/strategy_sizing.py` contract. Do not add strategy-ID allowlists
+to fixed-path or native sizing admission. Native support requires controlled
+entry admission, causal stops and explicit session/holding coverage; unsupported
+modes need an explicit reason. Acceleration is optional and separate from
+compatibility. See `docs/strategy_sizing.md`; run
+`tests/test_strategy_sizing_contract.py` plus the affected strategy/native API
+journey for registration changes. Never invent a protective stop to enable risk
+sizing, or resize saved trades in place of native account-aware execution.
+
 The main Prop Sim tab is orchestrated by `alphaquest/prop_sim.py` and
 `alphaquest/web/prop-sim.js`. Keep campaign mechanics/Broad/Narrow/current OOS/
 latest current-policy Monte Carlo qualification server-owned and rechecked at

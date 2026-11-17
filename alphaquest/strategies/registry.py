@@ -17,6 +17,19 @@ class StrategyDefinition:
     accepts_execution_config: bool = False
     accepts_instrument: bool = False
 
+    def __post_init__(self):
+        from ..strategy_sizing import SizingSupport
+        if not isinstance(getattr(self.module, 'SIZING_SUPPORT', None), SizingSupport):
+            raise ValueError('Every registered strategy must declare its sizing contract, including unsupported modes.')
+        support=self.module.SIZING_SUPPORT
+        if support.describe(self.module.Parameters())['percentage_risk']['supported'] and (
+                not callable(getattr(self.factory,'on_bar_controlled',None)) or support.session_settings is None or support.holding_start is None):
+            raise ValueError('Native sizing requires controlled entry admission and explicit session/holding coverage hooks.')
+
+    @property
+    def sizing(self):
+        return self.module.SIZING_SUPPORT
+
     def parameters(self, values: dict):
         names = {field.name for field in fields(self.module.Parameters)}
         if self.module is vwap_pullback_risk_sizing:
@@ -66,6 +79,7 @@ class StrategyDefinition:
             "source_sha256": (self.module.source_fingerprint() if hasattr(self.module, "source_fingerprint")
                               else hashlib.sha256(Path(self.module.__file__).read_bytes()).hexdigest()),
             "execution_assumption": self.execution_assumption,
+            "sizing_support": self.sizing.describe(self.module.Parameters()),
             **({"session_calendar": dict(self.module.SESSION_CALENDAR)} if hasattr(self.module, "SESSION_CALENDAR") else {}),
             "parameters": [{"name": field.name, "type": field.type.__name__, "default": str(field.default) if field.type is Decimal else field.default,
                             **field.metadata} for field in fields(self.module.Parameters)],
@@ -73,6 +87,7 @@ class StrategyDefinition:
 
     def provenance(self, parameters) -> dict:
         description = self.description()
+        description.pop('sizing_support', None)  # Admission belongs to the versioned prop package.
         description["parameters"] = asdict(parameters)
         assumptions = getattr(self.module, "backtest_assumptions", None)
         if assumptions is not None:

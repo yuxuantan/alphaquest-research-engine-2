@@ -16,7 +16,7 @@ import numpy as np
 
 from ..execution import EquityPoint, ExecutionContinuation, execute, _validate_bar
 from ..session_calendar import CT, session_date
-from ..strategies.vwap_pullback_risk_sizing import Parameters, VwapPullbackRiskSizing
+from ..strategies.vwap_pullback_risk_sizing import VwapPullbackRiskSizing
 from .adapter import canonical
 from .native_control import SessionContext, json_native
 
@@ -87,8 +87,8 @@ def _restore_origin_weights(catalogue, header):
 
 
 def _parameters(parameters):
-    if type(parameters) is not Parameters or not parameters.use_eod_flat or parameters.use_vol_sizing:
-        raise ValueError('Native block draws require VWAP EOD-flat with local volume sizing disabled.')
+    from ..strategy_sizing import native_settings
+    native_settings(parameters)
     return _json(asdict(parameters))
 
 
@@ -108,9 +108,10 @@ def _shape(context, parameters, *, kind,allow_sparse=False):
     declared = context.observed_bar_count if kind == 'observed' else context.expected_bar_count
     if declared != count and not allow_sparse:
         raise ValueError('Native draw session count differs from its complete calendar shape.')
-    configured = datetime.combine(day, time(parameters.eod_flat_time//100,
-                                            parameters.eod_flat_time % 100), CT)
-    cutoff = min(configured, close-timedelta(minutes=parameters.close_buffer_minutes))
+    from ..strategy_sizing import native_settings
+    flat_time, buffer = native_settings(parameters)
+    configured = datetime.combine(day, time(flat_time//100, flat_time % 100), CT)
+    cutoff = min(configured, close-timedelta(minutes=buffer))
     return (close.strftime('%H:%M:%S'), cutoff.strftime('%H:%M:%S'), count)
 
 
@@ -231,10 +232,11 @@ def verify_catalogue(catalogue, *, checkpoint=lambda: None):
     """Rehash actual bars/prefixes; retained hash fields are not proof of bytes."""
     if type(catalogue) is not SourceCatalogue:
         raise ValueError('Native execution requires a checked source catalogue.')
+    from ..strategy_sizing import restore_parameters
     fresh = build_catalogue(catalogue.bars,
         {s.context.session:s.context for s in catalogue.sessions},
-        Parameters(**{key:Decimal(value) if isinstance(getattr(Parameters(), key), Decimal) else value
-                      for key, value in json.loads(catalogue.parameters_json).items()}),
+        restore_parameters(
+            json.loads(catalogue.parameters_json),json.loads(catalogue.source_identity_json).get('strategy',{}).get('id')),
         block_sessions=catalogue.block_sessions, source_identity=json.loads(catalogue.source_identity_json),
         checkpoint=checkpoint)
     if fresh.metadata() != catalogue.metadata():
@@ -393,20 +395,26 @@ class _ClockView:
     def risk_orders(self, snapshot):
         return replace(self.owner.risk_orders(self.snapshot(snapshot)), session=session_date(snapshot.timestamp_utc))
 
-    def admit_entry(self, proposal, snapshot):
+    def admit_entry(self, proposal, snapshot, **options):
         view = replace(proposal, decision_time_utc=self.stamp(proposal.decision_time_utc),
             initial_stop_known_at_utc=self.stamp(proposal.initial_stop_known_at_utc),
             exit_deadline_utc=self.stamp(proposal.exit_deadline_utc))
-        acceptance = self.owner.admit_entry(view, self.snapshot(snapshot))
+        acceptance = self.owner.admit_entry(view, self.snapshot(snapshot), **options)
         self.acceptances[acceptance.opportunity_id] = acceptance
         intent = replace(acceptance.accepted_intent, exit_deadline_utc=proposal.exit_deadline_utc) if acceptance.accepted_intent else None
         return replace(acceptance, accepted_intent=intent)
 
+    def activate_quoted_entry(self, acceptance, snapshot):
+        self.owner.activate_quoted_entry(self.acceptances[acceptance.opportunity_id], self.snapshot(snapshot))
+
+    def cancel_quoted_entry(self, acceptance, snapshot, reason):
+        self.owner.cancel_quoted_entry(self.acceptances.pop(acceptance.opportunity_id), self.snapshot(snapshot), reason)
+
     def after_entry_fill(self, snapshot, acceptance):
-        self.owner.after_entry_fill(self.snapshot(snapshot), self.acceptances[acceptance.opportunity_id])
+        self.owner.after_entry_fill(self.snapshot(snapshot), self.acceptances.pop(acceptance.opportunity_id))
 
     def cancel_entry(self, acceptance, snapshot, reason):
-        self.owner.cancel_entry(self.acceptances[acceptance.opportunity_id], self.snapshot(snapshot), reason)
+        self.owner.cancel_entry(self.acceptances.pop(acceptance.opportunity_id), self.snapshot(snapshot), reason)
 
     def after_trade_close(self, trade, snapshot, *, triggering_floor):
         view = replace(trade, entry_time_utc=self.stamp(trade.entry_time_utc),
@@ -428,8 +436,8 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
         catalogue=preparation.checked
     else:catalogue = verify_catalogue(catalogue, checkpoint=checkpoint)
     strategy = strategy_factory()
-    if type(strategy) is not VwapPullbackRiskSizing or strategy.config != config:
-        raise ValueError('Native draws require the actual supported VWAP strategy and exact execution configuration.')
+    if strategy.config != config:
+        raise ValueError('Native draws require a registered controlled strategy and exact execution configuration.')
     parameters = strategy.parameters
     fresh = build_schedule(catalogue, target_contexts, parameters, phase=schedule.get('phase'),
         seed=schedule.get('seed'), path_index=schedule.get('path_index'), start_date=schedule.get('start_date'),
@@ -458,7 +466,7 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
         selected = catalogue.sessions[block.first_session:block.first_session+draw['used_sessions']]
         first, end = selected[0].first_bar, selected[-1].end_bar
         strategy = strategy_factory()
-        if (type(strategy) is not VwapPullbackRiskSizing or strategy.config != config
+        if (strategy.config != config
                 or _parameters(strategy.parameters) != catalogue.parameters_json):
             raise ValueError('Strategy factory changed its immutable block parameters.')
         if preparation is not None:strategy=preparation.strategy(first,checkpoint)
@@ -535,14 +543,14 @@ class NativePathPreparation:
         self.catalogue=catalogue;self.checked=verify_catalogue(catalogue,checkpoint=checkpoint)
         self.factory=strategy_factory;self.config=config;self.max_bytes=max_bytes;self.bytes_used=0;self.snapshots={}
         warm=strategy_factory()
-        if type(warm) is not VwapPullbackRiskSizing or warm.config!=config or _parameters(warm.parameters)!=catalogue.parameters_json:
+        if warm.config!=config or _parameters(warm.parameters)!=catalogue.parameters_json:
             raise ValueError('Native prefix strategy identity differs.')
         boundaries={s.first_bar for s in catalogue.sessions}
         # No need to advance through the final session: no future prefix uses it.
         end=max(boundaries)
         for index in range(end+1):
             if index in boundaries:
-                charge=4096+32*(len(warm._history)+len(warm._adx_history))
+                charge=self.charge(warm)
                 if self.bytes_used+charge<=self.max_bytes:
                     self.snapshots[index]=self.clone(warm);self.bytes_used+=charge
             if index==end:break
@@ -555,6 +563,14 @@ class NativePathPreparation:
     def clone(strategy):
         import copy
         from collections import deque
+        if type(strategy) is not VwapPullbackRiskSizing:
+            # Hash accumulators cannot be pickled. Immutable venue calendars
+            # are shared; all mutable signal/counter state is independently copied.
+            memo={}
+            for value in vars(strategy).values():
+                if hasattr(value,'hexdigest') and hasattr(value,'copy'):memo[id(value)]=value.copy()
+                if value is not None and hasattr(value,'plan') and hasattr(value,'sha256'):memo[id(value)]=value
+            return copy.deepcopy(strategy,memo)
         result=copy.copy(strategy)
         result._history=deque(strategy._history,maxlen=strategy._history.maxlen)
         result._adx_history=deque(strategy._adx_history,maxlen=strategy._adx_history.maxlen)
@@ -564,6 +580,18 @@ class NativePathPreparation:
         # Parameters/config, source Bar/Decimal values and reviewed calendar/plan
         # objects are immutable. Latches and counters are scalar value fields.
         return result
+
+    @staticmethod
+    def charge(strategy):
+        import sys
+        seen=set()
+        def size(value):
+            if id(value) in seen:return 0
+            seen.add(id(value));total=sys.getsizeof(value)
+            if isinstance(value,dict):total+=sum(size(k)+size(v) for k,v in value.items())
+            elif isinstance(value,(list,tuple,set)) or type(value).__name__=='deque':total+=sum(size(v) for v in value)
+            return total
+        return 4096+size(vars(strategy))
 
     def strategy(self,first,checkpoint):
         if first in self.snapshots:return self.clone(self.snapshots[first])

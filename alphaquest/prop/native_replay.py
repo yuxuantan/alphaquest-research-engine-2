@@ -212,9 +212,9 @@ def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=N
     if source_cache is None:source_cache={}
     if key not in source_cache:
         if request.prepared_execution:
-            from ..risk_metrics import from_report
-            risk=from_report(runs,record['id'])
-            if not risk['coverage']['complete']:raise ValueError('Percentage optimization requires complete verified causal initial-stop evidence. Preserve this report and create a compatible native IS source.')
+            # Causal proposals are recomputed from bars, not resized saved trades.
+            strategy=meta['strategy'];definition=get_strategy(strategy['id'])
+            definition.sizing.require(definition.parameters(strategy['parameters']), 'percentage_risk')
         source_cache[key]=_admit_replay_source(datasets,record,request)
     dataset,config,parameters,period,sessions,calendar,descriptor,closures=source_cache[key]
     start,end=date.fromisoformat(period.first_session),date.fromisoformat(period.last_session)
@@ -243,11 +243,12 @@ def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=N
             observed_sessions=len(sessions), observed_bars=sum(s['observed_bar_count'] for s in sessions),
             sizing_uses_future_fill=False, costs_charged_once=True, cold_strategy_start=True,
             complete_minute_sessions=True, historical_paths=1, recommendation=False,
-            limitations=['Continuous/base MNQ, one-minute complete sessions, VWAP EOD-flat only.',
+            limitations=['Registered controlled strategy, continuous/base MNQ and complete one-minute sessions.',
                 'Strategy starts cold at the first retained source bar; prior source results do not enter sizing.',
                 'The historical replay is one observed path and does not select a policy. Optional native forecasts are separate; independent native IS campaigns perform policy selection.',
                 'Provider rules, OHLC ordering and payout settlement assumptions remain unverified.']))
     if request.prepared_execution:
+        result['source_check']['sizing_capabilities']=get_strategy(meta['strategy']['id']).sizing.describe(parameters)
         result.update(execution_settings={k:str(v) if isinstance(v,Decimal) else v for k,v in asdict(config).items()},
             source_adaptation=dict(price_reference=dataset['symbol'],execution_instrument='MNQ',point_value='2',commission_mode='replace_once',micro_basis_and_liquidity_verified=False))
         result['source_check'].pop('complete_minute_sessions',None)
@@ -328,7 +329,8 @@ def prepare_native_forecast(datasets, request, check,*,cache=None):
         start = date.fromisoformat(text); cutoff = start+timedelta(days=forecast.horizon_calendar_days)
         contexts = {}; day = start
         while day < cutoff:
-            plan = calendar.plan(day, parameters.eod_flat_time, parameters.close_buffer_minutes)
+            from ..strategy_sizing import native_session_plan
+            plan = native_session_plan(calendar, day, parameters)
             if plan.close is not None:
                 close = plan.close.astimezone(timezone.utc)
                 begin = datetime.combine(day-timedelta(days=1), time(17,1), CT).astimezone(timezone.utc)
@@ -361,7 +363,7 @@ def prepare_native_forecast(datasets, request, check,*,cache=None):
             simulations=forecast.simulations,schedules=[],schedule_declarations=declarations,
             retained_path_indices=list(range(forecast.capture_paths)),
             work=dict(source_validation_bars=len(catalogue.bars),total_bar_work=None,
-                execution='Exact indexed opportunities/holding-order touches; all requested account paths.',
+                execution='Shared native bar execution with exact event acceleration where supported. All requested account paths.',
                 schedule_bytes=sum(len(canonical(r).encode()) for r in declarations),estimated_capture_bytes=None))
         plan['plan_sha256']=digest(plan)
         return plan,catalogue,cohorts
@@ -568,12 +570,9 @@ def _admit_replay_source(datasets,record,request):
         from dataclasses import replace
         config=replace(config,point_value=Decimal(2),commission_per_contract_per_side=Decimal(request.costs['per_side']))
     strategy = meta['strategy']
-    if strategy['id'] != 'vwap_pullback_risk_sizing':
-        raise ValueError('Native account control currently supports the VWAP strategy admission hook only.')
     definition = get_strategy(strategy['id'])
     parameters = definition.parameters(strategy['parameters'])
-    if not parameters.use_eod_flat or parameters.use_vol_sizing:
-        raise ValueError('Native account control requires Use EOD Flat enabled and strategy-local Use Vol Sizing disabled.')
+    definition.sizing.require(parameters, 'percentage_risk')
     expected = json.loads(json.dumps(definition.provenance(parameters), default=json_value))
     expected.pop('session_flattening', None)
     if any(strategy.get(k) != v for k,v in expected.items()):
@@ -598,7 +597,8 @@ def _admit_replay_source(datasets,record,request):
     opens, closures, plans = [], [], {}
     day = start
     while day <= end:
-        plan = calendar.plan(day, parameters.eod_flat_time, parameters.close_buffer_minutes)
+        from ..strategy_sizing import native_session_plan
+        plan = native_session_plan(calendar, day, parameters)
         if plan.close is not None:
             opens.append(str(day)); plans[day] = plan
         elif day.weekday() < 5:
@@ -620,8 +620,6 @@ def _admit_replay_source(datasets,record,request):
         count = int((close-begin).total_seconds()/60)+1
         stamps = seen[text]
         if request.prepared_execution:
-            from .native_preparation import capability
-            capability(parameters)
             from .native_market_hours import required_holding_minutes
             required=required_holding_minutes(day,parameters,close)
             if (not stamps or len(set(stamps))!=len(stamps) or required-set(stamps)
