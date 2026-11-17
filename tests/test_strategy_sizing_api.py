@@ -17,7 +17,7 @@ from test_native_phase_campaigns import declaration
 from alphaquest.prop.sizing_search import PercentageGrid
 
 
-def twin_source(client, *, with_oos=False):
+def twin_source(client, *, with_oos=False, flat_gap=False):
     parameters=Parameters(max_bars_back=0,use_momentum=False,bo_pivot_tf=15,bo_atr_period=1)
     pattern=breakout_rows();lines=['Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol']
     first=date(2026,1,5)
@@ -26,6 +26,7 @@ def twin_source(client, *, with_oos=False):
         if day.weekday()>=5:continue
         start=datetime.combine(day-timedelta(days=1),time(17,1),CT)
         for minute in range(1380):
+            if flat_gap and day==first and minute==10:continue  # Synthetic first-session 17:11 gap, before any possible order.
             stamp=start+timedelta(minutes=minute)
             values=(pattern[minute].open,pattern[minute].high,pattern[minute].low,pattern[minute].close) if minute<len(pattern) else (126,127,125,126)
             lines.append(','.join([stamp.strftime('%m/%d/%Y'),stamp.strftime('%H:%M'),*map(str,values),'100','50','50']))
@@ -41,6 +42,88 @@ def twin_source(client, *, with_oos=False):
     row,=client.get('/api/optimizations/'+job['id']+'/results').json()['items']
     record=client.get('/api/backtests/'+row['run_id']).json()
     return record,raw
+
+
+@pytest.mark.parametrize('phase',['evaluation','funded'])
+def test_twin_percentage_flat_gap_source_check_run_and_durable_report(tmp_path,phase):
+    destination=os.environ.get('ALPHAQUEST_GAP_EVIDENCE_DIR')
+    library=Path(destination)/phase/'library' if destination else tmp_path
+    with ResearchClient(create_app(library/'datasets.sqlite3')) as client:
+        record,raw=twin_source(client,flat_gap=True)
+        request=declaration(client,record,phase)
+        request['is_window']=dict(first_session='2026-01-05',last_session='2026-01-09')
+        request['simulation']['simulations']=8
+        request['costs']=dict(mode='override',broker='synthetic',per_side='0',instrument='auto')
+        if phase=='evaluation':request['sampling'].update(chain_simulations=8,chain_seed=1732)
+        request['search_settings']['native_execution'].update(model='native_percentage_observed_blocks_v2',horizon_calendar_days=7)
+        request['search_settings']['calendar'].update(start_dates=['2026-02-02'],coverage_end='2026-12-31')
+        if phase=='funded':request['search_settings']['horizon_calendar_days']=7
+        grid=PercentageGrid(minimum='.2',maximum='.2',step='.1',maximum_contracts=40)
+        request['sources'][0].update(sizes=[40],sizing_policies=[asdict(p) for p in grid.policies(dict(tick_size='.25',point_value='2',commission_per_contract_per_side='0'))])
+        created=client.post('/api/research-campaigns',json=request)
+        assert created.status_code==201,created.text
+        id=created.json()['campaign_id']
+        checked=client.post(f'/api/research-campaigns/{id}/check')
+        assert checked.status_code==200,checked.text
+        launched=client.post(f'/api/research-campaigns/{id}/run')
+        assert launched.status_code==202,launched.text
+        analysis_id=launched.json()['analysis_id'];wait(client,analysis_id)
+        report=client.get(f'/api/prop-analyses/{analysis_id}/downloads/report.json').json()
+        candidate,=report['calculations']['candidates']
+        coverage=candidate['manifest']['native_source_check']['observed_coverage']
+        assert len(coverage['missing_minutes'])==1
+        assert coverage['validation']=='actual_exposure_during_every_replay'
+        assert candidate['quantity_summary']['admitted_entries']>0
+        assert len(candidate['native_forecast']['paths'])==8
+        assert client.get(f'/api/prop-analyses/{analysis_id}/downloads/report.json').json()==report
+        archive=client.get(f'/api/research-campaigns/{id}/exports/analysis.zip')
+        assert archive.status_code==200
+        if destination:
+            folder=Path(destination)/phase;folder.mkdir(parents=True,exist_ok=True)
+            for filename,value in [('request.json',request),('source.json',record),('report.json',report),('journey.json',dict(campaign_id=id,analysis_id=analysis_id,source_id=record['id']))]:
+                (folder/filename).write_text(json.dumps(value,indent=2))
+            (folder/'SYNTHETIC-flat-gap-source.csv').write_bytes(raw)
+            (folder/'analysis.zip').write_bytes(archive.content)
+
+
+@pytest.mark.parametrize('phase',['evaluation','funded'])
+def test_percentage_exposed_gap_fails_job_without_a_replacement_draw(tmp_path,phase):
+    from time import monotonic,sleep
+    from native_replay_fixtures import source_bytes
+    from test_native_replay_api import source
+    destination=os.environ.get('ALPHAQUEST_GAP_EVIDENCE_DIR')
+    folder=Path(destination)/(phase+'-held-gap') if destination else tmp_path
+    with ResearchClient(create_app(folder/'library'/'datasets.sqlite3')) as client:
+        # The normal backtest accepts observed bars; every native account has
+        # an open position when the missing 09:03 Chicago minute is reached.
+        raw=b'\n'.join(line for line in source_bytes().splitlines() if b',15:03,' not in line)+b'\n'
+        record=source(client,raw=raw)
+        request=declaration(client,record,phase,dynamic=True)
+        request['simulation']['simulations']=8
+        request['costs']=dict(mode='override',broker='synthetic',per_side='0',instrument='auto')
+        request['search_settings']['native_execution']['model']='native_percentage_observed_blocks_v2'
+        request['sources'][0]['sizing_policies']=request['sources'][0]['sizing_policies'][1:]
+        if phase=='evaluation':request['sampling'].update(chain_simulations=8)
+        created=client.post('/api/research-campaigns',json=request)
+        assert created.status_code==201,created.text
+        id=created.json()['campaign_id']
+        checked=client.post(f'/api/research-campaigns/{id}/check')
+        assert checked.status_code==200,checked.text
+        launched=client.post(f'/api/research-campaigns/{id}/run')
+        assert launched.status_code==202,launched.text
+        analysis_id=launched.json()['analysis_id'];deadline=monotonic()+45
+        while True:
+            job=client.get('/api/prop-analyses/'+analysis_id).json()
+            if job['status'] not in ('queued','running'):break
+            assert monotonic()<deadline,job
+            sleep(.02)
+        assert job['status']=='error' and 'a position is open' in job['error'],job
+        assert '09:03:00-06:00' in job['error']
+        assert not (client.app.state.prop_analyses.root/analysis_id/'report.json').exists()
+        if destination:
+            (folder/'job.json').write_text(json.dumps(job,indent=2))
+            (folder/'request.json').write_text(json.dumps(request,indent=2))
+            (folder/'SYNTHETIC-held-gap-source.csv').write_bytes(raw)
 
 
 @pytest.mark.parametrize('phase',['evaluation','funded'])

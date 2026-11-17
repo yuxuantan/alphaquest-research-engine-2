@@ -244,6 +244,7 @@ class NativeControlBase:
         self._session=None;self._last_session=None;self._last_snapshot=None;self._engine_initial=None
         self._pending=None;self._active_acceptance=None;self._last_exit=None;self._decision_count=0
         self._quoted_entries={}
+        self.observed_coverage=None
         self._daily_halt=False;self._finalized=False;self._trading_net=Decimal(0)
         self.retain_details=True;self._event_counts={};self._terminal_session_count=0
         self._sizing_cap_count=0;self._sizing_halt_count=0;self._sizing_budget_count=0;self._sizing_budget=Decimal(0);self._sizing_admitted_risk=Decimal(0)
@@ -251,9 +252,16 @@ class NativeControlBase:
 
     def session_context(self,timestamp_utc):
         from .phase_lifecycle import session_date
+        if self.observed_coverage is not None:
+            self.observed_coverage.check(timestamp_utc,self.coverage_exposure())
         day=session_date(timestamp_utc)
         if day not in self.contexts:raise ValueError('Bar has no verified native session context.')
         return self.contexts[day]
+
+    def coverage_exposure(self):
+        if self._active_acceptance is not None:return 'a position is open'
+        if self._quoted_entries:return 'a stop-entry order is working'
+        return None
 
     def set_detail_capture(self,enabled):
         if self.events or self.session_trace:raise ValueError('Capture mode must be fixed before execution.')

@@ -117,7 +117,6 @@ class NativeEventPreparation:
             times=[catalogue.bars[i].timestamp_utc for i in range(s.first_bar,s.end_bar)]
             self.session_endpoints[s.first_bar]=(times[0],times[-1])
             self.cutoffs[s.first_bar]=s.first_bar+bisect_left(times,cutoff)
-            if self.cutoffs[s.first_bar]>=s.end_bar-1:raise ValueError('No actual next-open liquidation bar after the source cutoff.')
         self.offer_indices=tuple(sorted(self.offers));report('price_index',0)
         self.index=PriceIndex(catalogue.bars,config.tick_size);report('price_index',total)
         self.accounted_bytes=len(self.index.low)*self.index.low.itemsize+len(self.index.high)*self.index.high.itemsize+len(self.offers)*512
@@ -207,7 +206,8 @@ def run_generic_path(catalogue,schedule,owner,config,target_contexts,*,preparati
         block=catalogue.blocks[draw['source_block_index']]
         selected=catalogue.sessions[block.first_session:block.first_session+draw['used_sessions']]
         mapping={s.context.session:date.fromisoformat(d) for s,d in zip(selected,draw['target_sessions'],strict=True)}
-        adapter=PreparedClockView(owner,{s.context.session:s.context for s in selected},target_contexts,mapping)
+        adapter=PreparedClockView(owner,{s.context.session:s.context for s in selected},target_contexts,mapping,
+            tuple(gap for s in selected for gap in s.missing_minutes))
         strategy=preparation.legacy.strategy(selected[0].first_bar,checkpoint)
         for session in selected:
             checkpoint();adapter.active_source=session.context.session
@@ -266,7 +266,8 @@ def run_prepared_path(catalogue,schedule,owner,strategy_factory,config,target_co
         for source_day,target_day in mapping.items():
             if not owner.retain_details:continue
             provenance[str(target_day)]=dict(path_index=schedule['path_index'],draw_slot=draw['slot'],source_session=str(source_day),target_session=str(target_day))
-        adapter=PreparedClockView(owner,{s.context.session:s.context for s in selected},target_contexts,mapping)
+        adapter=PreparedClockView(owner,{s.context.session:s.context for s in selected},target_contexts,mapping,
+            tuple(gap for s in selected for gap in s.missing_minutes))
         for session in selected:
             if terminal:break
             checkpoint();adapter.active_source=session.context.session;path=None;processed=0;final=None
@@ -558,7 +559,9 @@ class PreparedClockView(_ClockView):
         self.shifts={day:self.target[target].scheduled_close_utc-self.source[day].scheduled_close_utc for day,target in self.mapping.items()}
         self.active_source=None
     def stamp(self,value):return None if value is None else value+self.shifts[self.active_source]
-    def session_context(self,stamp):return self.source[self.active_source]
+    def session_context(self,stamp):
+        if self.coverage is not None:self.coverage.check(stamp,self.owner.coverage_exposure())
+        return self.source[self.active_source]
     def risk_orders(self,snapshot):
         return replace(self.owner.risk_orders(self.snapshot(snapshot)),session=self.active_source)
 

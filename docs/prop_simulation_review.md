@@ -12670,3 +12670,84 @@ nested study and access-retention check; its browser journey is in
 inspection-only preview are saved in
 `artifacts/dependent-research-deletion-20261117/`. User data was not deleted to
 demonstrate this feature, and temporary browser servers stop in fixture teardown.
+
+## 2026-11-18: allow flat gaps in native percentage-risk replay
+
+Current numerical contract: [actual-exposure minute coverage](prop_simulation.md#actual-exposure-minute-coverage-2026-11-18).
+The existing source/backtest → independent phase configuration → Check → Run →
+sealed report/ZIP workflow now accepts original sparse prices while flat. It
+checks positions and accepted stop-entry orders separately for every account,
+phase and sampled path. This adds no simulator, store, scheduler or demo page.
+
+### Independent checks and expected observations
+
+`tests/test_percentage_market_hours.py` uses the actual controlled execution
+engine and an independent USD 100 budget / USD 10 unit-risk fixture. A 09:02
+Chicago entry at 118, stop at 113 and USD 2 point value produce 10 MNQ and a
+USD 100 loss at 09:03. Missing 08:59 and 09:04 prices are flat gaps and preserve
+that result. Missing 09:03 rejects while held, but the same source passes for a
+budget too small to buy a contract. Both Evaluation/Funded and full/accelerated
+paths exercise these outcomes. A missing minute under a Twin OCO entry rejects
+while still flat because that order could have filled. Missing liquidation tails
+cannot fabricate EOF exits. The reviewed 2021 pause is exempt before June 28,
+then the same absent minutes reject when exposed after its removal.
+
+### Normal-product saved examples
+
+Synthetic data is explicitly labelled. Run the following from the repository
+root to regenerate normal product libraries, original source CSVs, requests,
+sealed reports, ZIPs and journey IDs in a new evidence directory:
+
+```sh
+ALPHAQUEST_GAP_EVIDENCE_DIR=artifacts/native-flat-gaps-20261118/final \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_percentage_flat_gap_source_check_run_and_durable_report \
+  tests/test_strategy_sizing_api.py::test_percentage_exposed_gap_fails_job_without_a_replacement_draw
+```
+
+The Evaluation and Funded examples each upload a real synthetic Twin minute
+source, save its normal IS backtest, compare a 0.2% initial-capital policy with a
+40-MNQ cap, check the source and run eight native paths over seven modeled
+calendar days. The first source session omits 17:11 Chicago on January 4, 2026,
+before any order exists. Each check/report retains exactly that one missing
+minute. Both phases complete with admitted opportunities and unchanged report
+bytes when reopened. The short, weak example has no completed acquisition or
+Funded payout; this is coverage/execution evidence, not a qualification or
+provider-parity claim. The separate `*-held-gap` libraries retain a failed job
+with the missing 09:03 Chicago minute and no published success report.
+
+Current saved positive examples under that directory:
+
+- Evaluation campaign `70aadab87a8d4922a2c3d206ccc4a986`, report
+  `abc5c65632e14cd6a1f93fbbd8d6facd`, source
+  `186dffe4ae1c4c0cabb230703abe0182`.
+- Funded campaign `fbf2753b43ea4cbf953aa7990ae659b1`, report
+  `7874fb369f674f628bdcdc0b1c7a4e66`, source
+  `00299826b2dc4e95aa2e9e0a86509f1f`.
+
+To inspect through the existing portal, set `ALPHAQUEST_DATA_DIR` to either
+example's `library` subdirectory and run `sh scripts/serve_portal.sh --port 8011`.
+Open `/#backtests/report/SOURCE_ID`, use its Prop setup to inspect the saved
+independent campaign, or open `/#backtests/prop/campaign/CAMPAIGN_ID` directly.
+Download `source_checks.json` for `observed_coverage`, and the analysis ZIP for
+source/capture evidence. Stop this optional inspection server with Ctrl-C.
+Browser verification screenshots are saved beside each positive example;
+temporary verification servers are stopped after inspection.
+
+Validation: 30 focused checks passed across minute coverage, full/accelerated
+execution parity, worker source spooling, positive/negative normal phase APIs,
+automatic frozen OOS for both Apex and Lucid, and the existing native-results
+browser journey. Both saved Twin examples also reopened in Chrome without
+report mutations on desktop/mobile. Inspection uncovered and fixed the existing
+Twin per-session clock-mapping renderer, which previously assumed legacy array
+fields, and the Evaluation censoring explanation now uses the saved censored
+path count. No numerical report is rewritten by either display correction.
+The legacy broad regression suite was not run.
+
+The actual port-8000 portal was restarted only after verifying zero active
+analyses, optimizations and mechanic jobs. Its 591 backtest IDs, six optimization
+IDs, one workflow ID and 928 analysis IDs were preserved; the restart proof is
+`final/live-portal-restart.json`. The restored stable portal is PID 53172; stop
+it, when idle, with `kill -TERM 53172`. No user simulation was launched to verify
+this increment. Refresh the portal before retrying; an error on a genuinely
+exposed gap is still expected behavior, rather than a reason to replace paths.

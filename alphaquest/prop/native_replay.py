@@ -188,7 +188,7 @@ def _instant(value):
 
 
 def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=None,forecast_cache=None):
-    """Verify bytes, native identity, full observed sessions and immutable IS bounds."""
+    """Verify source identity/inventory; native v2 exposure coverage runs at execution."""
     from ..backtest_data import read_selected_bars
     from ..optimization_cache import artifacts, engine_identity, digest
     from ..reporting import json_value
@@ -216,7 +216,7 @@ def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=N
             strategy=meta['strategy'];definition=get_strategy(strategy['id'])
             definition.sizing.require(definition.parameters(strategy['parameters']), 'percentage_risk')
         source_cache[key]=_admit_replay_source(datasets,record,request)
-    dataset,config,parameters,period,sessions,calendar,descriptor,closures=source_cache[key]
+    dataset,config,parameters,period,sessions,calendar,descriptor,closures,missing_minutes=source_cache[key]
     start,end=date.fromisoformat(period.first_session),date.fromisoformat(period.last_session)
     sizing = SizingConfiguration(**request.sizing) if request.sizing is not None else SizingConfiguration(
         policy=dict(kind='fixed_contracts', contracts=request.micros), initial_configured_capital='50000',
@@ -242,19 +242,24 @@ def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=N
         source_check=dict(status='compatible', source_kind='native_strategy_rerun', actual_instrument='MNQ',
             observed_sessions=len(sessions), observed_bars=sum(s['observed_bar_count'] for s in sessions),
             sizing_uses_future_fill=False, costs_charged_once=True, cold_strategy_start=True,
-            complete_minute_sessions=True, historical_paths=1, recommendation=False,
-            limitations=['Registered controlled strategy, continuous/base MNQ and complete one-minute sessions.',
+            complete_minute_sessions=not missing_minutes, historical_paths=1, recommendation=False,
+            limitations=['Registered controlled strategy, continuous/base MNQ; missing minutes are allowed only without an open position or working stop-entry order.',
                 'Strategy starts cold at the first retained source bar; prior source results do not enter sizing.',
                 'The historical replay is one observed path and does not select a policy. Optional native forecasts are separate; independent native IS campaigns perform policy selection.',
                 'Provider rules, OHLC ordering and payout settlement assumptions remain unverified.']))
+    from .native_market_hours import VERSION as COVERAGE_VERSION
+    result['observed_coverage']=dict(version=COVERAGE_VERSION,validation='actual_exposure_during_every_replay',
+        missing_minutes=[[a.isoformat(),b.isoformat()] for a,b in missing_minutes],
+        interpretation='Flat gaps retain observed feature inputs. Held or working stop-entry gaps invalidate the replay; no imputation or replacement draw.')
     if request.prepared_execution:
         result['source_check']['sizing_capabilities']=get_strategy(meta['strategy']['id']).sizing.describe(parameters)
         result.update(execution_settings={k:str(v) if isinstance(v,Decimal) else v for k,v in asdict(config).items()},
             source_adaptation=dict(price_reference=dataset['symbol'],execution_instrument='MNQ',point_value='2',commission_mode='replace_once',micro_basis_and_liquidity_verified=False))
         result['source_check'].pop('complete_minute_sessions',None)
         result['source_check']['full_session_completeness_required']=False
-        result['source_check']['limitations'][0]='Observed NQ/MNQ reference prices, explicit MNQ costs and complete holding intervals, with reviewed historical venue pauses.'
-        result['source_check']['complete_holding_intervals']=True
+        result['source_check']['limitations'][0]='Observed NQ/MNQ reference prices and explicit MNQ costs. Every replay checks actual open positions and working stop entries across missing minutes, excluding reviewed venue pauses; flat gaps retain observed inputs.'
+        result['source_check']['holding_coverage_validation']='runtime_actual_exposure'
+        result['source_check']['complete_holding_intervals_required']=True
     if dataset.get('tick_data'):
         result['source_check'].update(execution_data='ordered_trade_ticks',decision_clock='completed_one_minute_bars',
             source_total_trade_records=dataset['tick_data']['records'])
@@ -279,11 +284,17 @@ def make_controller(request, check, *, cutoff_date_exclusive=None):
     # Dispatch resolves optimizer contracts; simulation owners remain explicit.
     if request.phase == 'evaluation':
         from .evaluation_profiles import NativeEvaluationController
-        return NativeEvaluationController(EvaluationProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
+        controller=NativeEvaluationController(EvaluationProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
             **common, calendar=PhaseCalendar(**check['calendar']), retry=SequentialRetry(**(request.retry or {})))
-    from .funded_profiles import NativeFundedController
-    return NativeFundedController(FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
-        **common, receipt_delay_calendar_days=request.receipt_delay_calendar_days, receipt_amount_convention=request.receipt_amount_convention)
+    else:
+        from .funded_profiles import NativeFundedController
+        controller=NativeFundedController(FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
+            **common, receipt_delay_calendar_days=request.receipt_delay_calendar_days, receipt_amount_convention=request.receipt_amount_convention)
+    gaps=check.get('observed_coverage',{}).get('missing_minutes',[])
+    if gaps:
+        from .native_market_hours import ObservedExposureCoverage
+        controller.observed_coverage=ObservedExposureCoverage(tuple((_instant(a),_instant(b)) for a,b in gaps))
+    return controller
 
 
 def prepare_native_forecast(datasets, request, check,*,cache=None):
@@ -312,8 +323,9 @@ def prepare_native_forecast(datasets, request, check,*,cache=None):
         engine_identity=check['engine_identity'])
     if cache is None:cache={}
     if request.prepared_execution:
+        from .native_market_hours import VERSION as COVERAGE_VERSION
         source_identity.update(complete_holding_intervals=True,forecast_model=forecast.model,
-            execution=check['execution_settings'],source_adaptation=check['source_adaptation'],holding_coverage='nq-observed-holding-minute-coverage-v1')
+            execution=check['execution_settings'],source_adaptation=check['source_adaptation'],holding_coverage=COVERAGE_VERSION)
     key=digest(dict(source=source_identity,block_sessions=forecast.block_sessions))
     if key not in cache:
         if request.prepared_execution:
@@ -606,13 +618,13 @@ def _admit_replay_source(datasets,record,request):
         day += timedelta(days=1)
     if selected != opens:
         raise ValueError('Observed sessions differ from the reviewed calendar; missing open sessions and bars on full closures cannot be fabricated.')
-    # This first supported subset requires every close-labelled minute. No
-    # missing bar is inferred as a venue close, no session is forward-filled.
+    # Legacy v1 retains full-session admission. Prepared/native v2 inventories
+    # original holes and checks them against actual exposure in every replay.
     seen={s:inventory['stamps'][s] for s in selected} if request.prepared_execution else {s:[] for s in selected}
     if not request.prepared_execution:
         with read_selected_bars(datasets,dataset['id'],SessionDateRange.parse(period.first_session,period.last_session)) as source:
             for bar in source.bars:seen[str(session_date(bar.timestamp_utc))].append(bar.timestamp_utc)
-    sessions = []
+    sessions = [];missing_minutes=[]
     for text in selected:
         day = date.fromisoformat(text); plan = plans[day]
         begin = datetime.combine(day-timedelta(days=1), time(17,1), CT).astimezone(timezone.utc)
@@ -620,17 +632,17 @@ def _admit_replay_source(datasets,record,request):
         count = int((close-begin).total_seconds()/60)+1
         stamps = seen[text]
         if request.prepared_execution:
-            from .native_market_hours import required_holding_minutes
-            required=required_holding_minutes(day,parameters,close)
-            if (not stamps or len(set(stamps))!=len(stamps) or required-set(stamps)
+            from .native_market_hours import missing_minute_ranges
+            if (not stamps or len(set(stamps))!=len(stamps)
                     or any(t.second or t.microsecond or session_date(t)!=day for t in stamps)):
-                raise ValueError(f'Native session {text} requires observed one-minute prices throughout every possible holding interval and actual liquidation, excluding reviewed venue pauses; flat pre-entry gaps are retained, never filled.')
+                raise ValueError(f'Native session {text} requires unique, ordered whole-minute observations in its original session.')
+            missing_minutes.extend(missing_minute_ranges(day,stamps,close))
             count=len(stamps)
         elif len(stamps) != count or any(stamp != begin+timedelta(minutes=index) for index,stamp in enumerate(stamps)):
             raise ValueError(f'Native session {text} requires every observed minute from 17:01 Chicago through its scheduled close; incomplete/sparse sessions are unsupported.')
         sessions.append(dict(session=text, scheduled_close_utc=close.isoformat(), calendar_version=descriptor['id']+'-reviewed-csv-v1',
             calendar_sha256=calendar.sha256, observed_bar_count=count, fully_observed_or_flat_after_entry_cutoff=True))
-    return dataset,config,parameters,period,sessions,calendar,descriptor,closures
+    return dataset,config,parameters,period,sessions,calendar,descriptor,closures,tuple(missing_minutes)
 
 
 from contextlib import contextmanager

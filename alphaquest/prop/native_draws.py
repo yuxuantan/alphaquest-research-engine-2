@@ -123,6 +123,7 @@ class SourceSession:
     shape: tuple
     content_sha256: str
     prefix_sha256: str
+    missing_minutes: tuple = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,12 +212,14 @@ def build_catalogue(bars, source_contexts, parameters, *, block_sessions, source
             previous = bar; cursor += 1
             if cursor % 1000 == 0:
                 checkpoint()
+        missing=()
         if sparse:
-            from .native_market_hours import required_holding_minutes
-            seen={b.timestamp_utc for b in values[start:cursor]}
-            needed=required_holding_minutes(context.session,parameters,context.scheduled_close_utc)
-            if needed-seen:raise ValueError('Native source has missing possible holding prices; no interpolation is allowed.')
-        groups.append(SourceSession(context, start, cursor, shape, content.hexdigest(), prefix))
+            from .native_market_hours import missing_minute_ranges
+            stamps=[b.timestamp_utc for b in values[start:cursor]]
+            if any(t.second or t.microsecond for t in stamps):
+                raise ValueError('Native source requires whole-minute observation timestamps.')
+            missing=missing_minute_ranges(context.session,stamps,context.scheduled_close_utc)
+        groups.append(SourceSession(context, start, cursor, shape, content.hexdigest(), prefix, missing))
     if cursor != len(values):
         raise ValueError('Source contains bars outside the permitted observed inventory.')
     groups = tuple(groups)
@@ -364,12 +367,14 @@ def modeled_stamp(stamp, source_session, target_session):
 
 
 class _ClockView:
-    def __init__(self, owner, source_contexts, target_contexts, mapping):
+    def __init__(self, owner, source_contexts, target_contexts, mapping, missing_minutes=()):
         self.owner = owner
         self.source = source_contexts
         self.target = target_contexts
         self.mapping = mapping
         self.acceptances = {}
+        from .native_market_hours import ObservedExposureCoverage
+        self.coverage=ObservedExposureCoverage(missing_minutes) if missing_minutes else None
 
     def stamp(self, value):
         if value is None:
@@ -384,6 +389,7 @@ class _ClockView:
         return replace(value, timestamp_utc=self.stamp(value.timestamp_utc), position=position)
 
     def session_context(self, stamp):
+        if self.coverage is not None:self.coverage.check(stamp,self.owner.coverage_exposure())
         day = session_date(stamp)
         if day not in self.source:
             raise ValueError('Execution received foreign source bars.')
@@ -482,7 +488,8 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
         for source_day, target_day in mapping.items():
             target_provenance[str(target_day)] = dict(path_index=fresh['path_index'], draw_slot=draw['slot'],
                 source_session=str(source_day), target_session=str(target_day))
-        adapter = _ClockView(owner, {s.context.session:s.context for s in selected}, target_contexts, mapping)
+        adapter = _ClockView(owner, {s.context.session:s.context for s in selected}, target_contexts, mapping,
+            tuple(gap for s in selected for gap in s.missing_minutes))
         detail = []
         final = None
 

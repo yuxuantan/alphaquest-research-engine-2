@@ -3375,3 +3375,43 @@ optional. Twin's protected market and OCO entries are integrated. Consecutive
 Green Hold explicitly cannot supply stop-based percentage risk without a change
 to its trading rules. Earlier dated implementation descriptions remain
 historical where they refer to VWAP-only native admission.
+
+## Actual-exposure minute coverage (2026-11-18)
+
+The prepared percentage-risk model now uses
+`nq-observed-exposure-minute-coverage-v2` in `prop/native_market_hours.py`.
+This supersedes the possible-holding-window admission requirement in the earlier
+native-percentage sections above. Ordinary backtests and saved fixed-trade
+scaling retain their existing behavior; legacy native v1 retains its declared
+full-session admission contract.
+
+Source checking inventories original missing-minute ranges instead of rejecting
+all of them. Every actual IS forecast, OOS chronology and complementary native
+replay checks those ranges against its own execution state before filling orders:
+
+- Flat, with no working stop-entry order: retain the gap and continue using only
+  observed feature inputs. A next-open market order still means the next observed
+  Open under the existing execution contract; it does not imply a fill inside the
+  absent minute.
+- An actual position is open, including a pending exit: reject the replay before
+  executing through the gap. A rejected/zero-quantity opportunity is not exposure.
+- An accepted stop-entry/OCO order is working: reject too. Flat inventory alone
+  cannot establish that the missing minute contained no entry fill.
+
+The same checks apply to accelerated replay. Jumping over known observed no-op
+bars is allowed; jumping over an actual missing minute while exposed is not.
+A missing liquidation tail still cannot fabricate an EOF exit. Whole missing open
+sessions, invalid/duplicate/unordered timestamps and missing session boundaries
+retain their existing rejection rules. Reviewed historical venue pauses remain
+excluded according to the original source dates, not modeled target dates.
+
+A bad sampled path fails its analysis; there is no redraw, session deletion,
+forward fill or automatic replacement size. Errors identify the original missing
+minute in Chicago and UTC and whether the exposure was a position or a working
+stop entry. They are data-evidence failures, not profitability verdicts. Passing
+`Check` verifies source identity and inventories gaps; it does not certify all
+possible account paths before execution. `observed_coverage` records that scope
+and the immutable ranges in source checks and saved reports. Native implementation
+hashes include the coverage owner. Earlier sealed results, original strategy
+sources and frozen historical verdicts remain unchanged; incompatible old frozen
+prop packages require a new simulation rather than being silently migrated.
