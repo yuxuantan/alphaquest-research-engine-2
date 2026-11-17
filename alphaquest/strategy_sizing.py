@@ -5,6 +5,7 @@ Saved-path scaling and causal native execution are independent capabilities.
 """
 from dataclasses import dataclass, replace
 from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
+import json
 
 VERSION = 'strategy-sizing-contract-v1'
 
@@ -64,6 +65,20 @@ def restore_parameters(values, strategy_id=None):
     if len(definitions) != 1:
         raise ValueError('Native parameters require a unique registered strategy identity.')
     return definitions[0].parameters(values)
+
+
+def source_support(definition, parameters, saved_strategy):
+    """Separate strategy capability from a saved native source's version guard."""
+    result=definition.sizing.describe(parameters)
+    expected=json.loads(json.dumps(definition.provenance(parameters),default=str))
+    expected.pop('session_flattening',None)
+    matches=all(saved_strategy.get(key)==value for key,value in expected.items())
+    result['native_source_version_matches']=matches
+    if not matches:
+        for mode in ('percentage_risk','native_fixed_contracts'):
+            if result[mode]['supported']:
+                result[mode]=dict(supported=False,reason='This saved source predates the current strategy implementation. Native sizing requires a new qualified source; existing campaign results and fixed-path simulations are preserved.')
+    return result
 
 
 def initial_risk_intent(intent, reference, tick):

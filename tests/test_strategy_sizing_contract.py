@@ -41,6 +41,19 @@ def test_capabilities_depend_on_parameters_not_just_strategy_name():
         assert support['fixed_contracts']['supported'] and not support['percentage_risk']['supported']
 
 
+def test_saved_source_version_blocks_native_modes_but_preserves_fixed_path_support():
+    import json
+    from alphaquest.strategy_sizing import source_support
+    definition=STRATEGIES['twin_continuation'];parameters=Parameters()
+    saved=json.loads(json.dumps(definition.provenance(parameters),default=str))
+    assert source_support(definition,parameters,saved)['percentage_risk']['supported']
+    saved['source_sha256']='0'*64
+    support=source_support(definition,parameters,saved)
+    assert support['fixed_contracts']['supported'] and not support['native_source_version_matches']
+    assert not support['percentage_risk']['supported'] and not support['native_fixed_contracts']['supported']
+    assert 'new qualified source' in support['percentage_risk']['reason']
+
+
 @pytest.mark.parametrize('strategy_id,quantity_field',[('consecutive_green_hold','contracts'),('vwap_pullback_risk_sizing','position_size')])
 def test_other_registered_fixed_paths_preserve_decisions_when_quantity_changes(strategy_id,quantity_field):
     from native_replay_fixtures import bars,parameters

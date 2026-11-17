@@ -17,6 +17,9 @@ profitability. Instrument, source integrity, complete holding prices, actual
 intraday flatness and account-profile constraints are checked independently.
 Campaign OOS and Monte Carlo qualification remain mandatory in the main Prop Sim
 portal; implementing a sizing adapter does not qualify a campaign.
+The selected source's native implementation version is also shown before Run.
+An older source can remain usable for fixed-path scenarios while a native
+percentage replay requires a new qualified source with matching implementation.
 
 ## Adding a strategy
 

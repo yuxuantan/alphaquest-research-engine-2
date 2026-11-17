@@ -184,8 +184,9 @@ def qualified(request,selection):
     native=workflows.runs.get(candidate['is_run_id'])
     if source_instrument(native) not in ('NQ','MNQ'):raise ValueError('This local prop model requires a saved NQ or MNQ dataset symbol.')
     from .strategies.registry import get_strategy
+    from .strategy_sizing import source_support
     definition=get_strategy(saved['declaration']['strategy_id'])
-    support=definition.sizing.describe(definition.parameters(candidate['parameters']))
+    support=source_support(definition,definition.parameters(candidate['parameters']),native['run_metadata']['strategy'])
     return dict(selection=selection.model_dump(mode='json'),source_backtest_id=candidate['is_run_id'],
         sizing_support=support,
         strategy_id=saved['declaration']['strategy_id'],dataset=saved['declaration']['dataset'],parameters=candidate['parameters'],
