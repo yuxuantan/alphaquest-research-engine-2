@@ -13032,3 +13032,70 @@ All temporary test servers stopped on teardown.
 Read-only browser evidence for the active user job is saved in
 `live-readonly-check.json` and `current-job-legacy-eta-hidden.png`. It confirms
 zero write requests/page errors and that the original simulation remains running.
+
+
+## Individual path progress and corrected native ETA (2026-11-18)
+
+Scope: existing native percentage searches, both Evaluation/Funded and account
+profiles, plus the shared progress display in Prop Sim and Job history. No new
+page, source, scheduler or result store; no decrease in requested paths.
+
+Reproduce the actual one-click product journey and retain evidence with:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_NATIVE_PROGRESS_EVIDENCE_DIR=artifacts/native-path-progress-20261118 \
+  .venv/bin/python -m pytest -q \
+  tests/test_percentage_prop_browser.py::test_percentage_form_one_run_progress_and_complete_oos \
+  tests/test_job_history_browser.py::test_native_path_eta_warmup_and_legacy_batch_estimates_are_clear
+```
+
+The first test creates a labeled synthetic source through the normal backtest
+API, opens its normal Prop Sim configuration, clicks Run once, navigates away,
+and reopens the completed automatic IS/OOS workflow. `actual-path-progress.json`
+records real worker notifications from the existing catalogue update path.
+`simulation.json`, configuration/result screenshots and each phase's ordinary
+IS `analysis.zip` retain source identities, actual results and downloads. These
+fixtures verify arithmetic/integration, not real-world qualification or provider
+parity. All requested paths remain in their durable reports, and reload reads
+saved results without rerunning them. Temporary browser servers stop on teardown.
+
+The second test uses explicitly synthetic job presentation metadata on the
+normal Job history route: a legacy one-path/106-hour estimate is hidden; a
+current warm-up shows Estimating; nine completed paths and a 120-second
+worker-based estimate display 9 / 1,000 and 2 min. Desktop/mobile screenshots
+are saved. This presentation fixture is not measured progress of a user job.
+
+Independent ETA oracle: after 1,000 seconds of evidence and 1,010 more seconds
+of setup, eight worker paths finish in eight replay seconds. With 19 paths
+requested and one captured, nine have completed and ten remain: ETA must be
+10 seconds, not an extrapolation of 2,018 seconds of setup/evidence. Warm-up,
+uneven last-task counts, single-worker fallback and exact final counts are
+covered in `tests/test_native_path_progress.py`. Serial/multicore native
+forecasts retain identical complete output across 65 paths, including schedule
+hashes, captures, sizing and cash. The existing cooperative-stop test verifies
+sibling drainage before CPU slots are released.
+
+Application status and active-job handling are recorded in the accompanying
+evidence manifest. Do not restart a user job simply to update this display.
+
+### Applied after explicit restart approval
+
+The user approved applying the worker update and restarting with identical
+settings. The normal Prop Sim stop API persisted cancellation and drained both
+old jobs before the verified port-8000 server was stopped. The worker update was
+then copied from its tested isolated tree; seven focused progress/parity/identity
+checks passed again in the actual checkout. The preceding staged-status entry
+above is historical; this paragraph and the evidence manifest record application.
+
+The existing simulation ID is `5c4c908309aa4597831686e04c0e064d`; the normal Run
+API receives its original saved configuration, retaining that URL and both
+campaign IDs. `restart-before.json`, `stopped-simulation.json`,
+`restart-response.json` and `restart-after.json` record the request and resulting
+job IDs. All 765 preexisting completed report records and their seals were
+compared and preserved. No source dataset, saved backtest or prior report was
+rewritten. The original cancelled jobs remain in Job history.
+
+The persistent portal is on port 8000 without autoreload, PID `74484`, with four
+simulation workers. Stop it using `kill -TERM 74484` after accounting for active
+work. Its command/log are recorded in `server.json`; all test servers stopped.

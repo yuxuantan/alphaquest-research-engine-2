@@ -7,22 +7,30 @@ from importlib import import_module
 
 
 def implementations_compatible(saved, current):
-    """Exact identity, or explicitly reviewed admission-only revisions.
+    """Exact identity, or exact directed, reviewed non-numerical revisions.
 
-    Keep actual source hashes in reports. This directed compatibility bridge
-    accepts exact directed phase_search revision pairs, with every other
-    source, kernel and environment field identical. No calculation is excluded.
+    Preserve actual file hashes. Only the listed admission/progress pairs may
+    differ; every calculation, kernel and environment field must match.
     """
     if saved == current:
         return True
-    before = '5fae2e873d053ed8315225cc8f72a2ca2926a73974e784941f4637dc1ba76e0a'
-    after = 'a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051'
-    uncapped = '14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c'
-    revision = current.get('files', {}).get('phase_search.py')
-    if (saved.get('files', {}).get('phase_search.py'),revision) not in (
-            (before,after),(before,uncapped),(after,uncapped)):
-        return False
-    return dict(saved, files=dict(saved['files'], **{'phase_search.py': revision})) == current
+    allowed = {
+        'phase_search.py': {
+            ('5fae2e873d053ed8315225cc8f72a2ca2926a73974e784941f4637dc1ba76e0a', 'a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051'),
+            ('5fae2e873d053ed8315225cc8f72a2ca2926a73974e784941f4637dc1ba76e0a', '14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c'),
+            ('a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051', '14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c'),
+        },
+        # One completed indexed path per task; metadata-only worker timing.
+        # Serial/multicore financial and schedule parity is tested at 65 paths.
+        'native_preparation.py': {('6777f00ea2a980c02175e5982196098684bd45cb1d5c6075e6714a0725d0dfee', 'cd3bf18941c351e8071862c53eb53e04c5e10b0d6834510cc99591bea79732c8')},
+    }
+    files = dict(saved.get('files', {}))
+    for name, pairs in allowed.items():
+        revision = current.get('files', {}).get(name)
+        if (files.get(name), revision) in pairs:
+            files[name] = revision
+    return dict(saved, files=files) == current
+
 
 
 def module_for(phase):

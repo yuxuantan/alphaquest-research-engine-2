@@ -1,5 +1,5 @@
 """New percentage controls and one-click native journey in the existing portal."""
-import json,time
+import json,time,os,shutil
 import pytest
 from test_backtests_browser import browser,page,playwright,portal
 from research_fixtures import ResearchHTTPClient
@@ -8,6 +8,11 @@ from test_percentage_automatic import native_source_pair,install_admission_fixtu
 
 def test_percentage_form_one_run_progress_and_complete_oos(page,portal,monkeypatch,tmp_path):
  base=portal['url']
+ progress=[];store=portal['app'].state.prop_analyses;original_update=store._update
+ def observe(*args,**kwargs):
+  if (details:=kwargs.get('progress_details')) and details.get('stage')=='native_execution':progress.append(dict(details))
+  return original_update(*args,**kwargs)
+ monkeypatch.setattr(store,'_update',observe)
  with ResearchHTTPClient(base_url=base,timeout=180) as client:source=native_source_pair(client)
  install_admission_fixture(monkeypatch,source)
  errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
@@ -51,7 +56,21 @@ def test_percentage_form_one_run_progress_and_complete_oos(page,portal,monkeypat
  page.locator('#prop-sim-evaluation-results').screenshot(path=str(tmp_path/'percentage-evaluation.png'))
  page.set_viewport_size(dict(width=390,height=844));assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
  assert not errors,errors
+ assert progress and all(p['eta_basis']=='completed-worker-paths-v1' for p in progress)
+ assert all(type(p['completed']) is int and p['completed']<=p['total'] for p in progress)
+ assert any(p['eta_status']=='warming_up' and p['eta_seconds'] is None for p in progress)
+ assert any(p['completed']==p['total'] and p['eta_seconds']==0 and p['active_workers']==0 for p in progress)
  (tmp_path/'simulation.json').write_text(json.dumps(saved,indent=2))
+ (tmp_path/'actual-path-progress.json').write_text(json.dumps(progress,indent=2))
+ with ResearchHTTPClient(base_url=base,timeout=180) as client:
+  for phase,campaign in saved['campaign_ids'].items():
+   response=client.get(f'/api/research-campaigns/{campaign}/exports/analysis.zip')
+   assert response.status_code==200
+   (tmp_path/(phase+'-is.zip')).write_bytes(response.content)
+ if destination:=os.environ.get('ALPHAQUEST_NATIVE_PROGRESS_EVIDENCE_DIR'):
+  target=__import__('pathlib').Path(destination);target.mkdir(parents=True,exist_ok=True)
+  for p in tmp_path.iterdir():
+   if p.is_file() and p.suffix in ('.json','.png','.zip'):shutil.copyfile(p,target/p.name)
 
 
 def test_shared_progress_labels_percentage_paths_and_refits(page,portal):

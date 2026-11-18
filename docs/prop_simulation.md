@@ -3536,3 +3536,40 @@ itself does not require rerunning campaign qualification.
 This change avoids redundant market calculations; it does not promise a
 particular whole-grid speedup. Working-entry processing can still dominate Twin
 runs. See the measured normal-product and real-source comparisons in the review.
+
+
+## Native path progress and startup-independent ETA (2026-11-18)
+
+Native percentage Evaluation and Funded searches return one complete, indexed
+account path per task on the existing bounded Runtime. The same checked source
+spool and prepared market context remain cached per worker. Schedules, seeds,
+path counts, account transitions, capture limits and phase objectives are
+unchanged. This changes reporting granularity, not the simulated workload.
+
+`prop/native_progress.py` records exact completed path counts. Its timing
+metadata is stripped from task results and never enters calculations, selection
+or sealed numerical outputs. Catalogue writes remain throttled to once a
+second, except initial/state-transition/final notifications. Both Prop Sim and
+Job history read these existing metadata through `web/prop-progress.js`; opening
+or polling either page triggers no calculations.
+
+Elapsed time includes evidence capture and preparation. ETA instead uses time
+from the first worker's actual replay start, after its checked context loads;
+it excludes serial detailed evidence, source serialization and process startup.
+Until at least `min(remaining worker paths, max(4, 2 × allocated workers))` paths
+finish and each allocated worker has returned a result, show **Estimating…**.
+Subsequent ETA is remaining paths divided by aggregate completed-worker
+throughput. Variable path lengths can still move the estimate; it covers the
+current size only. Terminal progress is exact, with zero active workers and
+zero remaining time.
+
+Earlier running native jobs have no versioned ETA basis. Their batch count
+remains visible, but the portal hides the startup-biased estimate and explains
+that individual-path updates require the new worker code. Loading new Python
+code requires a server restart; do not interrupt an existing simulation without
+the user's approval. Saved reports are preserved.
+
+Actual source hashes remain recorded. `phase_dispatch.py` admits only the exact
+reviewed old-to-new progress revision of `native_preparation.py`, with every
+other numerical/kernel/environment field equal. Unknown revisions still reject;
+this is not a waiver for strategy, execution or account changes.

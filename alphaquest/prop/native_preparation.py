@@ -495,19 +495,25 @@ def worker_programme(programme,directory,*,checkpoint=lambda:None):
 
 
 _loaded_contexts={}
-def _native_batch(task):
-    """Existing Runtime worker; one context load, multiple full account paths."""
+def _native_context(filename,expected):
+    """Checked context shared by successive tasks in the same existing worker."""
     from pathlib import Path
     from hashlib import sha256
     import pickle
-    from time import monotonic
-    filename,expected,first,end,settings=task
     if filename not in _loaded_contexts:
         raw=Path(filename).read_bytes()
         if sha256(raw).hexdigest()!=expected:raise ValueError('Native worker context changed.')
         if len(_loaded_contexts)>=2:_loaded_contexts.pop(next(iter(_loaded_contexts)))
         _loaded_contexts[filename]=pickle.loads(raw)
-    context=_loaded_contexts[filename];programme=context['programme'];pattern=context['pattern']
+    return _loaded_contexts[filename]
+
+
+def _native_batch(task):
+    """Existing Runtime worker; one context load, complete indexed account paths."""
+    from pathlib import Path
+    from time import monotonic
+    filename,expected,first,end,settings=task
+    context=_native_context(filename,expected);programme=context['programme'];pattern=context['pattern']
     rows=[];next_check=0.
     def checkpoint():
         nonlocal next_check
@@ -568,18 +574,23 @@ def run_prepared_accounts(programme,pattern,settings,*,capture_paths,checkpoint,
     from pathlib import Path
     from hashlib import sha256
     from .parallel import map_reported
-    from time import monotonic
+    from .native_progress import NativeProgress,execute_path
     import pickle
     settings={**settings,'retain_schedule_indices':capture_paths>0}
-    records=[];started=monotonic();last=0.
+    records=[]
+    meter=NativeProgress(pattern.simulations,capture_paths,dict(stage='native_execution',phase=pattern.phase,
+        micros=settings['micros'],sizing_label=settings.get('sizing_label')),progress)
     if not parallel:
         return [_run_one(programme,pattern,s,settings,capture=s['path_index']<capture_paths,checkpoint=checkpoint) for s in pattern.paths(weights)]
     # Keep bounded original-engine evidence for selected first path IDs.
     schedules=pattern.paths(weights)
+    meter.evidence(0)
     for index in range(capture_paths):
         checkpoint();records.append(_run_one(programme,pattern,next(schedules),settings,capture=True,checkpoint=checkpoint))
+        meter.evidence(len(records))
     remaining=pattern.simulations-capture_paths
     if not remaining:return records
+    meter.evidence(len(records),preparing=True)
     with TemporaryDirectory(prefix='aq-native-accounts-') as temp:
         directory=Path(temp);stop=directory/'stop'
         prepared=worker_programme(programme,directory/'source',checkpoint=checkpoint)
@@ -590,18 +601,11 @@ def run_prepared_accounts(programme,pattern,settings,*,capture_paths,checkpoint,
         context['pattern']=copy.copy(pattern);context['pattern'].catalogue=prepared.catalogue
         raw=pickle.dumps(context,protocol=pickle.HIGHEST_PROTOCOL);path=directory/'context';path.write_bytes(raw)
         signature=sha256(raw).hexdigest()
-        tasks=[(str(path),signature,i,min(i+32,pattern.simulations),settings) for i in range(capture_paths,pattern.simulations,32)]
-        def notify(done,total,workers,pids):
-            nonlocal last
-            now=monotonic()
-            if done not in (0,total) and now-last<1:return
-            complete=capture_paths+min(remaining,done*32);elapsed=now-started;rate=complete/elapsed if complete else None
-            progress(dict(stage='native_execution',phase=pattern.phase,micros=settings['micros'],
-                sizing_label=settings.get('sizing_label'),completed=complete,total=pattern.simulations,unit='account paths',
-                worker_count=workers,active_workers=0 if complete==pattern.simulations else workers,
-                elapsed_seconds=round(elapsed,2),eta_seconds=(pattern.simulations-complete)/rate if rate else None))
-            last=now
-        for batch in map_reported(_native_batch,tasks,checkpoint=checkpoint,notify=notify,cancel=stop.touch):records.extend(batch)
+        # Path IDs own the random streams; changing task granularity changes no draws.
+        # Workers still load the same checked spool/context once and retain their cache.
+        tasks=[(str(path),signature,i,i+1,settings) for i in range(capture_paths,pattern.simulations)]
+        for batch,_ in map_reported(execute_path,tasks,checkpoint=checkpoint,notify=meter.notify,
+                                   cancel=stop.touch,on_result=meter.received):records.extend(batch)
     return sorted(records,key=lambda r:r['path_index'])
 
 
