@@ -13000,3 +13000,35 @@ cache checks passed again in the live checkout after copying the tested files.
 The stable portal runs on port 8000 without autoreload, PID `72788`. Stop it with
 `kill -TERM 72788` after accounting for active work. No persistent test server
 was left running. Existing native compilation binaries were unchanged.
+
+
+## Native ETA display correction and prepared path-progress update (2026-11-18)
+
+The shared Prop Sim / Job history display now hides unversioned native ETA
+values, whose earlier calculation extrapolated a captured evidence path plus
+startup across all remaining paths. The legacy completed count remains visible
+with an explicit batch-reporting label. Refresh the current Job history route to
+observe **remaining for this size Estimating…**; no job restart is needed for
+this display correction.
+
+The per-path backend update is tested in an isolated copy and remains pending
+the user's active-job restart decision. It returns one indexed path per task
+on the existing worker pool, retains each worker's checked source cache, and
+uses actual worker replay throughput after a warm-up sample. Numerical replay,
+seeds, requested paths and phase objectives match the preceding serial owner.
+The final patch, hashes, actual normal-product IS/OOS progress and ordinary
+phase ZIP downloads are in `artifacts/native-path-progress-20261118/`.
+`implementation-manifest.json` distinguishes tested/staged changes from applied
+changes; do not describe the backend as active until that manifest records it.
+
+Twelve focused checks passed: independent ETA arithmetic (eight worker paths in
+eight seconds after 2,010 seconds of evidence/setup imply ten seconds for ten
+remaining paths); exact 65-path serial/multicore output; the normal one-click
+Prop Sim IS/OOS journey; both Job history presentations including desktop/mobile;
+read-only metadata endpoints; and cooperative cancellation/pool reuse. The five
+progress unit checks passed again after their final test-only refinement.
+All temporary test servers stopped on teardown.
+
+Read-only browser evidence for the active user job is saved in
+`live-readonly-check.json` and `current-job-legacy-eta-hidden.png`. It confirms
+zero write requests/page errors and that the original simulation remains running.

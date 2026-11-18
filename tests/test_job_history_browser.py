@@ -19,7 +19,7 @@ def test_prop_detail_and_list_do_not_repeat_worker_progress(page,portal):
              progress=dict(stage=stage,completed=545,total=1000,unit='account paths',details=dict(
                  stage='native_execution',sizing_label='2.75% · initial configured capital',
                  completed=545,total=1000,unit='account paths',worker_count=4,active_workers=4,
-                 elapsed_seconds=6060,eta_seconds=5040)))
+                 elapsed_seconds=6060,eta_seconds=5040,eta_basis='completed-worker-paths-v1',eta_status='ready')))
     page.route('**/api/jobs/prop_analysis/'+job_id,
                lambda route:route.fulfill(json=job))
     page.route('**/api/jobs?*',lambda route:route.fulfill(json=dict(items=[job],total=1)))
@@ -143,3 +143,35 @@ def test_running_job_survives_navigation_and_history_links_to_results(page,porta
     (tmp_path/'workflow.json').write_text(json.dumps(result,indent=2))
     (tmp_path/'SYNTHETIC-source.csv').write_bytes(page.request.get(portal['url']+'/api/datasets/'+dataset['id']+'/csv').body())
     (tmp_path/'journey.json').write_text(json.dumps({'synthetic':True,'validation_job_id':job_id,'workflow_id':workflow['id'],'batch_id':batch_id,'expected_native_net':78,'expected_validation_bars':24,'expected_history_jobs':2,'expected_saved_backtests':3,'background_submission_status':202,'navigation_and_reload_during_run':True,'gate_was_held_before_real_replay':'Test synchronization only; no fabricated measured progress or outcomes.','server':'Stopped by fixture teardown.'},indent=2))
+
+
+def test_native_path_eta_warmup_and_legacy_batch_estimates_are_clear(page,portal,tmp_path):
+    job_id=uuid4().hex
+    details=dict(stage='native_execution',sizing_label='0.75% · initial configured capital',completed=1,total=1000,
+        unit='account paths',worker_count=4,active_workers=4,elapsed_seconds=420,eta_seconds=381780)
+    job=dict(id=job_id,kind='prop_analysis',status='running',strategy_id='synthetic_strategy',dataset_name='SYNTHETIC progress presentation',
+        recorded_at_utc=None,started_at_utc=None,finished_at_utc=None,error=None,links=[],stop_requested_at_utc=None,
+        progress=dict(stage='Native account execution',completed=1,total=1000,unit='account paths',details=details))
+    page.route('**/api/jobs/prop_analysis/'+job_id,lambda route:route.fulfill(json=job))
+    page.goto(portal['url']+'/#jobs/prop_analysis/'+job_id)
+    panel=page.locator('#jobs-detail-content .prop-confidence-progress')
+    playwright.expect(panel).to_contain_text('remaining for this size Estimating…')
+    playwright.expect(panel).to_contain_text('earlier batch progress')
+    assert '106 h' not in panel.inner_text()
+    details.update(eta_basis='completed-worker-paths-v1',eta_status='warming_up',eta_sample_paths=1,eta_minimum_paths=8,eta_seconds=None)
+    page.reload()
+    playwright.expect(panel).to_contain_text('1 / 8 minimum')
+    playwright.expect(panel).to_contain_text('remaining for this size Estimating…')
+    details.update(completed=9,eta_status='ready',eta_sample_paths=8,eta_seconds=120)
+    page.reload()
+    playwright.expect(panel).to_contain_text('9 / 1,000 account paths')
+    playwright.expect(panel).to_contain_text('remaining for this size 2 min')
+    playwright.expect(panel).to_contain_text('excluding startup and detailed evidence replay')
+    panel.screenshot(path=str(tmp_path/'path-progress-ready.png'))
+    page.set_viewport_size(dict(width=390,height=844))
+    assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
+    panel.screenshot(path=str(tmp_path/'path-progress-mobile.png'))
+    if destination:=__import__('os').environ.get('ALPHAQUEST_NATIVE_PROGRESS_EVIDENCE_DIR'):
+        target=__import__('pathlib').Path(destination);target.mkdir(parents=True,exist_ok=True)
+        for name in ('path-progress-ready.png','path-progress-mobile.png'):
+            __import__('shutil').copyfile(tmp_path/name,target/name)
