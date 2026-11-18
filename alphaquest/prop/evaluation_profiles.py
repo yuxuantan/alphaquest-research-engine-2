@@ -282,6 +282,8 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
         outcome_counts=dict(Counter(row['outcome'] for row in paths)))
     result_forecast=dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='evaluation',
         model=forecast.model,settings=forecast.model_dump(mode='json'),catalogue=catalogue.metadata(),
+        execution_preparation=(dict(version='twin-causal-market-cache-v1',market_features_reused=True,
+            original_fill_and_account_engine=True,account_state_shared=False) if getattr(preparation,'twin',None) is not None else None),
         phase_configuration=dict(profile=asdict(profile),sizing=asdict(sizing),micros=micros,
             max_micros=max_micros,retry=asdict(retry)),
         status='identified_model_mean' if complete else 'unresolved_censoring',

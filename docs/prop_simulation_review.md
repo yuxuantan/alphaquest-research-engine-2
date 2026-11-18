@@ -12885,3 +12885,118 @@ with worker/ETA details; no browser errors, mobile overflow or write requests.
 Reproduce by refreshing the existing `/#jobs/prop_analysis/JOB_ID` route, then
 returning to `/#jobs`. The original stable server remains PID `67100`; no new
 persistent server is started. Temporary browser-test servers stop on teardown.
+
+## Twin cached market features — 2026-11-18
+
+Implementation was tested in `/tmp/aq-twin-cached-replay`, then applied to
+`epic/revamp-workflow` after the user explicitly approved stopping unfinished
+work and restarting with the same settings. Original strategy/execution source
+fingerprints are retained; native implementation identities include the new cache.
+
+The [implementation contract](prop_simulation.md#twin-market-calculation-reuse-2026-11-18)
+describes causal market features versus independent account state. Ordinary
+strategy and execution files are unchanged. Native source/cost/implementation
+checks, immutable freezes and report seals remain in force.
+
+### Focused checks and independent oracles
+
+`tests/test_twin_market_preparation.py` compares original full replay against the
+cached path for long/short BO and MO, mixed setups, skipped unaffordable entries,
+changed risk, fixed quantity, fill-relative capped stops, rounded targets,
+provider-floor exits and real missing-minute diagnostics. It compares actual
+fills, trade P&L, quantities, acceptance/cancellation counts, fees, cash ledgers,
+provider balances and conservation. Reusing the tape at a different risk must not
+reuse the earlier account's eligibility. A future-price mutation must not change
+earlier features. Zero prefix-cache budget falls back to exact original history;
+calendar digests and all eligibility prefix fields match the original warmup.
+A serial/worker comparison retains all 65 paths and identical complete forecasts.
+Session-relative exit tests cover 18:00, midnight, 09:00, 15:45 and 16:00.
+A changed Twin strategy fingerprint disables the specialized cache and retains
+the original replay until the new revision is qualified.
+
+Sizing memo checks prove that repeated quotes still receive separate IDs, a
+future-known stop is rejected even after a cache hit, and a changed provider cap
+forces a new sizing calculation. Existing native arithmetic tests retain exact
+balance-based sizing and Evaluation retry fee/capital reconciliation under both
+Python and matching compiled account backends.
+
+### Existing-product runs and durable downloads
+
+The four account/phase examples use the existing upload -> ordinary backtest ->
+independent campaign -> source check -> Run -> sealed report workflow. Their
+source CSVs are explicitly synthetic and are not performance or provider-parity
+claims. Generate them in a fresh output directory with:
+
+```sh
+ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR=artifacts/twin-market-cache-20261118/final \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_native_percentage_both_account_profiles_and_phases
+```
+
+Each of `apex-50k-eod-evaluation`, `apex-50k-eod-funded`,
+`lucidflex-50k-evaluation`, and `lucidflex-50k-funded` retains its real product
+`library/`, source CSV, request, source report, sealed `report.json` and ordinary
+`analysis.zip`. Report metadata identifies cached market features; all eight
+requested account paths and original detailed captures remain present. Reopening
+returns identical report contents. These small histories do not establish OOS
+qualification. `test_twin_frozen_native_oos_keeps_policy_and_creates_actual_controlled_backtest`
+also runs the original native chronological OOS child and separately cached OOS
+forecast, retaining the exact frozen IS package without reselection.
+
+The real browser journey
+`test_native_campaign_browser.py::test_twin_cached_market_features_visible_in_normal_saved_report`
+starts from the saved ordinary Twin report, checks/runs its phase campaign and
+opens that actual saved campaign report. Expected: the cached-market note,
+independent account/fill statement, gap diagnostics and normal downloads. Its
+original-source OCO gap remains present. Desktop/mobile PNGs, report, source CSV,
+ZIP and journey IDs are retained in `artifacts/twin-market-cache-20261118/browser/`.
+Reopening triggers no write request or simulation, and the report is unchanged.
+The existing one-click Prop Sim IS/freeze/OOS browser journey also passes, with
+normal evidence-minimum failures retained. All browser servers are temporary and
+stop on teardown.
+
+### Read-only real NQ comparison
+
+`artifacts/twin-market-cache-20261118/real-source-reference.json`,
+`real-source-cached.json` and `comparison.json` retain four independently run
+comparisons using the current campaign's actual Twin parameters, 54,506 original
+NQ bars across 41 source sessions in early 2021 and ten modeled target sessions.
+Both Evaluation/Funded and 0.25%/2.75% policies use the same source rows, original
+prices, seeds, costs and Lucid account rules. The reference process imports the
+unchanged live-checkout replay; the cached process imports the isolated change.
+Exact financial summaries, execution counts, gap attribution, sizing summaries,
+fees and conservation match in all four cases. No live job or user dataset is
+changed by this diagnostic.
+
+The measured per-path benefit is modest on this short sample, approximately
+1.1–1.3 times in the retained run, excluding one-time preparation and under a
+concurrent user workload. It is not a prediction for all 1,000 paths, a substitute
+for output parity, or a claim that every three-hour setting will finish quickly.
+Working-order admission/cancellation still runs on every observed bar.
+
+
+### Applied run and restart evidence
+
+The ordinary Prop Sim cancel endpoint persisted stop intent and drained the old
+Evaluation workers; its queued Funded search was cancelled too. Both original
+job records remain readable. All 765 previously completed analyses were checked
+before and after application and remain present. Old reports were not rewritten.
+
+The replacement simulation is `5c4c908309aa4597831686e04c0e064d`, replacing stopped
+simulation `d67c1f085bbb41e7a7a1818aec105d41`. It uses the identical source, LucidFlex
+50K rules, 0.25–4% grids in 0.25% steps, 40-MNQ caps, 1,000 paths per setting,
+seed 42, five-session blocks, fees, commissions, calendar start and 90-day Funded
+horizon. The saved configuration was compared field-for-field; only the new
+request UUID differs. Normal jobs are Evaluation `0b451b675fac4907b35edc3f67b9998f`
+and Funded `b429e98f4eb041769a8cb0940b12831b`.
+
+`restart-before.json`, `restart-after.json`, `restart-response.json` and the
+implementation manifest in the evidence directory retain the application and
+settings comparison. The exact final strategy-revision guard is also exercised
+through a fresh saved Lucid Funded report in `current/`. The normal browser
+journeys and 65 distinct focused checks passed before application; four selected
+cache checks passed again in the live checkout after copying the tested files.
+
+The stable portal runs on port 8000 without autoreload, PID `72788`. Stop it with
+`kill -TERM 72788` after accounting for active work. No persistent test server
+was left running. Existing native compilation binaries were unchanged.

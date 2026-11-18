@@ -193,3 +193,50 @@ def test_native_campaign_frozen_manual_oos_uses_actual_strategy_bars(page,portal
         source_research=original['run_metadata']['research'],controlled_oos_backtest=child,engine_identity=actual_report['implementation'],
         expected=dict(trades=5,quantity=3,trading_profit=4500,cash_received=1500,pending_cash=0,request_date='2026-01-30',receipt_date='2026-02-01',selection_unchanged=True),
         downloads=downloads,reopen_posts=posts,synthetic=True,server='Owned temporary server stopped in fixture teardown.'),indent=2))
+
+
+def test_twin_cached_market_features_visible_in_normal_saved_report(page,portal,tmp_path):
+    from dataclasses import asdict
+    from test_strategy_sizing_api import twin_source
+    from test_native_phase_campaigns import declaration
+    from test_native_replay_api import wait
+    from alphaquest.prop.sizing_search import PercentageGrid
+    with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:
+        original,raw=twin_source(client,working_gap=True)
+        request=declaration(client,original,'funded')
+        request['is_window']=dict(first_session='2026-01-05',last_session='2026-01-09')
+        request['simulation']['simulations']=8
+        request['costs']=dict(mode='override',broker='synthetic',per_side='0',instrument='auto')
+        request['search_settings']['native_execution'].update(model='native_percentage_observed_blocks_v2',horizon_calendar_days=7)
+        request['search_settings']['horizon_calendar_days']=7
+        request['search_settings']['calendar'].update(start_dates=['2026-02-02'],coverage_end='2026-12-31')
+        policies=PercentageGrid(minimum='.2',maximum='.2',step='.1',maximum_contracts=40).policies(dict(tick_size='.25',point_value='2',commission_per_contract_per_side='0'))
+        request['sources'][0].update(sizes=[40],sizing_policies=[asdict(p) for p in policies])
+        response=client.post('/api/research-campaigns',json=request);assert response.status_code==201,response.text
+        cid=response.json()['campaign_id']
+        checked=client.post(f'/api/research-campaigns/{cid}/check');assert checked.status_code==200,checked.text
+        launched=client.post(f'/api/research-campaigns/{cid}/run');assert launched.status_code==202,launched.text
+        aid=launched.json()['analysis_id'];wait(client,aid)
+        saved=client.get(f'/api/prop-analyses/{aid}/downloads/report.json')
+        report=saved.json();row,=report['calculations']['candidates']
+        assert row['native_forecast']['execution_preparation']['market_features_reused']
+        assert row['native_forecast']['observed_bar_diagnostics']['working_entry_gap_encounters']>0
+        page.goto(portal['url']+'/#backtests/report/'+original['id'])
+        playwright.expect(page.locator('#report-prop-setup')).to_be_visible(timeout=30000)
+        page.goto(portal['url']+'/#backtests/prop/campaign/'+cid)
+        panel=page.locator('#campaign-native-forecast-result')
+        playwright.expect(panel).to_contain_text('Twin market calculations cached',timeout=30000)
+        playwright.expect(panel).to_contain_text('independent eligibility, sizing, actual fills and provider limits')
+        panel.screenshot(path=str(tmp_path/'cached-twin-phase-report.png'))
+        page.set_viewport_size(dict(width=390,height=844))
+        assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
+        panel.screenshot(path=str(tmp_path/'cached-twin-mobile.png'))
+        writes=[];page.on('request',lambda r:writes.append(r.url) if r.method!='GET' else None)
+        page.reload();playwright.expect(panel).to_contain_text('Twin market calculations cached',timeout=30000)
+        assert not writes
+        assert client.get(f'/api/prop-analyses/{aid}/downloads/report.json').content==saved.content
+        (tmp_path/'report.json').write_bytes(saved.content)
+        archive=client.get(f'/api/research-campaigns/{cid}/exports/analysis.zip');assert archive.status_code==200
+        (tmp_path/'analysis.zip').write_bytes(archive.content)
+        (tmp_path/'SYNTHETIC-source.csv').write_bytes(raw)
+        (tmp_path/'journey.json').write_text(json.dumps(dict(source_id=original['id'],campaign_id=cid,analysis_id=aid,reopen_write_requests=writes),indent=2))

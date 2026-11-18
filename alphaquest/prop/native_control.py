@@ -238,7 +238,7 @@ class NativeControlBase:
         self.sizing,self.micros,self.max_micros=sizing,micros,max_micros
         from .sizing import SizingPolicy,PlanningExecution
         self._typed_policy=SizingPolicy.model_validate(sizing.policy);self._typed_planning=PlanningExecution.model_validate(sizing.planning_execution)
-        self._sizing_state_key=None;self._sizing_state=None
+        self._sizing_state_key=None;self._sizing_state=None;self._quantity_cache={}
         self.contexts=session_contexts if prepared else dict(session_contexts);self.context_keys=session_contexts.keys_set if prepared else frozenset(session_contexts);self.bridge=ProviderCashBridge()
         self.sizing_trace=SizingTrace(sizing);self.events=[];self.session_trace=[];self._visited_sessions=set()
         self._session=None;self._last_session=None;self._last_snapshot=None;self._engine_initial=None
@@ -343,8 +343,16 @@ class NativeControlBase:
                 self._sizing_state=AccountSizingState(initial_configured_capital='50000',equity_change_from_initial=self.equity,
                     account_floor_from_initial=self.account_floor,daily_floor_from_initial=self.daily_floor,
                     provider_max_contracts=self.provider_cap,user_max_contracts=min(self.micros,self.max_micros))
-                self._sizing_state_key=key
-            decision=choose_quantity(self._typed_policy,self._sizing_state,risk,self._typed_planning)
+                self._sizing_state_key=key;self._quantity_cache.clear()
+            # Causality is validated above for every submission. Repeated OCO
+            # quotes with unchanged account state and price geometry have the
+            # same pure sizing calculation; no acceptance/order is shared.
+            geometry=(risk.side,risk.decision_reference_price,risk.initial_stop_price)
+            base=self._quantity_cache.get(geometry)
+            if base is None:
+                base=choose_quantity(self._typed_policy,self._sizing_state,risk,self._typed_planning)
+                if len(self._quantity_cache)<128:self._quantity_cache[geometry]=base
+            decision=dict(base,caps=dict(base['caps']),reasons=list(base['reasons']))
         else:
             decision=dict(quantity=0,action='skip',requested_contracts=0,caps={},
                 reasons=['daily_halt' if self._daily_halt else self.account_outcome],

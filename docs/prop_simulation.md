@@ -3472,3 +3472,67 @@ roll artifacts. Original datasets, old reports and their verdicts remain intact.
 Changed native implementation hashes distinguish new runs; incompatible old
 frozen prop packages are not silently migrated. Start a new simulation to use
 this convention; the campaign's strategy/backtest sources were not edited.
+
+## Twin market calculation reuse (2026-11-18)
+
+The native prepared percentage-risk owner now dispatches compatible Twin
+Continuation parameters to `prop/twin_preparation.py`. It works through the
+existing independent Evaluation/Funded searches, native forecast worker runtime,
+and frozen OOS forecasts. The ordinary strategy source, execution engine,
+provider account owners, sampling law, source prices, quantities/caps, requested
+path count and selection rules are preserved. There is no new execution engine,
+service or result store. Existing native v1 and unsupported specializations keep
+their original replay; Twin debug logging uses the full original path.
+
+The original Twin strategy compiles one causal market tape per checked source,
+parameters, execution-cost definition and research window. The tape contains
+15-minute ATR/pivot arm candidates, possible momentum crossings, necessary time
+boundaries and bounded flat-prefix snapshots. The compiler temporarily separates
+momentum's market crossing from its daily-consumption gate while preserving the
+original declined-entry prefix state. Actual held/flat state, consumed momentum
+opportunities, filled-trade counters, armed setups and frozen entry ATR/stops
+remain independently instantiated for each account path and sampled block.
+IS and OOS compile separately; OOS never contributes an IS feature or selection.
+The optimized interpreter is qualified against an explicit Twin source SHA-256.
+If the strategy changes, native replay falls back to the original full path until
+parity is reviewed and that cache compatibility fingerprint is updated. Future
+strategies remain usable without declaring or maintaining this optional cache.
+
+Immutable, bounded price caches reuse the strategy's fill-relative protection,
+normalized causal stop-entry plans and SL/TP formulas for identical inputs.
+They include the strategy parameters, tick size, setup, side, actual fill where
+required, frozen ATR and stop geometry. Quantity and account cash are excluded.
+An identical stop trigger is not treated as proof of an identical eventual fill.
+Whole-MNQ sizing, actual fills, provider floors, breaches, resets, requests,
+deductions and receipts still pass through the existing account/execution owners.
+
+A separate small **per-account** memo reuses `choose_quantity` results only while
+the complete sizing state and validated stop geometry are unchanged. Every
+submission first passes `KnownDecisionRisk` causality validation. Changes to
+equity, account/daily floors or contract caps clear the memo; entry permission
+and daily halt are checked before reuse. Each quote still receives its own
+acceptance ID, timestamps, cancellation and audit counts. The memo is bounded to
+128 geometries and copies returned mutable dictionaries/lists.
+
+The existing private `NativeEventPath` can skip known observed bars only until
+the next market/time decision or first possible strategy/provider price touch.
+Active or rejected armed entries and pending market/close orders continue one
+observed bar at a time, preserving every admission and cancellation. A tick
+index locates potential touches; `execution.execute` determines the actual fill
+and MultiCharts path ordering. Source prices that cannot use the exact integer
+tick index retain cached features but execute every observed bar. Gap diagnostics
+and required liquidation checks retain the current observed-bar convention.
+
+The first retained detailed path sessions use the original full strategy and
+execution. Actual eligibility state is then carried into any uncaptured tail.
+Uncaptured paths use the market tape. Skipped rows are not represented as measured
+intermediate MTM evidence. Preparation/report metadata identifies
+`twin-causal-market-cache-v1`, feature reuse, independent account state and the
+original account/fill engine. Native report source hashes include the new owner;
+old reports and frozen implementation guards are not bypassed or rewritten.
+Because strategy/execution source fingerprints were not changed, this increment
+itself does not require rerunning campaign qualification.
+
+This change avoids redundant market calculations; it does not promise a
+particular whole-grid speedup. Working-entry processing can still dominate Twin
+runs. See the measured normal-product and real-source comparisons in the review.

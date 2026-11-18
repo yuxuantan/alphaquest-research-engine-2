@@ -208,6 +208,8 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
         outcome_counts=dict(Counter(row['outcome'] for row in paths)))
     return dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='funded',
         model=forecast.model,settings=forecast.model_dump(mode='json'),catalogue=catalogue.metadata(),
+        execution_preparation=(dict(version='twin-causal-market-cache-v1',market_features_reused=True,
+            original_fill_and_account_engine=True,account_state_shared=False) if getattr(preparation,'twin',None) is not None else None),
         phase_configuration=dict(profile=asdict(profile),sizing=asdict(sizing),micros=micros,
             max_micros=max_micros,receipt_delay_calendar_days=receipt_delay_calendar_days,
             receipt_amount_convention=receipt_amount_convention),

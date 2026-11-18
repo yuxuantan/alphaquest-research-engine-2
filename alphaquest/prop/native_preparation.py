@@ -15,7 +15,7 @@ from ..strategy import EntryIntent,CloseIntent,BracketIntent
 from ..strategies.vwap_pullback_risk_sizing import VwapPullbackRiskSizing
 from .native_control import executable_floor_reference
 
-VERSION='native-vwap-causal-event-index-v1'
+VERSION='native-causal-event-index-v2'
 
 
 def capability(parameters):
@@ -70,7 +70,14 @@ class NativeEventPreparation:
         strategy=strategy_factory()
         self.parameters=strategy.parameters
         self.accelerated=capability(strategy.parameters)
-        self.schedule_patterns={};self.native_layouts={}
+        self.schedule_patterns={};self.native_layouts={};self.twin=None
+        from ..strategies.twin_continuation import Parameters as TwinParameters
+        from .twin_preparation import TwinMarketPreparation,supports as cached_twin_supports
+        if type(self.parameters) is TwinParameters and cached_twin_supports(strategy):
+            self.twin=TwinMarketPreparation(catalogue,strategy_factory,config,checkpoint=checkpoint,progress=report)
+            self.accounted_bytes=self.twin.accounted_bytes
+            self.legacy=None
+            return
         if not self.accelerated:
             self.legacy=NativePathPreparation(catalogue,strategy_factory,config,checkpoint=checkpoint)
             report('causal_features',total)
@@ -132,10 +139,17 @@ class NativeEventPreparation:
 
 class NativeEventPath:
     """Private, checked event iterator used only by the ordinary engine."""
-    def __init__(self,programme,session,adapter):
+    def __init__(self,programme,session,adapter,*,base=None):
         self.programme=programme;self.session=session;self.adapter=adapter
         self.current=None;self.next_order=None;self.account=None;self.snapshot=None
         self.processed=0;self.skipped=0;self.taken=False;self.active_bracket=None
+        if programme.twin is not None:
+            self.base=base if base is not None else programme.twin.strategy(session.first_bar,lambda:None)
+            self.parameters=self.base.parameters;self.config=self.base.config
+            self.instrument_symbol=self.base.instrument_symbol;self.session_flattening=self.base.session_flattening
+            self.ohlc_path_policy=self.base.ohlc_path_policy;self.oco_entry_policy=self.base.oco_entry_policy
+            self.entry_protection_policy=self.base.entry_protection_policy
+            return
         self.base=NativePathPreparation.clone(_guard_template(programme.parameters,programme.config,programme.symbol,programme.calendar_sha256));self.parameters=self.base.parameters;self.config=self.base.config
         self.instrument_symbol=self.base.instrument_symbol;self.session_flattening=self.base.session_flattening
 
@@ -144,6 +158,7 @@ class NativeEventPath:
         while i<self.session.end_bar:
             self.skipped=i-(self.current+1 if self.current is not None else self.session.first_bar)
             self.current=i;self.processed+=1
+            if self.programme.twin is not None:self.base.source_index=i
             yield replace(self.programme.catalogue.bars[i],bar_number=self.processed)
             i=self._next()
 
@@ -151,8 +166,12 @@ class NativeEventPath:
     def on_bar(self,bar,position):raise ValueError('Prepared opportunities require actual account admission.')
     def on_finish(self,bar,position):return self.base.on_finish(bar,position)
     def validate_holding_bar(self,bar,position):return self.base.validate_holding_bar(bar,position)
-    def allow_entry_fill(self,bar):return self.base.allow_entry_fill(bar)
+    def allow_entry_fill(self,bar):
+        return self.base.allow_entry_fill(bar) if hasattr(self.base,'allow_entry_fill') else True
+    def on_entry_fill(self,entry,position):
+        if self.programme.twin is not None:self.base.on_entry_fill(entry,position)
     def on_bar_controlled(self,bar,position,admit):
+        if self.programme.twin is not None:return self.base.on_bar_controlled(bar,position,admit)
         if position is not None:
             if not self.base._session_plan.allows(bar.timestamp_utc):return CloseIntent('eod_flat',timing='next_open')
             return self.active_bracket
@@ -166,6 +185,9 @@ class NativeEventPath:
         return None
 
     def _next(self):
+        if self.programme.twin is not None:
+            from .twin_preparation import next_event
+            return next_event(self)
         start=self.current+1;end=self.session.end_bar
         if start>=end:return end
         if type(self.next_order) in (EntryIntent,CloseIntent):return start
@@ -255,6 +277,8 @@ def run_prepared_path(catalogue,schedule,owner,strategy_factory,config,target_co
     from datetime import date
     if preparation.catalogue is not catalogue or preparation.config!=config:
         raise ValueError('Prepared execution source/configuration differs.')
+    if preparation.twin is not None:
+        return run_twin_path(catalogue,schedule,owner,strategy_factory,config,target_contexts,preparation=preparation,checkpoint=checkpoint,capture=capture,terminal_early_exit=terminal_early_exit)
     if not preparation.accelerated:
         return run_generic_path(catalogue,schedule,owner,config,target_contexts,
             preparation=preparation,checkpoint=checkpoint,capture=capture,terminal_early_exit=terminal_early_exit)
@@ -320,6 +344,73 @@ def run_prepared_path(catalogue,schedule,owner,strategy_factory,config,target_co
     return dict(result=result,source_model_clock_mapping=mappings,captures=captures,
         schedule_sha256=schedule['schedule_sha256'],catalogue_sha256=catalogue.catalogue_sha256,
         preparation=dict(version=VERSION,intermediate_mtm_retained=False))
+
+
+def run_twin_path(catalogue,schedule,owner,strategy_factory,config,target_contexts,*,preparation,checkpoint,capture,terminal_early_exit):
+    from .native_draws import _ClockView,NativePathPreparation
+    from ..execution import execute,EquityPoint,ExecutionContinuation
+    from datetime import date
+    continuation=None;mappings=[];captures=[];provenance={};captured=0;terminal=False
+    for draw in schedule['draws']:
+        checkpoint();block=catalogue.blocks[draw['source_block_index']]
+        selected=catalogue.sessions[block.first_session:block.first_session+draw['used_sessions']]
+        mapping={s.context.session:date.fromisoformat(d) for s,d in zip(selected,draw['target_sessions'],strict=True)}
+        adapter=PreparedClockView(owner,{s.context.session:s.context for s in selected},target_contexts,mapping,
+            tuple(gap for s in selected for gap in s.missing_minutes))
+        cached=preparation.twin.strategy(selected[0].first_bar,checkpoint)
+        # The original engine/strategy provides independently inspectable detailed
+        # source captures. Noncaptured work uses the checked market-event tape.
+        original=None
+        if capture and captured<5:
+            original=strategy_factory()
+            for i in range(selected[0].first_bar):
+                if i%1000==0:checkpoint()
+                b=catalogue.bars[i];original.validate_holding_bar(b,None)
+                original.on_bar_controlled(b,None,lambda proposal:None)
+        for session in selected:
+            checkpoint();adapter.active_source=session.context.session;final=None;events=[]
+            detailed=capture and captured<5
+            if capture and not detailed and owner.retain_details:owner.finish_detail_capture()
+            if detailed:
+                captured+=1
+                values=(replace(catalogue.bars[i],bar_number=i-session.first_bar+1) for i in range(session.first_bar,session.end_bar))
+                for value in execute(values,original,config,account_control=adapter,continuation=continuation,completion='require_flat',capture_decisions=True,capture_risk=True):
+                    final=value
+                    if type(value) is not EquityPoint:events.append(value)
+                # Continue from the actual captured account-dependent latches.
+                from .twin_preparation import STATE_FIELDS
+                for name in STATE_FIELDS:setattr(cached,name,getattr(original,name))
+                cached.session_flattening=copy_metadata(original.session_flattening)
+                cached.session_digest=original.session_digest.copy()
+                processed=session.end_bar-session.first_bar
+                from .native_control import json_native
+                captures.append(dict(source_session=str(session.context.session),target_session=str(mapping[session.context.session]),events=[dict(event_type=type(v).__name__,**json_native(asdict(v))) for v in events]))
+            else:
+                path=NativeEventPath(preparation,session,adapter,base=cached)
+                for value in execute(path,path,config,account_control=adapter,continuation=continuation,completion='require_flat',prepared_path=path):final=value
+                processed=path.processed
+            if type(final) is not EquityPoint or final.position_contracts:raise ValueError('Prepared Twin source must finish actually flat.')
+            continuation=ExecutionContinuation(config.initial_capital,final.cash_balance)
+            if owner.retain_details:
+                provenance[str(mapping[session.context.session])]=dict(path_index=schedule['path_index'],draw_slot=draw['slot'],source_session=str(session.context.session),target_session=str(mapping[session.context.session]))
+                mappings.append(dict(source_session=str(session.context.session),target_session=str(mapping[session.context.session]),observed_source_bars=session.end_bar-session.first_bar,processed_execution_bars=processed,no_op_observed_bars_skipped=session.end_bar-session.first_bar-processed))
+            if terminal_early_exit:
+                terminal=(owner.phase=='funded' and owner.account_outcome!='open') or (owner.phase=='evaluation' and (owner.pass_date is not None or (getattr(owner,'first_attempt_only',False) and owner.attempts and owner.attempts[0]['outcome']!='open')))
+            if terminal:break
+        if terminal:break
+    if terminal:owner.omit_terminal_sessions()
+    result=owner.finish_replay()
+    if capture:result['detail_capture']=dict(maximum_source_sessions=5,captured_source_sessions=captured,complete=len(owner._visited_sessions)<=captured,financial_outcomes_complete=True,all_requested_paths_retained=True)
+    for name,field in (('control_events','session'),('trace','date'),('sizing_decisions','session')):
+        for row in result.get(name,[]):row.update(provenance.get(row.get(field),dict(path_index=schedule['path_index'],draw_slot=None,source_session=None,target_session=row.get(field))))
+    from .twin_preparation import VERSION as TWIN_VERSION
+    return dict(result=result,source_model_clock_mapping=mappings,captures=captures,schedule_sha256=schedule['schedule_sha256'],catalogue_sha256=catalogue.catalogue_sha256,
+        preparation=dict(version=TWIN_VERSION,intermediate_mtm_retained=False,market_features_reused=True,account_state_shared=False))
+
+
+def copy_metadata(value):
+    import copy
+    return copy.deepcopy(value)
 
 
 class NativeSchedulePreparation:
@@ -398,6 +489,8 @@ def worker_programme(programme,directory,*,checkpoint=lambda:None):
     result.checked=result.catalogue;result.legacy=None
     result.schedule_patterns={};result.native_layouts={}
     result.factory=NativeStrategyFactory(programme.parameters,programme.config,programme.factory().instrument_symbol)
+    if programme.twin is not None:
+        result.twin=copy.copy(programme.twin);result.twin.catalogue=result.catalogue;result.twin.factory=result.factory
     return result
 
 

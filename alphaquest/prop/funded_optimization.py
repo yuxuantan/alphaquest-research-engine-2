@@ -180,7 +180,7 @@ def implementation_identity():
         'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py',
         'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
         'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
-        'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+        'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
         '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
     from .native_analysis import kernel_identity
     return dict(files={name: digest(Path(__file__).parent/name) for name in names},
