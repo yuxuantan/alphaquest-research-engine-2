@@ -15,6 +15,8 @@
   function progress(job) {
     const p=job.progress;
     if(!p) return 'Progress not recorded';
+    // Prop workers already supply a complete one-line summary with counts.
+    if(p.details)return words(p.stage);
     const known=p.completed!==null && p.completed!==undefined;
     return `${words(p.stage)}${known ? ` · ${p.completed.toLocaleString()}${p.total>0 ? ' / '+p.total.toLocaleString() : ''} ${p.unit || ''}` : ''}`;
   }
@@ -73,13 +75,16 @@
         get('#jobs-detail-status').textContent='';
         const panel=node('section',undefined,'panel jobs-detail-panel');
         panel.append(node('h2',kinds[job.kind]),status(job),node('p',`${words(job.strategy_id) || 'Saved strategy sources'} · ${job.dataset_name}`));
-        const text=node('p',progress(job),'jobs-progress-text');text.id='job-progress';panel.append(text);
         const p=job.progress;
-        if(p?.total>0 && p.completed!==null && p.completed!==undefined) {
-          const bar=node('progress');bar.max=p.total;bar.value=Math.min(p.completed,p.total);bar.setAttribute('aria-label',`Job progress in ${p.unit}`);panel.append(bar);
+        const confidence=node('div');window.renderPropProgress(confidence,p?.details,job.status);
+        if(confidence.childElementCount)panel.append(confidence);
+        else {
+          const text=node('p',progress(job),'jobs-progress-text');text.id='job-progress';panel.append(text);
+          if(p?.total>0 && p.completed!==null && p.completed!==undefined) {
+            const bar=node('progress');bar.max=p.total;bar.value=Math.min(p.completed,p.total);bar.setAttribute('aria-label',`Job progress in ${p.unit}`);panel.append(bar);
+          }
         }
         activeTrials(panel,job);
-        const confidence=node('div');window.renderPropProgress(confidence,p?.details,job.status);panel.append(confidence);
         const facts=node('dl',undefined,'backtest-run-details');
         for(const [label,value] of [['Job ID',job.id],['Recorded',stamp(job.recorded_at_utc)],['Started',stamp(job.started_at_utc)],['Finished',stamp(job.finished_at_utc)]]) {
           const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item);

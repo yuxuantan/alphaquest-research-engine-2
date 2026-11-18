@@ -12860,3 +12860,28 @@ Applied to the idle stable port-8000 portal without reload mode; no running job
 was interrupted. Existing analysis/optimization/mechanic-attempt IDs were checked
 before and after startup (930 / 6 / 1 records). Persistent server PID: `67100`;
 stop with `kill -TERM 67100`. All demonstration/test servers were stopped.
+
+## Job history: one live progress view (2026-11-18)
+
+The Job history detail view now uses the existing detailed worker progress as its
+single live progress section. It no longer adds the generic summary/count and a
+second progress bar above it. Worker activity, completed paths, percentage,
+elapsed time and ETA remain visible. The list uses the worker's saved summary
+once, without appending the same path count a second time. Queued/completed jobs
+and ordinary backtest batches retain the generic fallback; active batch trials
+retain their separate per-trial bar counts.
+
+This is a static JavaScript change only. No numerical identity, report, source,
+worker, polling cadence or API computation changes. Refreshing the live Job
+history page loads it without restarting the server or interrupting the running
+Evaluation/Funded workflow.
+
+Validation: two focused `test_job_history_browser.py` cases pass: running Prop
+analysis detail/list/terminal fallback, and ordinary batch active-trial progress.
+A direct read-only inspection of the actual running Prop analysis is saved in
+`artifacts/job-history-progress-20261118/verification.json`, `desktop.png` and
+`mobile.png`. Expected: one stage summary, one path count and one progress bar,
+with worker/ETA details; no browser errors, mobile overflow or write requests.
+Reproduce by refreshing the existing `/#jobs/prop_analysis/JOB_ID` route, then
+returning to `/#jobs`. The original stable server remains PID `67100`; no new
+persistent server is started. Temporary browser-test servers stop on teardown.

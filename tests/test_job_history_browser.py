@@ -9,6 +9,40 @@ from test_backtests_browser import browser, page, portal, playwright
 from test_campaign_mechanics import create_workflow
 
 
+def test_prop_detail_and_list_do_not_repeat_worker_progress(page,portal):
+    job_id=uuid4().hex
+    stage='Native account execution · 2.75% · initial configured capital · 545/1,000 account paths · 4 workers'
+    job=dict(id=job_id,kind='prop_analysis',status='running',strategy_id='synthetic_strategy',
+             dataset_name='synthetic_dataset',recorded_at_utc='2026-11-18T00:00:00+00:00',
+             started_at_utc=None,finished_at_utc=None,error=None,links=[],stop_requested_at_utc=None,
+             href='#jobs/prop_analysis/'+job_id,
+             progress=dict(stage=stage,completed=545,total=1000,unit='account paths',details=dict(
+                 stage='native_execution',sizing_label='2.75% · initial configured capital',
+                 completed=545,total=1000,unit='account paths',worker_count=4,active_workers=4,
+                 elapsed_seconds=6060,eta_seconds=5040)))
+    page.route('**/api/jobs/prop_analysis/'+job_id,
+               lambda route:route.fulfill(json=job))
+    page.route('**/api/jobs?*',lambda route:route.fulfill(json=dict(items=[job],total=1)))
+    page.goto(portal['url']+job['href'].replace('#','/#',1))
+    panel=page.locator('#jobs-detail-content')
+    playwright.expect(panel.get_by_role('progressbar')).to_have_count(1)
+    playwright.expect(panel.locator('.prop-confidence-progress')).to_contain_text('4 active / 4 workers')
+    playwright.expect(panel.locator('.prop-confidence-progress')).to_contain_text('remaining for this size 1 h 24 min')
+    assert panel.inner_text().count('Native account execution')==1
+    assert panel.inner_text().count('545 / 1,000 account paths')==1
+    assert panel.locator('#job-progress').count()==0
+    page.goto(portal['url']+'/#jobs')
+    playwright.expect(page.locator('#jobs-rows')).to_contain_text(stage)
+    assert page.locator('#jobs-rows').inner_text().count('account paths')==1
+    # Terminal jobs fall back to their saved summary, without stale live details.
+    job['status']='complete'
+    job['progress'].update(stage='complete',completed=1000,total=1000,details=None)
+    page.goto(portal['url']+job['href'].replace('#','/#',1))
+    playwright.expect(panel.locator('#job-progress')).to_contain_text('1,000 / 1,000 account paths')
+    playwright.expect(panel.get_by_role('progressbar')).to_have_count(1)
+    assert panel.locator('.prop-confidence-progress').count()==0
+
+
 def test_batch_detail_shows_saved_active_trial_progress(page,portal):
     job_id=uuid4().hex
     job=dict(id=job_id,kind='backtest_batch',status='running',strategy_id='synthetic_strategy',
