@@ -3415,3 +3415,60 @@ and the immutable ranges in source checks and saved reports. Native implementati
 hashes include the coverage owner. Earlier sealed results, original strategy
 sources and frozen historical verdicts remain unchanged; incompatible old frozen
 prop packages require a new simulation rather than being silently migrated.
+
+## Observed-bar replay and diagnostic minute completeness (2026-11-18)
+
+`nq-observed-bars-gap-diagnostics-v3` supersedes the **actual-exposure v2
+rejection** described above for new prepared percentage-risk simulations.
+Campaign backtests and saved fixed-contract trade scaling already consume the
+observed bars; this change aligns native account replay with that convention.
+Legacy native v1 retains its explicit full-session admission contract.
+
+- Preserve every original retained bar and its timestamp. Do not add empty
+  minutes, forward-fill prices, delete sparse sessions or redraw affected paths.
+- An absent minute does not imply an observed trade, stop touch, target touch,
+  mark-to-market excursion or provider floor breach. No price-driven event is
+  reconstructed inside it. Strategy state advances through observed callbacks
+  and its existing timestamp rules; missing minutes are not synthetic callbacks.
+- Working entries and open positions continue to the next observed bar. Existing
+  execution handles that bar's Open and intrabar path. For example, a long entered
+  at 118 with a stop at 113 and the next observed Open at 110 exits at 110 under
+  zero slippage, not at an invented 113 fill. Existing costs apply once.
+- The assumption applies to both account types, Evaluation/Funded, IS search,
+  frozen chronological OOS, sampled account paths and complementary native
+  checks. It does not change phase objectives, sampling counts, frozen selections
+  or profitability/qualification gates. Gaps alone do not fail qualification.
+- Structural OHLC validation, ordering, duplicate timestamps, required session
+  inventory, flat-at-boundary requirements and actual mandatory liquidation
+  remain enforced. No EOF liquidation is invented. This is a relaxation of
+  **minute completeness**, not permission to publish corrupt or unfinished runs.
+
+`source_checks.json` retains the original missing-minute ranges, total missing
+minutes, longest source gap, policy version and diagnostic-only status. Reviewed
+historical venue pauses are excluded using the source date. Runtime
+`observed_bar_diagnostics` records crossed ranges, minutes, longest gap, exposure
+(position, working entry or flat), and completed trades exposed to a gap. A
+working-entry tag follows that accepted order only; cancellation clears it.
+`control_events` in retained detailed paths includes original-source UTC gap
+boundaries and the next observed source timestamp. Model dates remain separate.
+
+Both compact path summaries and the forecast retain diagnostics even when
+individual fill captures are disabled. Forecast counts sum encounters across
+account paths and are **not counts of unique source holes**. Leading/trailing
+omissions are in the source inventory; runtime counts cover crossed intervals
+before account termination. Acceleration skips only already-observed no-op bars;
+it does not invent missing-minute observations. Gap-exposed trading P&L is the
+signed actual P&L of those trades, not an estimate of the missing-data effect,
+provider cash withdrawals or trader receipts.
+
+The portal discloses the assumption before launch. IS results and OOS evidence
+show compact source-gap diagnostics with expandable detail and normal downloads.
+The lightweight OOS summary includes these counters without shipping all paths.
+No extra backtests or Monte Carlo paths are run to produce diagnostics.
+
+Observed-only replay can understate hidden excursions, fills and drawdowns. It
+does not establish that a gap was a no-trade interval or fix continuous-contract
+roll artifacts. Original datasets, old reports and their verdicts remain intact.
+Changed native implementation hashes distinguish new runs; incompatible old
+frozen prop packages are not silently migrated. Start a new simulation to use
+this convention; the campaign's strategy/backtest sources were not edited.

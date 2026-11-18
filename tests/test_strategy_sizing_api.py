@@ -17,7 +17,7 @@ from test_native_phase_campaigns import declaration
 from alphaquest.prop.sizing_search import PercentageGrid
 
 
-def twin_source(client, *, with_oos=False, flat_gap=False):
+def twin_source(client, *, with_oos=False, flat_gap=False, working_gap=False):
     parameters=Parameters(max_bars_back=0,use_momentum=False,bo_pivot_tf=15,bo_atr_period=1)
     pattern=breakout_rows();lines=['Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol']
     first=date(2026,1,5)
@@ -26,6 +26,7 @@ def twin_source(client, *, with_oos=False, flat_gap=False):
         if day.weekday()>=5:continue
         start=datetime.combine(day-timedelta(days=1),time(17,1),CT)
         for minute in range(1380):
+            if working_gap and day==first and minute==105:continue  # Synthetic gap while an accepted OCO entry is working.
             if flat_gap and day==first and minute==10:continue  # Synthetic first-session 17:11 gap, before any possible order.
             stamp=start+timedelta(minutes=minute)
             values=(pattern[minute].open,pattern[minute].high,pattern[minute].low,pattern[minute].close) if minute<len(pattern) else (126,127,125,126)
@@ -45,11 +46,13 @@ def twin_source(client, *, with_oos=False, flat_gap=False):
 
 
 @pytest.mark.parametrize('phase',['evaluation','funded'])
-def test_twin_percentage_flat_gap_source_check_run_and_durable_report(tmp_path,phase):
+@pytest.mark.parametrize('working',[False,True],ids=['flat','working-entry'])
+def test_twin_percentage_flat_gap_source_check_run_and_durable_report(tmp_path,phase,working):
     destination=os.environ.get('ALPHAQUEST_GAP_EVIDENCE_DIR')
-    library=Path(destination)/phase/'library' if destination else tmp_path
+    label=phase+'-working-entry-gap' if working else phase
+    library=Path(destination)/label/'library' if destination else tmp_path
     with ResearchClient(create_app(library/'datasets.sqlite3')) as client:
-        record,raw=twin_source(client,flat_gap=True)
+        record,raw=twin_source(client,flat_gap=not working,working_gap=working)
         request=declaration(client,record,phase)
         request['is_window']=dict(first_session='2026-01-05',last_session='2026-01-09')
         request['simulation']['simulations']=8
@@ -72,22 +75,27 @@ def test_twin_percentage_flat_gap_source_check_run_and_durable_report(tmp_path,p
         candidate,=report['calculations']['candidates']
         coverage=candidate['manifest']['native_source_check']['observed_coverage']
         assert len(coverage['missing_minutes'])==1
-        assert coverage['validation']=='actual_exposure_during_every_replay'
+        assert coverage['validation']=='diagnostic_only_observed_bars'
         assert candidate['quantity_summary']['admitted_entries']>0
         assert len(candidate['native_forecast']['paths'])==8
+        diagnostic=candidate['native_forecast']['observed_bar_diagnostics']
+        if working:
+            assert diagnostic['working_entry_gap_encounters']>0
+            assert diagnostic['gap_exposed_completed_trades']>0
+        else:assert diagnostic['paths_with_exposure']==0
         assert client.get(f'/api/prop-analyses/{analysis_id}/downloads/report.json').json()==report
         archive=client.get(f'/api/research-campaigns/{id}/exports/analysis.zip')
         assert archive.status_code==200
         if destination:
-            folder=Path(destination)/phase;folder.mkdir(parents=True,exist_ok=True)
+            folder=Path(destination)/label;folder.mkdir(parents=True,exist_ok=True)
             for filename,value in [('request.json',request),('source.json',record),('report.json',report),('journey.json',dict(campaign_id=id,analysis_id=analysis_id,source_id=record['id']))]:
                 (folder/filename).write_text(json.dumps(value,indent=2))
-            (folder/'SYNTHETIC-flat-gap-source.csv').write_bytes(raw)
+            (folder/('SYNTHETIC-working-entry-gap-source.csv' if working else 'SYNTHETIC-flat-gap-source.csv')).write_bytes(raw)
             (folder/'analysis.zip').write_bytes(archive.content)
 
 
 @pytest.mark.parametrize('phase',['evaluation','funded'])
-def test_percentage_exposed_gap_fails_job_without_a_replacement_draw(tmp_path,phase):
+def test_percentage_exposed_gap_completes_with_diagnostics_without_replacement_draw(tmp_path,phase):
     from time import monotonic,sleep
     from native_replay_fixtures import source_bytes
     from test_native_replay_api import source
@@ -117,11 +125,21 @@ def test_percentage_exposed_gap_fails_job_without_a_replacement_draw(tmp_path,ph
             if job['status'] not in ('queued','running'):break
             assert monotonic()<deadline,job
             sleep(.02)
-        assert job['status']=='error' and 'a position is open' in job['error'],job
-        assert '09:03:00-06:00' in job['error']
-        assert not (client.app.state.prop_analyses.root/analysis_id/'report.json').exists()
+        assert job['status']=='complete',job
+        report=client.get(f'/api/prop-analyses/{analysis_id}/downloads/report.json').json()
+        candidate,=report['calculations']['candidates']
+        forecast=candidate['native_forecast'];d=forecast['observed_bar_diagnostics']
+        assert len(forecast['paths'])==8 and d['paths_with_exposure']==8
+        assert d['position_gap_encounters']>0 and d['gap_exposed_completed_trades']>0
+        assert all(p['observed_bar_diagnostics']['position_gap_encounters']>0 for p in forecast['paths'])
+        assert client.get(f'/api/prop-analyses/{analysis_id}/downloads/report.json').json()==report
+        archive=client.get(f'/api/research-campaigns/{id}/exports/analysis.zip')
+        assert archive.status_code==200
         if destination:
             (folder/'job.json').write_text(json.dumps(job,indent=2))
+            (folder/'report.json').write_text(json.dumps(report,indent=2))
+            (folder/'journey.json').write_text(json.dumps(dict(campaign_id=id,analysis_id=analysis_id,source_id=record['id']),indent=2))
+            (folder/'analysis.zip').write_bytes(archive.content)
             (folder/'request.json').write_text(json.dumps(request,indent=2))
             (folder/'SYNTHETIC-held-gap-source.csv').write_bytes(raw)
 

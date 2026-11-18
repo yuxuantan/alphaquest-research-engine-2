@@ -294,7 +294,10 @@ def run_prepared_path(catalogue,schedule,owner,strategy_factory,config,target_co
                 first_stamp,last_stamp=preparation.session_endpoints[session.first_bar]
                 before=ExecutionSnapshot(first_stamp,1,config.initial_capital,cash,None)
                 after=ExecutionSnapshot(last_stamp,session.end_bar-session.first_bar,config.initial_capital,cash,None)
-                adapter.begin_session(session.context,before);adapter.end_session(session.context,after)
+                adapter.session_context(first_stamp)
+                adapter.begin_session(session.context,before)
+                adapter.session_context(last_stamp)
+                adapter.end_session(session.context,after)
                 final=EquityPoint(session.end_bar-session.first_bar,last_stamp,cash,subtract(cash,config.initial_capital),Decimal(0),cash,0)
             else:
                 path=preparation.session_path(session,adapter)
@@ -560,7 +563,8 @@ class PreparedClockView(_ClockView):
         self.active_source=None
     def stamp(self,value):return None if value is None else value+self.shifts[self.active_source]
     def session_context(self,stamp):
-        if self.coverage is not None:self.coverage.check(stamp,self.owner.coverage_exposure())
+        if self.coverage is not None:
+            for gap in self.coverage.check(stamp,self.owner.coverage_exposure()):self.owner.observe_source_gap(gap)
         return self.source[self.active_source]
     def risk_orders(self,snapshot):
         return replace(self.owner.risk_orders(self.snapshot(snapshot)),session=self.active_source)

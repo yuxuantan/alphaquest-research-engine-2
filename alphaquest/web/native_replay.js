@@ -8,6 +8,18 @@
   function detail(parent,title){const d=el('details');d.append(el('summary',title));parent.append(d);return d;}
   function table(parent,headers,rows,id){const wrap=el('div');wrap.className='robust-table-scroll';const t=el('table');if(id)t.id=id;const head=el('thead'),tr=el('tr');headers.forEach(h=>tr.append(el('th',h)));head.append(tr);t.append(head);const body=el('tbody');for(const row of rows){const tr=el('tr');row.forEach((v,index)=>{const td=el('td');td.dataset.label=headers[index];v instanceof Node?td.append(v):td.textContent=display(v);tr.append(td);});body.append(tr);}t.append(body);wrap.append(t);parent.append(wrap);}
   function facts(parent,items){const dl=el('dl');dl.className='backtest-run-details';dl.style.overflowWrap='anywhere';for(const [k,v]of items)dl.append(el('dt',k),el('dd',display(v)));parent.append(dl);}
+  function renderCoverage(parent,d){
+    if(!d||d.mode!=='observed_bars_diagnostic_only')return;
+    const box=el('section');box.className='observed-bar-diagnostics';
+    const scope=d.paths===undefined?'this replay':`${d.paths.toLocaleString()} simulated paths`;
+    box.append(el('p',`Observed-bar replay · gaps accepted. ${d.position_gap_encounters.toLocaleString()} gaps crossed while holding and ${d.working_entry_gap_encounters.toLocaleString()} with entry orders working across ${scope}. Longest crossed gap: ${d.longest_gap_minutes} min.`));
+    const more=detail(box,'Source-gap assumptions and diagnostics');
+    more.append(el('p',d.assumption));
+    facts(more,[['Crossed gap encounters',d.gap_encounters],['Missing minutes crossed',d.missing_minutes_crossed],['Flat gap encounters',d.flat_gap_encounters],['Gap-exposed completed trades',d.gap_exposed_completed_trades],['Signed trading P&L of gap-exposed trades · USD',Number(d.gap_exposed_trade_net_pnl).toFixed(2)]]);
+    more.append(el('p',d.count_scope||'Counts cover gaps crossed during execution; leading/trailing omissions remain in source checks.'));
+    more.append(el('p',d.pnl_scope||'Trade P&L attribution is not an estimate of the missing-data effect, provider withdrawals or trader receipts.'));
+    parent.append(box);
+  }
   async function post(body,path='/api/prop-analyses/check'){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
   function dateRows(host,title,cls,{minimum=0,maximum=366,withTime=false}={}){
     const section=el('section');section.style.gridColumn='1 / -1';section.append(el('h4',title));host.append(section);const rows=el('div');section.append(rows);
@@ -95,6 +107,7 @@
   function renderForecast(parent,report,{prefix='native-forecast',candidate=false,downloads=true}={}){
     const f=report.native_forecast,plan=report.source.native_forecast_plan,section=el('section');section.id=prefix+'-result';parent.append(section);
     section.append(el('h2','Native Monte Carlo forecast'),el('p',`${f.readiness} · ${f.status} · ${f.metrics.paths} paths. Modeled target dates are not observed future market data. ${candidate?'This candidate forecast enters the saved independent phase objective. It is not an observed historical outcome.':'This forecast is separate from the historical replay above; this report does not select or optimize a policy.'}`));
+    renderCoverage(section,f.observed_bar_diagnostics);
     facts(section,[['Source block law',f.model],['Source block length · sessions',f.settings.block_sessions],['Simulation seed',f.settings.seed],['Modeled calendar declaration',f.settings.calendar.version],['Target start cohorts',f.settings.calendar.start_dates.join(', ')],['Horizon · calendar days',f.settings.horizon_calendar_days],['Total paths / retained detailed paths',`${f.metrics.paths} / ${f.capture_path_indices.length}`],['Retained path IDs · chosen before outcomes',f.capture_path_indices.join(', ')],['Observed future data',f.observed_future_data],['Source catalogue SHA-256',f.catalogue.catalogue_sha256]]);
     section.append(el('p','Every declared path enters the mean with equal start-cohort weights, including zero cash, failure and censoring. Monte Carlo standard error describes simulation noise conditional on this source and draw law. Zero standard error on a constant synthetic pool is not evidence of future precision or provider parity. Historical-law, execution, provider and future uncertainty are not measured here.'));
     const labels={mean_received_cash:'Mean trader cash received before cutoff · USD',mean_pending_cash:'Mean pending trader cash · USD',mean_gross_account_deductions:'Mean gross account deductions · USD',mean_provider_equity_change:'Mean provider equity change from initial · USD',probability_positive_received_cash:'Probability of positive cash received',probability_breach:'Probability of breach',probability_open_at_cutoff:'Probability account remains open at cutoff',mean_acquisition_cost:'Mean acquisition cost · USD',mean_calendar_days_to_funded:'Mean calendar days to funded readiness',restricted_mean_paid_fees:'Restricted all-path mean paid fees · USD',restricted_mean_observed_calendar_days:'Restricted all-path mean observed calendar days',probability_acquisition_by_cutoff:'Probability of acquisition by cutoff',mean_attempts_started:'Mean attempts started'};
@@ -121,6 +134,7 @@
     if(downloads)for(const name of ['native_forecast_plan.json','native_forecast.json','native_forecast_paths.json','native_forecast_schedules.json','native_forecast_captures.json'])section.append(link('Download '+name,`/api/prop-analyses/${report.id}/files/${name}`),el('br'));
   }
   function renderChronologicalEvidence(parent,c,{phase,backtest=null,receiptDelay=null,prefix='native'}={}){
+    renderCoverage(parent,c.observed_bar_diagnostics);
     const balance=c.trace?.at(-1)?.state_after?.balance;
     facts(parent,[['Phase / account outcome',`${phase} / ${c.outcome}`],['Observed sessions',c.observed_sessions],['Actual trading profit · USD',c.trading_profit],['Provider account balance · USD',balance],['Provider equity from initial · USD',c.equity],['Ordinary trading-report final equity · USD',backtest?.summary?.final_equity],['Gross account withdrawals · USD',c.gross_account_deductions??c.conservation?.cumulative_gross_withdrawals],['Cash received within cutoff · USD',phase==='funded'?c.cash_received:'Not a Funded account'],['Pending receipt · USD',phase==='funded'?c.pending_cash:'Not a Funded account']]);
     parent.append(el('p','The ordinary backtest retains its original initial capital and actual trade P&L. Provider account equity uses the $50,000 account basis, any retry reset and gross withdrawals. Trader receipts are a separate cash ledger; they never increase trading equity.'));
@@ -151,5 +165,5 @@
     const saved=detail(panel,'Download captured native evidence');for(const name of Object.keys(report.files||{}).sort())saved.append(link(name,`/api/prop-analyses/${report.id}/files/${name}`),el('br'));
     window.scrollTo(0,0);
   }
-  window.nativeReplay={configure,renderAnalysis,calendarControls,dateRows,forecastPlan,renderForecast,renderChronologicalEvidence};
+  window.nativeReplay={renderCoverage,configure,renderAnalysis,calendarControls,dateRows,forecastPlan,renderForecast,renderChronologicalEvidence};
 })();

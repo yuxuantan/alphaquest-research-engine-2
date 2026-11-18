@@ -220,6 +220,7 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
     from dataclasses import asdict
     from datetime import date
     from .native_draws import build_schedule, run_path
+    from .native_market_hours import summarize_observed_coverage
     from .phase_profiles import equal_stratum_mean, native_forecast_layout
     calendar, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,preparation=preparation)
     parameters = strategy_factory().parameters
@@ -253,7 +254,7 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
         row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
             cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
             observed_calendar_days=elapsed, attempts_started=result.get('attempts_started',len(result['attempts'])),
-            sizing_summary=result['sizing']['summary'])
+            sizing_summary=result['sizing']['summary'],observed_bar_diagnostics=result['observed_bar_diagnostics'])
         for key in ('outcome','acquisition_completed','censored','paid_evaluation_fees',
                     'paid_activation_fees','paid_fees','pending_activation','net_cash',
                     'calendar_days_to_funded','pass_date','eligibility_date','ready_date',
@@ -290,6 +291,7 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
             scope='Conditional Monte Carlo noise under the declared empirical draw law only; not uncertainty in the law or future performance.',
             historical_mean_uncertainty_available=False),
         paths=paths,schedules=schedules,captures=captures,capture_path_indices=list(range(forecast.capture_paths)),
+        observed_bar_diagnostics=summarize_observed_coverage(paths),
         assumptions=[
             'Every declared path is included, including failures, retries and guard/cutoff censoring; no redraw by outcome.',
             'Acquisition means are withheld unless every required path reaches funded readiness. All paid fees remain in restricted all-path summaries.',

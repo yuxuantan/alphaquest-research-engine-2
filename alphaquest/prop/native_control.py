@@ -245,6 +245,10 @@ class NativeControlBase:
         self._pending=None;self._active_acceptance=None;self._last_exit=None;self._decision_count=0
         self._quoted_entries={}
         self.observed_coverage=None
+        self._gap_entries=set();self._active_gap_trade=False
+        self._gap_diagnostics=dict(gap_encounters=0,missing_minutes_crossed=0,longest_gap_minutes=0,
+            position_gap_encounters=0,working_entry_gap_encounters=0,flat_gap_encounters=0,
+            gap_exposed_completed_trades=0,gap_exposed_trade_net_pnl=Decimal(0))
         self._daily_halt=False;self._finalized=False;self._trading_net=Decimal(0)
         self.retain_details=True;self._event_counts={};self._terminal_session_count=0
         self._sizing_cap_count=0;self._sizing_halt_count=0;self._sizing_budget_count=0;self._sizing_budget=Decimal(0);self._sizing_admitted_risk=Decimal(0)
@@ -253,7 +257,8 @@ class NativeControlBase:
     def session_context(self,timestamp_utc):
         from .phase_lifecycle import session_date
         if self.observed_coverage is not None:
-            self.observed_coverage.check(timestamp_utc,self.coverage_exposure())
+            for gap in self.observed_coverage.check(timestamp_utc,self.coverage_exposure()):
+                self.observe_source_gap(gap)
         day=session_date(timestamp_utc)
         if day not in self.contexts:raise ValueError('Bar has no verified native session context.')
         return self.contexts[day]
@@ -261,7 +266,21 @@ class NativeControlBase:
     def coverage_exposure(self):
         if self._active_acceptance is not None:return 'a position is open'
         if self._quoted_entries:return 'a stop-entry order is working'
+        if self._pending is not None:return 'a next-open entry is pending'
         return None
+
+    def observe_source_gap(self,gap):
+        d=self._gap_diagnostics;minutes=gap['missing_minutes']
+        d['gap_encounters']+=1;d['missing_minutes_crossed']+=minutes
+        d['longest_gap_minutes']=max(d['longest_gap_minutes'],minutes)
+        if self._active_acceptance is not None:
+            d['position_gap_encounters']+=1;self._active_gap_trade=True
+        elif self._quoted_entries or self._pending is not None:
+            d['working_entry_gap_encounters']+=1
+            self._gap_entries.update(self._quoted_entries)
+            if self._pending is not None:self._gap_entries.add(self._pending.opportunity_id)
+        else:d['flat_gap_encounters']+=1
+        self._emit('source_gap',**gap)
 
     def set_detail_capture(self,enabled):
         if self.events or self.session_trace:raise ValueError('Capture mode must be fixed before execution.')
@@ -361,6 +380,7 @@ class NativeControlBase:
     def cancel_quoted_entry(self,acceptance,snapshot,reason):
         if self._quoted_entries.pop(acceptance.opportunity_id,None)!=acceptance:
             raise ValueError('Unknown or already consumed OCO quote.')
+        self._gap_entries.discard(acceptance.opportunity_id)
         self._emit('entry_cancelled',opportunity_id=acceptance.opportunity_id,reason=reason)
 
     def risk_orders(self,snapshot):
@@ -374,6 +394,8 @@ class NativeControlBase:
         if self._pending!=acceptance or snapshot.position is None or snapshot.position.contracts!=acceptance.accepted_intent.contracts:
             raise ValueError('Native fill does not match its accepted quantity.')
         self._sync(snapshot);self._pending=None;self._active_acceptance=acceptance
+        self._active_gap_trade=acceptance.opportunity_id in self._gap_entries
+        self._gap_entries.discard(acceptance.opportunity_id)
         diagnostic={}
         planned=acceptance.sizing_decision.get('planned_risk_per_mnq')
         if planned is not None:
@@ -400,15 +422,20 @@ class NativeControlBase:
         if hit:self._daily_halt=True
         self._phase_close(trade,hit)
         reconciliation=self.bridge.reconcile(snapshot.engine_trade_cash,snapshot.engine_initial_capital,self.equity)
+        if self._active_gap_trade:
+            self._gap_diagnostics['gap_exposed_completed_trades']+=1
+            self._gap_diagnostics['gap_exposed_trade_net_pnl']=add(self._gap_diagnostics['gap_exposed_trade_net_pnl'],trade.net_pnl)
         self._emit('trade_close',opportunity_id=self._active_acceptance.opportunity_id,trade_number=trade.trade_number,
+            source_gap_exposed=self._active_gap_trade,
             quantity=trade.contracts,net_pnl=trade.net_pnl,total_commissions=trade.total_commissions,
             entry_fill_price=trade.entry_fill_price,exit_fill_price=trade.exit_fill_price,
             triggering_floor=triggering_floor,account_hit=hit,state_after=self._state(),conservation=reconciliation)
-        self._active_acceptance=None
+        self._active_acceptance=None;self._active_gap_trade=False
 
     def cancel_entry(self,acceptance,snapshot,reason):
         if self._pending!=acceptance:raise ValueError('Cancelled entry must match its accepted submission.')
         self._sync(snapshot);self._pending=None
+        self._gap_entries.discard(acceptance.opportunity_id)
         self._emit('entry_cancelled',opportunity_id=acceptance.opportunity_id,reason=reason)
 
     def end_session(self,session,snapshot):
@@ -480,4 +507,8 @@ class NativeControlBase:
         if self._terminal_session_count:
             result['terminal_sessions_not_replayed']=self._terminal_session_count
             result['terminal_session_interpretation']='Account is terminal and flat. Remaining source schedules are retained, but no future strategy opportunities are evaluated; settlement/readiness is finalized over the complete declared calendar.'
+        from .native_market_hours import VERSION,ASSUMPTION
+        result['observed_bar_diagnostics']=dict(self._gap_diagnostics,version=VERSION,
+            mode='observed_bars_diagnostic_only',assumption=ASSUMPTION)
+        result['assumptions'].append(ASSUMPTION)
         return json_native(result)

@@ -59,6 +59,8 @@ def test_one_run_percentage_both_phases_frozen_oos_and_durable_reopen(tmp_path,m
    assert {r['frozen_candidate_id'] for r in calc['candidates']}==set(frozen['candidate_ids'])
    assert all(r['prop_qualification']['status']=='INSUFFICIENT_EVIDENCE' for r in calc['candidates']) # Seven OOS sessions cannot qualify.
    assert all(r['configuration']['sizing']['policy']['kind']=='percentage_risk' and r['quantity_summary'] for r in calc['candidates'])
+   assert all(r['observed_bar_diagnostics']['mode']=='observed_bars_diagnostic_only' for r in calc['candidates'])
+   assert all(r['chronological_replay']['observed_bar_diagnostics']['version']=='nq-observed-bars-gap-diagnostics-v3' for r in calc['candidates'])
    id=client.app.state.campaigns.assessments(campaign['campaign_id'])[0]['analysis_id']
    assert client.app.state.prop_analyses.native_children_unchanged(client.app.state.runs,id)
    assert client.get(f'/api/prop-analyses/{id}/downloads/analysis.zip').status_code==200

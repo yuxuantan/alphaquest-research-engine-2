@@ -148,6 +148,7 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
     from collections import Counter
     from dataclasses import asdict
     from .native_draws import build_schedule, run_path
+    from .native_market_hours import summarize_observed_coverage
     from .phase_profiles import equal_stratum_mean, native_forecast_layout
     _, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,preparation=preparation)
     parameters = strategy_factory().parameters
@@ -182,7 +183,7 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
             positive_received_cash=float(result['cash_received'])>0,
             breached=result['outcome']=='blown', open_at_cutoff=result['outcome']=='open',
-            sizing_summary=result['sizing']['summary'])
+            sizing_summary=result['sizing']['summary'],observed_bar_diagnostics=result['observed_bar_diagnostics'])
         for key in ('outcome','terminal_date','lifetime_censored','cash_received','pending_cash',
                     'gross_account_deductions','raw_trader_entitlement','provider_retained_share',
                     'net_cash','receipt_rounding_delta','receipt_amount_convention','payout_events',
@@ -217,6 +218,7 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             scope='Conditional Monte Carlo noise under the declared empirical draw law only; not uncertainty in the law or future performance.',
             historical_mean_uncertainty_available=False),
         paths=paths,schedules=schedules,captures=captures,capture_path_indices=list(range(forecast.capture_paths)),
+        observed_bar_diagnostics=summarize_observed_coverage(paths),
         assumptions=[
             'Exactly one fresh funded account per path; every path remains in receipt means, including zero cash, breach and inactivity.',
             'Only modeled trader receipts strictly before the civil cutoff count as cash; pending entitlement, gross account deductions and provider equity stay separate.',

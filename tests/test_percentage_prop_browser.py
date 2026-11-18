@@ -43,8 +43,9 @@ def test_percentage_form_one_run_progress_and_complete_oos(page,portal,monkeypat
  page.goto(base+'/#prop-sim?analysis='+id)
  for phase in ('evaluation','funded'):
   playwright.expect(page.locator(f'#prop-sim-{phase}-validation .prop-sim-auto-status')).to_contain_text('Workflow: complete',timeout=30000)
-  playwright.expect(page.locator(f'#prop-sim-{phase}-validation .prop-sim-current-assessment table')).to_contain_text('0.2%')
-  playwright.expect(page.locator(f'#prop-sim-{phase}-conclusion')).to_contain_text('Insufficient',ignore_case=True)
+  playwright.expect(page.locator(f'#prop-sim-{phase}-validation .prop-sim-current-assessment .prop-evidence-candidate').first).to_contain_text('0.2%')
+  playwright.expect(page.locator(f'#prop-sim-{phase}-conclusion')).to_contain_text('evidence gaps',ignore_case=True)
+  playwright.expect(page.locator(f'#prop-sim-{phase}-validation .observed-bar-diagnostics').first).to_contain_text('Observed-bar replay · gaps accepted')
  playwright.expect(page.locator('#prop-sim-evaluation-conclusion')).to_contain_text('0.2%')
  assert 'undefined' not in page.locator('#prop-sim-evaluation-results').inner_text()
  page.locator('#prop-sim-evaluation-results').screenshot(path=str(tmp_path/'percentage-evaluation.png'))

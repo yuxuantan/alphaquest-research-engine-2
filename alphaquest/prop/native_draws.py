@@ -389,7 +389,8 @@ class _ClockView:
         return replace(value, timestamp_utc=self.stamp(value.timestamp_utc), position=position)
 
     def session_context(self, stamp):
-        if self.coverage is not None:self.coverage.check(stamp,self.owner.coverage_exposure())
+        if self.coverage is not None:
+            for gap in self.coverage.check(stamp,self.owner.coverage_exposure()):self.owner.observe_source_gap(gap)
         day = session_date(stamp)
         if day not in self.source:
             raise ValueError('Execution received foreign source bars.')

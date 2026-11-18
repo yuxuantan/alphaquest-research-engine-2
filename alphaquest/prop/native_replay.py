@@ -188,7 +188,7 @@ def _instant(value):
 
 
 def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=None,forecast_cache=None):
-    """Verify source identity/inventory; native v2 exposure coverage runs at execution."""
+    """Verify source identity/inventory; native v2 minute gaps are diagnostic."""
     from ..backtest_data import read_selected_bars
     from ..optimization_cache import artifacts, engine_identity, digest
     from ..reporting import json_value
@@ -243,23 +243,25 @@ def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=N
             observed_sessions=len(sessions), observed_bars=sum(s['observed_bar_count'] for s in sessions),
             sizing_uses_future_fill=False, costs_charged_once=True, cold_strategy_start=True,
             complete_minute_sessions=not missing_minutes, historical_paths=1, recommendation=False,
-            limitations=['Registered controlled strategy, continuous/base MNQ; missing minutes are allowed only without an open position or working stop-entry order.',
+            limitations=['Registered controlled strategy, continuous/base MNQ; observed bars determine execution. Missing minutes are diagnosed, not reconstructed.',
                 'Strategy starts cold at the first retained source bar; prior source results do not enter sizing.',
                 'The historical replay is one observed path and does not select a policy. Optional native forecasts are separate; independent native IS campaigns perform policy selection.',
                 'Provider rules, OHLC ordering and payout settlement assumptions remain unverified.']))
     from .native_market_hours import VERSION as COVERAGE_VERSION
-    result['observed_coverage']=dict(version=COVERAGE_VERSION,validation='actual_exposure_during_every_replay',
+    result['observed_coverage']=dict(version=COVERAGE_VERSION,validation='diagnostic_only_observed_bars',
         missing_minutes=[[a.isoformat(),b.isoformat()] for a,b in missing_minutes],
-        interpretation='Flat gaps retain observed feature inputs. Held or working stop-entry gaps invalidate the replay; no imputation or replacement draw.')
+        interpretation='Replay only observed bars; missing-minute completeness is diagnostic. No unobserved fills or excursions are reconstructed, no prices imputed and no replacement draws.',
+        missing_minute_count=sum(int((b-a).total_seconds()//60)+1 for a,b in missing_minutes),
+        longest_gap_minutes=max((int((b-a).total_seconds()//60)+1 for a,b in missing_minutes),default=0))
     if request.prepared_execution:
         result['source_check']['sizing_capabilities']=get_strategy(meta['strategy']['id']).sizing.describe(parameters)
         result.update(execution_settings={k:str(v) if isinstance(v,Decimal) else v for k,v in asdict(config).items()},
             source_adaptation=dict(price_reference=dataset['symbol'],execution_instrument='MNQ',point_value='2',commission_mode='replace_once',micro_basis_and_liquidity_verified=False))
         result['source_check'].pop('complete_minute_sessions',None)
         result['source_check']['full_session_completeness_required']=False
-        result['source_check']['limitations'][0]='Observed NQ/MNQ reference prices and explicit MNQ costs. Every replay checks actual open positions and working stop entries across missing minutes, excluding reviewed venue pauses; flat gaps retain observed inputs.'
-        result['source_check']['holding_coverage_validation']='runtime_actual_exposure'
-        result['source_check']['complete_holding_intervals_required']=True
+        result['source_check']['limitations'][0]='Observed NQ/MNQ reference prices and explicit MNQ costs. Missing-minute completeness is diagnostic, including gaps during positions or working entries. No unobserved events are reconstructed; risk can be understated.'
+        result['source_check']['holding_coverage_validation']='diagnostic_only_observed_bars'
+        result['source_check']['complete_holding_intervals_required']=False
     if dataset.get('tick_data'):
         result['source_check'].update(execution_data='ordered_trade_ticks',decision_clock='completed_one_minute_bars',
             source_total_trade_records=dataset['tick_data']['records'])

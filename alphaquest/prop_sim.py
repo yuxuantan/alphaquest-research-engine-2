@@ -729,7 +729,9 @@ async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,su
             calculations.pop('qualification_bootstrap',None)
             calculations.pop('qualification_complementary',None)
             fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification','quantity_summary')
-            calculations['candidates']=[{k:r[k] for k in fields if k in r} for r in calculations['candidates']]
+            calculations['candidates']=[dict({k:r[k] for k in fields if k in r},
+                **({'observed_bar_diagnostics':r['native_forecast']['observed_bar_diagnostics']}
+                   if r.get('native_forecast',{}).get('observed_bar_diagnostics') else {})) for r in calculations['candidates']]
             return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)
         return report
     return await invoke(read)

@@ -12751,3 +12751,112 @@ IDs, one workflow ID and 928 analysis IDs were preserved; the restart proof is
 it, when idle, with `kill -TERM 53172`. No user simulation was launched to verify
 this increment. Refresh the portal before retrying; an error on a genuinely
 exposed gap is still expected behavior, rather than a reason to replace paths.
+
+## Observed-bar gap diagnostics — 2026-11-18
+
+This increment supersedes the previous dated actual-exposure rejection behavior
+for new prepared percentage-risk runs. See the [current execution
+contract](prop_simulation.md#observed-bar-replay-and-diagnostic-minute-completeness-2026-11-18).
+Earlier failed jobs and sealed reports remain unchanged. No original NQ dataset
+or saved user simulation is changed for this demonstration.
+
+### Independent expectations and boundaries
+
+`tests/test_percentage_market_hours.py` executes original synthetic observed
+bars through both full execution and acceleration, for Evaluation and Funded.
+With entry 118, causal stop 113, point value $2 and ten MNQ, omit 09:03 and set
+the next observed 09:04 Open to 110: actual net is
+`10 × (110 − 118) × $2 = −$160`, under the explicitly zero-cost fixture.
+The held-gap diagnostic is one minute, one exposed completed trade and −$160
+attributed trading P&L. A budget that buys zero contracts remains unexposed.
+Working Twin OCO entries continue too and carry exposure to the actual filled
+trade. Known observed bars skipped by acceleration are not counted as holes;
+multiple real ranges in one jump are counted once each. Removing the actual
+liquidation tail still rejects, without fabricating an EOF exit. Original invalid
+input and iterator-failure checks still apply.
+
+### Existing-product demonstration and saved outputs
+
+Generate fresh isolated normal-product libraries and sealed downloads with:
+
+```sh
+ALPHAQUEST_GAP_EVIDENCE_DIR=artifacts/observed-bar-replay-20261118/final \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_percentage_flat_gap_source_check_run_and_durable_report \
+  tests/test_strategy_sizing_api.py::test_percentage_exposed_gap_completes_with_diagnostics_without_replacement_draw
+```
+
+These tests use actual uploaded synthetic minute datasets, ordinary saved
+backtests, independent phase configuration, source check, existing worker runs,
+sealed report downloads and reopen checks. They do not replace the phase engines
+or introduce an evidence API. Example folders contain:
+
+- `evaluation` / `funded`: Twin with one flat pre-entry minute omitted;
+- `evaluation-working-entry-gap` / `funded-working-entry-gap`: Twin with its
+  18:46 Chicago source minute omitted while its OCO entry is working;
+- `evaluation-held-gap` / `funded-held-gap`: VWAP with each 09:03 Chicago source
+  minute omitted while actually holding.
+
+Each has `journey.json` (source/campaign/report IDs), `request.json`, a labelled
+synthetic source CSV, `report.json`, the normal `analysis.zip`, and an isolated
+`library/`. Expected: eight requested paths retained, completion rather than the
+former missing-minute error, exposure counters positive only for affected
+accounts, actual opportunity/trade/cash reconciliation, and identical saved
+report contents on reopening. The small histories are execution demonstrations,
+not claims of OOS qualification or provider parity.
+
+To inspect a saved example, run an **unused port** with its library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/observed-bar-replay-20261118/final/funded-working-entry-gap/library" \
+  sh scripts/serve_portal.sh --port 8011
+```
+
+Use IDs from that folder's `journey.json`. Open
+`http://127.0.0.1:8011/#backtests/report/SOURCE_ID` and its Prop setup, then
+`/#backtests/prop/campaign/CAMPAIGN_ID`. Select the saved candidate; the native
+forecast shows “Observed-bar replay · gaps accepted”, expandable exposure/P&L
+counters and original/model clock evidence. Download `source_checks.json`,
+`native_forecast_paths.json` and the evidence ZIP. Stop this manually launched
+example server with Ctrl-C. Normal UI checks use temporary servers and stop them
+in their fixture cleanup.
+
+The automatic one-click test covers both account profiles through independent IS
+searches, immutable freezes, actual OOS forecasts and chronological replay, and
+reopening the ordinary evidence ZIP. The short fixture deliberately fails the
+12-month/100-trade evidence minimum; no GO result is manufactured. Its prior
+campaign admission is explicitly a synthetic test fixture, while all account
+calculations are real.
+
+The browser journey in `test_percentage_prop_browser.py` verifies the normal
+Run IS and OOS screen, completed phase status, diagnostics in both OOS evidence
+panels, desktop/mobile layout, and absence of browser errors. The native campaign
+browser journey separately checks retained actual fills and clock mappings.
+
+Current saved examples in `artifacts/observed-bar-replay-20261118/final`:
+
+| Example | Campaign | Sealed report | Runtime observation |
+| --- | --- | --- | --- |
+| Twin Evaluation, working entry | `bfe4c0b0251a4947ba17374b1f1d177b` | `3f30767ac5434af8b9739a3e54b1a762` | 10 working-entry gap encounters, 10 exposed completed trades, 8 paths |
+| Twin Funded, working entry | `7b4bfb5a00d848e090acd9fcf0194dc0` | `9d0948161a7e43acb617754002f2f3af` | 9 working-entry gap encounters, 9 exposed completed trades, 8 paths |
+| VWAP Evaluation, held gap | `ec2d39b12cab49e3b7f379ec7ba36047` | `8387d9c84dd84bd8829df66a9a32bfaf` | 24 held-gap encounters over 8 paths |
+| VWAP Funded, held gap | `622ba9c693a846c29fb65df35276317c` | `ea610e0dd9f342d5b2350025821c1a0d` | 24 held-gap encounters over 8 paths |
+
+The Twin Funded example's `browser-verification.json` and desktop/mobile PNGs
+record a direct source-report -> saved campaign inspection. Reopening issued no
+write requests, produced no browser errors or mobile overflow, and retained the
+same report SHA-256. `final/summary.json` indexes all six examples and their
+actual diagnostics. The separate `browser/` directory contains the one-click
+Prop Sim configuration/result screenshots and its synthetic simulation record.
+
+Validation: 44 distinct targeted cases passed across gap/arithmetic and
+full-versus-accelerated execution, source spool, malformed bars and iterator
+failure, six actual phase API examples, two automatic account-profile journeys,
+and the two affected browser journeys. No broad regression suite was run.
+The normal product browser fixture now asserts the current complementary-evidence
+cards rather than the retired table/old conclusion wording.
+
+Applied to the idle stable port-8000 portal without reload mode; no running job
+was interrupted. Existing analysis/optimization/mechanic-attempt IDs were checked
+before and after startup (930 / 6 / 1 records). Persistent server PID: `67100`;
+stop with `kill -TERM 67100`. All demonstration/test servers were stopped.
