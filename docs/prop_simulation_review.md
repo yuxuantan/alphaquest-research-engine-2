@@ -13088,14 +13088,42 @@ then copied from its tested isolated tree; seven focused progress/parity/identit
 checks passed again in the actual checkout. The preceding staged-status entry
 above is historical; this paragraph and the evidence manifest record application.
 
-The existing simulation ID is `5c4c908309aa4597831686e04c0e064d`; the normal Run
-API receives its original saved configuration, retaining that URL and both
-campaign IDs. `restart-before.json`, `stopped-simulation.json`,
-`restart-response.json` and `restart-after.json` record the request and resulting
-job IDs. All 765 preexisting completed report records and their seals were
+The old simulation `5c4c908309aa4597831686e04c0e064d` remains stopped and readable.
+Its normal retry returned 409 because native candidate identities include the
+changed dispatcher source hash; that guard was retained. The authorized restart
+therefore uses a new request UUID with every research setting unchanged.
+`restart-before.json`, `stopped-simulation.json`,
+`restart-existing-record-response.json`, `restart-request.json`,
+`restart-response.json` and `restart-after.json` retain both attempts and resulting
+IDs. The replacement request is `ba49bc3f4c8d46b09766069bf91f218c`. All 765 preexisting completed report records and their seals were
 compared and preserved. No source dataset, saved backtest or prior report was
 rewritten. The original cancelled jobs remain in Job history.
 
 The persistent portal is on port 8000 without autoreload, PID `74484`, with four
 simulation workers. Stop it using `kill -TERM 74484` after accounting for active
 work. Its command/log are recorded in `server.json`; all test servers stopped.
+
+The replacement simulation is running: Evaluation job
+`b8c3eda984944b768fb9e0b07201ea93`; Funded job
+`e88d09679de04f2c824a2ac877d6d78b` is queued behind it. Every research setting
+was compared field-for-field; only the request UUID differs. Initial production
+metadata has `eta_basis=completed-worker-paths-v1`, zero completed paths and
+`eta_status=capturing_evidence`, with no ETA. The initial detailed evidence path
+is deliberately serial; the configured four-worker pool follows it.
+
+The normal Prop Sim IS phase panels now call the same shared progress renderer
+as Job history and OOS assessments. They hide the duplicate one-line running
+summary while detailed progress is present, and restore it at completion.
+The updated one-click browser journey pauses its real first worker callback
+after saving initial progress, inspects both existing pages, then releases actual
+replay and verifies the complete durable IS/OOS outputs. This is test
+synchronization only; no progress count or financial outcome is fabricated.
+It and the Job history warm-up/mobile journey passed again after application.
+Their retained evidence is under `applied-browser/`.
+
+A separate read-only browser verified both live production pages, with no
+write requests or page errors. `applied-live-verification.json`,
+`applied-job-live.png` and `applied-prop-sim-live.png` retain the actual display
+and metadata. The portal shows **Estimating…** during initial evidence capture;
+subsequent completed paths and worker-based ETA appear without further user
+action. This increment corrects reporting and does not claim a faster replay.

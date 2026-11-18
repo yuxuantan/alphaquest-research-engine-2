@@ -1,5 +1,6 @@
 """New percentage controls and one-click native journey in the existing portal."""
 import json,time,os,shutil
+from threading import Event
 import pytest
 from test_backtests_browser import browser,page,playwright,portal
 from research_fixtures import ResearchHTTPClient
@@ -9,9 +10,14 @@ from test_percentage_automatic import native_source_pair,install_admission_fixtu
 def test_percentage_form_one_run_progress_and_complete_oos(page,portal,monkeypatch,tmp_path):
  base=portal['url']
  progress=[];store=portal['app'].state.prop_analyses;original_update=store._update
+ entered,release=Event(),Event()
  def observe(*args,**kwargs):
   if (details:=kwargs.get('progress_details')) and details.get('stage')=='native_execution':progress.append(dict(details))
-  return original_update(*args,**kwargs)
+  result=original_update(*args,**kwargs)
+  if details and details.get('stage')=='native_execution' and not entered.is_set():
+   entered.set()
+   assert release.wait(40),'Browser did not release the actual first native path'
+  return result
  monkeypatch.setattr(store,'_update',observe)
  with ResearchHTTPClient(base_url=base,timeout=180) as client:source=native_source_pair(client)
  install_admission_fixture(monkeypatch,source)
@@ -36,6 +42,19 @@ def test_percentage_form_one_run_progress_and_complete_oos(page,portal,monkeypat
  with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/api/prop-sim'),timeout=180000) as response:page.locator('#prop-sim-run').click()
  assert response.value.status==202,response.value.text();saved=response.value.json();id=saved['id']
  assert saved['configuration']['automatic'] and 'evaluation_maximum_micros' not in saved['configuration']
+ try:
+  live=page.locator('#prop-sim-evaluation-live-progress')
+  playwright.expect(live).to_contain_text('remaining for this size Estimating…',timeout=30000)
+  playwright.expect(live.get_by_role('progressbar')).to_be_visible()
+  assert page.locator('#prop-sim-evaluation-progress').is_hidden()
+  live.screenshot(path=str(tmp_path/'actual-prop-sim-startup-progress.png'))
+  with ResearchHTTPClient(base_url=base,timeout=30) as client:
+   job=client.get('/api/prop-sim/'+id).json()['phases']['evaluation']['analysis_id']
+  page.goto(base+'/#jobs/prop_analysis/'+job)
+  live=page.locator('#jobs-detail-content .prop-confidence-progress')
+  playwright.expect(live).to_contain_text('remaining for this size Estimating…')
+  live.screenshot(path=str(tmp_path/'actual-job-startup-progress.png'))
+ finally:release.set()
  page.goto(base+'/#jobs')
  with ResearchHTTPClient(base_url=base,timeout=180) as client:
   deadline=time.monotonic()+180
