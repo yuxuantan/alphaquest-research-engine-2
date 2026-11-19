@@ -48,6 +48,37 @@ No active optimization was found in the backtest catalogue.
   after the previous server has stopped. A failed duplicate launch does not
   relabel live jobs interrupted.
 
+### Repeat launches and interrupted records (2026-11-19)
+
+If the requested port already serves AlphaQuest for the **same resolved data
+library**, repeating `sh scripts/serve_portal.sh` prints its existing address
+and exits successfully. Identification uses the read-only defaults endpoint's
+catalogue path. It never starts another application or invokes recovery, even
+if `--recover-interrupted` was supplied. An unrelated, different-library or
+unresponsive listener still rejects without changing any jobs.
+
+The catalogue status `running` does not prove that a process survived. A crash
+can leave that saved status behind. When there is no listener or stable owner,
+the launcher explains that distinction and gives the exact recovery command:
+
+```sh
+sh scripts/serve_portal.sh --recover-interrupted
+```
+
+Use this only after confirming that the previous server and workers stopped.
+Startup marks unfinished jobs interrupted; it cannot restore unsealed partial
+account paths. Completed reports and settings remain preserved. The explicit
+guard is retained because a server launched outside this script could still be
+using the library on another port.
+
+For the reported job `e88d09679de04f2c824a2ac877d6d78b`, the old server had
+already stopped before the storage migration. Normal startup recorded it as
+`error` / `Interrupted`; no simulation rerun was performed. At this diagnosis
+the portal on port 8000 was healthy and the catalogue contained no active jobs.
+The older refusal message describes its previously stale saved status.
+Four focused launcher checks cover same-library reuse with and without a
+recovery flag, different-library rejection, and unchanged orphaned-job state.
+
 Default logs are under `data/portal_logs`; `ALPHAQUEST_DATA_DIR` chooses another
 library. The normal foreground stop is Ctrl+C. This launcher is for local macOS/
 POSIX use and preserves the existing application/store/worker architecture.

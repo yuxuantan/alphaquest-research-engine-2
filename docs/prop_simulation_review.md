@@ -13232,3 +13232,25 @@ Stop this persistent server with `kill -TERM 10826`, after checking that no new
 user simulation is running. No temporary browser/test server remains running.
 Normal startup marked the earlier stale job `e88d09679de04f2c824a2ac877d6d78b`
 as interrupted. No new analysis was launched for the storage migration.
+
+### Stable-launcher repeat-start verification (2026-11-19)
+
+The reported queued/running refusal referred to the old orphaned job
+`e88d09679de04f2c824a2ac877d6d78b`; its current saved state is already
+`error` / `Interrupted`. The healthy existing portal was retained, with no
+active jobs and no server restart. `sh scripts/serve_portal.sh` now verifies
+the existing listener's exact catalogue path and returns its URL successfully
+instead of treating a healthy same-library duplicate launch as an error.
+Different-library/unresponsive listeners still reject. Stale job records without
+an owner still require explicit `--recover-interrupted`; the message explains
+that saved status is not proof of live work, and that partial paths cannot be
+restored. See `docs/portal_responsiveness.md` for the recovery workflow.
+
+The user's exact command returned zero against production, with **765**
+completed reports retained and no changes to any job state, saved simulation
+payload or report seal. Evidence is
+`artifacts/portal-launcher-20261119/live-verification.json`. Four isolated
+checks in `tests/test_portal_launcher.py` exercise duplicate startup (including
+the recovery flag), wrong-library refusal and orphaned-record preservation.
+Only temporary HTTP readers are created by those checks and are stopped on
+teardown; no additional persistent server or simulation is launched.

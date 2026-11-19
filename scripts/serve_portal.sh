@@ -5,6 +5,7 @@ PORTAL_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$PORTAL_ROOT"
 exec "${ALPHAQUEST_PORTAL_PYTHON:-$PORTAL_ROOT/.venv/bin/python}" - "$@" <<'PY'
 import argparse
+import errno
 import fcntl
 import json
 import os
@@ -12,6 +13,7 @@ from pathlib import Path
 import socket
 import sqlite3
 import sys
+from urllib.request import urlopen
 
 parser = argparse.ArgumentParser(description='Serve the local portal without terminal access logs or development reload.')
 parser.add_argument('--port', type=int, default=8000)
@@ -20,16 +22,28 @@ args = parser.parse_args()
 if not 1 <= args.port <= 65535:
     parser.error('--port must be between 1 and 65535')
 
+data = Path(os.environ.get('ALPHAQUEST_DATA_DIR', 'data')).expanduser().resolve()
+
+def existing_portal(port):
+    """Identify a healthy reader for this exact library; never start recovery."""
+    try:
+        with urlopen(f'http://127.0.0.1:{port}/api/prop-analyses/defaults', timeout=3) as response:
+            value = json.load(response)
+        return value.get('report_storage', {}).get('catalogue') == str(data/'prop_analyses/catalog.sqlite3')
+    except (OSError, ValueError, AttributeError):
+        return False
+
 # Bind before application startup: duplicate launches must not run recovery.
 listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     listener.bind(('127.0.0.1', args.port))
 except OSError as exc:
+    if exc.errno == errno.EADDRINUSE and existing_portal(args.port):
+        parser.exit(0, f'AlphaQuest is already running at http://127.0.0.1:{args.port}/. Existing jobs were not changed.\n')
     parser.exit(1, f'Cannot own 127.0.0.1:{args.port}: {exc}. Existing servers and jobs were not changed.\n')
 listener.listen(2048)
 listener.set_inheritable(True)
 
-data = Path(os.environ.get('ALPHAQUEST_DATA_DIR', 'data')).expanduser().resolve()
 data.mkdir(parents=True, exist_ok=True)
 owner = (data/'.portal-server.lock').open('a+')
 try:
@@ -50,7 +64,13 @@ for path, table, query in (
         if db.execute('SELECT 1 FROM sqlite_master WHERE type=? AND name=?', ('table',table)).fetchone():
             active.extend(r[0] for r in db.execute(query))
 if active and not args.recover_interrupted:
-    parser.exit(1, 'Queued/running jobs exist: '+', '.join(active)+'. Keep their current server running. After it has stopped, explicitly use --recover-interrupted if recovery is intended.\n')
+    parser.exit(1, 'Saved jobs are still marked queued/running: '+', '.join(active)+'. '
+        'No portal owns this requested port or stable server lock. These may be interrupted records; '
+        'this check does not prove that their workers are still running. '
+        'After confirming the previous server and workers have stopped, run '
+        f'"sh scripts/serve_portal.sh --port {args.port} --recover-interrupted". '
+        'Recovery records unfinished jobs as interrupted; it does not restore partial paths. '
+        'No jobs were changed by this launch.\n')
 
 logs = data/'portal_logs'
 logs.mkdir(exist_ok=True)
