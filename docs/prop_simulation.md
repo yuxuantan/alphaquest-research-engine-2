@@ -3633,3 +3633,22 @@ ZIP also provides every original file for offline inspection. External scripts
 that previously opened the two physical detail paths should use their normal
 export APIs, `prop_report_storage.read_bytes()`, or explicitly restore unpacked
 files. Ordinary report reads/downloads and original ZIP access stay compatible.
+
+## Prop Sim launch validation (2026-11-19)
+
+Before launch, the existing configuration form names the prerequisite blocking
+**Run IS and OOS** and **Check source and settings**. A missing configuration,
+unsupported sizing mode, invalid phase grid or native required/range/integer
+input displays `Cannot run: ...` beside the buttons. Phase-specific fields name
+Evaluation or Funded. Editing another field must not replace the blocking
+reason with the generic settings-changed notice. Once corrected, both actions
+become available without a separate confirmation step.
+
+Both fixed and percentage searches require complete applicable settings. Fixed
+maximum contracts must be at least the minimum; percentage grids retain their
+exact positive/aligned decimal rules. Disabled controls from the unused sizing
+mode do not block launch. Optional closed-session and breach-cap fields remain
+optional. These are portal validation messages only: server-owned qualification,
+account/source admission, numerical identities and the automatic IS/OOS plan
+remain unchanged. Refresh the portal to load the updated static asset; no
+application restart is required.

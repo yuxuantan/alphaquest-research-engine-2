@@ -141,6 +141,7 @@
       const names=[['evaluation_minimum_micros','Minimum MNQ','number','evaluation'],['evaluation_maximum_micros','Maximum MNQ','number','evaluation'],['evaluation_price','Purchase fee · USD','text','evaluation'],['activation_fee','Activation fee · USD','text','evaluation'],['funded_minimum_micros','Minimum MNQ','number','funded'],['funded_maximum_micros','Maximum MNQ','number','funded'],['funded_horizon_calendar_days','Funded horizon · calendar days','number','funded'],['simulations','Paths per size, per phase','number','quality'],['block_weekdays','Historical block · weekdays','select','quality'],['seed','Random seed','number','advanced'],['commission_per_mnq_side','MNQ commission per contract per side · USD','text','advanced'],['start_date','Scenario start · America/Chicago','date','advanced'],['receipt_delay_calendar_days','Receipt delay · calendar days','number','advanced'],['maximum_funded_breach_probability','Optional Funded breach cap · 0 to 1','number','advanced'],['closures','Closed sessions · comma-separated YYYY-MM-DD','text','advanced']];
       for(const [name,text,type,group] of names){
         const label=node('label',text),input=node(type==='select'?'select':'input');input.id='prop-sim-'+name;fields[name]=input;
+        input.required=!['closures','maximum_funded_breach_probability'].includes(name);
         if(type==='select')for(const n of [1,5,10])input.add(new Option(String(n),String(n)));else input.type=type;
         if(type==='number'){input.step=name==='maximum_funded_breach_probability'?'.01':'1';input.min='0';}
         if(name.endsWith('_micros'))input.min='1';if(name==='simulations'){input.min='8';input.max='20000';}
@@ -180,7 +181,8 @@
       form.append(node('p','Run checks the source, executes both IS searches, automatically freezes up to three Evaluation sizes and two Funded sizes, then runs OOS qualification. No follow-up selection or confirmation is required.','field-help'));if(defaults.automatic_selection_policy)detail(form,'Automatic sizing rules',defaults.automatic_selection_policy);
       const buttons=node('div',undefined,'mechanic-downloads'),check=node('button','Check source and settings','button secondary'),run=node('button','Run IS and OOS','button primary');check.type=run.type='button';check.id='prop-sim-check';run.id='prop-sim-run';run.disabled=true;buttons.append(check,run);form.append(buttons);
       const notice=node('p');notice.id='prop-sim-status';notice.setAttribute('role','status');form.append(notice);
-      let checked=false,busy=false,requestId=crypto.randomUUID(),saved;
+      run.setAttribute('aria-describedby',notice.id);check.setAttribute('aria-describedby',notice.id);
+      let checked=false,busy=false,gridError='',requestId=crypto.randomUUID(),saved;
       let deleting=false;
       async function requestDelete(id){
         if(deleting)return;deleting=true;
@@ -206,11 +208,23 @@
         host.prepend(message);
       }
 
-      const update=()=>{const item=picker.value===''?null:sources.items[Number(picker.value)],support=item?.sizing_support?.[sizingMode.value],blocked=support?.supported===false;check.disabled=busy||picker.value===''||blocked;run.disabled=busy||picker.value===''||blocked||!form.checkValidity();if(blocked)notice.textContent=support.reason;};
+      const update=()=>{
+        const item=picker.value===''?null:sources.items[Number(picker.value)],support=item?.sizing_support?.[sizingMode.value];
+        const invalid=[...form.elements].find(field=>field.willValidate&&!field.validity.valid);
+        let reason=!item?'Choose a qualified campaign configuration.':support?.supported===false?(support.reason||'Selected configuration does not support this sizing mode.'):gridError;
+        if(!reason&&invalid){
+          const label=[...(invalid.closest('label')?.childNodes||[])].filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent).join('').trim()||invalid.id;
+          const phase=invalid.id.startsWith('prop-sim-evaluation')?'Evaluation sizing · ':invalid.id.startsWith('prop-sim-funded')?'Funded sizing · ':'';
+          reason=`${phase}${label}: ${invalid.validationMessage}`;
+        }
+        check.disabled=run.disabled=busy||!!reason;
+        if(reason&&!busy){notice.textContent='Cannot run: '+reason;notice.dataset.blocked='true';}
+        else if(!reason&&notice.dataset.blocked){notice.textContent='Ready. Run will check the source and execute both IS and OOS phases automatically.';delete notice.dataset.blocked;}
+      };
       function resourcePreview(){
-        const paths=Number(fields.simulations.value),counts={};
+        gridError='';const paths=Number(fields.simulations.value),counts={};
         for(const phase of ['evaluation','funded']){
-          try{const values=sizingMode.value==='percentage_risk'?expandedGrid(phase):null;counts[phase]=values?values.length:Math.max(0,Number(fields[phase+'_maximum_micros'].value)-Number(fields[phase+'_minimum_micros'].value)+1);riskGroups[phase].dataset.expanded=values?.join(', ')||'';if(values){const base=riskFields[phase].reference.value==='available_drawdown_cushion'?2000:50000,amounts=values.map(v=>Number(v)*base/100),money=v=>v>0&&v<.01?'less than $0.01':'$'+fmt(v);riskGroups[phase].querySelector('[data-initial-risk-budget]').textContent=`Initial planned budget: ${money(amounts[0])}${amounts.length>1?'–'+money(amounts.at(-1)):''} · ${fmt(amounts[0]/2000*100)}${amounts.length>1?'–'+fmt(amounts.at(-1)/2000*100):''}% of the initial $2,000 account drawdown. ${riskFields[phase].reference.value==='initial_configured_capital'?'The declared dollar budget stays fixed.':'This reference changes with account state and deductions.'}`;}}catch(error){preview.textContent=error.message;run.disabled=true;check.disabled=true;return;}
+          try{const values=sizingMode.value==='percentage_risk'?expandedGrid(phase):null;if(!values&&Number(fields[phase+'_maximum_micros'].value)<Number(fields[phase+'_minimum_micros'].value))throw Error('Maximum MNQ must be at least Minimum MNQ.');counts[phase]=values?values.length:Math.max(0,Number(fields[phase+'_maximum_micros'].value)-Number(fields[phase+'_minimum_micros'].value)+1);riskGroups[phase].dataset.expanded=values?.join(', ')||'';if(values){const base=riskFields[phase].reference.value==='available_drawdown_cushion'?2000:50000,amounts=values.map(v=>Number(v)*base/100),money=v=>v>0&&v<.01?'less than $0.01':'$'+fmt(v);riskGroups[phase].querySelector('[data-initial-risk-budget]').textContent=`Initial planned budget: ${money(amounts[0])}${amounts.length>1?'–'+money(amounts.at(-1)):''} · ${fmt(amounts[0]/2000*100)}${amounts.length>1?'–'+fmt(amounts.at(-1)/2000*100):''}% of the initial $2,000 account drawdown. ${riskFields[phase].reference.value==='initial_configured_capital'?'The declared dollar budget stays fixed.':'This reference changes with account state and deductions.'}`;}}catch(error){gridError=`${phase==='evaluation'?'Evaluation':'Funded'} sizing: ${error.message}`;preview.textContent=gridError;update();return;}
         }
         preview.textContent=`${counts.evaluation} Evaluation sizes + ${counts.funded} Funded sizes · ${paths.toLocaleString()} paths per size, per phase · ${((counts.evaluation+counts.funded)*paths).toLocaleString()} total paths. The path count does not shrink with the size range. Both searches use IS history only. Automatic frozen-size assessment adds 5,000 IS/OOS account paths per history/deadline, five 1,000-path stress checks and up to 24 chronological starts; no nested historical refits.${sizingMode.value==='percentage_risk'?` Evaluation: ${riskGroups.evaluation.dataset.expanded}%. Funded: ${riskGroups.funded.dataset.expanded}%. Exact grids; frozen OOS choices receive account Monte Carlo, chronological starts and predefined stress checks. No nested historical refits.`:''}`;update();
       }

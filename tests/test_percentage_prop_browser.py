@@ -7,6 +7,62 @@ from research_fixtures import ResearchHTTPClient
 from test_percentage_automatic import native_source_pair,install_admission_fixture
 
 
+def test_run_button_names_the_blocker_and_recovers_after_correction(page,portal,monkeypatch,tmp_path):
+ # Real synthetic backtest source; prior qualification is the labeled fixture.
+ # This form-only journey starts no prop calculation; the next test runs both phases.
+ with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:source=native_source_pair(client)
+ install_admission_fixture(monkeypatch,source)
+ page.goto(portal['url']+'/#prop-sim')
+ run=page.locator('#prop-sim-run');check=page.locator('#prop-sim-check');notice=page.locator('#prop-sim-status')
+ playwright.expect(notice).to_contain_text('Cannot run: Choose a qualified campaign configuration.')
+ page.locator('#prop-sim-simulations').fill('32')
+ playwright.expect(run).to_be_disabled()
+ playwright.expect(notice).to_contain_text('Choose a qualified campaign configuration.')
+ page.locator('#prop-sim-source').select_option('0')
+ playwright.expect(run).to_be_enabled()
+ page.locator('#prop-sim-search-kind').select_option('percentage_risk')
+ page.locator('#prop-sim-funded-risk-minimum').fill('0')
+ playwright.expect(run).to_be_disabled();playwright.expect(check).to_be_disabled()
+ playwright.expect(notice).to_contain_text('Cannot run: Funded sizing: Declare positive, aligned minimum, maximum and step')
+ page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'funded-grid-blocker.png'))
+ for key,value in [('minimum','.25'),('maximum','.5'),('step','.25')]:
+  page.locator('#prop-sim-funded-risk-'+key).fill(value)
+ playwright.expect(run).to_be_enabled()
+ page.locator('#prop-sim-funded-risk-maximum_contracts').fill('2.5')
+ playwright.expect(notice).to_contain_text('Funded sizing · Whole-MNQ ceiling:')
+ playwright.expect(run).to_be_disabled()
+ page.locator('#prop-sim-funded-risk-maximum_contracts').fill('40')
+ page.get_by_text('Costs, calendar and optional risk settings',exact=True).click()
+ page.locator('#prop-sim-seed').fill('')
+ playwright.expect(notice).to_contain_text('Cannot run: Random seed:')
+ playwright.expect(run).to_be_disabled()
+ page.locator('#prop-sim-seed').fill('42')
+ playwright.expect(run).to_be_enabled()
+ page.locator('#prop-sim-commission_per_mnq_side').fill('')
+ playwright.expect(notice).to_contain_text('MNQ commission per contract per side · USD:')
+ page.locator('#prop-sim-commission_per_mnq_side').fill('0.51')
+ page.locator('#prop-sim-evaluation-risk-minimum').fill('0')
+ playwright.expect(notice).to_contain_text('Cannot run: Evaluation sizing:')
+ # Unused hidden percentage fields must not block a fixed-contract search.
+ page.locator('#prop-sim-search-kind').select_option('fixed_contracts')
+ playwright.expect(run).to_be_enabled()
+ page.locator('#prop-sim-evaluation_minimum_micros').fill('11')
+ playwright.expect(notice).to_contain_text('Evaluation sizing: Maximum MNQ must be at least Minimum MNQ.')
+ playwright.expect(run).to_be_disabled()
+ page.locator('#prop-sim-evaluation_minimum_micros').fill('1')
+ playwright.expect(run).to_be_enabled();playwright.expect(check).to_be_enabled()
+ playwright.expect(notice).not_to_contain_text('Cannot run:')
+ page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'corrected-form-ready.png'))
+ with portal['app'].state.prop_analyses.connect() as db:assert db.execute('SELECT count(*) FROM analyses').fetchone()[0]==0
+ if destination:=os.environ.get('ALPHAQUEST_PROP_FORM_EVIDENCE_DIR'):
+  target=__import__('pathlib').Path(destination);target.mkdir(parents=True,exist_ok=True)
+  for name in ('funded-grid-blocker.png','corrected-form-ready.png'):shutil.copyfile(tmp_path/name,target/name)
+  (target/'form-verification.json').write_text(json.dumps(dict(synthetic=True,source_backtest_id=source['source_backtest_id'],
+   missing_source_explained=True,funded_grid_error_explained=True,integer_ceiling_error_explained=True,
+   required_seed_and_commission_explained=True,unused_risk_fields_ignored=True,inverted_fixed_range_explained=True,
+   corrected_form_enabled=True,prop_simulation_launched=False),indent=2))
+
+
 def test_percentage_form_one_run_progress_and_complete_oos(page,portal,monkeypatch,tmp_path):
  base=portal['url']
  progress=[];store=portal['app'].state.prop_analyses;original_update=store._update

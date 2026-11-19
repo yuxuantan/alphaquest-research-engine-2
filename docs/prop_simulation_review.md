@@ -13254,3 +13254,41 @@ checks in `tests/test_portal_launcher.py` exercise duplicate startup (including
 the recovery flag), wrong-library refusal and orphaned-record preservation.
 Only temporary HTTP readers are created by those checks and are stopped on
 teardown; no additional persistent server or simulation is launched.
+
+### Visible launch blockers (2026-11-19)
+
+The disabled Run action could leave `Settings changed. Run will check the source
+and execute both IS and OOS phases automatically.` visible while a missing
+selection or invalid field still blocked launch. The form now shows the actual
+reason beside both buttons, including the phase and field for native browser
+validation, and returns to ready after correction. This changes presentation
+and required-input checks, without weakening server qualification or launching
+a calculation while editing.
+
+Reproduce in the existing Prop Sim form: edit a setting without choosing a
+configuration (expect `Cannot run: Choose a qualified campaign configuration.`).
+Select an eligible source, switch to percentage risk and enter Funded minimum
+`0` (expect a Funded grid error). Set minimum `.25`, maximum `.5`, step `.25`
+(expect exactly two Funded policies and an enabled Run button). A fractional
+whole-MNQ ceiling or blank seed names that exact field. Switching to fixed
+contracts ignores disabled percentage fields; an inverted fixed range names
+the affected phase. Correct all settings to re-enable both actions.
+
+Explicit browser cases are in `tests/test_percentage_prop_browser.py`:
+`test_run_button_names_the_blocker_and_recovers_after_correction` and
+`test_percentage_form_one_run_progress_and_complete_oos`. The first creates a
+real labeled synthetic native source and exercises the form without any prop
+calculation. The second retains the existing actual one-click native IS/OOS
+calculation, durable results, downloads and insufficient-history conclusions.
+Prior campaign admission is explicitly a test fixture; it is not production
+qualification. Their screenshots, exact source identity and phase ZIPs are
+under `artifacts/prop-form-validation-20261119/`. Temporary servers stop on
+fixture teardown; the production server and its jobs need no restart.
+
+Both targeted browser cases passed. A separate GET-only Chrome check against
+`http://localhost:8000/#prop-sim` confirmed the live missing-selection, Funded
+grid and blank-seed explanations, followed by an enabled corrected form.
+`live-verification.json`, `live-grid-blocker.png` and
+`live-corrected-ready.png` retain that result. All production job states, saved
+simulation payloads and report seals were unchanged; no simulation or server
+restart was initiated by the live check.
