@@ -13199,3 +13199,36 @@ never cancels, restarts, tunes or replays a simulation. The application manifest
 records the eventual migration, server PID/log, actual folder allocation and
 post-migration read-only API/browser verification. No original dataset,
 backtest, frozen selection, historical verdict or report bytes are rewritten.
+
+Applied migration (`9d23411`) retained all **765** completed report IDs and their
+original report/ZIP seals. It removed **1,200** verified duplicate JSON files
+from **764** report folders, reclaiming **2,243,915,583 logical bytes**. Total
+store size fell from **4,592,324,546** to **2,348,408,963 bytes** (4.59 to
+2.35 decimal GB); catalogue and all other report evidence remain present.
+An independent read-only verifier checked every manifest entry: **10,845**
+standalone artifacts and **1,200** ZIP-backed artifacts matched their original
+SHA-256 and byte lengths. SQLite `quick_check` returned `ok`.
+
+The upgraded production portal reopened the original 40-candidate Evaluation
+and Funded tables. All eight original JSON/report/CSV/ZIP exports matched their
+saved hashes, including actual browser-clicked JSON downloads. The current saved
+Prop Sim page also reopened its retained configuration/interrupted status.
+`live-verification.json` records zero page errors, zero write requests and zero
+new analyses; the checker used only GET requests. `evaluation-live.png`,
+`funded-live.png` and `saved-prop-sim-live.png` retain those real pages.
+
+Inspect `artifacts/prop-report-storage-20261119/README.md`, the per-report
+`applied/journal.jsonl`, `applied/result.json` and `verified-after.json`.
+`verify_migrated.py` reproduces the independent full-library verification without
+constructing an application store or running simulations. Exact original JSON
+can be restored with the documented maintenance command; this needs disk space
+for the unpacked copies and does not rerun any analysis.
+
+The portal was already offline before application. Its restarted single-server
+process is **10826**, listening at `http://127.0.0.1:8000`, without auto-reload;
+Prop Sim has four worker slots. Logs use
+`data/portal_logs/prop-storage-upgrade.log` and the existing configured log sinks.
+Stop this persistent server with `kill -TERM 10826`, after checking that no new
+user simulation is running. No temporary browser/test server remains running.
+Normal startup marked the earlier stale job `e88d09679de04f2c824a2ac877d6d78b`
+as interrupted. No new analysis was launched for the storage migration.
