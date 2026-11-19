@@ -174,7 +174,7 @@ def implementation_identity():
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
              'native_analysis.py', 'native_engine.py', 'native_backend.py',
              'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py', 'commissions.py',
-             'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py',
+             'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py',
              'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
              'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
              '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
@@ -426,12 +426,14 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
             component = simulate_evaluation_profile(runs, candidate.source, candidate.profile,
                 candidate.micros, candidate.simulation, candidate.period, candidate.sampling, candidate.costs,
                 **({'sizing':candidate.sizing} if candidate.sizing is not None else {}),
-                **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
+                **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}),checkpoint=checkpoint,progress=progress)
             if canonical(component.provenance['source']) != canonical(check['manifest']['source']):
                 raise ValueError('Candidate source changed after source checking.')
             result = acquisition_metrics(component, candidate.profile, candidate.retry, search.calendar, candidate.sampling)
             rows.append(dict(candidate_id=check['candidate_id'], **result,
                 component=asdict(component), manifest=check['manifest'], origin_trials=check['origin_trials']))
+    from .saved_trade_simulation import describe_results
+    describe_results(rows)
     # Recheck all sources at the publication boundary, including earlier candidates.
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
@@ -467,7 +469,7 @@ def assess_saved_evaluation(runs,search,checks,assessment,progress,checkpoint):
                 result=simulate_calendar_evaluation_profile(runs,scenario,search.calendar,checkpoint=checkpoint,progress=progress)
             else:
                 component=simulate_evaluation_profile(runs,scenario.source,scenario.profile,scenario.micros,
-                    scenario.simulation,scenario.period,scenario.sampling,scenario.costs,scenario.sizing)
+                    scenario.simulation,scenario.period,scenario.sampling,scenario.costs,scenario.sizing,checkpoint=checkpoint,progress=progress)
                 result=acquisition_metrics(component,scenario.profile,scenario.retry,search.calendar,scenario.sampling)
                 result['component']=asdict(component)
             row=dict(candidate_id=check['candidate_id'],frozen_candidate_id=check['frozen_candidate_id'],scenario=label,
@@ -478,7 +480,7 @@ def assess_saved_evaluation(runs,search,checks,assessment,progress,checkpoint):
                 first=date.fromisoformat(c.period.first_session);last=date.fromisoformat(c.period.last_session)
                 calendar=AcquisitionCalendar((str(first),),str(last+timedelta(days=c.retry.max_calendar_days+2)),())
                 paths,_=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,
-                    replace(c.retry,max_calendar_days=(last-first).days+1),calendar,chronological=True,checkpoint=checkpoint)
+                    replace(c.retry,max_calendar_days=(last-first).days+1),calendar,chronological=True,checkpoint=checkpoint,sizing=c.sizing)
                 row['chronological_replay']=dict(paths[0],interpretation='One chronological OOS saved-signal scenario; no resampling or reselection. Window-censored acquisition has no finite funding-time estimate.')
                 base=assessment['is_metrics'][check['frozen_candidate_id']]
                 row['is_comparison']={key:dict(is_value=base.get(key),oos_value=row['metrics'].get(key),
@@ -486,6 +488,8 @@ def assess_saved_evaluation(runs,search,checks,assessment,progress,checkpoint):
                     for key in ('cost_per_funded','expected_calendar_days_to_funded','pass_probability')}
             rows.append(row)
         verify_phase_source(runs,c.source,check['manifest']['source'])
+    from .saved_trade_simulation import describe_results
+    describe_results(rows)
     precision=paired_precision(rows) if assessment['kind']!='is_robustness' else {}
     return dict(model_version=model_version(search),phase='evaluation',candidates=rows,frontier=[],winner=None,
         marginal_acceleration_cost=[],certified_frontier=False,selection_status='assessment_only_no_reselection',

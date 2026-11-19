@@ -11,7 +11,7 @@
     parent.className='prop-confidence-progress';
     const d=details,completed=Number(d.completed)||0,total=Number(d.total)||0;
     const native=d.stage==='native_execution',currentETA=!native||d.eta_basis==='completed-worker-paths-v1';
-    parent.append(node('p',`${d.stage==='complementary_evidence'?'Complementary evidence':d.stage==='native_execution'?'Native account execution':d.stage==='native_preparation'?'Preparing native source · '+(d.preparation_stage||'').replaceAll('_',' '):'Historical confidence'} · ${d.sizing_label||d.micros+' MNQ'}${d.candidate_count?` · size ${d.candidate_index} of ${d.candidate_count}`:''}`));
+    parent.append(node('p',`${d.stage==='complementary_evidence'?'Complementary evidence':d.stage==='native_execution'?'Native account execution':d.stage==='saved_trade_execution'?'Saved-trade account simulation':d.stage==='native_preparation'?'Preparing native source · '+(d.preparation_stage||'').replaceAll('_',' '):'Historical confidence'} · ${d.sizing_label||d.micros+' MNQ'}${d.candidate_count?` · size ${d.candidate_index} of ${d.candidate_count}`:''}`));
     parent.append(node('p',`${completed.toLocaleString()} / ${total.toLocaleString()} ${d.unit||'resamples'} · ${total?(100*completed/total).toFixed(1):'0.0'}% for this size`));
     if(total){const bar=node('progress');bar.max=total;bar.value=completed;bar.setAttribute('aria-label','Calculation progress for current policy');parent.append(bar);}
     parent.append(node('p',`${d.active_workers} active / ${d.worker_count} workers · elapsed ${duration(d.elapsed_seconds)} · remaining for this size ${duration(currentETA?d.eta_seconds:null)}`));

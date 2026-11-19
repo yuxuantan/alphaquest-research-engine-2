@@ -112,8 +112,9 @@ def _validate_bar(bar: Bar, previous: Bar | None) -> None:
 
 class _Account:
     def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None, capture_decisions=False,
-                 capture_entry_protection=False):
+                 capture_entry_protection=False, observe_entry=None):
         self.config = config
+        self.observe_entry = observe_entry
         self.capture_decisions = capture_decisions
         self.decision_count = self.decision_sequence = 0
         self.pending_decision = self.active_decision = None
@@ -189,6 +190,8 @@ class _Account:
                 raise ExecutionError("EntryIntent while holding is unsupported: no pyramiding or position replacement.")
             if intent.exit_deadline_utc is not None and intent.exit_deadline_utc < bar.timestamp_utc:
                 raise ExecutionError("Entry exit_deadline_utc cannot precede the actual entry time.")
+            if self.observe_entry is not None:
+                self.observe_entry(intent, bar, reference)
             fill = (_add if intent.side == "long" else _sub)(reference, self.slippage)
             commission = _mul(Decimal(intent.contracts), self.config.commission_per_contract_per_side)
             self.position = Position(intent.contracts, bar.timestamp_utc, fill, bar.bar_number, intent.side)
@@ -686,7 +689,7 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
 
 def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
             account_control=None,continuation=None,completion='strategy_finish',prepared_path=None,
-            capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity | OCOEntryAmbiguity]:
+            capture_entry_protection=False, observe_entry=None) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity | OCOEntryAmbiguity]:
     """Replay, applying an optional strategy-owned historical preparation pass.
 
     Preparation is optional. The calendar-based VWAP strategy uses the causal
@@ -698,12 +701,12 @@ def execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *,
     with (prepare(bars) if prepare is not None else nullcontext(bars)) as replay:
         yield from _execute(replay, strategy, config, capture_risk=capture_risk, observe_bar=observe_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
                             account_control=account_control,continuation=continuation,completion=completion,prepared_path=prepared_path,
-                            capture_entry_protection=capture_entry_protection)
+                            capture_entry_protection=capture_entry_protection,observe_entry=observe_entry)
 
 
 def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *, capture_risk=False, observe_bar=None, fill_assumptions=None, capture_decisions=False,
              account_control=None,continuation=None,completion='strategy_finish',prepared_path=None,
-             capture_entry_protection=False) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity | OCOEntryAmbiguity]:
+             capture_entry_protection=False, observe_entry=None) -> Iterator[Trade | EquityPoint | IntratradeRisk | DecisionEvent | ProtectionAmbiguity | OCOEntryAmbiguity]:
     """Yield immutable completed trades and equity points with bounded state.
 
     Exhaust this iterator inside read_bars' context for a completed run. Results
@@ -746,7 +749,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
     path_policy = getattr(strategy, 'ohlc_path_policy', 'multicharts')
     if path_policy not in PATH_POLICIES:
         raise ExecutionError('Unknown OHLC path policy.')
-    account = _Account(config, capture_risk, fill_assumptions, capture_decisions, capture_entry_protection)
+    account = _Account(config, capture_risk, fill_assumptions, capture_decisions, capture_entry_protection,observe_entry)
     account._ohlc_policy = path_policy
     if continuation is not None:
         account.cash=continuation.trading_cash

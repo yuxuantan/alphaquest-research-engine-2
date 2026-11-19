@@ -1,3 +1,5 @@
+> Current percentage-risk Prop Sim (2026-11-20): [saved-trade stop-budget model](saved_trade_prop_simulation.md) supersedes the native per-path replay described in earlier dated sections. Historical reports and unrelated native/portfolio APIs retain their own laws.
+
 # Campaign edge research and independent percentage-risk optimization
 
 Status: **implementation covers M0–M7; final release verification is recorded in

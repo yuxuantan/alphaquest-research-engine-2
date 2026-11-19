@@ -208,7 +208,7 @@ class Runner:
         if hasattr(c.sampling,'chain_simulations'):c=replace(c,sampling=replace(c.sampling,chain_simulations=paths))
         if hasattr(c,'retry'):c=replace(c,retry=replace(c.retry,max_calendar_days=horizon))
         if extra_cost:
-            snapshot,_,_=prepare_phase_source(self.runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs)
+            snapshot,_,_=prepare_phase_source(self.runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing)
             rate=snapshot['commission_simulation']['per_side']
             # The surcharge is an explicit commission/cost stress, not a claim
             # that moving an actual stop/limit fill is equivalent to a fee.
@@ -218,17 +218,18 @@ class Runner:
         if self.search.native_execution is not None:
             result=self.native(c,paths,horizon)
         else:
-            snapshot,days,settings=prepare_phase_source(self.runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs)
+            snapshot,days,settings=prepare_phase_source(self.runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing)
             if self.phase=='funded':
                 from .funded_profiles import _dated_funded_paths
                 result,_,_=_dated_funded_paths(days,c.profile,c.micros,horizon,self.search.calendar,
-                    self.search.receipt_delay_calendar_days,c.simulation,c.sampling,checkpoint=self.checkpoint)
+                    self.search.receipt_delay_calendar_days,c.simulation,c.sampling,c.sizing,checkpoint=self.checkpoint)
             elif c.profile.profile_id=='lucidflex-50k':
                 from .evaluation_profiles import calendar_evaluation_paths
-                result,_=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,c.retry,self.search.calendar,checkpoint=self.checkpoint)
+                result,_=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,c.retry,self.search.calendar,checkpoint=self.checkpoint,sizing=c.sizing)
             else:
                 from .native_analysis import evaluation_model
-                raw=evaluation_model(days,c.micros,paths,c.simulation.seed,c.sampling.block_weekdays,settings,max_micros=c.simulation.max_micros)
+                raw=evaluation_model(days,c.micros,paths,c.simulation.seed,c.sampling.block_weekdays,settings,max_micros=c.simulation.max_micros,
+                    **(c.sizing.kernel_arguments(stage='complementary_attempt_sample') if c.sizing else {}))
                 component=SimpleNamespace(outcomes=[str(v) for v in raw['outcomes']],duration_weekdays=[int(v) for v in raw['days']],censoring=SimpleNamespace(censored_paths=0))
                 result=renewal_paths(component.outcomes,component.duration_weekdays,c,self.search.calendar,self.checkpoint)
             verify_phase_source(self.runs,c.source,snapshot)

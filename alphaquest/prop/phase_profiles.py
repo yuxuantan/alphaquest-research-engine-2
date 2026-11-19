@@ -4,6 +4,7 @@ These are Python component interfaces, not new portal modes or dated optimizers.
 The existing sampler's unit is a trading weekday, including zero-trade weekdays.
 """
 from dataclasses import asdict, dataclass, field
+from copy import deepcopy
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -310,11 +311,16 @@ class SizingConfiguration:
     policy: dict
     initial_configured_capital: str
     planning_execution: dict
+    execution_model: str | None = None
 
     def __post_init__(self):
         from .sizing import SizingPolicy, PlanningExecution, amount
         policy = SizingPolicy.model_validate(self.policy)
         planning = PlanningExecution.model_validate(self.planning_execution)
+        if self.execution_model not in (None,'saved-trade-stop-budget-v1'):
+            raise ValueError('Unknown saved-trade sizing execution model.')
+        if self.execution_model is not None and policy.kind=='fixed_contracts':
+            raise ValueError('Stop-budget simulation requires an explicit risk budget.')
         if amount(self.initial_configured_capital) != Decimal('50000'):
             raise ValueError('Supported 50K profiles require initial_configured_capital of 50000; source backtest equity is not the prop account balance.')
         if planning.tick_size != Decimal('0.25'):
@@ -331,7 +337,8 @@ class SizingConfiguration:
     def kernel_arguments(self, **context):
         return dict(sizing_policy=self.policy, sizing_context=dict(
             initial_configured_capital=self.initial_configured_capital,
-            planning_execution=self.planning_execution, trace_context=context))
+            planning_execution=self.planning_execution, trace_context=context,
+            **({'execution_model':self.execution_model} if self.execution_model else {})))
 
 
 class SizingTrace:
@@ -352,14 +359,24 @@ class SizingTrace:
         summary['quantity_counts'][str(q)] = summary['quantity_counts'].get(str(q), 0)+1
         for reason in decision['reasons']:
             summary['reason_counts'][reason] = summary['reason_counts'].get(reason, 0)+1
+        if self.configuration and self.configuration.execution_model:
+            from ..decimal_math import add
+            d=decision['decision']
+            summary['risk_budget_count']=summary.get('risk_budget_count',0)+1
+            summary['total_requested_risk_budget']=str(add(Decimal(summary.get('total_requested_risk_budget','0')),Decimal(d['risk_budget'])))
+            summary['total_admitted_planned_risk']=str(add(Decimal(summary.get('total_admitted_planned_risk','0')),Decimal(d['planned_total_risk'])))
+            summary['cap_bound_count']=summary.get('cap_bound_count',0)+int(q>0 and any(r.endswith('_cap') for r in decision['reasons']))
         if len(self.decisions) < self.limit:
             self.decisions.append(decision)
 
     def result(self):
-        return dict(configuration=asdict(self.configuration) if self.configuration is not None else None, summary=self.summary,
+        result=dict(configuration=asdict(self.configuration) if self.configuration is not None else None, summary=self.summary,
             decisions=self.decisions, trace_limit=self.limit,
             trace_complete=self.summary['decision_count'] <= self.limit,
             interpretation='Every simulated opportunity is aggregated; only the first retained decisions are displayed. Planning costs size quantity and are not deducted from source P&L again. Future gaps and size-dependent execution remain unverified.')
+        if self.configuration and self.configuration.execution_model:
+            result['interpretation']='Every saved opportunity is aggregated. Quantity uses the causal stop and costs; requested budget must fit both allowances. Immediate bounded stop/limit fills are assumed; no gap overshoot or alternative setups are simulated.'
+        return result
 
 
 @dataclass(frozen=True)
@@ -561,14 +578,19 @@ def prepare_phase_source(runs, source, profile, micros, simulation, period, cost
     external = snapshot.get('source_kind') == 'external_trade_export'
     if sizing is not None and not isinstance(sizing, SizingConfiguration):
         raise ValueError('Sizing requires a validated SizingConfiguration.')
+    if external and sizing is not None and sizing.execution_model is not None:
+        raise ValueError('The saved stop-budget model requires a native campaign source with verifiable causal stop plans; external sources retain their separately declared execution law.')
     adapt(snapshot, rows, settings)
     if external:
         snapshot['phase_suitability'] = dict(fixed_quantity=True,
             instrument=snapshot['commission_simulation']['source_instrument'], risk_covered_trades=len(rows),
             scaling='Exporter-declared invariant opportunity path with observed ordered mark jumps; size-dependent signals, fills and market impact are not independently verified.')
     else:
-        validate_phase_source(snapshot, rows)
-        if sizing is not None and sizing.needs_stop:
+        from .saved_trade_simulation import enabled,adapt_saved_trades
+        if enabled(sizing):
+            adapt_saved_trades(runs,snapshot,rows,sizing)
+        else:validate_phase_source(snapshot, rows)
+        if sizing is not None and sizing.needs_stop and not enabled(sizing):
             raise ValueError('Native risk-based policies require a strategy rerun with account-state sizing; skipping/resizing a saved native trade path is not established as signal-invariant.')
     # Check all trades, including excluded dates: no hidden invalid source rows.
     if rows:
@@ -612,6 +634,7 @@ def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
     external = snapshot.get('source_kind') == 'external_trade_export'
     canonical_source = verify_import(runs, record) if external else None
     original = {t['trade_id']: t for t in canonical_source['trades']} if external else {}
+    saved_plans=snapshot.get('saved_trade_simulation',{}).get('causal_plans',{})
     metadata = {}
     previous_exit = None
     needs_stop = sizing is not None and sizing.needs_stop
@@ -622,6 +645,7 @@ def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
             sizing_decision=t['sizing_decision'] if t else None,
             initial_stop=t['initial_stop'] if t else None,
             previous_source_exit_utc=previous_exit)
+        if saved_plans:item=deepcopy(saved_plans[str(row['trade_id'])])
         if needs_stop:
             if not item['sizing_decision'] or not item['initial_stop']:
                 raise ValueError('Risk-based sizing requires a causal decision reference and initial stop for every source trade.')
@@ -644,7 +668,7 @@ def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
         source_opportunities=len(rows), complete_causal_stops=needs_stop,
         actual_entry_fills_used_for_sizing=False,
         path_assumption='exporter_declared_invariant' if external else 'existing_fixed_quantity_path',
-        status='compatible', native_rerun_required=False if external else needs_stop)
+        status='compatible', native_rerun_required=False if external or saved_plans else needs_stop)
 
 
 def verify_phase_source(runs, source, snapshot):
@@ -854,7 +878,7 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     from .native_analysis import kernel_identity
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
-             'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
+             'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
              'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
              '../strategy_sizing.py', '../strategies/registry.py', '../strategies/twin_continuation.py', '../strategies/consecutive_green_hold.py', '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':

@@ -209,7 +209,7 @@ def _distance_loss(distance,tick,point,entry_ticks,exit_ticks,commission):
         entry_slippage_ticks=entry_ticks,stop_exit_slippage_ticks=exit_ticks,commission_per_side=commission)
 
 
-def choose_quantity(policy, state, risk=None, execution=None):
+def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_at_floor=False):
     """Return an auditable whole-MNQ decision without changing source or state.
 
     The caller owns source admission and account transitions. Stop and cost
@@ -252,6 +252,11 @@ def choose_quantity(policy, state, risk=None, execution=None):
             caps['daily_cushion'] = ratio_floor(daily, unit, strict=True)
         quantity = min(requested, *caps.values())
         reasons = [key+'_cap' for key,value in caps.items() if value < requested and value == quantity]
+        if reject_budget_at_floor:
+            if budget is None:raise ValueError('Strict budget admission requires a declared risk budget.')
+            for label,available in (('account',cushion),('daily',daily)):
+                if available is not None and budget>=available:
+                    quantity=0;reasons.append('requested_budget_reaches_'+label+'_limit')
         if quantity < policy.minimum_contracts:
             quantity = 0
             reasons.append('below_minimum_tradable_quantity')

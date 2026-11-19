@@ -1,3 +1,5 @@
+> Current percentage-risk Prop Sim (2026-11-20): [saved-trade stop-budget model](saved_trade_prop_simulation.md) supersedes the native per-path replay described in earlier dated sections. Historical reports and unrelated native/portfolio APIs retain their own laws.
+
 # AlphaQuest local prop simulation
 
 **Portal conclusions (14 November 2026):** saved independent Prop Sim results

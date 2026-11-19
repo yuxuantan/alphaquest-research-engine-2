@@ -397,3 +397,24 @@ Keep the adapter in numerical provenance. Run `tests/test_tick_datasets.py` and
 explicitly select `tests/test_tick_datasets_browser.py` for the affected journey.
 Actual imported archives must pass validation; synthetic demos are not data,
 liquidity, provider, strategy-edge or live-parity qualification.
+
+
+# Current saved-trade percentage Prop Sim (2026-11-20)
+
+The user-approved `saved-trade-stop-budget-v1` law in
+`docs/saved_trade_prop_simulation.md` supersedes native per-account replay for
+new percentage-risk searches in the main Prop Sim tab, including independent
+Evaluation/Funded, frozen OOS, stresses and account starts. Size from the known
+submission reference and protective stop plus declared costs; never MAE or future
+fills. Reject the requested budget at or above either remaining allowance before
+rounding/caps. Assume immediate non-widening stops and exact stop/limit fills,
+exclude gap overshoot, and freeze the saved opportunity schedule even after skips.
+Do not claim actual account-aware signal invariance or live gap resilience.
+Recover absent causal metadata with one exact source replay; reject mismatches,
+never invent stops or rewrite old reports. Reuse existing phase/provider owners,
+Runtime, AnalysisStore and normal artifacts; no second account engine/store.
+`prop/saved_trade_simulation.py` owns source adaptation and model disclosure.
+Native execution remains for campaigns, standalone native APIs and portfolios;
+it is not a fallback for new saved-trade percentage requests. Preserve sealed
+historical identities and verdicts. Select `tests/test_saved_trade_simulation.py`
+and the saved-trade journey in `tests/test_percentage_prop_browser.py`.

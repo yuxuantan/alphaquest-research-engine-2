@@ -258,14 +258,17 @@ def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_co
                net=cython.double, adverse=cython.double, trough=cython.double,
                day=cython.longlong, duration=cython.longlong, attempt=cython.longlong)
 def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
-               max_micros=40, sizing_policy=None, sizing_context=None, trace=None):
+               max_micros=40, sizing_policy=None, sizing_context=None, trace=None,
+               checkpoint=lambda:None, progress=lambda completed,total:None):
     runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     rng = np.random.RandomState(seed)
     outcomes, durations, attempts = [], [], []
     for path_index in range(sims):
+        checkpoint()
         duration = 0
         sequence = sampled_days(rng, len(days), block)
         for attempt in range(1, 10001 if chain else 2):
+            if attempt%32==0:checkpoint()
             equity = high = 0.
             result = 'timeout'
             size = min(micros, 60, max_micros)
@@ -318,6 +321,7 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
         outcomes.append(result)
         durations.append(duration + int(chain))
         attempts.append(attempt)
+        progress(path_index+1,sims)
     return dict(outcomes=np.array(outcomes), days=np.array(durations), attempts=np.array(attempts))
 
 

@@ -372,6 +372,7 @@ def simulate_evaluation_profile(
     costs: SourceCosts = SourceCosts(),
     sizing: SizingConfiguration | None = None,
     observed_sessions=None,
+    *, checkpoint=lambda:None, progress=lambda value:None,
 ) -> EvaluationProfileResult:
     """Evaluate one saved source/size, stopping at acquisition; never run funded.
 
@@ -391,6 +392,11 @@ def simulate_evaluation_profile(
     trace = SizingTrace(sizing) if sizing is not None else None
 
     def runner(*args, **kwargs):
+        from .saved_trade_simulation import enabled,PathProgress
+        if enabled(sizing):
+            reporter=PathProgress(progress,sizing)
+            kwargs.update(checkpoint=checkpoint,progress=reporter)
+            reporter(0,simulation.simulations)
         if sampling.computational_horizon_weekdays is not None:
             kwargs['deadline'] = sampling.computational_horizon_weekdays
         if sizing is not None:
@@ -701,5 +707,6 @@ def simulate_calendar_evaluation_profile(runs,candidate,calendar,*,observed_sess
         median_calendar_days_to_funded=float(np.median([p['calendar_days_to_funded'] for p in paths])) if complete else None)
     result.update(paths=paths,schedule_sha256=schedule,reason=None if complete else 'calendar_or_attempt_guard',
         component=dict(provenance=provenance('evaluation',snapshot,c.profile,c.micros,c.simulation,c.sampling,
-            acquisition_model=forecast['model'],calendar=asdict(calendar))))
+            acquisition_model=forecast['model'],calendar=asdict(calendar),
+            **({'sizing':trace.result()} if trace is not None else {}))))
     return result

@@ -494,7 +494,7 @@ class AnalysisStore:
             details=message if isinstance(message,dict) else None
             if details:
                 label=details.get('sizing_label') or f"{details['micros']} MNQ"
-                stage=({'complementary_evidence':'Complementary evidence','native_execution':'Native account execution','native_preparation':'Preparing native source'}.get(details.get('stage'),'Historical confidence'))
+                stage=({'complementary_evidence':'Complementary evidence','native_execution':'Native account execution','saved_trade_execution':'Saved-trade account simulation','native_preparation':'Preparing native source'}.get(details.get('stage'),'Historical confidence'))
                 message=(f"{stage} · {label} · {details['completed']:,}/{details['total']:,} {details.get('unit','resamples')} · {details['worker_count']} workers")
             self._update(id, 'running', message,progress_details=details)
             progress(message)

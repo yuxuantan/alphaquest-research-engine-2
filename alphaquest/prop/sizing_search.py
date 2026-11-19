@@ -47,10 +47,10 @@ class PercentageGrid(BaseModel):
             ctx.prec=256
             return [exact_text(lo+step*i) for i in range(int((hi-lo)/step)+1)]
 
-    def policies(self,planning_execution):
+    def policies(self,planning_execution,*,execution_model=None):
         return [SizingConfiguration(SizingPolicy(kind='percentage_risk',risk_percent=value,reference=self.reference,
             maximum_contracts=self.maximum_contracts,constrain_to_account_cushion=self.constrain_to_account_cushion,
-            constrain_to_daily_cushion=self.constrain_to_daily_cushion).model_dump(mode='json'),'50000',planning_execution)
+            constrain_to_daily_cushion=self.constrain_to_daily_cushion).model_dump(mode='json'),'50000',planning_execution,execution_model)
             for value in self.values()]
 
     def check_ceiling(self,ceiling):

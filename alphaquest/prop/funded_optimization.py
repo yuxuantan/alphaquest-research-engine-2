@@ -178,7 +178,7 @@ def implementation_identity():
     names = ('funded_optimization.py', 'funded_profiles.py', 'phase_profiles.py', 'phase_search.py',
         'native_analysis.py', 'native_engine.py', 'native_backend.py',
         'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py',
-        'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py',
+        'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py',
         'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
         'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
         '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
@@ -319,7 +319,7 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Simulating funded candidate '+check['candidate_id'][:12])
         component = simulate_dated_funded_profile(runs,c.source,c.profile,c.micros,search.horizon_calendar_days,
             search.calendar,search.receipt_delay_calendar_days,c.simulation,c.period,c.sampling,c.costs,
-            checkpoint=checkpoint,
+            checkpoint=checkpoint,progress=progress,
             **({'sizing':c.sizing} if c.sizing is not None else {}),
             **({'observed_sessions':training_context['train_window']['sessions']} if training_context is not None else {}))
         if canonical(component['provenance']['source']) != canonical(check['manifest']['source']):
@@ -341,6 +341,8 @@ def optimize_funded(runs, search, checks=None, progress=lambda message: None, *,
             if historical['status'] != 'estimated':
                 row.update(status='unresolved', reason='insufficient_historical_mean_evidence')
         rows.append(row)
+    from .saved_trade_simulation import describe_results
+    describe_results(rows)
     for check in checks:
         c = configurations[canonical(check['manifest']['configuration'])]
         verify_phase_source(runs,c.source,check['manifest']['source'])
@@ -370,7 +372,7 @@ def assess_saved_funded(runs,search,checks,assessment,progress,checkpoint):
         for label,scenario in assessment_scenarios(c,assessment):
             checkpoint();progress(f"{assessment['kind']} · {c.micros} MNQ · {label}")
             component=simulate_dated_funded_profile(runs,scenario.source,scenario.profile,scenario.micros,search.horizon_calendar_days,
-                search.calendar,search.receipt_delay_calendar_days,scenario.simulation,scenario.period,scenario.sampling,scenario.costs,scenario.sizing,checkpoint=checkpoint)
+                search.calendar,search.receipt_delay_calendar_days,scenario.simulation,scenario.period,scenario.sampling,scenario.costs,scenario.sizing,checkpoint=checkpoint,progress=progress)
             row=dict(candidate_id=check['candidate_id'],frozen_candidate_id=check['frozen_candidate_id'],scenario=label,
                 configuration=asdict(scenario),**funded_metrics(component['paths'],search),paths=component['paths'],
                 schedule_sha256=component['schedule_sha256'],provenance=component['provenance'],manifest=check['manifest'],
@@ -390,6 +392,8 @@ def assess_saved_funded(runs,search,checks,assessment,progress,checkpoint):
                     for key in ('expected_funded_cash_payouts_within_horizon','account_breach_probability','probability_first_payout')}
             rows.append(row)
         verify_phase_source(runs,c.source,check['manifest']['source'])
+    from .saved_trade_simulation import describe_results
+    describe_results(rows)
     apply_constraints(rows,search)
     return dict(model_version=('independent-native-percentage-v2' if search.native_execution is not None and search.native_execution.prepared_execution else MODEL_VERSION),phase='funded',candidates=rows,ranking=[],winner=None,near_ties=[],
         certified_optimum=False,selection_status='assessment_only_no_reselection',assessment_kind=assessment['kind'],

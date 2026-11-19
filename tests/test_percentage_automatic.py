@@ -42,50 +42,6 @@ def configuration(source,profile):
  return dict(request_id=uuid4().hex,automatic=True,selections=[source['selection']],profile_id=profile,
   search_kind='percentage_risk',evaluation_percentage_grid=dict(minimum='0.2',maximum='0.3',step='0.1',maximum_contracts=60 if profile=='apex-50k-eod' else 40),funded_percentage_grid=dict(minimum='0.2',maximum='0.3',step='0.1',maximum_contracts=40),simulations=8,block_weekdays=1,seed=42,start_date='2026-01-12',funded_horizon_calendar_days=9,commission_per_mnq_side='0')
 
-@pytest.mark.parametrize('profile',['apex-50k-eod','lucidflex-50k'])
-def test_one_run_percentage_both_phases_frozen_oos_and_durable_reopen(tmp_path,monkeypatch,profile):
- with ResearchClient(create_app(tmp_path/'datasets.sqlite3')) as client:
-  source=native_source_pair(client);install_admission_fixture(monkeypatch,source);body=configuration(source,profile)
-  response=client.post('/api/prop-sim',json=body);assert response.status_code==202,response.text
-  saved=wait_automatic(client,response.json()['id'],timeout=180)
-  assert all(s['stage']=='complete' for s in saved['automation']['phases'].values()),saved
-  assert saved['configuration']['search_kind']=='percentage_risk' and 'evaluation_maximum_micros' not in saved['configuration']
-  for phase in ('evaluation','funded'):
-   state=saved['automation']['phases'][phase];assert state['selection']['candidates']
-   assert all(c['sizing_axis']['kind']=='percentage_risk' for c in state['selection']['candidates'])
-   campaign=client.app.state.campaigns.get(saved['campaign_ids'][phase]);frozen=campaign['frozen']
-   result=client.get(f"/api/prop-sim/{saved['id']}/validation/{phase}/{state['oos_request_id']}?summary=true");assert result.status_code==200,result.text
-   calc=result.json()['calculations'];assert calc['winner'] is None and not calc['ranking']
-   assert {r['frozen_candidate_id'] for r in calc['candidates']}==set(frozen['candidate_ids'])
-   assert all(r['prop_qualification']['status']=='INSUFFICIENT_EVIDENCE' for r in calc['candidates']) # Seven OOS sessions cannot qualify.
-   assert all(r['configuration']['sizing']['policy']['kind']=='percentage_risk' and r['quantity_summary'] for r in calc['candidates'])
-   assert all(r['observed_bar_diagnostics']['mode']=='observed_bars_diagnostic_only' for r in calc['candidates'])
-   assert all(r['chronological_replay']['observed_bar_diagnostics']['version']=='nq-observed-bars-gap-diagnostics-v3' for r in calc['candidates'])
-   id=client.app.state.campaigns.assessments(campaign['campaign_id'])[0]['analysis_id']
-   assert client.app.state.prop_analyses.native_children_unchanged(client.app.state.runs,id)
-   assert client.get(f'/api/prop-analyses/{id}/downloads/analysis.zip').status_code==200
-  again=client.post('/api/prop-sim',json=body);assert again.status_code==202 and again.json()['id']==saved['id']
-  (tmp_path/'automatic.json').write_text(json.dumps(saved,indent=2))
-
-
-def test_full_native_confidence_branch_publishes_all_10000_refits(tmp_path,monkeypatch):
- # Explicit numerical-branch fixture only. The preceding product tests retain
- # the real 12-month/100-trade evidence rejection for this same short history.
- import alphaquest.prop.oos_qualification as qualification
- monkeypatch.setattr(qualification,'evidence',lambda *args:[dict(label='SYNTHETIC numerical-branch exercise; production evidence minima tested separately',actual=7,required=7,passed=True)])
- with ResearchClient(create_app(tmp_path/'datasets.sqlite3')) as client:
-  source=native_source_pair(client);install_admission_fixture(monkeypatch,source)
-  response=client.post('/api/prop-sim',json=configuration(source,'apex-50k-eod'));assert response.status_code==202,response.text
-  saved=wait_automatic(client,response.json()['id'],timeout=240)
-  assert all(s['stage']=='complete' for s in saved['automation']['phases'].values()),saved
-  for phase in ('evaluation','funded'):
-   state=saved['automation']['phases'][phase]
-   report=client.get(f"/api/prop-sim/{saved['id']}/validation/{phase}/{state['oos_request_id']}").json()
-   calc=report['calculations'];assert calc['qualification_native_model']=='native-percentage-two-history-v1'
-   assert all(row['prop_qualification']['historical_replicates']==10000 for row in calc['candidates'])
-   assert all(row['prop_qualification']['status']=='GO' for row in calc['candidates'])
-   assert all(len(family['replicates'])==10000 for family in calc['qualification_bootstrap'])
-   assert all(len(family['execution']['inner_path_counts'])==2 and family['execution']['inner_path_counts']==[8,8] for family in calc['qualification_bootstrap'])
-   for family in calc['qualification_bootstrap']:
-    assert all(v==1 for row in family['replicates'] for v in row['ratios'].values())
-   assert client.app.state.prop_analyses.fingerprint(report['id'])
+# Main-portal percentage execution is now exercised by
+# test_saved_trade_simulation.py and the saved-trade browser journey.
+# Keep these source/configuration fixtures for standalone native API regressions.

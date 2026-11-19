@@ -187,6 +187,9 @@ def qualified(request,selection):
     from .strategy_sizing import source_support
     definition=get_strategy(saved['declaration']['strategy_id'])
     support=source_support(definition,definition.parameters(candidate['parameters']),native['run_metadata']['strategy'])
+    support['native_percentage_risk']=support['percentage_risk']
+    causal=definition.sizing.describe(definition.parameters(candidate['parameters']))['percentage_risk']
+    support['percentage_risk']=dict(causal if not causal['supported'] else support['fixed_contracts'],model='saved-trade-stop-budget-v1')
     return dict(selection=selection.model_dump(mode='json'),source_backtest_id=candidate['is_run_id'],
         sizing_support=support,
         strategy_id=saved['declaration']['strategy_id'],dataset=saved['declaration']['dataset'],parameters=candidate['parameters'],
@@ -249,11 +252,8 @@ def declarations(body,source):
         if percentage:
             planning=dict(tick_size='0.25',point_value='2',entry_slippage_ticks=native['execution_settings']['slippage_ticks'],
                 stop_exit_slippage_ticks=native['execution_settings']['slippage_ticks'],commission_per_contract_per_side=body.commission_per_mnq_side)
-            reference.update(sizes=[percentage.maximum_contracts],sizing_policies=[asdict(p) for p in percentage.policies(planning)])
-            # Apex fits complete native first attempts, then uses its unchanged
-            # unlimited IID renewal owner. Lucid retains dated acquisition paths.
-            horizon=64 if phase=='evaluation' and body.profile_id==PROFILE else 3650 if phase=='evaluation' else body.funded_horizon_calendar_days
-            settings['native_execution']=dict(model='native_percentage_observed_blocks_v2',horizon_calendar_days=horizon,capture_paths=1,early_closes={})
+            from .prop.saved_trade_simulation import MODEL
+            reference.update(sizes=[percentage.maximum_contracts],sizing_policies=[asdict(p) for p in percentage.policies(planning,execution_model=MODEL)])
         definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,
             sources=[reference],
             simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=account['limits'][phase]),
@@ -263,8 +263,7 @@ def declarations(body,source):
 
 
 def check(request,body):
-    from .prop.native_search import shared_admission
-    with shared_admission():return _check(request,body)
+    return _check(request,body)
 
 def _check(request,body):
     source=qualified(request,body.selections[0])
@@ -278,7 +277,7 @@ def _check(request,body):
     for phase,declaration in definitions.items():
         try:checks[phase]=request.app.state.campaigns.expand(declaration)
         except ValueError as exc:raise ValueError(f'{phase.title()} sizing search: {exc}') from exc
-    disclosure=(DISCLOSURE if body.search_kind=='fixed_contracts' else 'Percentage policies rerun causal native strategy opportunities and actual MNQ execution/account rules on observed NQ/MNQ reference prices. Quantities, skips, withdrawals and account state are recalculated. NQ-to-MNQ basis, fills and provider rules remain unverified assumptions. IS selects each phase independently; frozen OOS assesses without reselection. Strategy OOS was already accessed.')
+    disclosure=(DISCLOSURE if body.search_kind=='fixed_contracts' else 'Saved-trade stop-budget model: size from the causal submitted reference and protective stop, including costs. Reject a requested budget that reaches either remaining account or daily allowance. Frozen saved opportunities; immediate non-widening stops and exact limit fills; no gap overshoot or new alternative setups. MAE is not used. Breaches are largely prevented by construction. IS selects independently; frozen OOS never reselects. Strategy OOS was already accessed.')
     return dict(status='compatible',source=source,phases=checks,disclosure=disclosure),definitions
 
 
@@ -298,8 +297,7 @@ def public(request,id):
 
 
 def launch(request,body):
-    from .prop.native_search import shared_admission
-    with shared_admission():return _launch(request,body)
+    return _launch(request,body)
 
 def _launch(request,body):
     analyses=request.app.state.prop_analyses;id=body.request_id.hex
@@ -364,7 +362,7 @@ def account_defaults(id):
 @router.get('/defaults')
 def defaults():
     profiles={id:account_defaults(id) for id in PROFILES}
-    return dict(profiles[PROFILE],profiles=profiles,supported_search_kinds=['fixed_contracts','percentage_risk'],percentage_grid=dict(minimum='0.1',maximum='0.5',step='0.1',reference='initial_configured_capital',maximum_policies_per_phase=60),percentage_capability='VWAP EOD-flat; strategy-local volume sizing disabled; at most one accepted entry per reset day; complete observed holding intervals and causal stops required.')
+    return dict(profiles[PROFILE],profiles=profiles,supported_search_kinds=['fixed_contracts','percentage_risk'],percentage_grid=dict(minimum='0.1',maximum='0.5',step='0.1',reference='initial_configured_capital',maximum_policies_per_phase=60),percentage_capability='Session-flat saved fixed-quantity opportunities with verifiable causal protective stops; strict budget admission and ideal stop/limit fills.')
 
 
 @router.post('/check')

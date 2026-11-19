@@ -417,6 +417,12 @@ def write_sizing_artifacts(staged, calculations):
             rows.append({k:canonical(value[k]) if isinstance(value.get(k), (dict, list)) else value.get(k) for k in fields})
     if not summaries:
         return
+    models=[]
+    for candidate in calculations['candidates']:
+        provenance=candidate.get('provenance') or candidate.get('component',{}).get('provenance',{})
+        model=provenance.get('source',{}).get('saved_trade_simulation')
+        if model:models.append(dict(candidate_id=candidate['candidate_id'],**model))
+    if models:(Path(staged)/'saved_trade_model.json').write_text(canonical(models),encoding='utf-8')
     (Path(staged)/'sizing_summary.json').write_text(canonical(summaries), encoding='utf-8')
     with (Path(staged)/'sizing_decisions.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)

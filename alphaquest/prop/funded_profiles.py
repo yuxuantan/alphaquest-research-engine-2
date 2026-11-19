@@ -354,7 +354,7 @@ def lifetime_profile(value):
 
 def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calendar_days,
         calendar, receipt_delay_calendar_days, simulation=SimulationConfig(),
-        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None, *, checkpoint=lambda:None):
+        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None, *, checkpoint=lambda:None, progress=lambda value:None):
     """Dated fresh-account paths using the same native funded transitions.
 
     The legacy weekday interface above remains unchanged. Dates are civil session
@@ -377,7 +377,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
         observed_sessions=observed_sessions)
     trace = SizingTrace(sizing) if sizing is not None else None
     paths, schedule_sha256, rules = _dated_funded_paths(days, profile, micros, horizon_calendar_days,
-        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace,checkpoint=checkpoint)
+        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace,checkpoint=checkpoint,progress=progress)
     verify_phase_source(runs, source, snapshot)
     result = dict(paths=paths, schedule_sha256=schedule_sha256,
         provenance=provenance('funded', snapshot, profile, micros, simulation, sampling,
@@ -396,7 +396,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
 
 def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
         receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None,
-        preparation=None, summary_only=False):
+        preparation=None, summary_only=False, progress=lambda value:None):
     """The same fresh-account dated kernel for original and resampled histories."""
     from dataclasses import replace
     from datetime import date, timedelta
@@ -409,6 +409,9 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     if summary_only and (sizing is not None or chronological):
         raise ValueError('Compact Funded capture requires fixed-quantity sampled paths.')
     paths = []
+    from .saved_trade_simulation import enabled,PathProgress
+    report=PathProgress(progress,sizing) if enabled(sizing) else None
+    if report:report(0,1 if chronological else simulation.simulations)
     cash_values = np.zeros(simulation.simulations)
     if summary_only:
         from .lucid_backend import module as lucid_module
@@ -493,6 +496,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
             pending_cash=sum(e['trader_cash_entitlement'] for e in events if not e['received_within_horizon']),
             number_of_payouts=len(receipts),
             days_to_first_payout=(date.fromisoformat(receipts[0]['receipt_date'])-start).days if receipts else None))
+        if report:report(i+1,1 if chronological else simulation.simulations)
     return (cash_values if summary_only else paths), schedule.hexdigest() if schedule is not None else None, rules
 
 

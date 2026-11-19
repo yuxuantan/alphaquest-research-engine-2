@@ -402,6 +402,9 @@ def calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,*
     daily_loss=1200. if profile.daily_loss_limit else None
     prefix_count=max(sum(layout[3]) for layout in layouts)
     schedule=None if summary_only else sha256();paths=[]
+    from .saved_trade_simulation import enabled,PathProgress
+    report=PathProgress(progress,sizing) if enabled(sizing) else None
+    if report:report(0,count)
     fees=np.empty(count,dtype=np.float64);times=np.empty(count,dtype=np.float64);completed=np.zeros(count,dtype=np.bool_)
     for index in range(count):
         checkpoint()
@@ -496,6 +499,7 @@ def calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,*
                 pending_activation=passed_offset>=0 and (eligible_offset<0 or eligible_offset>=guard),
                 pass_date=texts[passed_offset] if passed_offset>=0 else None,ready_date=str(ready_date) if ready_date else None,
                 acquisition_diagnostics=diagnostics))
-        if (index+1)%max(1,simulation.simulations//10)==0:progress(f'Lucid Evaluation paths {index+1}/{simulation.simulations}')
+        if report:report(index+1,count)
+        elif (index+1)%max(1,simulation.simulations//10)==0:progress(f'Lucid Evaluation paths {index+1}/{simulation.simulations}')
     return ((dict(paid_fees=fees,calendar_days=times,completed=completed) if summary_only else paths),
         schedule.hexdigest() if schedule is not None else None)

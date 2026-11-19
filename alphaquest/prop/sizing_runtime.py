@@ -17,7 +17,7 @@ def resolve_runtime(policy, context, trace):
         return None
     policy = SizingPolicy.model_validate(policy)
     if (type(context) is not dict
-            or set(context)-{'initial_configured_capital', 'planning_execution', 'trace_context'}
+            or set(context)-{'initial_configured_capital', 'planning_execution', 'trace_context','execution_model'}
             or 'initial_configured_capital' not in context):
         raise ValueError('Sizing context requires explicit initial configured capital and only supported fields.')
     capital = amount(context['initial_configured_capital'])
@@ -32,7 +32,10 @@ def resolve_runtime(policy, context, trace):
     tags = context.get('trace_context', {})
     if type(tags) is not dict:
         raise ValueError('Trace context must be a dictionary.')
-    return dict(policy=policy, capital=str(capital), execution=execution, trace=trace, tags=dict(tags), needs_stop=needs_stop)
+    model=context.get('execution_model')
+    if model not in (None,'saved-trade-stop-budget-v1'):raise ValueError('Unknown saved-trade execution model.')
+    return dict(policy=policy, capital=str(capital), execution=execution, trace=trace, tags=dict(tags), needs_stop=needs_stop,
+        strict_budget=model=='saved-trade-stop-budget-v1')
 
 
 def with_tags(context, **tags):
@@ -87,7 +90,7 @@ def before_trade(runtime, trade, equity, floor, daily_floor, provider_cap, user_
         account_floor_from_initial=decimal_float(floor),
         daily_floor_from_initial=None if daily_floor == -float('inf') else decimal_float(daily_floor),
         provider_max_contracts=whole_cap(provider_cap), user_max_contracts=whole_cap(user_cap))
-    decision = choose_quantity(runtime['policy'], state, risk, runtime['execution'])
+    decision = choose_quantity(runtime['policy'], state, risk, runtime['execution'],reject_budget_at_floor=runtime['strict_budget'])
     return dict({**runtime['tags'], 'phase': phase, 'session_index': session, 'opportunity_index': index},
         source_trade_id=metadata.get('source_trade_id') if metadata else None,
         decision_time_utc=risk.sizing_decision_time_utc if risk else None,

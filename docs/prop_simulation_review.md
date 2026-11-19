@@ -13384,3 +13384,82 @@ Chrome check with zero write requests or page errors. Inspect
 `live-rerun-prop-sim.png` and `live-rerun-job.png` in the evidence folder.
 The user's original simulation remains cancelled in history. No source/frozen
 identity check was disabled to launch the replacement.
+
+
+## 2026-11-20 — Saved-trade stop-budget percentage searches
+
+Current contract and decision rationale: [saved_trade_prop_simulation.md](saved_trade_prop_simulation.md).
+New main-portal percentage searches use saved opportunities, causal initial stops,
+strict requested-budget admission and ideal bounded stop/limit fills. The old
+native-execution declaration and native progress journey were removed from this
+route; standalone native APIs and portfolios retain their independent callers.
+Prior sealed reports are historical and are not recalculated or relabeled.
+
+Normal product journey: qualified campaign report → Prop Sim → Percentage of
+account risk → independent Evaluation/Funded grids → Run IS and OOS → automatic
+IS selection/freezing → immutable OOS evidence and downloads. Risk guards are
+mandatory admission, not optional controls. Quantity counters describe admitted
+saved entries and skips; MAE never sizes a trade. The visible model note explains
+why low breach rates do not demonstrate gap resilience.
+
+Reproduce the labeled synthetic product demonstration:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_SAVED_TRADE_EVIDENCE_DIR=artifacts/saved-trade-prop-20261120/browser \
+.venv/bin/python -m pytest -q \
+  tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey
+```
+
+This uses the normal dataset/backtest/product routes. Only prior campaign
+qualification is a labeled fixture; source trades, phase calculations, automatic
+freeze, OOS mathematics, files, server verdict and browser interactions are real.
+It is not market evidence, provider parity or strategy qualification. The test
+server is temporary and closes after the journey.
+
+Independent expected observations: with the synthetic stop/target source and
+0.2–0.3% grids, Apex Evaluation acquisition cost is USD 49+129=178 and modeled
+funding time is two calendar days. Fresh Funded cash is USD 1,500 within the
+nine-day horizon (five qualifying sessions followed by the declared two-day
+receipt delay). Each phase automatically freezes an eligible risk policy and
+runs OOS; only seven OOS sessions are present, so the conclusion is evidence gaps,
+not a fabricated GO. All requested paths remain in outcomes. No native per-path
+replay or nested refits may run. Source reports remain unchanged.
+
+Evidence files include configuration/progress/results screenshots, both IS
+report JSONs and ZIPs, both OOS reports, `saved_trade_model.json` (causal plans,
+assumptions, provenance and every bounded loss), and sizing-decision CSVs. They
+come from the final product's download routes. Pure arithmetic oracles remain in
+`tests/test_saved_trade_simulation.py`: USD 250 / USD 11 = 22 whole MNQ; requested
+USD 250 is rejected at remaining USD 250 or USD 125 even with a one-contract cap;
+source MAE changes cannot alter the calculation; missing/future stops reject.
+Actual complementary baseline/cost/block scenarios verify that the same strict
+sizing law reaches each provider kernel. Fixed-contract and ordinary execution
+compatibility checks remain separate from new-model economic outcomes.
+
+For old sources without causal sidecars, source recovery may take one original
+backtest's preparation/replay time. Its exact source trade match is mandatory.
+Derived plans use the existing bounded, disposable ReplayCache, guarded by raw
+source bytes, strategy/adapter/execution identity and plan checksums. Durable
+financial evidence remains in the existing sealed phase report, not the cache.
+
+
+Application verification: installed on `epic/revamp-workflow` after explicit
+approval to stop the prior native simulation. The installed checkout passed
+36 focused checks, including both account types, actual complementary sizing,
+compiled/Python account parity and fixed-contract compatibility; the installed
+browser journey passed separately. The older Twin source reconstructed all 741
+completed trades exactly (661.97 seconds for the cold, one-time recovery while
+four old simulation workers were active). This preparation time is separate
+from saved-trade account-path execution.
+
+The prior run `fd725561831e47ea9169a3bae0d28ae5` was cancelled through its normal
+API; its two phase records remain cancelled and its settings were copied to the
+new request `cc15c97663534376bb9c3328c82d5741`. All 765 pre-existing sealed reports
+and 1,530 report/ZIP files retained their hashes (1,609,629,848 bytes checked).
+Application evidence, requests, preservation checks and installed-browser
+screenshots are under `artifacts/saved-trade-prop-20261120/` (generated evidence,
+not committed market data). The port-8000 portal runs via
+`sh scripts/serve_portal.sh`, PID 47116; stop it with `kill -TERM 47116` only after
+checking active work. Browser test servers were temporary and stopped by their
+fixtures. Source recovery precedes job queueing on a cold older source.
