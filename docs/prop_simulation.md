@@ -3652,3 +3652,42 @@ optional. These are portal validation messages only: server-owned qualification,
 account/source admission, numerical identities and the automatic IS/OOS plan
 remain unchanged. Refresh the portal to load the updated static asset; no
 application restart is required.
+
+## Shared native replay allocation and validation optimization (2026-11-19)
+
+`prop/native_control.py` remains the common account boundary for fixed-contract,
+fixed-dollar and percentage-risk native execution in both phases. The public
+`sizing.choose_quantity()` law, ordinary execution owner and provider kernels
+are unchanged. Saved-trade fixed-contract optimizers retain their existing
+shared provider kernels; they are not forced through more expensive native
+replay. No second simulation engine or numerical result store is introduced.
+
+Repeated admission rechecks the actual UTC decision/stop/prior-exit clocks,
+side/timing and bounded Decimal inputs even on cache hits. Previously checked
+price geometry reuses its pure quantity calculation under the same complete
+account state. The 128-entry cache now replaces old geometries rather than
+stopping insertion once full. Each acceptance still has its own decision and
+mutable detail containers. Capture-free paths omit unused display fields while
+retaining every opportunity, cancellation, quantity/reason count and exact risk
+total. Detailed paths keep their original records. Cash projection and immutable
+risk orders are memoized only for identical input objects, including account
+reset/withdrawal offsets, both floors, halt state and session; changed Decimal
+representations invalidate those memos too.
+
+`NativeBarSequence` preserves the exact existing checked spool bytes, original
+CSV cells, timestamps, Decimal values, record order and private tick windows/
+flow. Decoded bars use a byte-accounted 32 MiB LRU. Short numeric source cells
+use an instance-local bounded Decimal LRU (conservatively charged at 512 bytes
+per slot, at most 4 MiB); cells longer than 128 characters decode uncached.
+Caches are not serialized into worker contexts, and close/release clears them.
+The existing worker context cache admits at most two contexts, so these added
+payload retention budgets total at most 72 MiB per worker. These bounds do not
+truncate source rows, paths, financial outcomes or requested captures.
+
+Numerical identities still include both changed source files. Existing report
+seals and captured identities are never rewritten and unknown frozen-source
+changes still reject. An authorized rerun uses a fresh request/phase package
+with the original settings; earlier cancelled records remain inspectable.
+Source feature compilation, requested path counts, seeds, phase independence,
+automatic selection and OOS qualification rules are unchanged. Working-order
+event skipping beyond the previously qualified behavior is a separate change.

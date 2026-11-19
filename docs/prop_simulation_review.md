@@ -13292,3 +13292,78 @@ grid and blank-seed explanations, followed by an enabled corrected form.
 `live-corrected-ready.png` retain that result. All production job states, saved
 simulation payloads and report seals were unchanged; no simulation or server
 restart was initiated by the live check.
+
+### Shared native account and decoded-source optimization (2026-11-19)
+
+The existing native account controller now avoids repeated ISO/model validation
+on checked geometries and unused detail materialization on ordinary MC paths.
+Every submission still validates its real causal clocks and bounded amounts.
+Its quantity cache retains the latest 128 configurations; the old cache stopped
+inserting after its first 128 entries, causing long paths to recalculate newer
+quotes. Shared cash/floor memo keys retain exact object identity, so resets,
+withdrawals, floor/halt changes and Decimal scale cannot reuse a stale result.
+The shared checked bar reader reuses decoded rows and exact Decimal source cells
+under explicit memory bounds. No sizing law, trade/order ordering, account rule,
+requested path count, sampling seed or qualification threshold changes.
+
+`tests/test_native_loop_acceleration.py` independently checks accepted/skipped
+fixed-contract, fixed-dollar and percentage quantities, exact aggregate budgets,
+all opportunity/cancellation counts, independent acceptance containers, cache
+overflow and invalidation, future/naive/non-UTC clocks and equal-valued invalid
+Decimal scales. The spool cases compare every source row under zero, tiny and
+normal cache budgets, empty worker caches after pickling, and corruption
+rejection. Existing original/prepared Twin comparisons, captured continuation,
+both phase controllers, serial/multicore schedules/cash and private tick-spool
+parity are selected explicitly rather than running the old general suite.
+
+Normal-product demonstration: the two explicit cases in
+`test_percentage_prop_browser.py::test_percentage_form_one_run_progress_and_complete_oos`
+and
+`test_prop_sim_browser.py::test_prop_sim_qualified_single_configuration_real_results_and_downloads[shared-range]`
+continue through the existing synthetic backtest -> configure -> source check ->
+IS execution -> durable report/download workflow. Percentage runs retain their
+actual automatic OOS execution and short-history rejection; fixed-contract
+arithmetic remains independently checked as paid Evaluation fees/pass probability
+and all-start Funded receipts. Synthetic prior admission is labeled in fixtures;
+it is not real-market or provider qualification. Screenshots, report/CSV/ZIP
+exports and original expected observations are retained under
+`artifacts/native-loop-acceleration-20261119/percentage-product-final` and
+`fixed-product-final`. All temporary test servers close on teardown.
+
+The development benchmark compares original code at `f4d5274` with the optimized
+code using the exact checked Twin source programme captured from the user's
+running job. Twelve explicitly diagnostic 14-calendar-day paths cover Apex and
+LucidFlex, Evaluation and Funded, 0.25%/2% risk and fixed five contracts. It
+compares the complete returned path outputs, including schedules, outcomes,
+cash, costs, retries, opportunity/quantity statistics and gap diagnostics.
+Short diagnostic paths measure execution throughput; their timings are not a
+completion estimate or qualification of the full 10-year/1,000-path run.
+Benchmark inputs do not modify the production source or become another report
+store. Inspect the JSON outputs and timing summary in the same evidence folder.
+
+The user explicitly authorized rerunning unfinished work. Original simulation
+`7f87e3e4ae5c42d78adf2ca736504c8c`, its configuration, completed IDs and seals
+were captured before cancelling both unfinished phase jobs through the normal
+API. New work must retain those settings under a fresh request with the new
+implementation identity. No old report, frozen selection or history is edited
+to pretend it ran the optimized code. Production restart/rerun verification is
+recorded in the evidence folder; only the main portal remains persistent.
+
+Final validation: **65** focused backend/tick/browser cases passed, plus **4**
+launcher safety cases. The 12-path checked-source benchmark matched every
+returned output: original **11.23 s**, optimized **8.84 s** in aggregate
+(approximately **21% less elapsed time**, 1.27x throughput). The narrow repeated
+quotation microbenchmark improved about 2x; it is not a whole-simulation claim.
+Actual path speed varies with risk size, outcome and working-order frequency.
+The larger extension to skip working-entry intervals remains separate.
+
+The old server PID 10826 stopped after both old phase jobs drained. The new
+stable-launcher server is PID **17345**, port **8000**, four worker slots, no
+auto-reload. Stop it with `kill -TERM 17345` only after checking for active work.
+Its logs are `data/portal_logs/server.log` and
+`data/portal_logs/native-loop-restart.log`. A transient recently-closed-socket
+bind refusal was resolved with `SO_REUSEADDR`; all active-listener/data-lock and
+explicit orphan-recovery checks remain in force. No extra persistent service
+or temporary test server was left running. All **765** original report and ZIP
+hashes, completed IDs and catalogue seals were reverified, with SQLite integrity
+`ok`, before the fresh automatic request.

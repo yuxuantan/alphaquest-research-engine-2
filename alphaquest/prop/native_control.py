@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal, Protocol
 from functools import lru_cache
+from collections import OrderedDict
 
 from alphaquest.decimal_math import add, subtract, multiply
 from alphaquest.strategy import EntryIntent, Position
@@ -238,7 +239,9 @@ class NativeControlBase:
         self.sizing,self.micros,self.max_micros=sizing,micros,max_micros
         from .sizing import SizingPolicy,PlanningExecution
         self._typed_policy=SizingPolicy.model_validate(sizing.policy);self._typed_planning=PlanningExecution.model_validate(sizing.planning_execution)
-        self._sizing_state_key=None;self._sizing_state=None;self._quantity_cache={}
+        self._sizing_state_key=None;self._sizing_state=None;self._quantity_cache=OrderedDict()
+        self._cash_projection_key=None;self._cash_projection=None
+        self._risk_orders_key=None;self._risk_orders_value=None
         self.contexts=session_contexts if prepared else dict(session_contexts);self.context_keys=session_contexts.keys_set if prepared else frozenset(session_contexts);self.bridge=ProviderCashBridge()
         self.sizing_trace=SizingTrace(sizing);self.events=[];self.session_trace=[];self._visited_sessions=set()
         self._session=None;self._last_session=None;self._last_snapshot=None;self._engine_initial=None
@@ -304,7 +307,14 @@ class NativeControlBase:
         if self._engine_initial is None:self._engine_initial=snapshot.engine_initial_capital
         elif self._engine_initial!=snapshot.engine_initial_capital:raise ValueError('Native continuation changed its original execution capital.')
         self._last_snapshot=snapshot
-        self.equity=self.bridge.provider_equity(snapshot.engine_trade_cash,snapshot.engine_initial_capital)
+        key=(snapshot.engine_trade_cash,snapshot.engine_initial_capital,
+            self.bridge.account_start_trading_net,self.bridge.cumulative_gross_withdrawals)
+        # Identity comparison also preserves Decimal representation/scale.
+        # Strong references in the prior key prevent object-ID reuse hits.
+        if self._cash_projection_key is None or not all(a is b for a,b in zip(key,self._cash_projection_key)):
+            self._cash_projection=self.bridge.provider_equity(snapshot.engine_trade_cash,snapshot.engine_initial_capital)
+            self._cash_projection_key=key
+        self.equity=self._cash_projection
 
     def _state(self):
         return json_native(dict(equity_from_initial=self.equity,balance=add(Decimal(50000),self.equity),
@@ -325,7 +335,7 @@ class NativeControlBase:
         self._emit('session_begin',state=self._session_before)
 
     def admit_entry(self,proposal,snapshot,*,provisional=False):
-        from .sizing import KnownDecisionRisk,AccountSizingState,choose_quantity
+        from .sizing import KnownDecisionRisk,AccountSizingState,choose_quantity,amount
         if self._session is None or snapshot.position is not None or self._pending is not None:
             raise ValueError('Native entry admission requires an active flat session without a pending order.')
         self._sync(snapshot);self._decision_count+=1
@@ -333,11 +343,21 @@ class NativeControlBase:
             raise ValueError('Entry proposal must refer to the current completed execution bar.')
         before=self._state() if self.retain_details else None
         if self.can_trade and not self._daily_halt:
-            risk=KnownDecisionRisk(sizing_decision_time_utc=proposal.decision_time_utc.isoformat(),
-                initial_stop_known_at_utc=proposal.initial_stop_known_at_utc.isoformat(),
-                previous_source_exit_utc=self._last_exit.isoformat() if self._last_exit else None,
-                execution_timing=proposal.timing,side=proposal.side,
-                decision_reference_price=proposal.decision_reference_price,initial_stop_price=proposal.initial_stop_price)
+            # Check the actual causal clocks on EVERY quote, including cache
+            # hits. Avoid ISO formatting/parsing and model construction for an
+            # already checked geometry; public sizing contracts stay unchanged.
+            for stamp in (proposal.decision_time_utc,proposal.initial_stop_known_at_utc,self._last_exit):
+                if stamp is not None and (not isinstance(stamp,datetime) or stamp.utcoffset()!=timedelta(0)):
+                    raise ValueError('Decision timestamps require explicit UTC.')
+            if proposal.initial_stop_known_at_utc>proposal.decision_time_utc:
+                raise ValueError('The initial stop must be known at the sizing decision.')
+            if self._last_exit is not None and self._last_exit>proposal.decision_time_utc:
+                raise ValueError('The prior actual trade was still open at the sizing decision.')
+            if proposal.side not in ('long','short') or proposal.timing not in ('same_close','next_open'):
+                raise ValueError('Native sizing requires a known side and execution timing.')
+            # Amount bounds include Decimal representation/scale, so even an
+            # equal-valued price with a newly invalid exponent must reject.
+            reference,stop=amount(proposal.decision_reference_price),amount(proposal.initial_stop_price)
             key=(self.equity,self.account_floor,self.daily_floor,self.provider_cap,min(self.micros,self.max_micros))
             if key!=self._sizing_state_key:
                 self._sizing_state=AccountSizingState(initial_configured_capital='50000',equity_change_from_initial=self.equity,
@@ -347,22 +367,36 @@ class NativeControlBase:
             # Causality is validated above for every submission. Repeated OCO
             # quotes with unchanged account state and price geometry have the
             # same pure sizing calculation; no acceptance/order is shared.
-            geometry=(risk.side,risk.decision_reference_price,risk.initial_stop_price)
-            base=self._quantity_cache.get(geometry)
-            if base is None:
+            geometry=(proposal.side,reference,stop)
+            cached=self._quantity_cache.get(geometry)
+            if cached is None:
+                risk=KnownDecisionRisk(sizing_decision_time_utc=proposal.decision_time_utc.isoformat(),
+                    initial_stop_known_at_utc=proposal.initial_stop_known_at_utc.isoformat(),
+                    previous_source_exit_utc=self._last_exit.isoformat() if self._last_exit else None,
+                    execution_timing=proposal.timing,side=proposal.side,
+                    decision_reference_price=reference,initial_stop_price=stop)
                 base=choose_quantity(self._typed_policy,self._sizing_state,risk,self._typed_planning)
-                if len(self._quantity_cache)<128:self._quantity_cache[geometry]=base
+                cached=(base,Decimal(base['risk_budget']) if base['risk_budget'] is not None else None,
+                    Decimal(base['planned_total_risk']) if base['planned_total_risk'] is not None else Decimal(0),
+                    bool(base['quantity'] and any(reason.endswith('_cap') for reason in base['reasons'])))
+                if len(self._quantity_cache)>=128:self._quantity_cache.popitem(last=False)
+                self._quantity_cache[geometry]=cached
+            else:self._quantity_cache.move_to_end(geometry)
+            base,budget,planned,cap_binding=cached
+            # Acceptance records remain independent, even without retained detail.
             decision=dict(base,caps=dict(base['caps']),reasons=list(base['reasons']))
         else:
             decision=dict(quantity=0,action='skip',requested_contracts=0,caps={},
                 reasons=['daily_halt' if self._daily_halt else self.account_outcome],
                 denominator=self.sizing.policy.get('reference'),denominator_value=None,
                 risk_budget=None,planned_risk_per_mnq=None,planned_total_risk='0')
+            budget,planned,cap_binding=None,Decimal(0),False
         q=decision['quantity']
-        decision.update(opportunity_id=self._decision_count,source_trade_id=f'native-opportunity-{self._decision_count}',
-            state_before=before,sizing_decision_time_utc=proposal.decision_time_utc.isoformat(),
-            decision_reference_price=str(proposal.decision_reference_price),initial_stop_price=str(proposal.initial_stop_price),
-            session=str(self._session.session),phase=self.phase)
+        if self.retain_details:
+            decision.update(opportunity_id=self._decision_count,source_trade_id=f'native-opportunity-{self._decision_count}',
+                state_before=before,sizing_decision_time_utc=proposal.decision_time_utc.isoformat(),
+                decision_reference_price=str(proposal.decision_reference_price),initial_stop_price=str(proposal.initial_stop_price),
+                session=str(self._session.session),phase=self.phase)
         intent=EntryIntent(q,proposal.reason,proposal.exit_deadline_utc,proposal.side,proposal.timing,proposal.initial_stop_price,proposal.protection) if q else None
         acceptance=EntryAcceptance(self._decision_count,'accept' if q else ('skip' if self.can_trade and not self._daily_halt else 'halt'),intent,decision)
         if q:
@@ -370,11 +404,13 @@ class NativeControlBase:
             else:self._pending=acceptance
         else:self._session_skips+=1
         self._sizing_halt_count+=acceptance.action=='halt'
-        self._sizing_cap_count+=bool(q and any(reason.endswith('_cap') for reason in decision['reasons']))
-        if decision.get('risk_budget') is not None:
-            self._sizing_budget_count+=1;self._sizing_budget=add(self._sizing_budget,Decimal(decision['risk_budget']))
-            self._sizing_admitted_risk=add(self._sizing_admitted_risk,Decimal(decision['planned_total_risk']))
-        self.sizing_trace(decision);self._emit('entry_admission',**decision)
+        self._sizing_cap_count+=cap_binding
+        if budget is not None:
+            self._sizing_budget_count+=1;self._sizing_budget=add(self._sizing_budget,budget)
+            self._sizing_admitted_risk=add(self._sizing_admitted_risk,planned)
+        self.sizing_trace(decision)
+        if self.retain_details:self._emit('entry_admission',**decision)
+        else:self._emit('entry_admission')
         return acceptance
 
     def activate_quoted_entry(self,acceptance,snapshot):
@@ -393,10 +429,17 @@ class NativeControlBase:
 
     def risk_orders(self,snapshot):
         if self._session is None:raise ValueError('Native risk orders require an active session.')
-        return SessionRiskOrders(self._session.session,
+        key=(self._session.session,snapshot.engine_initial_capital,
+            self.bridge.account_start_trading_net,self.bridge.cumulative_gross_withdrawals,
+            self.account_floor,self.daily_floor,self.can_trade,self._daily_halt,self.account_outcome)
+        if self._risk_orders_key is not None and all(a is b for a,b in zip(key,self._risk_orders_key)):
+            return self._risk_orders_value
+        result=SessionRiskOrders(self._session.session,
             self.bridge.engine_barrier(self.account_floor,snapshot.engine_initial_capital),
             self.bridge.engine_barrier(self.daily_floor,snapshot.engine_initial_capital) if self.daily_floor is not None else None,
             self.can_trade and not self._daily_halt,None if self.can_trade and not self._daily_halt else ('daily_halt' if self._daily_halt else self.account_outcome))
+        self._risk_orders_key=key;self._risk_orders_value=result
+        return result
 
     def after_entry_fill(self,snapshot,acceptance):
         if self._pending!=acceptance or snapshot.position is None or snapshot.position.contracts!=acceptance.accepted_intent.contracts:
@@ -406,9 +449,8 @@ class NativeControlBase:
         self._gap_entries.discard(acceptance.opportunity_id)
         diagnostic={}
         planned=acceptance.sizing_decision.get('planned_risk_per_mnq')
-        if planned is not None:
-            from .sizing import PlanningExecution
-            config=PlanningExecution.model_validate(self.sizing.planning_execution)
+        if self.retain_details and planned is not None:
+            config=self._typed_planning
             intent=acceptance.accepted_intent;direction=Decimal(1 if intent.side=='long' else -1)
             distance=multiply(subtract(snapshot.position.entry_fill_price,intent.initial_stop),direction)
             fill_risk=add(multiply(add(distance,multiply(config.tick_size,Decimal(config.stop_exit_slippage_ticks))),Decimal(config.point_value)),
@@ -417,8 +459,10 @@ class NativeControlBase:
                 fill_to_initial_stop_risk_per_mnq=str(fill_risk),
                 fill_gap_risk_change_per_mnq=str(subtract(fill_risk,Decimal(planned))),
                 fill_to_initial_stop_risk_interpretation='Actual entry fill to the original known stop, with declared stop-exit costs; diagnostic only, not a guaranteed stop fill or active-bracket claim.')
-        self._emit('entry_fill',opportunity_id=acceptance.opportunity_id,quantity=snapshot.position.contracts,
-            actual_fill_price=snapshot.position.entry_fill_price,state_after=self._state(),**diagnostic)
+        if self.retain_details:
+            self._emit('entry_fill',opportunity_id=acceptance.opportunity_id,quantity=snapshot.position.contracts,
+                actual_fill_price=snapshot.position.entry_fill_price,state_after=self._state(),**diagnostic)
+        else:self._emit('entry_fill')
 
     def after_trade_close(self,trade,snapshot,*,triggering_floor=None):
         if snapshot.position is not None or self._active_acceptance is None:raise ValueError('Native completed trade must close its accepted filled position.')

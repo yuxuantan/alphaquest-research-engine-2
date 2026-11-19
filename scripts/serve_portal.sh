@@ -35,6 +35,7 @@ def existing_portal(port):
 
 # Bind before application startup: duplicate launches must not run recovery.
 listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 try:
     listener.bind(('127.0.0.1', args.port))
 except OSError as exc:

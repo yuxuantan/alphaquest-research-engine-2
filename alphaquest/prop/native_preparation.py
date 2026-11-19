@@ -6,12 +6,17 @@ strategy. Static holding levels only skip observed bars proved unable to execute
 an order. No completed trade tape is scaled. Detailed captures use full replay.
 """
 from array import array
+from collections import OrderedDict
+from datetime import datetime, timedelta, timezone
+from struct import Struct
+from sys import getsizeof
+from functools import lru_cache
 from bisect import bisect_right,bisect_left
 from dataclasses import asdict, replace
 from decimal import Decimal
 from ..decimal_math import subtract
 from .native_draws import NativePathPreparation,verify_catalogue,_parameters
-from ..strategy import EntryIntent,CloseIntent,BracketIntent
+from ..strategy import EntryIntent,CloseIntent,BracketIntent,Bar
 from ..strategies.vwap_pullback_risk_sizing import VwapPullbackRiskSizing
 from .native_control import executable_floor_reference
 
@@ -704,6 +709,10 @@ class NativeBarSequence:
     CSV fields through an interned string table. Decimal values reconstruct from
     the original strings; there is no float conversion or synthetic OHLC/volume.
     """
+    BAR_CACHE_BYTES=32*1024*1024
+    NUMBER_CACHE_BYTES=4*1024*1024
+    _ROW=Struct('<qq9I')
+    _EPOCH=datetime(1970,1,1,tzinfo=timezone.utc)
     def __init__(self,catalogue,directory,*,checkpoint=lambda:None):
         from pathlib import Path
         from hashlib import sha256
@@ -726,35 +735,57 @@ class NativeBarSequence:
                 buffer.extend(struct.pack('<qq9I',stamp,bar.bar_number,*indices))
                 if len(buffer)>=1024*1024:stream.write(buffer);digest.update(buffer);buffer.clear()
             if buffer:stream.write(buffer);digest.update(buffer)
-        self.strings=tuple(self.strings);self.filename=str(path);self.signature=digest.hexdigest();self._mapping=None;self._file=None;self._cache={}
+        self.strings=tuple(self.strings);self.filename=str(path);self.signature=digest.hexdigest();self._mapping=None;self._file=None
+        self._reset_caches()
     def __len__(self):return self.length
-    def __getstate__(self):return {**self.__dict__,'_mapping':None,'_file':None,'_cache':{}}
+    def _reset_caches(self):
+        self._cache=OrderedDict();self._bar_bytes=0
+        # Only <=128-character numeric source cells are interned. A conservative
+        # 512 bytes per LRU slot covers the Decimal and cache-node overhead;
+        # longer cells retain their exact uncached Decimal construction.
+        self._numbers=lru_cache(maxsize=self.NUMBER_CACHE_BYTES//512)(Decimal)
+    @property
+    def _number_bytes(self):return self._numbers.cache_info().currsize*512
+    def __getstate__(self):
+        return {**self.__dict__,'_mapping':None,'_file':None,'_cache':{},'_numbers':None,'_bar_bytes':0}
+    def __setstate__(self,state):
+        self.__dict__.update(state);self._mapping=None;self._file=None;self._reset_caches()
     def close(self):
-        if self._mapping is not None:self._mapping.close();self._mapping=None
-        if self._file is not None:self._file.close();self._file=None
-        self._cache.clear()
+        if getattr(self,'_mapping',None) is not None:self._mapping.close();self._mapping=None
+        if getattr(self,'_file',None) is not None:self._file.close();self._file=None
+        if getattr(self,'_cache',None) is not None:self._cache.clear()
+        self._bar_bytes=0
+        if getattr(self,'_numbers',None) is not None:self._numbers.cache_clear()
     def __del__(self):self.close()
     def __getitem__(self,index):
         if isinstance(index,slice):return tuple(self[i] for i in range(*index.indices(self.length)))
         if index<0:index+=self.length
         if not 0<=index<self.length:raise IndexError(index)
-        if index in self._cache:return self._cache[index]
-        import mmap,struct
-        from hashlib import sha256
-        from datetime import datetime,timedelta,timezone
-        from ..strategy import Bar
+        if index in self._cache:
+            self._cache.move_to_end(index);return self._cache[index][0]
         if self._mapping is None:
+            import mmap
+            from hashlib import sha256
             self._file=open(self.filename,'rb');digest=sha256()
             while chunk:=self._file.read(1024*1024):digest.update(chunk)
             if digest.hexdigest()!=self.signature:raise ValueError('Native exact source spool changed.')
             self._mapping=mmap.mmap(self._file.fileno(),0,access=mmap.ACCESS_READ)
-        stamp,number,*indices=struct.unpack_from('<qq9I',self._mapping,index*52)
+        stamp,number,*indices=self._ROW.unpack_from(self._mapping,index*52)
         fields=tuple(self.strings[i] for i in indices)
-        bar=Bar(number,datetime(1970,1,1,tzinfo=timezone.utc)+timedelta(microseconds=stamp),fields[0],fields[1],*map(Decimal,fields[2:]),fields)
+        parse=self._numbers
+        values=tuple(parse(text) if len(text)<=128 else Decimal(text) for text in fields[2:])
+        bar=Bar(number,self._EPOCH+timedelta(microseconds=stamp),fields[0],fields[1],*values,fields)
         if index in self.tick_features:
             from dataclasses import replace
             bar=replace(bar,tick_window=self.tick_features[index][0],flow=self.tick_features[index][1])
-        if len(self._cache)>=128:self._cache.pop(next(iter(self._cache)))
-        self._cache[index]=bar;return bar
+        # Charge all decoded numeric values even when shared with another row.
+        # This conservatively bounds cache-owned objects; original strings and
+        # tick references already belong to the immutable source programme.
+        charge=getsizeof(bar)+getsizeof(bar.timestamp_utc)+getsizeof(fields)+sum(getsizeof(v) for v in values)+getsizeof(index)+256
+        if charge<=self.BAR_CACHE_BYTES:
+            while self._cache and self._bar_bytes+charge>self.BAR_CACHE_BYTES:
+                _,(_,old)=self._cache.popitem(last=False);self._bar_bytes-=old
+            self._cache[index]=(bar,charge);self._bar_bytes+=charge
+        return bar
     def __iter__(self):
         for index in range(self.length):yield self[index]
