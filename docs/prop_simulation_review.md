@@ -13127,3 +13127,75 @@ write requests or page errors. `applied-live-verification.json`,
 and metadata. The portal shows **Estimating…** during initial evidence capture;
 subsequent completed paths and worker-based ETA appear without further user
 action. This increment corrects reporting and does not claim a faster replay.
+
+## ZIP-backed Prop Sim detail JSON (2026-11-19)
+
+The existing ZIP holds exact copies of the largest detail JSON. The storage
+increment removes the redundant unpacked `calculations.json` and legacy
+`joint_sizing.json`, retaining the original `report.json`, ZIP, IDs and catalogue
+seals. Both independent phase numerical identity dictionaries were compared
+with the pre-change checkout and match exactly. Storage is outside their
+numerical-owner lists. Global source/cache guards remain conservative; do not
+weaken any launch guard merely to reuse a historical execution snapshot.
+
+### Existing-product evidence
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_PROP_SIM_EVIDENCE_DIR=artifacts/prop-report-storage-20261119/browser \
+  .venv/bin/python -m pytest -q \
+  'tests/test_prop_sim_browser.py::test_prop_sim_qualified_single_configuration_real_results_and_downloads[shared-range]'
+```
+
+This normal synthetic journey qualifies a campaign through its real OOS/Monte
+Carlo gates, opens its IS source backtest, configures/checks/runs the normal
+Prop Sim phase searches, navigates away, and reopens their durable reports.
+Existing independent arithmetic remains checked: Evaluation acquisition cost is
+`49 / empirical_attempt_pass_probability + 129`; Funded mean receipts equal
+all-path received cash divided by 32. No external outcome engine is used.
+Fixture qualification is not a real-market/provider-parity claim.
+
+The browser downloads each phase's original report, CSV and ZIP. The JSON result
+export matches `calculations.json` inside the original ZIP byte-for-byte, while
+the unpacked JSON is absent. It explicitly restores and remigrates both saved
+phase reports, reopens/downloads them again, and checks identical report/ZIP
+seals, logical artifact fingerprints and existing dependency-deletion rejection.
+`storage-verification.json`, `journey.json`, original CSV/report/ZIP downloads
+and portal screenshots remain inspectable. Every temporary server stops on
+fixture teardown. No demo-only page, admission API or duplicate result store.
+
+### Focused verification and rejection cases
+
+Fifteen focused cases passed: eight storage oracles, the normal legacy source
+check/run/download journey, real automatic calculation reuse with unchanged
+cash/source identity, metadata-only job progress, three deletion ownership cases
+(unshared/shared/active-frozen), and the existing portal journey above. One
+preexisting legacy test assertion expected the obsolete `Held OHLC` source
+label; it failed identically in the untouched checkout. That fixture assertion
+now matches the current documented MultiCharts excursion wording; all numeric
+assertions remain unchanged and the full reuse case passes.
+
+Storage cases independently verify SHA/byte equality, old unpacked/new packed
+readers, restore/retry, interruption after the first unlink, validation of all
+members before any deletion, corrupt ZIP/raw JSON, duplicate members, symlink
+refusal, held-descriptor downloads across compaction, exact cache reuse and
+corruption misses, active-record exclusion, and original catalogue seals.
+Packed JSON is streamed from a held descriptor and checked before serving;
+corruption produces a verification error rather than an untrusted result.
+
+### Current-library migration
+
+The read-only audit verified all 765 completed analyses and their original
+report/ZIP seals. It identified 1,200 redundant JSON copies totaling
+2,243,915,583 logical bytes; no report file was removed in that dry run.
+The original report entry points remain readable and every removed byte is
+already in the original checksummed ZIP. Completed reports are retained; the
+storage task does not select any historical analysis as unwanted for deletion.
+
+Before application, no portal listener or surviving application workers were
+present. The saved Funded entry at 787/1,000 paths was stale, not live work.
+Normal startup recovery records interrupted work; storage maintenance itself
+never cancels, restarts, tunes or replays a simulation. The application manifest
+records the eventual migration, server PID/log, actual folder allocation and
+post-migration read-only API/browser verification. No original dataset,
+backtest, frozen selection, historical verdict or report bytes are rewritten.

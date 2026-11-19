@@ -33,6 +33,8 @@ def seal_report(staged, result, id, created, *, size_limit_bytes=128*1024*1024):
     with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
         for p in staged.rglob('*'):
             if p.is_file() and p.name!='analysis.zip':archive.write(p,str(p.relative_to(staged)))
+    from ..prop_report_storage import compact
+    compact(staged,sealed_checks(staged),logical_files=files)
 
 
 def request_key(snapshot, settings):
@@ -811,7 +813,7 @@ class AnalysisStore:
             return False
 
     def fingerprint(self, id):
-        from .adapter import digest
+        from ..prop_report_storage import digest
         record=self.get(id)
         if not record:return None
         result=dict(record=record,files={})

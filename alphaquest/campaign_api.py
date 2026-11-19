@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 from .research import ResearchConflict
 from .research_campaigns import CampaignRequest, FreezeRequest, AssessmentRequest, SourceWindowRequest, DeleteCampaignRequest
+from .prop_report_storage import artifact_response
 from .prop.adapter import canonical
 from .prop.phase_search import CandidateConfirmationRequired
 
@@ -170,4 +171,4 @@ async def export(id: UUID, kind: str, request: Request):
     name = files.get(kind)
     if name is None or (name not in report['files'] and name not in ('analysis.zip', 'report.json')):
         raise HTTPException(404, 'Unknown campaign export.')
-    return FileResponse(request.app.state.prop_analyses.root/report['id']/name, filename=f'{id.hex}-{kind}')
+    return artifact_response(request.app.state.prop_analyses.root/report['id']/name,filename=f'{id.hex}-{kind}',expected=report['files'].get(name))

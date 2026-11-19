@@ -97,6 +97,33 @@ def test_prop_sim_qualified_single_configuration_real_results_and_downloads(page
         with page.expect_download() as download:parent.get_by_role('link',name='Evidence ZIP ↓',exact=True).click()
         download.value.save_as(tmp_path/(phase+'-analysis.zip'))
         parent.screenshot(path=str(tmp_path/(phase+'-portal.png')))
+    from hashlib import sha256
+    from zipfile import ZipFile
+    from alphaquest.prop.store import sealed_checks
+    from alphaquest.prop_report_storage import restore,compact
+    storage=[]
+    for phase in ('evaluation','funded'):
+        report=json.loads((tmp_path/(phase+'-report.json')).read_text())
+        folder=portal['app'].state.prop_analyses.root/report['id']
+        before=sealed_checks(folder)
+        assert not (folder/'calculations.json').exists()
+        with ZipFile(tmp_path/(phase+'-analysis.zip')) as z:expected=z.read('calculations.json')
+        download=page.request.get(portal['url']+f"/api/research-campaigns/{record['campaign_ids'][phase]}/exports/results.json")
+        assert download.ok and download.body()==expected
+        assert sha256(expected).hexdigest()==report['files']['calculations.json']['sha256']
+        # Simulate an older unpacked report, then perform the same compatible
+        # migration and reopen through the unchanged normal download routes.
+        restore(folder,before);assert (folder/'calculations.json').read_bytes()==expected
+        compact(folder,before);assert sealed_checks(folder)==before
+        assert portal['app'].state.prop_analyses.fingerprint(report['id'])
+        with pytest.raises(ValueError,match='immutable research campaign'):
+            portal['app'].state.prop_analyses.delete(report['id'])
+        repeated=page.request.get(portal['url']+f"/api/research-campaigns/{record['campaign_ids'][phase]}/exports/results.json")
+        assert repeated.body()==expected
+        storage.append(dict(phase=phase,analysis_id=report['id'],original_seals=before,
+            logical_json_sha256=sha256(expected).hexdigest(),unpacked_bytes_avoided=len(expected),
+            migration_preserved_bytes=True,dependency_deletion_guard=True))
+    (tmp_path/'storage-verification.json').write_text(json.dumps(storage,indent=2))
     evaluation=json.loads((tmp_path/'evaluation-report.json').read_text())['calculations']
     funded=json.loads((tmp_path/'funded-report.json').read_text())['calculations']
     assert evaluation['frontier'] and funded['winner']

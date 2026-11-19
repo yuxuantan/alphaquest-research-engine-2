@@ -3573,3 +3573,63 @@ Actual source hashes remain recorded. `phase_dispatch.py` admits only the exact
 reviewed old-to-new progress revision of `native_preparation.py`, with every
 other numerical/kernel/environment field equal. Unknown revisions still reject;
 this is not a waiver for strategy, execution or account changes.
+
+## Lossless ZIP-backed detail JSON (2026-11-19)
+
+`alphaquest/prop_report_storage.py` owns the `analysis-zip-json-v1` storage
+contract. `calculations.json` and the legacy `joint_sizing.json` already have
+exact compressed copies inside every normal `analysis.zip`. After publication,
+verify those members against the original file-manifest byte counts/SHA-256,
+then remove their redundant unpacked copies. All other files, especially the
+normal `report.json` entry point and the original downloadable ZIP, remain in
+place. This is storage compaction, not a numerical/policy/report-version change.
+
+The existing report IDs, report/ZIP bytes and seals, frozen packages, logical
+artifact names, calculation values and CSVs stay unchanged. The report's `files`
+map describes **logical uncompressed exports**, not physical disk allocation.
+Readers prefer an unpacked file when present and otherwise read the original
+ZIP member. The normal APIs stream the same verified JSON bytes and filenames.
+Calculation reuse verifies the same original payload SHA. Fingerprinting uses
+logical artifact bytes; dependency-aware deletion retains its existing guards
+and removes the complete report folder/ZIP only when permitted.
+
+`AnalysisStore.seal_report()` performs compaction automatically for new reports,
+after the original ZIP is complete and verified. No UI setting or follow-up
+confirmation is needed. Keep uncompressed publication/resource checks and all
+requested simulation paths unchanged. No numerical phase owner, provider rule,
+selection objective, criterion or precision threshold changes for storage.
+
+For existing reports, first load the compatible server readers, then run:
+
+```sh
+# Verify eligible completed reports without removing files.
+.venv/bin/python scripts/compact_prop_reports.py --data-dir data \
+  --evidence artifacts/prop-storage-dry-NEW
+
+# Apply after the compatible server is running against this same data library.
+.venv/bin/python scripts/compact_prop_reports.py --data-dir data --apply \
+  --server-url http://127.0.0.1:8000 --evidence artifacts/prop-storage-apply-NEW
+
+# Restore exact original standalone JSON without replaying calculations.
+.venv/bin/python scripts/compact_prop_reports.py --data-dir data --apply \
+  --restore-unpacked --evidence artifacts/prop-storage-restore-NEW
+```
+
+Use a new evidence directory per invocation. Completed reports alone are
+eligible; queued/running/incompatible/error records and temporary work are not
+compacted. The live command checks reader version **and catalogue path**, and
+holds the catalogue's normal SQLite write reservation per completed analysis,
+serializing with deletion/publication. Offline application requires explicit
+`--offline` and refuses any active analysis records. All candidate members and
+originals are verified before any removal. Changed/missing/corrupt/symlinked
+sources reject without repairing or relabeling evidence. A crash between the
+two unlinks leaves a readable report; retry is idempotent. Do not instantiate
+another AnalysisStore or trigger its startup recovery from this maintenance tool.
+
+Historical JSON is not reserialized, so key order, whitespace and original
+checksums are preserved. The existing ZIP is the compressed source, with no new
+result store, sidecar payload database or second compressed copy. Exporting the
+ZIP also provides every original file for offline inspection. External scripts
+that previously opened the two physical detail paths should use their normal
+export APIs, `prop_report_storage.read_bytes()`, or explicitly restore unpacked
+files. Ordinary report reads/downloads and original ZIP access stay compatible.
