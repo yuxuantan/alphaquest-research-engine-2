@@ -13367,3 +13367,20 @@ explicit orphan-recovery checks remain in force. No extra persistent service
 or temporary test server was left running. All **765** original report and ZIP
 hashes, completed IDs and catalogue seals were reverified, with SQLite integrity
 `ok`, before the fresh automatic request.
+
+Applied as `877c5e7` on `epic/revamp-workflow`. The normal API accepted fresh
+simulation `fd725561831e47ea9169a3bae0d28ae5`; its configuration matches the
+original exactly except for the new request UUID. Evaluation job
+`b11ecf8f15244e04819dd0440fc70dcd` is running and Funded job
+`aebe812788fe4c25ad6f2b4a3316e080` is queued. Automatic selection/OOS continuation
+remains enabled. A later snapshot shows 11/1,000 paths at the 2% policy with
+four active workers and a populated ETA. Candidate membership/counts and seeds
+are unchanged; deterministic candidate-ID ordering may place a different risk
+policy first under a new implementation identity.
+
+The real saved Prop Sim and Evaluation Job history pages reopened in a GET-only
+Chrome check with zero write requests or page errors. Inspect
+`rerun-verification.json`, `latest-progress.json`, `live-browser-verification.json`,
+`live-rerun-prop-sim.png` and `live-rerun-job.png` in the evidence folder.
+The user's original simulation remains cancelled in history. No source/frozen
+identity check was disabled to launch the replacement.
