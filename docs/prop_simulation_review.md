@@ -13463,3 +13463,21 @@ not committed market data). The port-8000 portal runs via
 `sh scripts/serve_portal.sh`, PID 47116; stop it with `kill -TERM 47116` only after
 checking active work. Browser test servers were temporary and stopped by their
 fixtures. Source recovery precedes job queueing on a cold older source.
+
+### 2026-11-20 — Visible daily loss limit amounts
+
+In Prop Sim configuration, the DLL checkbox now shows the amounts from the
+selected account's server-owned rules. Choose LucidFlex 50K: expect "$1,200
+daily loss limit — Evaluation and Funded"; it remains optional. Choose Apex
+50K EOD: expect $1,000 Evaluation and $1,000–$3,000 Funded by tier, with the
+existing required checkbox. Switching profiles updates the amounts immediately.
+This changes display only, without changing simulations or saved evidence.
+
+Reproduce with `ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m
+pytest -q tests/test_prop_sim_browser.py::test_daily_loss_limit_amount_tracks_account_profile`.
+The normal portal configuration journey checks profile switching and Lucid's
+off/on option without launching an analysis; its temporary server stops on exit.
+The focused browser check passed. Read-only verification on the actual port-8000
+portal also passed, without restarting the server or launching a simulation.
+Screenshot and observed labels: `artifacts/dll-display-20261120/` (generated,
+uncommitted evidence).

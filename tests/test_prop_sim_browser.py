@@ -11,6 +11,28 @@ from test_backtests_browser import browser,page,portal,playwright
 from test_prop_sim import qualified_source
 
 
+def test_daily_loss_limit_amount_tracks_account_profile(page,portal,tmp_path):
+    """Show both phase limits before running, including optional Lucid DLL."""
+    page.goto(portal['url']+'/#prop-sim')
+    label=page.locator('.prop-sim-dll')
+    checkbox=page.locator('#prop-sim-daily-loss-limit')
+    playwright.expect(label).to_contain_text('$1,000 Evaluation; $1,000–$3,000 Funded, by tier')
+    playwright.expect(checkbox).to_be_checked()
+    playwright.expect(checkbox).to_be_disabled()
+    page.locator('#prop-sim-profile').select_option('lucidflex-50k')
+    playwright.expect(label).to_have_text('$1,200 daily loss limit — Evaluation and Funded')
+    playwright.expect(checkbox).to_be_enabled()
+    checkbox.uncheck()
+    playwright.expect(checkbox).not_to_be_checked()
+    playwright.expect(label).to_contain_text('$1,200')
+    checkbox.check()
+    page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'lucid-dll-amount.png'))
+    page.locator('#prop-sim-profile').select_option('apex-50k-eod')
+    playwright.expect(label).to_contain_text('$1,000 Evaluation; $1,000–$3,000 Funded, by tier')
+    playwright.expect(checkbox).to_be_checked()
+    playwright.expect(checkbox).to_be_disabled()
+
+
 def test_strategy_sizing_capability_is_visible_before_running(page,portal,tmp_path):
     """A real qualified no-stop campaign permits fixed size, explains risk rejection."""
     with httpx.Client(base_url=portal['url'],timeout=120) as client:

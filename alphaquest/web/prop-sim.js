@@ -125,7 +125,7 @@
       const accountLabel=node('label','Account profile'),accountPicker=node('select');accountPicker.id='prop-sim-profile';
       for(const [id,p] of Object.entries(profiles))accountPicker.add(new Option(p.name,id));accountLabel.append(accountPicker);accountBox.append(accountLabel);
       const accountInfo=node('p',undefined,'prop-sim-account-info');accountBox.append(accountInfo);
-      const dllLabel=node('label',undefined,'prop-sim-dll'),dll=node('input');dll.type='checkbox';dll.id='prop-sim-daily-loss-limit';dll.checked=true;dllLabel.append(dll,node('span','Daily loss limit enabled'));accountBox.append(dllLabel);
+      const dllLabel=node('label',undefined,'prop-sim-dll'),dll=node('input'),dllText=node('span');dll.type='checkbox';dll.id='prop-sim-daily-loss-limit';dll.checked=true;dllLabel.append(dll,dllText);accountBox.append(dllLabel);
       const consistencyLabel=node('label','Evaluation consistency'),consistency=node('select');consistency.id='prop-sim-consistency';consistency.add(new Option('40% · standard','40'));consistency.add(new Option('50% · paid add-on','50'));consistencyLabel.append(consistency);accountBox.append(consistencyLabel);
       const ruleNote=node('p',undefined,'field-help');accountBox.append(ruleNote);sourceGrid.append(sourceBox,accountBox);
       const modeLabel=node('label','Position sizing search'),sizingMode=node('select');sizingMode.id='prop-sim-search-kind';sizingMode.add(new Option('Fixed MNQ contracts','fixed_contracts'));sizingMode.add(new Option('Percentage of account risk','percentage_risk'));modeLabel.append(sizingMode);form.append(modeLabel);
@@ -235,6 +235,9 @@
         for(const phase of ['evaluation','funded']){riskFields[phase].maximum_contracts.max=String(p.size_limits[phase]);if(reset)riskFields[phase].maximum_contracts.value=String(p.size_limits[phase]);}
         if(reset)for(const name of ['evaluation_price','activation_fee','commission_per_mnq_side'])fields[name].value=p.defaults[name];
         if(id==='apex-50k-eod')dll.checked=true;dll.disabled=id==='apex-50k-eod';fields.activation_fee.readOnly=id==='lucidflex-50k';
+        const dollars=value=>Number(value).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}),evaluationDll=dollars(p.evaluation_rules.daily_loss_limit);
+        if(p.funded_rules.daily_loss===p.evaluation_rules.daily_loss_limit)dllText.textContent=`${evaluationDll} daily loss limit — Evaluation and Funded`;
+        else{const limits=p.funded_rules.levels.map(level=>level[2]);dllText.textContent=`Daily loss limit — ${evaluationDll} Evaluation; ${dollars(Math.min(...limits))}–${dollars(Math.max(...limits))} Funded, by tier`;}
         accountInfo.textContent=`$3,000 target · $2,000 maximum drawdown · Evaluation up to ${p.size_limits.evaluation} MNQ / Funded up to ${p.size_limits.funded} MNQ.`;
         ruleNote.textContent=id==='lucidflex-50k'?`${consistency.value}% Evaluation consistency${consistency.value==='50'?' · add-on price must be included in your purchase fee':''}. No activation fee. Funded has a 90% trader share and no consistency rule. Set your actual purchase price for the chosen options.`:'Funded sizes follow account scaling tiers. Scenario purchase and activation fees are editable.';
         rules.replaceChildren();detail(rules,'Account rules and model assumptions',{selection:{profile_id:id,daily_loss_limit:dll.checked},evaluation:{...p.evaluation_rules,consistency:id==='lucidflex-50k'?Number(consistency.value)/100:null,daily_loss_limit:dll.checked?p.evaluation_rules.daily_loss_limit:null},funded:id==='lucidflex-50k'?{...p.funded_rules,daily_loss:dll.checked?1200:null}:p.funded_rules,notes:p.notes,default_profile_review:p.rule_provenance});
