@@ -106,6 +106,20 @@ def test_qualified_source_gate_real_phase_math_and_durable_results(client):
     assert client.post('/api/prop-sim',json=legacy).json()['id']==saved['id']
     evaluation=client.get('/api/prop-sim/'+saved['id']+'/results/evaluation').json()['calculations']
     funded=client.get('/api/prop-sim/'+saved['id']+'/results/funded').json()['calculations']
+    # Lightweight display reads preserve every saved estimate and selection.
+    # Full captures/downloads remain available and immutable.
+    for phase,full in [('evaluation',evaluation),('funded',funded)]:
+        fingerprint=client.app.state.prop_analyses.fingerprint(saved['phases'][phase]['analysis_id'])
+        response=client.get(f"/api/prop-sim/{saved['id']}/results/{phase}?summary=true")
+        assert response.status_code==200,response.text
+        summary=response.json()['calculations']
+        assert {k:v for k,v in summary.items() if k!='candidates'}=={k:v for k,v in full.items() if k!='candidates'}
+        assert [r['candidate_id'] for r in summary['candidates']]==[r['candidate_id'] for r in full['candidates']]
+        for shown,original in zip(summary['candidates'],full['candidates']):
+            assert shown['metrics']==original['metrics']
+            assert shown['manifest']=={'configuration':original['manifest']['configuration']}
+            assert 'paths' not in shown and 'source' not in shown['manifest']
+        assert client.app.state.prop_analyses.fingerprint(saved['phases'][phase]['analysis_id'])==fingerprint
     assert len(evaluation['candidates'])==len(funded['candidates'])==3
     assert evaluation['winner'] is None
     resolved=[r for r in evaluation['candidates'] if r['metrics']['cost_per_funded'] is not None]

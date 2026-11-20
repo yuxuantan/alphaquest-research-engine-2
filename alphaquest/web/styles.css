@@ -2167,3 +2167,85 @@ dialog::backdrop {
 .workflow-delete-consent input { flex:0 0 auto; width:18px; height:18px; margin-top:3px; }
 .workflow-delete-blockers { padding:12px; background:#fff3df; border-radius:8px; }
 .workflow-delete-dialog .workflow-link-actions { justify-content:flex-end; flex-wrap:wrap; }
+
+/* Prop Sim workspace: one phase and one task visible at a time. */
+.prop-workspace { min-width:0; margin:24px 0; }
+.prop-workspace > h2 { font-size:16px; color:#4c606c; margin-bottom:14px; }
+.prop-workspace [hidden] { display:none !important; }
+.prop-workspace-tabs { display:flex; gap:6px; padding:5px; background:#eaf0f2; border-radius:10px; width:fit-content; max-width:100%; overflow-x:auto; }
+.prop-workspace-tabs [role=tab] { border:0; border-radius:7px; padding:11px 20px; min-height:44px; background:transparent; color:#435865; font:inherit; font-weight:600; white-space:nowrap; cursor:pointer; }
+.prop-workspace-tabs [role=tab][aria-selected=true] { background:#fff; color:#006e60; box-shadow:0 1px 4px #243b4826; }
+.prop-workspace > .prop-workspace-tabs { width:100%; box-sizing:border-box; margin-bottom:16px; }
+.prop-workspace > .prop-workspace-tabs [role=tab] { flex:1; font-size:18px; }
+.prop-workspace :is(button,a,select,[tabindex]):focus-visible { outline:3px solid #007f70; outline-offset:3px; }
+.prop-workspace-phase { background:#fff; border:1px solid #dce5e8; border-radius:14px; padding:28px; min-width:0; }
+.prop-workspace-phase[data-phase=funded] { border-top:4px solid #4262a0; }
+.prop-workspace-phase[data-phase=evaluation] { border-top:4px solid #008574; }
+.prop-workspace-phase-heading { display:flex; align-items:start; justify-content:space-between; gap:20px; margin-bottom:16px; }
+.prop-workspace-phase-heading h2 { font-size:23px; line-height:1.3; margin:8px 0 0; }
+.prop-workspace-phase-kicker { color:#006e60; letter-spacing:.09em; font-size:12px; font-weight:700; }
+[data-phase=funded] .prop-workspace-phase-kicker { color:#36558d; }
+.prop-workspace-stage { flex:none; padding:7px 12px; margin:0; border-radius:7px; background:#f0f5f5; color:#3f5661; font-size:14px; max-width:45%; overflow-wrap:anywhere; }
+.prop-workspace-job-link { margin-bottom:20px; }
+.prop-workspace-job-link .button { padding:0; min-height:0; background:none; border:0; text-decoration:underline; font-size:14px; }
+.prop-workspace-view { margin-top:26px; min-width:0; }
+.prop-workspace-view > h3 { margin-top:0; font-size:19px; }
+.prop-workspace .prop-sim-conclusion { margin-top:0; padding:20px 22px; }
+.prop-workspace .prop-sim-conclusion h4 { font-size:20px; }
+.prop-workspace .prop-sim-conclusion p { max-width:85ch; line-height:1.65; }
+.prop-workspace .field-help { font-size:14px; line-height:1.65; color:#536874; }
+.prop-workspace-outcomes { margin-top:26px; }
+.prop-workspace-outcomes h3 { font-size:17px; margin:0 0 14px; }
+.prop-workspace-outcomes .prop-result-table { font-size:15px; }
+.prop-workspace-verdict { font-weight:600; color:#60491e; }
+.prop-workspace-verdict[data-state=GO] { color:#006d5d; }
+.prop-workspace-verdict[data-state=NO_GO] { color:#a3382a; }
+.prop-workspace .optimization-scroll { max-width:100%; margin:16px 0; border-radius:9px; }
+.prop-workspace .prop-result-table td { padding:14px 16px; }
+.prop-workspace .prop-sim-insight { margin:0 0 24px; }
+.prop-workspace .prop-sim-insight small { font-size:14px; }
+.prop-workspace :is(pre,code) { overflow-wrap:anywhere; white-space:pre-wrap; max-width:100%; }
+.prop-workspace .prop-sim-validation { margin:28px 0 0; padding-top:24px; }
+.prop-workspace .prop-sim-validation > :is(.prop-sim-steps,.prop-sim-auto-status) { display:none; }
+.prop-workspace-downloads h3,.prop-workspace-controls h3 { font-size:18px; }
+.prop-workspace-downloads > details { margin-top:20px; }
+.prop-workspace .prop-sim-exports { border:0; padding:0; gap:12px 20px; }
+.prop-evidence-toolbar { display:flex; flex-wrap:wrap; gap:20px; margin:20px 0; }
+.prop-evidence-toolbar label { display:grid; gap:8px; flex:1; min-width:min(100%,240px); color:#405763; font-size:14px; font-weight:600; }
+.prop-evidence-toolbar select { width:100%; min-width:0; padding:11px; border:1px solid #ccd9df; border-radius:7px; font:inherit; color:#233b49; background:#fff; }
+.prop-evidence-checklist { display:grid; gap:10px; margin:20px 0 28px; }
+.prop-evidence-check.prop-evidence-finding { display:grid; grid-template-columns:minmax(150px,1fr) 90px minmax(0,2.5fr); align-items:start; column-gap:16px; padding:16px; border:1px solid #dce5e8; border-left:4px solid #16806f; border-radius:8px; }
+.prop-evidence-check.prop-evidence-finding.watch,.prop-evidence-check.prop-evidence-finding.insufficient { border-left-color:#ad7420; }
+.prop-evidence-check.prop-evidence-finding.fail { border-left-color:#b44334; }
+.prop-evidence-check h5 { font-size:15px; margin:0; }
+.prop-evidence-check .prop-evidence-state { color:#31534d; font-size:12px; }
+.prop-evidence-check.watch .prop-evidence-state,.prop-evidence-check.insufficient .prop-evidence-state { color:#79501c; }
+.prop-evidence-check.fail .prop-evidence-state { color:#9e3527; }
+.prop-evidence-check p { margin:0; font-size:14px; line-height:1.6; }
+.prop-evidence-check p + p { margin-top:7px; }
+.prop-evidence-support { border-top:1px solid #dce5e8; padding-top:24px; min-width:0; }
+.prop-results-load-error { background:#fff5ee; border:1px solid #e4bd96; padding:16px; margin-bottom:16px; border-radius:8px; }
+.prop-sim-detail-dialog { width:min(800px,calc(100% - 48px)); max-height:80vh; box-sizing:border-box; border:1px solid #cedde2; border-radius:12px; padding:24px; color:#233b49; }
+.prop-sim-detail-dialog::backdrop { background:#132e3b66; }
+.prop-sim-detail-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+@media (max-width:800px) {
+ .prop-workspace-phase { padding:20px; }
+ .prop-evidence-check.prop-evidence-finding { grid-template-columns:minmax(0,1fr) auto; }
+ .prop-evidence-check > div { grid-column:1/-1; margin-top:10px; }
+}
+@media (max-width:600px) {
+ .prop-workspace-phase { padding:16px; }
+ .prop-workspace-phase-heading { flex-direction:column; gap:12px; }
+ .prop-workspace-phase-heading h2 { font-size:20px; }
+ .prop-workspace-stage { max-width:100%; }
+ .prop-workspace-tabs { width:100%; box-sizing:border-box; }
+ .prop-workspace-tabs [role=tab] { padding:10px 12px; font-size:14px; }
+ .prop-workspace .prop-sim-conclusion { padding:16px; }
+ .prop-workspace .prop-sim-conclusion h4 { font-size:18px; }
+}
+.prop-workspace .prop-result-table { font-size:14px; }
+.prop-workspace .prop-result-table th { font-size:12px; text-transform:none; letter-spacing:.02em; color:#425b68; }
+@media (max-width:600px) {
+ .prop-workspace-phase > .prop-workspace-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
+ .prop-workspace-phase > .prop-workspace-tabs [role=tab] { white-space:normal; }
+}

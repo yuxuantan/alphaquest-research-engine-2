@@ -93,19 +93,60 @@ def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path
     assert row['configuration']['sizing']['trade_handling']==expected
     assert 'risk_budget_override_rate' in row['quantity_summary']
  page.goto(portal['url']+'/#prop-sim?analysis='+id)
+ phase_tabs=page.get_by_role('tablist',name='Simulation phase',exact=True)
+ playwright.expect(page.locator('#prop-sim-evaluation-results')).to_be_visible(timeout=30000)
+ playwright.expect(page.locator('#prop-sim-funded-results')).to_be_hidden()
  for phase in ('evaluation','funded'):
+  phase_tabs.get_by_role('tab',name=('Evaluation' if phase=='evaluation' else 'Funded'),exact=False).click()
+  panel=page.locator('#prop-sim-'+phase+'-results')
+  views=panel.get_by_role('tablist',name='Views for '+('Evaluation' if phase=='evaluation' else 'Funded'),exact=True)
   playwright.expect(page.locator('#prop-sim-'+phase+'-conclusion')).to_contain_text('evidence gaps',ignore_case=True,timeout=30000)
-  playwright.expect(page.locator('#prop-sim-'+phase+'-results [data-trade-behavior="IS"]')).to_contain_text('Skipped opportunities')
+  assert panel.locator('details:visible').count()==0
+  views.get_by_role('tab',name='IS sizing',exact=True).click()
   playwright.expect(page.locator(f'[data-trade-handling-warning={phase}]')).to_contain_text('risk-budget overrides')
   page.locator('#prop-sim-'+phase+'-insight').get_by_role('button',name='Review trade-handling impact').click()
-  page.locator('#prop-sim-'+phase+'-results [data-trade-behavior="IS"]').screenshot(path=str(tmp_path/(phase+'-trade-handling.png')))
-  playwright.expect(page.locator('#prop-sim-'+phase+'-results [data-trade-behavior="OOS / assessment"]')).to_contain_text('Account-limit exits')
+  playwright.expect(panel.locator('[data-trade-behavior="IS"]')).to_contain_text('Skipped opportunities')
+  panel.locator('[data-trade-behavior="IS"]').screenshot(path=str(tmp_path/(phase+'-trade-handling.png')))
+  views.get_by_role('tab',name='Evidence',exact=True).click()
+  playwright.expect(panel.locator('.prop-evidence-check')).to_have_count(1)
+  playwright.expect(panel.locator('.prop-evidence-check')).to_contain_text('Historical coverage')
+  playwright.expect(panel.get_by_label('Evidence sizing configuration')).to_be_visible()
+  panel.get_by_label('Supporting evidence table').select_option(label='Trade handling')
+  playwright.expect(panel.locator('.prop-evidence-support')).to_contain_text('Account-limit exits')
+  panel.get_by_label('Supporting evidence table').select_option(label='Policy, evidence and interpretation')
+  playwright.expect(panel.locator('.prop-evidence-support')).to_contain_text('No nested historical refits')
+  views.get_by_role('tab',name='Overview',exact=True).click()
+  panel.screenshot(path=str(tmp_path/(phase+'-overview.png')))
+ # Accessible keyboard tabs, without changing saved selection or launching work.
+ phase_tabs.get_by_role('tab',name='Funded',exact=False).focus()
+ page.keyboard.press('Home')
+ playwright.expect(phase_tabs.get_by_role('tab',name='Evaluation',exact=False)).to_be_focused()
+ playwright.expect(page.locator('#prop-sim-funded-results')).to_be_hidden()
+ page.keyboard.press('End')
+ playwright.expect(phase_tabs.get_by_role('tab',name='Funded',exact=False)).to_be_focused()
+ playwright.expect(page.locator('#prop-sim-evaluation-results')).to_be_hidden()
+ # A failed phase read must remain visible and retryable; the other phase loads.
+ import re
+ request_posts=[];page.on('request',lambda r:request_posts.append(r.url) if r.method=='POST' else None)
+ pattern=re.compile(r'/api/prop-sim/[^/]+/results/evaluation\?summary=true$')
+ failed=[]
+ def fail_once(route):
+  if not failed:failed.append(True);route.fulfill(status=503,json={'detail':'SYNTHETIC transient display read failure'})
+  else:route.continue_()
+ page.route(pattern,fail_once);page.reload()
+ playwright.expect(page.get_by_role('alert')).to_contain_text('transient display read failure')
+ playwright.expect(page.locator('#prop-sim-funded-conclusion')).to_contain_text('evidence gaps',ignore_case=True,timeout=30000)
+ page.get_by_role('button',name='Retry loading results',exact=True).click()
+ playwright.expect(page.get_by_role('alert')).to_have_count(0,timeout=30000)
+ playwright.expect(page.locator('#prop-sim-evaluation-conclusion')).to_contain_text('evidence gaps',ignore_case=True,timeout=30000)
+ assert not request_posts,'Reading/retrying display must not submit any simulation work'
+ page.unroute(pattern,fail_once)
  playwright.expect(page.locator('#prop-sim-results')).not_to_contain_text('NaN')
  page.locator('#prop-sim-results').screenshot(path=str(tmp_path/'saved-trade-results.png'))
- page.set_viewport_size(dict(width=390,height=844));assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
+ page.set_viewport_size(dict(width=390,height=844));page.locator('#prop-sim-workspace').screenshot(path=str(tmp_path/'mobile-workspace.png'));assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')
  assert not errors,errors
  if destination:=os.environ.get('ALPHAQUEST_SAVED_TRADE_EVIDENCE_DIR'):
-  target=__import__('pathlib').Path(destination);target.mkdir(parents=True,exist_ok=True)
+  target=__import__('pathlib').Path(destination)/profile_id;target.mkdir(parents=True,exist_ok=True)
   for p in tmp_path.iterdir():
    if p.is_file():shutil.copyfile(p,target/p.name)
   (target/'journey.json').write_text(json.dumps(dict(synthetic=True,source=source,simulation=saved,expected='Both phases complete; seven OOS sessions produce evidence gaps, not a false GO.'),indent=2))

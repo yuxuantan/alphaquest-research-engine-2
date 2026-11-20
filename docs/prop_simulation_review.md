@@ -13662,3 +13662,93 @@ to relabel an old report. Missing or conflicting saved windows show unavailable.
 No account calculation, numerical identity, finding status or sealed report is
 changed. Verify the normal complementary-results browser journey for both phase
 cards, plus historical-cutoff, 90-day, missing-window and conflicting-window cases.
+
+### 2026-11-20: Separate phase workspaces and simplify the results journey
+
+The automatic Prop Sim result page now has separate **Evaluation** and **Funded**
+tabs. Only one phase is visible. Its header names the independent objective and
+shows execution status; completion remains distinct from the saved verdict.
+Each phase has four views:
+
+- **Overview:** saved conclusion, next action and a short table of frozen OOS
+  choices. Evaluation leads with funding by the saved observation deadline and
+  fees spent; Funded leads with receipts and the chance of no receipts over the
+  saved horizon. Neither conditional means nor historical qualification imply
+  future confidence. When account measurements were not produced, show the
+  frozen sizing and evidence-gap action instead of unavailable-number columns.
+- **IS sizing:** existing sortable results and automatic-selection markers,
+  with the Evaluation Pareto chart. Additional metrics use the existing toggle;
+  per-row inspection opens a keyboard-dismissible dialog instead of expanding
+  every table row.
+- **Evidence:** a sizing selector, compact server-owned findings, and one chosen
+  supporting table: trade handling, source coverage where available, IS/OOS
+  comparison, chronological starts, stress or policy. Saved account-start windows
+  remain explicit. Historical assessments are labeled with their original
+  findings; changing a view never changes a verdict or sizing choice.
+- **Tools & downloads:** original exports, IS trade-handling review, previous
+  assessments, optional diagnostics, policy revisions and paper-review actions.
+  These remain available without stacking them in the primary reading flow.
+
+Settings and deletion remain outside the phase's main result flow. The initial
+configuration and one-click automatic pipeline remain the ordinary product
+workflow. Historical manual API semantics remain supported.
+
+This follows [progressive disclosure](https://www.nngroup.com/articles/progressive-disclosure/)
+and the [WAI-ARIA tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/):
+visible phase/task navigation, one pane at a time, accessible labels, selected
+states and Arrow/Home/End keyboard controls. Mobile phase views use a two-column
+navigation grid; tables scroll inside their container. Empty, loading and failed
+reads stay visible; each phase loads independently and a failed read can retry
+without submitting any simulation work.
+
+`GET /api/prop-sim/{id}/results/{phase}?summary=true` is a display projection of
+verified sealed IS results. It keeps every candidate's configuration, metrics,
+uncertainty, selection membership and relevant quantity diagnostics, omitting
+path arrays and repeated source captures from the HTTP response. The default
+endpoint, full original downloads, calculation owners, numerical hashes and
+qualification policies are unchanged. OOS continues to use its existing summary
+endpoint. No new result store, resampling, optimization or source qualification
+is triggered by this display projection.
+
+Normal-product verification and reproduction:
+
+1. Open a qualified source backtest → Prop Sim → configure/check → **Run IS and
+   OOS**. Both account profiles and percentage sizing remain supported. The
+   focused browser journey uses labeled synthetic bars through these real routes,
+   independent arithmetic assertions and ordinary durable report downloads.
+2. Open the saved results. Evaluation appears first and Funded is hidden; switch
+   using the phase tabs or Home/End/arrow keys. Overview contains no expandable
+   sections. Switch views to inspect IS sorting, trade-handling warnings, frozen
+   OOS findings and the original CSV/ZIP exports. Escape closes row inspection.
+3. A synthetic transient Evaluation display-read error leaves Funded results
+   usable. **Retry loading results** recovers Evaluation without POSTing work.
+   Short OOS coverage correctly shows the server's one insufficient-coverage
+   finding, rather than inventing six completed checks or unavailable metrics.
+4. Read-only verification of the existing Twin Continuation simulation
+   `9babbf79015241ebaeba0be4f26835aa` uses the actual portal at
+   `/#prop-sim?analysis=9babbf79015241ebaeba0be4f26835aa`. Each phase still has six
+   original findings. Evaluation 2 MNQ retains **9/24** observed starts within
+   **180 calendar days**, and its historical-version label remains. No jobs were
+   launched and saved report SHA-256 values were unchanged.
+
+Evidence: `artifacts/prop-sim-ux-20261120/` holds desktop/mobile screenshots,
+normal-product synthetic sources/reports/downloads and a read-only verification
+JSON. On the existing library, the Evaluation IS display response was **268,203
+bytes** versus its **349,701,337-byte** report; Funded was **230,737 bytes** versus
+**332,601,901 bytes**. The phase workspace shell appeared in approximately
+**0.31 seconds** in that local check. Verified report reading still takes several
+seconds; this change does not claim instantaneous artifact verification.
+
+Focused reproduction:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_sim.py::test_qualified_source_gate_real_phase_math_and_durable_results
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  'tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey[apex-50k-eod]' \
+  'tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey[lucidflex-50k]'
+```
+
+Temporary browser test servers shut down in fixture teardown. The user's idle
+port-8000 portal was restarted to load the display endpoint; no active simulation
+was interrupted. It remains available via `sh scripts/serve_portal.sh`'s stable
+server on port 8000; stop its exact PID from `data/.portal-server.lock` when needed.

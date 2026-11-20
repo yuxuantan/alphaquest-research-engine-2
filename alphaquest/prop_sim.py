@@ -420,11 +420,27 @@ async def status(id:UUID,request:Request):return await invoke(public,request,id.
 
 
 @router.get('/{id}/results/{phase}')
-async def results(id:UUID,phase:str,request:Request):
+async def results(id:UUID,phase:str,request:Request,summary:bool=False):
     if phase not in ('evaluation','funded'):raise HTTPException(404,'Unknown phase.')
     saved=await invoke(public,request,id.hex)
     if phase not in saved['campaign_ids']:raise HTTPException(409,'Source preparation has not finished; follow its job progress.')
-    return await invoke(request.app.state.campaigns.report,saved['campaign_ids'][phase])
+    def read_report():
+        report=request.app.state.campaigns.report(saved['campaign_ids'][phase])
+        if not summary:return report
+        # Display-only projection of verified, sealed results. Full captures stay
+        # in their original reports/downloads; no calculations or policy changes.
+        fields=('candidate_id','status','reason','metrics','uncertainty','censoring',
+            'feasible','constraint_violations','pareto_member','rank','assumptions',
+            'funding_time_near_ties','quantity_summary','simulation_model','observed_bar_diagnostics')
+        calculations=dict(report['calculations'])
+        calculations['candidates']=[dict(
+            **{k:row[k] for k in fields if k in row},
+            manifest={'configuration':row['manifest']['configuration']},
+            **({'native_forecast':{k:row['native_forecast'][k] for k in
+                ('observed_bar_diagnostics','execution_preparation') if k in row['native_forecast']}}
+                if row.get('native_forecast') else {})) for row in calculations['candidates']]
+        return dict(id=report['id'],model_version=report['model_version'],calculations=calculations)
+    return await invoke(read_report)
 
 
 @router.post('/{id}/cancel')

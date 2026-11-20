@@ -56,7 +56,7 @@
     }
     if(!current){
       model.title='Hold live deployment · historical assessment only';
-      const outcome=passed.length?'some sizes passed the historical checks':uncertain.length?'qualification was inconclusive':failed.length?'the selected sizes did not qualify':'qualification was incomplete';
+      const outcome=passed.length?'some sizes passed the historical checks':uncertain.length?'qualification was inconclusive':failed.length?'the selected sizes did not qualify':watch.length?'sensitivity requires investigation':'qualification was incomplete';
       model.next=`Saved outcome: ${outcome}. This result belongs to an earlier numerical or policy version and does not establish current qualification. Preserve it; a current assessment requires a compatible new simulation.`;
       model.forwardEligible=false;
     }else if(passed.length){
