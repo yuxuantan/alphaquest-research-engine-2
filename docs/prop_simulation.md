@@ -3764,3 +3764,50 @@ queueing another preparation behind those jobs. Explicit stopped/error retries
 retain their settings and stop history and resume through the existing owners.
 
 Campaign full-period Monte Carlo also exposes Parallel workers (default four). Its original 128-path random-stream states are captured and evaluated in parallel, preserving every original path and summary exactly. This uses the same bounded Runtime and cancellation rather than a new Monte Carlo engine.
+
+### 2026-11-20: Lucid activity is an operator-maintained assumption
+
+Approved future policy: Lucid Evaluation and Funded simulations do not close an
+account merely because 30 calendar days have elapsed without a campaign trade
+meeting the activity threshold. The new model identity is
+`alphaquest-lucidflex50k-eod-v5-maintained-activity`. Each phase profile snapshots
+`lucid_inactivity_enforced:false`; IS choices carry that same profile into OOS,
+stress checks, chronological checks and percentage/fixed-size simulations.
+
+Rationale: inactivity is an operational task that the operator can address
+outside the campaign with a brief one-MNQ entry/exit when needed. The operator
+assumes the required price/P&L fluctuation can be achieved and that price P&L has
+zero expectation, because this activity has no assumed edge. At USD 0.50 per
+side the commission is approximately USD 1 per maintenance round trip. Explicit
+maintenance scheduling, synthetic executions, commission ledgers and edge-case
+account transitions add complexity for negligible per-account economic impact.
+The approved simplification omits this small expense entirely.
+
+No maintenance trades are inserted into the campaign, Monte Carlo source,
+account path or trade counts. No maintenance profit, fees, qualifying profitable
+days, payout credit or strategy signals are invented. Actual campaign commissions
+still apply normally. Maintenance activity is an operator responsibility, not an
+automated trading feature or a claim that the provider's rule has changed.
+
+Removing inactivity closure does not turn a nontrading strategy into a pass:
+Evaluation still needs its target/consistency checks and retains computational
+censoring; Funded still needs the original profitable-day/payout conditions.
+Drawdown, daily loss limits, account tiers and payout rules are unchanged. A
+Funded path with no campaign trades can remain open at its horizon with zero
+cash and zero qualifying days. An Evaluation path with no campaign trades stays
+unresolved at its computation guard; it is not restarted and charged another
+purchase solely for inactivity.
+
+Existing reports and the currently running simulation retain their captured v4
+rules and verdicts. They are not relabeled under v5. An explicit enforcement flag
+remains in the low-level rule/profile contracts for historical arithmetic
+qualification; the new portal default disables it. Old numerical packages must
+pass existing compatibility guards before any further launch; this change does
+not bypass those guards.
+
+Deployment status for this increment: implemented and tested in an isolated
+checkout while the live v4 simulation continues. The production Python files
+must be applied and the server restarted only after the current automatic run
+has drained all of its IS/OOS jobs. Editing them during that run would change its
+captured implementation identity. The reviewed patch and normal-product evidence
+are staged locally in `artifacts/lucid-maintained-activity-20261120/`.

@@ -13601,3 +13601,45 @@ this increment; its completed reports, original settings and historical seals
 were retained. A new request uses the same economics/source with four workers.
 
 Live deployment observations (2026-11-20): replacement `9babbf79015241ebaeba0be4f26835aa`, same LucidFlex 50K / 50% add-on / 1–20 MNQ per phase / 1,000 paths / original costs and seed, with four workers. Initial POST returned 202 in 0.006 s. While source preparation was active, defaults took 0.034 s, Job History 0.074 s, and status 0.003 s. Actual Chrome new-form rendering took 0.447 s, navigation to Job History 0.063 s and back 0.064 s, with no JavaScript errors. The source preparation process can still take time for historical causal replay; it no longer blocks navigation. All 771 pre-existing report-seal records were unchanged. Evidence is local under the artifact directory above.
+
+### 2026-11-20: Future Lucid maintained-activity assumption
+
+Decision and rationale: see the final dated section of `prop_simulation.md`.
+The implementation is staged separately to preserve the live four-worker
+simulation. No live server restart, cancellation, catalogue rewrite or change to
+captured v4 financial settings is part of this increment.
+
+Normal-product reproduction after idle deployment:
+
+1. Open an eligible campaign source report, choose Prop Sim and LucidFlex 50K.
+   The configuration note says inactivity expiry is disabled, manual activity
+   is assumed and its small costs are omitted. Expanded account assumptions show
+   no enforced inactivity window and explicitly separate this local assumption
+   from the previously reviewed provider requirement.
+2. Configure fixed contracts or percentage sizing and Run IS and OOS. Both phase
+   manifests and their frozen OOS candidates use the v5 maintained-activity model
+   and `lucid_inactivity_enforced:false`. Inspect their normal report/ZIP
+   downloads; earlier v4 reports remain unchanged.
+3. No synthetic maintenance trade should appear in sizing decisions or source
+   trades, and no profitable-day credit or commission should be created for it.
+   Other account limits and campaign commissions still operate normally.
+
+Independent expected boundaries in `tests/test_lucid_activity_assumption.py`:
+
+- With zero campaign trades, a 65-calendar-day Evaluation path retains one
+  USD 80.50 purchase, zero equity, and one open attempt until guard censoring.
+  Historical enforced inactivity creates retries and additional purchase fees.
+- A zero-trade Funded account remains open through 90 calendar days with zero
+  equity, zero payouts and zero simulated maintenance fees. A direct 100-day
+  controller check also has zero qualifying days and zero consumed trades.
+- Explicit historical enforcement still expires on its original boundary;
+  compiled/Python transitions agree. An old v4 phase package is not silently
+  admitted under the current v5 model. Apex expiry/inactivity is unchanged.
+
+Focused checks: the new activity tests, affected Lucid calendar/legacy arithmetic
+cases, both native phase controllers, exact serial/four-worker saved-path parity,
+and the normal one-click Lucid percentage IS/OOS pipeline. The Lucid browser
+journey verifies the visible note, desktop/mobile layout, successful phase
+completion and original-route downloadable reports. Synthetic input bars and
+saved reports/screenshots are staged in the artifact directory above; these are
+labeled test fixtures, not provider or live-trading qualification.
