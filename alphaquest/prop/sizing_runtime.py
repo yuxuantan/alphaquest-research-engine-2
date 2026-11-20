@@ -7,7 +7,7 @@ compare them with timestamps from another sampled session.
 """
 from decimal import Decimal
 import math
-from .sizing import DecisionRisk, SizingPolicy, PlanningExecution, choose_quantity, amount
+from .sizing import DecisionRisk, SizingPolicy, PlanningExecution, TradeHandling, choose_quantity, amount
 
 
 def resolve_runtime(policy, context, trace):
@@ -17,14 +17,18 @@ def resolve_runtime(policy, context, trace):
         return None
     policy = SizingPolicy.model_validate(policy)
     if (type(context) is not dict
-            or set(context)-{'initial_configured_capital', 'planning_execution', 'trace_context','execution_model'}
+            or set(context)-{'initial_configured_capital', 'planning_execution', 'trace_context','execution_model','trade_handling'}
             or 'initial_configured_capital' not in context):
         raise ValueError('Sizing context requires explicit initial configured capital and only supported fields.')
     capital = amount(context['initial_configured_capital'])
     if capital <= 0:
         raise ValueError('Initial configured capital must be positive.')
     execution = PlanningExecution.model_validate(context['planning_execution']) if context.get('planning_execution') is not None else None
-    needs_stop = policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
+    model=context.get('execution_model')
+    handling=TradeHandling.model_validate(context['trade_handling'] if context.get('trade_handling') is not None else {}) if model=='saved-trade-account-policies-v2' else None
+    if handling is None and context.get('trade_handling') is not None:raise ValueError('Trade handling requires saved-trade account policies v2.')
+    if handling and handling.minimum_one_contract and policy.kind!='percentage_risk':raise ValueError('Minimum-one override applies only to percentage-risk sizing.')
+    needs_stop = handling is not None or policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
     if needs_stop and execution is None:
         raise ValueError('Risk sizing requires predeclared planning execution assumptions.')
     if trace is not None and not callable(trace):
@@ -32,10 +36,9 @@ def resolve_runtime(policy, context, trace):
     tags = context.get('trace_context', {})
     if type(tags) is not dict:
         raise ValueError('Trace context must be a dictionary.')
-    model=context.get('execution_model')
-    if model not in (None,'saved-trade-stop-budget-v1'):raise ValueError('Unknown saved-trade execution model.')
+    if model not in (None,'saved-trade-stop-budget-v1','saved-trade-account-policies-v2'):raise ValueError('Unknown saved-trade execution model.')
     return dict(policy=policy, capital=str(capital), execution=execution, trace=trace, tags=dict(tags), needs_stop=needs_stop,
-        strict_budget=model=='saved-trade-stop-budget-v1')
+        strict_budget=model=='saved-trade-stop-budget-v1',trade_handling=handling)
 
 
 def with_tags(context, **tags):
@@ -90,7 +93,7 @@ def before_trade(runtime, trade, equity, floor, daily_floor, provider_cap, user_
         account_floor_from_initial=decimal_float(floor),
         daily_floor_from_initial=None if daily_floor == -float('inf') else decimal_float(daily_floor),
         provider_max_contracts=whole_cap(provider_cap), user_max_contracts=whole_cap(user_cap))
-    decision = choose_quantity(runtime['policy'], state, risk, runtime['execution'],reject_budget_at_floor=runtime['strict_budget'])
+    decision = choose_quantity(runtime['policy'], state, risk, runtime['execution'],reject_budget_at_floor=runtime['strict_budget'],trade_handling=runtime['trade_handling'])
     return dict({**runtime['tags'], 'phase': phase, 'session_index': session, 'opportunity_index': index},
         source_trade_id=metadata.get('source_trade_id') if metadata else None,
         decision_time_utc=risk.sizing_decision_time_utc if risk else None,
@@ -102,4 +105,19 @@ def finish_trace(runtime, record, equity, hit, outcome):
     if runtime['trace'] is not None:
         after = dict(record['state_before'], equity_change_from_initial=decimal_float(equity))
         runtime['trace'](dict(record, state_after=after, equity_after=after['equity_change_from_initial'],
+            **(dict(account_limit_exit=bool(record['quantity'] and hit),limit_kind='account' if hit==2 else 'daily' if hit==1 else None) if runtime['trade_handling'] else {}),
             account_hit=int(hit), outcome=outcome))
+
+
+def saved_limit_result(runtime, trade, equity, floor, daily_floor, quantity):
+    """MAE is an outcome check only. Fixed intratrade floors, ideal limit fills.
+
+    No ordering is inferred from MAE: the nearer loss floor is crossed first,
+    an account floor wins ties, and the caller stops this session immediately.
+    """
+    if runtime is None or runtime['trade_handling'] is None:return None
+    threshold=max(floor,daily_floor)
+    loss=max(trade[1],-trade[0])*quantity/10.
+    if loss >= equity-threshold:
+        return threshold,2 if floor>=daily_floor else 1
+    return None

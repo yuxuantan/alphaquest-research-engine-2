@@ -404,7 +404,9 @@ def write_sizing_artifacts(staged, calculations):
     fields = ['candidate_id', 'source_trade_id', 'stage', 'path_index', 'attempt', 'session_index',
         'source_session_index', 'calendar_date', 'quantity', 'action', 'requested_contracts',
         'denominator', 'denominator_value', 'risk_budget', 'planned_risk_per_mnq',
-        'planned_total_risk', 'caps', 'reasons', 'state_before', 'state_after', 'account_hit', 'outcome']
+        'planned_total_risk', 'caps', 'reasons', 'state_before', 'state_after', 'account_hit', 'outcome',
+        'account_limit_action', 'minimum_one_override', 'risk_budget_override', 'actual_risk_percent',
+        'account_limit_exit', 'limit_kind']
     rows = []
     for candidate in calculations['candidates']:
         provenance = candidate.get('provenance') or candidate.get('component', {}).get('provenance', {})

@@ -17,6 +17,7 @@ from .research_campaigns import CampaignRequest,FreezeRequest
 from .prop.phase_profiles import rule_version
 from .prop.assessment_review import AssessmentLimits
 from .prop.sizing_search import PercentageGrid
+from .prop.sizing import TradeHandling
 
 
 PROFILE='apex-50k-eod'
@@ -54,6 +55,8 @@ class Configuration(BaseModel):
     search_kind: Literal['fixed_contracts','percentage_risk'] = 'fixed_contracts'
     evaluation_percentage_grid: PercentageGrid | None = None
     funded_percentage_grid: PercentageGrid | None = None
+    evaluation_trade_handling: TradeHandling | None = None
+    funded_trade_handling: TradeHandling | None = None
     evaluation_minimum_micros: StrictInt = Field(default=1,ge=1,le=60)
     evaluation_maximum_micros: StrictInt = Field(default=10,ge=1,le=60)
     funded_minimum_micros: StrictInt = Field(default=1,ge=1,le=40)
@@ -121,6 +124,9 @@ class Configuration(BaseModel):
         if self.profile_id != 'lucidflex-50k' and self.evaluation_consistency_percent != 40:
             raise ValueError('The consistency add-on applies only to LucidFlex.')
         for phase in SIZE_LIMITS:
+            handling=getattr(self,phase+'_trade_handling')
+            if handling and handling.minimum_one_contract and self.search_kind!='percentage_risk':
+                raise ValueError('Minimum-one override applies only to percentage-risk sizing.')
             if self.search_kind=='percentage_risk':
                 grid=getattr(self,phase+'_percentage_grid')
                 if grid is None:raise ValueError('Declare independent Evaluation and Funded percentage grids.')
@@ -249,13 +255,22 @@ def declarations(body,source):
                 receipt_delay_calendar_days=body.receipt_delay_calendar_days,bootstrap_replicates=100,
                 constraints=dict(maximum_account_breach_probability=body.maximum_funded_breach_probability,maximum_position_size=maximum))
         reference=dict(backtest_id=source['source_backtest_id'],sizes=list(range(minimum,maximum+1)))
+        handling=getattr(body,phase+'_trade_handling')
+        references=[reference]
+        planning=dict(tick_size='0.25',point_value='2',entry_slippage_ticks=native['execution_settings']['slippage_ticks'],
+            stop_exit_slippage_ticks=native['execution_settings']['slippage_ticks'],commission_per_contract_per_side=body.commission_per_mnq_side)
         if percentage:
-            planning=dict(tick_size='0.25',point_value='2',entry_slippage_ticks=native['execution_settings']['slippage_ticks'],
-                stop_exit_slippage_ticks=native['execution_settings']['slippage_ticks'],commission_per_contract_per_side=body.commission_per_mnq_side)
-            from .prop.saved_trade_simulation import MODEL
-            reference.update(sizes=[percentage.maximum_contracts],sizing_policies=[asdict(p) for p in percentage.policies(planning,execution_model=MODEL)])
+            from .prop.saved_trade_simulation import MODEL, ACCOUNT_MODEL
+            reference.update(sizes=[percentage.maximum_contracts],sizing_policies=[asdict(p) for p in percentage.policies(planning,
+                execution_model=ACCOUNT_MODEL if handling else MODEL,trade_handling=handling.model_dump(mode='json') if handling else None)])
+        elif handling:
+            from .prop.phase_profiles import SizingConfiguration
+            from .prop.saved_trade_simulation import ACCOUNT_MODEL
+            references=[dict(backtest_id=source['source_backtest_id'],sizes=[size],sizing_policies=[asdict(SizingConfiguration(
+                dict(kind='fixed_contracts',contracts=size,maximum_contracts=maximum),'50000',planning,ACCOUNT_MODEL,handling.model_dump(mode='json')))])
+                for size in range(minimum,maximum+1)]
         definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,
-            sources=[reference],
+            sources=references,
             simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=account['limits'][phase]),
             phase=phase,profile=phase_profile,sampling=sampling,search_settings=settings,
             **(dict(retry=dict(activation_delay_sessions=0)) if phase=='evaluation' and body.profile_id=='lucidflex-50k' else {})))
@@ -278,6 +293,8 @@ def _check(request,body):
         try:checks[phase]=request.app.state.campaigns.expand(declaration)
         except ValueError as exc:raise ValueError(f'{phase.title()} sizing search: {exc}') from exc
     disclosure=(DISCLOSURE if body.search_kind=='fixed_contracts' else 'Saved-trade stop-budget model: size from the causal submitted reference and protective stop, including costs. Reject a requested budget that reaches either remaining account or daily allowance. Frozen saved opportunities; immediate non-widening stops and exact limit fills; no gap overshoot or new alternative setups. MAE is not used. Breaches are largely prevented by construction. IS selects independently; frozen OOS never reselects. Strategy OOS was already accessed.')
+    if body.evaluation_trade_handling or body.funded_trade_handling:
+        disclosure='Saved-trade account policies v2: size from causal stop distance and costs. Per-phase settings choose Skip or Enter with account-limit exit, plus an optional percentage-only one-contract override. Account-limit exits require captured source excursions; OHLC estimates/bounds are labeled. Exact stop/limit fills, no gap overshoot or alternative setups. Settings freeze before OOS; deviations are diagnostic warnings, not new eligibility gates.'
     return dict(status='compatible',source=source,phases=checks,disclosure=disclosure),definitions
 
 
@@ -726,7 +743,7 @@ async def validation_report(id:UUID,phase:str,attempt_id:UUID,request:Request,su
             calculations=dict(report['calculations'])
             calculations.pop('qualification_bootstrap',None)
             calculations.pop('qualification_complementary',None)
-            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification','quantity_summary')
+            fields=('candidate_id','frozen_candidate_id','configuration','metrics','status','scenario','uncertainty','is_comparison','chronological_replay','outcome_summary','economic_assessment','prop_qualification','quantity_summary','simulation_model')
             calculations['candidates']=[dict({k:r[k] for k in fields if k in r},
                 **({'observed_bar_diagnostics':r['native_forecast']['observed_bar_diagnostics']}
                    if r.get('native_forecast',{}).get('observed_bar_diagnostics') else {})) for r in calculations['candidates']]

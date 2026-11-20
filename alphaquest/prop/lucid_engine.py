@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import cython
 from .native_money import money_add, money_sub, money_mul, money_half, money_sum, rule_constant
-from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags
+from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags, saved_limit_result
 from .native_engine import risk_hit, sampled_days
 from .lucid_rules import EVALUATION_INITIAL_HORIZON, EVALUATION_MAX_HORIZON
 
@@ -97,14 +97,15 @@ class FundedAccount:
             try:
                 self.trades_consumed+=1
                 previous=self.equity
-                self.equity,hit=trade_result(trade,self.equity,size,daily_floor,floor)
+                limited=saved_limit_result(runtime,trade,self.equity,floor,daily_floor,size)
+                self.equity,hit=limited if limited is not None else trade_result(trade,self.equity,size,daily_floor,floor)
                 self.last_hit=hit
                 if abs(self.equity-previous)>=1:self.last_activity=calendar_day
                 if hit==2:self.outcome='blown';return 0.
                 profit=self.equity-opening
                 # With DLL on, eligibility is checked at observed completed-trade
                 # marks; a request stops trading for the remainder of that session.
-                if r.daily_loss is not None and (len(trade)<4 or trade[3]) and self._eligible(profit):
+                if not hit and r.daily_loss is not None and (len(trade)<4 or trade[3]) and self._eligible(profit):
                     amount=self._withdraw();break
                 if hit:break
             finally:
@@ -206,7 +207,8 @@ def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,d
                 continue
         try:
             consumed+=1;previous=equity
-            equity,hit=trade_result(trade,equity,size,daily_floor,floor)
+            limited=saved_limit_result(runtime,trade,equity,floor,daily_floor,size)
+            equity,hit=limited if limited is not None else trade_result(trade,equity,size,daily_floor,floor)
             if abs(equity-previous)>=1:last_activity=calendar
             if hit==2:result='blown';break
             if hit:break

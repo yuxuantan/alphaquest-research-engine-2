@@ -2023,6 +2023,12 @@ dialog::backdrop {
 .prop-sim-phase-config h3, .prop-sim-quality h3 { margin:0 0 8px; font-size:17px; }
 .prop-sim-phase-config .prop-sim-settings { grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:0; }
 .prop-sim-settings input, .prop-sim-settings select { width:100%; min-width:0; box-sizing:border-box; }
+.prop-sim-trade-handling { min-width:0; }
+.prop-sim-trade-handling label:has(input[type="checkbox"]) { display:flex; align-items:flex-start; gap:9px; margin-top:14px; }
+.prop-sim-trade-handling input[type="checkbox"] { width:auto; flex:none; margin-top:3px; }
+.prop-trade-behavior { margin:18px 0; min-width:0; }
+.prop-trade-behavior > summary { cursor:pointer; font-weight:600; }
+.prop-trade-behavior pre { white-space:pre-wrap; overflow-wrap:anywhere; }
 .prop-sim-quality .prop-sim-settings { grid-template-columns:repeat(2,minmax(0,1fr)); max-width:600px; }
 .prop-sim-advanced { padding:16px 0; border-top:1px solid #e6ecef; }
 .prop-sim-advanced > summary { cursor:pointer; color:#526875; font-weight:600; }

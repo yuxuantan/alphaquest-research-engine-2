@@ -9,7 +9,19 @@ from test_percentage_automatic import native_source_pair,install_admission_fixtu
 
 def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path):
  from test_saved_trade_simulation import saved_source_pair
- with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:source=saved_source_pair(client)
+ # Scale the actual synthetic input prices, not recorded trade outcomes. The
+ # normal strategy/backtest captures a $200/MNQ stop and $40 adverse excursion.
+ from decimal import Decimal
+ import native_replay_fixtures as prices
+ original_prices=prices.source_bytes
+ def wide_prices(**kwargs):
+  raw=original_prices(**kwargs).decode().splitlines();rows=[raw[0]]
+  for line in raw[1:]:
+   cells=line.split(',');cells[2:6]=[str(Decimal(100)+(Decimal(v)-100)*20) for v in cells[2:6]];rows.append(','.join(cells))
+  return ('\n'.join(rows)+'\n').encode()
+ with monkeypatch.context() as m:
+  m.setattr(prices,'source_bytes',wide_prices)
+  with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:source=saved_source_pair(client)
  install_admission_fixture(monkeypatch,source)
  entered,release=Event(),Event();store=portal['app'].state.prop_analyses;original=store._update
  def hold(*a,**kw):
@@ -21,14 +33,23 @@ def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path
  errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
  page.goto(portal['url']+'/#prop-sim?source='+source['source_backtest_id'])
  playwright.expect(page.locator('#prop-sim-source')).to_have_value('0',timeout=30000)
+ page.get_by_role('link',name='Open IS source backtest',exact=True).click()
+ playwright.expect(page).to_have_url(portal['url']+'/#backtests/report/'+source['source_backtest_id'])
+ playwright.expect(page.locator('#report-prop-setup')).to_be_visible()
+ page.get_by_role('navigation',name='Main navigation',exact=True).get_by_role('link',name='Prop Sim',exact=True).click()
+ page.locator('#prop-sim-source').select_option('0')
  page.locator('#prop-sim-search-kind').select_option('percentage_risk')
  for phase in ('evaluation','funded'):
-  for key,value in [('minimum','.2'),('maximum','.3'),('step','.1')]:page.locator(f'#prop-sim-{phase}-risk-{key}').fill(value)
+  for key,value in [('minimum','.01'),('maximum','20.01'),('step','20')]:page.locator(f'#prop-sim-{phase}-risk-{key}').fill(value)
+  page.locator(f'#prop-sim-{phase}-account-limit-action').select_option('exit_at_limit' if phase=='evaluation' else 'skip')
+  page.locator(f'#prop-sim-{phase}-minimum-one-contract').check()
  assert page.locator('[id$="risk-constrain_to_account_cushion"]').count()==0
  page.locator('#prop-sim-simulations').fill('8');page.locator('#prop-sim-block_weekdays').select_option('1')
  page.locator('#prop-sim-funded_horizon_calendar_days').fill('9')
  page.get_by_text('Costs, calendar and optional risk settings',exact=True).click()
  page.locator('#prop-sim-start_date').fill('2026-01-12');page.locator('#prop-sim-commission_per_mnq_side').fill('0')
+ page.locator('#prop-sim-check').click()
+ playwright.expect(page.locator('#prop-sim-status')).to_contain_text('Source compatible',timeout=30000)
  page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'saved-trade-configuration.png'))
  with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/api/prop-sim'),timeout=180000) as response:page.locator('#prop-sim-run').click()
  assert response.value.status==202,response.value.text();id=response.value.json()['id']
@@ -46,16 +67,35 @@ def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path
    time.sleep(.1)
   assert all(s['stage']=='complete' for s in saved['automation']['phases'].values()),saved
   for phase in ('evaluation','funded'):
+   dataset=client.get('/api/datasets/'+source['dataset']['id']+'/csv');assert dataset.status_code==200
+   (tmp_path/'SYNTHETIC-trade-handling-bars.csv').write_bytes(dataset.content)
    job=saved['phases'][phase]['analysis_id']
    for name in ('report.json','analysis.zip','saved_trade_model.json','sizing_decisions.csv'):
     r=client.get(f'/api/prop-analyses/{job}/downloads/{name}');assert r.status_code==200,r.text
     (tmp_path/(phase+'-'+name)).write_bytes(r.content)
+   results=json.loads((tmp_path/(phase+'-report.json')).read_text())['calculations']['candidates']
+   small=next(r for r in results if r['manifest']['configuration']['sizing']['policy']['risk_percent']=='0.01')
+   assert small['quantity_summary']['risk_budget_override_rate']==1
+   assert Decimal(small['quantity_summary']['mean_actual_risk_percent'])==Decimal('.4')
+   large=next(r for r in results if r['manifest']['configuration']['sizing']['policy']['risk_percent']=='20.01')
+   if phase=='evaluation':assert large['quantity_summary']['account_limit_exit_rate']==1
+   else:assert large['quantity_summary']['skipped_rate']==1
    state=saved['automation']['phases'][phase]
    r=client.get(f"/api/prop-sim/{id}/validation/{phase}/{state['oos_request_id']}")
    assert r.status_code==200,r.text;(tmp_path/(phase+'-oos.json')).write_text(r.text)
+   expected=dict(account_limit_action='exit_at_limit' if phase=='evaluation' else 'skip',minimum_one_contract=True)
+   assert saved['configuration'][phase+'_trade_handling']==expected
+   for row in r.json()['calculations']['candidates']:
+    assert row['configuration']['sizing']['trade_handling']==expected
+    assert 'risk_budget_override_rate' in row['quantity_summary']
  page.goto(portal['url']+'/#prop-sim?analysis='+id)
  for phase in ('evaluation','funded'):
   playwright.expect(page.locator('#prop-sim-'+phase+'-conclusion')).to_contain_text('evidence gaps',ignore_case=True,timeout=30000)
+  playwright.expect(page.locator('#prop-sim-'+phase+'-results [data-trade-behavior="IS"]')).to_contain_text('Skipped opportunities')
+  playwright.expect(page.locator(f'[data-trade-handling-warning={phase}]')).to_contain_text('risk-budget overrides')
+  page.locator('#prop-sim-'+phase+'-insight').get_by_role('button',name='Review trade-handling impact').click()
+  page.locator('#prop-sim-'+phase+'-results [data-trade-behavior="IS"]').screenshot(path=str(tmp_path/(phase+'-trade-handling.png')))
+  playwright.expect(page.locator('#prop-sim-'+phase+'-results [data-trade-behavior="OOS / assessment"]')).to_contain_text('Account-limit exits')
  playwright.expect(page.locator('#prop-sim-results')).not_to_contain_text('NaN')
  page.locator('#prop-sim-results').screenshot(path=str(tmp_path/'saved-trade-results.png'))
  page.set_viewport_size(dict(width=390,height=844));assert page.locator('body').evaluate('(e)=>e.scrollWidth<=window.innerWidth+1')

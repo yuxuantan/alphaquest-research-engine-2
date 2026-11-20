@@ -46,6 +46,12 @@ def session(value):
     return (value.astimezone(ZoneInfo('America/Chicago')).replace(tzinfo=None)+timedelta(hours=7)).date()
 
 
+class TradeHandling(Contract):
+    """Frozen saved-trade behavior; account rules themselves are never disabled."""
+    account_limit_action: Literal['skip', 'exit_at_limit'] = 'skip'
+    minimum_one_contract: StrictBool = False
+
+
 class SizingPolicy(Contract):
     """Percentage values are percent (0.5 means 0.5%), not fractions.
 
@@ -209,7 +215,7 @@ def _distance_loss(distance,tick,point,entry_ticks,exit_ticks,commission):
         entry_slippage_ticks=entry_ticks,stop_exit_slippage_ticks=exit_ticks,commission_per_side=commission)
 
 
-def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_at_floor=False):
+def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_at_floor=False, trade_handling=None):
     """Return an auditable whole-MNQ decision without changing source or state.
 
     The caller owns source admission and account transitions. Stop and cost
@@ -219,7 +225,10 @@ def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_a
     state = AccountSizingState.model_validate(state)
     risk = risk if type(risk) is KnownDecisionRisk else DecisionRisk.model_validate(risk) if risk is not None else None
     execution = PlanningExecution.model_validate(execution) if execution is not None else None
-    needs_stop = policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
+    handling = TradeHandling.model_validate(trade_handling) if trade_handling is not None else None
+    if handling and handling.minimum_one_contract and policy.kind != 'percentage_risk':
+        raise ValueError('Minimum-one override applies only to percentage-risk sizing.')
+    needs_stop = handling is not None or policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
     if needs_stop and (risk is None or execution is None):
         raise ValueError('This policy needs complete causal initial-stop and planning-execution metadata.')
     with localcontext() as ctx:
@@ -245,13 +254,20 @@ def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_a
             else:
                 budget = policy.risk_dollars
             requested = ratio_floor(budget, unit)
+        forced_one = bool(handling and handling.minimum_one_contract and requested == 0 and budget > 0)
+        if forced_one:requested = 1
         caps = dict(policy=policy.maximum_contracts, provider=state.provider_max_contracts, user=state.user_max_contracts)
-        if policy.constrain_to_account_cushion:
+        if policy.constrain_to_account_cushion and handling is None:
             caps['account_cushion'] = ratio_floor(cushion, unit, strict=True)
-        if policy.constrain_to_daily_cushion and daily is not None:
+        if policy.constrain_to_daily_cushion and daily is not None and handling is None:
             caps['daily_cushion'] = ratio_floor(daily, unit, strict=True)
         quantity = min(requested, *caps.values())
         reasons = [key+'_cap' for key,value in caps.items() if value < requested and value == quantity]
+        if forced_one:reasons.append('minimum_one_contract')
+        if handling:
+            for label,available in (('account',cushion),('daily',daily)):
+                if available is not None and (available <= 0 or (handling.account_limit_action == 'skip' and unit*quantity >= available)):
+                    quantity=0;reasons.append('planned_position_risk_reaches_'+label+'_limit')
         if reject_budget_at_floor:
             if budget is None:raise ValueError('Strict budget admission requires a declared risk budget.')
             for label,available in (('account',cushion),('daily',daily)):
@@ -260,10 +276,18 @@ def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_a
         if quantity < policy.minimum_contracts:
             quantity = 0
             reasons.append('below_minimum_tradable_quantity')
+        extra = {}
+        if handling:
+            override = quantity > 0 and budget is not None and unit*quantity > budget
+            if override:reasons.append('risk_budget_override')
+            base = basis if basis is not None else state.initial_configured_capital
+            extra = dict(minimum_one_override=bool(forced_one and quantity),risk_budget_override=override,
+                actual_risk_percent=str(unit*quantity/base*100) if quantity and base > 0 else None,
+                account_limit_action=handling.account_limit_action)
         return dict(quantity=quantity, action='trade' if quantity else 'skip', requested_contracts=requested,
                     denominator=policy.reference, denominator_value=str(basis) if basis is not None else None,
                     risk_budget=str(budget) if budget is not None else None,
                     planned_risk_per_mnq=str(unit) if unit is not None else None,
                     planned_total_risk=str(unit*quantity) if unit is not None else None,
-                    caps=caps, reasons=reasons,
+                    caps=caps, reasons=reasons, **extra,
                     interpretation='Planning stop loss including declared costs; no gap guarantee. This amount sizes quantity only and is never deducted again from source net P&L.')

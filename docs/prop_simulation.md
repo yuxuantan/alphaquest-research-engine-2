@@ -3693,3 +3693,22 @@ with the original settings; earlier cancelled records remain inspectable.
 Source feature compilation, requested path counts, seeds, phase independence,
 automatic selection and OOS qualification rules are unchanged. Working-order
 event skipping beyond the previously qualified behavior is a separate change.
+
+## 2026-11-20 — Configurable saved-trade account policies v2
+
+New main-portal fixed-contract and percentage searches freeze trade handling
+independently for Evaluation and Funded. Defaults: Skip trade when its actual
+whole-position stop risk reaches the remaining daily/account allowance; minimum
+one contract off. Alternatively, enter with an exact account-limit exit detected
+from captured source excursions, and optionally force one MNQ for percentage
+budgets too small to afford one. MAE never sizes entries. Provider caps remain
+mandatory. Missing excursion evidence rejects early-exit mode.
+
+IS and OOS show skip, daily/account-limit-exit and over-budget rates, counts,
+reasons, examples and mean/maximum actual planned risk percentage. Any nonzero
+deviation is a warning, not a new eligibility gate. Sampled opportunity counts
+are not unique source coverage. The numerical model is
+`saved-trade-account-policies-v2`; original reports retain their old identities.
+Frozen OOS/stress/start scenarios use the same settings without reselection.
+The complete formulas, restrictions, provenance and compatibility contract are
+in `docs/saved_trade_prop_simulation.md` under Account-policy v2.

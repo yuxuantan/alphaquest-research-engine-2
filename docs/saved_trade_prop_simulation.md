@@ -1,4 +1,12 @@
-# Saved-trade percentage-risk Prop Sim
+# Saved-trade Prop Sim
+
+Current portal model: **`saved-trade-account-policies-v2`** (2026-11-20).
+Both fixed-contract and percentage searches expose independent Evaluation and
+Funded trade-handling settings. See [Account-policy v2](#account-policy-v2).
+The v1 description below explains historical sealed reports and compatible
+legacy API requests; it does not describe newly configured portal runs.
+
+## Historical stop-budget v1
 
 Implemented model: `saved-trade-stop-budget-v1` (2026-11-20).
 
@@ -131,3 +139,89 @@ Their code is retained for those purposes; deleting them would remove unrelated
 features and break old evidence. They are not a hidden fallback for the new
 saved-trade percentage optimizer. Numerical/model changes invalidate old frozen
 packages for new execution; original downloadable reports remain readable.
+
+## Account-policy v2
+
+The portal always declares `evaluation_trade_handling` and
+`funded_trade_handling`, each with `account_limit_action` (`skip` by default,
+or `exit_at_limit`) and `minimum_one_contract` (false by default, percentage
+searches only). These declarations become each candidate's `SizingConfiguration`
+and freeze with its source, costs, model identity and IS selection. Frozen OOS,
+stress, precision and chronological-start assessments carry the same settings.
+Changing settings creates a new simulation; it never revises an old IS package
+or reselects in OOS. API requests omitting these additive declarations retain
+their historical route for compatibility. Native portfolios and standalone
+native execution remain separate and unchanged in scope.
+
+### Causal quantity and account admission
+
+For a percentage policy, compute dollar budget B from its declared reference.
+Calculate unit planned risk U from the known submitted entry reference, initial
+protective stop and declared loss-side costs, as in v1. Quantity starts at
+floor(B/U). An enabled minimum-one option raises zero quantity to one only when
+B is positive. Apply provider tiers and user/policy ceilings; the option cannot
+defeat zero capacity or restore a terminated account. Fixed policies start from
+their declared contract count and retain provider caps.
+
+Compute intended whole-position risk Q*U **after caps**, then read current
+remaining account and enabled daily allowances. In `skip` mode, touching or
+exceeding either allowance rejects the trade; never silently shrink Q to fit.
+This intentionally supersedes v1's requested-budget-before-caps rejection.
+For example, a requested $2,000 budget capped to one $11-risk MNQ can trade with
+$12 remaining, but cannot trade with $11 remaining. Admission never uses MAE.
+
+With minimum-one on, a $5 budget and $11 unit risk trade one MNQ if the account
+policy admits it. Record $11 actual planned loss and 0.022% of a $50,000
+reference; do not label it as 0.01% risk. With minimum-one off it skips. If the
+one contract exceeds an account allowance, the account-limit action still owns
+the outcome: skip, or enter with an account-limit exit. The override is rejected
+for fixed contracts. Account-cushion quantity-reducing guards cannot be combined
+with v2: its two explicit actions own this decision.
+
+### Captured excursions and ideal account-limit exits
+
+`exit_at_limit` requires valid captured source excursions for every source trade,
+including winners and excluded dates. Missing excursions reject with instructions
+to capture them or choose Skip. A realized-loss fallback is never sufficient.
+Existing native risk CSVs retain checksums; commission adaptation stays shared
+and occurs once. Tick observations, MultiCharts modeled OHLC paths, conservative
+held-OHLC upper bounds and measured exports retain distinct provenance. An OHLC
+bound is not relabeled measured tick MAE.
+
+Bound modeled losing outcomes and adverse loss at the initial protective stop
+under the immediate, non-widening, ideal-stop assumption. Scale cost-adjusted
+captured adverse loss to Q. If it reaches the nearer account floor, replace the
+saved outcome with a loss ending **exactly at that floor**. Account floor wins
+a tie. Daily hits pause the rest of the session; account hits terminate that
+account (Evaluation retries stay with the existing retry owner). A later winner
+can become a limit loss. Never size from MAE, infer new setups, deduct another
+exit fee after a cost-inclusive exact limit loss, or retain a post-breach winner.
+
+This shortcut assumes nonoverlapping positions, fixed intratrade daily/EOD-account
+floors, loss limits that end trading for the session, and exact threshold fills.
+It cannot reconstruct an intraday high-water trailing floor or synchronized
+multi-position portfolio from scalar MAE. Gap overshoot, latency and liquidity
+remain excluded. Full original entry/exit fidelity is not claimed.
+
+### Diagnostics and interpretation
+
+All visited eligible opportunities are aggregated. Skip rate uses visited
+opportunities; account-limit-exit and over-budget rates use admitted entries.
+Later opportunities after funding, mandatory pause or account termination are
+excluded, rather than counted as affordability skips. Repeated Monte Carlo visits
+are explicitly distinct from the unique original `source_trade_count`.
+
+For each sizing row, IS and OOS expose skipped counts/rates and reasons,
+account-limit exits split into daily pauses and account breaches, over-budget
+entry counts/rates, and mean/maximum actual planned risk as a percent of its
+reference (initial $50,000 for fixed contracts). Examples include causal risk,
+quantity, before/after state and reason. Any nonzero deviation is a review warning;
+no arbitrary automatic eligibility threshold is imposed. Unresolved IS sizes
+also retain these diagnostics. Large deviations call for reviewing account fit
+and strategy fidelity in a new IS study, not replacement selection in OOS.
+
+Existing report JSON, `sizing_summary.json`, `sizing_decisions.csv`,
+`saved_trade_model.json` and sealed evidence ZIP retain policy, provenance and
+counters. Complete summaries survive the existing individual trace-detail bound;
+examples are separately bounded. Complementary baseline/stress summaries carry
+their own counters. Original reports and v1 verdicts are never rewritten.

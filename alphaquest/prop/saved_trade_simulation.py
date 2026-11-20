@@ -16,6 +16,7 @@ from threading import RLock
 from .adapter import canonical, digest
 
 MODEL = 'saved-trade-stop-budget-v1'
+ACCOUNT_MODEL = 'saved-trade-account-policies-v2'
 ASSUMPTIONS = dict(model=MODEL,
     opportunities='Frozen nonoverlapping saved trades; skipped opportunities do not reveal new setups or change later signals.',
     sizing='Known submission reference and initial protective stop, whole MNQ rounded down, declared loss-side costs included. Never realized MAE or a future entry fill.',
@@ -27,12 +28,21 @@ _cache = OrderedDict()
 _lock = RLock()
 
 
+def assumptions(sizing):
+    if sizing.execution_model==MODEL:return deepcopy(ASSUMPTIONS)
+    return dict(model=ACCOUNT_MODEL,trade_handling=deepcopy(sizing.trade_handling),
+        opportunities=ASSUMPTIONS['opportunities'],sizing=ASSUMPTIONS['sizing'],fills=ASSUMPTIONS['fills'],
+        admission='Intended whole-position stop risk after provider/user caps. Skip at either remaining allowance, or enter with exact account-limit exits, as frozen per phase.',
+        outcomes='Saved outcomes with bounded stop losses. Account-limit exits use cost-adjusted captured source excursions, capped at the assumed immediate protective stop; MAE never sizes an entry.',
+        limitations='Frozen saved opportunities; no alternative setups. OHLC excursions are model estimates or conservative bounds, not measured tick paths. Exact limit fills exclude gaps and liquidity risk.')
+
+
 class PathProgress:
     """Throttled completed-path metadata; never changes the financial work."""
     def __init__(self,callback,sizing,label=None):
         from time import monotonic
         self.callback,self.started,self.last=callback,monotonic(),0
-        self.label=label or (str(sizing.policy['risk_percent'])+'% · '+sizing.policy['reference'].replace('_',' '))
+        self.label=label or (f"{sizing.policy['contracts']} MNQ" if sizing.policy['kind']=='fixed_contracts' else str(sizing.policy['risk_percent'])+'% · '+sizing.policy['reference'].replace('_',' '))
 
     def __call__(self,completed,total):
         from time import monotonic
@@ -45,7 +55,7 @@ class PathProgress:
 
 
 def enabled(sizing):
-    return sizing is not None and sizing.execution_model == MODEL
+    return sizing is not None and sizing.execution_model in (MODEL,ACCOUNT_MODEL)
 
 
 def describe_results(rows):
@@ -54,7 +64,7 @@ def describe_results(rows):
         provenance=row.get('provenance') or row.get('component',{}).get('provenance',{})
         model=provenance.get('source',{}).get('saved_trade_simulation')
         if model:
-            row['simulation_model']=deepcopy(ASSUMPTIONS)
+            row['simulation_model']={k:deepcopy(v) for k,v in model.items() if k not in ('causal_plans','causal_plan_provenance','bounded_losses')}
             summary=deepcopy(provenance.get('sizing',{}).get('summary',{}))
             counts={int(q):n for q,n in summary.get('quantity_counts',{}).items() if int(q)>0}
             admitted=sum(counts.values());n=summary.get('decision_count',0)
@@ -64,15 +74,19 @@ def describe_results(rows):
                 for q,count in sorted(counts.items()):
                     seen+=count
                     if seen>=target:return q
-            summary.update(opportunities=n,all_recorded_opportunities=n,account_halted_opportunities=0,admitted_entries=admitted,
+            summary.update(opportunities=n,all_recorded_opportunities=n,source_trade_count=model.get('source_trades'),account_halted_opportunities=None,admitted_entries=admitted,
                 skipped_entries=summary.get('skipped_count',0),skipped_rate=summary.get('skipped_count',0)/n if n else None,
                 mean_quantity=sum(q*count for q,count in counts.items())/admitted if admitted else None,
                 median_quantity=quantile(.5) if admitted else None,p95_quantity=quantile(.95) if admitted else None,
                 minimum_quantity=min(counts) if counts else None,maximum_quantity=max(counts) if counts else None,
                 cap_binding_rate=summary.get('cap_bound_count',0)/n if n else None,
-                mean_requested_risk_budget=str(Decimal(summary.get('total_requested_risk_budget','0'))/n) if n else None,
+                mean_requested_risk_budget=str(Decimal(summary.get('total_requested_risk_budget','0'))/summary['risk_budget_count']) if summary.get('risk_budget_count') else None,
                 mean_admitted_planned_risk=str(Decimal(summary.get('total_admitted_planned_risk','0'))/n) if n else None,
-                scope='All visited saved opportunities; quantity statistics cover admitted entries. No counterfactual alternative setups.')
+                scope='Monte Carlo visited eligible opportunities, not unique historical trades. After pass, termination or mandatory pause, later opportunities are excluded. Quantity/risk/exit rates cover admitted entries; skip rate covers visited opportunities.')
+            for name in ('account_limit_exit','daily_limit_exit','account_breach_exit','risk_budget_override'):
+                summary[name+'_rate']=summary.get(name+'_count',0)/admitted if admitted else None
+            risk_count=summary.get('actual_risk_count',0)
+            summary['mean_actual_risk_percent']=str(Decimal(summary.get('total_actual_risk_percent','0'))/risk_count) if risk_count else None
             row['quantity_summary']=summary
     return rows
 
@@ -208,7 +222,9 @@ def adapt_saved_trades(runs,snapshot,rows,sizing):
     rate=Decimal(str(rate))
     if rate!=planning.commission_per_contract_per_side:
         raise ValueError('Sizing planning commission must equal the saved-trade simulation commission.')
-    previous=None;metadata={};bounded=[]
+    previous=None;metadata={};bounded=[];coverage={}
+    current=sizing.execution_model==ACCOUNT_MODEL
+    needs_mae=current and sizing.trade_handling['account_limit_action']=='exit_at_limit'
     for row in sorted(rows,key=lambda r:(r['entry_utc'],int(r['trade_id']))):
         if session_date(instant(row['entry_utc']))!=session_date(instant(row['exit_utc'])):
             raise ValueError('Saved stop-budget simulation requires each source trade to be session-flat.')
@@ -226,12 +242,23 @@ def adapt_saved_trades(runs,snapshot,rows,sizing):
         raw=Decimal(row['simulation_net_per_nq'])/10
         net=max(raw,-unit)
         if net!=raw:bounded.append(dict(source_trade_id=str(row['trade_id']),source_net_per_mnq=str(raw),modeled_net_per_mnq=str(net)))
-        row.update(simulation_net_per_nq=str(net*10),simulation_mae_per_nq=str(max(Decimal(0),-net)*10),
+        adverse=max(Decimal(0),-net)*10
+        if current:
+            measured=row.get('ohlc_mae_upper') is not None or row.get('measured_mae') is not None
+            if needs_mae and not measured:
+                raise ValueError(f"Account-limit exits require captured source MAE for every trade; trade {row['trade_id']} has only a realized-loss fallback. Rerun the source backtest with intratrade risk capture, or choose Skip trade.")
+            basis=snapshot.get('excursion_input',{}).get('risk_policy','measured_trade_export' if measured else 'realized_loss_fallback')
+            coverage[basis]=coverage.get(basis,0)+1
+            if measured and needs_mae:
+                observed=Decimal(row['simulation_mae_per_nq'])
+                if not observed.is_finite() or observed<0:raise ValueError('Captured source MAE must be finite and nonnegative.')
+                adverse=max(adverse,min(observed,unit*10))
+        row.update(simulation_net_per_nq=str(net*10),simulation_mae_per_nq=str(adverse),
             simulation_adverse_path_per_nq='[]',risk_cross_session=False)
         metadata[str(row['trade_id'])]=item;previous=row['exit_utc']
-    snapshot['saved_trade_simulation']=dict(**ASSUMPTIONS,causal_plan_provenance=proof,causal_plans=metadata,
+    snapshot['saved_trade_simulation']=dict(**assumptions(sizing),causal_plan_provenance=proof,causal_plans=metadata,
         source_trades=len(rows),bounded_loss_count=len(bounded),bounded_losses=bounded,
-        mae_used=False,alternative_opportunities_generated=False)
-    snapshot['phase_suitability']=dict(fixed_quantity=True,risk_covered_trades=0,
+        mae_used=needs_mae,excursion_coverage=coverage,alternative_opportunities_generated=False)
+    snapshot['phase_suitability']=dict(fixed_quantity=True,risk_covered_trades=len(rows) if needs_mae else 0,
         instrument=snapshot['commission_simulation']['source_instrument'],scaling=ASSUMPTIONS['opportunities'])
     return metadata

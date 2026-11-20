@@ -312,15 +312,24 @@ class SizingConfiguration:
     initial_configured_capital: str
     planning_execution: dict
     execution_model: str | None = None
+    trade_handling: dict | None = None
 
     def __post_init__(self):
-        from .sizing import SizingPolicy, PlanningExecution, amount
+        from .sizing import SizingPolicy, PlanningExecution, TradeHandling, amount
         policy = SizingPolicy.model_validate(self.policy)
         planning = PlanningExecution.model_validate(self.planning_execution)
-        if self.execution_model not in (None,'saved-trade-stop-budget-v1'):
+        if self.execution_model not in (None,'saved-trade-stop-budget-v1','saved-trade-account-policies-v2'):
             raise ValueError('Unknown saved-trade sizing execution model.')
-        if self.execution_model is not None and policy.kind=='fixed_contracts':
+        if self.execution_model == 'saved-trade-stop-budget-v1' and policy.kind=='fixed_contracts':
             raise ValueError('Stop-budget simulation requires an explicit risk budget.')
+        if self.execution_model == 'saved-trade-account-policies-v2':
+            handling=TradeHandling.model_validate(self.trade_handling if self.trade_handling is not None else {})
+            if handling.minimum_one_contract and policy.kind!='percentage_risk':raise ValueError('Minimum-one override applies only to percentage-risk sizing.')
+            if policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion:
+                raise ValueError('Choose skip or account-limit exit; do not also declare quantity-reducing cushion guards.')
+            object.__setattr__(self,'trade_handling',handling.model_dump(mode='json'))
+        elif self.trade_handling is not None:
+            raise ValueError('Trade handling requires the versioned saved-trade account-policy model.')
         if amount(self.initial_configured_capital) != Decimal('50000'):
             raise ValueError('Supported 50K profiles require initial_configured_capital of 50000; source backtest equity is not the prop account balance.')
         if planning.tick_size != Decimal('0.25'):
@@ -331,14 +340,15 @@ class SizingConfiguration:
 
     @property
     def needs_stop(self):
-        return (self.policy['kind'] != 'fixed_contracts' or self.policy['constrain_to_account_cushion']
+        return (self.execution_model == 'saved-trade-account-policies-v2' or self.policy['kind'] != 'fixed_contracts' or self.policy['constrain_to_account_cushion']
                 or self.policy['constrain_to_daily_cushion'])
 
     def kernel_arguments(self, **context):
         return dict(sizing_policy=self.policy, sizing_context=dict(
             initial_configured_capital=self.initial_configured_capital,
             planning_execution=self.planning_execution, trace_context=context,
-            **({'execution_model':self.execution_model} if self.execution_model else {})))
+            **({'execution_model':self.execution_model} if self.execution_model else {}),
+            **({'trade_handling':self.trade_handling} if self.trade_handling is not None else {})))
 
 
 class SizingTrace:
@@ -362,10 +372,31 @@ class SizingTrace:
         if self.configuration and self.configuration.execution_model:
             from ..decimal_math import add
             d=decision['decision']
-            summary['risk_budget_count']=summary.get('risk_budget_count',0)+1
-            summary['total_requested_risk_budget']=str(add(Decimal(summary.get('total_requested_risk_budget','0')),Decimal(d['risk_budget'])))
+            if d['risk_budget'] is not None:
+                summary['risk_budget_count']=summary.get('risk_budget_count',0)+1
+                summary['total_requested_risk_budget']=str(add(Decimal(summary.get('total_requested_risk_budget','0')),Decimal(d['risk_budget'])))
             summary['total_admitted_planned_risk']=str(add(Decimal(summary.get('total_admitted_planned_risk','0')),Decimal(d['planned_total_risk'])))
             summary['cap_bound_count']=summary.get('cap_bound_count',0)+int(q>0 and any(r.endswith('_cap') for r in decision['reasons']))
+            if self.configuration.trade_handling is not None:
+                if not q:
+                    counts=summary.setdefault('skip_reason_counts',{})
+                    for reason in decision['reasons']:counts[reason]=counts.get(reason,0)+1
+                hit=bool(decision.get('account_limit_exit'))
+                for name,flag in (('account_limit_exit',hit),('daily_limit_exit',hit and decision['account_hit']==1),
+                        ('account_breach_exit',hit and decision['account_hit']==2),('risk_budget_override',d.get('risk_budget_override',False))):
+                    summary[name+'_count']=summary.get(name+'_count',0)+int(flag)
+                if q:
+                    actual=Decimal(d['actual_risk_percent'])
+                    summary['actual_risk_count']=summary.get('actual_risk_count',0)+1
+                    summary['total_actual_risk_percent']=str(add(Decimal(summary.get('total_actual_risk_percent','0')),actual))
+                    summary['maximum_actual_risk_percent']=str(max(Decimal(summary.get('maximum_actual_risk_percent','0')),actual))
+                examples=summary.setdefault('behavior_examples',{})
+                for name,flag in (('skipped',q==0),('account_limit_exit',hit),('risk_budget_override',d.get('risk_budget_override',False))):
+                    if flag and len(examples.setdefault(name,[]))<5:
+                        examples[name].append(dict(source_trade_id=decision['source_trade_id'],phase=decision['phase'],
+                            trace_context={k:v for k,v in decision.items() if k not in ('decision','state_before','state_after') and k.endswith('_index')},
+                            quantity=q,reasons=decision['reasons'],decision=d,state_before=decision['state_before'],
+                            equity_after=decision['equity_after'],account_hit=decision['account_hit']))
         if len(self.decisions) < self.limit:
             self.decisions.append(decision)
 
@@ -376,6 +407,8 @@ class SizingTrace:
             interpretation='Every simulated opportunity is aggregated; only the first retained decisions are displayed. Planning costs size quantity and are not deducted from source P&L again. Future gaps and size-dependent execution remain unverified.')
         if self.configuration and self.configuration.execution_model:
             result['interpretation']='Every saved opportunity is aggregated. Quantity uses the causal stop and costs; requested budget must fit both allowances. Immediate bounded stop/limit fills are assumed; no gap overshoot or alternative setups are simulated.'
+            if self.configuration.trade_handling is not None:
+                result['interpretation']='All visited eligible saved opportunities are counted; opportunities after pass, termination or mandatory pause are excluded. Risk sizes from the causal stop. Frozen per-phase trade handling controls skips, minimum-one overrides and exact account-limit exits; MAE checks outcomes only. Rates describe sampled paths, not unique historical coverage or execution parity.'
         return result
 
 

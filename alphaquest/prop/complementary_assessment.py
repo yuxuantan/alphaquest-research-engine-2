@@ -219,22 +219,29 @@ class Runner:
             result=self.native(c,paths,horizon)
         else:
             snapshot,days,settings=prepare_phase_source(self.runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing)
+            from .phase_profiles import SizingTrace
+            trace=SizingTrace(c.sizing,limit=20) if c.sizing is not None and c.sizing.trade_handling is not None else None
             if self.phase=='funded':
                 from .funded_profiles import _dated_funded_paths
                 result,_,_=_dated_funded_paths(days,c.profile,c.micros,horizon,self.search.calendar,
-                    self.search.receipt_delay_calendar_days,c.simulation,c.sampling,c.sizing,checkpoint=self.checkpoint)
+                    self.search.receipt_delay_calendar_days,c.simulation,c.sampling,c.sizing,trace=trace,checkpoint=self.checkpoint)
             elif c.profile.profile_id=='lucidflex-50k':
                 from .evaluation_profiles import calendar_evaluation_paths
-                result,_=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,c.retry,self.search.calendar,checkpoint=self.checkpoint,sizing=c.sizing)
+                result,_=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,c.retry,self.search.calendar,checkpoint=self.checkpoint,sizing=c.sizing,trace=trace)
             else:
                 from .native_analysis import evaluation_model
                 raw=evaluation_model(days,c.micros,paths,c.simulation.seed,c.sampling.block_weekdays,settings,max_micros=c.simulation.max_micros,
-                    **(c.sizing.kernel_arguments(stage='complementary_attempt_sample') if c.sizing else {}))
+                    **(dict(**c.sizing.kernel_arguments(stage='complementary_attempt_sample'),trace=trace) if c.sizing else {}))
                 component=SimpleNamespace(outcomes=[str(v) for v in raw['outcomes']],duration_weekdays=[int(v) for v in raw['days']],censoring=SimpleNamespace(censored_paths=0))
                 result=renewal_paths(component.outcomes,component.duration_weekdays,c,self.search.calendar,self.checkpoint)
             verify_phase_source(self.runs,c.source,snapshot)
         if len(result)!=paths:raise ValueError('Complementary scenario did not retain every requested account path.')
-        return dict(configuration=asdict(c),paths=result,summary=summarize(result,self.phase,horizon))
+        summary=summarize(result,self.phase,horizon)
+        if self.search.native_execution is None and trace is not None:
+            from .saved_trade_simulation import describe_results
+            holder=dict(provenance=dict(source=snapshot,sizing=trace.result()))
+            describe_results([holder]);summary['trade_behavior']=holder['quantity_summary']
+        return dict(configuration=asdict(c),paths=result,summary=summary)
 
     def native(self,candidate,paths,horizon):
         from .native_search import candidate_request,prepare_native_candidate,verify_native_candidate

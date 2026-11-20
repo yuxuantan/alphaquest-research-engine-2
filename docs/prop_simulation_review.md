@@ -13481,3 +13481,78 @@ The focused browser check passed. Read-only verification on the actual port-8000
 portal also passed, without restarting the server or launching a simulation.
 Screenshot and observed labels: `artifacts/dll-display-20261120/` (generated,
 uncommitted evidence).
+
+### 2026-11-20 — Frozen account-limit handling and minimum-one sizing
+
+New Prop Sim configurations expose independent Evaluation/Funded controls:
+**Skip trade** (default) or **Enter with account-limit exit**, and a percentage-only
+**Trade one MNQ when the percentage budget cannot afford one** option (off by
+default). Fixed-contract searches use the same causal stop-risk admission and
+account-limit owner. Excursions are outcome evidence only; missing captured MAE
+rejects early-exit mode. Source OHLC model estimates/bounds retain their labels.
+
+Normal product demonstration: the focused saved-trade browser journey uploads
+labeled synthetic price bars, executes the real registered VWAP strategy and
+source/OOS backtests, inspects its existing report, then uses main Prop Sim
+navigation, source checking, automatic IS/freeze/OOS, report/CSV/model/ZIP downloads,
+and desktop/mobile views. The prior campaign-qualification fixture is explicitly
+synthetic; it does not certify an edge or provider parity. Production history
+minima remain active and the seven-session OOS correctly reports evidence gaps.
+
+The synthetic prices are scaled around 100 by 20 before upload, not by editing
+saved outcomes. Their submitted reference is 460 and stop 360: 100 points times
+$2/MNQ = $200 planned stop risk with zero declared commission. Captured adverse
+excursion is $40/MNQ. Percentage policies are 0.01% and 20.01% of $50,000;
+Evaluation uses account-limit exit, Funded uses Skip, both enable minimum-one.
+At the saved seed/count, expected and independently asserted observations are:
+
+| Phase / policy | Expected observation |
+| --- | --- |
+| Either / 0.01% | $5 requested budget cannot afford $200 risk. One MNQ trades; 100% over-budget entries, 0.40% mean/max actual planned risk. |
+| Evaluation / 20.01% | floor($10,005 / $200) = 50 MNQ. $40 adverse excursion times 50 = $2,000 reaches the nearer loss floor: 16/16 entries exit at a limit (8 daily pauses, 8 account terminations). |
+| Funded / 20.01% | Provider capacity is initially 20 MNQ, so $4,000 planned position risk exceeds the $1,000 DLL. All 56 visited opportunities skip; no entry-based percentages are fabricated. |
+
+Warnings are visible above collapsed IS results, with **Review trade-handling
+impact** opening the five-column summary and expandable reasons/examples. OOS
+shows the same diagnostics for its frozen family. Counts describe repeated sampled
+eligible opportunities; unique source trade count is separately labeled. Paused,
+passed or terminated accounts do not turn later opportunities into skip records.
+Changing controls requires a new simulation; existing evidence is preserved.
+Automatic freeze names are bounded to the existing 120-character display limit;
+the complete policy and selection roles remain in its frozen rationale.
+
+Reproduce the product demonstration and save inspectable downloads/screenshots:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_SAVED_TRADE_EVIDENCE_DIR=artifacts/trade-handling-20261120/browser \
+.venv/bin/python -m pytest -q \
+  tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey
+```
+
+The saved directory includes the actual synthetic input CSV, both phase report
+JSONs/ZIPs, source/model evidence, sizing-decision CSVs, frozen OOS report JSONs
+and configuration/progress/diagnostic screenshots. It is generated local evidence,
+not committed market data or a separate product store. Arithmetic and boundary
+oracles are in `tests/test_prop_trade_handling.py`: exact floors and ties,
+winning-trade adverse exits, same-session halt, account termination, minimum-one
+on/off, zero capacity, post-cap admission, missing MAE, invalid options, immutable
+IS/OOS propagation and actual complementary baseline/cost/block runs. Python and
+compiled kernels agree on cash and complete decision traces for both providers
+and phases. Existing fixed/legacy sizing compatibility is checked separately.
+
+Full model and compatibility details: `docs/saved_trade_prop_simulation.md` under
+Account-policy v2. Temporary browser servers stop through their fixtures.
+
+Installed verification: focused admission/sizing/workflow checks passed (70),
+followed by the final 24 account-policy checks after validation hardening.
+Eight selected compiled/reference regression checks passed; the final two browser
+journeys passed, including the real calculated warning examples and the retained
+DLL profile display. Read-only Chrome verification on port 8000 confirmed the
+new independent controls, correct defaults, mobile layout and readable historical
+results without submitting an analysis. All 772 prior sealed reports / 1,544
+report-and-ZIP files retained their hashes (2,916,172,206 uncompressed bytes).
+The idle portal was restarted to load the backend; zero jobs were interrupted.
+Its persistent PID is 59402, using `sh scripts/serve_portal.sh`; stop with
+`kill -TERM 59402` only after checking for active work. Preservation manifests,
+live screenshots and API verification are in `artifacts/trade-handling-20261120/`.

@@ -418,3 +418,21 @@ Native execution remains for campaigns, standalone native APIs and portfolios;
 it is not a fallback for new saved-trade percentage requests. Preserve sealed
 historical identities and verdicts. Select `tests/test_saved_trade_simulation.py`
 and the saved-trade journey in `tests/test_percentage_prop_browser.py`.
+
+# Saved-trade account policies v2 (2026-11-20)
+
+The user-approved `saved-trade-account-policies-v2` law in
+`docs/saved_trade_prop_simulation.md` supersedes strict requested-budget admission
+for newly configured main-portal fixed and percentage searches. Each phase
+explicitly freezes `trade_handling`: skip (default) or exact account-limit exit,
+plus percentage-only minimum-one override (default off). Size from causal stops,
+then check actual whole-position planned risk after provider caps. Never use MAE
+for entry sizing. Early-exit mode requires captured excursions for every source
+trade; do not substitute a realized-loss proxy. Label modeled OHLC/bounds separately
+from tick measurements. Exact limit fills stop the session or terminate the account;
+no gap overshoot or alternative opportunities are generated. Carry settings through
+frozen OOS, stresses and account starts. Preserve v1 and legacy API identities.
+Aggregate skip rates over visited eligible opportunities and exit/override rates
+over admitted entries, excluding post-halt opportunities. Show counts, reasons,
+examples and actual risk percentages in IS and OOS; warnings add no eligibility
+gate. Use `tests/test_prop_trade_handling.py` and the saved-trade browser journey.

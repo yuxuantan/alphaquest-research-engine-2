@@ -9,7 +9,7 @@ from collections import deque
 import numpy as np
 import cython
 from .native_money import money_add, money_sub, money_mul, rule_constant
-from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags
+from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags, saved_limit_result
 
 
 @dataclass(frozen=True)
@@ -91,6 +91,11 @@ class FundedAccount:
                 self.effective_micros=size
             try:
                 self.trades_consumed += 1
+                limited=saved_limit_result(runtime,trade,self.equity,floor,daily_floor,size)
+                if limited is not None:
+                    self.equity,self.last_hit=limited
+                    if self.last_hit==2:self.outcome='blown';return 0.
+                    break
                 net, adverse = trade[0], trade[1]
                 trough = self.equity - adverse * size / 10.
                 if len(trade) > 2 and trough <= max(daily_floor, floor):
@@ -227,6 +232,11 @@ def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_co
                 continue
         try:
             consumed += 1
+            limited=saved_limit_result(runtime,trade,equity,floor,daily_floor,size)
+            if limited is not None:
+                equity,hit=limited
+                if hit==2:result='blown'
+                break
             net, adverse = trade[0], trade[1]
             trough = equity - adverse * size / 10.
             if len(trade) > 2 and trough <= max(daily_floor, floor):
