@@ -13556,3 +13556,48 @@ The idle portal was restarted to load the backend; zero jobs were interrupted.
 Its persistent PID is 59402, using `sh scripts/serve_portal.sh`; stop with
 `kill -TERM 59402` only after checking for active work. Preservation manifests,
 live screenshots and API verification are in `artifacts/trade-handling-20261120/`.
+
+### 2026-11-20: Responsive admission and multicore account paths
+
+Use the ordinary backtest report -> Prop Sim configuration -> Run IS and OOS ->
+durable phase reports journey. Set **Parallel workers** to four (default), then
+run. The form appears while source qualification loads. Run returns a saved
+preparation job promptly; its source checks execute in a process, outside the
+catalogue publication lock. Navigate to Job History and back: preparation or
+account-path progress remains visible without recalculation from polling. Stop
+preparation via its normal Job History control: it must publish no phase report.
+After successful preparation, IS and frozen OOS continue without page presence.
+The worker setting is inherited by both phases and their assessments. Expected
+progress is up to four active independent path workers, with original financial
+outcomes and all requested paths retained. Small/sequential tasks can use fewer.
+
+Focused independent oracles:
+
+- `tests/test_saved_path_parallel.py`: three phase/profile pairs, fixed Skip and
+  percentage Enter-with-limit policies, two start strata and a closure. Compare
+  all ordered paths, schedule SHA, cash/payout events, complete sizing aggregates,
+  behavior examples and a deliberately bounded 37-decision trace against the
+  serial owner. Four-worker output must match exactly, with multiple worker PIDs.
+- `tests/test_prop_sim_preparation.py`: real qualified synthetic campaign through
+  process preparation and automatic IS/OOS, repeat-request canonical reuse,
+  source mutation rejection, stop/recovery, unchanged-evidence cache reuse,
+  concurrent readers sharing one HTTP worker, metadata-only polling and readers
+  that never recover active jobs or modify source reports.
+- Focused browser cases in `test_prop_sim_browser.py` deliberately hold source
+  listing/preparation to prove navigation and stop controls remain usable. The
+  actual saved-percentage browser journey retains normal downloads/report seals.
+- `test_portal_launcher.py` verifies duplicate/stale server admission; ordinary
+  backtest grids retain their existing worker controls/default-four contract.
+
+Reproduce the arithmetic check with
+`PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_saved_path_parallel.py`.
+Run only the named preparation/browser journeys for this orchestration increment.
+Screenshots, original stopped configuration, live restart response, timing samples
+and downloaded normal-product evidence are retained locally under
+`artifacts/portal-responsiveness-20261120/`; synthetic product fixtures are labeled
+by their test sources and do not constitute new provider or live qualification.
+The user's running LucidFlex simulation was explicitly stopped before applying
+this increment; its completed reports, original settings and historical seals
+were retained. A new request uses the same economics/source with four workers.
+
+Live deployment observations (2026-11-20): replacement `9babbf79015241ebaeba0be4f26835aa`, same LucidFlex 50K / 50% add-on / 1–20 MNQ per phase / 1,000 paths / original costs and seed, with four workers. Initial POST returned 202 in 0.006 s. While source preparation was active, defaults took 0.034 s, Job History 0.074 s, and status 0.003 s. Actual Chrome new-form rendering took 0.447 s, navigation to Job History 0.063 s and back 0.064 s, with no JavaScript errors. The source preparation process can still take time for historical causal replay; it no longer blocks navigation. All 771 pre-existing report-seal records were unchanged. Evidence is local under the artifact directory above.

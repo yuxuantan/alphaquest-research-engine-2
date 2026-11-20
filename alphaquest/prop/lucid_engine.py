@@ -386,7 +386,7 @@ def evaluation_finish(equity,high,best_day,opening,last_activity,calendar,result
     last_activity=cython.long,consistency=cython.double)
 def calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,*,
         preparation,checkpoint,progress,sizing=None,trace=None,chronological=False,
-        summary_only=False,native_session=None):
+        summary_only=False,native_session=None,path_indices=None,schedule_sink=None):
     """One authoritative dated acquisition loop for full and compact capture.
 
     Civil calendars and independent random prefixes are prepared outside account
@@ -403,12 +403,12 @@ def calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,*
     consistency=profile.consistency_percent/100
     daily_loss=1200. if profile.daily_loss_limit else None
     prefix_count=max(sum(layout[3]) for layout in layouts)
-    schedule=None if summary_only else sha256();paths=[]
+    schedule=None if summary_only else schedule_sink if schedule_sink is not None else sha256();paths=[]
     from .saved_trade_simulation import enabled,PathProgress
     report=PathProgress(progress,sizing) if enabled(sizing) else None
     if report:report(0,count)
     fees=np.empty(count,dtype=np.float64);times=np.empty(count,dtype=np.float64);completed=np.zeros(count,dtype=np.bool_)
-    for index in range(count):
+    for index in (range(count) if path_indices is None else path_indices):
         checkpoint()
         start,cutoff,dates,flags,eligibility,readiness,texts=layouts[index%len(layouts)]
         purchase_offset=0;attempt_open=False;first_attempt=last_attempt=attempt=None;attempts=0

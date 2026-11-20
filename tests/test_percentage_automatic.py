@@ -29,13 +29,30 @@ def native_source_pair(client):
  return dict(selection=selection,source_backtest_id=source['id'],oos_report_id=oos.json()['id'],strategy_id=source['run_metadata']['strategy']['id'],dataset=upload.json(),parameters=values,plan=source['run_metadata']['research']['plan'],broad_trial=1,narrow_trial=1,qualification='SYNTHETIC prior-admission test fixture; phase calculations are actual')
 
 
-def install_admission_fixture(monkeypatch,source):
+def install_admission_fixture(monkeypatch,source,app=None):
  import alphaquest.prop_sim as module
  def qualified(request,selection):
   assert selection.model_dump(mode='json')==module.Selection.model_validate(source['selection']).model_dump(mode='json')
   return deepcopy(source)
  monkeypatch.setattr(module,'qualified',qualified)
  monkeypatch.setattr(module,'candidates',lambda request:dict(items=[deepcopy(source)],unavailable=[],maximum_selected_configurations=1))
+ # Explicit prior-qualification fixtures cannot be reconstructed in a spawned
+ # production reader. Only these tests substitute the process boundary; real
+ # process/qualification coverage is in test_prop_sim_preparation.py.
+ from alphaquest.prop_sim_preparation import PropSimPreparation,evidence_identity
+ def fixture_process(owner,operation,payload,checkpoint=lambda:None):
+  checkpoint()
+  if operation=='candidates':return dict(result=module.candidates(owner.request))
+  if operation=='qualified':return dict(result=qualified(owner.request,module.Selection.model_validate(payload)))
+  checked,definitions=module._check(owner.request,module.Configuration.model_validate(payload))
+  checkpoint()
+  return dict(checked=checked,definitions={k:v.model_dump(mode='json') for k,v in definitions.items()},token=evidence_identity(owner.request))
+ monkeypatch.setattr(PropSimPreparation,'_execute',fixture_process)
+ if app is not None:
+  declaration=dict(dataset=source['dataset'])
+  with app.state.runs.connect() as db:
+   db.execute('INSERT OR IGNORE INTO campaign_workflows VALUES (?,?,?,?,?)',(source['selection']['workflow_id'],source['selection']['workflow_id'],source['strategy_id'],source['dataset']['id'],json.dumps(dict(declaration=declaration))))
+
 
 
 def configuration(source,profile):

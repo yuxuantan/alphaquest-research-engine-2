@@ -3712,3 +3712,55 @@ are not unique source coverage. The numerical model is
 Frozen OOS/stress/start scenarios use the same settings without reselection.
 The complete formulas, restrictions, provenance and compatibility contract are
 in `docs/saved_trade_prop_simulation.md` under Account-policy v2.
+
+### 2026-11-20: Background preparation and multicore saved paths
+
+The main Prop Sim form renders defaults and saved runs before qualified sources
+finish loading. Its source picker shows an independent loading/error state.
+New portal requests set `background_prepare:true`: the initial POST saves a
+parent preparation record and returns 202 without hashing or replaying sources.
+The existing AnalysisStore worker then verifies sources and prepares already
+accessed IS/OOS causal stop plans using the existing bounded Runtime process pool.
+Preparation is visible and stoppable in Prop Sim and Job History. It has no
+financial report or duplicate evidence store. Publication retains source guards;
+source mutation fails rather than silently admitting stale evidence.
+
+Verified qualification is cached only against the current implementation,
+source-catalogue stamps, workflow membership, source files, current Monte Carlo
+membership and sealed artifacts. File identity includes inode/ctime and symlink
+target identity. A cache miss performs the complete server verification. Numeric
+progress writes do not invalidate the cache. Concurrent source-list readers share
+one asynchronous waiter. Worker readers do not run application recovery. Status
+polling reads phase metadata without deserializing full candidate manifests.
+The Job History membership query uses the existing indexed run-ID expression.
+
+Prop Sim exposes **Parallel workers**, default four, bounded by the shared CPU
+capacity (currently up to eight). The requested count is saved on each phase
+campaign and in AnalysisStore orchestration metadata, then inherited by its
+OOS/diagnostic jobs. It is separate from numerical search identity; changing a
+worker count does not make already completed numerical evidence different.
+The existing backtest Broad/Narrow/OOS grids already expose parallel backtests
+with four as default. A single chronological backtest remains sequential within
+one replay; parallelism applies to independent trials/paths, never to dependent
+bars or account transitions. Preparation/source hashing may use fewer workers.
+
+Lucid calendar Evaluation and dated Funded (Apex and Lucid; fixed and percentage
+sizing) dispatch small batches of independent globally indexed paths to the
+existing pool. Global indices retain original seeds, start-date strata and trace
+labels. The parent reduces results in index order, retaining all paths, original
+schedule hashes, exact sizing aggregates and the original bounded trace prefix.
+Progress reports completed paths and actual workers; cancellation signals active
+siblings and drains them before returning CPU reservations. No worker recursively
+creates a pool. Account controllers, costs, sampling laws and selection objectives
+are unchanged. Apex's legacy Evaluation attempt sampler has a shared sequential
+random stream; independent sizing candidates run in parallel instead of changing
+that law. Worker availability and independent task count determine actual usage.
+
+Earlier sealed reports retain their captured implementation and verdict. New
+parallel execution code is included in numerical provenance; no old hash is
+rewritten or source-compatibility guard bypassed. Repeating a prepared request
+reopens its canonical phase jobs after normal source/seal verification instead of
+queueing another preparation behind those jobs. Explicit stopped/error retries
+retain their settings and stop history and resume through the existing owners.
+
+Campaign full-period Monte Carlo also exposes Parallel workers (default four). Its original 128-path random-stream states are captured and evaluated in parallel, preserving every original path and summary exactly. This uses the same bounded Runtime and cancellation rather than a new Monte Carlo engine.

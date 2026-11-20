@@ -15,6 +15,7 @@
     if(!oosJobId){parent.append(node('p','Complete OOS to check passing configurations across the full IS + OOS period.'));return;}
     const intro=node('p','Resample the saved daily net P&L across IS + OOS. 5,000 full-length paths at each of two mean block lengths (5 and 20 observed days), fixed seed 42. No strategy replay, parameter changes or extra cost deduction.');parent.append(intro);
     const rules=node('ul');rules.id='monte-carlo-rules';parent.append(rules);
+    const workerLabel=node('label','Parallel workers'),workers=node('select');workers.id='monte-carlo-workers';workerLabel.append(workers);parent.append(workerLabel);
     const run=node('button','Run final Monte Carlo check','button primary');run.type='button';run.id='monte-carlo-run';run.disabled=true;parent.append(run);
     const stop=node('button','Stop Monte Carlo','button secondary');stop.type='button';stop.id='monte-carlo-stop';stop.hidden=true;parent.append(stop);
     const status=node('p');status.id='monte-carlo-status';status.setAttribute('role','status');parent.append(status);
@@ -26,9 +27,10 @@
     let data,busy=false;
     function paint(){
       const job=data.job,active=['queued','running'].includes(job?.status),legacy=data.report&&data.report.policy.version!==data.policy.version;
-      run.disabled=busy||active||!eligible||(job?.status==='complete'&&!legacy);stop.hidden=!active;stop.disabled=busy;
+      workers.disabled=busy||active;run.disabled=busy||active||!eligible||(job?.status==='complete'&&!legacy);stop.hidden=!active;stop.disabled=busy;
       run.textContent=legacy?'Apply updated policy to saved paths':job?.status==='complete'?'Saved Monte Carlo check':job?'Run final Monte Carlo check again':'Run final Monte Carlo check';
       status.textContent=job?`${job.status.toUpperCase()} · ${job.progress}${job.error?' · '+job.error:''}`:eligible?'Ready. Checks only verified OOS-passing configurations.':'No completed, qualifying OOS configurations are available.';
+      if(!workers.options.length){for(let n=1;n<=(data.max_workers||4);n++)workers.add(new Option(String(n),String(n)));workers.value=String(data.default_workers||4);}
       rules.replaceChildren(...data.rules.map(text=>node('li',text)));caveat.textContent=data.limitations;diagnostics.textContent=data.diagnostics;
       actions.replaceChildren();if(job)link(actions,'Monte Carlo job history / progress',`#jobs/monte_carlo/${job.id}`);
       output.replaceChildren();if(!data.report)return;
@@ -68,7 +70,7 @@
       try{const next=await read(base+'?job='+oosJobId);if(!alive())return;data=next;paint();if(['queued','running'].includes(data.job?.status))timer=setTimeout(refresh,2500);}
       catch(exc){if(alive())error.textContent=exc.message;}
     }
-    run.onclick=async()=>{if(busy)return;busy=true;paint();error.textContent='';try{await read(base+'/run','POST',{job_id:oosJobId});if(alive())await refresh();}catch(exc){if(alive())error.textContent=exc.message;}finally{busy=false;if(alive()&&data)paint();}};
+    run.onclick=async()=>{if(busy)return;busy=true;paint();error.textContent='';try{await read(base+'/run','POST',{job_id:oosJobId,workers:Number(workers.value)});if(alive())await refresh();}catch(exc){if(alive())error.textContent=exc.message;}finally{busy=false;if(alive()&&data)paint();}};
     stop.onclick=async()=>{if(busy||!data.job)return;busy=true;paint();try{await read(`/api/prop-analyses/${data.job.id}/cancel`,'POST');if(alive())await refresh();}catch(exc){if(alive())error.textContent=exc.message;}finally{busy=false;if(alive())paint();}};
     await refresh();
   }

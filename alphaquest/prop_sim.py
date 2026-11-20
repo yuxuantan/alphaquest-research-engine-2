@@ -14,6 +14,7 @@ from .campaign_monte_carlo import POLICY as MC_POLICY
 from .campaign_oos import context as oos_context, results as oos_results
 from .optimization_cache import artifacts, digest
 from .research_campaigns import CampaignRequest,FreezeRequest
+from .prop.parallel import CAPACITY
 from .prop.phase_profiles import rule_version
 from .prop.assessment_review import AssessmentLimits
 from .prop.sizing_search import PercentageGrid
@@ -49,6 +50,8 @@ class Configuration(BaseModel):
     request_id: UUID
     profile_id: Literal['apex-50k-eod','lucidflex-50k'] = PROFILE
     automatic: StrictBool = True
+    workers: StrictInt = Field(default=4,ge=1,le=CAPACITY)
+    background_prepare: StrictBool = False
     daily_loss_limit: StrictBool = True
     evaluation_consistency_percent: StrictInt = 40
     selections: list[Selection] = Field(min_length=1,max_length=1)
@@ -151,6 +154,15 @@ class Configuration(BaseModel):
 
 
 def qualified(request,selection):
+    if getattr(request.app.state,'qualification_worker',False):
+        from .prop_sim_preparation import qualified_cached
+        return qualified_cached(request,selection)
+    if hasattr(request.app.state,'prop_sim_preparation'):
+        return request.app.state.prop_sim_preparation.qualified(selection)
+    return _qualified_verified(request,selection)
+
+
+def _qualified_verified(request,selection):
     """Authoritative qualification for listing, check and launch; no client verdicts."""
     workflow_id=selection.workflow_id.hex;job_id=selection.oos_job_id.hex;mc_id=selection.monte_carlo_id.hex
     workflows=request.app.state.campaign_workflows
@@ -269,7 +281,7 @@ def declarations(body,source):
             references=[dict(backtest_id=source['source_backtest_id'],sizes=[size],sizing_policies=[asdict(SizingConfiguration(
                 dict(kind='fixed_contracts',contracts=size,maximum_contracts=maximum),'50000',planning,ACCOUNT_MODEL,handling.model_dump(mode='json')))])
                 for size in range(minimum,maximum+1)]
-        definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,
+        definitions[phase]=CampaignRequest.model_validate(dict(common,campaign_id=uuid5(body.request_id,phase).hex,workers=body.workers,
             sources=references,
             simulation=dict(simulations=body.simulations,seed=body.seed,max_micros=account['limits'][phase]),
             phase=phase,profile=phase_profile,sampling=sampling,search_settings=settings,
@@ -306,10 +318,7 @@ def public(request,id):
     if result.get('portfolio'):
         result['portfolio']['job']=request.app.state.prop_analyses.get(result['portfolio']['analysis_id'])
     for phase,campaign_id in result['campaign_ids'].items():
-        campaign=request.app.state.campaigns.get(campaign_id)
-        analysis=campaign.get('analysis') or {}
-        result['phases'][phase]=dict(campaign_id=campaign_id,status=campaign['status'],analysis_id=campaign['analysis_id'],
-            progress=analysis.get('progress'),progress_details=analysis.get('progress_details'),error=analysis.get('error'),candidate_count=campaign['manifest']['candidate_search_count'])
+        result['phases'][phase]=request.app.state.campaigns.progress(campaign_id)
     return result
 
 
@@ -350,7 +359,10 @@ router=APIRouter(prefix='/api/prop-sim')
 
 
 @router.get('/candidates')
-async def sources(request:Request):return await invoke(candidates,request)
+async def sources(request:Request):
+    try:return await request.app.state.prop_sim_preparation.candidates_async()
+    except KeyError as exc:raise HTTPException(404,str(exc)) from exc
+    except (ValueError,TypeError,OSError) as exc:raise HTTPException(409,str(exc)) from exc
 
 
 def account_defaults(id):
@@ -371,7 +383,7 @@ def account_defaults(id):
             'Preserved local model: 21-session Evaluation expiry/inactivity and exactly 50% Funded consistency; reviewed provider calendar/boundary rules differ.'),
         report_limits=dict(size_dependent_path_cap=False),
         defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_consistency_percent=40,evaluation_minimum_micros=1,evaluation_maximum_micros=10,
-            funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,seed=42,block_weekdays=5,
+            funded_minimum_micros=1,funded_maximum_micros=10,simulations=1000,workers=4,seed=42,block_weekdays=5,
             evaluation_price=account['price'],activation_fee=account['activation'],commission_per_mnq_side=account['commission'],
             funded_horizon_calendar_days=90,receipt_delay_calendar_days=2,maximum_funded_breach_probability=None,automatic=True))
 
@@ -379,16 +391,17 @@ def account_defaults(id):
 @router.get('/defaults')
 def defaults():
     profiles={id:account_defaults(id) for id in PROFILES}
-    return dict(profiles[PROFILE],profiles=profiles,supported_search_kinds=['fixed_contracts','percentage_risk'],percentage_grid=dict(minimum='0.1',maximum='0.5',step='0.1',reference='initial_configured_capital',maximum_policies_per_phase=60),percentage_capability='Session-flat saved fixed-quantity opportunities with verifiable causal protective stops; strict budget admission and ideal stop/limit fills.')
+    return dict(profiles[PROFILE],profiles=profiles,maximum_workers=CAPACITY,supported_search_kinds=['fixed_contracts','percentage_risk'],percentage_grid=dict(minimum='0.1',maximum='0.5',step='0.1',reference='initial_configured_capital',maximum_policies_per_phase=60),percentage_capability='Session-flat saved fixed-quantity opportunities with verifiable causal protective stops; strict budget admission and ideal stop/limit fills.')
 
 
 @router.post('/check')
 async def preview(body:Configuration,request:Request):
-    checked,_=await invoke(check,request,body);return checked
+    checked,_=await invoke(request.app.state.prop_sim_preparation.check if body.background_prepare else lambda b:check(request,b),body);return checked
 
 
 @router.post('',status_code=202)
-async def run(body:Configuration,request:Request):return await invoke(launch,request,body)
+async def run(body:Configuration,request:Request):
+    return await invoke(request.app.state.prop_sim_preparation.queue if body.background_prepare else lambda b:launch(request,b),body)
 
 
 @router.get('')
@@ -407,11 +420,13 @@ async def status(id:UUID,request:Request):return await invoke(public,request,id.
 async def results(id:UUID,phase:str,request:Request):
     if phase not in ('evaluation','funded'):raise HTTPException(404,'Unknown phase.')
     saved=await invoke(public,request,id.hex)
+    if phase not in saved['campaign_ids']:raise HTTPException(409,'Source preparation has not finished; follow its job progress.')
     return await invoke(request.app.state.campaigns.report,saved['campaign_ids'][phase])
 
 
 @router.post('/{id}/cancel')
 async def stop(id:UUID,request:Request):
+    if await invoke(request.app.state.prop_sim_preparation.stop,id.hex):return await invoke(public,request,id.hex)
     saved=await invoke(public,request,id.hex)
     if saved.get('portfolio'):
         await invoke(request.app.state.prop_analyses.cancel_phase,saved['portfolio']['analysis_id'])
@@ -763,6 +778,7 @@ def deletion_preview(request,id,db):
     if refs!=expected:raise ValueError('Saved simulation references are inconsistent; no results were removed.')
     plans={phase:campaigns._deletion_preview(db,cid,releasing_prop_sim=id) for phase,cid in expected.items()}
     active=sorted({a['id'] for p in plans.values() for a in p['retained_analyses'] if a['status'] in ('queued','running')})
+    if saved.get('preparation',{}).get('status') in ('queued','running'):active.append(id)
     released=[cid for phase,cid in expected.items() if plans[phase]['deletable']]
     retained_campaigns=[dict(id=cid,reasons=plans[phase]['blockers']) for phase,cid in expected.items() if not plans[phase]['deletable']]
     ids=sorted({a['id'] for p in plans.values() for a in p['retained_analyses']})

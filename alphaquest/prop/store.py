@@ -63,6 +63,7 @@ class AnalysisStore:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
+            db.execute('CREATE TABLE IF NOT EXISTS analysis_compute (analysis_id TEXT PRIMARY KEY, workers INTEGER NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_progress (analysis_id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS historical_refit_checkpoints (analysis_id TEXT NOT NULL, context_key TEXT NOT NULL, replicate INTEGER NOT NULL, payload TEXT NOT NULL, sha256 TEXT NOT NULL, PRIMARY KEY(analysis_id,context_key,replicate))')
             db.execute('CREATE INDEX IF NOT EXISTS historical_refits_by_context ON historical_refit_checkpoints(context_key)')
@@ -109,6 +110,9 @@ class AnalysisStore:
         with self.connect() as db:
             sources = {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') OR EXISTS (SELECT 1 FROM lifecycle_comparisons p WHERE p.analysis_id=a.id) UNION SELECT source_id FROM campaign_sources")}
             sources.update(r[0] for r in db.execute("SELECT s.source_id FROM analysis_sources s JOIN workflow_prop_simulations p ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=s.analysis_id)"))
+            sources.update(r[0] for r in db.execute("SELECT s.source_id FROM analysis_sources s JOIN workflow_prop_simulations p "
+                "ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.configuration.selections') j WHERE json_extract(j.value,'$.monte_carlo_id')=s.analysis_id) "
+                "WHERE json_extract(p.payload,'$.preparation.status') IN ('queued','running')"))
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
                 sources.update(r[0] for r in db.execute('SELECT source_id FROM forward_source_refs'))
             return sources
@@ -185,7 +189,7 @@ class AnalysisStore:
     def remove_catalogue_record(self, db, id):
         """Release one report's catalogue/cache rows within the caller transaction."""
         for table,key in (('calculation_reuse','id'),('analysis_report_checks','id'),
-                ('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analyses','id')):
+                ('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analysis_compute','analysis_id'),('analyses','id')):
             db.execute(f'DELETE FROM {table} WHERE {key}=?',(id,))
 
     def delete(self, id):
@@ -382,7 +386,7 @@ class AnalysisStore:
         return self.submit_phase(runs, search)
 
     def _reserve_phase(self, runs, search, *, campaign_checks=None, assessment=None,
-                       training_context=None, inline=False, datasets=None):
+                       training_context=None, inline=False, datasets=None, prepared_checks=None, guard=None):
         """Shared checked reservation; callers hold the catalogue mutation lock."""
         from .phase_dispatch import module_for_mode
         from .phase_search import check_candidates, validate_phase_work
@@ -396,7 +400,10 @@ class AnalysisStore:
             blocks={1,5,20,*[c.sampling.block_weekdays for c in search.candidates]}
             if bound['estimated_capture_bytes']*(len(blocks)+2)>100*1024*1024:
                 raise ValueError('Robustness report is too large; reduce diagnostic paths or frozen choices.')
-        if assessment or training_context:
+        if prepared_checks is not None:
+            if guard is None or assessment or training_context:raise ValueError('Only guarded ordinary IS checks may be prepared before reservation.')
+            guard();checks=prepared_checks
+        elif assessment or training_context:
             checks = check_candidates(runs, search, assessment, training_context=training_context, datasets=datasets)
         else:
             checks = module.check_search(runs, search, datasets=datasets)
@@ -447,11 +454,16 @@ class AnalysisStore:
                 db.execute("UPDATE analyses SET progress='Stop requested; waiting for the next safe calculation boundary' WHERE id=?",(id,))
             return self.get(id)
 
-    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None, datasets=None):
+    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None, datasets=None, prepared_checks=None, guard=None, workers=None):
         """Public phase dispatch retains the existing worker and request meaning."""
+        selected=self.runtime.workers if workers is None else workers
+        from .parallel import CAPACITY
+        if type(selected) is not int or not 1<=selected<=CAPACITY:raise ValueError('Invalid parallel worker count.')
         with self.lock:
-            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment, datasets=datasets)
+            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment, datasets=datasets,
+                prepared_checks=prepared_checks,guard=guard)
             if fresh:
+                with self.connect() as db:db.execute('INSERT INTO analysis_compute VALUES (?,?)',(record['id'],selected))
                 self.worker.submit(self._run_phase, runs, record['id'], search, checks, assessment, datasets=datasets)
             return record
 
@@ -502,7 +514,8 @@ class AnalysisStore:
             update('Running independent '+phase+' search')
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
-                with self.runtime.activate():
+                with self.connect() as db:compute=db.execute('SELECT workers FROM analysis_compute WHERE analysis_id=?',(id,)).fetchone()
+                with self.runtime.activate(workers=compute[0] if compute else None):
                     options = dict(assessment=assessment,checkpoint=checkpoint) if assessment else dict(checkpoint=checkpoint)
                     if getattr(search, 'native_execution', None) is not None:
                         if assessment is not None:

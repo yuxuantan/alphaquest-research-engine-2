@@ -2,7 +2,7 @@
 (() => {
   const get = s => document.querySelector(s);
   const node = (tag,text,cls) => { const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n; };
-  const kinds = {mechanic_validation:'Mechanic validation',backtest_batch:'Backtest batch',backtest:'Saved backtest',prop_analysis:'Prop analysis',monte_carlo:'Final Monte Carlo check'};
+  const kinds = {mechanic_validation:'Mechanic validation',backtest_batch:'Backtest batch',backtest:'Saved backtest',prop_analysis:'Prop analysis',prop_preparation:'Prop Sim preparation',monte_carlo:'Final Monte Carlo check'};
   const words = value => String(value || '').replaceAll('_',' ');
   const stamp = value => value ? new Date(value).toLocaleString(undefined,{timeZoneName:'short'}) : 'Not recorded';
   let generation=0,timer,offset=0,lastList='',lastListData='',lastDetailData='';
@@ -49,7 +49,7 @@
   }
   async function stop(job) {
     if(!job.stop_url||job.stop_requested_at_utc)return;
-    if(!window.confirm(job.status==='queued'?'Cancel this queued backtest job?':'Stop this running backtest at its next checkpoint? Completed reports will remain available.'))return;
+    if(!window.confirm(job.kind==='prop_preparation'?'Stop source preparation? Phase searches will not start from this preparation. Completed reports remain available.':job.status==='queued'?'Cancel this queued backtest job?':'Stop this running backtest at its next checkpoint? Completed reports will remain available.'))return;
     try {await read(job.stop_url,'POST');await refresh();}
     catch(error){const target=get('#jobs-detail-view').hidden?'#jobs-list-status':'#jobs-detail-status';get(target).textContent=error.message;}
   }

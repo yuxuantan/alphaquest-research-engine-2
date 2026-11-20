@@ -657,7 +657,7 @@ class DatedEvaluationPreparation(DatedPhasePreparation):
 
 def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry, calendar,
         *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None, chronological=False,
-        preparation=None,summary_only=False):
+        preparation=None,summary_only=False,path_indices=None,schedule_sink=None,_parallel=True):
     """One dated owner; compact refits retain every path but omit unused capture."""
     from . import lucid_backend,native_engine
     lucid=profile.profile_id=='lucidflex-50k'
@@ -665,11 +665,16 @@ def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry
         raise ValueError('Calendar saved-path acquisition requires LucidFlex and nonempty history.')
     if summary_only and sizing is not None:
         raise ValueError('Compact historical refits require the admitted fixed-quantity policy.')
+    from .path_parallel import available,run
+    if _parallel and available() and not chronological and not summary_only:
+        return run('evaluation',dict(days=days,profile=profile,micros=micros,simulation=simulation,
+            sampling=sampling,retry=retry,calendar=calendar,sizing=sizing),simulation.simulations,trace,checkpoint,progress)
     preparation=preparation if preparation is not None else DatedEvaluationPreparation()
     layouts=preparation.evaluation_layouts(calendar,retry.max_calendar_days,retry.activation_delay_sessions,checkpoint)
     return lucid_backend.module().calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,
         preparation=preparation,checkpoint=checkpoint,progress=progress,sizing=sizing,trace=trace,
-        chronological=chronological,summary_only=summary_only,native_session=native_engine.evaluation_session)
+        chronological=chronological,summary_only=summary_only,native_session=native_engine.evaluation_session,
+        path_indices=path_indices,schedule_sink=schedule_sink)
 
 
 

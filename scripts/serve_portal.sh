@@ -56,6 +56,7 @@ os.set_inheritable(owner.fileno(), True)
 active = []
 for path, table, query in (
     (data/'prop_analyses/catalog.sqlite3', 'analyses', "SELECT id FROM analyses WHERE status IN ('queued','running')"),
+    (data/'prop_analyses/catalog.sqlite3', 'workflow_prop_simulations', "SELECT id FROM workflow_prop_simulations WHERE json_extract(payload,'$.preparation.status') IN ('queued','running')"),
     (data/'backtests.sqlite3', 'optimizations', "SELECT id FROM optimizations WHERE json_extract(payload,'$.status') IN ('queued','running')"),
     (data/'backtests.sqlite3', 'mechanic_job_attempts', "SELECT id FROM mechanic_job_attempts WHERE status IN ('queued','running')"),
 ):

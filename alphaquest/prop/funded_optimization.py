@@ -178,7 +178,7 @@ def implementation_identity():
     names = ('funded_optimization.py', 'funded_profiles.py', 'phase_profiles.py', 'phase_search.py',
         'native_analysis.py', 'native_engine.py', 'native_backend.py',
         'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py',
-        'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py',
+        'commissions.py', 'phase_lifecycle.py', 'adapter.py', 'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py', 'path_parallel.py',
         'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
         'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
         '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')

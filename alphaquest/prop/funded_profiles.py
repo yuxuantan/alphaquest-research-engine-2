@@ -396,7 +396,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
 
 def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
         receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None,
-        preparation=None, summary_only=False, progress=lambda value:None):
+        preparation=None, summary_only=False, progress=lambda value:None,path_indices=None,schedule_sink=None,_parallel=True):
     """The same fresh-account dated kernel for original and resampled histories."""
     from dataclasses import replace
     from datetime import date, timedelta
@@ -408,6 +408,12 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     account_class = lucid_engine.FundedAccount if lucid else native_engine.FundedAccount
     if summary_only and (sizing is not None or chronological):
         raise ValueError('Compact Funded capture requires fixed-quantity sampled paths.')
+    from .path_parallel import available,run
+    if _parallel and available() and not chronological and not summary_only:
+        rows,schedule=run('funded',dict(days=days,profile=profile,micros=micros,horizon_calendar_days=horizon_calendar_days,
+            calendar=calendar,receipt_delay_calendar_days=receipt_delay_calendar_days,simulation=simulation,
+            sampling=sampling,sizing=sizing),simulation.simulations,trace,checkpoint,progress)
+        return rows,schedule,rules
     paths = []
     from .saved_trade_simulation import enabled,PathProgress
     report=PathProgress(progress,sizing) if enabled(sizing) else None
@@ -417,7 +423,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
         from .lucid_backend import module as lucid_module
         from .native_backend import module as native_module
         account_class = (lucid_module() if lucid else native_module()).FundedAccount
-    schedule = None if summary_only else sha256()
+    schedule = None if summary_only else schedule_sink if schedule_sink is not None else sha256()
     closed = set(calendar.closures)
     starts = sorted(calendar.start_dates)
     # Calendar preparation also benefits ordinary one-off runs. Only a caller
@@ -426,7 +432,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     identity = (calendar.version, calendar.timezone, calendar.coverage_end,
                 tuple(starts), tuple(sorted(closed)))
     calendars = {s: calendar_cache.calendar(identity, s, horizon_calendar_days, checkpoint) for s in starts}
-    for i in range(1 if chronological else simulation.simulations):
+    for i in (range(1 if chronological else simulation.simulations) if path_indices is None else path_indices):
         checkpoint()
         start = date.fromisoformat(starts[i % len(starts)])
         cutoff = start + timedelta(days=horizon_calendar_days)

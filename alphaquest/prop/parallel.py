@@ -9,6 +9,7 @@ from threading import Condition,Lock
 
 CAPACITY=max(1,min(8,(os.cpu_count() or 1)-1))
 _active=ContextVar('prop_runtime',default=None)
+_worker_limit=ContextVar('prop_worker_limit',default=None)
 _diagnostics=ContextVar('prop_execution',default=None)
 _budget_owner=ContextVar('prop_budget_owner',default=None)
 _optimizing=ContextVar('prop_optimizing',default=False)
@@ -35,15 +36,16 @@ class Runtime:
             with self.condition:self.occupied-=taken;self.condition.notify_all()
 
     @contextmanager
-    def activate(self,*,reserve=True):
+    def activate(self,*,reserve=True,workers=None):
         # Serial validation/replay also occupies a slot. A waiting parallel map
         # transfers that slot to its workers, avoiding upgrade deadlocks when
         # several concurrent analyses have each reserved one serial slot.
         with self.reserve(1) if reserve else nullcontext():
+            limit=_worker_limit.set(workers if workers is not None else self.workers)
             token=_active.set(self);owner=_budget_owner.set(self if reserve else None)
             diagnostic=_diagnostics.set(dict(workers_used=1,worker_pids=[],nested_pool=False))
             try:yield
-            finally:_diagnostics.reset(diagnostic);_budget_owner.reset(owner);_active.reset(token)
+            finally:_diagnostics.reset(diagnostic);_budget_owner.reset(owner);_active.reset(token);_worker_limit.reset(limit)
 
     @contextmanager
     def parallel_slots(self,count):
@@ -68,10 +70,14 @@ class Runtime:
     def close(self):
         if self.pool is not None:self.pool.shutdown(wait=True,cancel_futures=True)
 
+    @property
+    def selected_workers(self):
+        return _worker_limit.get() or self.workers
+
     def map(self,function,values,work):
         threshold=2_000_000 if self.pool is not None else 20_000_000
-        if self.workers==1 or work<threshold or len(values)<2:return [function(v) for v in values]
-        with self.parallel_slots(min(self.workers,len(values))) as slots:
+        if self.selected_workers==1 or work<threshold or len(values)<2:return [function(v) for v in values]
+        with self.parallel_slots(min(self.selected_workers,len(values))) as slots:
             if slots==1:return [function(v) for v in values]
             with self.pool_lock:
                 if self.pool is None:self.pool=ProcessPoolExecutor(max_workers=CAPACITY,mp_context=mp.get_context('spawn'))
@@ -111,7 +117,7 @@ class Runtime:
         """
         values=list(values);total=len(values)
         if not total:return []
-        with self.parallel_slots(min(self.workers,total)) as slots:
+        with self.parallel_slots(min(self.selected_workers,total)) as slots:
             if slots==1:
                 results=[]
                 for value in values:

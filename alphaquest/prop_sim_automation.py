@@ -53,7 +53,7 @@ class PropSimAutomation:
 
     def recover(self):
         with self.analyses.connect() as db:
-            ids=[r[0] for r in db.execute("SELECT id FROM workflow_prop_simulations WHERE json_extract(payload,'$.automation.version')='prop-sim-automatic-v1'")]
+            ids=[r[0] for r in db.execute("SELECT id FROM workflow_prop_simulations WHERE json_extract(payload,'$.automation.version')='prop-sim-automatic-v1' AND COALESCE(json_extract(payload,'$.preparation.status'),'complete')='complete'")]
         for id in ids:self.schedule(id)
 
     def resume(self,id):
@@ -150,6 +150,7 @@ class PropSimAutomation:
             if self.closed:return
             saved=self._read(id)
             if not saved or not saved.get('automation') or saved['automation']['stop_requested']:return
+            if saved.get('preparation',{}).get('status','complete')!='complete':return
             for phase in PHASES:
                 try:self._phase(saved,phase)
                 except Exception as exc:

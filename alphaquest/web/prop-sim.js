@@ -127,17 +127,19 @@
     try{
       if(query.get('mode')==='portfolio'){await window.propPortfolio.render(host);return;}
       if(selectedId){const parent=await read('/api/prop-sim/'+selectedId);if(!alive())return;if(parent.configuration.mode==='portfolio'){await window.propPortfolio.render(host,parent);return;}}
-      const [sources,defaults,history]=await Promise.all([read('/api/prop-sim/candidates'),read('/api/prop-sim/defaults'),read('/api/prop-sim')]);if(!alive())return;
+      const sources={items:[],unavailable:[]};
+      const sourceRequest=read('/api/prop-sim/candidates').then(value=>({value})).catch(error=>({error}));
+      const [defaults,history]=await Promise.all([read('/api/prop-sim/defaults'),read('/api/prop-sim')]);if(!alive())return;
       const profiles=defaults.profiles;host.replaceChildren();const choice=node('section',undefined,'panel prop-sim-mode-choice');choice.append(node('h2','What do you want to learn?'),node('p','Use this view for independent Evaluation and Funded sizing. Choose fixed contracts or independently optimized risk percentages. For multiple strategies and replacement economics, compare portfolios.'));link(choice,'Portfolio allocation, percentage risk & full cash flow','#prop-sim?mode=portfolio');host.append(choice);
       const setup=node('details',undefined,'panel prop-sim-setup');setup.id='prop-sim-setup';setup.open=!selectedId;
       setup.append(node('summary',selectedId?'Adjust settings and start a new simulation':'Configure a prop simulation'));
       const form=node('form');form.id='prop-sim-form';setup.append(form);host.append(setup);
       const sourceGrid=node('div',undefined,'prop-sim-source-grid');form.append(sourceGrid);
       const sourceBox=node('section');sourceBox.append(node('h2','1. Qualified configuration'));
-      const label=node('label','Campaign configuration'),picker=node('select');picker.id='prop-sim-source';picker.add(new Option('Choose a configuration',''));
+      const label=node('label','Campaign configuration'),picker=node('select');picker.id='prop-sim-source';picker.disabled=true;picker.add(new Option('Loading qualified configurations…',''));
       sources.items.forEach((item,i)=>picker.add(new Option(`${item.strategy_id.replaceAll('_',' ')} · ${item.dataset.name} · Broad ${item.broad_trial} / Narrow ${item.narrow_trial}`,String(i))));label.append(picker);sourceBox.append(label);
       sourceBox.append(node('p','Only confirmed mechanics, IS Broad, IS Narrow, OOS and current Monte Carlo passes are selectable. One configuration per simulation.','field-help'));
-      if(!sources.items.length)sourceBox.append(node('p','No qualified, compatible configurations are available. Complete the campaign phases and Monte Carlo first.'));
+      const sourceLoading=node('p','Checking available configurations in the background…','field-help');sourceLoading.id='prop-sim-source-loading';sourceLoading.setAttribute('role','status');sourceBox.append(sourceLoading);
       if(sources.unavailable.length)detail(sourceBox,'Unavailable sources and reasons',sources.unavailable);
       const sourceInfo=node('div');sourceInfo.id='prop-sim-source-details';sourceBox.append(sourceInfo);
       const accountBox=node('section');accountBox.append(node('h2','2. Prop account'));
@@ -157,11 +159,11 @@
       const quality=node('section',undefined,'prop-sim-quality');quality.append(node('h3','Simulation sample'));grids.quality=node('div',undefined,'prop-sim-settings');quality.append(grids.quality);form.append(quality);
       const advanced=node('details',undefined,'prop-sim-advanced');advanced.append(node('summary','Costs, calendar and optional risk settings'));grids.advanced=node('div',undefined,'prop-sim-settings');advanced.append(grids.advanced);form.append(advanced);
       const fields={};
-      const names=[['evaluation_minimum_micros','Minimum MNQ','number','evaluation'],['evaluation_maximum_micros','Maximum MNQ','number','evaluation'],['evaluation_price','Purchase fee · USD','text','evaluation'],['activation_fee','Activation fee · USD','text','evaluation'],['funded_minimum_micros','Minimum MNQ','number','funded'],['funded_maximum_micros','Maximum MNQ','number','funded'],['funded_horizon_calendar_days','Funded horizon · calendar days','number','funded'],['simulations','Paths per size, per phase','number','quality'],['block_weekdays','Historical block · weekdays','select','quality'],['seed','Random seed','number','advanced'],['commission_per_mnq_side','MNQ commission per contract per side · USD','text','advanced'],['start_date','Scenario start · America/Chicago','date','advanced'],['receipt_delay_calendar_days','Receipt delay · calendar days','number','advanced'],['maximum_funded_breach_probability','Optional Funded breach cap · 0 to 1','number','advanced'],['closures','Closed sessions · comma-separated YYYY-MM-DD','text','advanced']];
+      const names=[['evaluation_minimum_micros','Minimum MNQ','number','evaluation'],['evaluation_maximum_micros','Maximum MNQ','number','evaluation'],['evaluation_price','Purchase fee · USD','text','evaluation'],['activation_fee','Activation fee · USD','text','evaluation'],['funded_minimum_micros','Minimum MNQ','number','funded'],['funded_maximum_micros','Maximum MNQ','number','funded'],['funded_horizon_calendar_days','Funded horizon · calendar days','number','funded'],['workers','Parallel workers','select','quality'],['simulations','Paths per size, per phase','number','quality'],['block_weekdays','Historical block · weekdays','select','quality'],['seed','Random seed','number','advanced'],['commission_per_mnq_side','MNQ commission per contract per side · USD','text','advanced'],['start_date','Scenario start · America/Chicago','date','advanced'],['receipt_delay_calendar_days','Receipt delay · calendar days','number','advanced'],['maximum_funded_breach_probability','Optional Funded breach cap · 0 to 1','number','advanced'],['closures','Closed sessions · comma-separated YYYY-MM-DD','text','advanced']];
       for(const [name,text,type,group] of names){
         const label=node('label',text),input=node(type==='select'?'select':'input');input.id='prop-sim-'+name;fields[name]=input;
         input.required=!['closures','maximum_funded_breach_probability'].includes(name);
-        if(type==='select')for(const n of [1,5,10])input.add(new Option(String(n),String(n)));else input.type=type;
+        if(type==='select')for(const n of name==='workers'?Array.from({length:defaults.maximum_workers||4},(_,i)=>i+1):[1,5,10])input.add(new Option(String(n),String(n)));else input.type=type;
         if(type==='number'){input.step=name==='maximum_funded_breach_probability'?'.01':'1';input.min='0';}
         if(name.endsWith('_micros'))input.min='1';if(name==='simulations'){input.min='8';input.max='20000';}
         if(name==='funded_horizon_calendar_days'){input.min='1';input.max='365';}
@@ -287,8 +289,8 @@
       picker.onchange=select;form.oninput=()=>{updateTradeHandling();checked=false;notice.textContent='Settings changed. Run will check the source and execute both IS and OOS phases automatically.';resourcePreview();};form.onsubmit=e=>e.preventDefault();
       function body(){
         const source=sources.items[Number(picker.value)];if(picker.value===''||!source)throw Error('Choose one qualified configuration.');
-        const value={request_id:requestId,automatic:true,profile_id:accountPicker.value,daily_loss_limit:dll.checked,evaluation_consistency_percent:Number(consistency.value),selections:[source.selection]};
-        for(const [name,,type] of names){if(sizingMode.value==='percentage_risk'&&name.endsWith('_micros'))continue;value[name]=name==='maximum_funded_breach_probability'&&fields[name].value.trim()===''?null:name==='closures'?fields[name].value.split(',').map(s=>s.trim()).filter(Boolean):type==='number'||name==='block_weekdays'?Number(fields[name].value):fields[name].value;}
+        const value={request_id:requestId,automatic:true,background_prepare:true,profile_id:accountPicker.value,daily_loss_limit:dll.checked,evaluation_consistency_percent:Number(consistency.value),selections:[source.selection]};
+        for(const [name,,type] of names){if(sizingMode.value==='percentage_risk'&&name.endsWith('_micros'))continue;value[name]=name==='maximum_funded_breach_probability'&&fields[name].value.trim()===''?null:name==='closures'?fields[name].value.split(',').map(s=>s.trim()).filter(Boolean):type==='number'||['block_weekdays','workers'].includes(name)?Number(fields[name].value):fields[name].value;}
         for(const phase of ['evaluation','funded'])value[phase+'_trade_handling']={account_limit_action:tradeFields[phase].action.value,minimum_one_contract:sizingMode.value==='percentage_risk'&&tradeFields[phase].minimum.checked};
         if(sizingMode.value==='percentage_risk'){value.search_kind='percentage_risk';for(const phase of ['evaluation','funded']){expandedGrid(phase);value[phase+'_percentage_grid']=Object.fromEntries(Object.entries(riskFields[phase]).map(([key,input])=>[key,input.type==='checkbox'?input.checked:key==='maximum_contracts'?Number(input.value):input.value]));}}return value;
       }
@@ -529,6 +531,15 @@
       }
       async function refresh(){clearTimeout(timer);try{
         const current=await read('/api/prop-sim/'+selectedId);if(!alive())return;saved=current;
+        if(saved.preparation&&saved.preparation.status!=='complete'){
+          const p=saved.preparation,panel=node('section',undefined,'panel prop-sim-preparation');panel.id='prop-sim-preparation';
+          panel.append(node('h2','Source preparation'),node('p',`${p.status.toUpperCase()} · ${p.progress}`),node('p',p.error||'Qualification and source checks run in the background. You can navigate away; phase searches start automatically after verification.','field-help'));
+          const actions=node('div',undefined,'mechanic-downloads');link(actions,'Job history / preparation progress',`#jobs/prop_preparation/${selectedId}`);
+          if(['queued','running'].includes(p.status)){const stop=node('button','Stop preparation','button secondary');stop.type='button';stop.onclick=async()=>{stop.disabled=true;try{await read(`/api/prop-sim/${selectedId}/cancel`,'POST');await refresh();}catch(e){panel.append(node('p',e.message));}};actions.append(stop);timer=setTimeout(refresh,1500);}
+          const edit=node('button','Adjust settings','button secondary');edit.type='button';edit.onclick=()=>{setup.open=true;setup.scrollIntoView({behavior:'smooth',block:'start'});};actions.append(edit);panel.append(actions);
+          results.replaceChildren(panel);host.insertBefore(results,setup);return;
+        }
+        results.querySelector('#prop-sim-preparation')?.remove();
         if(!results.querySelector('.prop-sim-run-heading')){const title=node('section',undefined,'panel prop-sim-run-heading'),p=profiles[saved.configuration.profile_id||'apex-50k-eod'];if(saved.configuration.evaluation_trade_handling||saved.configuration.funded_trade_handling)detail(title,'Frozen trade handling', {evaluation:saved.configuration.evaluation_trade_handling,funded:saved.configuration.funded_trade_handling,assumptions:'Causal stop-distance sizing; captured excursions detect account-limit exits only. Exact limit fills, frozen opportunities, no gap overshoot.'});else if(saved.configuration.search_kind==='percentage_risk')title.append(node('p','Historical stop-budget model · MAE was not used. Requested risk had to fit both limits; ideal fills excluded gap overshoot.','field-help'));title.append(node('span',p.name,'pill neutral'),node('h2',saved.qualification?.strategy_id?.replaceAll('_',' ')||'Saved simulation'),node('p',`Evaluation and Funded are independent searches · ${saved.configuration.simulations.toLocaleString()} paths per size · ${saved.configuration.funded_horizon_calendar_days}-day Funded horizon${saved.automation?' · Automatic IS and OOS':''}`,'field-help'));if(saved.qualification?.plan){const q=saved.qualification;title.append(node('p',`${q.dataset.name} · Broad ${q.broad_trial} / Narrow ${q.narrow_trial} · IS ${q.plan.is_start} → ${q.plan.is_end}`,'field-help'));detail(title,'Frozen strategy parameters',q.parameters);}const actions=node('div',undefined,'mechanic-downloads');link(actions,'New simulation','#prop-sim');const edit=node('button','Adjust settings','button secondary');edit.type='button';edit.onclick=()=>{setup.open=true;setup.scrollIntoView({behavior:'smooth',block:'start'});};actions.append(edit);for(const phase of ['evaluation','funded']){const jump=node('button',phase==='evaluation'?'View Evaluation':'View Funded','button secondary');jump.type='button';jump.onclick=()=>document.querySelector('#prop-sim-'+phase+'-results')?.scrollIntoView({behavior:'smooth',block:'start'});actions.append(jump);}actions.append(deleteButton(selectedId));title.append(actions);results.append(title);host.insertBefore(results,setup);}
         paintConclusions();
         let validationActive=false;
@@ -547,8 +558,17 @@
       }catch(error){if(alive())notice.textContent=error.message;}}
       applyAccount(false);
       if(selectedId){await refresh();if(!alive())return;if(saved){sizingMode.value=saved.configuration.search_kind||'fixed_contracts';for(const phase of ['evaluation','funded']){const handling=saved.configuration[phase+'_trade_handling'];if(handling){tradeFields[phase].action.value=handling.account_limit_action;tradeFields[phase].minimum.checked=handling.minimum_one_contract;}const grid=saved.configuration[phase+'_percentage_grid'];if(grid)for(const [key,input] of Object.entries(riskFields[phase])){if(input.type==='checkbox')input.checked=grid[key];else input.value=String(grid[key]);}}toggleSizing();accountPicker.value=saved.configuration.profile_id||'apex-50k-eod';dll.checked=saved.configuration.daily_loss_limit??true;consistency.value=String(saved.configuration.evaluation_consistency_percent??40);const index=sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0]));if(index>=0)picker.value=String(index);for(const [name] of names){const value=name.endsWith('_micros')?range(saved.configuration,name.split('_')[0])[name.includes('_minimum_')?'minimum':'maximum']:saved.configuration[name];fields[name].value=name==='closures'?value.join(','):String(value??'');}applyAccount(false);select();}}
-      else if(sourceId){const index=sources.items.findIndex(s=>[s.source_backtest_id,s.oos_report_id].includes(sourceId));if(index>=0){picker.value=String(index);select();}else{notice.textContent='This backtest has no currently qualified configuration. Complete all campaign phases and Monte Carlo before selecting it.';update();}}
       else update();
+      sourceRequest.then(({value,error})=>{
+        if(!alive())return;
+        if(error){sourceLoading.textContent='Could not load qualified configurations: '+error.message;return;}
+        sources.items=value.items;sources.unavailable=value.unavailable;
+        picker.replaceChildren(new Option('Choose a configuration',''));sources.items.forEach((item,i)=>picker.add(new Option(`${item.strategy_id.replaceAll('_',' ')} · ${item.dataset.name} · Broad ${item.broad_trial} / Narrow ${item.narrow_trial}`,String(i))));picker.disabled=false;
+        sourceLoading.textContent=sources.items.length?'':'No qualified, compatible configurations are available. Complete the campaign phases and Monte Carlo first.';
+        if(sources.unavailable.length)detail(sourceBox,'Unavailable sources and reasons',sources.unavailable);
+        const index=saved?sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0])):sourceId?sources.items.findIndex(s=>[s.source_backtest_id,s.oos_report_id].includes(sourceId)):-1;
+        if(index>=0){picker.value=String(index);select();}else update();
+      });
     }catch(error){if(alive())host.replaceChildren(node('p',error.message));}
   }
   window.addEventListener('hashchange',render);render();

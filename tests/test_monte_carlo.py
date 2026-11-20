@@ -67,3 +67,14 @@ def test_cancelled_analysis_does_not_publish_or_calculate(tmp_path,monkeypatch):
     finally:store.close()
 
 
+
+
+def test_multicore_retains_the_original_random_stream_and_every_path():
+    from alphaquest.prop.parallel import Runtime
+    daily=[dict(net_pnl=str(v)) for v in [100,-40,20,0,-80,140]*20]
+    expected=assess(daily,150);runtime=Runtime(workers=4)
+    try:
+        with runtime.activate():actual=assess(daily,150)
+        assert actual==expected
+        assert runtime.occupied==0
+    finally:runtime.close()

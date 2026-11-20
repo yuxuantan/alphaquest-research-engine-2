@@ -623,3 +623,84 @@ def test_forty_sizes_keep_one_thousand_paths_through_saved_product_results(page,
         target=Path(destination);target.mkdir(parents=True,exist_ok=True)
         for p in tmp_path.iterdir():
             if p.is_file() and p.suffix in ('.json','.zip','.png'):shutil.copyfile(p,target/p.name)
+
+
+def test_form_and_navigation_remain_usable_while_configurations_load(page,portal,monkeypatch,tmp_path):
+    from threading import Event
+    entered,release=Event(),Event()
+    owner=portal['app'].state.prop_sim_preparation;original=owner.candidates
+    def slow():
+        entered.set();assert release.wait(30)
+        return original()
+    monkeypatch.setattr(owner,'candidates',slow)
+    try:
+        page.goto(portal['url']+'/#prop-sim')
+        playwright.expect(page.locator('#prop-sim-profile')).to_be_visible(timeout=5000)
+        playwright.expect(page.locator('#prop-sim-workers')).to_have_value('4')
+        page.locator('#prop-sim-workers').select_option('2')
+        playwright.expect(page.locator('#prop-sim-workers')).to_have_value('2')
+        assert entered.wait(2)
+        playwright.expect(page.locator('#prop-sim-source')).to_be_disabled()
+        playwright.expect(page.locator('#prop-sim-source-loading')).to_contain_text('background')
+        page.locator('#prop-sim-profile').select_option('lucidflex-50k')
+        playwright.expect(page.locator('.prop-sim-dll')).to_contain_text('$1,200')
+        page.locator('#prop-sim-form').screenshot(path=str(tmp_path/'form-before-configurations.png'))
+        page.get_by_role('link',name='Job history',exact=True).click()
+        playwright.expect(page.locator('#jobs-list-view')).to_be_visible(timeout=5000)
+        page.get_by_role('navigation',name='Main navigation',exact=True).get_by_role('link',name='Prop Sim',exact=True).click()
+        playwright.expect(page.locator('#prop-sim-profile')).to_be_visible(timeout=5000)
+        page.set_viewport_size(dict(width=390,height=844))
+        assert page.locator('body').evaluate('(e)=>e.scrollWidth<=innerWidth+1')
+        page.screenshot(path=str(tmp_path/'mobile-loading-configurations.png'),full_page=True)
+    finally:release.set()
+    playwright.expect(page.locator('#prop-sim-source')).to_be_enabled(timeout=15000)
+    if destination:=os.environ.get('ALPHAQUEST_PREPARATION_EVIDENCE_DIR'):
+        target=Path(destination);target.mkdir(parents=True,exist_ok=True)
+        for name in ('form-before-configurations.png','mobile-loading-configurations.png'):shutil.copyfile(tmp_path/name,target/name)
+
+
+def test_preparation_job_can_be_followed_and_stopped_from_job_history(page,portal,monkeypatch,tmp_path):
+    from threading import Event
+    import time
+    from test_saved_trade_simulation import saved_source_pair
+    from test_percentage_automatic import install_admission_fixture
+    from research_fixtures import ResearchHTTPClient
+    with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:source=saved_source_pair(client)
+    install_admission_fixture(monkeypatch,source,app=portal['app'])
+    owner=portal['app'].state.prop_sim_preparation;original=owner.execute
+    entered,release=Event(),Event()
+    def held(operation,payload,checkpoint=lambda:None):
+        if operation=='check':
+            entered.set();assert release.wait(30);checkpoint()
+        return original(operation,payload,checkpoint)
+    monkeypatch.setattr(owner,'execute',held)
+    try:
+        page.goto(portal['url']+'/#prop-sim')
+        playwright.expect(page.locator('#prop-sim-source')).to_be_enabled()
+        page.locator('#prop-sim-source').select_option('0')
+        page.locator('#prop-sim-simulations').fill('8')
+        with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/api/prop-sim')) as response:
+            page.locator('#prop-sim-run').click()
+        assert response.value.status==202,response.value.text()
+        id=response.value.json()['id'];assert entered.wait(3)
+        playwright.expect(page.locator('#prop-sim-preparation')).to_contain_text('background',timeout=5000)
+        page.locator('#prop-sim-preparation').screenshot(path=str(tmp_path/'visible-preparation.png'))
+        page.get_by_role('link',name='Job history / preparation progress',exact=True).click()
+        playwright.expect(page.locator('#jobs-detail-content')).to_contain_text('Prop Sim preparation',timeout=5000)
+        page.locator('#jobs-detail-content').screenshot(path=str(tmp_path/'job-preparation-progress.png'))
+        page.once('dialog',lambda dialog:dialog.accept())
+        with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/cancel')):
+            page.get_by_role('button',name='Stop running job',exact=True).click()
+        release.set()
+        playwright.expect(page.locator('#jobs-detail-content')).to_contain_text('cancelled',ignore_case=True,timeout=15000)
+        page.get_by_role('link',name='Open Prop Sim',exact=True).click()
+        playwright.expect(page.locator('#prop-sim-preparation')).to_contain_text('CANCELLED',timeout=5000)
+        assert not page.locator('#prop-sim-evaluation-table').count()
+    finally:release.set()
+    with portal['app'].state.prop_analyses.connect() as db:
+        saved=json.loads(db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()[0])
+        assert saved['preparation']['status']=='cancelled' and not saved['campaign_ids']
+    if destination:=os.environ.get('ALPHAQUEST_PREPARATION_EVIDENCE_DIR'):
+        target=Path(destination);target.mkdir(parents=True,exist_ok=True)
+        for name in ('visible-preparation.png','job-preparation-progress.png'):shutil.copyfile(tmp_path/name,target/name)
+        (target/'stopped-preparation.json').write_text(json.dumps(saved,indent=2))

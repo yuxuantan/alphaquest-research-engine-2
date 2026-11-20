@@ -22,7 +22,7 @@ def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path
  with monkeypatch.context() as m:
   m.setattr(prices,'source_bytes',wide_prices)
   with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:source=saved_source_pair(client)
- install_admission_fixture(monkeypatch,source)
+ install_admission_fixture(monkeypatch,source,app=portal['app'])
  entered,release=Event(),Event();store=portal['app'].state.prop_analyses;original=store._update
  def hold(*a,**kw):
   result=original(*a,**kw)
@@ -111,7 +111,7 @@ def test_run_button_names_the_blocker_and_recovers_after_correction(page,portal,
  # Real synthetic backtest source; prior qualification is the labeled fixture.
  # This form-only journey starts no prop calculation; the next test runs both phases.
  with ResearchHTTPClient(base_url=portal['url'],timeout=180) as client:source=native_source_pair(client)
- install_admission_fixture(monkeypatch,source)
+ install_admission_fixture(monkeypatch,source,app=portal['app'])
  page.goto(portal['url']+'/#prop-sim')
  run=page.locator('#prop-sim-run');check=page.locator('#prop-sim-check');notice=page.locator('#prop-sim-status')
  playwright.expect(notice).to_contain_text('Cannot run: Choose a qualified campaign configuration.')

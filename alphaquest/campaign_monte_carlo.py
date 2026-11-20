@@ -17,7 +17,8 @@ from uuid import UUID, uuid4
 import numpy as np
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from .worker_limits import DEFAULT_WORKERS, MAX_WORKERS
 
 from .campaign_broad import invoke
 from .campaign_oos import context, results
@@ -89,6 +90,16 @@ def stationary_indices(rng, count, days, mean_block):
     return (np.take_along_axis(starts,last,axis=1)+positions-last) % days
 
 
+def _path_chunk(value):
+    pnl,state,count,block,marker=value
+    if Path(marker).exists():raise RuntimeError('Monte Carlo stopped')
+    rng=np.random.Generator(np.random.PCG64());rng.bit_generator.state=state
+    indices=stationary_indices(rng,count,len(pnl),block)
+    net,dd=drawdowns(pnl[indices])
+    if not np.isfinite(net).all() or not np.isfinite(dd).all():raise ValueError('Simulation arithmetic exceeded supported finite values.')
+    return net.tolist(),dd.tolist()
+
+
 def assess(daily, trades, *, progress=lambda *args:None):
     """Bounded-memory simulation; same seeded schedules for every candidate."""
     pnl = np.asarray([float(row['net_pnl']) for row in daily],dtype=np.float64)
@@ -101,13 +112,35 @@ def assess(daily, trades, *, progress=lambda *args:None):
     for block in POLICY['block_lengths']:
         rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence([POLICY['seed'],block])))
         totals, losses = [], []
-        for start in range(0,POLICY['paths'],128):
-            count = min(128,POLICY['paths']-start)
-            progress(block,start,POLICY['paths'])
-            indices = stationary_indices(rng,count,len(pnl),block)
-            net, dd = drawdowns(pnl[indices])
-            if not np.isfinite(net).all() or not np.isfinite(dd).all():raise ValueError('Simulation arithmetic exceeded supported finite values.')
-            totals.extend(net.tolist());losses.extend(dd.tolist())
+        from .prop.path_parallel import available
+        if available():
+            from .prop.parallel import map_reported
+            from copy import deepcopy
+            with TemporaryDirectory(prefix='aq-monte-carlo-') as temporary:
+                marker=Path(temporary)/'stop';tasks=[]
+                for start in range(0,POLICY['paths'],128):
+                    count=min(128,POLICY['paths']-start)
+                    progress(block,0,POLICY['paths'])
+                    tasks.append((pnl,deepcopy(rng.bit_generator.state),count,block,str(marker)))
+                    # Advance the identical original stream; children calculate
+                    # each batch from its captured state, regardless of cores.
+                    stationary_indices(rng,count,len(pnl),block)
+                completed=0
+                def arrived(value):
+                    nonlocal completed
+                    completed+=len(value[0])
+                values=map_reported(_path_chunk,tasks,
+                    checkpoint=lambda:progress(block,completed,POLICY['paths']),
+                    notify=lambda *args:None,cancel=marker.touch,on_result=arrived)
+                for net,dd in values:totals.extend(net);losses.extend(dd)
+        else:
+            for start in range(0,POLICY['paths'],128):
+                count = min(128,POLICY['paths']-start)
+                progress(block,start,POLICY['paths'])
+                indices = stationary_indices(rng,count,len(pnl),block)
+                net, dd = drawdowns(pnl[indices])
+                if not np.isfinite(net).all() or not np.isfinite(dd).all():raise ValueError('Simulation arithmetic exceeded supported finite values.')
+                totals.extend(net.tolist());losses.extend(dd.tolist())
         progress(block,POLICY['paths'],POLICY['paths'])
         scenario=summarize(observed,totals,losses,block)
         scenario['qualifies'] = evidence and scenario['qualifies']
@@ -212,7 +245,7 @@ def reassess_saved(store, report, staged, checkpoint):
     return output
 
 
-def submit(request, workflow_id, job_id):
+def submit(request, workflow_id, job_id, workers=DEFAULT_WORKERS):
     store = request.app.state.prop_analyses
     snapshot = source_snapshot(request,workflow_id,job_id)
     key = digest(snapshot)
@@ -228,6 +261,7 @@ def submit(request, workflow_id, job_id):
             db.execute('INSERT INTO campaign_sanity_jobs VALUES (?,?,?)',(id,workflow_id,job_id))
             db.executemany('INSERT INTO analysis_sources VALUES (?,?)',[(id,source) for source in sorted({s['run_id'] for c in snapshot['candidates'] for s in c['sources']})])
             db.execute('INSERT INTO phase_analysis_control(analysis_id) VALUES (?)',(id,))
+        with store.connect() as db:db.execute('INSERT INTO analysis_compute VALUES (?,?)',(id,workers))
         store.worker.submit(run,store,id,snapshot,reuse)
     return store.get(id)
 
@@ -247,7 +281,9 @@ def run(store, id, snapshot, reuse=None):
                 store._update(id,'running','Applying current policy to saved Monte Carlo paths; no new simulation')
                 output=reassess_saved(store,reuse,staged,checkpoint)
             else:
-                output=simulate_candidates(store,id,snapshot,staged,checkpoint)
+                with store.connect() as db:compute=db.execute('SELECT workers FROM analysis_compute WHERE analysis_id=?',(id,)).fetchone()
+                with store.runtime.activate(workers=compute[0] if compute else None):
+                    output=simulate_candidates(store,id,snapshot,staged,checkpoint)
             result=dict(**{k:v for k,v in snapshot.items() if k!='candidates'},kind='campaign_monte_carlo',candidates=output,
                         passed=sum(c['qualifies'] for c in output),total=len(output))
             if reuse:
@@ -292,12 +328,13 @@ def detail(request, workflow_id, job_id):
         if not store.fingerprint(job['id']):raise ValueError('Saved Monte Carlo report integrity check failed.')
         report=json.loads((store.root/job['id']/'report.json').read_text())
     return dict(policy=POLICY,rules=RULES,limitations=LIMITATIONS,diagnostics=DIAGNOSTICS,job=job,report=report,
-                oos_complete=bool(oos and oos['status']=='complete'),history=[dict(r) for r in rows])
+                default_workers=DEFAULT_WORKERS,max_workers=MAX_WORKERS,oos_complete=bool(oos and oos['status']=='complete'),history=[dict(r) for r in rows])
 
 
 class Launch(BaseModel):
     model_config=ConfigDict(extra='forbid')
     job_id: UUID
+    workers: StrictInt = Field(default=DEFAULT_WORKERS,ge=1,le=MAX_WORKERS)
 
 
 router=APIRouter()
@@ -310,7 +347,7 @@ async def page(workflow_id: UUID, request: Request, job: UUID):
 
 @router.post('/api/campaign-workflows/{workflow_id}/oos/monte-carlo/run',status_code=202)
 async def launch(workflow_id: UUID, body: Launch, request: Request):
-    return await invoke(submit,request,workflow_id.hex,body.job_id.hex)
+    return await invoke(submit,request,workflow_id.hex,body.job_id.hex,body.workers)
 
 
 @router.get('/api/campaign-workflows/{workflow_id}/oos/monte-carlo/jobs/{analysis_id}/download')

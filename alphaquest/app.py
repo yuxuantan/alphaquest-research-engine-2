@@ -119,13 +119,17 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.research_workspace = ResearchWorkspace(app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
         app.state.progress = ProgressTracker()
+        from .prop_sim_preparation import PropSimPreparation
+        app.state.prop_sim_preparation=PropSimPreparation(app)
         from .prop_sim_automation import PropSimAutomation
         app.state.prop_sim_automation=PropSimAutomation(app)
         app.state.prop_analyses.phase_finished=app.state.prop_sim_automation.analysis_finished
+        app.state.prop_sim_preparation.recover()
         app.state.prop_sim_automation.recover()
         from .prop_portfolio import recover as recover_portfolios
         recover_portfolios(app)
         yield
+        app.state.prop_sim_preparation.close()
         app.state.prop_sim_automation.close()
         if app.state.mechanic_tasks:
             await asyncio.gather(*list(app.state.mechanic_tasks), return_exceptions=True)

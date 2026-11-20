@@ -174,7 +174,7 @@ def implementation_identity():
     names = ('evaluation_optimization.py', 'evaluation_profiles.py', 'phase_profiles.py',
              'native_analysis.py', 'native_engine.py', 'native_backend.py',
              'lucid_engine.py', 'lucid_rules.py', 'lucid_backend.py', 'source.py', 'commissions.py',
-             'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py',
+             'phase_lifecycle.py', 'adapter.py', 'phase_search.py', 'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py', 'path_parallel.py',
              'external_source.py', 'cash_ledger.py', 'rule_provenance.py', 'native_control.py', 'native_money.py',
              'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../decimal_math.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
              '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py')
@@ -410,8 +410,13 @@ def optimize_evaluation(runs, search, checks=None, progress=lambda message: None
         checks = current
     checks = checks if checks is not None else check_search(runs, search)
     configurations = {canonical(asdict(c)): c for c in search.candidates}
-    rows = []
-    for check in checks:
+    from .path_parallel import available,run_candidates
+    # Apex's legacy attempt sampler shares a serial MT19937 stream across paths.
+    # Parallelize independent sizes instead, retaining the original RNG law.
+    parallel_rows=(run_candidates(runs,search,checks,training_context,checkpoint,progress)
+        if available() and len(checks)>1 and all(c.profile.profile_id=='apex-50k-eod' for c in search.candidates) else None)
+    rows = parallel_rows or []
+    for check in ([] if parallel_rows is not None else checks):
         candidate = configurations[canonical(check['manifest']['configuration'])]
         progress(f'Completed {len(rows)} / {len(checks)} candidates · Evaluating '+check['candidate_id'][:12])
         if candidate.profile.profile_id=='lucidflex-50k':

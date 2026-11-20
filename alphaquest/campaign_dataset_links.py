@@ -459,7 +459,7 @@ class CampaignDatasetLinks:
         delete('prop.robust_research','id',study_ids)
         delete('prop.research_campaigns','id',p['phase_campaign_ids'])
         delete('prop.campaign_sanity_jobs','workflow_id',p['workflow_ids'])
-        for table,column in [('calculation_reuse','id'),('analysis_report_checks','id'),('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analyses','id')]:
+        for table,column in [('calculation_reuse','id'),('analysis_report_checks','id'),('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analysis_compute','analysis_id'),('analyses','id')]:
             delete('prop.'+table,column,p['analysis_ids'])
         for table in ('campaign_workflow_runs','mechanic_job_attempts','campaign_broad_jobs','campaign_broad_state','campaign_narrow_jobs','campaign_narrow_state','campaign_oos_jobs','campaign_oos_state'):
             delete(table,'workflow_id',p['workflow_ids'])

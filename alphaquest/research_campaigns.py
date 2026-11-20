@@ -7,6 +7,7 @@ import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .prop.parallel import CAPACITY
 from .prop.adapter import canonical, source_record
 from .prop.phase_dispatch import implementations_compatible, module_for
 from .prop.phase_search import CANDIDATE_CONFIRMATION_THRESHOLD, require_candidate_confirmation
@@ -46,6 +47,7 @@ class CandidateSource(StrictModel):
 
 class CampaignRequest(StrictModel):
     campaign_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    workers: int = Field(default=4,ge=1,le=CAPACITY)
     phase: Literal['evaluation', 'funded']
     profile: dict
     sources: list[CandidateSource] = Field(min_length=1)
@@ -140,6 +142,7 @@ class CampaignStore:
     def __init__(self, runs, analyses, optimizations, datasets=None):
         self.runs, self.analyses, self.optimizations = runs, analyses, optimizations
         self.datasets = datasets
+        self.progress_counts = {}
 
     def sources(self, kind, query='', offset=0, limit=50):
         """Metadata-only picker; never load OOS outcomes, trades or prop metrics."""
@@ -303,7 +306,8 @@ class CampaignStore:
             screening=dict(method='exhaustive_declared_candidates', status='validated', candidates=count),
             refinement=dict(status='not_requested', reason='One declared sampling schedule; no adaptive pruning or precision certification.'))
 
-    def create(self, body):
+    def create(self, body, *, checked_manifest=None, guard=None):
+        if checked_manifest is not None and guard is None:raise ValueError('Prepared source checks require a live integrity guard.')
         with self.analyses.lock:
             with self.analyses.connect() as db:
                 if db.execute('SELECT 1 FROM campaign_deletions WHERE campaign_id=?', (body.campaign_id,)).fetchone():
@@ -316,7 +320,8 @@ class CampaignStore:
                 if CampaignRequest.model_validate(previous['declaration']).model_dump() != body.model_dump():
                     raise ResearchConflict('Campaign ID already has an immutable declaration; use a new campaign ID.')
                 return self.get(body.campaign_id)
-            manifest = self.expand(body)
+            if guard:guard()
+            manifest = checked_manifest if checked_manifest is not None else self.expand(body)
             with self.analyses.connect() as db:
                 db.execute('INSERT INTO research_campaigns VALUES (?,?,?,?,NULL,NULL)',
                     (body.campaign_id, datetime.now(timezone.utc).isoformat(), canonical(body.model_dump()), canonical(manifest)))
@@ -324,7 +329,8 @@ class CampaignStore:
                     [(body.campaign_id, id) for id in sorted({c['source']['source_backtest_id'] for c in manifest['request']['candidates']})])
                 db.executemany('INSERT INTO campaign_jobs VALUES (?,?)',
                     [(body.campaign_id, id) for id in sorted({g['optimization_id'] for g in manifest['optimization_grids']})])
-            return self.get(body.campaign_id)
+            self.progress_counts[body.campaign_id]=manifest['candidate_search_count']
+            return self.progress(body.campaign_id) if checked_manifest is not None else self.get(body.campaign_id)
 
     def _row(self, id):
         with self.analyses.connect() as db:
@@ -343,6 +349,20 @@ class CampaignStore:
         return dict(**row, status=status, analysis=analysis,
             screening_status='complete' if status == 'complete' else status,
             refinement_status=row['manifest']['refinement']['status'])
+
+    def progress(self,id):
+        """Metadata-only polling; immutable large source manifests stay cold."""
+        with self.analyses.connect() as db:
+            row=db.execute('SELECT analysis_id FROM research_campaigns WHERE id=?',(id,)).fetchone()
+            if row is None:raise KeyError('Campaign not found.')
+            if id not in self.progress_counts:
+                self.progress_counts[id]=db.execute("SELECT json_extract(manifest,'$.candidate_search_count') FROM research_campaigns WHERE id=?",(id,)).fetchone()[0]
+                if len(self.progress_counts)>128:self.progress_counts.pop(next(iter(self.progress_counts)))
+            count=self.progress_counts[id]
+        analysis=self.analyses.get(row[0]) if row[0] else None
+        return dict(campaign_id=id,status=analysis['status'] if analysis else 'validated',analysis_id=row[0],
+            progress=analysis.get('progress') if analysis else None,progress_details=analysis.get('progress_details') if analysis else None,
+            error=analysis.get('error') if analysis else None,candidate_count=count)
 
     def list(self, source_id=None, limit=50, offset=0):
         with self.analyses.connect() as db:
@@ -475,7 +495,8 @@ class CampaignStore:
                 raise ResearchConflict('Numerical implementation changed; create a new campaign.')
             return dict(status='compatible', candidate_search_count=len(checks), candidates=checks)
 
-    def run(self, id):
+    def run(self, id, *, prepared_checks=None, guard=None):
+        if prepared_checks is not None and guard is None:raise ValueError('Prepared source checks require a live integrity guard.')
         with self.analyses.lock:
             row = self.get(id)
             if row['analysis'] and row['status'] in ('queued', 'running', 'complete'):
@@ -483,7 +504,8 @@ class CampaignStore:
                         or not self.analyses.native_children_unchanged(self.runs,row['analysis_id'])):
                     raise ResearchConflict('Saved calculation failed integrity checks; preserve this campaign and create a new one.')
                 return row
-            self.validate(id)
+            if guard:guard()
+            else:self.validate(id)
             with self.analyses.connect() as db:
                 pending = db.execute("SELECT COUNT(*) FROM analyses WHERE status IN ('queued','running')").fetchone()[0]
             if pending >= 8:
@@ -492,7 +514,8 @@ class CampaignStore:
             module = module_for(manifest['phase'])
             search = module.parse_request(manifest['request'])
             # Submit with the original access snapshot, after live source validation.
-            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'], datasets=self.datasets)
+            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'], datasets=self.datasets,
+                prepared_checks=prepared_checks,guard=guard,workers=row['declaration'].get('workers',4))
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id, analysis['id']))
                 db.execute('UPDATE research_campaigns SET analysis_id=? WHERE id=?', (analysis['id'], id))
@@ -662,7 +685,7 @@ class CampaignStore:
             # Protect sources before queueing and keep every report in AnalysisStore.
             with self.analyses.connect() as db:
                 db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
-            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context, datasets=self.datasets)
+            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context, datasets=self.datasets,workers=self.get(id)['declaration'].get('workers',4))
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
             return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))
@@ -700,7 +723,7 @@ class CampaignStore:
                     sources=mappings,prior_access=attempt['prior_access'],
                     is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']},
                     interpretation='Frozen IS sensitivity/precision assessment; no OOS data, new size selection or certified optimum.')
-                analysis=self.analyses.submit_phase(self.runs,module.parse_request(raw),assessment=context,datasets=self.datasets)
+                analysis=self.analyses.submit_phase(self.runs,module.parse_request(raw),assessment=context,datasets=self.datasets,workers=self.get(id)['declaration'].get('workers',4))
                 with self.analyses.connect() as db:db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)',(id,analysis['id']))
                 return self.save_assessment(dict(attempt,status=analysis['status'],analysis_id=analysis['id']))
             except Exception as exc:
