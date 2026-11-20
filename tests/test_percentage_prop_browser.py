@@ -7,7 +7,8 @@ from research_fixtures import ResearchHTTPClient
 from test_percentage_automatic import native_source_pair,install_admission_fixture
 
 
-def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path):
+@pytest.mark.parametrize('profile_id',['apex-50k-eod','lucidflex-50k'])
+def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path,profile_id):
  from test_saved_trade_simulation import saved_source_pair
  # Scale the actual synthetic input prices, not recorded trade outcomes. The
  # normal strategy/backtest captures a $200/MNQ stop and $40 adverse excursion.
@@ -38,6 +39,9 @@ def test_saved_trade_percentage_product_journey(page,portal,monkeypatch,tmp_path
  playwright.expect(page.locator('#report-prop-setup')).to_be_visible()
  page.get_by_role('navigation',name='Main navigation',exact=True).get_by_role('link',name='Prop Sim',exact=True).click()
  page.locator('#prop-sim-source').select_option('0')
+ page.locator('#prop-sim-profile').select_option(profile_id)
+ if profile_id=='lucidflex-50k':
+  playwright.expect(page.locator('#prop-sim-form')).to_contain_text('Inactivity expiry is disabled; manual maintenance activity is assumed and its small costs are omitted.')
  page.locator('#prop-sim-search-kind').select_option('percentage_risk')
  for phase in ('evaluation','funded'):
   for key,value in [('minimum','.01'),('maximum','20.01'),('step','20')]:page.locator(f'#prop-sim-{phase}-risk-{key}').fill(value)

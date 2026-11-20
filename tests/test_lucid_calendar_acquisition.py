@@ -5,8 +5,8 @@ from alphaquest.prop.phase_profiles import EvaluationProfile,SimulationConfig,Ev
 from alphaquest.prop.phase_search import PhaseCalendar
 
 
-def run(days,*,dll=True,start='2026-11-13',closures=(),guard=15,attempts=10):
-    profile=EvaluationProfile('lucidflex-50k',rule_version('lucidflex-50k'),'80.50','0',dll)
+def run(days,*,dll=True,start='2026-11-13',closures=(),guard=15,attempts=10,enforce_inactivity=False):
+    profile=EvaluationProfile('lucidflex-50k',rule_version('lucidflex-50k'),'80.50','0',dll,lucid_inactivity_enforced=enforce_inactivity)
     return calendar_evaluation_paths(days,profile,10,SimulationConfig(8,42,40),EvaluationSamplingConfig(5,8,42),
         SequentialRetry(activation_delay_sessions=0,max_calendar_days=guard,max_attempts=attempts),
         PhaseCalendar((start,),'2027-01-31',closures))[0]
@@ -21,7 +21,7 @@ def test_consistency_weekends_closures_and_zero_activation():
 
 
 def test_calendar_inactivity_and_guard_are_distinct():
-    paths=run([[]],guard=40,attempts=1)
+    paths=run([[]],guard=40,attempts=1,enforce_inactivity=True)
     assert all(p['attempts'][0]['terminal_date']=='2026-12-13' and p['attempts'][0]['outcome']=='inactive' for p in paths)
     assert all(p['outcome']=='attempt_guard' and p['paid_fees']==80.5 and not p['acquisition_completed'] for p in paths)
     paths=run([[(100.,0.)]],guard=5)

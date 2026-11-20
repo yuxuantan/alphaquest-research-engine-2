@@ -27,6 +27,7 @@ class Rules:
     payout_share: float = .9
     minimum_request: float = 500.
     inactivity_calendar_days: int = 30
+    inactivity_enforced: bool = False
     approval_day_counts: bool = True
     levels: tuple = ((0.,20,1200.), (1000.,30,1200.), (2000.,40,1200.))
 
@@ -141,6 +142,7 @@ class FundedAccount:
 
     def expire_inactive(self, calendar_day, before_session=False):
         """Native calendar clock, also callable on dates without a session."""
+        if not self.rules.inactivity_enforced:return False
         elapsed = calendar_day-self.last_activity
         expired = (elapsed > self.rules.inactivity_calendar_days if before_session
                    else elapsed >= self.rules.inactivity_calendar_days and elapsed != 0)
@@ -170,9 +172,9 @@ class FundedAccount:
                daily_floor=cython.double, previous=cython.double, consistency=cython.double,
                last_activity=cython.longlong, calendar=cython.longlong,
                hit=cython.longlong, consumed=cython.longlong)
-def _fixed_evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4):
+def _fixed_evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4,inactivity_enforced=False):
     """Compiled fixed-quantity transition; public native sizing retains its owner."""
-    if calendar-last_activity>30:return equity,high,best_day,last_activity,'inactive',0,0
+    if inactivity_enforced and calendar-last_activity>30:return equity,high,best_day,last_activity,'inactive',0,0
     opening=equity;floor=min(high-2000.,100.)
     daily_floor=opening-daily_loss if daily_loss is not None else -float('inf')
     result='open';hit=consumed=0
@@ -185,15 +187,15 @@ def _fixed_evaluation_session(trades,equity,high,best_day,last_activity,calendar
     best_day=max(best_day,equity-opening);high=max(high,equity)
     if result!='blown':
         if equity>=3000. and best_day<=consistency*equity:result='passed'
-        elif calendar-last_activity>=30:result='inactive'
+        elif inactivity_enforced and calendar-last_activity>=30:result='inactive'
     return equity,high,best_day,last_activity,result,hit,consumed
 
 
-def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None,max_micros=40):
+def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None,max_micros=40,inactivity_enforced=False):
     """One Lucid evaluation session on a caller-owned calendar clock."""
     runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     sizing_cap=min(size,max_micros)
-    boundary=evaluation_opening(equity,high,last_activity,calendar,daily_loss)
+    boundary=evaluation_opening(equity,high,last_activity,calendar,daily_loss,inactivity_enforced)
     if boundary is None:return equity,high,best_day,last_activity,'inactive',0,0
     opening,floor,daily_floor=boundary
     result='open';hit=consumed=0
@@ -216,7 +218,7 @@ def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,d
             if decision is not None:
                 finish_trace(runtime,decision,equity,hit,result)
     equity,high,best_day,last_activity,result=evaluation_finish(
-        equity,high,best_day,opening,last_activity,calendar,result,consistency)
+        equity,high,best_day,opening,last_activity,calendar,result,consistency,inactivity_enforced)
     return equity,high,best_day,last_activity,result,hit,consumed
 
 
@@ -227,7 +229,7 @@ def evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,d
                calendar=cython.longlong,remaining=cython.longlong,index=cython.longlong,
                cursor=cython.longlong,length=cython.longlong,starts=cython.longlong[:])
 def evaluation(days,micros,sims,seed,block=5,deadline=EVALUATION_MAX_HORIZON,chain=False,max_micros=40,
-               daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None):
+               daily_loss=1200.,consistency=.4,sizing_policy=None,sizing_context=None,trace=None,inactivity_enforced=False):
     """Continue open paths beyond 2,000 sessions without resetting their state.
 
     A successful evaluation is assessed at session close, including consistency.
@@ -245,7 +247,7 @@ def evaluation(days,micros,sims,seed,block=5,deadline=EVALUATION_MAX_HORIZON,cha
             size=min(micros,40,max_micros)
             for day in range(1,deadline+1):
                 calendar=(day-1)//5*7+(day-1)%5
-                if calendar-last_activity>30:result='inactive';break
+                if inactivity_enforced and calendar-last_activity>30:result='inactive';break
                 if remaining==0:
                     if cursor==4096:starts=rng.randint(length,size=4096,dtype=np.int64);cursor=0
                     index=starts[cursor];cursor+=1;remaining=block
@@ -265,10 +267,10 @@ def evaluation(days,micros,sims,seed,block=5,deadline=EVALUATION_MAX_HORIZON,cha
                     best_day=max(best_day,equity-opening);high=max(high,equity)
                     if result=='blown':break
                     if equity>=3000. and best_day<=consistency*equity:result='passed';break
-                    if calendar-last_activity>=30:result='inactive';break
+                    if inactivity_enforced and calendar-last_activity>=30:result='inactive';break
                 else:
                     context=with_tags(sizing_context,path_index=path_index,attempt=attempt,session_index=day,source_session_index=source_index) if runtime is not None else None
-                    equity,high,best_day,last_activity,state,_,_=evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss,consistency,sizing_policy,context,trace,max_micros)
+                    equity,high,best_day,last_activity,state,_,_=evaluation_session(trades,equity,high,best_day,last_activity,calendar,size,daily_loss,consistency,sizing_policy,context,trace,max_micros,inactivity_enforced)
                     if state!='open':result=state;break
             duration+=day
             longest_attempt=max(longest_attempt,day)
@@ -326,7 +328,7 @@ def funded(days,micros,sims,seed,block=5,horizon=2000,rules=Rules(),max_micros=4
                 index=starts[cursor];cursor+=1;remaining=block
             trades=days[index];index=(index+1)%length;remaining-=1
             day+=1;calendar=(day-1)//5*7+(day-1)%5
-            if calendar-last_activity>inactivity:outcome='inactive';break
+            if r.inactivity_enforced and calendar-last_activity>inactivity:outcome='inactive';break
             opening=equity;floor=lock_profit if locked else min(high-max_dd,lock_profit)
             cap=cap0 if opening<tier1 else cap1 if opening<tier2 else cap2
             size=min(micros,cap,max_micros)
@@ -353,7 +355,7 @@ def funded(days,micros,sims,seed,block=5,horizon=2000,rules=Rules(),max_micros=4
                 if len(payouts)==limit:outcome='paid_all'
             else:qual+=profit>=qual_profit
             if high-max_dd>=lock_profit:locked=True
-            if calendar-last_activity>=inactivity and last_activity!=calendar:outcome='inactive'
+            if r.inactivity_enforced and calendar-last_activity>=inactivity and last_activity!=calendar:outcome='inactive'
             if outcome!='open' or day==horizon:break
         account=FundedAccount(rules=r,equity=equity,high=high,locked=locked,day=day,cycle_start=cycle_start,
             qualifying=qual,payouts=payouts,withdrawals=withdrawals,outcome=outcome,last_activity=last_activity)
@@ -361,18 +363,18 @@ def funded(days,micros,sims,seed,block=5,horizon=2000,rules=Rules(),max_micros=4
     return accounts
 
 
-def evaluation_opening(equity,high,last_activity,calendar,daily_loss):
-    if calendar-last_activity>30:return None
+def evaluation_opening(equity,high,last_activity,calendar,daily_loss,inactivity_enforced=False):
+    if inactivity_enforced and calendar-last_activity>30:return None
     floor=min(money_sub(high,rule_constant(high,'2000')),rule_constant(high,'100'))
     daily_floor=money_sub(equity,daily_loss) if daily_loss is not None else -float('inf')
     return equity,floor,daily_floor
 
 
-def evaluation_finish(equity,high,best_day,opening,last_activity,calendar,result,consistency):
+def evaluation_finish(equity,high,best_day,opening,last_activity,calendar,result,consistency,inactivity_enforced=False):
     best_day=max(best_day,money_sub(equity,opening));high=max(high,equity)
     if result!='blown':
         if equity>=3000. and best_day<=money_mul(consistency,equity):result='passed'
-        elif calendar-last_activity>=30:result='inactive'
+        elif inactivity_enforced and calendar-last_activity>=30:result='inactive'
     return equity,high,best_day,last_activity,result
 
 
@@ -451,13 +453,13 @@ def calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,*
             if lucid:
                 if kwargs:
                     result=evaluation_session(trades,equity,high,best,last_activity,elapsed,size,
-                        daily_loss,consistency=consistency,max_micros=simulation.max_micros,**kwargs)
+                        daily_loss,consistency=consistency,max_micros=simulation.max_micros,inactivity_enforced=profile.lucid_inactivity_enforced,**kwargs)
                 else:
                     if cython.compiled:
-                        result=_fixed_evaluation_session(trades,equity,high,best,last_activity,elapsed,size,daily_loss,consistency)
+                        result=_fixed_evaluation_session(trades,equity,high,best,last_activity,elapsed,size,daily_loss,consistency,profile.lucid_inactivity_enforced)
                     else:
                         result=evaluation_session(trades,equity,high,best,last_activity,elapsed,size,
-                            daily_loss,consistency,None,None,None,simulation.max_micros)
+                            daily_loss,consistency,None,None,None,simulation.max_micros,profile.lucid_inactivity_enforced)
                 equity,high,best,last_activity,state,_,_=result
             elif is_session:
                 equity,high,state,_,_=native_session(trades,equity,high,size,max_micros=simulation.max_micros,**kwargs)

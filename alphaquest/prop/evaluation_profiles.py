@@ -121,7 +121,7 @@ class NativeEvaluationController(NativeControlBase):
                 continue
             if self._current_attempt is None and day>=self._purchase_date and self.outcome!='attempt_guard_censored':self._buy(day)
             attempt=self._current_attempt
-            if self.lucid and attempt is not None and attempt['first_session'] is not None and day!=observed_session:
+            if self.lucid and self.profile.lucid_inactivity_enforced and attempt is not None and attempt['first_session'] is not None and day!=observed_session:
                 elapsed=(day-date.fromisoformat(attempt['first_session'])).days
                 if elapsed-self.last_activity>=30:self._fail(day,'inactive')
 
@@ -136,7 +136,7 @@ class NativeEvaluationController(NativeControlBase):
         if attempt['first_session'] is None:attempt['first_session']=str(session.session)
         self._calendar_day=(session.session-date.fromisoformat(attempt['first_session'])).days
         daily=Decimal(1200) if self.profile.daily_loss_limit else None
-        boundary=(self.kernel.evaluation_opening(self.equity,self.high,self.last_activity,self._calendar_day,daily)
+        boundary=(self.kernel.evaluation_opening(self.equity,self.high,self.last_activity,self._calendar_day,daily,self.profile.lucid_inactivity_enforced)
             if self.lucid else self.kernel.evaluation_opening(self.equity,self.high))
         if boundary is None:
             self._fail(session.session,'inactive');self._active_session=False;return
@@ -156,7 +156,7 @@ class NativeEvaluationController(NativeControlBase):
         if not self._active_session:return
         if self.lucid:
             self.equity,self.high,self.best_day,self.last_activity,self._account_status=self.kernel.evaluation_finish(
-                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal(self.profile.consistency_percent)/100)
+                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal(self.profile.consistency_percent)/100,self.profile.lucid_inactivity_enforced)
         else:
             self.equity,self.high,self._account_status=self.kernel.evaluation_finish(self.equity,self.high,self._account_status)
             if self._account_status=='open' and self._current_attempt['sessions']>=21:self._account_status='expired'
@@ -193,8 +193,9 @@ class NativeEvaluationController(NativeControlBase):
                 consistency_fraction=str(self.profile.consistency_percent/100) if self.lucid else None,
                 consistency_test='best_day <= fraction * total_profit at session close' if self.lucid else None,
                 provider_expiry_sessions=None if self.lucid else 21,
-                inactivity_calendar_days=30 if self.lucid else None,
-                activity_minimum_absolute_trade_net='1' if self.lucid else None,
+                inactivity_calendar_days=30 if self.lucid and self.profile.lucid_inactivity_enforced else None,
+                inactivity_enforced=self.profile.lucid_inactivity_enforced if self.lucid else None,
+                activity_minimum_absolute_trade_net='1' if self.lucid and self.profile.lucid_inactivity_enforced else None,
                 arithmetic='Exact Decimal state for native actual fills; legacy fixed-book float arithmetic is unchanged.'),
             pass_date=self.pass_date,eligibility_date=self.eligibility_date,ready_date=self.ready_date,
             acquisition_completed=acquired,activation_paid=self.activation_paid,
@@ -405,6 +406,7 @@ def simulate_evaluation_profile(
                 kwargs['trace'] = trace
         if profile.profile_id == 'lucidflex-50k':
             kwargs['consistency'] = profile.consistency_percent/100
+            kwargs['inactivity_enforced'] = profile.lucid_inactivity_enforced
         return evaluation_model(*args, **kwargs)
 
     sim = runner(days, micros, simulation.simulations, simulation.seed,
@@ -564,7 +566,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
                 values = kernel.evaluation_session([], attempt['equity'], attempt['high'], attempt['best'],
                     attempt['last_activity'], (day-date.fromisoformat(attempt['first_session'])).days,
                     min(micros, max_micros, 40), 1200. if profile.daily_loss_limit else None,
-                    consistency=profile.consistency_percent/100)
+                    consistency=profile.consistency_percent/100,inactivity_enforced=profile.lucid_inactivity_enforced)
                 attempt['equity'], attempt['high'], attempt['best'], attempt['last_activity'], state, hit, used = values
                 if state == 'inactive':
                     attempt.update(outcome=state, terminal_date=str(day))
@@ -583,7 +585,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
         if lucid:
             values = kernel.evaluation_session(trades, attempt['equity'], attempt['high'], attempt['best'],
                 attempt['last_activity'], (day-date.fromisoformat(attempt['first_session'])).days, size,
-                1200. if profile.daily_loss_limit else None, consistency=profile.consistency_percent/100, **kwargs)
+                1200. if profile.daily_loss_limit else None, consistency=profile.consistency_percent/100,inactivity_enforced=profile.lucid_inactivity_enforced, **kwargs)
             attempt['equity'], attempt['high'], attempt['best'], attempt['last_activity'], state, hit, used = values
         else:
             attempt['equity'], attempt['high'], state, hit, used = kernel.evaluation_session(
@@ -701,7 +703,7 @@ def simulate_calendar_evaluation_profile(runs,candidate,calendar,*,observed_sess
         model='saved-signal-calendar-acquisition-v1',phase_configuration=dict(profile=asdict(c.profile),micros=c.micros,
             simulation=asdict(c.simulation),sampling=asdict(c.sampling),retry=asdict(c.retry),calendar=asdict(calendar)),
         assumptions=['Source trade signals are fixed and scaled; account stops do not regenerate subsequent signals.',
-            'Lucid native session rules advance on actual scenario civil dates, including weekend/closure inactivity; no provider expiry.',
+            'Lucid account transitions use actual scenario civil dates. Inactivity expiry follows the frozen profile; the current maintained-activity model omits maintenance trades and their small commission costs. No provider evaluation deadline.',
             'Fresh-account retries charge every purchase. Cost/time are direct all-path means, not fee divided by an IID pass probability.',
             'Readiness is the next declared open session after eligibility; not measured provider activation latency.',
             'Numerical calendar/attempt guards censor open paths and withhold unconditional acquisition means.',

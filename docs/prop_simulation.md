@@ -3805,9 +3805,8 @@ qualification; the new portal default disables it. Old numerical packages must
 pass existing compatibility guards before any further launch; this change does
 not bypass those guards.
 
-Deployment status for this increment: implemented and tested in an isolated
-checkout while the live v4 simulation continues. The production Python files
-must be applied and the server restarted only after the current automatic run
-has drained all of its IS/OOS jobs. Editing them during that run would change its
-captured implementation identity. The reviewed patch and normal-product evidence
-are staged locally in `artifacts/lucid-maintained-activity-20261120/`.
+Deployment status: the v4 automatic simulation completed both phases before
+application. The tested v5 code was then applied during an idle portal restart;
+no running job was interrupted or rerun. The completed v4 reports retain their
+original rules, findings and seals. Review and normal-product evidence are kept
+locally in `artifacts/lucid-maintained-activity-20261120/`.

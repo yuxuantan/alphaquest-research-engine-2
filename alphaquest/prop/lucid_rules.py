@@ -1,5 +1,12 @@
 """Dated LucidFlex contract. Provider pages are evidence, never runtime inputs."""
-MODEL_VERSION='alphaquest-lucidflex50k-eod-v4-acquisition-bounds'
+MODEL_VERSION='alphaquest-lucidflex50k-eod-v5-maintained-activity'
+ACTIVITY_ASSUMPTION=dict(version='lucid-maintained-activity-v1',inactivity_expiry_enforced=False,
+    operator_action='Operator maintains activity outside the campaign with a brief one-MNQ round trip when needed.',
+    price_pnl='Expected price P&L is assumed zero; the required price/P&L fluctuation is an operational assumption.',
+    commission='At USD 0.50 per side, one round trip costs about USD 1. This small maintenance expense is omitted.',
+    accounting='No synthetic maintenance trades, profit, fees, profitable-day credit or strategy signals are added.',
+    rationale='Inactivity is treated as an operational task, not strategy-edge or account-sizing failure. Explicit scheduling and fee ledgers add complexity with negligible per-account economic effect.',
+    provider_scope='Local modeling decision; the previously documented provider inactivity requirement is not asserted to have changed.')
 EVALUATION_INITIAL_HORIZON=2000
 EVALUATION_MAX_HORIZON=20000
 SOURCES={
@@ -29,6 +36,9 @@ CONTRACT=dict(checked_on='2026-10-29',sources=SOURCES,
     horizon='No provider evaluation deadline. Open evaluation paths continue with their existing balance, trail, consistency, activity and bootstrap state beyond the initial 2,000 weekdays, up to a 20,000-weekday computational limit per attempt. Remaining open paths are censored, never counted as failures or restarted. Censored funding chains have unavailable acquisition timing; no fallback delay or survivor-only mean is substituted. Joint funded-lifetime estimates use a 20,000-weekday computational guard. Remaining open accounts are censored, with bounded potential receipts; no complete lifetime rate is substituted.',
     renewal='Annual-per-slot and historical replacement are research renewal assumptions, not a simulation of live accounts after the fifth payout.',
     documentation_conflict='The newer customization and consistency pages specify 40% standard; the older evaluation overview still lists 50%. This version supports the 40% standard, not the 50% add-on/cushion.')
+CONTRACT['previously_reviewed_inactivity_requirement']=CONTRACT['inactivity']
+CONTRACT['inactivity']='Not enforced in this model. Operator-maintained activity is assumed; small maintenance commissions are omitted, with no synthetic trades or profitable-day credit.'
+CONTRACT['local_activity_assumption']=ACTIVITY_ASSUMPTION
 CONTRACT['daily_loss_assumption']='DLL-on uses a fixed USD 1,200 soft daily stop in both phases. The customization page confirms the soft breach and phase coverage but does not specify an above-trail adjustment. Holding this amount fixed above the trail is an explicit modeling assumption, not verified provider parity. DLL-off has no daily stop.'
 CONTRACT['source_hours']='Sources must already close positions by the regular 16:45 America/New_York cutoff and enter only during the 18:00–16:45 Sunday-evening through Friday session windows. Late exits reject as incompatible because their earlier liquidation price is unavailable; they are not counted as provider account breaches. Eastern civil time includes DST. Holiday early closes are not independently validated by this adapter and require correctly session-filtered source data.'
 

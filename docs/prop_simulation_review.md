@@ -13605,9 +13605,10 @@ Live deployment observations (2026-11-20): replacement `9babbf79015241ebaeba0be4
 ### 2026-11-20: Future Lucid maintained-activity assumption
 
 Decision and rationale: see the final dated section of `prop_simulation.md`.
-The implementation is staged separately to preserve the live four-worker
-simulation. No live server restart, cancellation, catalogue rewrite or change to
-captured v4 financial settings is part of this increment.
+The implementation was staged separately while the four-worker v4 simulation
+ran. Both automatic phases completed before idle deployment of v5. No active
+simulation was interrupted, no report was rerun and no captured v4 settings or
+verdicts were rewritten.
 
 Normal-product reproduction after idle deployment:
 

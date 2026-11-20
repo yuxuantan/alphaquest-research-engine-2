@@ -474,6 +474,7 @@ class EvaluationProfile:
     activation_fee: str
     daily_loss_limit: bool = True
     consistency_percent: int = 40
+    lucid_inactivity_enforced: bool = False
 
     def __post_init__(self):
         if type(self.consistency_percent) is not int or self.consistency_percent not in (40, 50):
@@ -488,6 +489,7 @@ class FundedProfile:
     rule_version: str
     daily_loss_limit: bool = True
     approval_day_counts: bool = True
+    lucid_inactivity_enforced: bool = False
 
 
 @dataclass(frozen=True)
@@ -542,6 +544,8 @@ def profile_settings(profile, costs):
     if isinstance(profile, FundedProfile) and type(profile.approval_day_counts) is not bool:
         raise ValueError('approval_day_counts must be boolean.')
     lucid = profile.profile_id == 'lucidflex-50k'
+    if type(profile.lucid_inactivity_enforced) is not bool:raise ValueError('lucid_inactivity_enforced must be boolean.')
+    if not lucid and profile.lucid_inactivity_enforced:raise ValueError('Lucid activity assumptions do not apply to Apex.')
     if not lucid and not profile.daily_loss_limit:
         raise ValueError('Apex EOD requires the existing daily loss limit.')
     if lucid and isinstance(profile, FundedProfile) and not profile.approval_day_counts:
@@ -919,8 +923,10 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     kernel_file = 'lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py'
     rule_identity = dict(profile=asdict(profile), rules=extra.get('rules'),
                          kernel_source=digest(Path(__file__).with_name(kernel_file)))
+    from .lucid_rules import ACTIVITY_ASSUMPTION
     return dict(phase=phase, source=snapshot, profile=asdict(profile), micros=micros,
         simulation=asdict(simulation), sampling=asdict(sampling),
+        **({'activity_assumption':ACTIVITY_ASSUMPTION} if profile.profile_id=='lucidflex-50k' and not profile.lucid_inactivity_enforced else {}),
         account_rule_sha256=sha256(canonical(rule_identity).encode()).hexdigest(),
         kernel=kernel_identity({'ACCOUNT_TYPE':'LucidFlex' if profile.profile_id == 'lucidflex-50k' else 'Apex EOD'}),
         implementation_sha256={name:digest(Path(__file__).parent/name) for name in files},

@@ -242,6 +242,7 @@ def declarations(body,source):
     if body.block_weekdays not in (1,5,10):raise ValueError('Block length must be 1, 5 or 10 weekdays.')
     account=PROFILES[body.profile_id]
     profile=dict(profile_id=body.profile_id,rule_version=rule_version(body.profile_id),daily_loss_limit=body.daily_loss_limit)
+    if body.profile_id=='lucidflex-50k':profile['lucid_inactivity_enforced']=False
     # The saved source bounds may start on the prior Chicago session date.
     from .prop.phase_lifecycle import instant, session_date
     native=source['_native']
@@ -367,6 +368,7 @@ async def sources(request:Request):
 
 def account_defaults(id):
     from .prop import native_engine,lucid_engine
+    from .prop.lucid_rules import ACTIVITY_ASSUMPTION
     from .prop.phase_profiles import EvaluationProfile,FundedProfile
     from .prop.rule_provenance import profile_review
     from .prop_sim_selection import identity as selection_identity
@@ -376,10 +378,11 @@ def account_defaults(id):
             funded=profile_review(FundedProfile(id,rule_version(id)),'funded')),
         evaluation_rules=dict(account_size=50000,profit_target=3000,maximum_drawdown=2000,
             daily_loss_limit=1200 if lucid else 1000,expiry_weekdays=None if lucid else 21,
-            consistency=.4 if lucid else None,inactivity_calendar_days=30 if lucid else None),
-        funded_rules=asdict((lucid_engine if lucid else native_engine).Rules()),maximum_selected_configurations=1,
+            consistency=.4 if lucid else None,inactivity_calendar_days=None,inactivity_enforced=False if lucid else None),
+        funded_rules=(dict(asdict(lucid_engine.Rules()),inactivity_calendar_days=None) if lucid else asdict(native_engine.Rules())),
+        activity_assumption=ACTIVITY_ASSUMPTION if lucid else None,maximum_selected_configurations=1,
         supported_evaluation_consistency_percent=[40,50] if lucid else [],
-        notes=('40% standard or 50% add-on Evaluation consistency; enter the actual purchase fee including options. No activation fee or provider Evaluation expiry. Calendar inactivity is modeled. DLL-on uses the preserved fixed $1,200 soft stop assumption. Live trading after the fifth payout is outside this simulation.' if lucid else
+        notes=('40% standard or 50% add-on Evaluation consistency; enter the actual purchase fee including options. No activation fee or provider Evaluation expiry. Inactivity expiry is disabled: manual maintenance activity is assumed; its small commissions are omitted and no profitable-day credit is added. DLL-on uses the preserved fixed $1,200 soft stop assumption. Live trading after the fifth payout is outside this simulation.' if lucid else
             'Preserved local model: 21-session Evaluation expiry/inactivity and exactly 50% Funded consistency; reviewed provider calendar/boundary rules differ.'),
         report_limits=dict(size_dependent_path_cap=False),
         defaults=dict(profile_id=id,daily_loss_limit=True,evaluation_consistency_percent=40,evaluation_minimum_micros=1,evaluation_maximum_micros=10,

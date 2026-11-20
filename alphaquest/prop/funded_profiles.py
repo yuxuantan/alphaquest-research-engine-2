@@ -36,7 +36,7 @@ class NativeFundedController(NativeControlBase):
             start_date=start_date,cutoff_date_exclusive=cutoff_date_exclusive)
         self.profile=profile;self.lucid=profile.profile_id=='lucidflex-50k'
         self.kernel=(lucid_backend if self.lucid else native_backend).module()
-        rules=self.kernel.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if self.lucid else self.kernel.Rules(approval_day_counts=profile.approval_day_counts)
+        rules=self.kernel.Rules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced) if self.lucid else self.kernel.Rules(approval_day_counts=profile.approval_day_counts)
         self.rules=self.kernel.Rules(**{key:exact_rule_values(value) for key,value in asdict(rules).items()})
         args=dict(rules=self.rules,equity=Decimal(0),high=Decimal(0),cycle_start=Decimal(0))
         if not self.lucid:args['best_day']=Decimal(0)
@@ -279,7 +279,7 @@ def simulate_funded_profile(
     trace = SizingTrace(sizing) if sizing is not None else None
     if profile.profile_id == 'lucidflex-50k':
         from .lucid_backend import Rules as LucidRules
-        rules = LucidRules(daily_loss=1200. if profile.daily_loss_limit else None)
+        rules = LucidRules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced)
     else:
         rules = replace(Rules(), approval_day_counts=profile.approval_day_counts)
     backend = account_backend(rules)
@@ -403,7 +403,7 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
     from hashlib import sha256
     from . import native_engine, lucid_engine
     lucid = profile.profile_id == 'lucidflex-50k'
-    rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
+    rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced) if lucid
              else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts))
     account_class = lucid_engine.FundedAccount if lucid else native_engine.FundedAccount
     if summary_only and (sizing is not None or chronological):
@@ -736,7 +736,7 @@ def replay_funded_profile(runs, source, profile, micros, window, calendar, *,
         receipt_delay_calendar_days=receipt_delay_calendar_days, receipt_amount_convention=receipt_amount_convention)
     lucid = profile.profile_id == 'lucidflex-50k'
     kernel = lucid_engine if lucid else native_engine
-    rules = lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts)
+    rules = lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced) if lucid else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts)
     account = kernel.FundedAccount(rules)
     first, cutoff = date.fromisoformat(window.first_session), date.fromisoformat(window.cutoff_date_exclusive)
     collector = SizingTrace(sizing)

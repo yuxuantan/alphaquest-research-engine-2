@@ -115,6 +115,9 @@ def test_one_click_saved_percentage_is_oos_uses_no_native_paths(tmp_path,monkeyp
             state=saved['automation']['phases'][phase]
             campaign=client.app.state.campaigns.get(saved['campaign_ids'][phase])
             assert campaign['manifest']['request']['native_execution'] is None
+            if profile=='lucidflex-50k':
+                assert all(c['profile']['lucid_inactivity_enforced'] is False for c in campaign['manifest']['request']['candidates'])
+                assert 'maintained-activity' in campaign['manifest']['request']['candidates'][0]['profile']['rule_version']
             is_report=client.get(f"/api/prop-sim/{saved['id']}/results/{phase}").json()
             assert all(r['simulation_model']['model']==MODEL and r['quantity_summary']['opportunities']>0 for r in is_report['calculations']['candidates'])
             report=client.get(f"/api/prop-sim/{saved['id']}/validation/{phase}/{state['oos_request_id']}").json()
