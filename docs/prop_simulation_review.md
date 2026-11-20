@@ -13643,3 +13643,21 @@ journey verifies the visible note, desktop/mobile layout, successful phase
 completion and original-route downloadable reports. Synthetic input bars and
 saved reports/screenshots are staged in the artifact directory above; these are
 labeled test fixtures, not provider or live-trading qualification.
+
+### 2026-11-20: Show the saved account-start observation window
+
+Account-start finding cards now show the window in calendar days per starting
+date. The expanded chronological-start heading repeats it and distinguishes a
+diagnostic cutoff from a provider expiry. The current Evaluation diagnostic is
+180 days; the main account-economics comparison separately includes 365 days.
+The 180-day choice is a fixed six-month research convention, not a calibrated
+acceptance threshold or provider rule. It trades observation time against the
+range of fully covered starting dates. A 200-day funding scenario can miss this
+window without implying it would never pass.
+
+Presentation reads the saved assessment's start-plan horizon, with a historical
+fallback to exclusive cutoff minus starting date. It never reads today's policy
+to relabel an old report. Missing or conflicting saved windows show unavailable.
+No account calculation, numerical identity, finding status or sealed report is
+changed. Verify the normal complementary-results browser journey for both phase
+cards, plus historical-cutoff, 90-day, missing-window and conflicting-window cases.

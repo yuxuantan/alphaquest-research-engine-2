@@ -121,3 +121,29 @@ def test_saved_evidence_reopen_and_actionable_display_boundaries(page,qualificat
     if destination:=os.environ.get('ALPHAQUEST_COMPLEMENTARY_BROWSER_EVIDENCE_DIR'):
         target=Path(destination)/'final-reopen';target.mkdir(parents=True,exist_ok=True)
         for p in tmp_path.glob('*.png'):shutil.copyfile(p,target/p.name)
+
+
+def test_account_start_cards_use_saved_windows_and_do_not_invent_defaults(page,qualification_portal):
+    """Historical rows lack a horizon field; read their exclusive saved cutoffs."""
+    from datetime import date,timedelta
+    page.goto(qualification_portal['url']+'/#prop-sim')
+    page.wait_for_function('Boolean(window.propSimConclusion)')
+    for horizon,declared in [(180,None),(90,90),(None,None),(180,365)]:
+        observation=dict(start_date='2025-01-02',cutoff_exclusive=str(date(2025,1,2)+timedelta(days=horizon))) if horizon else {}
+        row=dict(configuration=dict(micros=2),prop_qualification=dict(version='prop-complementary-evidence-v2',
+            status='REVIEW_REQUIRED',interpretation='SYNTHETIC display fixture',
+            findings=[dict(key='starts',title='Account-start sensitivity',state='WATCH',summary='1 / 2 chronological starts became funded.',next_step='Review the observed windows.')],
+            start_sensitivity=dict(summary=dict(starts=2),observations=[observation]),
+            account_comparison={'is':[],'oos':[dict(funded_probability={})]}))
+        before=json.dumps(row,sort_keys=True)
+        page.evaluate('''({row,declared})=>{
+            const host=document.createElement('section');host.id='test-saved-start-window';
+            document.querySelector('#test-saved-start-window')?.remove();document.body.append(host);
+            // Supply no comparison table here: this case isolates legacy display.
+            delete row.prop_qualification.account_comparison;
+            window.propSimConclusion.renderEvidence(host,row,{startPlan:declared?{horizon_calendar_days:declared}:undefined});
+        }''',dict(row=row,declared=declared))
+        label=page.locator('#test-saved-start-window [data-account-start-window]')
+        expected=f'Window: {horizon} calendar days per start.' if horizon and (declared is None or declared==horizon) else 'Window unavailable in saved evidence.'
+        playwright.expect(label).to_have_text(expected)
+        assert json.dumps(row,sort_keys=True)==before

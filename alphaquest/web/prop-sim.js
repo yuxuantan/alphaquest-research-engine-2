@@ -361,7 +361,7 @@
             if(d){box.append(node('h4',policyLabel(row.configuration)));window.nativeReplay.renderCoverage(box,d);}
           }
           if(study.calculations.candidates.some(r=>r.prop_qualification?.version==='prop-complementary-evidence-v2')){
-            for(const [index,row] of study.calculations.candidates.entries()){const evidence=node('details',undefined,'prop-evidence-candidate');evidence.open=index===0;evidence.append(node('summary',policyLabel(row.configuration)+' · '+window.propSimConclusion.candidate(row).action));window.propSimConclusion.renderEvidence(evidence,row);box.append(evidence);}
+            for(const [index,row] of study.calculations.candidates.entries()){const evidence=node('details',undefined,'prop-evidence-candidate');evidence.open=index===0;evidence.append(node('summary',policyLabel(row.configuration)+' · '+window.propSimConclusion.candidate(row).action));window.propSimConclusion.renderEvidence(evidence,row,{startPlan:study.calculations.qualification_policy?.start_plan});box.append(evidence);}
             return;
           }
           const rows=study.calculations.candidates,isEval=phase==='evaluation',oos=['oos','account_starts','qualification','forward_review'].includes(study.calculations.assessment_kind);
