@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import date,datetime,time,timedelta,timezone
 from decimal import Decimal
-import json
 import pickle
 from hashlib import sha256
 from pathlib import Path
@@ -12,6 +11,7 @@ from ..backtest_data import read_selected_bars
 from ..research_folds import SessionDateRange
 from ..session_calendar import load_calendar,session_date,CT,resolve_calendar
 from ..strategies.registry import get_strategy
+from ..strategy_sizing import source_support
 from ..strategy import ExecutionConfig
 from ..optimization_cache import artifacts,digest
 from .native_control import SessionContext
@@ -46,10 +46,26 @@ class SessionBars(Mapping):
     def subset(self,start,end):return SessionBars(self.directory,{d:v for d,v in self.index.items() if start<=str(d)<=end})
 
 
-def session_coverage(day, close, entry, timestamps):
+def portfolio_eligibility(source):
+    """One compatibility rule for the picker and launch."""
+    try:
+        descriptor=resolve_calendar(source['dataset'].get('symbol'))
+    except ValueError as exc:
+        return str(exc)
+    if descriptor['id'] not in ('cme_nq','cme_mnq'):
+        return 'Portfolio replay requires an NQ or MNQ dataset.'
+    definition=get_strategy(source['strategy_id'])
+    support=definition.sizing
+    if support.session_settings is None or support.holding_start is None:
+        return 'This strategy hasn’t declared a holding window and session close.'
+    return source['sizing_support']['native_percentage_risk']['reason']
+
+
+def session_coverage(day, close, entry, timestamps, *, prior_day=False):
     """Inventory missing tradable minutes and require an observed session close."""
     begin = datetime.combine(day - timedelta(days=1), time(17, 1), CT).astimezone(timezone.utc)
-    risk_start = datetime.combine(day, time(entry // 100, entry % 100), CT).astimezone(timezone.utc)
+    start_day = day - timedelta(days=int(prior_day))
+    risk_start = datetime.combine(start_day, time(entry // 100, entry % 100), CT).astimezone(timezone.utc)
     stamps = set(timestamps)
     if len(stamps) != len(timestamps) or any(
         t < begin or t > close or t.second or t.microsecond for t in stamps
@@ -76,7 +92,7 @@ def session_coverage(day, close, entry, timestamps):
 
 def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,bar_directory=None):
     first,last=map(date.fromisoformat,(start,end));books=SessionBars(bar_directory) if bar_directory else {};specs=[];snapshots=[]
-    datasets_seen=set();execution=None;calendar=None
+    datasets_seen=set();execution=None;calendar=None;holding_starts=[]
     for source in qualified:
         is_source=runs.get(source['source_backtest_id']);oos_source=runs.get(source['oos_report_id'])
         if not is_source or not oos_source:raise ValueError('A qualified portfolio source disappeared.')
@@ -85,16 +101,16 @@ def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,
         symbol=dataset.get('symbol');descriptor=resolve_calendar(symbol)
         if descriptor['id'] not in ('cme_nq','cme_mnq'):raise ValueError('Portfolio execution requires NQ or MNQ.')
         strategy=meta['strategy'];definition=get_strategy(strategy['id']);parameters=definition.parameters(strategy['parameters'])
-        from ..reporting import json_value
-        expected=json.loads(json.dumps(definition.provenance(parameters),default=json_value));expected.pop('session_flattening',None)
-        if any(strategy.get(k)!=v for k,v in expected.items()):raise ValueError('Strategy implementation changed; preserve this report and create a new qualified source.')
+        eligibility=portfolio_eligibility(dict(source,sizing_support=dict(
+            native_percentage_risk=source_support(definition,parameters,strategy)['percentage_risk'])))
+        if eligibility:raise ValueError(eligibility)
         original=ExecutionConfig(**{k:Decimal(v) if k!='slippage_ticks' else v for k,v in record['execution_settings'].items()})
         config=ExecutionConfig(**{**asdict(original),'point_value':Decimal(2),'commission_per_contract_per_side':Decimal(settings['commission_per_mnq_side'])})
         if config.tick_size!=Decimal('.25'):raise ValueError('Portfolio MNQ execution requires the 0.25 tick grid.')
         instance=definition.create(parameters,config,instrument_symbol=symbol)
-        if not callable(getattr(instance,'on_bar_controlled',None)) or not getattr(parameters,'use_eod_flat',False):
-            raise ValueError('Percentage-risk and shared portfolios require a native strategy with causal initial-stop admission and EOD-flat support. The VWAP strategy supports this.')
-        if getattr(parameters,'use_vol_sizing',False):raise ValueError('Disable strategy-local volume sizing; the explicit portfolio risk policy owns quantity.')
+        if not callable(getattr(instance,'on_bar_controlled',None)):
+            raise ValueError('Portfolio replay requires controlled native order admission.')
+        holding_starts.append(definition.sizing.holding_start(parameters))
         if execution is not None and execution!=config:raise ValueError('Portfolio sources must share tick grid, execution costs and execution capital.')
         execution=config;calendar=load_calendar(symbol=symbol)
         specs.append(dict(strategy_id=strategy['id'],parameters=strategy['parameters'],symbol=symbol))
@@ -116,26 +132,25 @@ def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,
                     if day!=current:save();current=day;rows=[]
                     rows.append(bar)
                 save()
+    entry,prior_day=min(holding_starts,key=lambda start:(not start[1],start[0]))
     contexts={};day=first;closed=[];coverage=[]
     while day<=last:
         plan=calendar.plan(day)
         if plan.close is not None:
             rows=books.get(day,[])
             close=plan.close.astimezone(timezone.utc)
-            # Flat pre-entry gaps do not hide position risk. All strategies have
-            # same-day entry windows and flatten before the scheduled close.
-            # Preserve actual sparse feature inputs; never insert synthetic bars.
-            starts=[s['parameters']['entry_start_time'] for s in specs]
-            if any(s['parameters']['entry_end_time']<s['parameters']['entry_start_time'] or s['parameters']['entry_start_time']>=1700 for s in specs):
-                raise ValueError('Native portfolios currently require same-day daytime entry windows.')
-            coverage.append(session_coverage(day, close, min(starts), [bar.timestamp_utc for bar in rows]))
+            coverage.append(session_coverage(day, close, entry, [bar.timestamp_utc for bar in rows],prior_day=prior_day))
             contexts[day]=SessionContext(day,close,descriptor['id']+'-'+calendar.sha256,calendar.sha256,len(rows),True)
         elif day.weekday()<5:closed.append(str(day))
         day+=timedelta(days=1)
     if not contexts:raise ValueError('The requested portfolio window has no observed open sessions.')
     profile=settings['profile_id'];common=dict(profile_id=profile,rule_version=rule_version(profile),daily_loss_limit=settings['daily_loss_limit'])
     def sizing(phase):
-        return SizingConfiguration(settings[phase+'_policy'],'50000',dict(tick_size='.25',point_value='2',
+        policy=settings.get(phase+'_policy')
+        if policy is None:
+            from .portfolio_search import sizing_policies
+            policy=sizing_policies(settings[phase+'_grid'])[0]
+        return SizingConfiguration(policy,'50000',dict(tick_size='.25',point_value='2',
             entry_slippage_ticks=execution.slippage_ticks,stop_exit_slippage_ticks=execution.slippage_ticks,
             commission_per_contract_per_side=settings['commission_per_mnq_side']))
     return dict(first=start,last=end,bars=books,sessions=contexts,strategies=specs,execution=execution,

@@ -8,11 +8,10 @@ from datetime import date,datetime,time,timedelta,timezone
 from decimal import Decimal
 
 from ..execution import execute,ExecutionContinuation,Trade,EquityPoint
-from ..strategy import EntryIntent
+from ..strategy import EntryIntent, StopEntriesIntent
 from ..strategies.registry import get_strategy
 from .evaluation_profiles import NativeEvaluationController
 from .funded_profiles import NativeFundedController
-from .phase_profiles import SizingConfiguration
 from .sizing import SizingPolicy
 from .portfolio_cash import PortfolioCash
 from .native_control import ExecutionSnapshot
@@ -39,14 +38,26 @@ class BudgetEvaluation(NativeEvaluationController):
 
 
 class BasketStrategy:
-    """One real position, deterministic known-signal priority, causal risk shares."""
-    def __init__(self,members,owner,specifications,weights,config):
-        self.owner,self.weights=owner,weights;self.active=None;self.last_position=False
+    """Route each native order group and position to its originating strategy."""
+    def __init__(self,members,owner,specifications,weights,config,*,policies=None):
+        self.owner,self.weights=owner,weights
+        self.uses_weights=policies is None
+        self.active=None;self.last_position=False;self.filled=False
         self.members={i:get_strategy(specifications[i]['strategy_id']).create(
             get_strategy(specifications[i]['strategy_id']).parameters(specifications[i]['parameters']),
             config,instrument_symbol=specifications[i]['symbol']) for i in members}
-        self.priority=sorted(members,key=lambda i:(-weights[i],i))
-        self.accepted=[];self.conflicts=0
+        self.priority=sorted(members) if policies is not None else sorted(members,key=lambda i:(-weights[i],i))
+        self.policies={}
+        for index in self.priority:
+            policy=dict(policies[index] if policies is not None else owner.sizing.policy)
+            if policies is None:
+                weight=weights[index]
+                if policy['kind']=='percentage_risk':policy['risk_percent']=str(Decimal(policy['risk_percent'])*weight)
+                elif policy['kind']=='fixed_dollar_risk':policy['risk_dollars']=str(Decimal(policy['risk_dollars'])*weight)
+                else:policy['contracts']=int(Decimal(policy['contracts'])*weight)
+            if policy['kind']=='fixed_contracts' and not policy['contracts']:continue
+            self.policies[index]=(replace(owner.sizing,policy=policy),SizingPolicy.model_validate(policy))
+        self.conflicts=0
 
     def on_bar(self,bar,position):raise ValueError('Portfolio strategies require causal account control.')
     def on_finish(self,bar,position):return None
@@ -54,6 +65,15 @@ class BasketStrategy:
     def allow_entry_fill(self,bar):
         strategy=self.members.get(self.active)
         return getattr(strategy,'allow_entry_fill',lambda b:True)(bar) if strategy else False
+
+    @property
+    def oco_entry_policy(self):
+        return getattr(self.members.get(self.active),'oco_entry_policy','multicharts')
+
+    def on_entry_fill(self,entry,position):
+        self.filled=True
+        callback=getattr(self.members[self.active],'on_entry_fill',None)
+        if callback:callback(entry,position)
 
     def validate_holding_bar(self,bar,position):
         if position is not None:
@@ -63,8 +83,9 @@ class BasketStrategy:
     def on_bar_controlled(self,bar,position,admit):
         # A close on this bar does not allow same-close reentry. All inactive
         # strategies still observe the current bar; declined signals do not commit.
-        cooldown=self.last_position and position is None;self.last_position=position is not None
-        if position is None and cooldown:self.active=None
+        cooldown=len(self.members)>1 and (self.last_position or self.filled) and position is None
+        self.last_position=position is not None;self.filled=False
+        if position is None:self.active=None
         chosen=None
         for index in self.priority:
             owns=position is not None and self.active==index
@@ -72,28 +93,28 @@ class BasketStrategy:
                 nonlocal chosen
                 if position is not None or chosen is not None or cooldown:
                     self.conflicts+=1;return None
-                original=self.owner.sizing;policy=dict(original.policy)
-                weight=self.weights[index]
-                if policy['kind']=='percentage_risk':policy['risk_percent']=str(Decimal(policy['risk_percent'])*weight)
-                elif policy['kind']=='fixed_dollar_risk':policy['risk_dollars']=str(Decimal(policy['risk_dollars'])*weight)
-                else:
-                    quantity=int(Decimal(policy['contracts'])*weight)
-                    if not quantity:return None
-                    policy['contracts']=quantity
-                self.owner.sizing=SizingConfiguration(policy,original.initial_configured_capital,original.planning_execution)
+                if index not in self.policies:return None
+                original,typed=self.owner.sizing,self.owner._typed_policy
+                sizing,entry_policy=self.policies[index]
+                changed=typed!=entry_policy
+                if changed:self.owner._quantity_cache.clear()
+                self.owner.sizing,self.owner._typed_policy=sizing,entry_policy
+                trace=self.owner.sizing_trace
+                before=len(trace.decisions)
                 try:accepted=admit(intent)
-                finally:self.owner.sizing=original
+                finally:
+                    self.owner.sizing,self.owner._typed_policy=original,typed
+                    if changed:self.owner._quantity_cache.clear()
+                for decision in trace.decisions[before:]:
+                    decision.update(portfolio_strategy=index,sizing_policy=sizing.policy)
+                    if self.uses_weights:decision['allocation_weight']=str(self.weights[index])
                 if accepted is not None:
                     self.active=index;chosen=accepted
-                    trace=self.owner.sizing_trace
-                    decision=trace.decisions[-1] if trace.decisions and trace.summary['decision_count']<=trace.limit else None
-                    if decision is not None:decision.update(portfolio_strategy=index,allocation_weight=str(weight))
-                    self.accepted.append(dict(timestamp=bar.timestamp_utc.isoformat(),strategy=index,weight=str(weight),quantity=accepted.contracts))
                 return accepted
             result=self.members[index].on_bar_controlled(bar,position if owns else None,accept)
             if owns:
                 if result is not None:chosen=result
-            elif type(result) is EntryIntent and result!=chosen:raise ValueError('Basket strategy returned an unaccepted entry.')
+            elif type(result) in (EntryIntent,StopEntriesIntent) and result!=chosen:raise ValueError('Basket strategy returned an unaccepted entry.')
         return chosen
 
 
@@ -114,7 +135,9 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
         for i,count in enumerate(allocation['counts']):
             for _ in range(count):slots.append(dict(members=[i],weights={i:Decimal(1)},phase='evaluation',owner=None,cash=context['execution'].initial_capital))
     else:
-        total=sum(allocation['weights']);weights={i:Decimal(n)/Decimal(total) for i,n in enumerate(allocation['weights']) if n}
+        if 'members' in allocation:weights={i:Decimal(1) for i in allocation['members']}
+        else:
+            total=sum(allocation['weights']);weights={i:Decimal(n)/Decimal(total) for i,n in enumerate(allocation['weights']) if n}
         for _ in range(allocation['accounts']):slots.append(dict(members=list(weights),weights=weights,phase='evaluation',owner=None,cash=context['execution'].initial_capital))
     def snapshot(slot,end=None):
         if not capture or slot.get('owner') is None:return
@@ -133,11 +156,14 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
             retry=context['retry'],budget=budget,slot=number,**args)
         else:owner=NativeFundedController(context['funded_profile'],policy,cap,
             receipt_delay_calendar_days=context['receipt_delay'],receipt_amount_convention='usd_cents_half_up',**args)
+        owner.set_detail_capture(capture)
+        policies={i:allocation['sizing'][i][phase] for i in slot['members']} if 'sizing' in allocation else None
         slot.update(owner=owner,phase=phase,cash=context['execution'].initial_capital,
-            strategy=BasketStrategy(slot['members'],owner,specs,slot['weights'],context['execution']),payout_cursor=0)
+            strategy=BasketStrategy(slot['members'],owner,specs,slot['weights'],context['execution'],policies=policies),payout_cursor=0)
         owner._sync(ExecutionSnapshot(datetime.combine(day,time(),timezone.utc),0,
             context['execution'].initial_capital,context['execution'].initial_capital,None))
         episode=dict(slot=number,phase=phase,start=str(day),members=slot['members'],weights={str(k):str(v) for k,v in slot['weights'].items()})
+        if policies is not None:episode['strategy_sizing']={str(i):p for i,p in policies.items()}
         slot['episode']=episode;accounts.append(episode)
         if phase=='funded':counts['funded_accounts']+=1
         return True

@@ -14,6 +14,9 @@ from pydantic import BaseModel,ConfigDict,Field,StrictInt,StrictBool,model_valid
 from .campaign_broad import invoke
 from .prop_sim import Selection,qualified,PROFILES
 from .prop.sizing import SizingPolicy
+from .prop.sizing_search import PercentageGrid
+from .prop.portfolio_search import FixedGrid, optimized_search, sizing_policies
+from .prop.portfolio_sources import portfolio_eligibility
 from .prop.adapter import canonical
 from .prop.store import AnalysisCancelled,seal_report,sealed_checks
 
@@ -33,8 +36,11 @@ class PortfolioRequest(BaseModel):
     monthly_cap:str='500'
     maximum_accounts:StrictInt=Field(default=2,ge=1,le=4)
     placements:list[str]=Field(default_factory=lambda:['separate','shared'])
-    evaluation_policy:SizingPolicy
-    funded_policy:SizingPolicy
+    evaluation_policy:SizingPolicy|None=None
+    funded_policy:SizingPolicy|None=None
+    evaluation_grid:PercentageGrid|FixedGrid|None=None
+    funded_grid:PercentageGrid|FixedGrid|None=None
+    replay_budget:StrictInt=Field(default=24,ge=8,le=128)
     receipt_delay_calendar_days:StrictInt=Field(default=2,ge=0,le=365)
     is_start:str|None=None
     is_end:str|None=None
@@ -68,11 +74,32 @@ class PortfolioRequest(BaseModel):
         if self.evaluation_consistency_percent not in (40,50):raise ValueError('Evaluation consistency must be 40 or 50.')
         if self.profile_id=='apex-50k-eod' and self.evaluation_consistency_percent!=40:raise ValueError('The consistency add-on is LucidFlex only.')
         if not self.placements or set(self.placements)-{'separate','shared'} or len(set(self.placements))!=len(self.placements):raise ValueError('Select separate, shared, or both placements once.')
+        grids=(self.evaluation_grid,self.funded_grid)
+        policies=(self.evaluation_policy,self.funded_policy)
+        if any(grids):
+            if not all(grids) or any(policies) or type(grids[0]) is not type(grids[1]):
+                raise ValueError('Provide an Evaluation and a Funded grid using the same sizing method.')
+        elif not all(policies):
+            raise ValueError('Provide both sizing grids or both legacy sizing policies.')
         for phase in ('evaluation','funded'):
             p=getattr(self,phase+'_policy');cap=PROFILES[self.profile_id]['limits'][phase]
-            if p.maximum_contracts>cap or p.contracts is not None and p.contracts>cap:raise ValueError('Sizing exceeds the account phase ceiling.')
+            grid=getattr(self,phase+'_grid')
+            if isinstance(grid,PercentageGrid):grid.check_ceiling(cap)
+            if isinstance(grid,FixedGrid) and grid.maximum>cap or p and (
+                p.maximum_contracts>cap or p.contracts is not None and p.contracts>cap):
+                raise ValueError(f'{phase.title()} sizing exceeds the account ceiling of {cap} MNQ.')
         if len({canonical(s.model_dump(mode='json')) for s in self.selections})!=len(self.selections):raise ValueError('Duplicate strategy configurations.')
         return self
+
+    def saved_request(self):
+        excluded={'evaluation_policy','funded_policy'} if self.evaluation_grid else {'evaluation_grid','funded_grid','replay_budget'}
+        return self.model_dump(mode='json',exclude=excluded)
+
+
+def search_definition(body):
+    if body.evaluation_grid is None:return None
+    axes=[sizing_policies(grid.model_dump(mode='json')) for grid in (body.evaluation_grid,body.funded_grid)]
+    return optimized_search(len(body.selections),body.maximum_accounts,body.placements,axes,body.replay_budget)
 
 
 def metadata(request,body):
@@ -80,11 +107,9 @@ def metadata(request,body):
     from .prop.phase_lifecycle import instant,session_date
     sources=[qualified(request,s) for s in body.selections]
     native=[request.app.state.runs.get(s['source_backtest_id']) for s in sources]
-    from .strategies.registry import get_strategy
-    for record in native:
-        if record['run_metadata']['strategy']['id']!='vwap_pullback_risk_sizing':raise ValueError('This native portfolio increment supports the VWAP strategy with causal stop admission.')
-        params=get_strategy(record['run_metadata']['strategy']['id']).parameters(record['run_metadata']['strategy']['parameters'])
-        if not params.use_eod_flat or params.use_vol_sizing:raise ValueError('Use EOD Flat must be enabled and strategy-local Vol Sizing disabled; portfolio policy owns quantity.')
+    for source in sources:
+        reason=portfolio_eligibility(source)
+        if reason:raise ValueError(reason)
     ids={r['run_metadata']['dataset']['id'] for r in native}
     if len(ids)!=1:raise ValueError('Portfolio comparisons require one synchronized saved NQ/MNQ dataset.')
     bounds={}
@@ -98,13 +123,16 @@ def metadata(request,body):
         if date.fromisoformat(end)<date.fromisoformat(start):raise ValueError('Invalid portfolio dates.')
         bounds[role]=dict(start=start,end=end)
     if bounds['is']['end']>=bounds['oos']['start']:raise ValueError('IS must precede OOS.')
-    allocations=family(len(sources),body.maximum_accounts,body.placements)
-    return dict(status='compatible',sources=sources,windows=bounds,allocation_count=len(allocations),allocations=allocations,
+    search=search_definition(body)
+    allocations=[] if search else family(len(sources),body.maximum_accounts,body.placements)
+    return dict(status='compatible',sources=sources,windows=bounds,allocation_count=search['replay_limit'] if search else len(allocations),
+        allocations=allocations,search=search,
         interpretation='Select the best observed IS net-cash allocation, freeze it, then run the same allocation on OOS and the stitched full period. Shared accounts admit one position at a time. No future forecast or provider certification.')
 
 
 def launch(request,body):
     store=request.app.state.prop_analyses;id=body.request_id.hex
+    declaration=body.saved_request()
     with store.lock:
         with store.connect() as db:
             if db.execute('SELECT 1 FROM workflow_prop_sim_deletions WHERE id=?',(id,)).fetchone():
@@ -112,13 +140,14 @@ def launch(request,body):
             old=db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id,)).fetchone()
         if old:
             old=json.loads(old[0])
-            if old.get('portfolio',{}).get('request')!=body.model_dump(mode='json'):raise ValueError('Request ID belongs to a different portfolio configuration.')
+            if old.get('portfolio',{}).get('request')!=declaration:raise ValueError('Request ID belongs to a different portfolio configuration.')
             job=store.get(old['portfolio']['analysis_id'])
             if job['status'] in ('queued','running','complete'):return old
             checked=metadata(request,body);aid=uuid4().hex
             old['portfolio']['analysis_id']=aid
             old['portfolio'].setdefault('attempts',[job['id']]).append(aid)
             old['portfolio']['implementation']=implementation()
+            old['portfolio']['allocation_count']=checked['allocation_count']
             saved=old
             with store.connect() as db:
                 db.execute('UPDATE workflow_prop_simulations SET payload=? WHERE id=?',(canonical(saved),id))
@@ -128,11 +157,11 @@ def launch(request,body):
                 db.executemany('INSERT OR IGNORE INTO analysis_sources VALUES (?,?)',[(aid,s[k]) for s in checked['sources'] for k in ('source_backtest_id','oos_report_id')])
             store.worker.submit(run,request.app,saved,checked);return saved
         checked=metadata(request,body);aid=uuid4().hex
-        saved=dict(id=id,created_at_utc=datetime.now(timezone.utc).isoformat(),configuration=dict(body.model_dump(mode='json'),mode='portfolio'),
+        saved=dict(id=id,created_at_utc=datetime.now(timezone.utc).isoformat(),configuration=dict(declaration,mode='portfolio'),
             qualification=checked['sources'][0],portfolio_sources=checked['sources'],campaign_ids={},
             portfolio=dict(analysis_id=aid,attempts=[aid],implementation=implementation(),windows=checked['windows'],allocation_count=checked['allocation_count']))
         # The saved request excludes the mode tag accepted only by the parent reader.
-        saved['portfolio']['request']=body.model_dump(mode='json')
+        saved['portfolio']['request']=declaration
         with store.connect() as db:
             db.execute('INSERT INTO workflow_prop_simulations VALUES (?,?,?)',(id,saved['created_at_utc'],canonical(saved)))
             db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,?)',(aid,sha256(canonical(saved['configuration']).encode()).hexdigest(),
@@ -151,9 +180,14 @@ def implementation():
         'prop_portfolio.py','prop/portfolio_sources.py','prop/portfolio_search.py','prop/portfolio_lifecycle.py','prop/portfolio_cash.py',
         'execution.py','prop/native_control.py','prop/evaluation_profiles.py','prop/funded_profiles.py','prop/sizing.py',
         'prop/native_engine.py','prop/lucid_engine.py','prop/native_money.py','prop/cash_ledger.py','strategy.py',
-        'strategies/vwap_pullback_risk_sizing.py','strategies/vwap_features.py','strategies/registry.py',
+        'strategy_sizing.py','strategies/vwap_features.py','strategies/registry.py',
         'tick_data.py','decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py',
         'prop/native_market_hours.py')}
+    from .strategies.registry import STRATEGIES
+    for definition in STRATEGIES.values():
+        path=Path(definition.module.__file__).resolve()
+        if path.is_relative_to(root):
+            result[str(path.relative_to(root))]=sha256(path.read_bytes()).hexdigest()
     result[os.path.relpath(calendar_path(),root)]=sha256(calendar_path().read_bytes()).hexdigest()
     from .prop import native_backend,lucid_backend
     for backend in (native_backend,lucid_backend):
@@ -196,7 +230,7 @@ def run(app,saved,checked):
             staged=Path(temp)/'report';staged.mkdir();windows=checked['windows']
             kwargs=dict(datasets=app.state.store,runs=app.state.runs,qualified=checked['sources'],settings=settings,checkpoint=checkpoint)
             context=prepare(**kwargs,start=windows['is']['start'],end=windows['is']['end'],bar_directory=Path(temp)/'is-bars')
-            search=optimize(context,checked['allocations'],checkpoint,progress)
+            search=optimize(context,checked['allocations'],checkpoint,progress,search=checked.get('search'))
             frozen=dict(search['frozen'],implementation=numerical,configuration=settings,windows=windows,
                 calendar=dict(start_dates=context['calendar'].start_dates,coverage_end=context['calendar'].coverage_end,closures=context['calendar'].closures),
                 retry=asdict(context['retry']))
@@ -256,7 +290,8 @@ def run(app,saved,checked):
                 history=None,assumptions=[checked['interpretation'],'Account owners and execution fills are reused locally; no Bridge runtime.',
                     'Portfolio allocation is fitted on one observed IS history, not a Monte Carlo probability forecast.',
                     'OOS and stitched history retain the same allocation; the fresh OOS scenario starts unfunded.',
-                    'Shared accounts allow one position at a time; known-signal priority uses larger risk share then source order. Inactive strategies keep observing prices.',
+                    ('Shared accounts allow one position at a time and break signal ties in selection order.'
+                        if frozen.get('search') else 'Shared accounts allow one position at a time and prioritize larger risk shares, then source order.'),
                     'Account and phase switches start cold strategy state, with no inherited position; Evaluation retries retain the existing controller behavior.',
                     'Monthly fee cap excludes receipts, expires unused allowance and reserves activation before purchase. Pending cash is not received cash.',
                     'Observed NQ reference prices may proxy MNQ execution at point value 2; no measured micro basis or provider execution parity is claimed.',
@@ -264,7 +299,7 @@ def run(app,saved,checked):
             (staged/'allocation_results.json').write_text(canonical(search['candidates']))
             (staged/'source_checks.json').write_text(canonical(dict(sources=context['sources'],coverage=combined['coverage'],summary=source_coverage,
                 interpretation=ASSUMPTION+' The historical CME pause is excluded. An observed scheduled close and actual flat execution are required.')))
-            report=dict(format_version=5,model_version='native-portfolio-cashflow-v1',source=dict(backtest=dict(id=checked['sources'][0]['source_backtest_id'])),
+            report=dict(format_version=5,model_version='native-portfolio-cashflow-v2',source=dict(backtest=dict(id=checked['sources'][0]['source_backtest_id'])),
                 settings=dict(ANALYSIS_MODE='portfolio_cashflow'),configuration=saved['configuration'],calculations=calculations,implementation=numerical)
             with store.lock:
                 checkpoint();seal_report(staged,report,aid,saved['created_at_utc'],size_limit_bytes=None);staged.rename(store.root/aid)
@@ -277,6 +312,13 @@ def run(app,saved,checked):
 
 @router.post('/check')
 async def check(body:PortfolioRequest,request:Request):return await invoke(metadata,request,body)
+
+
+@router.get('/candidates')
+async def candidates(request:Request):
+    from .prop_sim import sources
+    response=await sources(request)
+    return dict(response,items=[dict(source,portfolio_ineligible_reason=portfolio_eligibility(source)) for source in response['items']])
 
 
 @router.post('',status_code=202)

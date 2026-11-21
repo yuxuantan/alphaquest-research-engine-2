@@ -1867,6 +1867,28 @@ dialog::backdrop {
 .prop-portfolio-panel h3 { margin-block: 24px 12px; }
 .prop-portfolio-panel details { margin-block: 20px; }
 .prop-portfolio-panel pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.portfolio-picks, .portfolio-ranges fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.portfolio-picks legend, .portfolio-ranges legend { font-weight: 700; }
+.portfolio-pick { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border: 1px solid #d8e1e5; border-radius: 8px; cursor: pointer; }
+.portfolio-pick > input { flex: 0 0 auto; width: 1rem; height: 1rem; min-width: 0; margin: 2px 0 0; accent-color: #087b6b; }
+.portfolio-pick > span { min-width: 0; overflow-wrap: anywhere; }
+.portfolio-pick + .portfolio-pick { margin-top: 6px; }
+.portfolio-picks > a { display: inline-block; margin: 4px 0 10px 36px; font-size: .85rem; }
+.portfolio-pick:has(:checked) { background: #e9f6f2; border-color: #16816e; }
+.portfolio-pick:has(:disabled) { cursor: default; background: #f5f7f8; }
+.portfolio-pick :is(strong,small) { display: block; }
+.portfolio-pick small { color: #485966; line-height: 1.5; }
+.portfolio-pick small:empty { display: none; }
+.portfolio-ranges { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%, 340px),1fr)); gap: 16px; margin-top: 16px; }
+.portfolio-ranges fieldset { border: 1px solid #d8e1e5; border-radius: 8px; padding: 12px; }
+.portfolio-ranges legend { padding-inline: 6px; }
+.portfolio-range-inputs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.portfolio-range-inputs label { display: grid; gap: 5px; min-width: 0; }
+.portfolio-range-inputs input { width: 100%; min-width: 0; }
+.portfolio-range-inputs label[hidden], .prop-portfolio-panel label[hidden] { display: none; }
+.portfolio-workload { padding: 10px 12px; background: #eef4f4; border-radius: 8px; }
+.prop-portfolio-panel > progress { display: block; width: 100%; accent-color: #16816e; }
+.prop-portfolio-panel > progress[hidden] { display: none; }
 .prop-portfolio-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-block: 24px; }
 .prop-portfolio-metrics .prop-sim-insight { margin: 0; }
 @media (max-width: 640px) { .prop-portfolio-panel { padding: 18px; } }

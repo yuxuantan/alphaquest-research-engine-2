@@ -13938,3 +13938,41 @@ the account was flat. The synthetic replay test opens ten MNQ at 118, omits
 the following bar, and fills at the next observed Open of 111 for a loss
 of $140, with zero commissions. The missing-close test still rejects a
 session without its scheduled closing bar.
+
+### 2026-11-21 — Portfolio strategy contract and joint trade sizing
+
+In **Prop Sim → Portfolio & cash flow**, select a set of qualified configurations
+on one dataset. Choose fixed MNQ or percent risk and provide separate ranges
+for Evaluation and Funded. The IS workload shows a full grid or a bounded
+search before submission. After completion, the results show each strategy’s
+frozen Evaluation size, Funded size and account assignment. **Compare tested IS
+plans** shows the leading alternatives. The complete evaluated family, frozen
+plan, dated sizing decisions and cash-flow evidence are available as downloads.
+
+The live verification is saved as
+`ca5eeee290f24ad39403eb7dbca8a22f`. To reproduce it, choose the VWAP configurations
+Broad 11 / Narrow 1 and 5, LucidFlex 50K, both account placements, one account,
+2 MNQ in Evaluation and 2–3 MNQ in Funded. Use 2024-12-02 through 2024-12-06 in IS
+and 2025-01-02 through 2025-01-08 in OOS. Expect nine IS plans: one zero-purchase
+baseline, four single-strategy plans and four shared plans. The four shared
+plans include both ways of assigning different Funded sizes. The short IS run
+selects zero purchases. The frozen package and both OOS and continuous replay
+retain that plan. Screenshots, the submitted declaration and the verified API
+response are in `artifacts/portfolio-sizing-20261121/`.
+
+Synthetic arithmetic checks cover actual Evaluation execution at 3 MNQ and
+Funded execution at 4 MNQ through payout and replacement, and reconcile the
+received cash and fees to the sealed plan’s monthly spending cap. Twin’s paired
+breakout replay is compared with the unwrapped native strategy for fixed and
+percentage sizing on a bar that touches both entry levels. The winning side,
+filled contracts and net P&L match, and the sibling is cancelled. A second
+competing strategy is denied overlapping ownership in the shared account.
+
+The historical Twin configurations Broad 45 / Narrow 23 and 3 have a different
+execution fingerprint from the current native engine. Both remain visible with
+the source-version reason. A successor workflow
+`c1e7f314cdf349068e20117e3953f62a` uses the original dataset, date split and
+execution settings. Its mechanic run requires the normal MultiCharts parity
+review before proceeding through current screening. The original parameter
+sets are recorded in `artifacts/portfolio-sizing-20261121/twin-requalification.json`.
+The historical workflow and its reports are retained.

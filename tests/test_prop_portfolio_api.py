@@ -28,14 +28,32 @@ def test_declared_risk_and_provider_boundaries():
     # The actual strategy qualification gate still runs before native admission.
 
 
-def test_native_portfolio_routes_durable_freeze_downloads_pins_and_delete(client,monkeypatch):
+def test_joint_sizing_grids_keep_account_phase_ceilings_and_request_identity():
+    body={key:value for key,value in request_body().items() if not key.endswith('_policy')}
+    body.update(profile_id='apex-50k-eod',evaluation_grid=dict(minimum=58,maximum=60,step=2),
+        funded_grid=dict(minimum=38,maximum=40,step=2))
+    request=PortfolioRequest.model_validate(body)
+    assert request.saved_request()==PortfolioRequest.model_validate(request.saved_request()).saved_request()
+    for invalid in (
+        dict(funded_grid=dict(minimum=39,maximum=41,step=2)),
+        dict(evaluation_grid=dict(minimum=58,maximum=60,step=3)),
+        dict(funded_grid=dict(minimum='0.1',maximum='0.3',step='0.1',maximum_contracts=40)),
+    ):
+        with pytest.raises(ValueError):PortfolioRequest.model_validate(dict(body,**invalid))
+
+
+@pytest.mark.parametrize('optimized',[False,True])
+def test_native_portfolio_routes_durable_freeze_downloads_pins_and_delete(client,monkeypatch,optimized):
     import alphaquest.prop_portfolio as api
     import alphaquest.prop.portfolio_sources as adapter
     from alphaquest.prop.portfolio_search import family
     c=context();source=uuid4().hex;oos=uuid4().hex
     qualified=dict(source_backtest_id=source,oos_report_id=oos,strategy_id='SYNTHETIC-native-analytical-fixture')
     windows={role:dict(start=c['first'],end=c['last']) for role in ['is','oos']}
-    def metadata(request,body):return dict(sources=[qualified],windows=windows,allocations=family(1,1,['separate','shared']),allocation_count=3,interpretation='Synthetic analytical fixture, test only')
+    def metadata(request,body):
+        search=api.search_definition(body)
+        return dict(sources=[qualified],windows=windows,allocations=family(1,1,['separate','shared']),
+            search=search,allocation_count=search['replay_limit'] if search else 3,interpretation='Synthetic analytical fixture, test only')
     monkeypatch.setattr(api,'metadata',metadata)
     day = date.fromisoformat(c['first'])
     missing = '2026-01-05T21:53:00+00:00'
@@ -44,7 +62,12 @@ def test_native_portfolio_routes_durable_freeze_downloads_pins_and_delete(client
     c['sessions'][day] = replace(c['sessions'][day], observed_bar_count=len(bars))
     coverage = [adapter.session_coverage(day, bars[-1].timestamp_utc, 900, [bar.timestamp_utc for bar in bars])]
     monkeypatch.setattr(adapter,'prepare',lambda **kwargs:dict(c,coverage=coverage))
-    body=request_body();check=client.post('/api/prop-sim/portfolio/check',json=body);assert check.status_code==200,check.text
+    body=request_body()
+    if optimized:
+        for phase in ('evaluation','funded'):
+            body.pop(phase+'_policy')
+            body[phase+'_grid']=dict(minimum=1,maximum=2,step=1)
+    check=client.post('/api/prop-sim/portfolio/check',json=body);assert check.status_code==200,check.text
     response=client.post('/api/prop-sim/portfolio',json=body);assert response.status_code==202,response.text
     parent=response.json();id=parent['id'];aid=parent['portfolio']['analysis_id'];store=client.app.state.prop_analyses
     end=time.monotonic()+100
@@ -57,7 +80,12 @@ def test_native_portfolio_routes_durable_freeze_downloads_pins_and_delete(client
     assert client.post('/api/prop-sim/portfolio',json=body).json()['portfolio']['analysis_id']==aid
     report=client.get('/api/prop-sim/portfolio/'+id+'/results');assert report.status_code==200,report.text
     frozen=report.json()['frozen'];expected=frozen.pop('sha256');assert sha256(canonical(frozen).encode()).hexdigest()==expected
-    assert frozen['allocation']==dict(placement='separate',counts=[0])
+    assert frozen['allocation']==dict(placement='separate',counts=[0],**({'sizing':[None]} if optimized else {}))
+    if optimized:
+        assert frozen['search']==dict(grid_size=5,replay_limit=5,method='full_grid',tested=5)
+        assert len(report.json()['allocation_search'])==5
+        assert {row['allocation']['sizing'][0]['evaluation']['contracts'] for row in
+            report.json()['allocation_search'] if any(row['allocation']['counts'])}=={1,2}
     assert all(r['cash']['net_cash']=='0.00' for r in report.json()['results'].values())
     assert report.json()['source_coverage']['missing_holding_minutes']==1
     assert report.json()['source_coverage']['exposed_account_encounters']==0

@@ -1,4 +1,42 @@
-> Current percentage-risk Prop Sim (2026-11-20): [saved-trade stop-budget model](saved_trade_prop_simulation.md) supersedes the native per-path replay described in earlier dated sections. Historical reports and unrelated native/portfolio APIs retain their own laws.
+> Current percentage-risk Prop Sim (2026-11-20): [saved-trade stop-budget model](saved_trade_prop_simulation.md) supersedes the native per-path replay described in earlier dated sections. **Portfolio & cash flow** uses the [native per-strategy sizing search](#native-portfolio-per-strategy-sizing-and-shared-replay) below.
+
+## Native Portfolio per-strategy sizing and shared replay
+
+Portfolio admission uses the strategy registry’s native sizing and session
+declarations. Every new candidate still needs current, sealed campaign
+qualification. A stale source can remain usable by single-strategy saved-trade
+Prop Sim. The Portfolio picker displays why it is unavailable for native replay.
+Twin Continuation uses the same order engine as standalone native replay. The
+portfolio routes paired breakout orders, fill callbacks, and immediate protection
+to the submitting strategy. Shared accounts take one position at a time. When
+strategies compete for a new order, selection follows the order shown in the
+picker. Portfolio requires a common NQ/MNQ dataset and observed closing prices.
+
+The form declares an Evaluation range and a Funded range in whole MNQ or percent
+risk. Each included campaign configuration gets an independent target from each
+range. Targets apply directly to that strategy’s trade and the relevant account
+state. Percentage targets use the selected basis, causal stop, and cost settings.
+The account tier and user ceiling can reduce actual contracts. The separate
+placement varies the account count by strategy. The shared placement varies the
+active subset and account count, with identical membership and policy on its
+shared accounts. Strategy exclusion and zero account purchases are valid plans.
+
+The search maximizes observed IS trader receipts less Evaluation and activation
+fees under the existing hard monthly budget. A grid that fits the replay limit
+is evaluated in full. For larger grids, deterministic starting plans and
+neighbors vary individual sizes, paired sizes, and placement within
+the declared replay limit. The default is 24 IS replays. The result reports the
+number tested, the full family size, and whether the winning plan was selected
+from a bounded search. Ties prefer fewer accounts and then canonical plan order.
+These are observed historical results. Independent single-strategy Evaluation and
+Funded Prop Sim retain their separate search objectives.
+
+The winning plan contains every strategy’s size in each phase and is sealed
+before fresh-start OOS and the full-period continuation. Both replays reuse its
+policies and placement. The report shows the frozen per-strategy sizes and
+provides the complete tested family actually evaluated, source coverage,
+and the execution and cash ledgers through the existing downloads. Legacy
+fixed-policy requests and historical reports remain readable.
 
 # AlphaQuest local prop simulation
 

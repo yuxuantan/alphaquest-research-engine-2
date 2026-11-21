@@ -17,6 +17,7 @@ from alphaquest.prop.portfolio_search import family
 from alphaquest.prop.portfolio_sources import session_coverage
 from alphaquest.session_calendar import CT,session_date
 from native_replay_fixtures import bars,parameter_values
+from alphaquest.prop.portfolio_search import optimized_search, full_family, bounded_search, rank, sizing_policies
 
 
 def context(*,days=3,payout=False,strategies=1,profile='apex-50k-eod',kind='percentage_risk'):
@@ -64,15 +65,20 @@ def test_initial_capital_percentage_keeps_budget_stable_and_wider_stops_reduce_s
 
 def test_replacements_and_receipts_reconcile_and_never_expand_fee_budget():
     c=context(days=50,payout=True,profile='lucidflex-50k',kind='fixed_contracts');c['monthly_cap']='98'
-    r=run_lineup(c,dict(placement='separate',counts=[1]),capture=True)
+    grid=sizing_policies(dict(minimum=3,maximum=4,step=1))
+    plan=dict(placement='separate',counts=[1],sizing=[dict(evaluation=grid[0],funded=grid[1])])
+    r=run_lineup(c,plan,capture=True)
     assert r['counts']['funded_accounts']>=1
     assert r['counts']['funded_payout_completions']>=1
     assert r['counts']['evaluation_attempts']>=2
+    assert {trade['contracts'] for trade in r['trades'] if trade['phase']=='evaluation'}=={3}
+    assert {trade['contracts'] for trade in r['trades'] if trade['phase']=='funded'}=={4}
     fees=sum(Decimal(e['paid_fee']) for e in r['cash_ledger']);received=sum(Decimal(e['trader_receipt']) for e in r['cash_ledger'])
     assert Decimal(r['cash']['net_cash'])==received-fees
     assert Decimal(r['cash']['received_trader_cash'])==received
     assert all(Decimal(m['paid_fees'])<=98 for m in r['cash']['monthly'])
     assert all(Decimal(e['paid_this_month'])<=98 for e in r['cash_ledger'])
+    assert run_lineup(c,plan)['cash']==r['cash']
 
 
 def test_exact_budget_reservations_month_reset_and_delayed_receipts():
@@ -92,6 +98,70 @@ def test_zero_purchase_baseline_and_full_finite_allocation_membership():
     assert len({json.dumps(a,sort_keys=True) for a in allocations})==16
     zero=run_lineup(context(),allocations[0],capture=True)
     assert zero['cash']['net_cash']=='0.00' and zero['trades']==[]
+
+
+def test_joint_family_and_bounded_search_have_explicit_unique_phase_sizes():
+    axes=[sizing_policies(dict(minimum=1,maximum=2,step=1))]*2
+    spec=optimized_search(2,1,['separate','shared'],axes,128)
+    candidates=list(full_family(spec))
+    assert spec['grid_size']==1+2*4+4*4==25
+    assert len({json.dumps(p,sort_keys=True) for p in candidates})==25
+    winner=next(p for p in candidates if p['placement']=='shared'
+        and [(s['evaluation']['contracts'],s['funded']['contracts']) for s in p['sizing']]==[(1,2),(2,1)])
+    def evaluate(plans,offset):
+        return [dict(allocation=p,cash=dict(net_cash=str(10 if p==winner else 0))) for p in plans]
+    assert min(evaluate(candidates,0),key=rank)['allocation']==winner
+    bounded=optimized_search(2,1,['separate','shared'],axes,12)
+    rows=bounded_search(bounded,evaluate)
+    assert rows==bounded_search(bounded,evaluate)
+    assert len({json.dumps(r['allocation'],sort_keys=True) for r in rows})==bounded['replay_limit']==12
+    assert rows[0]['allocation']['sizing']==[None,None]
+    assert all(r['allocation'] in candidates for r in rows)
+    assert {row['allocation']['placement'] for row in rows}=={'separate','shared'}
+
+
+@pytest.mark.parametrize('kind,expected',[('fixed_contracts',2),('percentage_risk',2)])
+def test_portfolio_twin_oco_matches_standalone_and_blocks_competing_orders(kind,expected):
+    from alphaquest.execution import execute,Trade
+    from alphaquest.strategies.twin_continuation import TwinContinuation
+    from alphaquest.reporting import json_value
+    from test_twin_market_preparation import twin_catalogue
+    from test_native_draws import owner
+    catalogue,params=twin_catalogue(days=1)
+    day=catalogue.sessions[0].context.session
+    rows=list(catalogue.bars)
+    # Touch both breakout entries in one bar. Open is nearer the High, so the
+    # shared MultiCharts path fills the buy first and cancels the sell.
+    rows[105]=replace(rows[105],open=Decimal('109.75'),low=Decimal(89))
+    c=context(days=1,strategies=2)
+    c.update(bars={day:rows},sessions={day:catalogue.sessions[0].context})
+    c['strategies'][0]=dict(strategy_id='twin_continuation',
+        parameters=json.loads(json.dumps(asdict(params),default=json_value)),symbol='MNQ')
+    axis=(dict(minimum=2,maximum=2,step=1) if kind=='fixed_contracts' else
+          dict(minimum='.2',maximum='.2',step='.1',reference='current_account_balance',maximum_contracts=40))
+    policy=sizing_policies(axis)[0]
+    profile=lambda value:dict(evaluation=value,funded=value)
+    allocation=dict(placement='separate',counts=[1,0],sizing=[profile(policy),None])
+    standard=owner(c['sessions'],phase='evaluation',fixed=2 if kind=='fixed_contracts' else None)
+    standalone=[e for e in execute(rows,TwinContinuation(params,execution_config=c['execution'],instrument_symbol='MNQ'),
+        c['execution'],account_control=standard,completion='require_flat') if type(e) is Trade]
+    result=run_lineup(c,allocation,capture=True)
+    assert standalone and result['trades']
+    assert [(t['side'],t['contracts'],Decimal(t['net_pnl'])) for t in result['trades']]==[
+        (t.side,t.contracts,t.net_pnl) for t in standalone]
+    assert result['trades'][0]['side']=='long'
+    assert result['trades'][0]['contracts']==expected
+    assert any(e.get('reason')=='oco_sibling_cancelled' for e in result['accounts'][0]['control_events'])
+    other=sizing_policies(dict(minimum=1,maximum=1,step=1))[0]
+    shared=run_lineup(c,dict(placement='shared',members=[0,1],accounts=1,
+        sizing=[profile(policy),profile(other)]),capture=True)
+    assert shared['trades'][0]['strategy']==0 and shared['trades'][0]['contracts']==expected
+    assert all(a['exit']<=b['entry'] for a,b in zip(shared['trades'],shared['trades'][1:]))
+    conflict=run_lineup(dict(c,strategies=[c['strategies'][0]]*2),
+        dict(placement='shared',members=[0,1],accounts=1,sizing=[profile(policy),profile(other)]),capture=True)
+    assert conflict['counts']['shared_signal_conflicts']>0
+    assert conflict['trades'][0]==result['trades'][0]
+    assert all(a['exit']<=b['entry'] for a,b in zip(conflict['trades'],conflict['trades'][1:]))
 
 
 def test_session_spool_bounds_worker_input_and_replays_identically(tmp_path):
