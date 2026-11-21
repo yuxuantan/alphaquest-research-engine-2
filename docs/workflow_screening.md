@@ -598,3 +598,27 @@ check; corrupt Monte Carlo artifacts cannot be presented as passing. A saved
 sealed snapshot remains inspectable even if its live source later changes.
 
 See the [historical v1 evidence](evidence/campaign_monte_carlo/README.md) and [current v2 journey and independent expected values](evidence/campaign_monte_carlo/v2/README.md).
+
+### IS Narrow result sorting and verification reuse (2026-11-21)
+
+Sorting is presentation only. Completed grids reuse disposable, checksummed
+per-trial eligibility views in the existing bounded replay cache. Each view is
+bound to the current implementation and policy, relevant job/trial/report
+metadata, and artifact identities (path, inode, size, modification and change
+times). Changes to evidence invalidate the view; unrelated job progress and
+checkbox changes do not. During fresh verification, shared artifact bytes and
+neighbor evidence are verified once per request and checked for concurrent
+changes before returning. A missing or corrupt cache entry is recomputed.
+
+Completed grids of up to 200 trials load their assessed rows once and display
+50 rows at a time. Header clicks request only ordered trial IDs, using the
+existing exact-decimal SQLite ordering across the whole grid, with missing values
+last and trial-number ties. Existing row elements, expanded eligibility details,
+and column preferences survive sorting and pagination. Changed source identities
+cause a verified reload. Larger or unfinished grids retain server pagination and
+reuse the same per-trial assessment cache when complete.
+
+This cache is never selection authority: saving and confirming selections still
+run the existing server-side evidence and implementation checks. Screening rules,
+original reports, frozen confirmations, exports, and backtest calculations are
+unchanged. No backtest rerun is required to display or sort saved results.

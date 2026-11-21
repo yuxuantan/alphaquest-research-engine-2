@@ -6,10 +6,12 @@ import math
 from statistics import NormalDist
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 
+from .artifact_reads import verified_reads, memo_value
+from .narrow_read_cache import AssessmentView, MemoRuns, ViewChanged
 from .backtest_requests import ExecutionSettings, OptimizationRequest, ParameterRange
 from .campaign_broad import candidate as broad_candidate, invoke
 from .campaign_workflow import now
@@ -368,6 +370,10 @@ def confidence(days, family):
 
 
 def verify_neighbor(neighbor, runs):
+    return memo_value(('narrow-neighbor',id(runs),digest(neighbor)),lambda:_verify_neighbor(neighbor,runs))
+
+
+def _verify_neighbor(neighbor, runs):
     if runs is None:
         return
     native = runs.get(neighbor['run_id'])
@@ -415,7 +421,7 @@ def neighbor_check(row, all_rows, axes, runs=None, *, target_policy=LEGACY_POLIC
 def fine_plateau_check(row, all_rows, axes, fields, steps=None, runs=None):
     """Assess saved local axis perturbations, without replay or interpolated performance."""
     steps = local_steps(fields, axes, steps)
-    lookup = {parameter_key(item['parameters']): item for item in all_rows}
+    lookup = memo_value(('narrow-grid-lookup',id(all_rows)),lambda:{parameter_key(item['parameters']): item for item in all_rows})
     net = Decimal(str(row['metrics']['total_net_pnl']))
     threshold = Decimal(FINE_GRID_POLICY['plateau_retention_pct_gte'])
     neighbors = []
@@ -457,7 +463,7 @@ def fine_plateau_check(row, all_rows, axes, fields, steps=None, runs=None):
 def plateau_check(row, all_rows, axes, fields, runs=None):
     """Use real adjacent grid trials; never require or interpolate untested settings."""
     included = ordered_axes(fields, axes)
-    lookup = {parameter_key(item['parameters']): item for item in all_rows}
+    lookup = memo_value(('narrow-grid-lookup',id(all_rows)),lambda:{parameter_key(item['parameters']): item for item in all_rows})
     net = Decimal(str(row['metrics']['total_net_pnl']))
     threshold = Decimal(POLICY['plateau_retention_pct_gte'])
     neighbors, one_sided_parameters, spacing = [], [], {}
@@ -604,11 +610,16 @@ def context(request, workflow_id, broad_trial):
     return saved, state, job
 
 
-def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
+def results(request, workflow_id, broad_trial, sort, direction, offset, limit, *, order_only=False, view_token=None):
+    with verified_reads():
+        return _results(request,workflow_id,broad_trial,sort,direction,offset,limit,order_only=order_only,view_token=view_token)
+
+
+def _results(request, workflow_id, broad_trial, sort, direction, offset, limit, *, order_only=False, view_token=None):
     saved, state, job = context(request, workflow_id, broad_trial)
     if not job:
         return dict(items=[], total=0, offset=offset, limit=limit, family_size=0)
-    page = request.app.state.optimizations.page(job, sort, direction, offset, limit, 0)
+    page = request.app.state.optimizations.page(job, sort, direction, offset, limit, 0,order_only=order_only)
     with request.app.state.runs.connect() as db:
         full = all_jobs_complete(request.app.state.campaign_workflows, workflow_id, db)
         # A confirmed branch keeps the advisory search-family snapshot used in
@@ -621,25 +632,41 @@ def results(request, workflow_id, broad_trial, sort, direction, offset, limit):
     if source_policy not in SUPPORTED_POLICIES or state.get('policy') != source_policy:
         raise ValueError('Saved IS Narrow policy differs from its optimizer job.')
     target = (state.get('selection_policy') or source_policy) if state['confirmed_at_utc'] else POLICY
-    for row in page['items']:
-        if job['status'] == 'complete':
-            try:
-                row['admission'] = assessment(request.app.state.runs, row, all_rows, job['axes'], family,
-                                              saved['declaration']['plan'], target_policy=target,
-                                              fields=job['strategy']['parameters'],
-                                              plateau_steps=job['research'].get('plateau_steps'))
-                row['admission']['provisional'] = not branch_complete
-                row['qualifies'] = branch_complete and row['admission']['qualifies'] and not row.get('backtest_deleted', False)
-            except (ValueError, OSError, KeyError, ArithmeticError) as exc:
-                row['admission'] = dict(qualifies=False, checks=[], error=str(exc))
-                row['qualifies'] = False
-        else:
-            row['admission'] = dict(qualifies=False, checks=[], error='Wait for this Narrow grid to finish before screening.')
-            row['qualifies'] = False
-        row['selected'] = row['trial'] in state['selected_trials']
-        row['selectable'] = row['qualifies'] and not state['confirmed_at_utc']
+    inputs=dict(policy=target,source_policy=source_policy,family=family,
+        plan=saved['declaration']['plan'],fields=job['strategy']['parameters'],plateau_steps=job['research'].get('plateau_steps'))
+    runs=request.app.state.runs
+    def annotate(view=None):
+        checked_runs=MemoRuns(runs)
+        for row in page['items']:
+            if job['status'] == 'complete':
+                try:
+                    def calculate():
+                        return assessment(checked_runs,row,all_rows,job['axes'],family,
+                            saved['declaration']['plan'],target_policy=target,
+                            fields=job['strategy']['parameters'],plateau_steps=job['research'].get('plateau_steps'))
+                    row['admission']=view.assessment(row,calculate) if view else calculate()
+                    row['admission']['provisional']=not branch_complete
+                    row['qualifies']=branch_complete and row['admission']['qualifies'] and not row.get('backtest_deleted',False)
+                except (ValueError,OSError,KeyError,ArithmeticError) as exc:
+                    row['admission']=dict(qualifies=False,checks=[],error=str(exc));row['qualifies']=False
+            else:
+                row['admission']=dict(qualifies=False,checks=[],error='Wait for this Narrow grid to finish before screening.');row['qualifies']=False
+            row['selected']=row['trial'] in state['selected_trials']
+            row['selectable']=row['qualifies'] and not state['confirmed_at_utc']
+    token=None
+    if branch_complete:
+        with AssessmentView(runs,job['id'],inputs,job=job,rows=all_rows) as view:
+            token=view.token
+            if order_only:
+                if not view_token:raise ViewChanged('Reload the verified Narrow results before sorting.')
+                view.check(view_token)
+                return dict(page,view_token=token)
+            annotate(view);view.finish()
+    elif order_only:
+        raise ViewChanged('This Narrow grid changed. Reload its results before sorting.')
+    else:annotate()
     return dict(page, family_size=family, all_branches_complete=full,
-                source_policy=source_policy, selection_policy=target)
+                source_policy=source_policy, selection_policy=target,view_token=token)
 
 
 def chosen_candidate(store, workflow_id, state, trial, db, family):
@@ -797,8 +824,9 @@ async def run_grid(workflow_id: UUID, body: NarrowLaunch, request: Request):
 @router.get('/api/campaign-workflows/{workflow_id}/narrow/results')
 async def page(workflow_id: UUID, request: Request, broad_trial: int = Query(..., ge=1),
                sort: str = 'trial', direction: str = 'asc', offset: int = Query(0, ge=0),
-               limit: int = Query(50, ge=1, le=1000)):
-    return await invoke(results, request, workflow_id.hex, broad_trial, sort, direction, offset, limit)
+               limit: int = Query(50, ge=1, le=1000),order_only:bool=False,view_token:str|None=None):
+    try:return await invoke(results,request,workflow_id.hex,broad_trial,sort,direction,offset,limit,order_only=order_only,view_token=view_token)
+    except ViewChanged as exc:raise HTTPException(409,str(exc)) from None
 
 
 @router.patch('/api/campaign-workflows/{workflow_id}/narrow/selection')

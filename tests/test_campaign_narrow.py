@@ -85,6 +85,8 @@ def test_narrow_two_branches_real_evidence_selection_and_durability(client, monk
     assert client.patch(prefix+'/narrow/selection',json=dict(broad_trial=1,job_id=first['id'],revision=state['revision'],trials=[1,2,3])).status_code==422
     from alphaquest import campaign_narrow
     with monkeypatch.context() as patch:
+        # This diagnostic injection deliberately bypasses the disposable display cache.
+        patch.setattr(client.app.state.runs,'replay_cache',None)
         patch.setattr(campaign_narrow,'confidence',lambda days,family: {'lower_bound':-1,'observed_days':len(days)})
         advisory=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()['items']
         assert [row['trial'] for row in advisory if row['qualifies']]==[2,3]

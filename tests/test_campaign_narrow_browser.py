@@ -108,15 +108,29 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
         'cell => getComputedStyle(cell).position')=='sticky'
     screened=[]
     page.on('request',lambda request: screened.append(request.url) if '/narrow/results?' in request.url else None)
-    first_job=page.request.get(prefix+'/narrow?broad_trial=1').json()['job']['id']
-    with page.expect_response(lambda response: f'/api/backtests/batches/{first_job}/results?' in response.url and 'direction=asc' in response.url):
+    page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria').evaluate('element => { element.open=true; window.narrowOriginalRow=element; }')
+    with page.expect_response(lambda response: '/narrow/results?' in response.url and 'order_only=true' in response.url and 'direction=asc' in response.url):
         page.locator('#narrow-results th[data-column="param.hold_minutes"] button').click()
     assert page.locator('#narrow-results tbody tr').evaluate_all('rows => rows.map(row => Number(row.dataset.trial))')==[1,2,3,4]
-    with page.expect_response(lambda response: f'/api/backtests/batches/{first_job}/results?' in response.url and 'direction=desc' in response.url):
+    with page.expect_response(lambda response: '/narrow/results?' in response.url and 'order_only=true' in response.url and 'direction=desc' in response.url):
         page.locator('#narrow-results th[data-column="param.hold_minutes"] button').click()
     playwright.expect(page.locator('#narrow-sort-status')).to_contain_text('Sorted by Hold minutes descending.')
     assert page.locator('#narrow-results tbody tr').evaluate_all('rows => rows.map(row => Number(row.dataset.trial))')==[4,3,2,1]
-    assert screened==[]
+    assert len(screened)==2 and all('order_only=true' in url for url in screened)
+    assert page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria').evaluate('element => element===window.narrowOriginalRow && element.open')
+    page.locator('#narrow-results tr[data-trial="2"] .broad-row-criteria').evaluate('element => element.open=false')
+    # A stale display token refreshes verified results instead of applying stale rows.
+    rejected=[]
+    def changed_view(route):
+        if 'order_only=true' in route.request.url and not rejected:
+            rejected.append(True)
+            route.fulfill(status=409,content_type='application/json',body=json.dumps({'detail':'Narrow source evidence changed.'}))
+        else:route.continue_()
+    page.route('**/narrow/results?*',changed_view)
+    page.locator('#narrow-results th[data-column="param.hold_minutes"] button').click()
+    playwright.expect(page.locator('#narrow-sort-status')).to_have_text('Sorted by Hold minutes ascending.')
+    assert rejected==[True] and 'order_only=true' not in screened[-1]
+    page.unroute('**/narrow/results?*',changed_view)
     playwright.expect(page.locator('#narrow-results thead th.optimization-frozen-column').first).to_be_visible()
     assert page.locator('#narrow-results thead th.optimization-frozen-column').evaluate_all('items => items.map(el=>el.dataset.column)')==['select','trial','param.hold_minutes']
     playwright.expect(page.locator('#narrow-results th[data-column="param.contracts"]')).to_be_hidden()

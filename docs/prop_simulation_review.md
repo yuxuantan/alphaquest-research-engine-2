@@ -13829,3 +13829,42 @@ journey, focused JUnit checks and `live-verification.json`. Fourteen focused
 browser checks passed. They include a native arithmetic backtest through the
 normal upload/backtest/report owners; all other loading checks are metadata reads
 and labeled browser fault injection, with no invented financial results.
+
+### 2026-11-21 — IS Narrow sorting responsiveness
+
+This presentation/verification increment does not change Prop Sim calculations or
+campaign screening rules. It removes repeated Narrow eligibility work from table
+sorting while retaining independent checks when selections are saved/confirmed.
+
+Normal-product verification used workflow `1d3dfda940994b78b18d776c69fe2104`,
+Broad trial 11, completed Narrow job `97ab3632ac9d44a4b4f25013c10b576b`
+(100 saved trials). Before: a browser header click took 6.931 seconds, including
+6.324 seconds in the assessed results request. After: three header clicks took
+0.896, 0.837 and 0.845 seconds. Each order response was 437 bytes. Direct owner
+measurements: first assessment of all 100 rows 4.931 seconds; cached assessment
+0.669 seconds; order-only request 0.358 seconds. Timings are local observations,
+not guarantees. A cold load still verifies source evidence.
+
+Reproduce in the existing portal:
+
+1. Open `/#campaigns/workflows/1d3dfda940994b78b18d776c69fe2104/is_narrow?broad_trial=11`.
+2. Expand a row's Eligibility details. Click Total net pnl twice. Expect ascending
+   then descending ordering; expanded rows and frozen varied parameters remain.
+3. Use Next, then click Total net pnl again. Expect a return to the first 50 rows
+   of the globally sorted 100-trial grid. Pagination does not re-fetch eligibility.
+4. In browser Network, expect header requests with `order_only=true` returning
+   trial IDs and a view token. There are no calculation or selection POSTs.
+
+Saved local evidence: `artifacts/narrow-sort-performance-20261121/` contains
+before/after timings, a screenshot, and source-row/manifest integrity comparison.
+All 100 cached admissions equaled their fresh assessments; source trial payloads
+and native manifests were unchanged. Browser verification made no mutations and
+reported no JavaScript errors. The focused synthetic API tests separately check
+cache corruption, same-size artifact edits with restored mtime, concurrent trial
+and native-manifest changes, unrelated job activity, exact sorting, and rejection
+of confirmation after evidence tampering. The normal two-branch browser journey
+checks selection, confirmation, frozen columns, preserved row nodes, and OOS handoff.
+Temporary browser-test servers are stopped by fixture teardown. The existing
+persistent portal was restarted only after confirming no queued/running jobs;
+stop it with Ctrl-C in its launcher or SIGTERM to its recorded owner PID in
+`data/.portal-server.lock`.

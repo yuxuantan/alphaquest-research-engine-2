@@ -376,7 +376,7 @@ class OptimizationStore:
             rows = conn.execute("SELECT payload FROM optimizations ORDER BY created_at DESC, id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
         return {"items": [json.loads(row[0]) for row in rows], "total": total, "offset": offset, "limit": limit}
 
-    def page(self, job, sort, direction, offset, limit, prop_revision=None):
+    def page(self, job, sort, direction, offset, limit, prop_revision=None, *, order_only=False):
         from .optimization_prop import revision
         from .optimization_display import trading_day_duration
         durations = {}
@@ -413,7 +413,8 @@ class OptimizationStore:
             # retain the previous count-based boundary without a migration.
             boundary = "rowid" if "results_snapshot_rowid" in job else "trial"
             snapshot = job.get("results_snapshot_rowid", job["completed_trials"])
-            rows = conn.execute(f"""SELECT t.payload, r.id IS NOT NULL,l.payload,a.payload,r.manifest
+            selected = 't.trial' if order_only else 't.payload, r.id IS NOT NULL,l.payload,a.payload,r.manifest'
+            rows = conn.execute(f"""SELECT {selected}
                 FROM optimization_trials t LEFT JOIN optimization_prop_links l ON l.id=
                 (SELECT MAX(id) FROM optimization_prop_links WHERE optimization_id=t.optimization_id AND trial=t.trial AND account='lucid' AND id<=?)
                 LEFT JOIN optimization_prop_links a ON a.id=
@@ -421,6 +422,7 @@ class OptimizationStore:
                 LEFT JOIN runs r ON r.id=json_extract(t.payload,'$.run_id')
                 WHERE t.optimization_id=? AND t.{boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?""",
                 (prop_revision,prop_revision, job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
+        if order_only:return dict(trials=[row[0] for row in rows],total=job['completed_trials'],offset=offset,limit=limit,prop_revision=prop_revision)
         items=[]
         for payload,available,refresh_payload,apex_payload,manifest in rows:
             row=json.loads(payload)
