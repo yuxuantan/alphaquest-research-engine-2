@@ -2823,10 +2823,15 @@ loss; percentage risk is an admission budget, not guaranteed maximum loss.
 
 Actual strategy callbacks, fills, brackets and existing native account owners are
 rerun. Saved completed trades are not multiplied by a retroactively chosen size.
-Sparse pre-entry source bars stay sparse; all minutes during the possible daytime
-holding window through the scheduled close must be present. Missing holding
-prices, missing open sessions, incompatible strategy provenance and changed source
-artifacts reject. Calendar identity and the per-session coverage audit are saved.
+Sparse pre-entry source bars stay sparse. Portfolio coverage requires the
+scheduled close and observed tradable minutes throughout the possible daytime
+holding window. Before June 28, 2021, it excludes the close labels from
+15:16 through 15:30 Chicago time for the reviewed CME pause. Replay uses the
+original bars, including the observed reopening. Missing tradable minutes,
+missing close bars, incompatible strategy provenance and changed source
+artifacts still stop the job. The error identifies the session and missing
+timestamp. `source_checks.json` records the expected tradable bar count and
+scheduled pause minutes for each session.
 
 ### Allocation and account handling
 

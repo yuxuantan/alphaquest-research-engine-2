@@ -1,6 +1,6 @@
 """Independent risk quantities, real native execution and exact cash conservation."""
 from dataclasses import asdict
-from datetime import date,datetime,timedelta,timezone
+from datetime import date,datetime,time,timedelta,timezone
 from decimal import Decimal
 import json
 
@@ -14,7 +14,8 @@ from alphaquest.prop.evaluation_optimization import SequentialRetry
 from alphaquest.prop.portfolio_lifecycle import run_lineup
 from alphaquest.prop.portfolio_cash import PortfolioCash
 from alphaquest.prop.portfolio_search import family
-from alphaquest.session_calendar import session_date
+from alphaquest.prop.portfolio_sources import session_coverage
+from alphaquest.session_calendar import CT,session_date
 from native_replay_fixtures import bars,parameter_values
 
 
@@ -107,6 +108,34 @@ def test_session_spool_bounds_worker_input_and_replays_identically(tmp_path):
     from pathlib import Path
     Path(filename).write_bytes(b'corrupt temporary input')
     with pytest.raises(ValueError,match='session source changed'):spool[date.fromisoformat(c['first'])]
+
+
+def test_portfolio_accepts_historical_cme_pause_in_observed_session():
+    day = date(2021, 1, 4)
+    start = datetime.combine(day - timedelta(days=1), time(17, 1), CT)
+    close = datetime.combine(day, time(16), CT)
+    minutes = [start + timedelta(minutes=i) for i in range(23 * 60)]
+    # Close labels 15:16–15:30 refer to the scheduled pause. The 15:15 and
+    # 15:31 bars must still be present, as must the 16:00 close.
+    stamps = [t.astimezone(timezone.utc) for t in minutes if not (time(15, 15) < t.time() <= time(15, 30))]
+    coverage = session_coverage(day, close.astimezone(timezone.utc), 900, stamps)
+    assert coverage['observed_bars'] == coverage['expected_full_session_bars'] == 1365
+    assert coverage['scheduled_pause_minutes'] == 15
+    assert coverage['missing_pre_entry_bars'] == 0
+    with pytest.raises(ValueError, match='missing a tradable one-minute bar at 15:31'):
+        session_coverage(day, close.astimezone(timezone.utc), 900,
+                         [t for t in stamps if t.astimezone(CT).time() != time(15, 31)])
+    with pytest.raises(ValueError, match='observed bar at the scheduled close'):
+        session_coverage(day, close.astimezone(timezone.utc), 900, stamps[:-1])
+
+
+def test_portfolio_rejects_same_gap_after_cme_removed_pause():
+    day = date(2021, 6, 28)
+    start = datetime.combine(day, time(15, 15), CT).astimezone(timezone.utc)
+    resumed = start + timedelta(minutes=16)
+    stamps = [start, *(resumed + timedelta(minutes=i) for i in range(30))]
+    with pytest.raises(ValueError, match='missing a tradable one-minute bar at 15:16'):
+        session_coverage(day, stamps[-1], 1515, stamps)
 
 
 def test_final_closed_day_counts_inactivity_without_buying_future_replacement():

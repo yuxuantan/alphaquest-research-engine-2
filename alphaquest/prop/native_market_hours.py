@@ -12,15 +12,22 @@ SOURCE='https://www.cmegroup.com/notices/electronic-trading/2021/06/20210614.htm
 PAUSE_REMOVED=date(2021,6,28)
 
 
+def scheduled_pause_bar_labels(day):
+    """UTC close labels within the historical CME equity-index pause."""
+    if day >= PAUSE_REMOVED:
+        return frozenset()
+    first = datetime.combine(day, time(15, 16), CT).astimezone(timezone.utc)
+    return frozenset(first + timedelta(minutes=i) for i in range(15))
+
+
 def missing_minute_ranges(day, stamps, scheduled_close):
     """Compact original-source holes; no prices, sessions or bars are inserted."""
     seen=set(stamps)
+    paused=scheduled_pause_bar_labels(day)
     minute=datetime.combine(day-timedelta(days=1),time(17,1),CT).astimezone(timezone.utc)
     result=[]
     while minute<=scheduled_close:
-        local=minute.astimezone(CT).time()
-        paused=day<PAUSE_REMOVED and time(15,15)<local<=time(15,30)
-        if not paused and minute not in seen:
+        if minute not in paused and minute not in seen:
             if result and minute==result[-1][1]+timedelta(minutes=1):
                 result[-1]=(result[-1][0],minute)
             else:result.append((minute,minute))
@@ -89,10 +96,9 @@ def required_holding_minutes(day,parameters,scheduled_close):
     # row is retained; flat post-liquidation rows are not invented requirements.
     end=min(cutoff+timedelta(minutes=1),scheduled_close)
     result=set()
+    paused=scheduled_pause_bar_labels(day)
     while start<=end:
-        local=start.astimezone(CT).time()
-        paused=day<PAUSE_REMOVED and time(15,15)<local<=time(15,30)
-        if not paused:result.add(start)
+        if start not in paused:result.add(start)
         start+=timedelta(minutes=1)
     # If flattening falls in the reviewed halt, require the first resumed bar.
     if day<PAUSE_REMOVED and time(15,15)<=cutoff.astimezone(CT).time()<=time(15,30):

@@ -15,6 +15,7 @@ from ..strategies.registry import get_strategy
 from ..strategy import ExecutionConfig
 from ..optimization_cache import artifacts,digest
 from .native_control import SessionContext
+from .native_market_hours import scheduled_pause_bar_labels
 from .phase_profiles import EvaluationProfile,FundedProfile,SizingConfiguration,rule_version
 from .phase_search import PhaseCalendar
 from .evaluation_optimization import SequentialRetry
@@ -43,6 +44,39 @@ class SessionBars(Mapping):
     def __len__(self):return len(self.index)
     def __iter__(self):return iter(self.index)
     def subset(self,start,end):return SessionBars(self.directory,{d:v for d,v in self.index.items() if start<=str(d)<=end})
+
+
+def session_coverage(day, close, entry, timestamps):
+    """Require observed tradable minutes from entry through the session close."""
+    begin = datetime.combine(day - timedelta(days=1), time(17, 1), CT).astimezone(timezone.utc)
+    risk_start = datetime.combine(day, time(entry // 100, entry % 100), CT).astimezone(timezone.utc)
+    stamps = set(timestamps)
+    if len(stamps) != len(timestamps) or any(
+        t < begin or t > close or t.second or t.microsecond for t in stamps
+    ):
+        raise ValueError(f'Portfolio session {day} contains duplicate or invalid one-minute timestamps.')
+    if close not in stamps:
+        raise ValueError(f'Portfolio session {day} needs an observed bar at the scheduled close ({close.isoformat()}).')
+
+    paused = {t for t in scheduled_pause_bar_labels(day) if begin <= t <= close}
+    minute = risk_start
+    while minute <= close:
+        if minute not in stamps and minute not in paused:
+            local = minute.astimezone(CT).strftime('%H:%M')
+            raise ValueError(f'Portfolio session {day} is missing a tradable one-minute bar at {local} America/Chicago '
+                             f'({minute.isoformat()}) in the possible holding window through the scheduled close.')
+        minute += timedelta(minutes=1)
+
+    flat_end = min(risk_start, close + timedelta(minutes=1))
+    excluded = paused - stamps
+    return dict(session=str(day), observed_bars=len(stamps),
+                expected_full_session_bars=int((close - begin).total_seconds() // 60) + 1 - len(paused),
+                scheduled_pause_minutes=len(paused),
+                verified_holding_interval_start=risk_start.isoformat() if risk_start <= close else None,
+                verified_holding_interval_end=close.isoformat() if risk_start <= close else None,
+                entry_window_before_close=risk_start < close,
+                missing_pre_entry_bars=int((flat_end - begin).total_seconds() // 60)
+                - sum(t < flat_end for t in stamps) - sum(t < flat_end for t in excluded))
 
 
 def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,bar_directory=None):
@@ -92,24 +126,14 @@ def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,
         plan=calendar.plan(day)
         if plan.close is not None:
             rows=books.get(day,[])
-            begin=datetime.combine(day-timedelta(days=1),time(17,1),CT).astimezone(timezone.utc)
             close=plan.close.astimezone(timezone.utc)
-            stamps={b.timestamp_utc for b in rows}
             # Flat pre-entry gaps do not hide position risk. All strategies have
             # same-day entry windows and flatten before the scheduled close.
             # Preserve actual sparse feature inputs; never insert synthetic bars.
             starts=[s['parameters']['entry_start_time'] for s in specs]
             if any(s['parameters']['entry_end_time']<s['parameters']['entry_start_time'] or s['parameters']['entry_start_time']>=1700 for s in specs):
                 raise ValueError('Native portfolios currently require same-day daytime entry windows.')
-            entry=min(starts);risk_start=datetime.combine(day,time(entry//100,entry%100),CT).astimezone(timezone.utc)
-            required={risk_start+timedelta(minutes=i) for i in range(max(0,int((close-risk_start).total_seconds()/60)+1))}
-            if not rows or close not in stamps or required-stamps or len(stamps)!=len(rows) or any(t<begin or t>close or t.second or t.microsecond for t in stamps):
-                raise ValueError(f'Portfolio session {day} needs observed one-minute bars throughout every possible position-holding interval through its scheduled close; no missing prices are fabricated.')
-            coverage.append(dict(session=str(day),observed_bars=len(rows),expected_full_session_bars=int((close-begin).total_seconds()/60)+1,
-                verified_holding_interval_start=risk_start.isoformat() if risk_start<=close else None,
-                verified_holding_interval_end=close.isoformat() if risk_start<=close else None,
-                entry_window_before_close=risk_start<close,
-                missing_pre_entry_bars=int((min(risk_start,close+timedelta(minutes=1))-begin).total_seconds()/60)-sum(t<risk_start for t in stamps)))
+            coverage.append(session_coverage(day, close, min(starts), [bar.timestamp_utc for bar in rows]))
             contexts[day]=SessionContext(day,close,descriptor['id']+'-'+calendar.sha256,calendar.sha256,len(rows),True)
         elif day.weekday()<5:closed.append(str(day))
         day+=timedelta(days=1)

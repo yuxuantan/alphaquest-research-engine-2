@@ -152,7 +152,8 @@ def implementation():
         'execution.py','prop/native_control.py','prop/evaluation_profiles.py','prop/funded_profiles.py','prop/sizing.py',
         'prop/native_engine.py','prop/lucid_engine.py','prop/native_money.py','prop/cash_ledger.py','strategy.py',
         'strategies/vwap_pullback_risk_sizing.py','strategies/vwap_features.py','strategies/registry.py',
-        'tick_data.py','decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py')}
+        'tick_data.py','decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py',
+        'prop/native_market_hours.py')}
     result[os.path.relpath(calendar_path(),root)]=sha256(calendar_path().read_bytes()).hexdigest()
     from .prop import native_backend,lucid_backend
     for backend in (native_backend,lucid_backend):
@@ -252,7 +253,7 @@ def run(app,saved,checked):
                     'Observed NQ reference prices may proxy MNQ execution at point value 2; no measured micro basis or provider execution parity is claimed.'])
             (staged/'allocation_results.json').write_text(canonical(search['candidates']))
             (staged/'source_checks.json').write_text(canonical(dict(sources=context['sources'],coverage=combined['coverage'],
-                interpretation='Actual observed bars only. Sparse pre-entry prices remain sparse; every possible daytime holding minute through close is observed. No invented warmup or prices.')))
+                interpretation='Actual observed bars only. Sparse pre-entry prices remain sparse. The historical CME pause is excluded from expected tradable minutes. Tradable bars throughout the possible holding window and the scheduled close must be observed.')))
             report=dict(format_version=5,model_version='native-portfolio-cashflow-v1',source=dict(backtest=dict(id=checked['sources'][0]['source_backtest_id'])),
                 settings=dict(ANALYSIS_MODE='portfolio_cashflow'),configuration=saved['configuration'],calculations=calculations,implementation=numerical)
             with store.lock:

@@ -13894,3 +13894,27 @@ for write actions. Read-only Chrome checks against the saved local portal cover
 the main screens and saved results at 320, 390, 768 and 1440 CSS pixels. They
 check keyboard navigation, accessible names and page overflow. Saved-result
 tables can scroll within their own regions.
+
+### 2026-11-21 — Portfolio coverage recognizes the historical CME pause
+
+**Portfolio & cash flow** uses the shared historical CME pause calendar during
+source preparation. The check requires observed bars during the possible holding
+window and at the scheduled close. Source validation reports the first missing
+tradable timestamp for a rejected session.
+
+The saved LucidFlex portfolio `09db1a9d80024ee2bfade1260ddc8582` uses two
+qualified VWAP configurations on `ofb_bars_NQ`. Its opening session
+(2021-01-04) has 1,365 observed and 1,365 expected tradable minute bars. The
+15-minute pause is correctly excluded, and the 16:00 Chicago close is present.
+A read-only timestamp scan of the saved windows found 1,032 passing IS sessions
+and 389 passing OOS sessions. Four sessions still fail strict tradable coverage.
+The first missing Chicago timestamps were 15:53 on 2021-03-16 and 2021-06-15,
+15:32 on 2025-04-02, and 15:40 on 2025-06-17.
+
+Open the saved simulation from **Prop Sim → Saved simulations**. An explicit retry
+of the same configuration under the updated implementation will clear the January
+4 check and stop on March 16 at 15:53 Chicago time. The checks performed here
+read the saved declarations, source reports and timestamps without submitting
+another analysis. Evidence is in `artifacts/portfolio-pause-20261121/`.
+The synthetic tests independently check the pause, a missing reopening bar, a
+missing close, and the same 15-minute hole after the pause was removed.
