@@ -14016,3 +14016,41 @@ contains both current-code IS reports. The exact pair identities are:
 The comparison records and submitted split are under
 `artifacts/twin-portfolio-parity-20261121/`. The Portfolio picker should
 enable both Twin rows and show that replay parity was verified.
+
+### Portfolio report storage and results loading
+
+New Portfolio reports have a 100,000,000-byte storage limit for the complete
+published directory, including the evidence ZIP. The main report contains
+the frozen allocation, source identity, cash results and search summary.
+Cash ledgers, trades, sizing decisions, transitions and compact account
+summaries are downloadable separately through the normal file endpoints.
+Their compressed copies are stored once inside the ZIP. Account event counts
+remain available. The replay retains detailed source-gap events and paired
+order cancellations, and omits routine per-bar account event and daily state
+transcripts. Storage does not change allocation selection or cash arithmetic.
+
+Open a saved Portfolio from Prop Sim. Expect the summary to appear without
+loading the ZIP or opening any detail CSV. The Portfolio setup draws its
+form and saved history while campaign sources are checked. During publication,
+Job history shows the end of replay followed by distinct saving and packaging
+stages.
+
+For a local legacy library, stop the idle portal and run
+`.venv/bin/python -m alphaquest.compact_portfolio_reports --recovery-dir artifacts/portfolio-report-recovery-20261121`.
+This projects the original summary without loading the whole report into
+memory, verifies the existing sealed ZIP, and packs the retained cash, trade,
+transition and sizing CSVs into a compact report. The original ZIP and its
+seals remain available outside the active report directory. To recover a
+historical export, read that ZIP directly. To restore the legacy on-disk
+layout, stop the portal, restore the original ZIP members and its ZIP into the
+analysis directory, and restore the original seal for the matching catalogue ID.
+
+The local Portfolio analysis `f102e67afd2c41b0ad751abbbca105e2` was reopened
+through `/#prop-sim?analysis=f102e67afd2c41b0ad751abbbca105e2` after migration.
+Its active report directory fell from 18,199,128,454 to 3,685,724 bytes. The
+original 379,332,652-byte ZIP remains in the recovery directory. The saved
+result response was 207,084 bytes and showed net cash of $7,275.46 IS,
+−$241.50 OOS, and $7,114.46 full period. The full-period cash-ledger download
+matched its saved SHA-256 checksum. The allocation appeared in local Chrome
+in under half a second. Holding the candidate request open also confirmed the
+Portfolio setup renders and shows a loading indicator in the source picker.

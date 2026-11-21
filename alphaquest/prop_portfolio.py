@@ -18,7 +18,8 @@ from .prop.sizing_search import PercentageGrid
 from .prop.portfolio_search import FixedGrid, optimized_search, sizing_policies
 from .prop.portfolio_sources import checked_portfolio_source
 from .prop.adapter import canonical
-from .prop.store import AnalysisCancelled,seal_report,sealed_checks
+from .prop.store import AnalysisCancelled,sealed_checks
+from .prop.portfolio_reports import read_summary, seal_portfolio, summary, write_evidence
 
 router=APIRouter(prefix='/api/prop-sim/portfolio',tags=['Prop Sim portfolio'])
 
@@ -182,7 +183,7 @@ def implementation():
         'prop/native_engine.py','prop/lucid_engine.py','prop/native_money.py','prop/cash_ledger.py','strategy.py',
         'strategy_sizing.py','strategies/vwap_features.py','strategies/registry.py',
         'tick_data.py','decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py',
-        'prop/native_market_hours.py','prop/portfolio_parity.py')}
+        'prop/native_market_hours.py','prop/portfolio_parity.py','prop/portfolio_reports.py')}
     from .strategies.registry import STRATEGIES
     for definition in STRATEGIES.values():
         path=Path(definition.module.__file__).resolve()
@@ -213,7 +214,6 @@ def run(app,saved,checked):
     from .prop.portfolio_sources import prepare
     from .prop.portfolio_search import optimize
     from .prop.portfolio_lifecycle import run_lineup
-    from .prop.native_analysis import csv_text
     from .optimization_cache import digest
     store=app.state.prop_analyses;aid=saved['portfolio']['analysis_id'];settings=saved['portfolio']['request']
     def checkpoint():
@@ -241,15 +241,16 @@ def run(app,saved,checked):
             results={}
             combined=None
             alternative=None
+            exposed=0
             if allocation.get('counts') is not None and not any(allocation['counts']):
                 invested=[r for r in search['candidates'] if r['allocation'].get('placement')=='shared' or any(r['allocation'].get('counts',[]))]
                 if invested:
                     progress('Auditing the best invested IS alternative · not selected for OOS')
                     best=max(invested,key=lambda r:Decimal(r['cash']['net_cash']))
-                    alternative=run_lineup(context,best['allocation'],capture=True,checkpoint=checkpoint)
-                    (staged/'is_alternative.json').write_text(canonical(alternative))
-                    for key in ('cash_ledger','trades','sizing_decisions'):
-                        (staged/('is_alternative_'+key+'.csv')).write_text(csv_text(alternative[key]))
+                    detail=run_lineup(context,best['allocation'],capture=True,checkpoint=checkpoint)
+                    write_evidence(staged,'is_alternative',detail)
+                    alternative=summary(detail)
+                    del detail
             for name,window in [('is',windows['is']),('oos',windows['oos']),('combined',dict(start=windows['is']['start'],end=windows['oos']['end']))]:
                 progress('Frozen '+name.upper()+' portfolio · actual replacements and cash receipts')
                 if name!='is' and combined is None:
@@ -263,11 +264,15 @@ def run(app,saved,checked):
                             {d:b for d,b in combined['bars'].items() if window['start']<=str(d)<=window['end']}),
                         sessions={d:s for d,s in combined['sessions'].items() if window['start']<=str(d)<=window['end']},
                         calendar=PhaseCalendar((window['start'],),combined['calendar'].coverage_end,tuple(d for d in combined['calendar'].closures if d>=window['start'])))
-                results[name]=run_lineup(current,allocation,capture=True,checkpoint=checkpoint,
+                detail=run_lineup(current,allocation,capture=True,checkpoint=checkpoint,
                     progress=lambda p,name=name:progress(f"Frozen {name.upper()} portfolio · {p['completed']}/{p['total']} calendar days"))
-                for key in ('cash_ledger','trades','sizing_decisions','transitions','accounts'):
-                    (staged/(name+'_'+key+'.json')).write_text(canonical(results[name][key]))
-                    (staged/(name+'_'+key+'.csv')).write_text(csv_text(results[name][key]))
+                progress(f'Saving {name.upper()} portfolio evidence')
+                if name=='combined':
+                    exposed=sum(event['event']=='source_gap' and event['exposure']!='flat'
+                        for account in detail['accounts'] for event in account['control_events'])
+                write_evidence(staged,name,detail)
+                results[name]=summary(detail)
+                del detail
             checkpoint()
             for name,expected in numerical.items():
                 if file_digest(Path(__file__).parent/name)!=expected:raise ValueError('Portfolio calculation implementation changed during execution.')
@@ -286,9 +291,7 @@ def run(app,saved,checked):
             source_coverage = dict(version=VERSION, affected_sessions=len(affected),
                 missing_holding_minutes=sum(row['missing_holding_minutes'] for row in affected),
                 missing_pre_entry_bars=sum(row['missing_pre_entry_bars'] for row in combined['coverage']),
-                exposed_account_encounters=sum(
-                    event['event'] == 'source_gap' and event['exposure'] != 'flat'
-                    for account in results['combined']['accounts'] for event in account['control_events']))
+                exposed_account_encounters=exposed)
             calculations=dict(analysis_mode='portfolio_cashflow',frozen=frozen,allocation_search=search['candidates'],results=results,abstention_alternative=alternative,
                 source_coverage=source_coverage,
                 history=None,assumptions=[checked['interpretation'],'Account owners and execution fills are reused locally; no Bridge runtime.',
@@ -305,10 +308,13 @@ def run(app,saved,checked):
                 interpretation=ASSUMPTION+' The historical CME pause is excluded. An observed scheduled close and actual flat execution are required.')))
             report=dict(format_version=5,model_version='native-portfolio-cashflow-v2',source=dict(backtest=dict(id=checked['sources'][0]['source_backtest_id'])),
                 settings=dict(ANALYSIS_MODE='portfolio_cashflow'),configuration=saved['configuration'],calculations=calculations,implementation=numerical)
+            progress('Packaging portfolio report and evidence')
+            seal_portfolio(staged,report,aid,saved['created_at_utc'])
+            checks=sealed_checks(staged)
             with store.lock:
-                checkpoint();seal_report(staged,report,aid,saved['created_at_utc'],size_limit_bytes=None);staged.rename(store.root/aid)
+                checkpoint();staged.rename(store.root/aid)
                 with store.connect() as db:
-                    db.execute('INSERT INTO analysis_report_checks VALUES (?,?)',(aid,canonical(sealed_checks(store.root/aid))))
+                    db.execute('INSERT INTO analysis_report_checks VALUES (?,?)',(aid,canonical(checks)))
                 store._update(aid,'complete','Saved portfolio allocation and replacement cash flow ready')
     except AnalysisCancelled as exc:store._update(aid,'cancelled','Portfolio stopped',str(exc))
     except Exception as exc:store._update(aid,'error','Portfolio analysis failed',f'{type(exc).__name__}: {exc}')
@@ -338,10 +344,10 @@ async def results(id:UUID,request:Request):
         with store.connect() as db:row=db.execute('SELECT payload FROM workflow_prop_simulations WHERE id=?',(id.hex,)).fetchone()
         if not row:raise KeyError('Portfolio not found.')
         saved=json.loads(row[0]);aid=saved['portfolio']['analysis_id']
-        if not store.fingerprint(aid):raise ValueError('Portfolio report is incomplete or changed.')
-        report=json.loads((store.root/aid/'report.json').read_text());calc=report['calculations']
+        if store.get(aid)['status']!='complete':raise ValueError('Portfolio report is incomplete.')
+        calc=read_summary(store,aid)['calculations']
         return dict(id=aid,frozen=calc['frozen'],assumptions=calc['assumptions'],allocation_search=calc['allocation_search'],
             source_coverage=calc.get('source_coverage'),
             abstention_alternative=({k:v for k,v in calc['abstention_alternative'].items() if k in ('allocation','cash','counts','open_accounts')} if calc.get('abstention_alternative') else None),
-            results={name:{k:v for k,v in r.items() if k not in ('cash_ledger','trades','sizing_decisions','transitions','pending_settlements','accounts')} for name,r in calc['results'].items()})
+            results={name:summary(r) for name,r in calc['results'].items()})
     return await invoke(read)

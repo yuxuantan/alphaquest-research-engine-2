@@ -14,11 +14,16 @@ import zipfile
 
 VERSION = 'analysis-zip-json-v1'
 PACKED_JSON = frozenset({'calculations.json', 'joint_sizing.json'})
+PORTFOLIO_PACKED = frozenset(
+    f'{phase}_{name}' for phase in ('is', 'oos', 'combined', 'is_alternative')
+    for name in ('cash_ledger.csv', 'trades.csv', 'sizing_decisions.csv', 'transitions.csv', 'accounts.json')
+)
+PACKED_ARTIFACTS = PACKED_JSON | PORTFOLIO_PACKED
 CHUNK = 1024 * 1024
 
 
 def capabilities():
-    return dict(version=VERSION, compressed_artifacts=sorted(PACKED_JSON),
+    return dict(version=VERSION, compressed_artifacts=sorted(PACKED_ARTIFACTS),
                 report_and_zip_bytes_preserved=True)
 
 
@@ -29,7 +34,7 @@ def open_artifact(path):
     try:
         stream = path.open('rb')
     except FileNotFoundError:
-        if path.name not in PACKED_JSON:raise
+        if path.name not in PACKED_ARTIFACTS:raise
         archive = path.parent / 'analysis.zip'
         if archive.is_symlink():raise ValueError('Refusing a symbolic-link result archive.')
         try:
@@ -62,7 +67,7 @@ def read_bytes(path):
 def is_artifact(path):
     path = Path(path)
     if path.is_file() and not path.is_symlink():return True
-    if path.name not in PACKED_JSON:return False
+    if path.name not in PACKED_ARTIFACTS:return False
     try:
         with open_artifact(path):return True
     except (OSError, ValueError, zipfile.BadZipFile):return False
@@ -77,7 +82,7 @@ def _checked_details(directory, seals, logical_files=None):
     # Publishers already hold the exact manifest just sealed. Reuse that small
     # map rather than parsing another complete Monte Carlo result into memory.
     if logical_files is None:logical_files=json.loads((directory/'report.json').read_bytes()).get('files',{})
-    selected = sorted(PACKED_JSON.intersection(logical_files))
+    selected = sorted(PACKED_ARTIFACTS.intersection(logical_files))
     result = []
     with zipfile.ZipFile(directory / 'analysis.zip') as zipped:
         for name in selected:
@@ -139,7 +144,7 @@ def artifact_response(path, *, filename=None, expected=None):
     from fastapi.responses import FileResponse, StreamingResponse
     from urllib.parse import quote
     path = Path(path)
-    if path.name not in PACKED_JSON:return FileResponse(path,filename=filename)
+    if path.name not in PACKED_ARTIFACTS:return FileResponse(path,filename=filename)
     context = open_artifact(path);stream = None
     try:
         stream = context.__enter__()
@@ -157,7 +162,7 @@ def artifact_response(path, *, filename=None, expected=None):
         if filename:
             encoded=quote(filename)
             headers['Content-Disposition']=(f'attachment; filename="{filename}"' if encoded==filename else "attachment; filename*=utf-8''"+encoded)
-        return CheckedArtifactResponse(chunks(),media_type='application/json',headers=headers)
+        return CheckedArtifactResponse(chunks(),media_type='text/csv' if path.suffix=='.csv' else 'application/json',headers=headers)
     except BaseException as error:
         if stream is not None:context.__exit__(None,None,None)
         if isinstance(error,(OSError,ValueError,zipfile.BadZipFile)):

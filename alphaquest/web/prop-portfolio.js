@@ -98,24 +98,31 @@
         }catch(e){if(alive())state.textContent=e.message;}
       }await refresh();return;
     }
-    const loading=node('p','Checking qualified configurations…','field-help');
-    const spinner=node('span',undefined,'portal-spinner');spinner.setAttribute('aria-hidden','true');
-    loading.prepend(spinner,' ');
-    loading.setAttribute('role','status');head.append(loading);
-    let sources,defaults,history;
+    const loadSources=()=>read('/api/prop-sim/portfolio/candidates')
+      .then(value=>({value}),error=>({error}));
+    const initialSources=loadSources();
+    const loading=window.portalLoading.message('Loading Portfolio settings…');
+    head.append(loading);
+    let defaults,history;
     try{
-      [sources,defaults,history]=await Promise.all([read('/api/prop-sim/portfolio/candidates'),read('/api/prop-sim/defaults'),read('/api/prop-sim')]);
+      [defaults,history]=await Promise.all([read('/api/prop-sim/defaults'),read('/api/prop-sim')]);
     }catch(error){
-      if(alive()){loading.textContent='Could not load Portfolio settings. '+error.message;
+      if(alive()){window.portalLoading.clear(loading);loading.textContent='Could not load Portfolio settings. '+error.message;
         const retry=node('button','Try again','button secondary');retry.onclick=()=>window.propPortfolio.render(host);head.append(retry);}
       return;
     }
     if(!alive())return;
+    window.portalLoading.clear(loading);
     loading.remove();
     const form=node('form',undefined,'panel prop-portfolio-panel');form.id='portfolio-form';host.append(form);
     const choices=node('fieldset',undefined,'portfolio-picks');
     choices.append(node('legend','Strategies to compare'),node('p','Choose up to four configurations from the same dataset. Shared-account signal ties follow the order shown.','field-help'));
-    const picks=sources.items.map((source,index)=>{
+    const picks=[];
+    const sourceStatus=window.portalLoading.message('Checking qualified configurations…');
+    const retrySources=node('button','Retry loading configurations','button secondary');
+    retrySources.type='button';retrySources.hidden=true;
+    choices.append(sourceStatus,retrySources);
+    function addSource(source,index){
       const label=node('label',undefined,'portfolio-pick'),input=node('input'),copy=node('span'),reason=node('small');
       input.type='checkbox';input.id='portfolio-source-'+index;input.className='portfolio-source';
       reason.id=input.id+'-reason';input.setAttribute('aria-describedby',reason.id);
@@ -125,9 +132,8 @@
       if(source.portfolio_ineligible_reason?.includes('current strategy implementation'))
         link(choices,'View saved campaign',
           '#campaigns/workflows/'+source.selection.workflow_id.replaceAll('-','')+'/oos');
-      return {input,source,reason};
-    });
-    if(!picks.length)choices.append(node('p','No campaign configurations have qualified for Prop Sim yet.'));
+      picks.push({input,source,reason});
+    }
     form.append(choices);
     const grid=node('div',undefined,'prop-sim-settings');form.append(node('h3','Account and budget'),grid);
     const fields={};
@@ -251,6 +257,26 @@
     form.addEventListener('input',update);form.addEventListener('change',update);
     fields.monthly_cap.required=true;fields.maximum_accounts.required=true;fields.maximum_accounts.step='1';
     syncAccount();
+    function showSources({value,error}){
+      if(!alive())return;
+      window.portalLoading.clear(sourceStatus);
+      if(error){
+        sourceStatus.textContent='Could not load qualified configurations. '+error.message;
+        retrySources.hidden=false;
+      }else if(value.items.length){
+        sourceStatus.remove();
+        retrySources.remove();
+        value.items.forEach(addSource);
+      }else sourceStatus.textContent='No campaign configurations have qualified for Prop Sim yet.';
+      update();
+    }
+    retrySources.onclick=()=>{
+      retrySources.hidden=true;
+      sourceStatus.textContent='Checking qualified configurations…';
+      window.portalLoading.begin(sourceStatus);
+      loadSources().then(showSources);
+    };
+    initialSources.then(showSources);
     form.onsubmit=async event=>{
       event.preventDefault();
       if(busy||run.disabled||!form.reportValidity())return;

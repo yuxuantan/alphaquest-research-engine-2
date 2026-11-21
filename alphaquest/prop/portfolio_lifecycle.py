@@ -18,7 +18,20 @@ from .native_control import ExecutionSnapshot
 from .native_market_hours import ObservedExposureCoverage
 
 
-class BudgetEvaluation(NativeEvaluationController):
+class PortfolioDiagnostics:
+    """Retain audit events separately from repetitive bar-level diagnostics."""
+    def _emit(self,event,**values):
+        if event=='source_gap' or (event=='entry_cancelled' and values.get('reason')=='oco_sibling_cancelled'):
+            super()._emit(event,**values)
+        else:
+            self._event_counts[event]=self._event_counts.get(event,0)+1
+
+    def end_session(self,session,snapshot):
+        super().end_session(session,snapshot)
+        self.session_trace.clear()
+
+
+class BudgetEvaluation(PortfolioDiagnostics,NativeEvaluationController):
     def __init__(self,*args,budget,slot,**kwargs):
         self.budget,self.slot=budget,slot
         super().__init__(*args,**kwargs)
@@ -35,6 +48,10 @@ class BudgetEvaluation(NativeEvaluationController):
     def _activation_payment(self,day):
         if not self.activation_paid:self.budget.activate(self.slot,str(self.activation))
         super()._activation_payment(day)
+
+
+class PortfolioFunded(PortfolioDiagnostics,NativeFundedController):
+    pass
 
 
 class BasketStrategy:
@@ -143,7 +160,7 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
         if not capture or slot.get('owner') is None:return
         owner=slot['owner'];row=slot['episode']
         row.update(end=str(end) if end else None,outcome=owner.account_outcome,equity_from_initial=str(owner.equity),
-            sizing=owner.sizing_trace.result(),sessions=owner.session_trace,control_events=owner.events,
+            sizing=owner.sizing_trace.result(),event_counts=owner._event_counts,control_events=owner.events,
             conservation=owner.bridge.reconcile(slot['cash'],context['execution'].initial_capital,owner.equity))
         row['sizing'].pop('decisions',None)
         if slot['phase']=='evaluation':row['attempts']=owner.attempts
@@ -154,7 +171,7 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
         if not args['session_contexts']:return False
         if phase=='evaluation':owner=BudgetEvaluation(context['evaluation_profile'],policy,cap,calendar=context['calendar'],
             retry=context['retry'],budget=budget,slot=number,**args)
-        else:owner=NativeFundedController(context['funded_profile'],policy,cap,
+        else:owner=PortfolioFunded(context['funded_profile'],policy,cap,
             receipt_delay_calendar_days=context['receipt_delay'],receipt_amount_convention='usd_cents_half_up',**args)
         owner.set_detail_capture(capture)
         policies={i:allocation['sizing'][i][phase] for i in slot['members']} if 'sizing' in allocation else None
@@ -221,7 +238,7 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
                 if owner.account_outcome!='open':
                     close_funded(slot,number,day)
         budget.receive_due()
-        if (day-first).days%20==0:progress(dict(completed=(day-first).days+1,total=(last-first).days+1))
+        if day==last or (day-first).days%20==0:progress(dict(completed=(day-first).days+1,total=(last-first).days+1))
         day+=timedelta(days=1)
     # Last-day closure clocks still count when the final date is a weekend.
     # A replacement would start after this window and must not be purchased.
