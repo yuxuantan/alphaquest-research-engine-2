@@ -45,7 +45,7 @@
           if(job.status!=='complete'){if(!body.querySelector('#portfolio-retry')){const retry=node('button','Retry this saved configuration','button secondary');retry.id='portfolio-retry';retry.onclick=async()=>{retry.disabled=true;try{await read('/api/prop-sim/portfolio','POST',saved.portfolio.request);refresh();}catch(e){state.textContent=e.message;retry.disabled=false;}};body.append(retry);}return;}if(loaded)return;
           const report=await read('/api/prop-sim/portfolio/'+saved.id+'/results');if(!alive())return;loaded=true;
           const r=report.results,f=report.frozen,a=f.allocation,empty=a.placement==='separate'&&a.counts.every(n=>!n);
-          body.append(node('h3',empty?'Keep the budget unspent':Number(r.oos.cash.net_cash)>0?'Positive observed OOS cash flow':'OOS receipts did not cover fees'));
+          body.append(node('h3',empty?'IS selected no account purchases':Number(r.oos.cash.net_cash)>0?'Positive observed OOS cash flow':'OOS receipts did not cover fees'));
           const cards=node('div',undefined,'prop-portfolio-metrics');
           for(const [name,title,note] of [['is','IS selection','Used to choose the allocation'],['oos','OOS · fresh start','Same allocation, starting unfunded'],['combined','Full period','Carries open accounts through the IS/OOS boundary']]){
             const c=r[name].cash,card=node('section',undefined,'prop-sim-insight');card.append(node('span',title,'pill neutral'),node('h3',money(c.net_cash)),node('p',`${money(c.received_trader_cash)} received − ${money(c.paid_fees)} fees`),node('small',note));cards.append(card);
@@ -123,7 +123,7 @@
       label.append(input,copy);choices.append(label);
       if(source.portfolio_ineligible_reason?.includes('current strategy implementation'))
         link(choices,'View saved campaign',
-          '#campaigns/workflows/'+source.selection.workflow_id+'/oos');
+          '#campaigns/workflows/'+source.selection.workflow_id.replaceAll('-','')+'/oos');
       return {input,source,reason};
     });
     if(!picks.length)choices.append(node('p','No campaign configurations have qualified for Prop Sim yet.'));
