@@ -211,3 +211,70 @@ def test_reader_does_not_recover_active_jobs_and_warms_only_immutable_source_pla
         assert all(sha256(p.read_bytes()).hexdigest()==digest for p,digest in originals.items())
         assert request.app.state.prop_analyses.get(fake)['status']=='running'
         assert request.app.state.optimizations.get(optimization)['status']=='running'
+
+
+def test_unrelated_grid_writes_during_verification_do_not_invalidate_qualified_sources(qualified_library,monkeypatch,tmp_path):
+    """Reproduce concurrent catalogue progress with the actual qualification owner."""
+    from alphaquest import prop_sim
+    from alphaquest.prop_sim_preparation import cached,read_context,evidence_identity
+    from alphaquest.replay_cache import ReplayCache
+    client,source=qualified_library
+    request=read_context(client.app.state.runs.path.parent)
+    request.app.state.runs.replay_cache=ReplayCache(tmp_path/'fresh-qualification-cache')
+    runs=request.app.state.runs;job=uuid4().hex
+    with runs.connect() as db:db.execute('INSERT INTO optimizations VALUES (?,?,?)',(job,'SYNTHETIC',json.dumps(dict(id=job,status='running',progress='0 / 2'))))
+    # A different workflow may already be in OOS but have no completed MC.
+    # Its bar-progress writes must not spoil the qualified configuration list.
+    other_workflow=uuid4().hex
+    with runs.connect() as db:
+        parent=source['selection']['workflow_id'].replace('-','')
+        db.execute('INSERT INTO campaign_workflows SELECT ?,?,strategy_id,dataset_id,payload FROM campaign_workflows WHERE id=?',
+            (other_workflow,uuid4().hex,parent))
+        db.execute('INSERT INTO campaign_oos_jobs VALUES (?,?,?)',(job,other_workflow,uuid4().hex))
+        db.execute('INSERT INTO campaign_oos_state VALUES (?,?)',(other_workflow,job))
+    before=evidence_identity(request);calls=[];original=prop_sim._qualified_verified
+    def checking(*args):
+        value=original(*args);calls.append(1)
+        with runs.connect() as db:db.execute("UPDATE optimizations SET payload=? WHERE id=?",(json.dumps(dict(id=job,status='running',progress=f'{len(calls)} / 2')),job))
+        return value
+    monkeypatch.setattr(prop_sim,'_qualified_verified',checking)
+    first,token=cached(request,'candidates',{},lambda:prop_sim.candidates(request))
+    assert first['items'] and not first['unavailable'],first
+    assert any(i['selection']==source['selection'] for i in first['items'])
+    assert calls and token==before==evidence_identity(request)
+    count=len(calls)
+    assert cached(request,'candidates',{},lambda:pytest.fail('Unchanged evidence should reuse the verified cache'))==(first,token)
+    assert len(calls)==count
+
+
+def test_selected_catalogue_changes_invalidate_qualification_cache(qualified_library):
+    from alphaquest.prop_sim_preparation import evidence_identity
+    client,source=qualified_library;request=SimpleNamespace(app=client.app);runs=client.app.state.runs
+    selection=source['selection'];workflow=selection['workflow_id'].replace('-','')
+    checks=[('campaign_workflows','id',workflow,'payload'),('campaign_broad_state','workflow_id',workflow,'payload'),
+        ('runs','id',source['source_backtest_id'],'manifest')]
+    with runs.connect() as db:
+        oos=db.execute('SELECT job_id FROM campaign_oos_state WHERE workflow_id=?',(workflow,)).fetchone()[0]
+    checks.append(('optimizations','id',oos,'payload'))
+    for table,key,id,field in checks:
+        before=evidence_identity(request,selection)
+        with runs.connect() as db:
+            raw=db.execute(f'SELECT {field} FROM {table} WHERE {key}=?',(id,)).fetchone()[0]
+            value=json.loads(raw);value['_SYNTHETIC_source_mutation']=True
+            db.execute(f'UPDATE {table} SET {field}=? WHERE {key}=?',(json.dumps(value),id))
+        try:assert evidence_identity(request,selection)!=before,table
+        finally:
+            with runs.connect() as db:db.execute(f'UPDATE {table} SET {field}=? WHERE {key}=?',(raw,id))
+        assert evidence_identity(request,selection)==before
+    # A changed verification result must never be published into the cache.
+    from alphaquest.prop_sim_preparation import cached
+    with runs.connect() as db:raw=db.execute('SELECT payload FROM campaign_workflows WHERE id=?',(workflow,)).fetchone()[0]
+    def changed():
+        value=json.loads(raw);value['_SYNTHETIC_source_mutation']=True
+        with runs.connect() as db:db.execute('UPDATE campaign_workflows SET payload=? WHERE id=?',(json.dumps(value),workflow))
+        return {'not_publishable':True}
+    try:
+        with pytest.raises(ValueError,match='evidence changed during verification'):
+            cached(request,'qualified',dict(selection,_test_cache_scope=uuid4().hex),changed)
+    finally:
+        with runs.connect() as db:db.execute('UPDATE campaign_workflows SET payload=? WHERE id=?',(raw,workflow))

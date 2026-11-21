@@ -68,46 +68,68 @@ def evidence_identity(request, selection=None):
     """Cheap metadata/stat invalidation; content was hashed on the verified miss.
 
     ctime/inode catch replacement or edits even when size/mtime are restored.
-    Numerical progress writes are deliberately absent from the cache identity.
+    Unrelated backtest progress writes are absent from the cache identity; source
+    workflow, job, trial and run-manifest rows remain explicit inputs.
     """
     from .optimization_cache import engine_identity
     state = request.app.state
+    with state.prop_analyses.connect() as db:
+        mc = db.execute('SELECT c.workflow_id,c.oos_job_id,a.id,a.status,a.request_hash,s.payload,a.created '
+            'FROM campaign_sanity_jobs c JOIN analyses a ON a.id=c.analysis_id '
+            'LEFT JOIN analysis_report_checks s ON s.id=a.id ORDER BY a.created,a.id').fetchall()
+    latest = {(r[0],r[1]):r for r in mc}
     with state.runs.connect() as db:
-        workflows = ([UUID(selection['workflow_id']).hex] if selection else
-            [r[0] for r in db.execute('SELECT workflow_id FROM campaign_oos_state ORDER BY workflow_id')])
-        ids = set()
+        # Snapshot the selected campaign rows, not the SQLite file clock. Other
+        # grids publish progress/trials in this same catalogue during verification.
+        # Their writes do not alter the source being admitted.
+        db.execute('BEGIN')
+        index = db.execute('SELECT workflow_id,job_id FROM campaign_oos_state ORDER BY workflow_id').fetchall()
+        scope = [UUID(selection['workflow_id']).hex] if selection else [r[0] for r in index]
+        # Listing must notice new/current MC assessments, without watching bars
+        # and progress in workflows that cannot yet contribute any configuration.
+        workflows = scope if selection else [w for w,job in index if latest.get((w,job),[None]*4)[3]=='complete']
+        ids = set(); catalogue = []
         for workflow in workflows:
-            ids.update(r[0] for r in db.execute("SELECT id FROM runs WHERE json_extract(manifest,'$.run_metadata.research.workflow_id')=?", (workflow,)))
-            ids.update(r[0] for r in db.execute('SELECT run_id FROM campaign_workflow_runs WHERE workflow_id=?', (workflow,)))
-    files = [file_stamp(p) for path in (state.runs.path, state.store.path)
-        for p in (path, Path(str(path)+'-wal'))]
+            rows = db.execute("SELECT id,manifest FROM runs WHERE json_extract(manifest,'$.run_metadata.research.workflow_id')=? "
+                'OR id IN (SELECT run_id FROM campaign_workflow_runs WHERE workflow_id=?) ORDER BY id', (workflow,workflow)).fetchall()
+            ids.update(r[0] for r in rows)
+            jobs = db.execute('SELECT job_id FROM campaign_broad_jobs WHERE workflow_id=? UNION '
+                'SELECT job_id FROM campaign_narrow_jobs WHERE workflow_id=? UNION '
+                'SELECT job_id FROM campaign_oos_jobs WHERE workflow_id=? ORDER BY job_id', (workflow,workflow,workflow)).fetchall()
+            catalogue.append(dict(workflow_id=workflow,
+                workflow=db.execute('SELECT id,identity,strategy_id,dataset_id,payload FROM campaign_workflows WHERE id=?',(workflow,)).fetchall(),
+                membership=db.execute('SELECT run_id FROM campaign_workflow_runs WHERE workflow_id=? ORDER BY run_id',(workflow,)).fetchall(),
+                broad=db.execute('SELECT payload FROM campaign_broad_state WHERE workflow_id=?',(workflow,)).fetchall(),
+                narrow=db.execute('SELECT broad_trial,payload FROM campaign_narrow_state WHERE workflow_id=? ORDER BY broad_trial',(workflow,)).fetchall(),
+                oos=db.execute('SELECT job_id FROM campaign_oos_state WHERE workflow_id=?',(workflow,)).fetchall(),
+                runs=rows,jobs=[dict(id=job[0],
+                    record=db.execute('SELECT payload FROM optimizations WHERE id=?',job).fetchall(),
+                    trials=db.execute('SELECT trial,payload FROM optimization_trials WHERE optimization_id=? ORDER BY trial',job).fetchall()) for job in jobs]))
+    files = [file_stamp(p) for p in (state.store.path, Path(str(state.store.path)+'-wal'))]
     for id in sorted(ids):
         directory = state.runs.root/id
         files.append(file_stamp(directory))
         files.extend(file_stamp(p) for p in sorted(directory.rglob('*')))
-    with state.prop_analyses.connect() as db:
-        mc = db.execute('SELECT c.workflow_id,c.oos_job_id,a.id,a.status,a.request_hash,s.payload '
-            'FROM campaign_sanity_jobs c JOIN analyses a ON a.id=c.analysis_id '
-            'LEFT JOIN analysis_report_checks s ON s.id=a.id ORDER BY a.id').fetchall()
     for row in mc:
         if row[0] not in workflows: continue
         directory = state.prop_analyses.root/row[2]
         files.append(file_stamp(directory))
         files.extend(file_stamp(p) for p in sorted(directory.rglob('*')))
-    return sha256(canonical(dict(engine=engine_identity(), workflows=workflows, files=files,
-        monte_carlo=[r for r in mc if r[0] in workflows])).encode()).hexdigest()
+    return sha256(canonical(dict(engine=engine_identity(), workflows=workflows, catalogue=catalogue, files=files,
+        index=[r for r in index if r[0] in scope],
+        monte_carlo=[r for r in mc if r[0] in scope])).encode()).hexdigest()
 
 
 def cached(request, operation, payload, calculate):
     """Checksum-verified, bounded, disposable metadata; never a source of truth."""
     selection = payload if operation == 'qualified' else None
     before = evidence_identity(request, selection)
-    key = sha256(canonical(['portal-qualified-v1', operation, payload, before]).encode()).hexdigest()
+    key = sha256(canonical(['portal-qualified-v2', operation, payload, before]).encode()).hexdigest()
     cache = request.app.state.runs.replay_cache
     with TemporaryDirectory(prefix='aq-qualification-') as temporary:
         path = Path(temporary)/'verified.json'
         restored = cache.restore(key, path)
-        if restored == dict(kind='portal-qualified-v1', identity=before):
+        if restored == dict(kind='portal-qualified-v2', identity=before):
             try:
                 value = json.loads(path.read_text())
                 if value['identity'] == before and value['operation'] == operation:
@@ -118,7 +140,7 @@ def cached(request, operation, payload, calculate):
             raise ValueError('Campaign/source evidence changed during verification. Retry with the current source.')
         path.unlink(missing_ok=True)
         path.write_text(canonical(dict(identity=before, operation=operation, result=result)))
-        cache.save(key, path, dict(kind='portal-qualified-v1', identity=before))
+        cache.save(key, path, dict(kind='portal-qualified-v2', identity=before))
     return result, before
 
 

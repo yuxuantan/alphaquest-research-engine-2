@@ -139,7 +139,7 @@
       const label=node('label','Campaign configuration'),picker=node('select');picker.id='prop-sim-source';picker.disabled=true;picker.add(new Option('Loading qualified configurations…',''));
       sources.items.forEach((item,i)=>picker.add(new Option(`${item.strategy_id.replaceAll('_',' ')} · ${item.dataset.name} · Broad ${item.broad_trial} / Narrow ${item.narrow_trial}`,String(i))));label.append(picker);sourceBox.append(label);
       sourceBox.append(node('p','Only confirmed mechanics, IS Broad, IS Narrow, OOS and current Monte Carlo passes are selectable. One configuration per simulation.','field-help'));
-      const sourceLoading=node('p','Checking available configurations in the background…','field-help');sourceLoading.id='prop-sim-source-loading';sourceLoading.setAttribute('role','status');sourceBox.append(sourceLoading);
+      const sourceLoading=node('p','Checking available configurations in the background…','field-help');sourceLoading.id='prop-sim-source-loading';sourceLoading.setAttribute('role','status');const retrySources=node('button','Retry loading configurations','button secondary');retrySources.type='button';retrySources.hidden=true;retrySources.id='prop-sim-source-retry';sourceBox.append(sourceLoading,retrySources);
       if(sources.unavailable.length)detail(sourceBox,'Unavailable sources and reasons',sources.unavailable);
       const sourceInfo=node('div');sourceInfo.id='prop-sim-source-details';sourceBox.append(sourceInfo);
       const accountBox=node('section');accountBox.append(node('h2','2. Prop account'));
@@ -572,16 +572,19 @@
       applyAccount(false);
       if(selectedId){await refresh();if(!alive())return;if(saved){sizingMode.value=saved.configuration.search_kind||'fixed_contracts';for(const phase of ['evaluation','funded']){const handling=saved.configuration[phase+'_trade_handling'];if(handling){tradeFields[phase].action.value=handling.account_limit_action;tradeFields[phase].minimum.checked=handling.minimum_one_contract;}const grid=saved.configuration[phase+'_percentage_grid'];if(grid)for(const [key,input] of Object.entries(riskFields[phase])){if(input.type==='checkbox')input.checked=grid[key];else input.value=String(grid[key]);}}toggleSizing();accountPicker.value=saved.configuration.profile_id||'apex-50k-eod';dll.checked=saved.configuration.daily_loss_limit??true;consistency.value=String(saved.configuration.evaluation_consistency_percent??40);const index=sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0]));if(index>=0)picker.value=String(index);for(const [name] of names){const value=name.endsWith('_micros')?range(saved.configuration,name.split('_')[0])[name.includes('_minimum_')?'minimum':'maximum']:saved.configuration[name];fields[name].value=name==='closures'?value.join(','):String(value??'');}applyAccount(false);select();}}
       else update();
-      sourceRequest.then(({value,error})=>{
+      function showSources({value,error}){
         if(!alive())return;
-        if(error){sourceLoading.textContent='Could not load qualified configurations: '+error.message;return;}
+        if(error){sourceLoading.textContent='Could not load qualified configurations: '+error.message;picker.replaceChildren(new Option('Configurations unavailable',''));picker.disabled=true;retrySources.hidden=false;return;}
+        retrySources.hidden=true;
         sources.items=value.items;sources.unavailable=value.unavailable;
         picker.replaceChildren(new Option('Choose a configuration',''));sources.items.forEach((item,i)=>picker.add(new Option(`${item.strategy_id.replaceAll('_',' ')} · ${item.dataset.name} · Broad ${item.broad_trial} / Narrow ${item.narrow_trial}`,String(i))));picker.disabled=false;
         sourceLoading.textContent=sources.items.length?'':'No qualified, compatible configurations are available. Complete the campaign phases and Monte Carlo first.';
         if(sources.unavailable.length)detail(sourceBox,'Unavailable sources and reasons',sources.unavailable);
         const index=saved?sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0])):sourceId?sources.items.findIndex(s=>[s.source_backtest_id,s.oos_report_id].includes(sourceId)):-1;
         if(index>=0){picker.value=String(index);select();}else update();
-      });
+      }
+      retrySources.onclick=async()=>{retrySources.hidden=true;sourceLoading.textContent='Checking available configurations…';picker.replaceChildren(new Option('Loading qualified configurations…',''));showSources(await read('/api/prop-sim/candidates').then(value=>({value})).catch(error=>({error})));};
+      sourceRequest.then(showSources);
     }catch(error){if(alive())host.replaceChildren(node('p',error.message));}
   }
   window.addEventListener('hashchange',render);render();

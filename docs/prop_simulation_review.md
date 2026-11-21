@@ -13752,3 +13752,46 @@ Temporary browser test servers shut down in fixture teardown. The user's idle
 port-8000 portal was restarted to load the display endpoint; no active simulation
 was interrupted. It remains available via `sh scripts/serve_portal.sh`'s stable
 server on port 8000; stop its exact PID from `data/.portal-server.lock` when needed.
+
+
+### 2026-11-21: Qualified-source loading during unrelated campaign work
+
+The qualification cache snapshots the relevant workflow declaration, frozen phase
+states, source manifests, associated grid/trial rows and membership in a short
+SQLite read transaction. It no longer uses the whole backtest catalogue file's
+mtime as a qualification signal: unrelated grids update that file continuously.
+The candidate index still tracks current OOS/Monte Carlo identities, status and
+seals. Workflows without a completed current Monte Carlo assessment cannot supply
+configurations; their running-grid progress is not qualification evidence. Dataset
+file invalidation, artifact inode/ctime checks, engine identity and authoritative
+qualification remain enforced. A relevant source change during verification still
+rejects publication. The disposable cache namespace advances to v2; original
+reports and verdicts are unchanged.
+
+Normal journey: open Prop Sim while another workflow grid is running. Qualified
+configurations should load and remain selectable. On an actual read failure, the
+picker says Configurations unavailable and exposes Retry loading configurations.
+Retry preserves account/worker settings and only reads admission metadata; it
+does not launch a simulation. New launches retain full server-owned admission.
+
+Evidence and reproduction: artifacts/qualified-configurations-fix-20261120/
+contains the reviewed patch and focused JUnit results. The corrected isolated
+owner found candidates 3 and 4 for workflow
+114dbec373a64ebd9ea374cbfc8cadf2 in the current library while the unrelated grid
+continued running. Seven focused backend/browser checks cover that concurrency,
+source/catalogue tampering, rejection before publication, real background source
+preparation through automatic phase completion, responsive loading and retry.
+Synthetic mutation fixtures stay in tests; no source check or campaign verdict
+is bypassed. Temporary browser servers shut down in teardown.
+
+Application on 2026-11-21: the user authorized an immediate restart and resuming
+remaining work. Both grids had already completed (100/100 and 6/6), so the idle
+portal was restarted without cancellation or a replacement job. Byte fingerprints
+of all 106 trial rows and both completed job records remained identical, as did
+738 saved report-seal records. The live source endpoint returned both qualified
+configurations with no unavailable entries; Chrome verified both dropdown options,
+capability details and no console errors or unexpected POSTs. The warm source
+request took approximately 0.21 seconds. Live screenshots, original-route response
+and before/after verification are in the evidence directory above. The existing
+port-8000 server remains running; read its PID from data/.portal-server.lock and
+use kill -TERM with that exact PID to stop it.

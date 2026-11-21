@@ -704,3 +704,25 @@ def test_preparation_job_can_be_followed_and_stopped_from_job_history(page,porta
         target=Path(destination);target.mkdir(parents=True,exist_ok=True)
         for name in ('visible-preparation.png','job-preparation-progress.png'):shutil.copyfile(tmp_path/name,target/name)
         (target/'stopped-preparation.json').write_text(json.dumps(saved,indent=2))
+
+
+def test_qualified_configuration_load_failure_has_retry_without_resetting_settings(page,portal):
+    """A read failure must not leave a permanent misleading loading dropdown."""
+    attempts=[]
+    def respond(route):
+        attempts.append(1)
+        if len(attempts)==1:route.fulfill(status=409,json=dict(detail='SYNTHETIC source changed during verification'))
+        else:route.fulfill(status=200,json=dict(items=[],unavailable=[],maximum_selected_configurations=1))
+    page.route('**/api/prop-sim/candidates',respond)
+    page.goto(portal['url']+'/#prop-sim')
+    playwright.expect(page.locator('#prop-sim-source-loading')).to_contain_text('source changed during verification')
+    playwright.expect(page.locator('#prop-sim-source option')).to_have_text('Configurations unavailable')
+    page.locator('#prop-sim-profile').select_option('lucidflex-50k')
+    page.locator('#prop-sim-workers').select_option('2')
+    page.get_by_role('button',name='Retry loading configurations',exact=True).click()
+    playwright.expect(page.locator('#prop-sim-source')).to_be_enabled()
+    playwright.expect(page.locator('#prop-sim-source-retry')).to_be_hidden()
+    playwright.expect(page.locator('#prop-sim-source-loading')).to_contain_text('No qualified, compatible configurations')
+    playwright.expect(page.locator('#prop-sim-profile')).to_have_value('lucidflex-50k')
+    playwright.expect(page.locator('#prop-sim-workers')).to_have_value('2')
+    assert len(attempts)==2
