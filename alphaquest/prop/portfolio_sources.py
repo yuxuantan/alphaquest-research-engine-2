@@ -61,6 +61,21 @@ def portfolio_eligibility(source):
     return source['sizing_support']['native_percentage_risk']['reason']
 
 
+def checked_portfolio_source(runs, source):
+    reason = portfolio_eligibility(source)
+    proof = None
+    support = source['sizing_support']
+    if (reason and reason == support['native_percentage_risk']['reason']
+            and support.get('native_source_version_matches') is False):
+        definition = get_strategy(source['strategy_id'])
+        parameters = definition.parameters(source['parameters'])
+        if definition.sizing.describe(parameters)['percentage_risk']['supported']:
+            from .portfolio_parity import verified_parity
+            proof = verified_parity(runs, source)
+            if proof:reason = None
+    return dict(source, portfolio_ineligible_reason=reason, portfolio_parity=proof)
+
+
 def session_coverage(day, close, entry, timestamps, *, prior_day=False):
     """Inventory missing tradable minutes and require an observed session close."""
     begin = datetime.combine(day - timedelta(days=1), time(17, 1), CT).astimezone(timezone.utc)
@@ -101,9 +116,12 @@ def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,
         symbol=dataset.get('symbol');descriptor=resolve_calendar(symbol)
         if descriptor['id'] not in ('cme_nq','cme_mnq'):raise ValueError('Portfolio execution requires NQ or MNQ.')
         strategy=meta['strategy'];definition=get_strategy(strategy['id']);parameters=definition.parameters(strategy['parameters'])
-        eligibility=portfolio_eligibility(dict(source,sizing_support=dict(
-            native_percentage_risk=source_support(definition,parameters,strategy)['percentage_risk'])))
-        if eligibility:raise ValueError(eligibility)
+        support=source_support(definition,parameters,strategy)
+        support['native_percentage_risk']=support['percentage_risk']
+        checked=checked_portfolio_source(runs,dict(source,sizing_support=support))
+        if checked['portfolio_ineligible_reason']:raise ValueError(checked['portfolio_ineligible_reason'])
+        if checked['portfolio_parity']!=source.get('portfolio_parity'):
+            raise ValueError('Portfolio parity evidence changed after launch.')
         original=ExecutionConfig(**{k:Decimal(v) if k!='slippage_ticks' else v for k,v in record['execution_settings'].items()})
         config=ExecutionConfig(**{**asdict(original),'point_value':Decimal(2),'commission_per_contract_per_side':Decimal(settings['commission_per_mnq_side'])})
         if config.tick_size!=Decimal('.25'):raise ValueError('Portfolio MNQ execution requires the 0.25 tick grid.')
@@ -114,7 +132,7 @@ def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,
         if execution is not None and execution!=config:raise ValueError('Portfolio sources must share tick grid, execution costs and execution capital.')
         execution=config;calendar=load_calendar(symbol=symbol)
         specs.append(dict(strategy_id=strategy['id'],parameters=strategy['parameters'],symbol=symbol))
-        snapshots.append(dict(is_id=is_source['id'],oos_id=oos_source['id'],is_sha256=digest(is_source),oos_sha256=digest(oos_source),
+        snapshots.append(dict(portfolio_parity=checked['portfolio_parity'],is_id=is_source['id'],oos_id=oos_source['id'],is_sha256=digest(is_source),oos_sha256=digest(oos_source),
             is_artifacts=artifacts(runs.root,is_source),oos_artifacts=artifacts(runs.root,oos_source),dataset=meta['dataset'],
             price_interpretation='Observed NQ reference prices, MNQ point value 2; unverified micro basis and fills' if descriptor['id']=='cme_nq' else 'Observed MNQ prices and point value 2'))
         if dataset['id'] not in datasets_seen:

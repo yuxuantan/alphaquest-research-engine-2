@@ -13976,3 +13976,43 @@ execution settings. Its mechanic run requires the normal MultiCharts parity
 review before proceeding through current screening. The original parameter
 sets are recorded in `artifacts/portfolio-sizing-20261121/twin-requalification.json`.
 The historical workflow and its reports are retained.
+
+### Portfolio source parity for the Twin entry-observer change
+
+Twin Broad 45 / Narrow 3 and 23 were qualified against the execution
+fingerprint at `e764df9`. The change in `d6c1676` only adds an optional
+entry observer, which Portfolio replay leaves unset. The Portfolio source
+check recognizes that exact reviewed fingerprint transition only when
+both current-code replays match the sealed campaign reports. It compares
+the complete trade and equity CSVs, strategy and session metadata, exact
+source selection, costs, summary, research split, and OOS-to-IS parent
+relationships. The original campaign and its qualification stay in place.
+
+The parity record stores identifiers and checksums in the existing backtest
+catalogue. It keeps the current replay reports inspectable through the
+normal backtest page. Portfolio preparation and final publication recheck
+the binding and retain it in the frozen source package. Changed or missing
+evidence and later implementation fingerprints require their own check.
+Only Portfolio uses this binding. The general native source version guard
+continues to compare exact strategy fingerprints.
+
+To reproduce the check, run an ordinary two-trial IS batch with the saved
+parameters and original split, setting the BO max stop multiplier to 8 and
+12 and disabling automatic Prop Sim. From each result, run its manual OOS
+replay once. The old IS and OOS report pairs must match the new pair before
+the corresponding Portfolio checkbox becomes available. The current
+application's candidate endpoint and launch both verify original campaign
+qualification before applying the parity record.
+
+The saved verification completed with byte-identical trade and equity
+files for all four replays. IS batch `e8d4cb20fdee46d181a3ab4e05c8a411`
+contains both current-code IS reports. The exact pair identities are:
+
+| Narrow trial | Current IS report | Current OOS report |
+| --- | --- | --- |
+| 3 | `9066bb663f2348d181f85aff6402d7dc` | `11348216f0434dcf95881eeffbecb0b5` |
+| 23 | `1f2208a521f64c38bc9c9acf879fe8d1` | `d634ec9bc5f84990a82864550f304de2` |
+
+The comparison records and submitted split are under
+`artifacts/twin-portfolio-parity-20261121/`. The Portfolio picker should
+enable both Twin rows and show that replay parity was verified.

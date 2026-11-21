@@ -16,7 +16,7 @@ from .prop_sim import Selection,qualified,PROFILES
 from .prop.sizing import SizingPolicy
 from .prop.sizing_search import PercentageGrid
 from .prop.portfolio_search import FixedGrid, optimized_search, sizing_policies
-from .prop.portfolio_sources import portfolio_eligibility
+from .prop.portfolio_sources import checked_portfolio_source
 from .prop.adapter import canonical
 from .prop.store import AnalysisCancelled,seal_report,sealed_checks
 
@@ -105,10 +105,10 @@ def search_definition(body):
 def metadata(request,body):
     from .prop.portfolio_search import family
     from .prop.phase_lifecycle import instant,session_date
-    sources=[qualified(request,s) for s in body.selections]
+    sources=[checked_portfolio_source(request.app.state.runs,qualified(request,s)) for s in body.selections]
     native=[request.app.state.runs.get(s['source_backtest_id']) for s in sources]
     for source in sources:
-        reason=portfolio_eligibility(source)
+        reason=source['portfolio_ineligible_reason']
         if reason:raise ValueError(reason)
     ids={r['run_metadata']['dataset']['id'] for r in native}
     if len(ids)!=1:raise ValueError('Portfolio comparisons require one synchronized saved NQ/MNQ dataset.')
@@ -182,7 +182,7 @@ def implementation():
         'prop/native_engine.py','prop/lucid_engine.py','prop/native_money.py','prop/cash_ledger.py','strategy.py',
         'strategy_sizing.py','strategies/vwap_features.py','strategies/registry.py',
         'tick_data.py','decimal_math.py','session_calendar.py','intratrade.py','execution_scenarios.py','decision_capture.py','strategy_features.py',
-        'prop/native_market_hours.py')}
+        'prop/native_market_hours.py','prop/portfolio_parity.py')}
     from .strategies.registry import STRATEGIES
     for definition in STRATEGIES.values():
         path=Path(definition.module.__file__).resolve()
@@ -273,7 +273,11 @@ def run(app,saved,checked):
                 if file_digest(Path(__file__).parent/name)!=expected:raise ValueError('Portfolio calculation implementation changed during execution.')
             from .prop.phase_profiles import verify_phase_source
             from .optimization_cache import artifacts
+            from .prop.portfolio_parity import verified_parity
             for source in context['sources']:
+                if source.get('portfolio_parity') and source['portfolio_parity']!=verified_parity(app.state.runs,
+                        dict(source_backtest_id=source['is_id'],oos_report_id=source['oos_id'])):
+                    raise ValueError('Portfolio parity evidence changed during execution.')
                 for role in ('is','oos'):
                     record=app.state.runs.get(source[role+'_id'])
                     if digest(record)!=source[role+'_sha256'] or artifacts(app.state.runs.root,record)!=source[role+'_artifacts']:raise ValueError('Portfolio source evidence changed.')
@@ -318,7 +322,9 @@ async def check(body:PortfolioRequest,request:Request):return await invoke(metad
 async def candidates(request:Request):
     from .prop_sim import sources
     response=await sources(request)
-    return dict(response,items=[dict(source,portfolio_ineligible_reason=portfolio_eligibility(source)) for source in response['items']])
+    from starlette.concurrency import run_in_threadpool
+    items=await run_in_threadpool(lambda: [checked_portfolio_source(request.app.state.runs,source) for source in response['items']])
+    return dict(response,items=items)
 
 
 @router.post('',status_code=202)

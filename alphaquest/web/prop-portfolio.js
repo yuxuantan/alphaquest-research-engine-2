@@ -120,6 +120,7 @@
       input.type='checkbox';input.id='portfolio-source-'+index;input.className='portfolio-source';
       reason.id=input.id+'-reason';input.setAttribute('aria-describedby',reason.id);
       copy.append(node('strong',sourceName(source)),node('small',source.dataset.name),reason);
+      if(source.portfolio_parity)copy.append(node('small','Replay parity verified against the qualified campaign.'));
       label.append(input,copy);choices.append(label);
       if(source.portfolio_ineligible_reason?.includes('current strategy implementation'))
         link(choices,'View saved campaign',
