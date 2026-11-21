@@ -34,6 +34,7 @@ def test_permanent_workflow_preview_cancel_delete_and_reload(page,portal,tmp_pat
         other_card=page.locator(f'.workflow-real-dataset[data-workflow-id="{other["id"]}"]')
         playwright.expect(other_card).to_have_count(1)
         playwright.expect(card).to_contain_text('Created')
+        card.get_by_text('Workflow details',exact=True).click()
         button=card.get_by_role('button',name=f'Delete workflow {workflow["id"][:8]} for {dataset["name"]}',exact=True)
         button.click();dialog=page.get_by_role('dialog',name='Permanently delete workflow and results')
         playwright.expect(dialog).to_be_visible()
@@ -71,6 +72,7 @@ def test_legacy_run_permanent_delete_and_busy_preview(page,portal,tmp_path):
         dataset=save(client);record=start_is(client,dataset)
         page.goto(base+'/#campaigns/consecutive_green_hold')
         card=page.locator('.workflow-real-dataset').filter(has_text=dataset['name'])
+        card.get_by_text('Manage saved results',exact=True).click()
         card.get_by_role('button',name=f'Delete saved results for {dataset["name"]}',exact=True).click()
         dialog=page.get_by_role('dialog');playwright.expect(dialog).to_contain_text('0 workflow(s)')
         dialog.get_by_role('checkbox').check();dialog.get_by_role('button',name='Permanently delete',exact=True).click()
@@ -84,6 +86,7 @@ def test_legacy_run_permanent_delete_and_busy_preview(page,portal,tmp_path):
         with portal['app'].state.runs.connect() as db:
             db.execute("INSERT INTO mechanic_job_attempts VALUES (?,?,?,NULL,NULL,'running',NULL,NULL)",(uuid4().hex,workflow['id'],'2026-11-15'))
         page.reload();card=page.locator('.workflow-real-dataset').filter(has_text=dataset['name'])
+        card.get_by_text('Workflow details',exact=True).click()
         card.get_by_role('button',name=f'Delete workflow {workflow["id"][:8]} for {dataset["name"]}',exact=True).click()
         dialog=page.get_by_role('dialog');playwright.expect(dialog).to_contain_text('Deletion is blocked')
         dialog.get_by_role('checkbox').check();playwright.expect(dialog.get_by_role('button',name='Permanently delete',exact=True)).to_be_disabled()
@@ -99,6 +102,7 @@ def test_downstream_simulations_explicit_in_preview_and_cascade(page,portal,tmp_
         client.app=portal['app']
         dataset,config,w,result,batches,sim,analyses=seed_family(client)
         page.goto(portal['url']+'/#campaigns/consecutive_green_hold')
+        page.locator(f'[data-workflow-id="{w['id']}"]').get_by_text('Workflow details',exact=True).click()
         page.get_by_role('button',name=f'Delete workflow {w["id"][:8]} for {dataset["name"]}',exact=True).click()
         dialog=page.get_by_role('dialog');playwright.expect(dialog).to_contain_text('1 downstream Prop Sim / portfolio simulation(s)')
         dialog.get_by_text('Downstream simulations that will also be deleted',exact=True).click()
@@ -118,6 +122,7 @@ def test_dependent_nested_study_preview_cancel_confirm_and_reload(page,portal,tm
         id,aid=seed_nested_study(client,w,result)
         folder=portal['app'].state.prop_analyses.root/aid
         page.goto(portal['url']+'/#campaigns/'+config['strategy_id'])
+        page.locator(f'[data-workflow-id="{w['id']}"]').get_by_text('Workflow details',exact=True).click()
         button=page.get_by_role('button',name=f'Delete workflow {w["id"][:8]} for {dataset["name"]}',exact=True)
         button.click();dialog=page.get_by_role('dialog',name='Permanently delete workflow and results')
         playwright.expect(dialog).to_contain_text('1 dependent research study')

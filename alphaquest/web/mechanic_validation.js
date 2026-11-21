@@ -92,16 +92,23 @@
     }
     const host = get('#mechanic-content'); host.replaceChildren();
     const activeCriteria = token, criteriaHost = get('#workflow-stage-criteria');
-    criteriaHost.replaceChildren(node('h2','Passing criteria by stage'));
+    const criteriaPhase = criteriaHost.dataset.phase;
+    criteriaHost.dataset.phase = phase;
+    if (criteriaPhase !== phase) criteriaHost.open = false;
+    criteriaHost.replaceChildren(node('summary','Passing criteria by stage'));
+    const loadingRules = window.portalLoading.message('Loading passing criteria…');
+    criteriaHost.append(loadingRules);
     read('/api/campaign-workflow-criteria').then(data => {
       if(activeCriteria!==token)return;
+      loadingRules.remove();
       criteriaHost.append(node('p','Rules are fixed before the search. Insufficient evidence cannot qualify. IS calculations use bar-close equity including open P&L; this is not tick-level drawdown.'));
       for(const stage of data.stages){
         const details=node('details');details.dataset.stage=stage.id;details.open=stage.id===phase;
-        details.append(node('summary',`${stage.label} · ${stage.implemented?'Implemented':'Agreed plan · not implemented'}`));
+        details.append(node('summary',stage.implemented ? stage.label : `${stage.label} · Planned`));
         const list=node('ol');for(const rule of stage.rules)list.append(node('li',rule));details.append(list);criteriaHost.append(details);
       }
-    }).catch(error=>{if(activeCriteria===token)criteriaHost.append(node('p',error.message));});
+    }).catch(error=>{if(activeCriteria===token)loadingRules.replaceWith(node('p',error.message));})
+      .finally(()=>window.portalLoading.clear(loadingRules));
     if (phase === 'is_broad') {
       const active=token;
       window.campaignBroad.render(host,workflow,{isCurrent:()=>active===token,jobId:route()?.[3]});

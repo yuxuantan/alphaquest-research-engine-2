@@ -24,12 +24,12 @@
       if(data.legacy)parent.append(node('p',state.confirmed_at_utc?'Historical selection: confirmed under the earlier profitability-only rule. Preserved unchanged; it is not certified against the current four criteria.':'This earlier grid has no measured screening evidence. Calculate and run a new grid before selecting configurations.','broad-legacy-note'));
       if(data.reassessed)parent.append(node('p','This saved grid was measured under an earlier screening policy. Selection uses the four current rules from its saved measurements; the original reports and verdicts remain unchanged.','broad-legacy-note'));
       if(state.confirmed_at_utc&&state.screening_policy?.version==='is-broad-v2'&&!state.selection_policy)parent.append(node('p','Historical selection: confirmed under the earlier six-rule policy and preserved unchanged.','broad-legacy-note'));
-      const config=node('section',undefined,'panel broad-panel');config.id='broad-config';
-      config.append(node('h2','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
+      const config=node('details',undefined,'panel broad-panel grid-config');config.open=!job;config.id='broad-config';
+      config.append(node('summary','IS Broad parameter search'),node('p','Choose start, end and step for each parameter. Source, IS dates and execution costs stay bound to the validated workflow.'));
       const form=node('form'),fieldset=node('fieldset');form.append(fieldset);
       const region=node('div',undefined,'optimization-scroll'),grid=node('table',undefined,'library-table optimization-grid');
       grid.innerHTML='<thead><tr><th>Parameter</th><th>Start</th><th>End</th><th>Step</th><th>Count</th></tr></thead><tbody></tbody>';
-      region.append(grid);fieldset.append(region);config.append(form);parent.append(config);
+      region.append(grid);region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label','IS Broad parameter ranges');fieldset.append(region);config.append(form);parent.append(config);
       const ranges=new Map();
       let draft;
       try {draft=JSON.parse(sessionStorage.getItem('broad-grid:'+workflow.id));}catch{}
@@ -71,36 +71,39 @@
       function values(){return Object.fromEntries(parameters.map(p=>{const r=ranges.get(p.name);return [p.name,{start:p.type==='bool'?r.start.value==='true':p.type==='int'?integer(r.start.value):r.start.value.trim(),end:p.type==='bool'?r.end.value==='true':p.type==='int'?integer(r.end.value):r.end.value.trim(),step:p.type==='Decimal'?r.step.value.trim():integer(r.step.value)}];}));}
       function requestGrid(){return {parameter_ranges:values(),workers:Number(workers.value)};}
       calculate.onclick=async()=>{
-        if(!form.reportValidity()||busy)return;busy=true;calculate.disabled=true;
+        if(!form.reportValidity()||busy)return;busy=true;calculate.disabled=true;const finish=window.portalLoading.begin(count,{label:'Calculating iterations…'});
         try{preview=await read(base+'/preview','POST',requestGrid());if(!alive())return;for(const [name,r] of ranges)r.count.textContent=preview.step_counts[name];count.textContent=`${preview.total_trials.toLocaleString()} iterations · IS only`;run.disabled=false;notice.textContent='Grid validated. Each configuration runs at normal costs and with +1 tick of slippage per fill.';}
         catch(error){if(alive()){preview=null;run.disabled=true;notice.textContent=error.message;}}
-        finally{busy=false;if(alive())calculate.disabled=false;}
+        finally{finish();busy=false;if(alive())calculate.disabled=false;}
       };
       form.onsubmit=async event=>{
         event.preventDefault();if(busy||!preview||!form.reportValidity())return;busy=true;fieldset.disabled=true;
-        try{job=await read(base+'/run','POST',{...requestGrid(),preview_token:preview.preview_token,revision:preview.revision});if(!alive())return;preview=null;run.disabled=true;if(requestedJob&&requestedJob!==job.id){location.replace(`#campaigns/workflows/${workflow.id}/is_broad?job=${job.id}`);return;}notice.textContent='IS Broad job started. You can leave this page and follow it in Job history.';await refresh();}
+        const finish=window.portalLoading.begin(notice,{label:'Starting backtest…'});
+        try{job=await read(base+'/run','POST',{...requestGrid(),preview_token:preview.preview_token,revision:preview.revision});if(!alive())return;preview=null;run.disabled=true;outputs.hidden=false;config.before(outputs);config.open=false;progress.textContent='Backtest submitted. Loading progress…';progress.tabIndex=-1;progress.focus();if(requestedJob&&requestedJob!==job.id){location.replace(`#campaigns/workflows/${workflow.id}/is_broad?job=${job.id}`);return;}notice.textContent='IS Broad job started. You can leave this page and follow it in Job history.';await refresh();}
         catch(error){if(alive())notice.textContent=error.message;}
-        finally{busy=false;if(alive())fieldset.disabled=!!state.archived||!!state.confirmed_at_utc||['queued','running'].includes(job?.status);}
+        finally{finish();busy=false;if(alive())fieldset.disabled=!!state.archived||!!state.confirmed_at_utc||['queued','running'].includes(job?.status);}
       };
-      const outputs=node('section',undefined,'panel broad-panel');outputs.append(node('h2','IS Broad results'),node('p',`Eligibility: ${data.criterion} Choose one or two qualified configurations, then confirm to continue. Open a row’s eligibility details to see every measured check.`));parent.append(outputs);
+      const outputs=node('section',undefined,'panel broad-panel');outputs.append(node('h2','IS Broad results'),node('p',`Eligibility: ${data.criterion} Choose one or two qualified configurations, then confirm to continue. Open a row’s eligibility details to see every measured check.`));parent.append(outputs);if(job)config.before(outputs);else outputs.hidden=true;
       const progress=node('p');progress.id='broad-progress';progress.setAttribute('role','status');outputs.append(progress);
       const links=node('div',undefined,'mechanic-downloads');outputs.append(links);
       const jobControls=node('div',undefined,'mechanic-downloads'),resume=node('button','Resume remaining trials','button secondary'),cancel=node('button','Cancel queued run','button secondary');
       resume.id='broad-resume';cancel.id='broad-cancel';resume.type=cancel.type='button';resume.hidden=cancel.hidden=true;jobControls.append(resume,cancel);outputs.append(jobControls);
+      const jobNotice=node('p');jobNotice.id='broad-job-status';jobNotice.setAttribute('role','status');outputs.append(jobNotice);
       const settings=node('details');settings.id='broad-run-settings';settings.append(node('summary','Saved run settings'));const settingsText=node('pre');settings.append(settingsText);outputs.append(settings);
       async function jobAction(kind){
         if(busy||state.archived||!job)return;
         if(kind==='cancel'&&job.status==='running'&&!window.confirm('Stop this running IS Broad backtest at the next checkpoint? Completed trials will remain available for resuming.'))return;
         busy=true;fieldset.disabled=true;resume.disabled=cancel.disabled=true;
-        try{const response=await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())notice.textContent=kind==='resume'?'Resuming the saved IS Broad run.':response.status==='running'?'Stop requested. Active trials are stopping; completed results are retained.':'Queued run cancelled.';}
-        catch(error){if(alive())notice.textContent=error.message;}
-        finally{busy=false;if(alive())await refresh();}
+        const finish=window.portalLoading.begin(jobNotice,{label:kind==='resume'?'Checking saved job…':'Requesting stop…'});
+        try{const response=await read(`/api/backtests/batches/${job.id}/${kind}`,'POST');if(alive())jobNotice.textContent=kind==='resume'?'Resuming the saved IS Broad run.':response.status==='running'?'Stop requested. Active trials are stopping; completed results are retained.':'Queued run cancelled.';}
+        catch(error){if(alive())jobNotice.textContent=error.message;}
+        finally{finish();busy=false;if(alive())await refresh();}
       }
       resume.onclick=()=>jobAction('resume');cancel.onclick=()=>jobAction('cancel');
       const panel=node('details',undefined,'optimization-freeze');panel.id='broad-columns';
       panel.innerHTML='<summary>Columns <span class="optimization-column-count small muted"></span><span class="optimization-freeze-count small muted"></span></summary><div class="optimization-freeze-body"><p class="field-help">Varied parameters are shown and frozen by default; fixed parameters are hidden. Show, hide, freeze or reorder columns. Choices are saved for this run in this browser.</p><div class="optimization-freeze-actions"><label>Find a column<input type="search" placeholder="Search columns…" /></label><button class="button secondary" type="button" data-columns="all">Show all</button><button class="button secondary" type="button" data-columns="hide">Hide all</button><button class="button secondary" type="button" data-columns="reset">Reset layout</button><button class="button secondary" type="button" data-freeze="none">Unfreeze all</button></div><p id="broad-column-status" role="status" class="field-help"></p><div class="optimization-column-choices" role="group" aria-label="IS Broad column layout"></div><p class="optimization-column-empty field-help" hidden>No matching columns.</p></div>';
       const empty=node('p','No columns selected. Open Columns to choose what to show.');empty.hidden=true;
-      const scroll=node('div',undefined,'optimization-scroll');scroll.id='broad-results-scroll';scroll.tabIndex=0;scroll.setAttribute('aria-label','IS Broad results, scroll horizontally or vertically');
+      const scroll=node('div',undefined,'optimization-scroll');scroll.id='broad-results-scroll';scroll.tabIndex=0;scroll.setAttribute('role','region');scroll.setAttribute('aria-label','IS Broad results, scroll horizontally or vertically');
       const table=node('table',undefined,'library-table');table.id='broad-results';table.innerHTML='<thead></thead><tbody></tbody>';scroll.append(table);outputs.append(panel,empty,scroll);
       columns=new window.OptimizationColumns(table,scroll,panel,{empty,defaultFrozen:['select','trial']});
       const pages=node('div',undefined,'report-pagination'),previous=node('button','Previous','button secondary'),next=node('button','Next','button secondary'),pageInfo=node('span');
@@ -177,7 +180,7 @@
           if(state.confirmed_at_utc){frozen.append(node('p','Selection is confirmed and locked.'));for(const item of state.selection){frozen.append(node('pre',JSON.stringify(item.parameters,null,2)));}action(frozen,'Continue to IS Narrow →',`#campaigns/workflows/${workflow.id}/is_narrow`);}
           selectionState();
           if(['queued','running'].includes(job.status))timer=setTimeout(refresh,1000);
-        }catch(error){if(alive())notice.textContent=error.message;}
+        }catch(error){if(alive())(job?jobNotice:notice).textContent=error.message;}
       }
       await refresh();
     }catch(error){if(alive())parent.replaceChildren(node('p',error.message));}

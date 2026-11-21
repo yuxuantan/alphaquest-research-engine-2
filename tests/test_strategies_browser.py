@@ -54,7 +54,7 @@ def test_two_column_instrument_library_opens_saved_reports_and_survives_reload(p
     playwright.expect(page.locator('#backtest-completion')).to_be_visible()
     playwright.expect(page.locator('#report-summary')).to_contain_text('13.00')
     page.screenshot(path=str(tmp_path/'full-backtest-report.png'),full_page=True)
-    page.locator('#backtest-completion').get_by_role('link',name='Back to Strategies',exact=False).click()
+    page.locator('#backtest-completion').get_by_role('link',name='Saved runs',exact=False).click()
     playwright.expect(page.locator('#strategy-results tr')).to_have_count(4)
     assert page.url==selected
     page.goto(selected);page.set_viewport_size(dict(width=390,height=844))
@@ -80,7 +80,7 @@ def test_one_form_and_endpoint_run_single_or_exhaustive_backtests(page,portal,tm
     page.locator('#start-backtest').click()
     playwright.expect(page.locator('#backtest-completion')).to_be_visible()
     playwright.expect(page.locator('#report-net')).to_have_text('13.00')
-    page.get_by_role('link',name='Back to Strategies',exact=False).click()
+    page.get_by_role('link',name='Saved runs',exact=False).click()
     page.get_by_role('link',name='New backtest →',exact=True).click()
     playwright.expect(page.locator('#optimization-settings')).to_be_visible()
     playwright.expect(page.locator('#strategy-parameters')).to_have_count(0)

@@ -8,7 +8,7 @@
   window.propPortfolio={async render(host,saved=null){
     const turn=++generation;clearTimeout(timer);const alive=()=>turn===generation&&location.hash.startsWith('#prop-sim');
     host.replaceChildren();const head=node('section',undefined,'panel prop-portfolio-panel');head.append(node('h2','Portfolio allocation & replacement cash flow'),node('p','Compare separate accounts with strategies sharing one account. Size trades by fixed contracts or planned percentage risk, using the actual strategy and account state.'));
-    link(head,'Single-strategy sizing','#prop-sim');host.append(head);
+    host.append(head);
     if(saved){
       link(head,'New portfolio analysis','#prop-sim?mode=portfolio');const windows=saved.portfolio.windows;head.append(node('p',`${saved.configuration.profile_id==='lucidflex-50k'?'LucidFlex 50K':'Apex 50K EOD'} · IS ${windows.is.start} → ${windows.is.end} · OOS ${windows.oos.start} → ${windows.oos.end}`,'field-help'));const body=node('section',undefined,'panel prop-portfolio-panel'),state=node('p');state.id='portfolio-status';body.append(state);host.append(body);
       const remove=node('button','Delete saved simulation','button danger');remove.type='button';head.append(remove);

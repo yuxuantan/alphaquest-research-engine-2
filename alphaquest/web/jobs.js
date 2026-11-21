@@ -39,6 +39,7 @@
     const label=job.status==='complete'?'Completed':job.status==='cancelled'?(job.stop_requested_at_utc?'Stopped':'Cancelled'):job.status==='running'&&job.stop_requested_at_utc?'Stopping':words(job.status);
     const pill=node('span',label,'pill '+(job.status==='complete'?'success':'neutral'));
     if(['failed','interrupted'].includes(job.status))pill.classList.add('jobs-error-status');
+    if(['running','queued'].includes(job.status))pill.classList.add('job-running');
     return pill;
   }
   function query() {return new URLSearchParams(location.hash.split('?')[1] || '');}
@@ -108,17 +109,24 @@
         const signature=location.hash+offset+JSON.stringify(data);
         if(lastListData===signature){timer=setTimeout(refresh,1500);return;}
         lastListData=signature;
-        const rows=get('#jobs-rows');rows.replaceChildren();
+        const rows=get('#jobs-rows'),focused=document.activeElement;
+        const focusedJob=rows.contains(focused)?focused.closest('tr')?.dataset.jobId:null;
+        rows.replaceChildren();
         for(const job of data.items) {
           const row=node('tr');row.dataset.jobId=job.id;row.dataset.jobKind=job.kind;
-          const recorded=node('td');link(recorded,stamp(job.recorded_at_utc),job.href);
+          const recorded=node('td',stamp(job.recorded_at_utc));
           const source=node('td');source.append(node('strong',kinds[job.kind]),node('div',words(job.strategy_id) || 'Saved strategy sources'),node('small',job.dataset_name));
           const state=node('td');state.append(status(job));
           const detail=node('td',progress(job));if(job.error)detail.append(node('small',job.error,'mechanic-error'));
-          const actions=node('td');link(actions,job.status==='complete'?'View results':'View progress / details',job.href);stopButton(actions,job);
-          row.append(recorded,source,state,detail,actions);rows.append(row);
+          link(source,job.status==='complete'?'View results':'View progress / details',job.href);
+          const actions=node('td');stopButton(actions,job);
+          row.append(source,state,detail,recorded,actions);rows.append(row);
+          if(job.id===focusedJob){
+            const replacement=row.querySelector(focused.tagName==='BUTTON'?'button':'a');
+            replacement?.focus({preventScroll:true});
+          }
         }
-        get('#jobs-list-status').textContent=data.total ? `${data.total} matching ${data.total===1?'job':'jobs'} · updates automatically.` : 'No jobs match these filters. Start a validation or backtest from Campaigns.';
+        get('#jobs-list-status').textContent=data.total ? `${data.total} matching ${data.total===1?'job':'jobs'} · updates automatically.` : 'No jobs match these filters. Try another status, job type or search.';
         get('#jobs-page').textContent=data.total?`${offset+1}–${offset+data.items.length} of ${data.total}`:'0 jobs';
         get('#jobs-previous').disabled=!offset;get('#jobs-next').disabled=offset+data.items.length>=data.total;
       }

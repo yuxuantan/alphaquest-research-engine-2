@@ -25,6 +25,9 @@
   }
   function table(host,headers,rows){
     const scroll=node('div',undefined,'optimization-scroll'),t=node('table',undefined,'library-table prop-result-table'),thead=node('thead'),tr=node('tr'),body=node('tbody');
+    scroll.tabIndex=0;
+    scroll.setAttribute('role','region');
+    scroll.setAttribute('aria-label','Simulation results table');
     for(const title of headers)tr.append(node('th',title));thead.append(tr);
     for(const cells of rows){const row=node('tr');for(const value of cells){const td=node('td');if(value instanceof Node)td.append(value);else td.textContent=String(value??'Unavailable');row.append(td);}body.append(row);}
     t.append(thead,body);scroll.append(t);host.append(scroll);return t;

@@ -67,7 +67,7 @@
       [catalogue, definitions] = await Promise.all([read('/api/strategies/library'), read('/api/strategies')]);
       if (current !== generation) return;
       const id = location.hash === '#campaigns' ? catalogue.items.find(item => item.id === 'vwap_pullback_risk_sizing')?.id || catalogue.items[0]?.id : location.hash.slice('#campaigns/'.length);
-      list.replaceChildren(node('h2', 'Campaigns'), node('p', `${catalogue.items.length} strategy codes`, 'muted small'));
+      list.replaceChildren(node('h2', 'Choose a campaign'));
       for (const item of catalogue.items) {
         const name = campaigns.find(c => c.id === item.id)?.name || item.name;
         const link = node('a', undefined, 'workflow-campaign-link');
@@ -82,24 +82,30 @@
       const campaign = campaigns.find(c => c.id === id) || {id, name:item.name, hypothesis:definition?.description || 'Archived strategy code.', logic:[], broad:[], narrow:[]};
       get('#campaign-new-backtest').href = `#backtests/new?${new URLSearchParams({workflow:'mechanic', strategy:id})}`;
       get('#campaign-new-backtest').hidden = !definition;
-      host.append(node('div','CAMPAIGN DETAILS','eyebrow'),node('h2',campaign.name),node('h3','Hypothesis'),node('p',campaign.hypothesis));
-      const research = node('p','Linked research: '); action(research,'No research linked yet','#research'); host.append(research);
-      section(host,'Shared logic',campaign.logic.length ? campaign.logic : [definition?.description || 'Open a saved report to inspect its recorded logic.']);
-      if (campaign.entryNotes?.length) section(host,'Entry requirements and common blockers',campaign.entryNotes);
-      if (campaign.interpretationNotes?.length) section(host,'Live and backtest interpretation',campaign.interpretationNotes);
+      host.append(node('h2',campaign.name),node('p',campaign.hypothesis,'campaign-hypothesis'));
+      const datasets = node('section',undefined,'workflow-datasets');
+      const datasetsStatus = window.portalLoading.message('Loading campaign datasets…');
+      datasets.append(node('h3','Datasets'),datasetsStatus);
+      host.append(datasets);
+      const notes = node('details',undefined,'campaign-strategy-notes');
+      notes.append(node('summary','Strategy notes and source'));
+      notes.append(node('p','No research linked yet.','field-help'));
+      section(notes,'Shared logic',campaign.logic.length ? campaign.logic : [definition?.description || 'Open a saved report to inspect its recorded logic.']);
+      if (campaign.entryNotes?.length) section(notes,'Entry requirements and common blockers',campaign.entryNotes);
+      if (campaign.interpretationNotes?.length) section(notes,'Live and backtest interpretation',campaign.interpretationNotes);
       const params = node('div',undefined,'workflow-parameter-layout');
       section(params,'Broad parameters',campaign.broad.length ? campaign.broad : ['Not classified yet']);
-      section(params,'Narrow parameters',campaign.narrow.length ? campaign.narrow : ['Not classified yet']); host.append(params);
+      section(params,'Narrow parameters',campaign.narrow.length ? campaign.narrow : ['Not classified yet']); notes.append(params);
       const source = node('details',undefined,'workflow-source');
       source.append(node('summary','Source code'),node('code',definition ? `alphaquest/strategies/${id}.py` : 'No current local strategy code. Inspect the saved report for recorded provenance.'));
-      action(source,'Browse existing saved runs →',`#strategies/${encodeURIComponent(id)}`); host.append(source);
-      const datasets = node('section',undefined,'workflow-datasets');
-      datasets.append(node('h3','Datasets'),node('p','Saved sources and their current validation phase','muted small')); host.append(datasets);
+      action(source,'Browse existing saved runs →',`#strategies/${encodeURIComponent(id)}`); notes.append(source);
+      host.append(notes);
       const [workflows, groups] = await Promise.all([read(`/api/campaign-workflows?${new URLSearchParams({strategy_id:id})}`), read(`/api/strategies/${encodeURIComponent(id)}/datasets?limit=100`)]);
+      window.portalLoading.clear(datasetsStatus);
+      datasetsStatus.remove();
       if (current !== generation) return;
       const sourceOf = dataset => ({sha256:dataset.sha256,source_timezone:dataset.source_timezone,source_kind:dataset.source_kind||'native'});
       const currentPage = () => current===generation && /^#campaigns(?:\/[^/]+)?$/.test(location.hash);
-      datasets.append(node('p','Delete one workflow and its unshared results at a time. Other workflows using the same dataset stay available. Original dataset files and the campaign definition are kept.','muted small'));
       if(deletionNotice?.strategy_id===id){
         const notice=node('div',undefined,'workflow-link-notice');notice.setAttribute('role','status');
         notice.append(node('span',deletionNotice.text));datasets.append(notice);
@@ -184,10 +190,9 @@
         heading.href = destination;
         card.append(heading,node('span',`${dataset.symbol || 'Unspecified'} · ${saved.plan.is_start} → ${saved.plan.is_end} IS`));
         card.append(node('span',`Created ${new Date(workflow.created_at_utc).toLocaleString()} · Workflow ${workflow.id.slice(0,8)}`,'muted small'));
-        const version=node('details');version.append(node('summary','Saved version'),node('code',`Strategy ${String(saved.strategy_source_sha256||'unknown').slice(0,12)} · Engine ${String(saved.engine_identity||'unknown').slice(0,12)}`));card.append(version);
+        const version=node('details');version.append(node('summary','Workflow details'),node('code',`Strategy ${String(saved.strategy_source_sha256||'unknown').slice(0,12)} · Engine ${String(saved.engine_identity||'unknown').slice(0,12)}`));card.append(version);
         card.append(node('span',`${latest.label} · ${latest.status.replaceAll('_',' ')}`,'workflow-stage'));
-        if (!workflow.review) action(card,'Resume backtest →',destination);
-        deleteButton(card,dataset,{workflow_id:workflow.id});datasets.append(card);
+        deleteButton(version,dataset,{workflow_id:workflow.id});datasets.append(card);
       }
       for (const group of groups.items) {
         if (seen.has(group.available_dataset_id)) continue;
@@ -196,7 +201,8 @@
         action(card, d.name, start);
         card.append(node('span',`${group.instrument} · ${d.start_date || 'Unknown start'} → ${d.end_date || 'Unknown end'}`),node('span',`Saved results · ${group.reports} report(s) · no active workflow`,'workflow-stage'));
         action(card,'Inspect saved results →',`#strategies/${id}/datasets/${group.id}`);
-        deleteButton(card,d,{group_id:group.id});datasets.append(card);
+        const savedResults=node('details');savedResults.append(node('summary','Manage saved results'));card.append(savedResults);
+        deleteButton(savedResults,d,{group_id:group.id});datasets.append(card);
       }
       if (!datasets.querySelector('.workflow-real-dataset')) datasets.append(node('p','No saved datasets for this campaign. Choose New backtest to select or upload a dataset.'));
       if (groups.total > groups.items.length) action(datasets,'Browse all saved datasets →',`#strategies/${id}`);

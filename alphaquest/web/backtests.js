@@ -565,6 +565,13 @@
   window.addEventListener("optimization-workers-changed", controls);
   window.addEventListener("research-split-changed", controls);
 
+  const main = get('#main-content');
+  get('#skip-to-content').addEventListener('click', event => {
+    event.preventDefault();
+    main.focus({preventScroll: true});
+    main.scrollIntoView({block: 'start'});
+  });
+  let previousPath;
   function navigate() {
     const hash = location.hash;
     const screen = hash === "#research" ? "research"
@@ -582,11 +589,22 @@
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !hash.startsWith("#backtests/prop/");
     const navigation = hash.startsWith("#backtests/prop/") || screen === "research-workspace" ? "prop-sim"
-      : ["strategies", "backtests", "optimizations", "mechanic", "jobs"].includes(screen) ? "campaigns" : screen;
-    const title = {datasets: "Datasets", research: "Research", campaigns: "Campaigns", "prop-sim": "Prop Sim"}[navigation];
-    get("#current-screen").textContent = screen === "jobs" ? "Job history" : title;
-    document.title = `${screen === "jobs" ? "Job history" : title} · AlphaQuest`;
-    get("#backtests-title").textContent = mechanicSetup() ? "Configure mechanic validation." : "Run backtests.";
+      : ["strategies", "backtests", "optimizations", "mechanic"].includes(screen) ? "campaigns" : screen;
+    const path = hash.split('?')[0];
+    const setupTitle = mechanicSetup() ? 'Configure mechanic validation' : 'Run a backtest';
+    const phaseNames = {mechanic_validation: 'Mechanic validation', is_broad: 'IS Broad', is_narrow: 'IS Narrow', oos: 'OOS'};
+    const screenTitles = {datasets: 'Dataset library', research: 'Research', 'research-workspace': 'Saved research',
+      campaigns: 'Campaigns', strategies: 'Saved runs', 'prop-sim': 'Prop Sim', jobs: 'Job history',
+      mechanic: phaseNames[path.split('/')[3]] || 'Campaign workflow', optimizations: 'Backtest batches'};
+    let title = screenTitles[screen];
+    if (screen === 'backtests') {
+      title = path.startsWith('#backtests/report/') ? 'Backtest report'
+        : path.startsWith('#backtests/prop/') ? 'Prop analysis'
+        : path.startsWith('#backtests/batches') ? 'Backtest batches' : setupTitle;
+    }
+    get('#current-screen').textContent = title;
+    document.title = `${title} · AlphaQuest`;
+    get('#backtests-title').textContent = setupTitle;
     controls();
     for (const link of document.querySelectorAll("[data-screen]")) {
       const active = link.dataset.screen === navigation;
@@ -594,12 +612,14 @@
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    get("#footer-context").textContent = {
-      research: "Research · Theses and summaries",
-      campaigns: "Campaigns · Strategy logic, datasets and phases",
-      "prop-sim": "Prop Sim · Evaluation, funded sizing and cash outcomes",
-      datasets: "Dataset management · Component 1 of your research workflow",
-    }[navigation];
+    const jobsLink = get('.job-history-link');
+    if (screen === 'jobs') jobsLink.setAttribute('aria-current', 'page');
+    else jobsLink.removeAttribute('aria-current');
+    if (previousPath !== undefined && previousPath !== path) {
+      main.focus({preventScroll: true});
+      window.scrollTo(0, 0);
+    }
+    previousPath = path;
     if (["#backtests", "#backtests/new", "#optimizations"].includes(location.hash.split("?")[0])) loadChoices();
   }
   get('#backtest-upload-dataset').onclick = () => {

@@ -123,17 +123,25 @@
     if(location.hash.split('?')[0]!=='#prop-sim')return;
     const version=generation,alive=()=>version===generation&&location.hash.split('?')[0]==='#prop-sim',host=document.querySelector('#prop-sim-content');
     const query=new URLSearchParams(location.hash.split('?')[1]||''),selectedId=query.get('analysis'),sourceId=query.get('source'),deletedId=query.get('deleted');
-    const finishSectionLoading=window.portalLoading.region(host,'Loading simulation settings…');
+    function selectMode(mode){
+      for(const name of ['sizing','portfolio']){
+        const item=document.querySelector('#prop-sim-mode-'+name);
+        if(name===mode)item.setAttribute('aria-current','page');
+        else item.removeAttribute('aria-current');
+      }
+    }
+    selectMode(query.get('mode')==='portfolio'?'portfolio':'sizing');
+    const finishSectionLoading=window.portalLoading.region(host,selectedId?'Loading saved simulation…':'Loading simulation settings…');
     try {
     try{
       if(query.get('mode')==='portfolio'){await window.propPortfolio.render(host);return;}
-      if(selectedId){const parent=await read('/api/prop-sim/'+selectedId);if(!alive())return;if(parent.configuration.mode==='portfolio'){await window.propPortfolio.render(host,parent);return;}}
+      if(selectedId){const parent=await read('/api/prop-sim/'+selectedId);if(!alive())return;if(parent.configuration.mode==='portfolio'){selectMode('portfolio');await window.propPortfolio.render(host,parent);return;}}
       const sources={items:[],unavailable:[]};
       const sourceRequest=read('/api/prop-sim/candidates').then(value=>({value})).catch(error=>({error}));
       const [defaults,history]=await Promise.all([read('/api/prop-sim/defaults'),read('/api/prop-sim')]);if(!alive())return;
-      const profiles=defaults.profiles;host.replaceChildren();const choice=node('section',undefined,'panel prop-sim-mode-choice');choice.append(node('h2','What do you want to learn?'),node('p','Use this view for independent Evaluation and Funded sizing. Choose fixed contracts or independently optimized risk percentages. For multiple strategies and replacement economics, compare portfolios.'));link(choice,'Portfolio allocation, percentage risk & full cash flow','#prop-sim?mode=portfolio');if(!selectedId)host.append(choice);
+      const profiles=defaults.profiles;host.replaceChildren();
       const setup=node('details',undefined,'panel prop-sim-setup');setup.id='prop-sim-setup';setup.open=!selectedId;
-      setup.append(node('summary',selectedId?'Adjust settings and start a new simulation':'Configure a prop simulation'));
+      setup.append(node('summary',selectedId?'Configure a new simulation':'Configure a prop simulation'));
       const form=node('form');form.id='prop-sim-form';setup.append(form);host.append(setup);
       const sourceGrid=node('div',undefined,'prop-sim-source-grid');form.append(sourceGrid);
       const sourceBox=node('section');sourceBox.append(node('h2','1. Qualified configuration'));
@@ -216,7 +224,7 @@
       const rules=node('div');advanced.append(rules);
       advanced.append(disclosure);
       const preview=node('p',undefined,'prop-sim-preflight');preview.id='prop-sim-preflight';preview.setAttribute('role','status');form.append(preview);
-      form.append(node('p','Run checks the source, executes both IS searches, automatically freezes up to three Evaluation sizes and two Funded sizes, then runs OOS qualification. No follow-up selection or confirmation is required.','field-help'));if(defaults.automatic_selection_policy)detail(form,'Automatic sizing rules',defaults.automatic_selection_policy);
+      form.append(node('p','Run checks the source, searches both phases on IS, then assesses the selected sizes on OOS.','field-help'));if(defaults.automatic_selection_policy)detail(form,'Automatic sizing rules',defaults.automatic_selection_policy);
       const buttons=node('div',undefined,'mechanic-downloads'),check=node('button','Check source and settings','button secondary'),run=node('button','Run IS and OOS','button primary');check.type=run.type='button';check.id='prop-sim-check';run.id='prop-sim-run';run.disabled=true;buttons.append(check,run);form.append(buttons);
       const notice=node('p');notice.id='prop-sim-status';notice.setAttribute('role','status');form.append(notice);
       run.setAttribute('aria-describedby',notice.id);check.setAttribute('aria-describedby',notice.id);
@@ -228,11 +236,11 @@
         try{
           const plan=await read('/api/prop-sim/'+id+'/deletion');
           if(!alive())return;
-          if(!plan.deleted&&!plan.deletable){notice.textContent=plan.dependent_forward_monitors?.length?'This simulation is retained by forward observation monitors. Their frozen policy and reports must remain available.':'This simulation has queued or running jobs. Stop them or wait before deleting.';setup.open=true;return;}
+          if(!plan.deleted&&!plan.deletable){resultStatus.textContent=plan.dependent_forward_monitors?.length?'This simulation is retained by forward observation monitors.':'Stop or wait for the running jobs before deleting.';return;}
           if(!plan.deleted&&!window.confirm(`Delete saved simulation?\n${profiles[plan.profile_id]?.name||plan.profile_id} · ${plan.strategy_id.replaceAll('_',' ')}\nSaved ${new Date(plan.created_at_utc).toLocaleString()}\n\nRemove ${plan.analysis_ids_to_delete.length} unshared phase reports. Keep ${plan.retained_analyses.length} shared/protected reports.\nDatasets, source backtests, campaign phases, OOS and Monte Carlo results are kept.`))return;
           await read('/api/prop-sim/'+id,'DELETE',{confirmation_sha256:plan.confirmation_sha256});
           if(alive()){if(location.hash==='#prop-sim?deleted='+id)await render();else location.hash='#prop-sim?deleted='+id;}
-        }catch(error){if(alive()){notice.textContent='Could not delete simulation: '+error.message;setup.open=true;}}
+        }catch(error){if(alive())resultStatus.textContent='Could not delete simulation: '+error.message;}
         finally{deleting=false;if(alive())host.querySelectorAll('[data-delete-simulation]').forEach(button=>button.disabled=!button.dataset.deleteSimulation||Object.values(saved?.phases||{}).some(p=>['queued','running'].includes(p.status)));}
       }
       function deleteButton(id,text='Delete simulation'){
@@ -287,7 +295,7 @@
         checked=false;sourceInfo.replaceChildren();const item=sources.items[Number(picker.value)];
         if(picker.value!==''&&item){sourceInfo.append(node('p',`IS sizing window ${item.plan.is_start} → ${item.plan.is_end}.`,'field-help'));if(item.sizing_support){for(const [mode,label] of [['fixed_contracts','Fixed contracts'],['percentage_risk','Percentage risk']]){const support=item.sizing_support[mode];sourceInfo.append(node('p',`${label}: ${support.supported?'supported':support.reason}`,'field-help'));}}detail(sourceInfo,'Frozen parameters',item.parameters);const links=node('div',undefined,'mechanic-downloads');link(links,'Open IS source backtest',`#backtests/report/${item.source_backtest_id}`);link(links,'Open campaign and OOS evidence',`#campaigns/workflows/${item.selection.workflow_id.replaceAll('-','')}/oos?job=${item.selection.oos_job_id.replaceAll('-','')}`);sourceInfo.append(links);}update();
       }
-      picker.onchange=select;form.oninput=()=>{updateTradeHandling();checked=false;notice.textContent='Settings changed. Run will check the source and execute both IS and OOS phases automatically.';resourcePreview();};form.onsubmit=e=>e.preventDefault();
+      picker.onchange=select;form.oninput=()=>{updateTradeHandling();checked=false;notice.textContent='';resourcePreview();};form.onsubmit=e=>e.preventDefault();
       function body(){
         const source=sources.items[Number(picker.value)];if(picker.value===''||!source)throw Error('Choose one qualified configuration.');
         const value={request_id:requestId,automatic:true,background_prepare:true,profile_id:accountPicker.value,daily_loss_limit:dll.checked,evaluation_consistency_percent:Number(consistency.value),selections:[source.selection]};
@@ -297,8 +305,42 @@
       }
       check.onclick=async()=>{if(!form.reportValidity())return;busy=true;update();notice.textContent='Checking qualification, costs and source compatibility…';try{const data=await read('/api/prop-sim/check','POST',body());if(alive()){checked=true;notice.textContent=`Source compatible · ${data.phases.evaluation.candidate_search_count} Evaluation sizes and ${data.phases.funded.candidate_search_count} Funded sizes.`;}}catch(error){if(alive()){checked=false;notice.textContent=error.message;}}finally{busy=false;if(alive())update();}};
       run.onclick=async()=>{if(!form.reportValidity())return;busy=true;update();notice.textContent='Checking source and starting automatic IS → selection → OOS…';try{const data=await read('/api/prop-sim','POST',body());if(alive())location.hash='#prop-sim?analysis='+data.id;}catch(error){if(alive())notice.textContent=error.message;}finally{busy=false;if(alive())update();}};
-      const results=node('div');results.id='prop-sim-results';host.append(results);
-      if(history.items.length){const historyLabel=node('label','Saved simulations'),historySelect=node('select');historySelect.id='prop-sim-history';historySelect.add(new Option('Choose saved results',''));for(const old of history.items){const p=profiles[old.configuration.profile_id||'apex-50k-eod'],e=range(old.configuration,'evaluation'),f=range(old.configuration,'funded');historySelect.add(new Option(old.configuration.mode==='portfolio'?`${new Date(old.created_at_utc).toLocaleString()} · Portfolio cash flow · ${p.name}`:`${new Date(old.created_at_utc).toLocaleString()} · ${p.name} · ${old.configuration.search_kind==='percentage_risk'?`Eval ${old.configuration.evaluation_percentage_grid.minimum}–${old.configuration.evaluation_percentage_grid.maximum}% / Funded ${old.configuration.funded_percentage_grid.minimum}–${old.configuration.funded_percentage_grid.maximum}%`:`Eval ${e.minimum}–${e.maximum} / Funded ${f.minimum}–${f.maximum} MNQ`}`,old.id));}historySelect.value=selectedId||'';historyLabel.append(historySelect,deleteButton(selectedId,'Delete selected simulation'));historyLabel.className='prop-sim-history';host.append(historyLabel);historySelect.onchange=()=>{location.hash=historySelect.value?'#prop-sim?analysis='+historySelect.value:'#prop-sim';};}
+      const results=node('div');
+      results.id='prop-sim-results';
+      const resultStatus=node('p',undefined,'prop-sim-result-status');
+      resultStatus.setAttribute('role','status');
+      results.append(resultStatus);
+
+      if(history.items.length){
+        const historyBar=node('section',undefined,'prop-sim-history');
+        const historyLabel=node('label','Saved simulations');
+        const historySelect=node('select');
+        historySelect.id='prop-sim-history';
+        historySelect.add(new Option('Choose saved results',''));
+        for(const old of history.items){
+          const config=old.configuration;
+          const profile=profiles[config.profile_id||'apex-50k-eod'];
+          const date=new Date(old.created_at_utc).toLocaleString();
+          let description='Portfolio cash flow';
+          if(config.mode!=='portfolio'){
+            const percentage=config.search_kind==='percentage_risk';
+            const evaluation=percentage?config.evaluation_percentage_grid:range(config,'evaluation');
+            const funded=percentage?config.funded_percentage_grid:range(config,'funded');
+            const unit=percentage?'%':' MNQ';
+            description=`Eval ${evaluation.minimum}–${evaluation.maximum}${unit} / Funded ${funded.minimum}–${funded.maximum}${unit}`;
+          }
+          historySelect.add(new Option(`${date} · ${profile?.name||'Saved profile'} · ${description}`,old.id));
+        }
+        historySelect.value=selectedId||'';
+        historyLabel.append(historySelect);
+        historyBar.append(historyLabel);
+        host.insertBefore(historyBar,setup);
+        historySelect.onchange=()=>{
+          location.hash=historySelect.value?'#prop-sim?analysis='+historySelect.value:'#prop-sim';
+        };
+      }
+      if(selectedId)setup.before(results);
+      else host.append(results);
       const phasePanels={},loaded={},validationControllers={},phaseConclusions={};let workspace;
       function paintConclusions(){
         if(workspace)return;
@@ -542,14 +584,24 @@
           panel.append(node('h2','Source preparation'),node('p',`${p.status.toUpperCase()} · ${p.progress}`),node('p',p.error||'Qualification and source checks run in the background. You can navigate away; phase searches start automatically after verification.','field-help'));
           const actions=node('div',undefined,'mechanic-downloads');link(actions,'Job history / preparation progress',`#jobs/prop_preparation/${selectedId}`);
           if(['queued','running'].includes(p.status)){const stop=node('button','Stop preparation','button secondary');stop.type='button';stop.onclick=async()=>{stop.disabled=true;try{await read(`/api/prop-sim/${selectedId}/cancel`,'POST');await refresh();}catch(e){panel.append(node('p',e.message));}};actions.append(stop);timer=setTimeout(refresh,1500);}
-          const edit=node('button','Adjust settings','button secondary');edit.type='button';edit.onclick=()=>{setup.open=true;setup.scrollIntoView({behavior:'smooth',block:'start'});};actions.append(edit);panel.append(actions);
-          results.replaceChildren(panel);host.insertBefore(results,setup);return;
+          const edit=node('button','Adjust settings','button secondary');edit.type='button';edit.onclick=()=>{setup.open=true;setup.scrollIntoView({block:'start'});setup.querySelector('summary').focus({preventScroll:true});};actions.append(edit);
+          if(!['queued','running'].includes(p.status))actions.append(deleteButton(selectedId));
+          panel.append(actions);
+          results.replaceChildren(resultStatus,panel);host.insertBefore(results,setup);return;
         }
         results.querySelector('#prop-sim-preparation')?.remove();
         if(!results.querySelector('.prop-sim-run-heading')){
-          const title=node('section',undefined,'prop-sim-run-heading'),profile=profiles[saved.configuration.profile_id||'apex-50k-eod'],q=saved.qualification;
-          title.append(node('span',profile.name,'pill neutral'),node('h2',q?.strategy_id?.replaceAll('_',' ')||'Saved simulation'),node('p',`${q?.dataset?.name||'Saved source'} · ${saved.configuration.simulations.toLocaleString()} IS paths per size · Independent Evaluation and Funded searches`,'field-help'));
-          const actions=node('div',undefined,'mechanic-downloads');link(actions,'New simulation','#prop-sim');const edit=node('button','Settings','button secondary');edit.type='button';edit.onclick=()=>{setup.open=true;setup.scrollIntoView({behavior:'smooth',block:'start'});};actions.append(edit);setup.append(deleteButton(selectedId));title.append(actions);results.append(title);host.insertBefore(results,setup);
+          const title=node('section',undefined,'panel prop-sim-run-heading');
+          const profile=profiles[saved.configuration.profile_id||'apex-50k-eod'],q=saved.qualification;
+          const identity=node('div');
+          identity.append(node('h2',q?.strategy_id?.replaceAll('_',' ')||'Saved simulation'),
+            node('p',`${profile.name} · ${q?.dataset?.name||'Saved source'} · ${saved.configuration.simulations.toLocaleString()} IS paths per size`,'field-help'));
+          const actions=node('div',undefined,'mechanic-downloads');
+          link(actions,'New simulation','#prop-sim');
+          const edit=node('button','Settings','button secondary');edit.type='button';
+          edit.onclick=()=>{setup.open=true;setup.scrollIntoView({block:'start'});setup.querySelector('summary').focus({preventScroll:true});};
+          actions.append(edit,deleteButton(selectedId));
+          title.append(identity,actions);results.append(title);host.insertBefore(results,setup);
         }
         if(saved.automation&&!workspace){workspace=window.propSimWorkspace.create(results,{tradeBehavior});for(const [phase,p] of Object.entries(workspace.phases)){phasePanels[phase]=p.root;detail(p.downloads,'Frozen configuration and source',{profile:saved.configuration.profile_id,parameters:saved.qualification?.parameters,plan:saved.qualification?.plan,trade_handling:saved.configuration[phase+'_trade_handling']});}}
         workspace?.update(saved);paintConclusions();
@@ -566,10 +618,10 @@
         }));
         const validationActive=validations.some(Boolean);
         let controls=results.querySelector('#prop-sim-job-controls');if(!controls){controls=node('div',undefined,'mechanic-downloads');controls.id='prop-sim-job-controls';results.querySelector('.prop-sim-run-heading').append(controls);}controls.replaceChildren();const pipelineActive=saved.automation&&!saved.automation.stop_requested&&Object.values(saved.automation.phases).some(p=>!['complete','no_eligible_candidates','error','cancelled'].includes(p.stage));const active=!saved.automation?.stop_requested&&(pipelineActive||Object.values(saved.phases).some(p=>['queued','running'].includes(p.status)));results.querySelectorAll('[data-delete-simulation]').forEach(button=>{button.disabled=active||deleting;button.title=active?'Stop running jobs before deleting this simulation.':'';});
-        if(active){const stop=node('button','Stop running analyses','button secondary');stop.type='button';stop.id='prop-sim-stop';stop.onclick=async()=>{stop.disabled=true;try{await read('/api/prop-sim/'+selectedId+'/cancel','POST');if(alive())await refresh();}catch(error){if(alive())notice.textContent=error.message;}};controls.append(stop);timer=setTimeout(refresh,2500);}
-        else if(Object.values(saved.phases).some(p=>p.status!=='complete')||saved.automation&&Object.values(saved.automation.phases).some(p=>['error','cancelled'].includes(p.stage))){const retry=node('button','Retry incomplete phases','button secondary');retry.type='button';retry.onclick=async()=>{try{await read('/api/prop-sim','POST',saved.configuration);if(alive())await refresh();}catch(error){if(alive())notice.textContent=error.message;}};controls.append(retry);}
+        if(active){const stop=node('button','Stop running analyses','button secondary');stop.type='button';stop.id='prop-sim-stop';stop.onclick=async()=>{stop.disabled=true;try{resultStatus.textContent='Requesting stop…';await read('/api/prop-sim/'+selectedId+'/cancel','POST');resultStatus.textContent='Stop requested.';if(alive())await refresh();}catch(error){if(alive()){resultStatus.textContent=error.message;stop.disabled=false;}}};controls.append(stop);timer=setTimeout(refresh,2500);}
+        else if(Object.values(saved.phases).some(p=>p.status!=='complete')||saved.automation&&Object.values(saved.automation.phases).some(p=>['error','cancelled'].includes(p.stage))){const retry=node('button','Retry incomplete phases','button secondary');retry.type='button';retry.onclick=async()=>{try{retry.disabled=true;resultStatus.textContent='Retrying incomplete phases…';await read('/api/prop-sim','POST',saved.configuration);resultStatus.textContent='';if(alive())await refresh();}catch(error){if(alive()){resultStatus.textContent=error.message;retry.disabled=false;}}};controls.append(retry);}
         if(validationActive&&!active)timer=setTimeout(refresh,2500);
-      }catch(error){if(alive())notice.textContent=error.message;}}
+      }catch(error){if(alive())resultStatus.textContent=error.message;}}
       applyAccount(false);
       if(selectedId){await refresh();if(!alive())return;if(saved){sizingMode.value=saved.configuration.search_kind||'fixed_contracts';for(const phase of ['evaluation','funded']){const handling=saved.configuration[phase+'_trade_handling'];if(handling){tradeFields[phase].action.value=handling.account_limit_action;tradeFields[phase].minimum.checked=handling.minimum_one_contract;}const grid=saved.configuration[phase+'_percentage_grid'];if(grid)for(const [key,input] of Object.entries(riskFields[phase])){if(input.type==='checkbox')input.checked=grid[key];else input.value=String(grid[key]);}}toggleSizing();accountPicker.value=saved.configuration.profile_id||'apex-50k-eod';dll.checked=saved.configuration.daily_loss_limit??true;consistency.value=String(saved.configuration.evaluation_consistency_percent??40);const index=sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0]));if(index>=0)picker.value=String(index);for(const [name] of names){const value=name.endsWith('_micros')?range(saved.configuration,name.split('_')[0])[name.includes('_minimum_')?'minimum':'maximum']:saved.configuration[name];fields[name].value=name==='closures'?value.join(','):String(value??'');}applyAccount(false);select();}}
       else update();

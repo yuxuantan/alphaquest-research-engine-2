@@ -285,7 +285,10 @@ def test_delete_saved_simulation_confirmation_and_source_preservation(page,porta
     button=page.get_by_role('button',name='Delete simulation',exact=True)
     playwright.expect(button).to_be_enabled()
     page.locator('.prop-sim-run-heading').screenshot(path=str(tmp_path/'delete-action.png'))
-    page.once('dialog',lambda dialog:dialog.dismiss());button.click()
+    with page.expect_event('dialog') as confirmation:
+        button.click()
+    confirmation.value.dismiss()
+    playwright.expect(button).to_be_enabled()
     assert page.request.get(portal['url']+'/api/prop-sim/'+saved['id']).status==200
     page.once('dialog',lambda dialog:dialog.accept())
     with page.expect_response(lambda r:r.url.endswith('/api/prop-sim/'+saved['id']) and r.request.method=='DELETE') as response:button.click()

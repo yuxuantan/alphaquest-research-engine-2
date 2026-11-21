@@ -13868,3 +13868,29 @@ Temporary browser-test servers are stopped by fixture teardown. The existing
 persistent portal was restarted only after confirming no queued/running jobs;
 stop it with Ctrl-C in its launcher or SIGTERM to its recorded owner PID in
 `data/.portal-server.lock`.
+
+### 2026-11-21 — Portal layout cleanup
+
+Prop Sim now has direct navigation between Independent sizing and Portfolio &
+cash flow. Saved simulations appear above the setup form. Opening one leads with
+its saved results, followed by the collapsed setup. Open **Settings** to edit
+a new simulation from the saved inputs. Use the Evaluation and Funded tabs to
+switch phases, then use the phase's Overview, IS sizing, Evidence or Tools &
+downloads tab. The arrow keys move between tabs. The existing saved phase
+reports and evidence links are used directly.
+
+To verify with local saved evidence, open **Prop Sim**, choose a completed
+simulation from **Saved simulations**, and use the keyboard to switch to Funded.
+Expect the Funded heading, job link, and its own evidence and downloads. Open
+**Settings** and confirm the source and sizing inputs can still be inspected.
+Switch to **Portfolio & cash flow** and back using the mode links. Campaign
+datasets open their latest available phase, with **Passing criteria by stage**
+available next to the phase navigation. Existing backtest reports keep Trade
+and Equity CSV downloads visible and group secondary exports behind **More
+exports and detail**.
+
+The browser checks use the normal portal routes and temporary isolated servers
+for write actions. Read-only Chrome checks against the saved local portal cover
+the main screens and saved results at 320, 390, 768 and 1440 CSS pixels. They
+check keyboard navigation, accessible names and page overflow. Saved-result
+tables can scroll within their own regions.

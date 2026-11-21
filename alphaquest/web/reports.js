@@ -540,7 +540,6 @@
       get("#backtest-completion").hidden = false;
       chart(preview);
       get("#report-status").hidden = true;
-      get("#backtest-completion").scrollIntoView({ block: "start" });
     } catch (exc) {
       if (!controller.signal.aborted) error(`${exc.message} Use Backtests or Refresh reports to choose a saved report.`);
     }

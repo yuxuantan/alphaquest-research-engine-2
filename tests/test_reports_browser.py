@@ -81,6 +81,11 @@ def test_portal_report_matches_hand_checked_fixture_and_reopens(page, portal, ca
     with page.expect_download() as downloaded:
         page.locator("#report-equity-download").click()
     assert open(downloaded.value.path(), "rb").read() == (folder / "equity.csv").read_bytes()
+    playwright.expect(page.locator('#report-json-download')).to_be_hidden()
+    page.get_by_text('More exports and detail',exact=True).click()
+    with page.expect_download() as downloaded:
+        page.locator('#report-json-download').click()
+    assert downloaded.value.path().read_bytes() == (folder / 'report.json').read_bytes()
     page.reload()
     playwright.expect(page.locator("#backtest-completion")).to_be_visible()
     playwright.expect(page.locator("#report-run-id")).to_contain_text(run_id)
@@ -255,7 +260,7 @@ def test_chart_shows_unrounded_peak_and_changes_between_saved_runs(page, portal)
     # Exact peaks belong in the summary/readout; axes use rounded step multiples.
     playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,169\.62$"))).to_have_count(0)
     playwright.expect(page.locator("#equity-chart text").filter(has_text=re.compile(r"^139,170$"))).to_have_count(1)
-    page.get_by_role("link", name="Back to Strategies", exact=False).click()
+    page.get_by_role("link", name="Saved runs", exact=False).click()
     page.get_by_role("link", name="New backtest →", exact=True).click()
     page.locator("#backtest-initial-capital").fill("50000")
     page.locator("#start-backtest").click()

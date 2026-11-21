@@ -459,27 +459,28 @@ function renderLibrary() {
   const total = datasets.reduce((sum, dataset) => sum + dataset.row_count, 0);
   $("#dataset-count").textContent = fmt.format(datasets.length);
   $("#nav-count").textContent = datasets.length;
-  $("#library-count").textContent = datasets.length;
   $("#bar-count").textContent = fmt.format(total);
   const library = $("#library");
   library.replaceChildren();
   if (!datasets.length) {
     const empty = node("div", "empty-state");
     empty.append(
-      node("span", "empty-icon", "▤"),
-      node("strong", "", "A clean start for your next idea"),
-      node("p", "", "Upload and validate a CSV to add your first dataset."),
+      node("strong", "", "No saved datasets"),
+      node("p", "", "Add a CSV or Sierra SCID file to get started."),
     );
     library.append(empty);
     return;
   }
   const wrap = node("div", "table-scroll");
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute("aria-label", "Saved dataset table");
   const table = node("table", "library-table");
   const head = node("thead");
   const header = node("tr");
   for (const title of [
     "Dataset",
-    "Bars",
+    "Rows",
     "Date range · UTC",
     "Spacing",
     "Status",
@@ -552,7 +553,7 @@ function renderLibrary() {
   }
   table.append(head, body);
   wrap.append(table);
-  library.append(wrap);
+  library.append(node('p','table-scroll-hint','Scroll across for dates, downloads and dataset actions.'), wrap);
 }
 
 async function loadLibrary() {
@@ -565,8 +566,10 @@ async function loadLibrary() {
     $("#library-status").textContent = "";
     renderLibrary();
   } catch {
-    $("#library-status").textContent =
-      "Could not load the library. Reload the page to try again.";
+    const retry = node("button", "button secondary", "Retry");
+    retry.type = "button";
+    retry.onclick = loadLibrary;
+    $("#library-status").replaceChildren("Could not load saved datasets. ", retry);
   }
     } finally { finishSectionLoading(); }
 }
@@ -710,6 +713,12 @@ dropzone.addEventListener("drop", (event) => {
   }
   pickFile(event.dataTransfer.files[0]);
 });
+$("#dataset-add").addEventListener("click", () => {
+  const heading = $("#upload-heading");
+  heading.focus({preventScroll: true});
+  heading.scrollIntoView({block: "start"});
+});
+
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   checkInstrumentInputs($("#dataset-tick-size"), $("#dataset-point-value"));
@@ -785,7 +794,7 @@ loadLibrary();
 
 const originalFormatPanel=$(".format-panel").innerHTML;
 $("#dataset-format").addEventListener("change", () => {
-  $(".format-panel").innerHTML=tickMode()?'<div class="format-kicker">TRADE TICK CONTRACT</div><h2 id="format-heading">Ordered trades.<br>Completed-minute flow.</h2><p class="small muted">Sierra SCID v1: individual records, Last trade prices, integer UTC microseconds. Or trade CSV with these exact columns:</p><p><code>timestamp<br>price<br>volume<br>bid_volume<br>ask_volume</code></p><p class="small muted">Unknown volume is retained. Original ordering is preserved when timestamps tie. No sorting, missing-tick filling, order-book depth or queue reconstruction.</p><p class="small muted">Strategies see completed-minute OHLCV, delta, trade VWAP and record-size summaries. Stops and targets follow the recorded trades.</p>':originalFormatPanel;
+  $(".format-panel").innerHTML=tickMode()?'<h2>Trade tick requirements</h2><a class="workflow-inline-link" href="/api/datasets/ticks/example">Download example CSV</a><p class="small muted">Sierra SCID v1: individual records, Last trade prices, integer UTC microseconds. Or trade CSV with these exact columns:</p><p><code>timestamp<br>price<br>volume<br>bid_volume<br>ask_volume</code></p><p class="small muted">Unknown volume is retained. Original ordering is preserved when timestamps tie. No sorting, missing-tick filling, order-book depth or queue reconstruction.</p><p class="small muted">Strategies see completed-minute OHLCV, delta, trade VWAP and record-size summaries. Stops and targets follow the recorded trades.</p>':originalFormatPanel;
   invalidate();
   $("#tick-format-help").hidden=!tickMode();
   if(tickMode()) $("#source-timezone").value="UTC";

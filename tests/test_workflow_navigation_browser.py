@@ -12,11 +12,19 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     mutations, requests = [], []
     page.on('request', lambda r: mutations.append(r.url) if r.method in {'POST', 'PUT', 'PATCH', 'DELETE'} else requests.append(r.url))
     page.goto(portal['url'])
+    page.keyboard.press('Tab')
+    playwright.expect(page.get_by_role('link',name='Skip to content')).to_be_focused()
+    page.keyboard.press('Enter')
+    playwright.expect(page.locator('main')).to_be_focused()
+    assert page.url==portal['url']+'/'
     nav = page.get_by_role('navigation', name='Main navigation', exact=True)
     playwright.expect(nav.locator('a')).to_have_count(4)
     assert nav.locator('a').evaluate_all('(items) => items.map(item => item.getAttribute("aria-label"))') == ['Dataset', 'Research', 'Campaigns', 'Prop Sim']
     playwright.expect(page.locator('#dataset-count')).to_have_text('2')
     playwright.expect(page.locator('#datasets-screen')).to_be_visible()
+    assert page.locator('.library-panel').bounding_box()['y'] < page.locator('.upload-panel').bounding_box()['y']
+    page.locator('#dataset-add').click()
+    playwright.expect(page.locator('#upload-heading')).to_be_focused()
     before = page.request.get(portal['url']+'/api/datasets').json()
     nav.get_by_role('link', name='Research', exact=True).click()
     playwright.expect(page.locator('#research-screen')).to_contain_text('No research theses yet')
@@ -30,6 +38,9 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     playwright.expect(detail).to_contain_text('Confirmed swing breakouts and morning momentum')
     playwright.expect(detail.locator('.workflow-dataset')).to_have_count(0)
     playwright.expect(detail).to_contain_text('No saved datasets for this campaign')
+    notes=detail.locator('.campaign-strategy-notes')
+    assert not notes.evaluate('details => details.open')
+    notes.locator(':scope > summary').click()
     detail.get_by_text('Source code', exact=True).click()
     playwright.expect(detail.locator('code')).to_have_text('alphaquest/strategies/twin_continuation.py')
     page.screenshot(path=str(tmp_path/'campaigns.png'), full_page=True)
@@ -68,6 +79,9 @@ def test_prop_sim_empty_qualification_boundary_and_mobile(page, portal, tmp_path
         playwright.expect(nav.locator('[aria-current="page"]')).to_have_text(name)
         if name == 'Campaigns':
             page.screenshot(path=str(tmp_path/'campaigns-mobile.png'), full_page=True)
+    page.get_by_role('link',name='Job history',exact=True).click()
+    playwright.expect(page.locator('.job-history-link')).to_have_attribute('aria-current','page')
+    playwright.expect(nav.locator('[aria-current]')).to_have_count(0)
     assert mutations == []
 
 
