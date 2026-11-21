@@ -1,5 +1,5 @@
 """Independent risk quantities, real native execution and exact cash conservation."""
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date,datetime,time,timedelta,timezone
 from decimal import Decimal
 import json
@@ -122,20 +122,52 @@ def test_portfolio_accepts_historical_cme_pause_in_observed_session():
     assert coverage['observed_bars'] == coverage['expected_full_session_bars'] == 1365
     assert coverage['scheduled_pause_minutes'] == 15
     assert coverage['missing_pre_entry_bars'] == 0
-    with pytest.raises(ValueError, match='missing a tradable one-minute bar at 15:31'):
-        session_coverage(day, close.astimezone(timezone.utc), 900,
-                         [t for t in stamps if t.astimezone(CT).time() != time(15, 31)])
+    assert coverage['missing_holding_minutes'] == 0
+    incomplete = session_coverage(day, close.astimezone(timezone.utc), 900,
+                                 [t for t in stamps if t.astimezone(CT).time() != time(15, 31)])
+    assert incomplete['missing_holding_minutes'] == 1
+    assert incomplete['holding_gap_ranges_utc'] == [('2021-01-04T21:31:00+00:00',) * 2]
     with pytest.raises(ValueError, match='observed bar at the scheduled close'):
         session_coverage(day, close.astimezone(timezone.utc), 900, stamps[:-1])
 
 
-def test_portfolio_rejects_same_gap_after_cme_removed_pause():
+def test_portfolio_counts_same_gap_after_cme_removed_pause():
     day = date(2021, 6, 28)
     start = datetime.combine(day, time(15, 15), CT).astimezone(timezone.utc)
     resumed = start + timedelta(minutes=16)
     stamps = [start, *(resumed + timedelta(minutes=i) for i in range(30))]
-    with pytest.raises(ValueError, match='missing a tradable one-minute bar at 15:16'):
-        session_coverage(day, stamps[-1], 1515, stamps)
+    coverage = session_coverage(day, stamps[-1], 1515, stamps)
+    assert coverage['scheduled_pause_minutes'] == 0
+    assert coverage['missing_holding_minutes'] == 15
+    assert coverage['holding_gap_ranges_utc'] == [
+        ('2021-06-28T20:16:00+00:00', '2021-06-28T20:30:00+00:00')
+    ]
+
+
+def test_portfolio_uses_next_observed_open_when_stop_is_crossed_after_gap():
+    c = context(days=1)
+    day = date.fromisoformat(c['first'])
+    missing_time = datetime.combine(day, time(9, 3), CT).astimezone(timezone.utc)
+    resumed_at = missing_time + timedelta(minutes=1)
+    bars = [
+        replace(bar, open=Decimal(111), low=Decimal(110)) if bar.timestamp_utc == resumed_at else bar
+        for bar in c['bars'][day] if bar.timestamp_utc != missing_time
+    ]
+    c['bars'][day] = bars
+    c['sessions'][day] = replace(c['sessions'][day], observed_bar_count=len(bars))
+    c['coverage'] = [session_coverage(day, bars[-1].timestamp_utc, 900, [bar.timestamp_utc for bar in bars])]
+    allocation = dict(placement='separate', counts=[1])
+    result = run_lineup(c, allocation, capture=True)
+    trade, = result['trades']
+    assert Decimal(trade['entry_fill_price']) == 118
+    assert Decimal(trade['exit_fill_price']) == 111
+    assert Decimal(trade['net_pnl']) == -140
+    assert trade['exit'] == resumed_at.isoformat()
+    gap, = [event for event in result['accounts'][0]['control_events'] if event['event'] == 'source_gap']
+    assert gap['exposure'] == 'a position is open'
+    assert gap['first_missing_utc'] == gap['last_missing_utc'] == missing_time.isoformat()
+    assert gap['resumed_at_source_utc'] == resumed_at.isoformat()
+    assert run_lineup(c, allocation)['cash'] == result['cash']
 
 
 def test_final_closed_day_counts_inactivity_without_buying_future_replacement():

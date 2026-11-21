@@ -243,17 +243,27 @@ def run(app,saved,checked):
                 for role in ('is','oos'):
                     record=app.state.runs.get(source[role+'_id'])
                     if digest(record)!=source[role+'_sha256'] or artifacts(app.state.runs.root,record)!=source[role+'_artifacts']:raise ValueError('Portfolio source evidence changed.')
+            from .prop.native_market_hours import ASSUMPTION, VERSION
+            affected = [row for row in combined['coverage'] if row['missing_holding_minutes']]
+            source_coverage = dict(version=VERSION, affected_sessions=len(affected),
+                missing_holding_minutes=sum(row['missing_holding_minutes'] for row in affected),
+                missing_pre_entry_bars=sum(row['missing_pre_entry_bars'] for row in combined['coverage']),
+                exposed_account_encounters=sum(
+                    event['event'] == 'source_gap' and event['exposure'] != 'flat'
+                    for account in results['combined']['accounts'] for event in account['control_events']))
             calculations=dict(analysis_mode='portfolio_cashflow',frozen=frozen,allocation_search=search['candidates'],results=results,abstention_alternative=alternative,
+                source_coverage=source_coverage,
                 history=None,assumptions=[checked['interpretation'],'Account owners and execution fills are reused locally; no Bridge runtime.',
                     'Portfolio allocation is fitted on one observed IS history, not a Monte Carlo probability forecast.',
                     'OOS and stitched history retain the same allocation; the fresh OOS scenario starts unfunded.',
                     'Shared accounts allow one position at a time; known-signal priority uses larger risk share then source order. Inactive strategies keep observing prices.',
                     'Account and phase switches start cold strategy state, with no inherited position; Evaluation retries retain the existing controller behavior.',
                     'Monthly fee cap excludes receipts, expires unused allowance and reserves activation before purchase. Pending cash is not received cash.',
-                    'Observed NQ reference prices may proxy MNQ execution at point value 2; no measured micro basis or provider execution parity is claimed.'])
+                    'Observed NQ reference prices may proxy MNQ execution at point value 2; no measured micro basis or provider execution parity is claimed.',
+                    ASSUMPTION])
             (staged/'allocation_results.json').write_text(canonical(search['candidates']))
-            (staged/'source_checks.json').write_text(canonical(dict(sources=context['sources'],coverage=combined['coverage'],
-                interpretation='Actual observed bars only. Sparse pre-entry prices remain sparse. The historical CME pause is excluded from expected tradable minutes. Tradable bars throughout the possible holding window and the scheduled close must be observed.')))
+            (staged/'source_checks.json').write_text(canonical(dict(sources=context['sources'],coverage=combined['coverage'],summary=source_coverage,
+                interpretation=ASSUMPTION+' The historical CME pause is excluded. An observed scheduled close and actual flat execution are required.')))
             report=dict(format_version=5,model_version='native-portfolio-cashflow-v1',source=dict(backtest=dict(id=checked['sources'][0]['source_backtest_id'])),
                 settings=dict(ANALYSIS_MODE='portfolio_cashflow'),configuration=saved['configuration'],calculations=calculations,implementation=numerical)
             with store.lock:
@@ -283,6 +293,7 @@ async def results(id:UUID,request:Request):
         if not store.fingerprint(aid):raise ValueError('Portfolio report is incomplete or changed.')
         report=json.loads((store.root/aid/'report.json').read_text());calc=report['calculations']
         return dict(id=aid,frozen=calc['frozen'],assumptions=calc['assumptions'],allocation_search=calc['allocation_search'],
+            source_coverage=calc.get('source_coverage'),
             abstention_alternative=({k:v for k,v in calc['abstention_alternative'].items() if k in ('allocation','cash','counts','open_accounts')} if calc.get('abstention_alternative') else None),
             results={name:{k:v for k,v in r.items() if k not in ('cash_ledger','trades','sizing_decisions','transitions','pending_settlements','accounts')} for name,r in calc['results'].items()})
     return await invoke(read)

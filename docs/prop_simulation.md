@@ -2823,15 +2823,17 @@ loss; percentage risk is an admission budget, not guaranteed maximum loss.
 
 Actual strategy callbacks, fills, brackets and existing native account owners are
 rerun. Saved completed trades are not multiplied by a retroactively chosen size.
-Sparse pre-entry source bars stay sparse. Portfolio coverage requires the
-scheduled close and observed tradable minutes throughout the possible daytime
-holding window. Before June 28, 2021, it excludes the close labels from
-15:16 through 15:30 Chicago time for the reviewed CME pause. Replay uses the
-original bars, including the observed reopening. Missing tradable minutes,
-missing close bars, incompatible strategy provenance and changed source
-artifacts still stop the job. The error identifies the session and missing
-timestamp. `source_checks.json` records the expected tradable bar count and
-scheduled pause minutes for each session.
+Portfolio replay uses the original observed bars. Missing tradable minutes
+are recorded in `source_checks.json` and replay continues with the next
+observed Open/OHLC. Before June 28, 2021, the expected-minute count excludes
+15:16 through 15:30 Chicago time for the reviewed CME pause. The coverage
+summary counts source gaps in the possible holding window, and the frozen
+account traces identify encounters while a position was open or an entry
+was pending. Fills and price-driven account rule events inside a gap are
+unknown, so observed replay can understate risk. The scheduled close must
+still be observed and the execution must end the session flat on actual
+prices. Incompatible strategy provenance and changed source artifacts still
+stop the job.
 
 ### Allocation and account handling
 

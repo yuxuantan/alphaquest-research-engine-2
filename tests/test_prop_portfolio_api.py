@@ -1,5 +1,7 @@
 """Orchestration boundaries with native analytical fixtures, never portal oracles."""
 import json,time
+from dataclasses import replace
+from datetime import date
 from hashlib import sha256
 from uuid import uuid4
 import pytest
@@ -35,7 +37,13 @@ def test_native_portfolio_routes_durable_freeze_downloads_pins_and_delete(client
     windows={role:dict(start=c['first'],end=c['last']) for role in ['is','oos']}
     def metadata(request,body):return dict(sources=[qualified],windows=windows,allocations=family(1,1,['separate','shared']),allocation_count=3,interpretation='Synthetic analytical fixture, test only')
     monkeypatch.setattr(api,'metadata',metadata)
-    monkeypatch.setattr(adapter,'prepare',lambda **kwargs:dict(c,coverage=[]))
+    day = date.fromisoformat(c['first'])
+    missing = '2026-01-05T21:53:00+00:00'
+    bars = [bar for bar in c['bars'][day] if bar.timestamp_utc.isoformat() != missing]
+    c['bars'][day] = bars
+    c['sessions'][day] = replace(c['sessions'][day], observed_bar_count=len(bars))
+    coverage = [adapter.session_coverage(day, bars[-1].timestamp_utc, 900, [bar.timestamp_utc for bar in bars])]
+    monkeypatch.setattr(adapter,'prepare',lambda **kwargs:dict(c,coverage=coverage))
     body=request_body();check=client.post('/api/prop-sim/portfolio/check',json=body);assert check.status_code==200,check.text
     response=client.post('/api/prop-sim/portfolio',json=body);assert response.status_code==202,response.text
     parent=response.json();id=parent['id'];aid=parent['portfolio']['analysis_id'];store=client.app.state.prop_analyses
@@ -51,6 +59,10 @@ def test_native_portfolio_routes_durable_freeze_downloads_pins_and_delete(client
     frozen=report.json()['frozen'];expected=frozen.pop('sha256');assert sha256(canonical(frozen).encode()).hexdigest()==expected
     assert frozen['allocation']==dict(placement='separate',counts=[0])
     assert all(r['cash']['net_cash']=='0.00' for r in report.json()['results'].values())
+    assert report.json()['source_coverage']['missing_holding_minutes']==1
+    assert report.json()['source_coverage']['exposed_account_encounters']==0
+    source_checks=client.get('/api/prop-analyses/'+aid+'/files/source_checks.json').json()
+    assert source_checks['coverage'][0]['holding_gap_ranges_utc']==[[missing]*2]
     for filename in ['analysis.zip','report.json','portfolio_frozen.json','combined_cash_ledger.csv','source_checks.json']:
         assert client.get('/api/prop-analyses/'+aid+('/downloads/' if filename in ('analysis.zip','report.json') else '/files/')+filename).status_code==200
     assert client.get('/api/jobs/prop_analysis/'+aid).json()['links'][0]['href']=='#prop-sim?analysis='+id

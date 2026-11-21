@@ -15,7 +15,7 @@ from ..strategies.registry import get_strategy
 from ..strategy import ExecutionConfig
 from ..optimization_cache import artifacts,digest
 from .native_control import SessionContext
-from .native_market_hours import scheduled_pause_bar_labels
+from .native_market_hours import missing_minute_ranges, scheduled_pause_bar_labels
 from .phase_profiles import EvaluationProfile,FundedProfile,SizingConfiguration,rule_version
 from .phase_search import PhaseCalendar
 from .evaluation_optimization import SequentialRetry
@@ -47,7 +47,7 @@ class SessionBars(Mapping):
 
 
 def session_coverage(day, close, entry, timestamps):
-    """Require observed tradable minutes from entry through the session close."""
+    """Inventory missing tradable minutes and require an observed session close."""
     begin = datetime.combine(day - timedelta(days=1), time(17, 1), CT).astimezone(timezone.utc)
     risk_start = datetime.combine(day, time(entry // 100, entry % 100), CT).astimezone(timezone.utc)
     stamps = set(timestamps)
@@ -59,24 +59,19 @@ def session_coverage(day, close, entry, timestamps):
         raise ValueError(f'Portfolio session {day} needs an observed bar at the scheduled close ({close.isoformat()}).')
 
     paused = {t for t in scheduled_pause_bar_labels(day) if begin <= t <= close}
-    minute = risk_start
-    while minute <= close:
-        if minute not in stamps and minute not in paused:
-            local = minute.astimezone(CT).strftime('%H:%M')
-            raise ValueError(f'Portfolio session {day} is missing a tradable one-minute bar at {local} America/Chicago '
-                             f'({minute.isoformat()}) in the possible holding window through the scheduled close.')
-        minute += timedelta(minutes=1)
-
-    flat_end = min(risk_start, close + timedelta(minutes=1))
-    excluded = paused - stamps
+    missing = missing_minute_ranges(day, stamps, close)
+    holding = [(max(first, risk_start), last) for first, last in missing if last >= risk_start]
+    total_missing = sum(int((last - first) // timedelta(minutes=1)) + 1 for first, last in missing)
+    holding_missing = sum(int((last - first) // timedelta(minutes=1)) + 1 for first, last in holding)
     return dict(session=str(day), observed_bars=len(stamps),
                 expected_full_session_bars=int((close - begin).total_seconds() // 60) + 1 - len(paused),
                 scheduled_pause_minutes=len(paused),
-                verified_holding_interval_start=risk_start.isoformat() if risk_start <= close else None,
-                verified_holding_interval_end=close.isoformat() if risk_start <= close else None,
+                possible_holding_start_utc=risk_start.isoformat() if risk_start <= close else None,
+                observed_close_utc=close.isoformat(),
                 entry_window_before_close=risk_start < close,
-                missing_pre_entry_bars=int((flat_end - begin).total_seconds() // 60)
-                - sum(t < flat_end for t in stamps) - sum(t < flat_end for t in excluded))
+                missing_pre_entry_bars=total_missing - holding_missing,
+                missing_holding_minutes=holding_missing,
+                holding_gap_ranges_utc=[(first.isoformat(), last.isoformat()) for first, last in holding])
 
 
 def prepare(datasets,runs,qualified,settings,*,start,end,checkpoint=lambda:None,bar_directory=None):

@@ -16,6 +16,7 @@ from .phase_profiles import SizingConfiguration
 from .sizing import SizingPolicy
 from .portfolio_cash import PortfolioCash
 from .native_control import ExecutionSnapshot
+from .native_market_hours import ObservedExposureCoverage
 
 
 class BudgetEvaluation(NativeEvaluationController):
@@ -100,6 +101,13 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
     """One synchronized observed history, including every replacement and fee."""
     first,last=map(date.fromisoformat,(context['first'],context['last']));cutoff=last+timedelta(days=1)
     budget=PortfolioCash(context['monthly_cap'],str(cutoff));specs=context['strategies']
+    gap_ranges = {
+        date.fromisoformat(row['session']): [
+            (datetime.fromisoformat(start), datetime.fromisoformat(end))
+            for start, end in row['holding_gap_ranges_utc']
+        ]
+        for row in context.get('coverage', ()) if capture and row['holding_gap_ranges_utc']
+    }
     slots=[];accounts=[];trades=[];decisions=[];transitions=[];counts=dict(evaluation_attempts=0,funded_accounts=0,
         funded_breaches=0,funded_payout_completions=0,funded_inactivity_closures=0,shared_signal_conflicts=0)
     if allocation['placement']=='separate':
@@ -165,6 +173,8 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
             if day not in context['sessions']:continue
             sequence=[replace(bar,bar_number=i+1) for i,bar in enumerate(context['bars'][day])]
             if not sequence:raise ValueError('An observed portfolio session has no actual bars.')
+            if day in gap_ranges:
+                owner.observed_coverage = ObservedExposureCoverage(gap_ranges[day])
             before=len(owner.sizing_trace.decisions);attempts=len(owner.attempts) if slot['phase']=='evaluation' else 0
             conflicts=slot['strategy'].conflicts
             for event in execute(sequence,slot['strategy'],context['execution'],account_control=owner,
@@ -175,6 +185,7 @@ def run_lineup(context,allocation,*,capture=False,checkpoint=lambda:None,progres
                         strategy=slot['strategy'].active,entry=event.entry_time_utc.isoformat(),exit=event.exit_time_utc.isoformat(),
                         entry_fill_price=str(event.entry_fill_price),exit_fill_price=str(event.exit_fill_price),
                         total_commissions=str(event.total_commissions),gross_pnl=str(event.gross_pnl),net_pnl=str(event.net_pnl)))
+            owner.observed_coverage = None
             counts['shared_signal_conflicts']+=slot['strategy'].conflicts-conflicts
             if capture:decisions.extend(dict(d,slot=number,date=str(day)) for d in owner.sizing_trace.decisions[before:])
             if slot['phase']=='evaluation':counts['evaluation_attempts']+=len(owner.attempts)-attempts

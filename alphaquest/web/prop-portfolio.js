@@ -32,6 +32,14 @@
           for(const [name,title,note] of [['is','IS selection','Used to choose the allocation'],['oos','OOS · fresh start','Same allocation, starting unfunded'],['combined','Full period','Carries open accounts through the IS/OOS boundary']]){
             const c=r[name].cash,card=node('section',undefined,'prop-sim-insight');card.append(node('span',title,'pill neutral'),node('h3',money(c.net_cash)),node('p',`${money(c.received_trader_cash)} received − ${money(c.paid_fees)} fees`),node('small',note));cards.append(card);
           }body.append(cards);if(empty)body.append(node('p','No account allocation delivered positive received cash after fees during this IS window. The zero-purchase baseline therefore wins; OOS does not substitute another allocation. Inspect the IS comparison below to see the alternatives.','field-help'));
+          const coverage=report.source_coverage;
+          if(coverage?.affected_sessions){
+            const note=node('section',undefined,'prop-sim-insight');
+            note.append(node('h3','Missing bars in the source'),
+              node('p',`${coverage.missing_holding_minutes} missing tradable minutes across ${coverage.affected_sessions} sessions in the possible holding window. Replay continued at the next observed bar. Fills and account breaches inside the gaps are unknown.`),
+              node('p',`The full-period frozen allocation encountered ${coverage.exposed_account_encounters} gaps across accounts with a position open or an entry pending.`,'field-help'));
+            link(note,'Download source coverage','/api/prop-analyses/'+report.id+'/files/source_checks.json');body.append(note);
+          }
           const allocation=node('section');allocation.id='portfolio-allocation';allocation.append(node('h3','Frozen allocation'));
           const names=saved.portfolio_sources.map(s=>s.strategy_id.replaceAll('_',' ')+` · Broad ${s.broad_trial} / Narrow ${s.narrow_trial}`);
           if(a.placement==='separate')a.counts.forEach((count,i)=>allocation.append(node('p',`${count} ${count===1?'account':'accounts'} · ${names[i]}`)));

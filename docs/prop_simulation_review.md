@@ -13918,3 +13918,23 @@ read the saved declarations, source reports and timestamps without submitting
 another analysis. Evidence is in `artifacts/portfolio-pause-20261121/`.
 The synthetic tests independently check the pause, a missing reopening bar, a
 missing close, and the same 15-minute hole after the pause was removed.
+
+### 2026-11-21 — Portfolio replay continues across missing minutes
+
+Open the saved LucidFlex analysis `0ac21bb0d9b2418b924031edf9e91987` in
+**Prop Sim → Portfolio & cash flow**. **Retry this saved configuration** uses
+its existing two qualified campaign configurations and all 16 allocations.
+The failed attempt remains in Job history. The source check covers 1,034 IS
+and 391 OOS sessions on `ofb_bars_NQ`. Every scheduled close is present. It
+records four missing minutes in possible holding windows, on 2021-03-16,
+2021-06-15, 2025-04-02 and 2025-06-17. The source scan is saved in
+`artifacts/portfolio-observed-bars-20261121/saved-window-coverage.json`.
+
+On completion, **Missing bars in the source** shows those four minutes and
+the number of encounters with exposure in the frozen full-period replay.
+**Download source coverage** lists the exact UTC timestamps. The detailed
+account traces record whether a position was open, an entry was pending or
+the account was flat. The synthetic replay test opens ten MNQ at 118, omits
+the following bar, and fills at the next observed Open of 111 for a loss
+of $140, with zero commissions. The missing-close test still rejects a
+session without its scheduled closing bar.
