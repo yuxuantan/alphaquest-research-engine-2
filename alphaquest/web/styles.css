@@ -1949,8 +1949,17 @@ dialog::backdrop {
 .broad-panel fieldset { border:0; padding:0; margin:0; min-width:0; }
 .broad-panel fieldset > label { display:grid; gap:8px; max-width:240px; }
 :is(#broad-results-scroll,#narrow-results-scroll,#oos-results-scroll) { max-height:min(620px,calc(100dvh - 48px)); }
-:is(#broad-results,#narrow-results,#oos-results) tr.broad-ineligible td { background:#303b44; color:#d8dfe4; border-color:#45535e; }
-:is(#broad-results,#narrow-results,#oos-results) tr.broad-ineligible a { color:#d8dfe4; }
+:is(#broad-results,#narrow-results,#oos-results) tr.broad-ineligible {
+  --ineligible-background: #303b44;
+  --ineligible-text: #d8dfe4;
+  --ineligible-border: #45535e;
+}
+:is(#broad-results,#narrow-results,#oos-results) tr.broad-ineligible td {
+  background: var(--ineligible-background);
+  color: var(--ineligible-text);
+  border-color: var(--ineligible-border);
+}
+:is(#broad-results,#narrow-results,#oos-results) tr.broad-ineligible a { color:var(--ineligible-text); }
 :is(#broad-results,#narrow-results,#oos-results) input[type=checkbox] { width:18px; height:18px; accent-color:var(--accent); }
 .broad-panel .optimization-freeze { margin:18px 0; }
 #broad-frozen pre,.workflow-input-card pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
@@ -2122,6 +2131,24 @@ dialog::backdrop {
 .research-risk-diagnostics { grid-column: 1 / -1; min-width: 0; }
 .research-risk-diagnostics > div { margin-top: 1rem; min-width: 0; }
 .research-risk-diagnostics .optimization-scroll { max-height: 24rem; }
+:is(#broad-results,#narrow-results,#oos-results) .broad-ineligible .research-risk-diagnostics {
+  background: var(--ineligible-background);
+  border-color: var(--ineligible-border);
+}
+:is(#broad-results,#narrow-results,#oos-results) .broad-ineligible .research-risk-diagnostics .field-help {
+  color: inherit;
+}
+:is(#broad-results,#narrow-results,#oos-results) .broad-ineligible .research-risk-diagnostics .optimization-scroll {
+  border-color: var(--ineligible-border);
+}
+:is(#broad-results,#narrow-results,#oos-results) .broad-ineligible .research-risk-diagnostics :is(thead th,.workflow-notice) {
+  background: #3b4954;
+  color: var(--ineligible-text);
+  border-color: var(--ineligible-border);
+}
+:is(#broad-results,#narrow-results,#oos-results) .broad-ineligible .research-risk-diagnostics thead th {
+  box-shadow: 0 1px 0 var(--ineligible-border);
+}
 
 /* Complementary Prop Sim evidence: readable findings before optional detail. */
 .prop-evidence-candidate { border-top:1px solid #dce4e8; margin-top:20px; padding-top:20px; min-width:0; }

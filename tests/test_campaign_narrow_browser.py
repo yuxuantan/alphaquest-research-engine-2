@@ -84,6 +84,35 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     playwright.expect(boundary).to_contain_text('Insufficient evidence: 1 tested neighbors')
     playwright.expect(boundary).to_contain_text('One-sided boundary assessment: Hold minutes')
     boundary.locator('summary').click()
+    report_cell=page.locator('#narrow-results tr.broad-ineligible[data-trial="1"] > td[data-column="run_id"]')
+    diagnostics=report_cell.locator('.research-risk-diagnostics')
+    diagnostics.locator(':scope > summary').click()
+    playwright.expect(diagnostics.get_by_role('link',name='Risk diagnostics JSON ↓')).to_be_visible()
+    contrast=diagnostics.evaluate(r'''panel => {
+        const luminance = color => {
+            const channels = color.match(/\d+/g).slice(0, 3).map(value => {
+                const s = Number(value) / 255;
+                return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+            });
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+        };
+        const background = getComputedStyle(panel).backgroundColor;
+        const header = getComputedStyle(panel.querySelector('th'));
+        const ratio = (text, surface) => {
+            const levels = [luminance(text), luminance(surface)].sort((a, b) => b - a);
+            return (levels[0] + 0.05) / (levels[1] + 0.05);
+        };
+        return {
+            matchesRow: background === getComputedStyle(panel.closest('td')).backgroundColor,
+            summary: ratio(getComputedStyle(panel.querySelector('summary')).color, background),
+            help: ratio(getComputedStyle(panel.querySelector('.field-help')).color, background),
+            header: ratio(header.color, header.backgroundColor),
+            headerIsDark: luminance(header.backgroundColor) < 0.12,
+        };
+    }''')
+    assert contrast['matchesRow'] and contrast['headerIsDark']
+    assert min(contrast['summary'],contrast['help'],contrast['header'])>=4.5
+    diagnostics.locator(':scope > summary').click()
     for trial in (2,3):
         with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
             page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
