@@ -3,7 +3,7 @@
   const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const fmt=v=>v==null?'Unavailable':Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const pct=v=>v==null?'Unavailable':fmt(Number(v)*100)+'%';
-  const read=async(url,method='GET',body)=>{const r=await fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const value=await r.json();if(!r.ok)throw Error(typeof value.detail==='string'?value.detail:JSON.stringify(value.detail));return value;};
+  const read=async(url,method='GET',body)=>{const r=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const value=await r.json();if(!r.ok)throw Error(typeof value.detail==='string'?value.detail:JSON.stringify(value.detail));return value;};
   const link=(parent,text,href)=>{const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);};
   const detail=(parent,title,value)=>{const d=node('details');d.append(node('summary',title),node('pre',JSON.stringify(value,null,2)));parent.append(d);return d;};
   const policyLabel=c=>c.sizing?.policy?.kind==='percentage_risk'?`${c.sizing.policy.risk_percent}% · ${c.sizing.policy.reference.replaceAll('_',' ')} (cap ${c.sizing.policy.maximum_contracts} MNQ)`:`${c.micros} MNQ`;
@@ -123,7 +123,8 @@
     if(location.hash.split('?')[0]!=='#prop-sim')return;
     const version=generation,alive=()=>version===generation&&location.hash.split('?')[0]==='#prop-sim',host=document.querySelector('#prop-sim-content');
     const query=new URLSearchParams(location.hash.split('?')[1]||''),selectedId=query.get('analysis'),sourceId=query.get('source'),deletedId=query.get('deleted');
-    host.replaceChildren(node('p','Loading qualified configurations…'));
+    const finishSectionLoading=window.portalLoading.region(host,'Loading simulation settings…');
+    try {
     try{
       if(query.get('mode')==='portfolio'){await window.propPortfolio.render(host);return;}
       if(selectedId){const parent=await read('/api/prop-sim/'+selectedId);if(!alive())return;if(parent.configuration.mode==='portfolio'){await window.propPortfolio.render(host,parent);return;}}
@@ -139,7 +140,7 @@
       const label=node('label','Campaign configuration'),picker=node('select');picker.id='prop-sim-source';picker.disabled=true;picker.add(new Option('Loading qualified configurations…',''));
       sources.items.forEach((item,i)=>picker.add(new Option(`${item.strategy_id.replaceAll('_',' ')} · ${item.dataset.name} · Broad ${item.broad_trial} / Narrow ${item.narrow_trial}`,String(i))));label.append(picker);sourceBox.append(label);
       sourceBox.append(node('p','Only confirmed mechanics, IS Broad, IS Narrow, OOS and current Monte Carlo passes are selectable. One configuration per simulation.','field-help'));
-      const sourceLoading=node('p','Checking available configurations in the background…','field-help');sourceLoading.id='prop-sim-source-loading';sourceLoading.setAttribute('role','status');const retrySources=node('button','Retry loading configurations','button secondary');retrySources.type='button';retrySources.hidden=true;retrySources.id='prop-sim-source-retry';sourceBox.append(sourceLoading,retrySources);
+      const sourceLoading=node('p','Checking available configurations in the background…','field-help');sourceLoading.id='prop-sim-source-loading';sourceLoading.setAttribute('role','status');const retrySources=node('button','Retry loading configurations','button secondary');retrySources.type='button';retrySources.hidden=true;retrySources.id='prop-sim-source-retry';sourceBox.append(sourceLoading,retrySources);window.portalLoading.begin(sourceLoading);
       if(sources.unavailable.length)detail(sourceBox,'Unavailable sources and reasons',sources.unavailable);
       const sourceInfo=node('div');sourceInfo.id='prop-sim-source-details';sourceBox.append(sourceInfo);
       const accountBox=node('section');accountBox.append(node('h2','2. Prop account'));
@@ -428,7 +429,7 @@
           forwardBox.hidden=!hasQualification||!model.current||!model.forwardEligible;
           paintConclusions();
         }
-        async function loadCard(attempt,box){if(attempt.status!=='complete'||box.dataset.loaded||box.dataset.loading)return;box.dataset.loading='true';try{const study=await read(url+'/'+attempt.request_id+'?summary=true');if(!alive())return;summaries.set(attempt.request_id,study);if(!workspace||!['qualification','forward_review'].includes(attempt.kind)){studyTable(box,study);box.dataset.studyRendered='true';}box.dataset.loaded='true';if(attempt===displayAttempt)showConclusion();}finally{delete box.dataset.loading;}}
+        async function loadCard(attempt,box){if(attempt.status!=='complete'||box.dataset.loaded||box.dataset.loading)return;box.dataset.loading='true';const finishLoading=window.portalLoading.begin(workspace?.phases[phase].conclusion.querySelector('h4')||box);try{const study=await read(url+'/'+attempt.request_id+'?summary=true');if(!alive())return;summaries.set(attempt.request_id,study);if(!workspace||!['qualification','forward_review'].includes(attempt.kind)){studyTable(box,study);box.dataset.studyRendered='true';}box.dataset.loaded='true';if(attempt===displayAttempt)showConclusion();}finally{finishLoading();delete box.dataset.loading;}}
         function card(attempt){let box=cards.get(attempt.request_id);if(!box){box=node('section',undefined,'prop-sim-assessment panel');box.dataset.assessment=attempt.request_id;box.append(node('h4',attempt.report_options?.policy?.version==='prop-complementary-evidence-v2'?'OOS evidence review':studyNames[attempt.kind]||'Saved assessment'));const status=node('p');status.setAttribute('role','status');box.append(status);const confidence=node('div');confidence.className='prop-confidence-progress';box.append(confidence);const links=node('div',undefined,'mechanic-downloads prop-sim-study-links');if(attempt.analysis_id){link(links,'Job history / progress',`#jobs/prop_analysis/${attempt.analysis_id}`);link(links,'Assessment report JSON ↓',`/api/prop-analyses/${attempt.analysis_id}/downloads/report.json`);link(links,'Assessment evidence ZIP ↓',`/api/prop-analyses/${attempt.analysis_id}/downloads/analysis.zip`);}box.append(links);cards.set(attempt.request_id,box);}box.querySelector('[role=status]').textContent=`${attempt.status.toUpperCase()} · ${attempt.analysis?.progress||attempt.error||'Preparing inputs'}`;window.renderPropProgress(box.querySelector('.prop-confidence-progress'),attempt.analysis?.progress_details,attempt.status);if(['queued','running'].includes(attempt.status)&&!box.querySelector('[data-stop-study]')){const stop=node('button','Stop assessment','button secondary');stop.type='button';stop.dataset.stopStudy='true';stop.onclick=async()=>{stop.disabled=true;try{await read(`/api/prop-analyses/${attempt.analysis_id}/cancel`,'POST');}catch(e){message.textContent=e.message;}await refreshValidation();};box.append(stop);}if(!['queued','running'].includes(attempt.status))box.querySelector('[data-stop-study]')?.remove();return box;}
         async function reveal(id){const attempt=lastAttempts.find(a=>a.request_id===id),box=cards.get(id);if(!attempt||!box)return;for(let p=box.parentElement;p&&p!==root;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;try{await loadCard(attempt,box);if(workspace&&['qualification','forward_review'].includes(attempt.kind)){const study=summaries.get(id);if(study){workspace.present(phase,study,window.propSimConclusion.describe(study.calculations.candidates,{current:attempt===displayAttempt&&displayCurrent}));workspace.show(phase,'evidence');return;}}box.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){message.textContent=e.message;}}
         let lastAttempts=[];
@@ -559,7 +560,7 @@
           window.renderPropProgress(panel.querySelector('#prop-sim-'+phase+'-live-progress'),job.progress_details,job.status);
           if(job.analysis_id){let links=workspace?.phases[phase].jobLinks||panel.querySelector('.prop-sim-job-link');if(!links){links=node('div',undefined,'mechanic-downloads prop-sim-job-link');panel.append(links);}links.replaceChildren();link(links,'View job',`#jobs/prop_analysis/${job.analysis_id}`);}
           try{
-            if(job.status==='complete'&&loaded[phase]!==job.analysis_id){const report=await read(`/api/prop-sim/${selectedId}/results/${phase}${workspace?'?summary=true':''}`);if(!alive())return false;table(panel,phase,report);loaded[phase]=job.analysis_id;panel.querySelector('.prop-results-load-error')?.remove();}
+            if(job.status==='complete'&&loaded[phase]!==job.analysis_id){const finishLoading=window.portalLoading.begin(state,{label:'Loading saved IS results…'});let report;try{report=await read(`/api/prop-sim/${selectedId}/results/${phase}${workspace?'?summary=true':''}`);}finally{finishLoading();workspace?.update(saved);}if(!alive())return false;table(panel,phase,report);loaded[phase]=job.analysis_id;panel.querySelector('.prop-results-load-error')?.remove();}
             const running=validationControllers[phase]?await validationControllers[phase].refresh():false;panel.querySelector('.prop-results-load-error')?.remove();return running;
           }catch(error){if(!alive())return false;let issue=panel.querySelector('.prop-results-load-error');if(!issue){issue=node('div',undefined,'prop-results-load-error');issue.setAttribute('role','alert');const heading=panel.querySelector('.prop-workspace-phase-heading');if(heading)heading.after(issue);else panel.prepend(issue);}issue.replaceChildren(node('p','Could not load saved results: '+error.message));const retry=node('button','Retry loading results','button secondary');retry.type='button';retry.onclick=()=>{issue.textContent='Loading saved results…';refresh();};issue.append(retry);return false;}
         }));
@@ -573,6 +574,7 @@
       if(selectedId){await refresh();if(!alive())return;if(saved){sizingMode.value=saved.configuration.search_kind||'fixed_contracts';for(const phase of ['evaluation','funded']){const handling=saved.configuration[phase+'_trade_handling'];if(handling){tradeFields[phase].action.value=handling.account_limit_action;tradeFields[phase].minimum.checked=handling.minimum_one_contract;}const grid=saved.configuration[phase+'_percentage_grid'];if(grid)for(const [key,input] of Object.entries(riskFields[phase])){if(input.type==='checkbox')input.checked=grid[key];else input.value=String(grid[key]);}}toggleSizing();accountPicker.value=saved.configuration.profile_id||'apex-50k-eod';dll.checked=saved.configuration.daily_loss_limit??true;consistency.value=String(saved.configuration.evaluation_consistency_percent??40);const index=sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0]));if(index>=0)picker.value=String(index);for(const [name] of names){const value=name.endsWith('_micros')?range(saved.configuration,name.split('_')[0])[name.includes('_minimum_')?'minimum':'maximum']:saved.configuration[name];fields[name].value=name==='closures'?value.join(','):String(value??'');}applyAccount(false);select();}}
       else update();
       function showSources({value,error}){
+        window.portalLoading.clear(sourceLoading);
         if(!alive())return;
         if(error){sourceLoading.textContent='Could not load qualified configurations: '+error.message;picker.replaceChildren(new Option('Configurations unavailable',''));picker.disabled=true;retrySources.hidden=false;return;}
         retrySources.hidden=true;
@@ -583,9 +585,10 @@
         const index=saved?sources.items.findIndex(s=>JSON.stringify(s.selection)===JSON.stringify(saved.configuration.selections[0])):sourceId?sources.items.findIndex(s=>[s.source_backtest_id,s.oos_report_id].includes(sourceId)):-1;
         if(index>=0){picker.value=String(index);select();}else update();
       }
-      retrySources.onclick=async()=>{retrySources.hidden=true;sourceLoading.textContent='Checking available configurations…';picker.replaceChildren(new Option('Loading qualified configurations…',''));showSources(await read('/api/prop-sim/candidates').then(value=>({value})).catch(error=>({error})));};
+      retrySources.onclick=async()=>{window.portalLoading.begin(sourceLoading);retrySources.hidden=true;sourceLoading.textContent='Checking available configurations…';picker.replaceChildren(new Option('Loading qualified configurations…',''));showSources(await read('/api/prop-sim/candidates').then(value=>({value})).catch(error=>({error})));};
       sourceRequest.then(showSources);
     }catch(error){if(alive())host.replaceChildren(node('p',error.message));}
+    } finally { finishSectionLoading(); }
   }
   window.addEventListener('hashchange',render);render();
 })();

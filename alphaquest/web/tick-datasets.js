@@ -8,7 +8,7 @@
   let inventory=[];
   async function add(){
     try{
-      inventory=(await (await fetch('/api/datasets')).json()).filter(x=>x.tick_data);
+      inventory=(await (await window.portalLoading.fetch('/api/datasets')).json()).filter(x=>x.tick_data);
       if(!inventory.length){status.textContent='Import a trade tick contract file first.';return;}
       const row=document.createElement('div');row.className='fields';
       for(const [label,type] of [['Contract source','select'],['First CME session','date'],['Last CME session','date']]){
@@ -25,7 +25,7 @@
     const button=e.currentTarget;button.disabled=true;status.textContent='Checking sources and building observed minutes…';
     try{
       const segments=[...rows.children].map(row=>({dataset_id:row.querySelector('select').value,first_session:row.querySelectorAll('input')[0].value,last_session:row.querySelectorAll('input')[1].value}));
-      const response=await fetch('/api/datasets/ticks/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:details.querySelector('#tick-roll-name').value,symbol:details.querySelector('#tick-roll-symbol').value.trim(),segments})});
+      const response=await window.portalLoading.fetch('/api/datasets/ticks/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:details.querySelector('#tick-roll-name').value,symbol:details.querySelector('#tick-roll-symbol').value.trim(),segments})});
       const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));
       status.textContent=`Saved ${result.name}: ${result.tick_data.records.toLocaleString()} trades. Available in campaign dataset selection.`;
       window.dispatchEvent(new Event('datasets-changed'));location.reload();

@@ -98,7 +98,7 @@
     }
   }
   async function request(path, bytes, filename, signal) {
-    const response = await fetch(`${path}?${new URLSearchParams({filename})}`, {
+    const response = await window.portalLoading.fetch(`${path}?${new URLSearchParams({filename})}`, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: bytes, signal,
     });
     let data;

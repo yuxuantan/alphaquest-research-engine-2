@@ -159,13 +159,15 @@
     if (state.busy || state.loading) return;
     state.loading = true;
     get("#backtest-options-status").textContent = "Loading datasets and strategies…";
+    const finishSectionLoading=window.portalLoading.begin(get("#backtest-options-status"));
+    try {
     get("#backtest-error").hidden = true;
     controls();
     void window.optimizations.loadSettings();
     try {
       const [datasets, strategies] = await Promise.all([
-        fetch("/api/datasets", { cache: "no-store" }).then(readResponse),
-        fetch("/api/strategies", { cache: "no-store" }).then(readResponse),
+        window.portalLoading.fetch("/api/datasets", { cache: "no-store" }).then(readResponse),
+        window.portalLoading.fetch("/api/strategies", { cache: "no-store" }).then(readResponse),
       ]);
       const preset = new URLSearchParams(location.hash.split("?")[1] || "");
       const previousDataset = datasetSelect.value;
@@ -203,6 +205,7 @@
       state.loading = false;
       controls();
     }
+    } finally { finishSectionLoading(); }
   }
 
   function configuration() {
@@ -404,7 +407,7 @@
     let pollTimer, finished = false;
     const poll = async () => {
       try {
-        const response = await fetch(`/api/progress/${operationId}`, {cache: "no-store"});
+        const response = await window.portalLoading.fetch(`/api/progress/${operationId}`, {cache: "no-store"});
         if (response.ok && current() && !finished) {
           const progress = await response.json();
           status.textContent = `Generating ${risk ? "intratrade risk" : "full detail"} · ${progress.stage.replaceAll("_", " ")} · ${count.format(progress.bars_processed)} / ${count.format(progress.total_bars)} bars`;
@@ -414,7 +417,7 @@
     };
     void poll();
     try {
-      const record = await readResponse(await fetch(`/api/backtests/${id}/${risk ? "risk" : "detailed"}?progress_id=${operationId}`, {method: "POST"}));
+      const record = await readResponse(await window.portalLoading.fetch(`/api/backtests/${id}/${risk ? "risk" : "detailed"}?progress_id=${operationId}`, {method: "POST"}));
       if (current()) location.hash = `#backtests/report/${record.id}`;
     } catch (error) {
       if (current()) status.textContent = error instanceof TypeError
@@ -440,7 +443,7 @@
       controls();
       try {
         const {strategy_parameters, ...declaration} = payload;
-        const response = await fetch('/api/campaign-workflows', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(declaration)});
+        const response = await window.portalLoading.fetch('/api/campaign-workflows', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(declaration)});
         const workflow = await readResponse(response);
         location.hash = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
       } catch (error) { showError(error, 'Could not configure mechanic validation'); }
@@ -475,7 +478,7 @@
       stopRequested = true;
       stopBacktest.disabled = true;
       try {
-        const response = await fetch(`/api/backtests/progress/${operationId}/stop`, {method:"POST"});
+        const response = await window.portalLoading.fetch(`/api/backtests/progress/${operationId}/stop`, {method:"POST"});
         await readResponse(response);
         stopBacktest.textContent = "Stop requested";
         get("#backtest-progress-note").textContent = "Stopping at the next backtest checkpoint…";
@@ -491,7 +494,7 @@
     const elapsedTimer = setInterval(() => paintProgress(current, started), 250);
     const poll = async () => {
       try {
-        const response = await fetch(`/api/progress/${operationId}`, { cache: "no-store", signal: abortPoll.signal });
+        const response = await window.portalLoading.fetch(`/api/progress/${operationId}`, { cache: "no-store", signal: abortPoll.signal });
         if (response.ok) {
           const progress = await response.json();
           if (finished) return;
@@ -516,7 +519,7 @@
     poll();
     try {
       payload.reuse_results=get("#optimization-reuse").checked;
-      const response = await fetch(`/api/backtests?progress_id=${operationId}`, {
+      const response = await window.portalLoading.fetch(`/api/backtests?progress_id=${operationId}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       const record = await readResponse(response);

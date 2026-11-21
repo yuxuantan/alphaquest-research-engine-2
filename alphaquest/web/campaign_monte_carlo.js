@@ -5,7 +5,7 @@
   let generation=0,timer;
   function dispose(){++generation;clearTimeout(timer);}
   async function read(url,method='GET',body){
-    const response=await fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});
+    const response=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});
     const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Monte Carlo request rejected.');return data;
   }
   function link(parent,text,href){const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);}
@@ -67,8 +67,9 @@
     }
     async function refresh(){
       clearTimeout(timer);
+      const finishLoading=!data?window.portalLoading.begin(status,{label:'Loading Monte Carlo evidence…'}):()=>{};
       try{const next=await read(base+'?job='+oosJobId);if(!alive())return;data=next;paint();if(['queued','running'].includes(data.job?.status))timer=setTimeout(refresh,2500);}
-      catch(exc){if(alive())error.textContent=exc.message;}
+      catch(exc){if(alive()){error.textContent=exc.message;status.textContent='Could not load Monte Carlo evidence.';}}finally{finishLoading();}
     }
     run.onclick=async()=>{if(busy)return;busy=true;paint();error.textContent='';try{await read(base+'/run','POST',{job_id:oosJobId,workers:Number(workers.value)});if(alive())await refresh();}catch(exc){if(alive())error.textContent=exc.message;}finally{busy=false;if(alive()&&data)paint();}};
     stop.onclick=async()=>{if(busy||!data.job)return;busy=true;paint();try{await read(`/api/prop-analyses/${data.job.id}/cancel`,'POST');if(alive())await refresh();}catch(exc){if(alive())error.textContent=exc.message;}finally{busy=false;if(alive())paint();}};

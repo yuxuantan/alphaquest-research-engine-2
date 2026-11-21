@@ -20,7 +20,7 @@
     more.append(el('p',d.pnl_scope||'Trade P&L attribution is not an estimate of the missing-data effect, provider withdrawals or trader receipts.'));
     parent.append(box);
   }
-  async function post(body,path='/api/prop-analyses/check'){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
+  async function post(body,path='/api/prop-analyses/check'){const r=await window.portalLoading.fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
   function dateRows(host,title,cls,{minimum=0,maximum=366,withTime=false}={}){
     const section=el('section');section.style.gridColumn='1 / -1';section.append(el('h4',title));host.append(section);const rows=el('div');section.append(rows);
     const add=el('button','Add '+(withTime?'early close':'date'));add.type='button';add.className='button secondary';add.id=cls+'-add';section.append(add);

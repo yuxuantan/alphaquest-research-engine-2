@@ -12,7 +12,7 @@
   const link = (text, href) => { const element = node('a', text); element.href = href; return element; };
   let generation = 0;
   async function api(path, body) {
-    const response = await fetch(path, body === undefined ? {cache: 'no-store'} : {
+    const response = await window.portalLoading.fetch(path, body === undefined ? {cache: 'no-store'} : {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
     });
     const result = await response.json();
@@ -913,9 +913,9 @@
     const history = node('div'), disclosure = node('details'); history.dataset.setupHistory='research'; disclosure.id = 'robust-configure';
     disclosure.append(node('summary', 'Configure nested research'));
     panel.append(history, disclosure);
-    const loading = node('p', 'Loading research settings…'); disclosure.append(loading);
+    const loading = window.portalLoading.message('Loading research settings…'); disclosure.append(loading);
     let defaults;
-    try { defaults = await api(`${base}/defaults`); } catch (error) { loading.textContent = `Research settings unavailable: ${error.message}`; return; }
+    try { defaults = await api(`${base}/defaults`); } catch (error) { loading.textContent = `Research settings unavailable: ${error.message}`; window.portalLoading.clear(loading);return; }
     if (!current()) return;
     loading.remove();
     const form = node('form'); form.id = 'robust-form'; disclosure.append(form);
@@ -948,7 +948,7 @@
     }
     async function loadSources(reset = false) {
       const attempt = ++searchVersion, type = kind.value;
-      more.disabled = true; sourceStatus.textContent = 'Loading saved IS sources…';
+      more.disabled = true; sourceStatus.textContent = 'Loading saved IS sources…';const finishLoading=window.portalLoading.begin(sourceStatus);
       try {
         const page = await api(`/api/research-campaigns/sources?${new URLSearchParams({kind: type, q: query.value.trim(), offset: reset ? 0 : offset, limit: 50})}`);
         if (!current() || attempt !== searchVersion) return;
@@ -956,7 +956,7 @@
         drawSources(); more.hidden = offset >= total;
         sourceStatus.textContent = total ? `${matches.length} of ${total} matching sources. Selected sources remain visible when searching.` : 'No matching sources. Selected configurations remain available.';
       } catch (error) { if (current()) sourceStatus.textContent = `Could not load sources: ${error.message}`; }
-      finally { if (current() && attempt === searchVersion) more.disabled = false; }
+      finally { finishLoading();if (current() && attempt === searchVersion) more.disabled = false; }
     }
     more.onclick = () => loadSources();
     kind.onchange = () => { matches = []; drawSources(); loadSources(true); };

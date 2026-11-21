@@ -56,12 +56,14 @@
     workerState = "loading";
     select.replaceChildren(new Option("Loading worker options…", ""));
     get("#optimization-workers-help").textContent = "Loading available worker counts…";
+    const finishSectionLoading=window.portalLoading.begin(get("#optimization-workers-help"));
+    try {
     get("#optimization-workers-retry").hidden = true;
     window.dispatchEvent(new Event("optimization-workers-changed"));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch("/api/backtests/settings", {cache: "no-store", signal: controller.signal});
+      const response = await window.portalLoading.fetch("/api/backtests/settings", {cache: "no-store", signal: controller.signal});
       if ([404, 422].includes(response.status)) throw new Error("This server needs to be restarted to load parallel optimization support. Restart the backend, then retry.");
       if (!response.ok) throw new Error(`Could not load worker options (HTTP ${response.status}). Retry worker options.`);
       settings(await response.json());
@@ -79,9 +81,10 @@
       clearTimeout(timeout);
       window.dispatchEvent(new Event("optimization-workers-changed"));
     }
+    } finally { finishSectionLoading(); }
   }
   async function read(url, options = {}) {
-    const response = await fetch(url, { cache: "no-store", ...options });
+    const response = await window.portalLoading.fetch(url, { cache: "no-store", ...options });
     const result = await response.json();
     if (!response.ok) throw result;
     return result;
@@ -526,7 +529,7 @@
     get("#optimization-cancel-status").hidden = true;
     get("#optimization-resume").hidden = true;
     get("#optimization-resume-error").hidden = true;
-    get("#optimization-status").textContent = "Loading…";
+    get("#optimization-status").replaceChildren(window.portalLoading.message("Loading results…"));
     get("#optimization-results").tHead.replaceChildren();
     get("#optimization-results").tBodies[0].replaceChildren();
     get("#optimization-parameter-legend").hidden = true;

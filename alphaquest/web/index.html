@@ -9,6 +9,7 @@
     />
     <title>Datasets · AlphaQuest</title>
     <link rel="stylesheet" href="/static/styles.css?v=ASSET_VERSION" />
+    <script src="/static/loading.js?v=ASSET_VERSION" defer></script>
     <script src="/static/app.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimization-columns.js?v=ASSET_VERSION" defer></script>
     <script src="/static/parameter-help.js?v=ASSET_VERSION" defer></script>
@@ -84,7 +85,7 @@
         <span
           >Workspace <span class="breadcrumb-slash">/</span>
           <strong id="current-screen">Datasets</strong></span
-        ><div class="topbar-actions"><a class="job-history-link" href="#jobs">Job history</a><span class="version">ALPHAQUEST <span>02</span></span></div>
+        ><div class="topbar-actions"><span id="portal-network-loading" class="portal-network-loading" role="status" aria-live="polite" hidden><span class="portal-spinner" aria-hidden="true"></span>Loading…</span><a class="job-history-link" href="#jobs">Job history</a><span class="version">ALPHAQUEST <span>02</span></span></div>
         <nav class="mobile-nav" aria-label="Mobile navigation">
           <a href="#datasets" data-screen="datasets" aria-current="page">Dataset</a>
           <a href="#research" data-screen="research">Research</a>

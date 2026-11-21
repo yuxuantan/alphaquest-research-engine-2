@@ -2249,3 +2249,12 @@ dialog::backdrop {
  .prop-workspace-phase > .prop-workspace-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
  .prop-workspace-phase > .prop-workspace-tabs [role=tab] { white-space:normal; }
 }
+
+/* Shared, nonblocking loading feedback; calculation progress keeps its own UI. */
+.portal-loading::before,.portal-spinner { content:""; display:inline-block; width:1em; height:1em; flex:none; box-sizing:border-box; border:2px solid #c5ded8; border-top-color:#007a69; border-radius:50%; animation:portal-spin .8s linear infinite; vertical-align:-.12em; }
+.portal-loading::before { width:16px; height:16px; margin-right:8px; }
+.portal-network-loading { display:inline-flex; align-items:center; gap:8px; color:#3f5c67; font-size:13px; white-space:nowrap; }
+.portal-network-loading[hidden] { display:none !important; }
+@keyframes portal-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .portal-loading::before,.portal-spinner { animation:none; } }
+@media (max-width:600px) { .portal-network-loading { font-size:12px; } }

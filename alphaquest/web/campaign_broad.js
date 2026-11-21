@@ -6,7 +6,7 @@
   const displayMetric=value=>value==null||value===''?'N/A':Number.isFinite(Number(value))?twoDecimals.format(value):String(value);
   const metricLabel=name=>name==='max_drawdown_duration_seconds'?'Max drawdown duration · calendar days':label(name);
   const metricValue=(name,value)=>name==='max_drawdown_duration_seconds'&&value!=null&&value!==''?displayMetric(Number(value)/86400):displayMetric(value);
-  const read=async(url,method='GET',body)=>{const response=await fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Check the parameter grid and saved selection.');return data;};
+  const read=async(url,method='GET',body)=>{const response=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Check the parameter grid and saved selection.');return data;};
   let generation=0,timer,columns;
   function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;}
   function action(parent,text,href){const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);return a;}
@@ -14,7 +14,8 @@
     dispose();const version=generation,alive=()=>version===generation&&isCurrent();
     const base=`/api/campaign-workflows/${workflow.id}/broad`;
     const forRun=(path='',params={})=>{const query=new URLSearchParams({...params,...(requestedJob?{job_id:requestedJob}:{})});return base+path+(query.size?'?'+query:'');};
-    parent.replaceChildren(node('p','Loading IS Broad…'));
+    const finishSectionLoading=window.portalLoading.region(parent,'Loading IS Broad…');
+    try {
     try {
       let data=await read(forRun());if(!alive())return;
       let state=data.state,job=data.job,preview=null,busy=false,sort='trial',direction='asc',offset=0;
@@ -180,6 +181,7 @@
       }
       await refresh();
     }catch(error){if(alive())parent.replaceChildren(node('p',error.message));}
+    } finally { finishSectionLoading(); }
   }
   window.campaignBroad={render,dispose};
 })();

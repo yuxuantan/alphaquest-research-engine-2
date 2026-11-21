@@ -5,7 +5,7 @@
   const number=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});
   const metric=(key,value)=>value==null||value===''?'N/A':Number.isFinite(Number(value))?number.format(key==='max_drawdown_duration_seconds'?Number(value)/86400:value):String(value);
   const title=key=>key==='max_drawdown_duration_seconds'?'Max drawdown duration · calendar days':label(key);
-  const read=async(url,method='GET',body)=>{const response=await fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'The saved Narrow request was rejected.');return data;};
+  const read=async(url,method='GET',body)=>{const response=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'The saved Narrow request was rejected.');return data;};
   const action=(parent,text,href)=>{const a=node('a',text,'workflow-inline-link');a.href=href;parent.append(a);return a;};
   function plateauEvidence(parent,plateau){
     if(!plateau)return;
@@ -33,7 +33,8 @@
     if(!branches.length){parent.replaceChildren(node('p','Confirm IS Broad configurations before opening IS Narrow.'));return;}
     const trial=Number(broadTrial)||branches[0].broad_trial;
     const url=(path='',params={})=>base+path+'?'+new URLSearchParams({broad_trial:trial,...params});
-    parent.replaceChildren(node('p','Loading IS Narrow…'));
+    const finishSectionLoading=window.portalLoading.region(parent,'Loading IS Narrow…');
+    try {
     try{
       const detail=await read(url());if(!alive())return;
       let {state,job}=detail,preview=null,busy=false,sort='trial',direction='asc',offset=0,fetching=0,sorting=0,saving=false;
@@ -177,6 +178,7 @@
       paintProgress();
       await refresh();
     }catch(error){if(alive())parent.replaceChildren(node('p',error.message));}
+    } finally { finishSectionLoading(); }
   }
   window.campaignNarrow={render,dispose};
 })();

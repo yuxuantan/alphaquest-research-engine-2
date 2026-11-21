@@ -4,7 +4,7 @@
   const label=value=>value.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
   const number=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});
   const format=value=>value==null?'N/A':Number.isFinite(Number(value))?number.format(value):String(value);
-  const read=async(url,method='GET',body)=>{const response=await fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'OOS request rejected.');return data;};
+  const read=async(url,method='GET',body)=>{const response=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'OOS request rejected.');return data;};
   const link=(parent,text,href)=>{const n=node('a',text,'workflow-inline-link');n.href=href;parent.append(n);};
   let generation=0,timer,columns;
   function dispose(){++generation;clearTimeout(timer);columns?.destroy();columns=null;window.campaignMonteCarlo?.dispose();}
@@ -12,7 +12,8 @@
     dispose();const version=generation,alive=()=>version===generation&&isCurrent(),base=`/api/campaign-workflows/${workflow.id}/oos`;
     const url=path=>base+path+(jobId?'?job='+jobId:'');
     let detail,job,busy=false,requestId=crypto.randomUUID(),items=[],sort='candidate',ascending=true;
-    parent.replaceChildren(node('p','Loading frozen OOS candidates…'));
+    const finishSectionLoading=window.portalLoading.region(parent,'Loading frozen OOS candidates…');
+    try {
     try{
       detail=await read(url(''));if(!alive())return;job=detail.job;parent.replaceChildren();
       const panel=node('section',undefined,'panel broad-panel');panel.id='oos-panel';parent.append(panel);
@@ -83,6 +84,7 @@
       async function jobAction(kind){if(busy||!job)return;busy=true;paintProgress();try{await read(kind==='stop'?`/api/backtests/batches/${job.id}/cancel`:`${base}/jobs/${job.id}/resume`,'POST');if(alive()){notice.textContent=kind==='stop'?'Stop requested; completed reports are retained.':'Resuming remaining frozen configurations.';await refresh();}}catch(error){if(alive())notice.textContent=error.message;}finally{busy=false;if(alive())paintProgress();}}
       stop.onclick=()=>jobAction('stop');resume.onclick=()=>jobAction('resume');await refresh();
     }catch(error){if(alive())parent.replaceChildren(node('p',error.message));}
+    } finally { finishSectionLoading(); }
   }
   window.campaignOOS={render,dispose};
 })();

@@ -6,9 +6,9 @@
     const box=node('details',undefined,'panel research-risk-diagnostics');box.append(node('summary','Risk-normalized research · diagnostics'));
     const content=node('div');box.append(content);parent.append(box);let loaded=false;
     box.addEventListener('toggle',async()=>{
-      if(!box.open||loaded)return;loaded=true;content.replaceChildren(node('p','Checking saved initial-risk evidence…'));
+      if(!box.open||loaded)return;loaded=true;content.replaceChildren(window.portalLoading.message('Checking saved initial-risk evidence…'));
       try{
-        const response=await fetch(`/api/backtests/${id}/risk-diagnostics`);const data=await response.json();if(!response.ok)throw Error(data.detail||'Saved risk evidence is unavailable.');
+        const response=await window.portalLoading.fetch(`/api/backtests/${id}/risk-diagnostics`);const data=await response.json();if(!response.ok)throw Error(data.detail||'Saved risk evidence is unavailable.');
         content.replaceChildren();const c=data.coverage,s=data.summary;
         content.append(node('p',`${c.valid_trades} / ${c.total_trades} trades have valid causal risk evidence · ${data.status}.`));
         content.append(node('p','Planned net R = actual net trade profit ÷ initial planned risk including declared trade costs. These diagnostics do not change campaign passing criteria.','field-help'));

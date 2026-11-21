@@ -41,7 +41,7 @@
   const list = get("#workflow-campaign-list");
   let catalogue, definitions, generation = 0, deletionNotice = null;
   const read = async (url, method='GET', payload) => {
-    const response = await fetch(url, {cache:'no-store',method,headers:payload?{'Content-Type':'application/json'}:undefined,body:payload?JSON.stringify(payload):undefined});
+    const response = await window.portalLoading.fetch(url, {cache:'no-store',method,headers:payload?{'Content-Type':'application/json'}:undefined,body:payload?JSON.stringify(payload):undefined});
     const body = await response.json();
     if (!response.ok) throw Error(typeof body.detail === 'string' ? body.detail : 'Could not load campaign datasets.');
     return body;
@@ -61,7 +61,8 @@
     const current = ++generation;
     if (!/^#campaigns(?:\/[^/]+)?$/.test(location.hash)) return;
     const host = get("#workflow-campaign-detail");
-    host.replaceChildren(node('p', 'Loading campaigns and datasets…'));
+    const finishSectionLoading=window.portalLoading.region(host,'Loading campaigns and datasets…');
+    try {
     try {
       [catalogue, definitions] = await Promise.all([read('/api/strategies/library'), read('/api/strategies')]);
       if (current !== generation) return;
@@ -205,6 +206,7 @@
         const retry = node('button','Retry','button secondary'); retry.onclick = renderCampaign; host.append(retry);
       }
     }
+    } finally { finishSectionLoading(); }
   }
 
   window.addEventListener("hashchange", renderCampaign);

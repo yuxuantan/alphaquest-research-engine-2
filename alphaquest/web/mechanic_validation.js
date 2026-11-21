@@ -13,7 +13,7 @@
   const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)(?:\?(?:job=([a-f0-9]{32})|broad_trial=(\d+)))?$/);
   const endpoint = id => `/api/campaign-workflows/${id}`;
   const read = async (url, method = 'GET', body) => {
-    const response = await fetch(url, {method, cache:'no-store', ...(body === undefined ? {} : {headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
+    const response = await window.portalLoading.fetch(url, {method, cache:'no-store', ...(body === undefined ? {} : {headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
     const data = await response.json();
     if (!response.ok) throw Error(typeof data.detail === 'string' ? data.detail : 'The request was rejected. Review your saved source and settings.');
     return data;
@@ -211,6 +211,8 @@
       return;
     }
     const [,id,phase] = match; message('Loading saved workflow…'); get('#mechanic-content').replaceChildren();
+    const finishSectionLoading=window.portalLoading.begin(get('#mechanic-status'));
+    try {
     try {
       const workflow = await read(endpoint(id));
       // The Narrow detail request verifies phase access itself. Render its shell
@@ -225,6 +227,7 @@
       const host=get('#mechanic-content');
       link(host,'Return to mechanic validation',`#campaigns/workflows/${id}/mechanic_validation`); recovery(id);
     }
+    } finally { finishSectionLoading(); }
   }
   window.addEventListener('hashchange',navigate);
   navigate();

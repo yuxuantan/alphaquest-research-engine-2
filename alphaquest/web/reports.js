@@ -39,7 +39,7 @@
     document.querySelectorAll('[data-delete-run]').forEach(button => { if (button.dataset.deleteRun === record.id) button.disabled = true; });
     const status = get("#backtest-delete-status"); status.hidden = false; status.textContent = "Deleting backtest…";
     try {
-      const response = await fetch(`/api/backtests/${record.id}`, {method: "DELETE"});
+      const response = await window.portalLoading.fetch(`/api/backtests/${record.id}`, {method: "DELETE"});
       if (!response.ok && response.status !== 404) {
         const result = await response.json();
         throw new Error(typeof result.detail === "string" ? result.detail : `HTTP ${response.status}`);
@@ -75,7 +75,7 @@
   }
   const moneyClass = (value) => Number(value) < 0 ? "negative" : Number(value) > 0 ? "positive" : "";
   async function read(url, signal) {
-    const response = await fetch(url, { cache: "no-store", signal });
+    const response = await window.portalLoading.fetch(url, { cache: "no-store", signal });
     const result = await response.json();
     if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : `Report request failed (HTTP ${response.status}).`);
     return result;
@@ -213,6 +213,9 @@
     parent.append(card);
   }
   async function propSummary(record, controller) {
+    const finishSectionLoading=window.portalLoading.begin(get("#report-prop-status"));
+    const finishAmountLoading=window.portalLoading.begin(get("#report-historical-net"));
+    try {
     void companionSummaries(record,controller);
     const automatic = record.run_metadata.automatic_prop_analysis;
     try {
@@ -302,8 +305,11 @@
       if (get("#report-historical-net")) get("#report-historical-net").textContent = "N/A";
       get("#report-prop-status").textContent = `Could not load saved prop analysis: ${exc.message}`;
     }
+    } finally { finishSectionLoading();finishAmountLoading(); }
   }
   async function companionSummaries(record,controller){
+    const finishSectionLoading=window.portalLoading.begin(get('#report-lucid-historical-net'));
+    try {
     const holder=get('#report-prop-companions');holder.replaceChildren();
     const companions=record.run_metadata.automatic_prop_analysis?.companions||[];holder.hidden=!companions.length;
     for(const item of companions){
@@ -324,11 +330,14 @@
         holder.append(block);
       }catch(error){if(active!==controller||controller.signal.aborted)return;holder.append(node('p','Could not load saved LucidFlex analysis: '+error.message));const amount=get('#report-lucid-historical-net');if(amount)amount.textContent='N/A';}
     }
+    } finally { finishSectionLoading(); }
   }
   async function performance(record, controller) {
     get('#report-performance-body').replaceChildren();
     get('#report-performance-status').textContent='Loading timing diagnostics…';
     get('#report-performance-download').hidden=true;
+    const finishSectionLoading=window.portalLoading.begin(get('#report-performance-status'));
+    try {
     if(record.run_metadata.source?.kind==='external_trade_export') { get('#report-performance-status').textContent='Native execution timing is unavailable for an imported trade source.'; return; }
     try {
       const data=await read(`/api/backtests/${record.id}/performance`,controller.signal);
@@ -344,6 +353,7 @@
       }
       const link=get('#report-performance-download');link.hidden=Boolean(data.unavailable);link.href=`/api/backtests/${record.id}/exports/performance`;
     } catch(exc) {if(active===controller&&!controller.signal.aborted)get('#report-performance-status').textContent=`Timing diagnostics unavailable: ${exc.message}`;}
+    } finally { finishSectionLoading(); }
   }
   function equityScale(min, max) {
     // Aim for about five labels, extending the domain to clean step multiples.
@@ -452,6 +462,8 @@
   async function trades(offset, controller) {
     get("#trades-previous").disabled = get("#trades-next").disabled = true;
     get("#report-trades-count").textContent = "Loading trades…";
+    const finishSectionLoading=window.portalLoading.begin(get("#report-trades-count"));
+    try {
     try {
       const page = await read(`/api/backtests/${runId}/trades?offset=${offset}&limit=${pageSize}`, controller.signal);
       if (controller !== active) return;
@@ -485,6 +497,7 @@
       get("#report-trades-count").textContent = "Trades unavailable. Reopen the report to retry.";
       throw exc;
     }
+    } finally { finishSectionLoading(); }
   }
   async function openReport(id) {
     const controller = new AbortController();
@@ -496,6 +509,8 @@
     get("#report-prop-metrics").replaceChildren();
     get("#report-prop-status").textContent = "Loading saved prop analysis…";
     error("Loading saved report…");
+    const finishSectionLoading=window.portalLoading.begin(get("#report-status"));
+    try {
     try {
       const record = await read(`/api/backtests/${id}`, controller.signal);
       if (active !== controller) return;
@@ -529,12 +544,15 @@
     } catch (exc) {
       if (!controller.signal.aborted) error(`${exc.message} Use Backtests or Refresh reports to choose a saved report.`);
     }
+    } finally { finishSectionLoading(); }
   }
   async function history(offset = 0) {
     const version = ++historyVersion;
     get("#refresh-reports").disabled = true;
     get("#runs-previous").disabled = get("#runs-next").disabled = true;
     get("#completed-runs-status").textContent = "Loading completed reports…";
+    const finishSectionLoading=window.portalLoading.begin(get("#completed-runs-status"));
+    try {
     try {
       const page = await read(`/api/backtests?offset=${offset}&limit=25`);
       if (version !== historyVersion) return;
@@ -559,6 +577,7 @@
     } finally {
       if (version === historyVersion) get("#refresh-reports").disabled = false;
     }
+    } finally { finishSectionLoading(); }
   }
   function navigate() {
     active?.abort();

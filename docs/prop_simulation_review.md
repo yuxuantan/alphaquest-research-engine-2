@@ -13795,3 +13795,37 @@ request took approximately 0.21 seconds. Live screenshots, original-route respon
 and before/after verification are in the evidence directory above. The existing
 port-8000 server remains running; read its PID from data/.portal-server.lock and
 use kill -TERM with that exact PID to stop it.
+
+### 2026-11-21: Shared loading graphics throughout the portal
+
+Prop Sim now uses the same loading component as the dataset library, campaigns,
+workflow phases, Job history, backtest choices and saved-report subsections.
+Its configuration picker spins while source admission loads; Evaluation/Funded
+saved-result reads and OOS summaries have their own indicators. Editing account
+settings and navigating remain available while reads are pending. Failed reads
+stop spinning and retain their existing retry actions. Calculation progress still
+uses the existing worker/path bars; a spinner does not imply a new calculation.
+
+Shared behavior and integration guidance are in `docs/ui_loading.md`. The CSS
+spinner and busy semantics have explicit completion ownership, respect reduced
+motion and do not block pointer/keyboard input. A delayed header indicator covers
+other request activity without duplicating a visible section indicator. Old-route
+requests cannot keep the new page's header indicator open. No request, polling
+schedule, financial engine, source/qualification identity or saved report changed.
+Only frontend assets were applied; the existing server and jobs were preserved.
+
+Reproduce in the actual portal: open Prop Sim with network throttling enabled.
+Observe the spinner beside the qualified-configuration status while the account
+form remains usable. When the source GET completes, the spinner clears and the
+two qualified configurations remain selectable. Read-only live verification held
+that browser request, captured the normal screen, then continued it to the real
+API. It observed no JavaScript errors or unexpected POSTs. Dataset, Campaigns and
+Job history navigation also loaded normally. The page refresh loads the new
+assets without restarting the port-8000 server.
+
+Evidence: `artifacts/portal-loading-20261121/` includes pending/completed section
+screenshots, reduced-motion/mobile screenshots, the independent report-section
+journey, focused JUnit checks and `live-verification.json`. Fourteen focused
+browser checks passed. They include a native arithmetic backtest through the
+normal upload/backtest/report owners; all other loading checks are metadata reads
+and labeled browser fault injection, with no invented financial results.

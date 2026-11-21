@@ -165,7 +165,7 @@ function upload(path) {
     let timer;
     const poll = async () => {
       try {
-        const response = await fetch(`/api/progress/${operationId}`, {
+        const response = await window.portalLoading.fetch(`/api/progress/${operationId}`, {
           cache: "no-store",
         });
         if (response.ok && !finished) {
@@ -429,7 +429,7 @@ async function deleteDataset(dataset) {
   }
   $("#library-status").textContent = "";
   try {
-    const response = await fetch(`/api/datasets/${dataset.id}`, {
+    const response = await window.portalLoading.fetch(`/api/datasets/${dataset.id}`, {
       method: "DELETE",
     });
     // Another tab may already have deleted it; synchronize the visible library.
@@ -556,8 +556,10 @@ function renderLibrary() {
 }
 
 async function loadLibrary() {
+    const finishSectionLoading=window.portalLoading.begin($("#library-status"),{label:'Loading datasets…'});
+    try {
   try {
-    const response = await fetch("/api/datasets");
+    const response = await window.portalLoading.fetch("/api/datasets");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     datasets = await response.json();
     $("#library-status").textContent = "";
@@ -566,6 +568,7 @@ async function loadLibrary() {
     $("#library-status").textContent =
       "Could not load the library. Reload the page to try again.";
   }
+    } finally { finishSectionLoading(); }
 }
 
 function showDetails(dataset) {
@@ -627,7 +630,7 @@ function showDetails(dataset) {
     inputs.forEach((input) => input.disabled = true);
     status.textContent = "Saving instrument settings…";
     try {
-      const response = await fetch(`/api/datasets/${dataset.id}/instrument-settings`, {
+      const response = await window.portalLoading.fetch(`/api/datasets/${dataset.id}/instrument-settings`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tick_size: inputs[0].value.trim(), point_value: inputs[1].value.trim() }),
       });
@@ -756,7 +759,7 @@ $("#dataset-dialog").addEventListener("click", (event) => {
 });
 async function loadTimezones() {
   try {
-    const response = await fetch("/api/timezones");
+    const response = await window.portalLoading.fetch("/api/timezones");
     if (!response.ok) return;
     const timezones = await response.json();
     const select = $("#source-timezone");

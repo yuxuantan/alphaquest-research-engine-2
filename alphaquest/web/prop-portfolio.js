@@ -2,7 +2,7 @@
 (() => {
   const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const money=v=>Number(v??0).toLocaleString('en-US',{style:'currency',currency:'USD'});
-  const read=async(url,method='GET',body)=>{const r=await fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const value=await r.json();if(!r.ok)throw Error(typeof value.detail==='string'?value.detail:JSON.stringify(value.detail));return value;};
+  const read=async(url,method='GET',body)=>{const r=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const value=await r.json();if(!r.ok)throw Error(typeof value.detail==='string'?value.detail:JSON.stringify(value.detail));return value;};
   const link=(p,text,href)=>{const a=node('a',text,'workflow-inline-link');a.href=href;p.append(a);};
   let generation=0,timer;
   window.propPortfolio={async render(host,saved=null){

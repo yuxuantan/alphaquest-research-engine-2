@@ -5,9 +5,9 @@
   const kinds = {mechanic_validation:'Mechanic validation',backtest_batch:'Backtest batch',backtest:'Saved backtest',prop_analysis:'Prop analysis',prop_preparation:'Prop Sim preparation',monte_carlo:'Final Monte Carlo check'};
   const words = value => String(value || '').replaceAll('_',' ');
   const stamp = value => value ? new Date(value).toLocaleString(undefined,{timeZoneName:'short'}) : 'Not recorded';
-  let generation=0,timer,offset=0,lastList='',lastListData='',lastDetailData='';
+  let generation=0,timer,offset=0,lastList='',lastListData='',lastDetailData='',loadingRoute='';
   const read = async (url,method='GET') => {
-    const response=await fetch(url,{method,cache:'no-store'}), body=await response.json();
+    const response=await window.portalLoading.fetch(url,{method,cache:'no-store'}), body=await response.json();
     if(!response.ok) throw Error(typeof body.detail==='string' ? body.detail : 'Could not load job history.');
     return body;
   };
@@ -60,11 +60,14 @@
     if(button.disabled)button.textContent='Stop requested';
     button.onclick=()=>stop(job);parent.append(button);
   }
-  async function refresh() {
+  async function refresh(event) {
     clearTimeout(timer);
     if(!/^#jobs(?:[/?]|$)/.test(location.hash))return;
     const attempt=++generation, detail=location.hash.match(/^#jobs\/([^/]+)\/([a-f0-9]{32})$/);
     get('#jobs-list-view').hidden=!!detail;get('#jobs-detail-view').hidden=!detail;
+    const finishSectionLoading=window.portalLoading.begin((loadingRoute!==location.hash||event?.type==='click')?(detail?get('#jobs-detail-status'):get('#jobs-list-status')):null,{label:'Loading jobs…'});
+    try {
+    loadingRoute=location.hash;
     try {
       if(detail) {
         const job=await read(`/api/jobs/${detail[1]}/${detail[2]}`);if(attempt!==generation)return;
@@ -127,11 +130,12 @@
     }
     // Refresh even an empty list to discover jobs submitted in another tab.
     if(attempt===generation)timer=setTimeout(refresh,1500);
+    } finally { finishSectionLoading(); }
   }
   get('#jobs-filters').onsubmit=e=>{e.preventDefault();filters();};
   for(const id of ['status','kind'])get('#jobs-filter-'+id).onchange=filters;
   get('#jobs-refresh').onclick=refresh;
   get('#jobs-previous').onclick=()=>{offset=Math.max(0,offset-25);refresh();};
   get('#jobs-next').onclick=()=>{offset+=25;refresh();};
-  window.addEventListener('hashchange',()=>{++generation;clearTimeout(timer);refresh();});refresh();
+  window.addEventListener('hashchange',()=>{++generation;loadingRoute='';clearTimeout(timer);refresh();});refresh();
 })();
