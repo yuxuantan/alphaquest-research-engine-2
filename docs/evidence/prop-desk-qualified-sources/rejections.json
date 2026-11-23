@@ -1,0 +1,26 @@
+{
+  "": {
+    "detail": "Backtest c8c2e7ea has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "/check": {
+    "detail": "Backtest c8c2e7ea has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "/basket": {
+    "detail": "Backtest c8c2e7ea has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "/basket/check": {
+    "detail": "Backtest c8c2e7ea has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "/optimizer": {
+    "detail": "Backtest c8c2e7ea has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "/optimizer/subsets": {
+    "detail": "Backtest c8c2e7ea has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "incorrect_oos_link": {
+    "detail": "OOS report c8c2e7ea must retain its selected IS parent and match that configuration\u2019s current campaign qualification."
+  },
+  "changed_qualification": {
+    "detail": "Backtest c6da89b6 has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  }
+}

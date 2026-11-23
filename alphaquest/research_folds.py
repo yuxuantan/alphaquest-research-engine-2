@@ -177,6 +177,19 @@ def inventory_sessions(source, dataset_id: str, *, minimum_sessions: int = 2) ->
     dataset = source.get(dataset_id)
     if dataset is None:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
+    if getattr(source, 'persistent_session_inventory', False):
+        from .session_inventory_cache import load_or_build
+        result = load_or_build(source, dataset, SESSION_CONVENTION, _build_inventory)
+    else:
+        result = _build_inventory(source, dataset)
+    sessions = result['sessions']
+    if len(sessions) < minimum_sessions:
+        raise ValueError(f"Need at least {minimum_sessions} observed sessions; have {len(sessions)}.")
+    return result
+
+
+def _build_inventory(source, dataset):
+    dataset_id = dataset['id']
     from .research_access import metadata_only, observation_identity
     from hashlib import sha256
     counts, bounds, content = {}, {}, {}
@@ -196,8 +209,6 @@ def inventory_sessions(source, dataset_id: str, *, minimum_sessions: int = 2) ->
             bounds[day]["last_utc"] = instant
     sessions = list(counts)
     _validated_dates(sessions)
-    if len(sessions) < minimum_sessions:
-        raise ValueError(f"Need at least {minimum_sessions} observed sessions; have {len(sessions)}.")
     return dict(
         convention=SESSION_CONVENTION,
         source=dict(dataset_id=dataset_id, sha256=dataset["sha256"],

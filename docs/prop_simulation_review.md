@@ -14054,3 +14054,1683 @@ result response was 207,084 bytes and showed net cash of $7,275.46 IS,
 matched its saved SHA-256 checksum. The allocation appeared in local Chrome
 in under half a second. Holding the candidate request open also confirmed the
 Portfolio setup renders and shows a loading indicator in the source picker.
+
+## Prop Desk Milestone 1 — 2026-11-22
+
+Open **Prop Desk** from the sidebar or the mobile navigation. Select one saved
+backtest, **Evaluation** or **Funded**, one local account profile, and a
+whole-MNQ size. **Check source** reconciles the saved trades, net costs and
+intratrade evidence. It reuses the saved-source instrument, strategy and
+historical coverage checks. The same checked inputs are required at launch.
+After **Run simulation**, the AnalysisStore job completes to a permanent result
+URL. Open it again from **Prop Desk → Saved runs** or **Job history**.
+
+Evaluation starts one fresh attempt on every path. Apex 50K EOD uses its local
+21-session expiry. LucidFlex 50K has a separate observation cutoff, default 60
+trading days, and uses the existing standard 40% consistency and $1,200
+soft daily stop. Funded starts from one fresh $50,000 account per path and applies
+the existing plan tiers, qualifying days and payout ladder. Gross deductions
+and trader receipts are separate. The local session model credits trader
+receipts at the deduction event. A Funded account still open at the requested
+cutoff remains open. Each payout probability uses all simulated accounts and
+each milestone median uses the accounts that reached it.
+
+The fixed-size mode uses 1,000 paths, seed 42, five-weekday circular blocks,
+and the saved source's net costs. The source weekday convention preserves
+zero-trade weekdays. Each result shows the observation horizon and the applied
+local rules. The report and ZIP retain the source manifest and hashes, exact
+normalized session inputs, settings, and complete path outcomes. Prop Sim,
+Portfolio and existing reports retain their phase engines and policies.
+The existing package-wide engine fingerprint continues to invalidate
+generic backtest cache reuse and protect interrupted OOS resumes across
+production Python changes.
+
+### Reproduce and inspect
+
+The browser journey creates ordinary saved backtests from labelled synthetic
+market data, opens the saved backtest report, then runs both phases through
+the actual Prop Desk tab. Use Playwright Chromium or the installed Chrome.
+The test uses an isolated local server and closes it on teardown.
+
+```sh
+aq_prop_desk_review_dir="$(mktemp -d /tmp/aq-prop-desk-review.XXXXXX)"
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_browser.py --basetemp "$aq_prop_desk_review_dir"
+find "$aq_prop_desk_review_dir" -name journey.json -print
+.venv/bin/python -m pytest -q tests/test_prop_desk.py
+```
+
+Inspect the saved [evidence and SHA-256 manifest](evidence/prop-desk-v1/journey.json),
+[Evaluation report](evidence/prop-desk-v1/evaluation-report.json),
+[Funded report](evidence/prop-desk-v1/funded-report.json) and
+[mobile reopen](evidence/prop-desk-v1/funded-mobile-reopened.png).
+The [Evaluation ZIP](evidence/prop-desk-v1/evaluation-analysis.zip) and
+[Funded ZIP](evidence/prop-desk-v1/funded-analysis.zip) are the original
+downloads from the portal. The archived backtest and both analysis IDs
+are listed in the manifest.
+For a manual replay, upload
+[the saved synthetic CSV](evidence/prop-desk-v1/SYNTHETIC-phase-source.csv)
+as NQ with UTC timestamps, a 0.25 tick size and USD 20 per point.
+Create a Consecutive Green Hold backtest with green-bar count 1, hold time
+1 minute, 1 contract, starting capital USD 10,000, zero slippage and zero
+commission. Declare IS from 2026-01-05 through 2026-01-14 and reserve
+2026-01-15 for OOS. The saved source contains eight USD 3,000 winning NQ
+trades. Open **Prop Desk** and check and run each configuration below.
+
+| Configuration | Expected normal-product result |
+| --- | --- |
+| LucidFlex 50K Evaluation, 10 MNQ, 60 trading days | 1,000 passes, zero breaches, zero open at cutoff, median day 3 |
+| LucidFlex 50K Funded, 3 MNQ, 30 trading days | 100% reached every payout, on median days 5, 10, 15, 20 and 25. Mean deductions USD 10,000 and mean modeled trader receipts USD 9,000. Zero breaches before payout. |
+| Saved ES report in either phase | Source check returns an NQ/MNQ compatibility reason and Run remains disabled. |
+
+Independent expected values live in the focused tests. The Evaluation
+source earns USD 3,000 per day at 10 MNQ. The best day is 100%, 50% and
+then 33.3% of cumulative profit, so the 40% gate first clears on day 3.
+Funded at 3 MNQ earns USD 900 per day and reaches five qualifying days
+per cycle. The modeled gross cap is USD 2,000 per payout and the 90% share
+is USD 1,800. API checks also cover Apex's six-payout ladder, an adverse-gap
+breach before payout, the distinction between expiry and cutoff, the
+phase-specific size ceilings, duplicate submissions, stale checks, and
+report integrity and reopen after application restart.
+
+### Bridge comparison status
+
+The Bridge v2.9.16 screens are the feature reference for single-attempt
+results and payout milestone presentation. The older Lucid discrepancy
+comparison at [the November 2 checkpoint](prop_simulation.md#lucid-evaluation-discrepancy-investigation--2026-11-02)
+used a different strategy, matched sample, settings and path budget. The
+inspected v2.9.16 Lucid Evaluation screen also showed 52% consistency.
+This increment uses AlphaQuest's local 40% profile. No matching v2.9.16
+trade history and rule package is available in this demonstration.
+Bridge pass, breach, cutoff and median pass timing, as well as Funded
+any-payout, full-ladder, pre-payout breach, milestone timing, deductions
+and trader receipt values remain unverified against matched inputs.
+
+## Prop Desk Milestone 2 — 2026-11-22
+
+Open **Prop Desk** and choose **Basket and size sweep**. Select a native saved IS
+report and click **Add selected IS backtest** for each member. Adjust whole
+relative weights or use **Equal weight**. Every whole-MNQ size in the declared
+range is tested. Each member's target is its weighted share rounded down. The
+form and saved result show unused MNQ. A zero target skips that member for the
+size. A member may optionally have a saved OOS report. To add one, choose the
+saved OOS report in the picker and click **Attach selected OOS** for its IS
+parent. Attach one to every member for an OOS chart. The API checks the parent,
+split, dataset, strategy configuration and costs.
+
+The basket requires one saved native NQ/MNQ dataset version. The common
+period uses observed CME session labels supported by both the saved report
+bounds and the declared split. A session with observed source bars but no
+trades remains in the history. An absent session is never inserted into a
+multi-member sample. A one-member basket deliberately uses the Milestone 1
+account path convention and gives identical results for identical inputs. Its
+historical chart still uses the observed sessions.
+
+For each size, eligible saved opportunities are ordered by entry timestamp.
+Higher relative weight breaks ties, followed by basket order. An entry while
+another admitted trade is open is skipped. An exit at a shared timestamp
+precedes the next entry. Every sampled session uses the merged stream to
+advance one simulated Evaluation or one fresh Funded account. Existing phase
+owners apply daily stops, drawdown, tier limits and payouts. The Funded tier
+caps the admitted member's target using its existing session opening rule.
+Saved net costs and adverse marks scale with absolute whole-MNQ quantities.
+This is a fixed-opportunity model. It does not re-run strategy decisions after
+a skip or change the historical order queue.
+
+The sizing curves use IS only. Open **Inspect tested size** to review account
+metrics and chart data at a saved size. The size selection is retained in the
+report URL. Funded **First year** is cash credited through trading day 261.
+**Account life** is the mean for completed lifetimes. If any paths remain open
+at the configured cutoff, the chart shows cash through cutoff as a lower
+bound and flags the unresolved lifetime mean. Per-size paths and the full
+ZIP are saved in the existing analysis catalogue.
+
+**Historical closed-trade equity** adds the admitted, sized saved trades in
+chronological order. The portfolio curve is the sum of the member curves.
+The chart samples their cumulative marked-at-close-of-trade P&L at the end of
+each observed session. The shaded OOS segment uses exactly the same weights,
+contract targets and overlap rule. The chart applies overlap admission and
+saved net trading costs. The Monte Carlo paths separately apply account
+controls and payout accounting. **Admitted trades for this size** gives the
+source IDs, timestamps, target MNQ, commission, slippage and net P&L. Annualized
+USD return is daily mean times 252. Volatility uses sample standard deviation
+times square root of 252, and Sharpe uses a zero cash benchmark. Drawdown uses
+every admitted trade close from an initial zero P&L.
+
+### Reproduce the product journey
+
+```sh
+aq_prop_desk_basket_dir="$(mktemp -d /tmp/aq-prop-desk-basket.XXXXXX)"
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket_browser.py --basetemp "$aq_prop_desk_basket_dir"
+find "$aq_prop_desk_basket_dir" -name journey.json -print
+.venv/bin/python -m pytest -q tests/test_prop_desk_basket.py
+```
+
+The browser journey creates ordinary backtests and their manual OOS children
+from [the labelled synthetic CSV](evidence/prop-desk-basket-v1/SYNTHETIC-basket.csv),
+runs both phases, changes the inspected size, downloads the reports, and
+reopens the selected size at mobile width. The temporary portal closes at
+test teardown. Inspect the [evidence manifest](evidence/prop-desk-basket-v1/journey.json),
+[Evaluation ZIP](evidence/prop-desk-basket-v1/evaluation-analysis.zip),
+[Funded ZIP](evidence/prop-desk-basket-v1/funded-analysis.zip) and
+[mobile chart](evidence/prop-desk-basket-v1/funded-mobile-reopened.png).
+
+For a manual replay, upload the CSV with NQ, UTC, 0.25 tick size and USD 20
+per point. Create two **Consecutive Green Hold** backtests with green-bar
+count 1, one contract, initial capital USD 10,000, zero slippage and USD 5
+commission per side. Use hold times of 1 and 2 minutes. Declare January 5–14
+2026 as IS and January 15 as OOS. Run the manual OOS replay for each. Add both
+IS reports to the basket in hold-time order and attach their matching OOS
+children. Enter weights **2 and 1**, total sizes **3 through 5**, and **Apex 50K
+EOD**. Run Evaluation at its fixed 21-day expiry. For Funded enter a 261-day
+cutoff.
+
+| Observation | Independent expectation |
+| --- | --- |
+| Targets at 3, 4 and 5 MNQ | 2/1, 2/1, and 3/1 MNQ. Unused contracts are 0, 1, and 1. |
+| Competing entries | Both members enter at the same timestamp. The higher-weight member gets all nine fills and eight IS overlaps and one OOS overlap are skipped. |
+| Equity and costs | The winner earns USD 3,000 less USD 10 round trip per NQ. At 3 MNQ total, its 2 MNQ target earns USD 598/day and ends at USD 5,382 across nine sessions. At 5 MNQ total, its 3 MNQ target earns USD 897/day and ends at USD 8,073. Member 2 remains flat. |
+| Account outcomes | At 3 MNQ total, Evaluation first passes on day 6 and Funded first pays on day 7. At 5 MNQ total, Evaluation passes on day 4 and Funded first pays on day 5. Both Funded sizes complete the ladder and receive USD 13,000 in the modeled first year and lifetime. |
+| Rejected OOS attachment | Swapping the two OOS reports returns a parent mismatch and leaves Run disabled. |
+
+### Bridge comparison status
+
+The inspected v2.9.16 screens confirm portfolio and individual closed-trade
+curves with an OOS boundary, an Evaluation pass/breach size chart, and the
+Funded First year and Account life comparison. A matched export of Bridge's
+basket entries, priority/overlap rules, weight rounding, cost scaling, size
+preset formulas and lifetime cutoff remains unavailable. The new tab exposes
+the tested size range for manual inspection. It uses a documented local
+overlap rule and makes no preset, numerical, provider or live execution
+parity claim.
+
+### Prop Desk workspace layout — 2026-11-22
+
+Open **Prop Desk → Basket and size sweep**. **Strategies** lists saved runs
+and adds IS reports directly to **Portfolio**. The saved-backtest picker also
+supports paging and attaching an OOS child. Portfolio rows show the weight
+share and whole-MNQ target at the minimum size before launch. **Account**
+contains the Evaluation and Funded switch, profile, size range, source
+check, and Run. On desktop they are three columns. The form stacks on
+mobile.
+
+A saved basket puts allocation, historical equity, and the Funded payout
+timeline in the center. Account outcomes, rules, and the tested-size slider
+are beside them. The slider and exact-size selector change the same saved
+size and restore it on reload. Strategy links and downloads stay with the
+source list. On mobile the tested-size controls sit above Portfolio and
+Equity. Single-strategy simulation retains its own setup and result flow.
+
+Run the two existing browser journeys to reproduce the workspace. Their
+fixtures use ordinary saved synthetic backtests and check the original
+account outcomes and admitted-trade reconciliation. The basket journey
+also exercises direct card add, the phase switch, the keyboard size
+slider, and the mobile reopen.
+
+The labelled synthetic journey produced the
+[desktop setup](evidence/prop-desk-layout-v1/setup-desktop.png),
+[desktop Evaluation result](evidence/prop-desk-layout-v1/evaluation-desktop.png),
+and [reopened mobile Funded result](evidence/prop-desk-layout-v1/funded-mobile-reopened.png).
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket_browser.py tests/test_prop_desk_browser.py
+```
+
+### Prop Desk automatic source verification — 2026-11-22
+
+Use **Run simulation** directly from either setup. It first verifies the saved
+sources. A basket run inventories the observed sessions once, prepares the
+member trade books for the common windows, and hands that preparation to the
+existing worker. The worker rechecks dataset identity and bytes, saved report
+and trade seals, and the source policies. The size sweep consumes the same
+prepared windows and books. The existing numerical provenance and sealed
+report keys still apply. API clients can also submit directly or supply a
+fingerprint from the existing explicit check endpoint.
+
+Repeat the two-member replay above. Use **Run simulation** once for Evaluation
+with total sizes 3 through 5. At 390-pixel mobile width, return to setup,
+switch to Funded, enter 261 trading days and use **Run simulation** once.
+Inspect 5 MNQ and reload the saved result. Expect USD 8,073 final historical
+equity at 5 MNQ, USD 5,382 at 3 MNQ and a USD 13,000 mean first-year trader
+receipt for the 5 MNQ Funded paths in this synthetic example. Both submissions
+return a job ID without a client-supplied check fingerprint. With the OOS child
+attached to the wrong IS parent, Run displays the source error in setup and
+creates no job. Correct the attachment and run again.
+
+The API regression counts one observed-session inventory for a complete
+two-member sweep and verifies that a change to the queued dataset bytes or
+saved trade file prevents publication. One initial inventory still reads
+the source dataset. Each tested size still performs its account-path work
+and produces its own evidence.
+
+```sh
+aq_prop_desk_run_dir="$(mktemp -d /tmp/aq-prop-desk-run.XXXXXX)"
+.venv/bin/python -m pytest -q tests/test_prop_desk.py tests/test_prop_desk_basket.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_browser.py tests/test_prop_desk_basket_browser.py \
+  --basetemp "$aq_prop_desk_run_dir"
+find "$aq_prop_desk_run_dir" -name journey.json -print
+```
+
+The [basket journey manifest](evidence/prop-desk-one-click/journey.json)
+links the synthetic input to both runs. Inspect the
+[desktop setup](evidence/prop-desk-one-click/setup-desktop.png),
+[Evaluation launch](evidence/prop-desk-one-click/evaluation-launch.json),
+[Evaluation report ZIP](evidence/prop-desk-one-click/evaluation-analysis.zip),
+[Funded launch](evidence/prop-desk-one-click/funded-launch.json),
+[Funded report ZIP](evidence/prop-desk-one-click/funded-analysis.zip),
+[reopened mobile result](evidence/prop-desk-one-click/funded-mobile-reopened.png)
+and [rejected launch](evidence/prop-desk-one-click/rejected-source.json).
+
+## Prop Desk Milestone 3 — Combination Optimiser — 2026-11-22
+
+Open **Prop Desk → Optimize combinations**. Add saved IS strategies in the
+desired pool order. Set the member-count range and the total whole-MNQ range.
+The preview shows the number of subsets and combination-size pairs before
+launch. Each permitted subset is evaluated at each requested size. Each
+member retains its entered relative weight within the subset. Targets round
+down and zero targets remain visible. There is no weight search.
+
+The search accepts at most 48 pairs and 16,000 pair × observation trading
+days before applying the 1,000 paths per pair. At a 2,000-day cutoff the pair
+limit is eight. Reduce the pool, member range, or MNQ range to fit. The
+one-click launch builds one observed-session inventory, checks each member
+and prepares its trade book once. All candidate account calculations use
+the entire pool's common observed IS sessions. If a source fails admission,
+setup shows the error and creates no search. Successful searches include
+every pair in their declared ranges.
+
+Evaluation ranks the single-attempt pass probability. Funded ranks mean
+trader receipts through trading day 261 from a fresh account. Open accounts
+are counted separately at the selected cutoff. Within equal scores all rows
+share a competition rank. Their display order is smaller total MNQ, then
+member count and the order of subset indices in the pool. **Inspect** loads
+the existing sizing, equity, and account views for the row's combination.
+The sealed report saves the original pool, settings, source evidence, every
+row, path outcomes, equity and admitted trades. Reloading an inspection URL
+restores its combination and size.
+
+Each candidate uses the same path-indexed MT19937 streams over the same
+observed IS sessions. The saved seed for each path comes from the base seed
+42 and its zero-based index. Stopping one path early cannot shift the
+samples assigned to subsequent paths. The optimiser uses the existing
+shared-account allocation, overlap, cost and account rules throughout the
+search. Milestone 2 retains its original serial random stream and standalone
+one-member convention. A single-member optimiser row uses the same common
+observed-session model as the other rows. A varied history can therefore
+give different finite-path estimates in the standalone Milestone 2 sweep.
+
+OOS attachments affect the historical chart only. A combination shows its
+common OOS sessions when every member has a matching OOS child and those
+children overlap. The chart retains the IS weights, size and trade admission
+rule. The ranking and its saved digest are identical with or without a valid
+attachment. A child paired with the wrong IS parent rejects with a specific
+source error.
+
+### Reproduce and check the saved journey
+
+Upload the labelled synthetic CSV as NQ, UTC, tick size 0.25 and USD 20
+per point. Create three **Consecutive Green Hold** saved IS backtests.
+All use green-bar count 1, one contract, initial capital USD 10,000 and
+zero slippage. Use hold durations of 1, 2 and 3 minutes in that order.
+For strategy A set USD 1,500 commission per side. For strategies B and C
+set USD 5 per side. Declare January 5–14 2026 as IS and January 15 as OOS.
+Create each OOS child with the saved backtest's manual OOS action.
+[Synthetic input](evidence/prop-desk-optimizer-v1/SYNTHETIC-optimizer.csv)
+
+In **Optimize combinations**, add A, B, C in that order and keep equal
+weights. Set the minimum and maximum member counts to 2. Set total size
+from 2 to 3 MNQ. Attach B's OOS report to A, click **Run simulation** and
+expect a parent mismatch and no saved run. Attach each correct child instead.
+Use Apex 50K EOD. Run Evaluation at the 21-session expiry on desktop.
+Switch to a 390-pixel viewport, reopen setup via the Prop Desk mobile nav,
+switch to Funded and run with a 261-session cutoff. In both results inspect
+combination 3 at 3 MNQ, download its admitted trades, and reload.
+
+| Observation | Independently calculated expectation |
+| --- | --- |
+| Candidate count and sizing | AB, AC and BC each appear at 2 and 3 MNQ, making six rows. Both sizes target 1 MNQ per member. Size 3 has one unused contract. |
+| Simultaneous entries | All members signal at the same timestamp. The first member wins ties. A wins in AB and AC. B wins in BC. |
+| Costs and equity | A grosses USD 3,000 and pays USD 3,000 per NQ round trip, leaving zero net. B grosses USD 4,000 and pays USD 10, leaving USD 399 per admitted 1 MNQ. BC makes USD 3,192 in eight IS sessions and USD 399 in OOS, ending at USD 3,591 across nine admitted closed trades. |
+| Evaluation ranking | Both BC sizes reach USD 3,000 on day 8 and pass on all paths. Both are rank 1. AB and AC have zero pass and zero breach and expire on day 21. Their four rows share rank 3. |
+| Funded ranking | At USD 399 per day BC first clears the USD 3,600 request threshold on day 10 after satisfying five qualifying days. The six gross caps sum to USD 13,000, all paid in the first year. Both BC sizes rank 1. AB and AC have no payouts and share rank 3. |
+| OOS independence | Detach A's OOS child and run again. AB and AC show IS equity only. BC retains the same OOS segment. All ranked rows and the ranking digest are identical. |
+
+The API check compares BC against the Milestone 2 basket at both sizes and
+in both phases on the same eight IS dates. For this constant-session input
+the account paths at 3 MNQ also agree exactly. The focused kernel checks
+independently verify path-indexed outcomes on variable histories and compare
+Funded paths to the Milestone 2 owner at sizes below and above the opening
+tier on both profiles. The API check also counts one inventory and one book
+per saved source, and rejects an over-limit search before preparation.
+[Saved API comparison](evidence/prop-desk-optimizer-v1/api-comparison.json)
+
+```sh
+aq_prop_desk_optimizer_dir="$(mktemp -d /tmp/aq-prop-desk-optimizer.XXXXXX)"
+.venv/bin/python -m pytest -q tests/test_prop_desk_optimizer.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_optimizer_browser.py tests/test_prop_desk_basket_browser.py \
+  --basetemp "$aq_prop_desk_optimizer_dir"
+find "$aq_prop_desk_optimizer_dir" -name journey.json -print
+```
+
+Inspect the [journey manifest](evidence/prop-desk-optimizer-v1/journey.json),
+[desktop setup](evidence/prop-desk-optimizer-v1/setup-desktop.png),
+[desktop Evaluation ranking](evidence/prop-desk-optimizer-v1/evaluation-desktop.png),
+[reopened mobile Funded ranking](evidence/prop-desk-optimizer-v1/funded-mobile-reopened.png),
+[Evaluation ZIP](evidence/prop-desk-optimizer-v1/evaluation-analysis.zip),
+[Funded ZIP](evidence/prop-desk-optimizer-v1/funded-analysis.zip) and
+[rejected source response](evidence/prop-desk-optimizer-v1/rejected-source.json).
+The browser checks use temporary portals that stop at teardown.
+
+### Bridge comparison status
+
+The available Bridge settings capture includes a combination exclusion field
+and a separate fastest-to-funded Evaluation sizing setting. It records one
+strategy, so it cannot establish the optimiser's generated subsets, ranking
+objectives, tie handling, or matched multi-strategy account outcomes. The
+ranking and sampling rules above are AlphaQuest's versioned local rules.
+[Archived Bridge settings](../artifacts/lucid-metric-discrepancy-20261102/bridge-settings.txt)
+
+### Prop Desk optimiser subset ranking — 2026-11-22
+
+Live inspection of Bridge v2.9.16 showed 3, 7 and 15 combinations with 2, 3
+and 4 checked strategies and a minimum of one member. The optimiser describes
+Evaluation as ranking pass probability at the Optimal size. Its footer
+orders the candidates within one standard error of the best by fastest
+median time to pass. The Funded view labels the ranking **Payout rate**
+and offers **First year** and **Account life** as size rules. Funded Lab
+also offers first-year and lifetime sizing presets. The screens establish
+these workflow rules. Calculation, caching and numerical equality between
+the Funded Lab and Prop Desk presets remain unverified.
+[Bridge two-strategy preview](evidence/prop-desk-optimizer-v2/bridge-two-strategies.png) ·
+[Three-strategy preview and Evaluation ranking rules](evidence/prop-desk-optimizer-v2/bridge-three-strategies.png) ·
+[Bridge Funded Payout rate](evidence/prop-desk-optimizer-v2/bridge-funded-size-rule.png) ·
+[Funded Lab presets](evidence/prop-desk-optimizer-v2/bridge-funded-lab-presets.png)
+
+The portal now submits **Optimize combinations** to the versioned subset
+search at `POST /api/prop-desk/optimizer/subsets`. The minimum defaults
+to one and the maximum is the number of selected strategies. The preview
+shows the subset count and internal tested-pair count. Each subset has one
+selected size for ranking and retains its whole tested curve, paths, and
+admitted-trades downloads. Each included strategy must have a positive
+target for a size to be eligible for selection. A subset with no eligible
+size appears as unranked with a reason. The existing budget of 48 tested
+pairs and 16,000 pair × observation trading days still applies. The original
+pair-ranking API and previously sealed reports retain their original model.
+
+Evaluation selects the highest in-sample pass probability. It uses one
+binomial standard error around the highest selected pass probability to
+form the leading group, then orders that group by median trading days
+to pass. Funded first selects the size with the highest mean trader receipts
+through day 261 or through termination/cutoff, according to the preset.
+It then ranks by the probability of any payout at the selected size.
+The choice with the smaller tested total MNQ wins an exact size-score tie.
+For Account life, if any eligible size still has open paths, cash through
+cutoff is a lower bound and the size selection is labelled provisional.
+The exact Bridge allocation grid, tie details and provider/path arithmetic
+remain unverified. The local run uses its existing weighted, round-down
+allocator, local account profiles and common IS path draws. OOS still
+changes only the chart.
+
+Repeat the preceding synthetic replay with the minimum left at one. Add A
+and B and set total sizes 2 through 3 MNQ. The preview shows 3 subsets and
+6 tested pairs. Add C and expect 7 subsets and 14 tested pairs. Run Evaluation
+on desktop and Funded with **Account life** at 390 pixels wide. Attach the
+same OOS children and use Apex 50K EOD. The mismatched parent still rejects
+before a job is created.
+
+| Observation | Independent expectation |
+| --- | --- |
+| Subset search | A, B, C, AB, AC, BC and ABC each have one ranked row. ABC requires 3 MNQ because the 2-MNQ allocation has all zero targets. |
+| Evaluation | B and C each pass in 4 days at 2 MNQ. BC takes 8 days at 2 MNQ. All three have 100% pass and form the leading group. The other four pass 0%. |
+| Funded | B, C and BC each receive all six Apex payouts totalling USD 13,000 and rank together on 100% chance of any payout. The other four pay 0%. |
+| Inspection | BC ranks at 2 MNQ. Inspect it, move the size control to 3 MNQ, and reload. The report reopens at 3 MNQ while BC stays ranked at 2. Nine closed trades total USD 3,591. |
+| Different sizing and ranking objectives | The fast arithmetic check gives one subset USD 1,800 first-year cash at 50% payout probability and another USD 800 at 70%. The second subset ranks higher. The first subset selects a different size under Account life and its cutoff makes that choice provisional. |
+
+```sh
+aq_prop_desk_subset_dir="$(mktemp -d /tmp/aq-prop-desk-subsets.XXXXXX)"
+.venv/bin/python -m pytest -q tests/test_prop_desk_subset_optimizer.py tests/test_prop_desk_optimizer.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_optimizer_browser.py tests/test_prop_desk_basket_browser.py \
+  --basetemp "$aq_prop_desk_subset_dir"
+find "$aq_prop_desk_subset_dir" -name journey.json -print
+```
+
+The browser evidence includes setup, sealed Evaluation and Funded reports,
+the admitted trades, rejection response, and mobile reopen.
+[Synthetic journey manifest](evidence/prop-desk-optimizer-v2/journey.json) ·
+[Evaluation ZIP](evidence/prop-desk-optimizer-v2/evaluation-analysis.zip) ·
+[Funded ZIP](evidence/prop-desk-optimizer-v2/funded-analysis.zip)
+
+### Prop Desk Simulation and Optimise workspace — 2026-11-22
+
+Open **Prop Desk** to start in **Simulation**. Add strategies from the saved
+backtests list to **Portfolio**. Leave **Maximum total MNQ** blank to run
+at the minimum. Enter a maximum to inspect sizing and equity, including
+when the minimum and maximum are equal. While the minimum remains untouched,
+the minimum total MNQ follows the number of portfolio members. A single
+member with a blank maximum and no OOS child uses the fixed-size analysis. Multiple
+members, an explicit maximum, or an attached OOS child use the existing
+basket analysis. Source verification still runs on submission.
+
+Click **Optimise** beside **Equal weight** to open the search workspace.
+The first visit seeds the candidate pool from the portfolio. Editing that
+pool leaves the simulation portfolio intact. Use **← Simulation** to
+return and **← Optimise** from a search report to resume the search setup.
+Saved runs still open from their permanent links or the history list.
+
+The strategy cards identify saved OOS children that cannot be added as
+members. With an IS member in the portfolio, an OOS card shows **Attach
+to IS** and the short ID of its saved parent. Add that IS report, select the
+OOS child, and use **Attach OOS** on the matching member to extend the
+equity chart. An empty Simulation portfolio can still take a compatible
+OOS report as the sole fixed-size source. Optimise candidates use IS reports.
+The basket browser check verifies the card before adding the first member,
+its parent hint afterward, and the server rejection for a mismatched child.
+[Synthetic card example](evidence/prop-desk-workspace/oos-parent-hints.png)
+
+The browser checks use the labelled synthetic histories from the preceding
+sections. Add the rejected ES source and run once with a blank maximum.
+Expect the NQ/MNQ error and an empty job list. Remove it, add the NQ source,
+and use LucidFlex at 10 MNQ for Evaluation and 3 MNQ for Funded. The sealed
+fixed-size reports retain the median three-day pass and USD 9,000 in Funded
+receipts. Enter 10 MNQ in both fields for the single NQ source to open the
+historical equity chart at one tested size. Its eight closed trades total
+USD 24,000. Build the two-member Apex basket directly in Simulation and
+inspect 3 and 5 MNQ. Its final equity is USD 5,382 and USD 8,073 respectively.
+Then open Optimise with one portfolio member and add the other two synthetic
+members in the search workspace. Return to Simulation and verify that only
+the original portfolio member remains. Set 2–3 MNQ in Optimise and confirm
+seven ranked rows from 14 tested pairs, with the selected size preserved
+when reopening the report at mobile width.
+
+```sh
+aq_prop_desk_workspace_dir="$(mktemp -d /tmp/aq-prop-desk-workspace.XXXXXX)"
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_browser.py tests/test_prop_desk_basket_browser.py \
+  tests/test_prop_desk_optimizer_browser.py --basetemp "$aq_prop_desk_workspace_dir"
+find "$aq_prop_desk_workspace_dir" -name journey.json -print
+```
+
+[Desktop Simulation](evidence/prop-desk-workspace/simulation-desktop.png) ·
+[Desktop two-member portfolio](evidence/prop-desk-workspace/portfolio-desktop.png) ·
+[Mobile Optimise](evidence/prop-desk-workspace/optimise-mobile.png) ·
+[Saved run evidence](evidence/prop-desk-workspace/journey.json)
+
+### Prop Desk strategy selection with linked OOS — 2026-11-22
+
+In **Simulation** or **Optimise**, choose the saved strategy once or add it
+with **+**. The picker lists the strategy's base report and shows **OOS
+linked** when a saved out-of-sample child is available. The catalogue uses
+the newest child with the exact IS parent, dataset, split, strategy settings
+and costs. If a newer child fails those checks, it uses the newest compatible
+child. The selection uses saved metadata and never reads OOS performance.
+The linked report is visible under the portfolio member. Source verification
+still checks the selected reports and their saved evidence on Run.
+
+**Include linked OOS equity** defaults on. In Simulation, a portfolio whose
+members do not all have matching OOS uses the common IS equity window.
+In Optimise, each combination with a complete compatible OOS history can
+show that portion of its chart. Size selection and ranking use IS in every
+case. The individual IS and OOS reports remain available under Backtests.
+
+To reproduce, create the synthetic basket or optimiser backtests in the
+preceding sections, including their saved OOS children. Open Prop Desk,
+add only the base strategies, and run the same sizes and profile. The
+two-member basket lists two strategies, links both OOS children, and
+shows the January 15 OOS chart without a second selection. At 5 MNQ its
+nine admitted trades total USD 8,073. The three-member search still
+shows seven ranked subsets from 14 tested pairs and the same OOS chart
+under inspection. An IS-only fixed-size source remains selectable.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_basket.py -k strategy_catalogue
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket_browser.py tests/test_prop_desk_optimizer_browser.py \
+  tests/test_prop_desk_browser.py
+```
+
+[Combined strategy picker](evidence/prop-desk-linked-strategies/simulation-desktop.png) ·
+[Mobile Optimise](evidence/prop-desk-linked-strategies/optimise-mobile.png) ·
+[Saved evidence](evidence/prop-desk-linked-strategies/journey.json)
+
+### Verified session inventory reuse — 2026-11-22
+
+The dataset catalogue now retains one checksummed inventory per dataset
+version. The ordinary backtest source check publishes it while verifying
+observed sessions. Existing datasets can also be warmed once through the
+same inventory reader. Prop Desk uses it for basket and Optimise source
+preparation. It preserves observed session labels, first and last UTC
+bars, row counts and content hashes for sessions with and without strategy
+trades. Missing sessions are still excluded.
+
+The key binds the dataset identity, interpretation, reader and time-zone
+rules. A warm lookup checks the saved inventory and the backing CSV bytes
+and continues to use the existing tick-source checks where applicable.
+A missing or corrupt inventory rebuilds from the verified source. A changed
+source rejects. The table is derived dataset metadata and is deleted with
+its dataset. The per-strategy trade and risk files and their source checks
+continue to supply each run.
+
+On the running portal, the one-time backfill of **ofb_bars_NQ** parsed
+3,210,351 bars in 124.253 seconds and saved 2,360 observed sessions.
+A fresh store reopened the exact inventory in 0.246 seconds. After the
+portal refresh, the existing two-strategy report reopened and its saved
+IS/OOS windows matched the warm check. The five live preflights covered
+the same basket twice, a different tested size, a different strategy mix,
+and a different account profile. All were compatible in 0.310–0.469
+seconds. The checks include saved trade and risk file verification and
+end before account simulation. Reproduce them with the saved report's
+`configuration` posted to `/api/prop-desk/basket/check`, varying one
+field or narrowing the member list as above.
+[Local preflight measurements](evidence/prop-desk-session-inventory/local-preflight.json)
+
+Repeat the two-member saved-backtest journey above. Each member appears
+once and links its saved OOS. Run the Apex basket at 3–5 MNQ and inspect
+5 MNQ. The equity chart still shows the January 15 OOS segment and USD
+8,073 across nine admitted trades. Change the tested sizes or run the
+same dataset with a different strategy mix or profile. The focused API
+checks forbid a full inventory bar parse after the normal backtests have
+prepared the dataset. The inventory tests check persistence across store
+reopen, coalescing parallel first access, cache recovery, and changed-byte
+rejection.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_research_folds.py -k 'inventory or normal_readers'
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket.py tests/test_prop_desk_optimizer.py tests/test_prop_desk_basket_browser.py
+```
+
+[Saved synthetic run manifest](evidence/prop-desk-session-inventory/journey.json)
+
+## Bridge Prop Desk v2.9.16 strategy diagnostics — 2026-11-22
+
+Reviewed the existing Bridge demo in the running Parallels Windows session.
+The demo calls each strategy's held-out trades “live.” The diagnostic split
+is the individual strategy's went-live date. The Simulation account panels
+and the Optimise shared-history search show their own split and date coverage.
+[Screenshots and transcribed observations](evidence/bridge-strategy-diagnostics-v2-9-16/README.md)
+
+### Strategy detail
+
+1. Open **Prop Desk → Simulation**. Keep **Relative Strength** in the Portfolio
+   at 100% and use **Funded → Lucid Flex → 50K → First year**. Wait for the
+   size and results to settle. In this session Bridge picked 2 MNQ.
+2. Click the diagonal arrow on the Relative Strength card under **Strategies**.
+   **Live against the Monte Carlo** opens at **1 MNQ**, net of $1.70 a trade.
+   **Whole history** shows the backtest and then the live curve with the cone
+   anchored at the went-live boundary. **Since going live** isolates that
+   latter segment and shows the terminal values on the same net-dollar basis.
+3. Scroll down to **Drawdown since the last high** and **Drawdown matrix**.
+   Observe the 10, 20, 30, 50 and 100 trade horizons. Click **Sum** to switch
+   to the rolling net P&L comparison. Scroll to the bottom for **Status now**,
+   **Live against the backtest**, and **Status changes**.
+   [Whole history](evidence/bridge-strategy-diagnostics-v2-9-16/strategy-open-now.png) ·
+   [Since going live](evidence/bridge-strategy-diagnostics-v2-9-16/relative-strength-since-live.png) ·
+   [Drawdown](evidence/bridge-strategy-diagnostics-v2-9-16/relative-drawdown-matrix.png) ·
+   [Sum](evidence/bridge-strategy-diagnostics-v2-9-16/relative-sum-matrix.png) ·
+   [Status and recovery](evidence/bridge-strategy-diagnostics-v2-9-16/relative-detail-status.png)
+
+**Cone.** Bridge labels the source as Relative Strength's 869 backtest trades
+from 2017-01-10 through 2023-12-05. It shows 2,000 simulated paths and compares
+their endpoints at the current live trade count. The demo overlay spans 440
+held-out trades from 2023-12-06 through 2026-11-19. The legend shows the median,
+a band containing half the paths, and a band containing nine in ten. The end
+labels give the 5th, median and 95th values as $1,569, $8,402 and $15,583.
+The live result is $20,180 at a displayed 100th percentile. The outer band
+is consistent with a central 5th–95th interval. The inner 25th–75th cutoffs
+are inferred from the legend rather than explicitly labelled.
+
+**Drawdown.** The history is drawdown from the last high, displayed in USD
+and updated after each live trade. The matrix compares the same current
+drawdown against the deepest drawdown in 10,000 simulated sequences of
+each length, drawn from all 440 OOS trades. Its percentile is the share
+of simulated drawdowns smaller in magnitude. Here the current drawdown
+was −$669 at the 48th percentile for 10 trades and below the first
+percentile for 100. The **Sum** matrix compares the net P&L of the last
+N live trades with simulated terminal net P&L over N trades. Its percentile
+is the share of simulations with a smaller sum.
+
+**Recovery.** Warning and Critical use the 95th-percentile drawdown at 10
+and 100 trades, respectively. Here those levels were −$1,637 and −$4,258.
+Bridge says Critical eases to Warning when half is won back and a new high
+clears Warning. The status strip shows per-trade status, time in each status,
+and transitions. The screen calls this an advisory status and leaves
+execution decisions with the user.
+
+### Change size, phase or strategy
+
+4. Return with **‹ Simulation**. Drag the Funded size slider until Relative
+   Strength shows 7 MNQ and **Your own size**. Chance of a payout moves from
+   42.4% at 2 MNQ to 22.0% at 7 MNQ in this session. Reopen the arrow.
+   The diagnostic still shows 1 MNQ, 869 backtest trades, 440 live trades,
+   +$20,180 live, $8,402 median and −$669 current drawdown.
+   [Manual Funded size](evidence/bridge-strategy-diagnostics-v2-9-16/single-fund-manual.png) ·
+   [Same strategy detail](evidence/bridge-strategy-diagnostics-v2-9-16/single-detail-after-size.png)
+5. Switch **Simulation** to **Evaluation → Lucid Flex → 50K → 30 days**.
+   Relative Strength alone shows 5 MNQ at **Optimal**. Add **Twin Continuation**
+   using the plus on its card. With equal weights the tested portfolio picks
+   3 MNQ Relative Strength and 4 MNQ Twin. The Simulation equity is the
+   closed-trade historical portfolio at those quantities, with an OOS region.
+   [Single Evaluation](evidence/bridge-strategy-diagnostics-v2-9-16/single-evaluation.png) ·
+   [Two-strategy Evaluation](evidence/bridge-strategy-diagnostics-v2-9-16/two-evaluation.png)
+6. Open each card's arrow from the two-member basket. Relative Strength keeps
+   the same values and trade pools as in step 4. Twin Continuation opens its
+   own detail at 1 MNQ, using 867 backtest trades (2017-01-05 through
+   2023-12-04) and 364 held-out trades (2023-12-05 through 2026-11-19).
+   Twin shows live net +$23,055, simulated 5th/median/95th values of
+   $2,024/$6,982/$11,813, and current equity on a high. The two strategy
+   details have different split dates even though the basket has one OOS
+   start. The history is attributable to the strategy card's own trades.
+   [Relative Strength in the basket](evidence/bridge-strategy-diagnostics-v2-9-16/two-evaluation-relative.png) ·
+   [Twin Continuation in the basket](evidence/bridge-strategy-diagnostics-v2-9-16/two-evaluation-twin.png)
+7. Return to Simulation and switch to **Funded**. Bridge retains the manual
+   Funded sizing setting and shows 7 MNQ each for this basket.
+   [Two-strategy Funded](evidence/bridge-strategy-diagnostics-v2-9-16/two-funded.png)
+   Twin's strategy detail continues to show the same 1 MNQ, split,
+   364-trade horizon and cone values as in Evaluation.
+   [Twin after switching to Funded](evidence/bridge-strategy-diagnostics-v2-9-16/two-funded-twin.png)
+
+### Optimise and Luck Alone
+
+8. From **Simulation**, click **Optimise**. Select **Pass rate → Lucid Flex
+   → 50K → 30 days**. Select only **Relative Strength**, leave **At least**
+   at 1, and click **Run**. One combination appears. The first row shows
+   5 MNQ, 23.7% in-sample pass and 21.7% out-of-sample pass. Above the
+   rows, **Luck alone** shows 16% pass with no edge, +5 points to row
+   1's OOS result, and 16 zero-edge copies with rates spanning 11%–21%.
+   **Load** returns to Simulation with the one-member portfolio.
+   [Single-strategy baseline](evidence/bridge-strategy-diagnostics-v2-9-16/single-opt-eval.png) ·
+   [Loaded single strategy](evidence/bridge-strategy-diagnostics-v2-9-16/single-opt-loaded.png)
+9. Reopen **Optimise**, also tick **Twin Continuation**, keep the other
+   settings, and run again. Three subsets appear. The winner on the shared
+   search days is Twin at 11 MNQ with 30.3% IS and 26.4% OOS. Luck Alone
+   switches its reference to Twin, with 11% pass, a +15-point gap,
+   and 16 copies spanning 8%–14%. The two-member row is second.
+   [Two-strategy baseline](evidence/bridge-strategy-diagnostics-v2-9-16/two-opt-eval.png)
+   Load the Twin row. On its own dates starting 2017-01-05, Simulation
+   reselects 8 MNQ and shows 30.6% IS and 30.9% OOS, as previewed on
+   the search row. The strategy arrow still leads to the strategy's own
+   diagnostics. Loading an Optimise row therefore need not carry that
+   row's shared-history sizing into Simulation.
+   [Loaded Twin on its own dates](evidence/bridge-strategy-diagnostics-v2-9-16/two-opt-loaded-twin.png)
+10. In **Optimise**, select **Payout rate → Lucid Flex → 50K → First year**,
+    tick the same two strategies, leave **At least** at 1, and run. Twin
+    ranks first at 3 MNQ. Its OOS first-year payout rate is 52.9% and its
+    OOS first-year dollars paid out are $3,565. Luck Alone displays a 16%
+    chance of a payout in year 1 from the 16 zero-edge copies of Twin,
+    a +37-point gap, and a 12%–22% range. The headline compares payout
+    probability. The cash figure is a separate result column.
+    [Funded first-year comparison](evidence/bridge-strategy-diagnostics-v2-9-16/two-opt-funded.png)
+11. Increase **At least** to 2 and rerun Funded. The pair becomes the only
+    row at 2 MNQ per strategy with 44.5% OOS. The headline now identifies
+    16 copies of **Rel Strength + Twin**, shows 16% for a year-one payout,
+    a +29-point gap and a 10%–23% range. **Load** returns to Funded
+    Simulation at 2 MNQ per strategy and 44.5% OOS. The Relative Strength
+    card still opens the same 1-MNQ strategy detail with the same cone
+    and current drawdown.
+    [Funded with the pair forced into row one](evidence/bridge-strategy-diagnostics-v2-9-16/pair-only-funded.png) ·
+    [Loaded pair](evidence/bridge-strategy-diagnostics-v2-9-16/pair-only-loaded.png) ·
+    [Strategy detail after Load](evidence/bridge-strategy-diagnostics-v2-9-16/pair-loaded-detail.png)
+
+Bridge's footer describes each trade result being redrawn from its own
+strategy's results after subtracting that strategy's average. Each copy uses
+the row sizing procedure. The baseline follows the winning subset and the
+chosen account phase, profile and horizon. The headline shows the zero-edge
+account success rate and the percentage-point difference from row one's OOS
+rate. The copy range is reported separately. In an earlier capture of the
+same version with **Account life**, the headline says “get a payout” with
+no year-1 qualifier, consistent with the chosen horizon. The observed screen
+also says that sorting uses in-sample outcomes and warns that choosing
+strategies by their status can flatter the OOS comparison because the status
+uses those held-out trades.
+[Archived Account life capture](evidence/bridge-strategy-diagnostics-v2-9-16/archive-optimise-funded-results.png)
+
+### Rules still unresolved
+
+| Area | Rule still unverified |
+| --- | --- |
+| Cone sampling | Sampling with replacement versus blocks or another sequence rule, any block length, seed, RNG and whether the observed live span is capped or extrapolated when history is short. |
+| Cone bands | Exact inner-band quantiles, pointwise versus whole-path band construction, empirical quantile interpolation and endpoint tie handling. |
+| Drawdown and Sum sampling | Replacement, serial dependence or blocks, seed, whether both matrices share the same draws, and the handling of short OOS histories and percentile ties. |
+| Drawdown basis | The display updates after every trade. The treatment of intratrade excursions, consecutive exits at the same timestamp, and whether the last backtest peak carries into the live segment remain unverified. |
+| Recovery | The help explains half recovery and a new high. It leaves the exact recovery anchor, threshold equality and initial state at the split unresolved. |
+| Luck Alone source and timing | The strategy-level mean subtraction and redraw are visible. The exact trade pool and date window used to estimate the mean, whether costs are subtracted before centring, redraw replacement and block rules, retention of trade times, sessions and overlaps, and cross-strategy dependence remain unresolved. |
+| Luck Alone sizing and aggregation | The footer identifies the row sizing procedure. It leaves the fixed-size versus reselected-size treatment per copy, which samples select size and measure the null rate, account-path count and seed, and whether the headline is a mean, median or pooled rate unresolved. The range endpoints and any statistical calibration remain unverified. |
+
+The inspected views exposed no native export for the trade pools, random
+draws or diagnostic settings. The evidence folder contains the original
+screen captures and CSV transcriptions of displayed values. This establishes
+the workflow and metric meanings above. Exact numerical replication still
+requires the underlying input and sampling rules.
+
+The live desktop returned to the original four-member **Lucid Flex 50K
+Funded → First year** Simulation. The same weights (57%/14%/14%/14%),
+allocation (1 MNQ each), and headline (57.9% chance of a payout) are visible.
+The Optimise inputs were restored. Its in-memory result preview reflects
+the inspection runs. The VM stayed running and saved reports were left alone.
+[Starting screen](evidence/bridge-strategy-diagnostics-v2-9-16/start.png) ·
+[Restored screen](evidence/bridge-strategy-diagnostics-v2-9-16/restored.png)
+
+## Prop Desk Milestone 4 — Strategy Diagnostics — 2026-11-22
+
+Open a saved **Simulation** and choose a tested total MNQ. For an **Optimise**
+result, use **Inspect** on a row and choose a tested size in its inspection.
+Under **Strategy diagnostics**, select a member and click **Run strategy
+diagnostics**. The allocation shown is drawn from the selected row of that
+sealed parent. A zero allocation prompts for a larger tested size or another
+member. The same workflow supports a single fixed-size Simulation with a
+declared IS source.
+
+The result opens within Prop Desk. It shows the dates, source, selected member,
+weight, total tested MNQ and member MNQ. Use **Whole history** and **Since OOS
+started** to inspect the cone. In **Drawdown and rolling sum**, switch between
+**Drawdown** and **Sum**. The return link restores the parent row and tested
+size. Reopen the same report from **Prop Desk → Saved runs**, **Job history**,
+or its permanent URL. The report JSON, strategy-trade CSV, diagnostic values
+JSON and evidence ZIP are available from the sealed result.
+
+### Local model and Bridge comparison
+
+- The diagnostic input is the **selected strategy's standalone saved closed
+  trades**, on its own complete observed sessions within the saved IS and
+  linked OOS declarations. Bridge uses 1 MNQ. AlphaQuest uses the allocation
+  from the inspected parent and freezes it across both periods. Saved net P&L,
+  commission and slippage scale by target MNQ divided by the original trade
+  quantity in MNQ equivalents. Net P&L already includes both costs.
+- The 2,000-path cone samples individual IS net trade results independently
+  with replacement. It uses PCG64 seed 42 and pointwise linear 5th, 25th, 50th,
+  75th and 95th percentiles. With OOS present it anchors at the IS close,
+  runs for the observed OOS trade count, and reports the share of endpoints
+  strictly below actual OOS net P&L. With IS alone it draws an illustrative
+  projection of the same length as the IS trade sequence. It retains all
+  simulated steps and saves up to 801 chart points, including the endpoint.
+- Historical drawdown is signed USD from the running peak, beginning at zero
+  and carrying the peak across the split. It updates after each trade closes.
+  Recovery occurs at or above the previous peak. An open episode ends its
+  reported duration at the last observed trade with a blank recovery index.
+  The JSON retains the full historical equity, drawdown and episode series.
+- The Drawdown and Sum matrix uses 10,000 OOS draws at seed 43, over 10, 20, 30,
+  50 and 100 trade horizons. It compares the last observed depth with simulated
+  maximum depth and the last N OOS trades' net P&L with simulated sums. It shows
+  the 5th, median and 95th values and strictly smaller simulated outcomes.
+  Less than two OOS trades suppress the matrix. A sum comparison is absent
+  when fewer than N OOS trades were observed. The Warning and Critical lines
+  are reference depths from the 95th percentile at 10 and 100 trades.
+- The reference establishes the display and source pools. Exact draws, seeds,
+  quantile interpolation, drawdown recovery state rules and numerical parity
+  remain unverified. Luck Alone remains unavailable pending the verified
+  centring window, copy construction and timing, size choice per copy, and
+  headline aggregation. See the [Bridge inspection](#bridge-prop-desk-v2916-strategy-diagnostics--2026-11-22).
+
+The diagnostic uses its own `prop-desk-diagnostics-v1` identity with the
+parent report SHA-256, selected configuration, model, observed session windows
+and prepared ledger digest. It reuses the source verification and dataset
+inventory, and publishes through the existing AnalysisStore worker and seal.
+OOS is read for the diagnostics and never submitted to sizing or ranking.
+
+### Synthetic reproduction and independent checks
+
+1. Upload `SYNTHETIC-diagnostics.csv` as UTC NQ, $20 per point and a 0.25
+   tick. Use **Consecutive Green Hold**, green bar count 1, one contract,
+   hold durations 1 and 2 minutes, $5 commission per side and zero slippage.
+   Use the saved IS window 2026-01-05 through 2026-01-12 and the OOS window
+   2026-01-13 through 2026-01-26. Save the two IS trials from a grid with
+   automatic prop disabled. Run each saved trial's linked OOS report.
+2. In Prop Desk, add the 1-minute member first and the 2-minute member
+   second with equal weights. Use Apex 50K EOD Evaluation and a 2–4 MNQ
+   total range. At 2 MNQ, inspect the 1-minute member. At 4 MNQ switch
+   the strategy selector to the 2-minute member and run again.
+3. In the mobile nav, open **Prop Desk → Optimise** using the same pool
+   and total size range, and require at least two strategies. Inspect the
+   combination, choose 2 MNQ, then switch to 4 MNQ and run the 1-minute
+   member's diagnosis.
+   Reload the page and return to the parent. The sealed diagnosis remains
+   at 2 MNQ for that member and restores the 4-MNQ parent inspection.
+4. For the 1-minute strategy at 1 MNQ the six IS net outcomes are
+   [500, −300, 400, −400, 100, −300]. The ten OOS outcomes are
+   [800, −200, −100, 200, −500, 200, −200, 100, −100, −100].
+   Net equity is $100, with recoveries on trades 3 and 7 and an open
+   drawdown of $700 at trade 16. At 2 MNQ both equity and drawdown dollars
+   double. The second member adds $400 per trade per MNQ for a final
+   $13,000 at 2 MNQ. The basket ledger at that size admits the first member
+   only and ends at $200. That independently distinguishes standalone from
+   shared-account evidence, and each trade's included commission is $1/MNQ.
+5. The four fixed two-trade test paths from values +5 and −3 finish
+   at [10, 2, 2, −6]. Their linear endpoint percentiles are
+   [−4.8, 0, 2, 4, 8.8]. A realized result of +2 ranks at 25% under
+   the strict basis. The matrix test computes projected sums and maximum
+   peak-to-trough depths independently from the sampled path prefixes.
+6. POST an untested 5-MNQ size to the diagnostics endpoint and expect 422.
+   A changed saved trade file rejects even when there is a canonical existing
+   result. Changing a diagnostic artifact causes its sealed report to reject
+   on reopen. An identical request reopens the same result. Removing the OOS links
+   leaves the Optimise ranking hash unchanged and yields an IS-only projection
+   and no OOS matrix. The warm source check has the full inventory parser
+   disabled for the browser and API inspection steps.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_diagnostics.py \
+  tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_basket.py::test_funded_member_target_respects_opening_tiers_and_censoring
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_diagnostics_browser.py
+```
+
+[Synthetic dataset](evidence/prop-desk-diagnostics-v1/SYNTHETIC-diagnostics.csv) ·
+[Saved evidence and launch requests](evidence/prop-desk-diagnostics-v1/journey.json) ·
+[Desktop cone and Sum](evidence/prop-desk-diagnostics-v1/simulation-2-desktop.png) ·
+[Reopened mobile Optimise diagnosis](evidence/prop-desk-diagnostics-v1/optimise-mobile-reopened.png) ·
+[Mobile evidence ZIP](evidence/prop-desk-diagnostics-v1/optimise-mobile-analysis.zip) ·
+[Unchanged ranking](evidence/prop-desk-diagnostics-v1/saved-rankings.json)
+
+The live portal was refreshed with zero active jobs. On the existing sealed
+two-strategy basket, the selected 2-MNQ size allocated 1 MNQ to the inspected
+member. The live diagnostic showed both charts about 1.27 seconds after Run.
+Its 1,006-trade ledger independently reconciled to the saved net P&L and
+maximum drawdown. The same report reopened on mobile.
+[Live verification](evidence/prop-desk-diagnostics-v1/live-verification.json)
+
+## Bridge Prop Desk Luck Alone verification — 2026-11-22
+
+**Verdict.** Bridge v2.9.16 establishes the Luck Alone workflow and displayed
+outcomes. The available evidence still leaves material choices in the null
+model, sizing and aggregation unresolved. Milestone 5 cannot implement Luck
+Alone as a verified Bridge match from this evidence. Keep the current
+unavailable state pending a matched reference with copy-level inputs and
+outputs or a version-specific calculation specification.
+
+### Reproduce the controlled comparisons
+
+Use the existing Bridge demo and open **Prop Desk → Simulation → Optimise**.
+Use **Lucid Flex → 50K** throughout. Run after each settings change and read
+the ranked result in Optimise. Every Relative Strength/Twin comparison below
+showed common history **2017-01-10 through 2026-11-19**. Optimise shows the
+outer dates, and the exact IS/OOS split and trade membership per copy were
+unavailable. **Load** is unnecessary for these comparisons. It can use a
+subset's longer history and select a different size.
+
+1. Select **Pass rate**, tick only **Relative Strength**, set **At least** to 1,
+   and select **30 days**. Click **Run** twice without editing the controls.
+   Both results displayed 5 MNQ, 23.7% IS and 21.7% OOS pass. Luck Alone showed
+   16% pass, +5 points, and an 11%–21% range across 16 copies. Switch to **60
+   days** and rerun. The row changed to 3 MNQ and 35.7% OOS. The headline
+   became 22%, +14 points, and a 14%–31% range. The horizon changed alongside
+   the ranked allocation.
+   [First 30-day run](evidence/bridge-luck-alone-v2-9-16/single-30-a.png) ·
+   [Repeat](evidence/bridge-luck-alone-v2-9-16/single-30-b.png) ·
+   [60 days](evidence/bridge-luck-alone-v2-9-16/single-60.png)
+2. Set **30 days**, tick **Relative Strength** and **Twin Continuation**,
+   and set **At least** to 2. Run. The only ranked row is the pair at 3+4 MNQ.
+   Its OOS rate is 29.9%. Luck Alone shows 16% pass, +14 points, and
+   10%–25% for 16 copies of the pair. With the same two candidates and
+   **At least** 1, Twin alone wins at 11 MNQ and Luck Alone follows Twin.
+   [Pair as row one](evidence/bridge-luck-alone-v2-9-16/pair-eval-30.png) ·
+   [All three subsets](evidence/bridge-luck-alone-v2-9-16/eval-two-candidates.png)
+3. Keep both strategies and **At least** 2. Switch to **Payout rate** and
+   run **First year**, then **Account life**. First year picks 2+2 MNQ with
+   44.5% OOS, $2,893 paid out in the result column, a 16% no-edge rate,
+   and a 10%–23% range. Account life picks 1+1 MNQ with 75.7% OOS, $5,981
+   paid out, a 15% no-edge rate, and a 10%–25% range. The headline gap
+   changes from +29 to +60 points. The First year headline specifies
+   a payout in year 1. Account life labels it a payout with no year-1
+   qualifier. The different allocations prevent isolating the horizon
+   effect in this pair.
+   [Pair First year](evidence/bridge-luck-alone-v2-9-16/pair-first.png) ·
+   [Pair Account life](evidence/bridge-luck-alone-v2-9-16/pair-life.png)
+4. For the single-strategy Funded check, untick Twin Continuation, set
+   **At least** back to 1, and run both Funded presets again. Relative
+   Strength selects 2 MNQ in First year and 1 MNQ in Account life. The
+   headlines both round to 19%, with different ranges (14%–23% and
+   11%–29%) and OOS rates (42.4% and 67.9%). Equal displayed headline
+   rates can coexist with different displayed copy ranges.
+   [Single First year](evidence/bridge-luck-alone-v2-9-16/single-first.png) ·
+   [Single Account life](evidence/bridge-luck-alone-v2-9-16/single-life.png)
+5. Keep **Payout rate**, **Lucid Flex 50K**, and **At least** 1. Untick
+   Relative Strength and tick **VWAP Pullback ADX**. Run **First year** and
+   **Account life**. Both use the displayed common history 2017-01-05
+   through 2026-11-12. The ranked row remains at 10 MNQ with 21.3% IS,
+   21.1% OOS, 95.1% blown, and first payout on day 18. Luck Alone shows
+   14% in First year and 13% in Account life, both with 16 copies and a
+   10%–18% displayed range. The displayed gap rises from +7 to +8 points.
+   Repeat both presets. The same rates and ranges appear again.
+   [Matched First year](evidence/bridge-luck-alone-v2-9-16/vwap-first.png) ·
+   [Matched Account life](evidence/bridge-luck-alone-v2-9-16/vwap-life.png) ·
+   [First year repeat](evidence/bridge-luck-alone-v2-9-16/vwap-first-repeat.png) ·
+   [Account life repeat](evidence/bridge-luck-alone-v2-9-16/vwap-life-repeat.png)
+
+[Inputs and outputs transcribed from the live screens](evidence/bridge-luck-alone-v2-9-16/observations.csv)
+
+### What the new comparisons establish
+
+- **Funded presets can change the null headline at the same ranked size.**
+  On one fixed bank of funded paths, an account with a year-one payout
+  would also count under an inclusive lifetime horizon. If the same paths,
+  null allocations, denominators, and aggregation were retained, merely
+  extending observation could not lower the rate. The matched VWAP result
+  rules out that combined explanation. It leaves open preset-dependent
+  copy sizing, copy generation or RNG streams, horizon-dependent
+  censoring, or a different definition/aggregation under the presets.
+- **Displayed precision matters.** Relative Strength's 30-day screen
+  shows 21.7% OOS and 16% Luck Alone, with a +5-point gap. The First year
+  Relative Strength screen shows 42.4%, 19%, and +24 points. Subtracting
+  the displayed rates and rounding to the nearest integer would give +6
+  and +23. The gap is consistent with using greater internal precision.
+  The exact rounding and ties remain unverified.
+- **What counts as success is visible at the headline level.** Evaluation
+  uses pass under the selected simulated window. The matched 30-day
+  Simulation display reports a separate 4.4% timeout for Relative
+  Strength, with 21.7% pass and 73.9% breach. That supports the real-row
+  interpretation. It does not expose the null-copy denominator. Funded
+  First year counts getting a payout in year 1 and Account life labels
+  the outcome as getting a payout. Both report rates rather than cash
+  in the headline. The lifetime stop guard remains undisclosed.
+  [Evaluation cutoff display from the prior inspection](evidence/bridge-strategy-diagnostics-v2-9-16/single-evaluation.png)
+- **Repeatability is visible at the displayed precision.** Repeated
+  inputs returned the same 30-day and VWAP preset summaries. Fixed
+  seeds, deterministic regenerated streams, and result reuse are
+  compatible with this result.
+
+### Rules still unresolved and the evidence needed
+
+| Rule | Alternatives still compatible with the evidence | Evidence that would distinguish them |
+| --- | --- | --- |
+| Centring and redraw source | The footer says trade results are redrawn from their own strategy after subtracting its average. The centre and pool could use IS only, OOS only, all saved trades, or trades restricted to the shared search dates. They could use different windows. Gross centring followed by execution costs, and centring already-net results, produce different null means. | A version-specific specification or a labelled input export with strategy, trade ID, shared date, split, gross P&L, commission and slippage, plus the actual source windows and centred values. A controlled test changing only costs or the OOS mean would further distinguish these cases. |
+| Draw unit and dependence | The trade-level language leaves open independent draws with replacement, a permutation, or blocks. The UI leaves open whether original slots, timestamps, flat days and overlaps are retained, and whether the two members share dates/draws or randomise separately. | At least one null copy with source and destination trade IDs, timestamps, day membership, execution order and rejected overlaps. A small paired fixture with known co-timed trades, empty sessions and a distinctive serial pattern can separate these rules. |
+| Per-copy size and selection | Using row one's allocation, selecting a size for each copy, or reusing one baseline allocation for all copies remain possible. IS selection and held-out evaluation, as well as other window use, remain indistinguishable. The real-row sizing rule and match at 10 MNQ do not establish the null allocation. | Each copy's size or candidate grid, source windows used to score and select, objective, ties and final scoring allocation. A trace where the observed optimum and null optimum differ would identify whether a size is actually reselected. |
+| Headline, range, and rounding | Mean, median, pooled successes, and other representative summaries fit the rounded headline. Min/max and other limits fit the reported bounds. Mean and pooled rate coincide when every denominator is equal. The formatting does not expose decimals or ties. | All 16 raw success counts and denominators with unrounded computed headline and range. Unequal denominators or a specification are needed to distinguish pooling from an equal-weight mean when their values coincide. Rounding boundary cases would establish display rules. |
+| Seed and account-path count | Sixteen identifies synthetic copies. It leaves open the account paths per copy, separate seed stages, and reuse of paths across presets. The visible 10,000 runs belongs to the Simulation view. The archived Funded Lab settings belong to another model. | The Optimise Luck Alone configuration or a per-copy export with seed/RNG, path count and stable IDs through both presets. |
+| First-year and lifetime endpoints and censoring | First year could use a fixed trading-day count or another clock. Account life could terminate at payout ladder completion, breach or inactivity with or without an additional computational guard. Open no-payout paths may stay in the denominator, be excluded, or be handled explicitly as censored. An open account with an earlier payout may already count. The row's blown percentage can overlap with a payout and does not identify censoring. | A rule or matched path ledger with separate payout date, observation clock, provider terminal reason, computational cutoff, and inclusion flags. Include an open path with no payout, one with an early payout, and one with a first payout after year one. For Evaluation, include a timed-out path and its denominator contribution. |
+
+The inspected Optimise controls, result header, and footer exposed the
+summaries and subset settings. No copy-level download or controllable
+cost/split input for these demo histories was visible. The existing
+Funded Lab settings cannot supply the missing Optimise rules. A public
+documentation search yielded no version-specific Luck Alone specification.
+[Archived Funded Lab settings](../artifacts/lucid-metric-discrepancy-20261102/bridge-settings.txt)
+
+The Optimise controls and original displayed First year pair preview were
+restored. The four-member Simulation remained on **Lucid Flex 50K → Funded
+→ First year**, with the starting 57%/14%/14%/14% weights and 1 MNQ per
+member. The Windows session and saved reports were preserved. The only
+repository additions are this review and its evidence.
+[Optimise before](evidence/bridge-luck-alone-v2-9-16/optimise-before.png) ·
+[Optimise after](evidence/bridge-luck-alone-v2-9-16/optimise-after.png) ·
+[Simulation before](evidence/bridge-luck-alone-v2-9-16/simulation-before.png) ·
+[Simulation after](evidence/bridge-luck-alone-v2-9-16/simulation-after.png)
+
+## Prop Desk Milestone 5 implementation gate — 2026-11-22
+
+Luck Alone remains unavailable. The checksummed Bridge observations establish
+the 16-copy display and its link to row one. They leave unresolved which trade
+window and costs define zero edge, how copies retain timing and dependence,
+whether and how each copy selects a size, the scoring denominator and cutoff,
+and how the copy rates produce the headline and range. The matched 10-MNQ
+VWAP case reproduces 14% for First year and 13% for Account life. That rules out
+extending identical paths with fixed allocations, denominators and aggregation.
+A version-specific calculation spec or a matched trace of the trades, draws,
+per-copy allocations and outcome counts is still required.
+[Bridge observations](evidence/bridge-luck-alone-v2-9-16/observations.csv)
+
+The sealed subset report already identifies row one, its IS-selected size and
+member weights, the account profile and horizon, the common IS window and
+the available common OOS sessions. Its saved account-path outcomes and the
+ranking come from IS. The OOS artifact is historical equity and admitted
+trades. A future verified Luck Alone child needs to measure the row's actual
+OOS pass or payout rate using the corresponding account engine at the frozen
+allocation. The OOS equity figure cannot supply that rate.
+
+To verify the gate, open a saved Optimise result from the Milestone 4 journey.
+Inspect its first-ranked combination and look under **Strategy diagnostics**.
+On desktop and mobile, reopen the result and expect the existing message that
+Luck Alone is pending Bridge verification. The 4-MNQ synthetic parent used
+for this check has 2+2 MNQ allocated and ten common OOS sessions. Reloading
+showed the same message, generated zero Prop Desk write requests and zero
+new jobs, and preserved the ranking, report and ZIP hashes. The running
+portal served the same diagnostics asset as the checkout and exposed no
+Luck Alone launch route. The browser check used a disposable copy of the
+existing synthetic report. Its temporary server stopped afterward.
+
+The targeted subset-sizing and strategy-diagnostics tests passed
+(`tests/test_prop_desk_subset_optimizer.py` and
+`tests/test_prop_desk_diagnostics.py`, 5 tests). The implementation gate
+precludes new Luck Alone runs, null-copy fixtures and numerical comparison
+until the reference defines the calculation.
+[Desktop and mobile gate verification](evidence/prop-desk-luck-alone-gate/verification.json)
+
+### Future Prop Desk improvements
+
+- **Luck Alone.** Deferred at the user's request. Keep the existing
+  unavailable state and the Bridge evidence above. Revisit the null
+  model, per-copy sizing and scoring after the centring, redraw,
+  aggregation and cutoff rules can be established. Record any eventual
+  AlphaQuest-specific methodology and its comparison limits explicitly.
+- **Proposed next milestone — Frozen OOS account assessment.** Assess
+  the first-ranked Optimise row on its common observed OOS sessions at
+  the allocation selected in IS. Save the Evaluation or Funded account
+  outcomes beside the existing historical equity evidence. The OOS
+  assessment cannot change the IS size, weights, or ranking. The Luck
+  Alone investigation is independent of this work.
+
+## Prop Desk Milestone 6 specification — Frozen OOS Account Assessment — 2026-11-22
+
+**Proposed.** From a completed **Optimise** result, assess the first ranked
+combination on its sealed common observed OOS history at the allocation chosen
+in IS. Add a separate **OOS account assessment** alongside the ranking and
+historical equity chart. Save one phase-specific child report. OOS evidence
+cannot change the parent ranking, chosen size, or weights. Luck Alone remains
+deferred.
+
+### Trace of the completed synthetic reports
+
+The archived `prop-desk-optimizer-v2` Evaluation report
+`cbbe533a83534072862e8b91cf4f5ea9` and Funded report
+`536f7abe69c84fdd85d19b21e0ba23c3` both put combination 2 first in display
+order. Its selected size is 2 MNQ, allocation `[2]`, unused 0. The member is
+the two-minute Consecutive Green Hold configuration at weight 1. Its sealed
+IS backtest is `f69a9ac2236849f7bb22292810dae2b2` and its OOS child is
+`c6f1a7ba4e104688a94534fece7756f4`. The search shares eight observed IS
+sessions from 2026-01-05 through 2026-01-14. The subset shares one complete
+OOS session, 2026-01-15. The stored sources pin the dataset, strategy/execution,
+trade and risk identities. Both saved ZIPs reconcile to their report manifest
+and the evidence checksums.
+[Evaluation report](evidence/prop-desk-optimizer-v2/evaluation-report.json) ·
+[Funded report](evidence/prop-desk-optimizer-v2/funded-report.json) ·
+[Evidence manifest](evidence/prop-desk-optimizer-v2/journey.json)
+
+In each archive, open the selected combination's `combination_2/paths_2.json`
+for the IS account paths, and `combination_2/admitted_trades_2.csv` and
+`combination_2/equity_2.json` for the IS/OOS historical trade evidence. The
+OOS trade is 2 MNQ net of $2 commission and zero slippage, at $798 net.
+The sealed reports contain no OOS account outcomes. The source books used
+by the account engines also carry adverse-risk inputs and payout eligibility
+that the closed-trade CSV alone cannot supply.
+[Evaluation ZIP](evidence/prop-desk-optimizer-v2/evaluation-analysis.zip) ·
+[Funded ZIP](evidence/prop-desk-optimizer-v2/funded-analysis.zip)
+
+### Frozen inputs, admission and calculation owners
+
+1. Load and verify the completed parent in AnalysisStore. Bind the child
+   to its report hash and ranking hash. Resolve the first saved entry in
+   `optimizer.ranking` by display order, including ties. Use its combination
+   ID and its saved size entry. Resolve member order and weights through the
+   combination's indexes into `configuration.members`. Use the saved target
+   allocation and unused MNQ exactly. The UI's last inspected row, a newer
+   linked backtest, and the total test size at the bottom of the search range
+   are independent of this selection.
+2. Take the common IS sessions, the selected subset's exact OOS session list
+   and saved OOS child IDs from the parent. Resolve the source records,
+   manifest and trade/risk hashes, account profile version, rules, cost
+   treatment, path count, seed list, sampling and observation horizon from
+   the seal. Reuse the persistent session inventory to verify observed
+   coverage against the original dataset bytes, without a full bar parse
+   on warm sources. Compare the reverified OOS intersection to the sealed
+   list. Keep observed zero-trade sessions and exclude unobserved dates.
+3. Rebuild the selected OOS member books with
+   `desk_basket.checked_record`, `period`, and `source_book`, then replay
+   admission using `desk_basket.admitted` with the frozen weights and
+   targets. Retain shared session order, one position at a time, earliest
+   entry first, then weight and member order for ties, and admission at a
+   prior exit. Scale the saved net costs and risk inputs once. The existing
+   Funded opening tier still caps actual quantity. Reconcile the selected
+   subset's admitted OOS ledger to its saved chart evidence. Use the
+   risk-bearing books for simulation.
+4. Call `desk_optimizer.evaluation` for one Evaluation attempt per path.
+   That path uses `desk.evaluation` and the existing Apex or Lucid
+   `evaluation_model` with `chain=False`. Call `desk_optimizer.funded`
+   for one fresh Funded account per path. It dispatches to `native_backend`
+   or `lucid_backend`, including its session-tier branch and existing payout
+   logic. Use the parent's actual local rule snapshot, including any
+   inactivity setting. Retain the parent's circular observed-session block
+   sampler, ordered path seeds and horizon. Apply the same seeds to the
+   OOS session array. Path indexes identify streams, while the two arrays'
+   different dates and lengths produce different sampled sessions. Report
+   the two history lengths and the observation horizon separately.
+5. Read the same selected size's sealed IS path artifact for the comparator.
+   Derive both sides' presentation metrics with the same definitions below.
+   Eligibility uses the parent rule, numerical owner and kernel identity,
+   with any compatibility for preparation-only changes established by
+   explicit verification. For example, the archived reports above carry the
+   earlier `research_folds.py` hash from before persistent inventory reuse.
+   The archive is a valid test oracle. Launch compatibility with a historical
+   parent requires verifying the same session inventory, accounting rules
+   and numerical behavior. A missing or incompatible frozen contract means
+   unavailable with a reason. Legacy report readers continue to work.
+6. Use the existing AnalysisStore worker and sealed-report flow. The child
+   identity binds the parent, ranked size, source fingerprints, exact
+   sessions, simulation settings, and assessment implementation identity.
+   Verify the seal and source identity at admission and publication, and
+   verify the saved child before reopening or canonical reuse. Save its
+   source and allocation identity, admitted OOS trades, path outcomes,
+   IS/OOS counts and metrics, and source/coverage disclosures. Keep the
+   parent ranking, selected size, report and ZIP byte-identical. A different
+   valid OOS attachment needs a separately sealed parent with the same IS
+   selection. Its ranking and allocation can match the original, while
+   its full report hash changes with its source evidence.
+
+[Optimise account owners](../alphaquest/prop/desk_optimizer.py) ·
+[Subset sizing and ranking](../alphaquest/prop/desk_subset_optimizer.py) ·
+[Source and execution owners](../alphaquest/prop/desk_basket.py) ·
+[Existing diagnostic sealing](../alphaquest/prop_desk.py)
+
+### Like-for-like outcomes
+
+The estimates describe resampling from each saved history using the local
+account model. Show the observed session and trade counts on both sides.
+A short window remains short evidence even when repeatedly sampled. A
+verified empty-trade window still contributes its observed sessions.
+Present the account assessment separately from the historical equity curve.
+
+**Evaluation.** Use all `N` started attempts as the denominator for pass,
+breach and no-decision outcome counts and rates. Separate Apex's saved
+provider expiry from the model observation cutoff used by Lucid. Compute
+median trading days to target only among passes, with no value when there
+are zero passes. No retried accounts enter this calculation.
+
+**Funded.** Let `H` be the parent's saved simulation horizon in trading
+sessions. Retain `H` when running the account engine. The presentation
+window `W` is day 261 inclusive for **First year**, and `H) for
+**Account life**. First year requires coverage of the full 261 simulated
+sessions in the model unless the path terminates earlier. Account life uses
+the saved horizon even if the parent used 261 sessions for that preset.
+A preset label by itself does not determine the calculation's horizon.
+
+| Metric | Common IS and OOS definition through `W` |
+| --- | --- |
+| Any payout | Fraction of all fresh accounts with at least one trader receipt dated at or before `W`. An open account with an earlier payout counts. An open account with no receipt remains in the denominator. |
+| Breach before first payout | Fraction of all fresh accounts terminally breached by `W` with no receipt through that window. Use the controller's saved terminal day and payout event order. An account that paid and later breached has an observed payout. |
+| Trader receipts and account deductions | Sum each path's trader receipts and gross account deductions through `W` separately, then divide each sum by all started accounts. Include open accounts and zero receipts. |
+| Open at window end | Count accounts without a terminal event on or before `W`. A path that terminates after day 261 was still open at the First year boundary. Report open counts and distinguish accounts that have already paid when explaining unresolved outcomes. |
+| Ladder completion | If displayed, count completed payout ladders by `W` over all started accounts. |
+
+When any Funded paths remain open at `H`, label the Account life rates as
+**observed through cutoff**. The through-cutoff mean receipts are retained
+as a lower bound on modeled lifetime receipts. Report the resolved lifetime
+mean as unavailable. When all paths terminate, the through-cutoff mean is
+the resolved modeled lifetime mean. First year is a measured finite window
+even when an account remains open thereafter. A complete terminal-event
+population is unnecessary for the First year mean.
+
+The existing Funded ranking's `probability_any_payout` counts through the
+parent's full `H`, even when the preset chooses size by First year cash.
+Use the sealed payout and terminal events to derive the IS comparison
+through `W`. Preserve the original ranking score and label. The same
+event definitions apply to OOS. In particular, the unresolved lifetime
+field is distinct from the positive cash that may have been collected
+before cutoff.
+
+### Unavailable reasons
+
+| Condition | User-facing reason |
+| --- | --- |
+| Incomplete, unreadable or invalid seal, or no ranked result | Open a completed, verified Optimise result with a ranked combination. Identify an integrity failure separately when applicable. |
+| A ranked member has no pinned, readable OOS child | Name the affected member and whether the saved OOS link is missing or its report is unavailable. |
+| Child is the wrong phase, saved parent, split, strategy/execution settings, dataset version, or costs | Name the affected report and the configuration field that failed the existing saved-source check. |
+| Member lacks complete observed OOS coverage, or eligible members have no common observed OOS sessions | Distinguish an individual coverage failure from an empty intersection. Reject an OOS window that overlaps or precedes common IS. |
+| Source/artifact fingerprint or rebuilt session inventory disagrees | Identify the changed dataset, manifest, trade/risk file, parent seal or session list. A newer child cannot silently replace the pinned evidence. |
+| Saved allocation, profile, outcome definitions, seeds or numerical contract cannot be matched | State which frozen input is missing or incompatible. A historical report can still be opened. |
+
+### Independent test oracle and reproduction
+
+**Archive arithmetic.** In the synthetic Optimise archives above, each common
+IS day and the single OOS session have one identical admitted trade for the
+selected member. One NQ trade earns $4,000 gross less $10 commission.
+At 2 MNQ, `(4000 − 10) × 2/10 = $798` after costs. The OOS session array
+contains one day. Every circular draw therefore selects the same result,
+even with the saved five-session blocks and 1,000 seeds. The arithmetic
+below independently reproduces the existing IS archives and predicts the
+frozen OOS result for this deliberately constant fixture.
+
+- **Apex Evaluation, 21-session expiry.** Three winning sessions yield
+  $2,394 and four yield $3,192. With no adverse breach, all 1,000 attempts
+  pass on day 4, with zero breaches and zero expiries. With the same
+  observed OOS session but no trades, all attempts instead reach provider
+  expiry at day 21 and the conditional median is unavailable. Covered but
+  flat OOS and absent OOS are distinct cases.
+- **Apex Funded, 261 sessions.** The target of 2 MNQ is below the opening
+  tier cap. Every $798 day qualifies. Each five-day cycle makes $3,990,
+  satisfying the saved consistency rule, and leaves room above the $2,100
+  safety net for the next deduction. All six payouts arrive on days
+  5, 10, 15, 20, 25 and 30. Their amounts sum to $13,000 and mean gross
+  deduction and mean trader receipts are both $13,000. All paths complete
+  the ladder with zero breaches and no open paths. Ending relative account
+  balance is `30 × 798 − 13,000 = $10,940`.
+
+**Window and censoring oracle.** Feed four fixed Lucid-style event streams
+to the future presentation reducer with `H=300`. These are hand-specified
+summary inputs. Each recorded receipt of $1,800 corresponds to a $2,000
+gross deduction.
+
+| Path | Terminal state by day 300 | Payout days |
+| --- | --- | --- |
+| A | Ladder completed, day 250 | 25, 50, 75, 100, 250 |
+| B | Breached, day 270 | None |
+| C | Open at cutoff | 261 |
+| D | Open at cutoff | 262 |
+
+| Expected | First year through day 261 | Account life through day 300 |
+| --- | ---: | ---: |
+| Any payout | 2/4 | 3/4 |
+| Breach before first payout | 0/4 | 1/4 |
+| Open accounts | 3/4 | 2/4 |
+| Ladder completed | 1/4 | 1/4 |
+| Mean trader receipts | $2,700 | $3,150 through cutoff |
+| Mean account deductions | $3,000 | $3,500 through cutoff |
+| Resolved lifetime receipts mean | Outside this window | Unavailable |
+
+For the future normal-product demonstration, recreate the synthetic search
+from the archived optimizer fixture, or open a compatible saved report
+produced by that journey. Inspect row one, launch the assessment, download
+the child report and reopen it on desktop and mobile. Check the numbers
+above. For the unavailable case leave one ranked member's OOS link absent,
+then separately test a source checksum failure. Re-assess a valid separately
+sealed parent with the same IS setup and different OOS evidence. Its OOS
+outcomes may change while the IS ranking hash and size stay identical.
+Repeated inspection of either saved result must leave that parent's seal
+intact.
+
+This specification was checked read-only against both archived IS path
+populations, their selected trade ledgers, and the hand-calculated 261/300
+session summary inputs. OOS values above are expectations for the future
+implementation. The archive contains no such OOS account report.
+
+### Milestone 6 implementation and product evidence
+
+A completed subset Optimise result now offers **Run OOS account assessment**
+beside the rankings. It always assesses the first-ranked saved combination at
+its IS-selected allocation. Once saved, the comparison appears beside the
+parent equity chart and also opens as a sealed report with the OOS account
+paths and the admitted-trade ledger. The report header names both windows,
+the profile, targets, path denominators and the reporting horizon. Historic
+pair-ranking reports lacking a frozen subset preset show an unavailable
+reason and remain readable.
+
+The implementation uses `prop-desk-oos-assessment-v1` and the existing
+AnalysisStore worker. The API launch accepts the parent ID. Parent and child
+seals are verified before reuse. The selected member trade and risk files
+are checked again before publication. The warm inventory is checked against
+the original dataset bytes. Both admitted histories are rebuilt and compared
+with the saved Optimise ledger before the OOS engine runs. The assessment
+uses the saved IS path artifact for the comparator.
+
+1. Upload [SYNTHETIC winning OOS](evidence/prop-desk-oos-assessment-v1/SYNTHETIC-frozen-oos-winning.csv)
+   as UTC NQ, $20 per point, tick 0.25. Save the ordinary **Consecutive Green
+   Hold** grid with a green bar count of 1, 1 NQ, hold periods of 1 and 2
+   minutes, $5 commission per side and zero slippage. Use IS dates 2026-01-05
+   through 2026-01-14 and OOS date 2026-01-15. The fixture uses a one-worker
+   grid with automatic prop disabled. Run each saved IS trial's linked OOS
+   backtest.
+2. In **Prop Desk → Optimise**, add the two-minute strategy first, then the
+   one-minute strategy. Give both weight 1, require two members, and test
+   4–5 total MNQ. Run Apex 50K EOD Evaluation. Inspect 5 MNQ in the equity
+   view, then click **Run OOS account assessment**. The assessment uses the
+   ranked 4 MNQ, with 2 MNQ per strategy. Both entries compete at the same
+   time and the first member is admitted. The OOS ledger contains one $798
+   net trade with $2 commission. Reopen the report and return to the parent
+   to see both the assessment table and the equity chart.
+3. Repeat on a 390-pixel mobile viewport with Apex 50K EOD Funded and the
+   **First year** preset. Save the ZIP and reload the assessment. Both
+   histories produce 1,000 payouts in 1,000 paths, $13,000 mean receipts and
+   deductions, and zero open accounts. The payout days for every path are
+   5, 10, 15, 20, 25 and 30. The Evaluation comparison passes all 1,000
+   attempts on day 4 in both histories.
+4. Repeat the source preparation with [SYNTHETIC flat OOS](evidence/prop-desk-oos-assessment-v1/SYNTHETIC-frozen-oos-flat.csv).
+   The IS rows are byte-identical to the winning fixture. The same OOS
+   session is fully observed but flat and generates zero trades. The Apex
+   Evaluation search keeps the same IS ranking hash and 2+2 MNQ selection.
+   The OOS assessment has zero passes and 1,000 provider expiries. The
+   separately sealed reports bind different OOS source identities. Each
+   parent's report and ZIP stay byte-identical across its own assessment.
+5. On the flat source, run LucidFlex 50K Funded with **Account life** and
+   a 300-session horizon. The same IS $798 per session earns $3,990 in the
+   first five days. The first withdrawal is half of that, $1,995, followed
+   by four $2,000 withdrawals. At the saved 90% split, mean IS trader
+   receipts are $8,995.50 and mean deductions are $9,995. With zero OOS
+   trades and the saved inactivity setting, all 1,000 OOS accounts are
+   still open at day 300. Through-cutoff receipts are $0 and the resolved
+   lifetime mean is unavailable.
+6. Run the same search with one ranked member's OOS link omitted. The
+   saved result names that member and shows the reason instead of Run.
+   An identical assessment request reopens the original child. In the
+   isolated fixture, a changed OOS trade file rejects at source admission.
+   Altering either a sealed parent or a child artifact also rejects. The
+   browser/API test disables the full inventory bar parser after preparing
+   the sources, including for the alternate data, reuse, and all reopens.
+
+The focused suite passed seven checks, including the normal desktop and
+mobile journey and the 261/300-session payout-boundary oracle.
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_oos.py tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_oos_browser.py
+```
+
+[Reproduction manifest and checksums](evidence/prop-desk-oos-assessment-v1/journey.json) ·
+[Desktop ranking, assessment and equity](evidence/prop-desk-oos-assessment-v1/evaluation-inline.png) ·
+[First year ZIP](evidence/prop-desk-oos-assessment-v1/first_year-assessment.zip) ·
+[Mobile Account life reopen](evidence/prop-desk-oos-assessment-v1/lifetime-reopened.png) ·
+[Account life ZIP](evidence/prop-desk-oos-assessment-v1/lifetime-assessment.zip) ·
+[Missing source rejection](evidence/prop-desk-oos-assessment-v1/missing-source.json) ·
+[Changed artifact rejections](evidence/prop-desk-oos-assessment-v1/changed-artifacts.json)
+
+The live portal was restarted after confirming zero active jobs. Using the
+two existing saved strategies from basket `58b9339ae2c64a50be070dd946cef3ba`,
+a new 2-MNQ Apex Evaluation Optimise parent sealed 1+1 MNQ. Its assessment
+used 1,034 observed IS sessions and 391 observed OOS sessions. On the
+running app, the OOS counts and median reconciled directly to the 1,000
+downloaded path records. The assessment reopened on mobile, appeared next
+to the parent's equity chart, and left its report hash intact.
+[Live verification](evidence/prop-desk-oos-assessment-v1/live-verification.json)
+
+These are local account estimates conditional on the sealed saved histories
+and account model. Bridge numerical parity and forward trading outcomes
+remain unverified.
+
+## Prop Desk feature parity recheck after Milestone 6 — 2026-11-22
+
+Compared the running AlphaQuest Prop Desk with Bridge v2.9.16 in the existing
+Parallels Windows session. AlphaQuest covers the main Simulation and Optimise
+workflow. Several active Bridge features remain absent or partly covered.
+
+| Feature | What AlphaQuest has today | Remaining Bridge gap |
+| --- | --- | --- |
+| Strategy picker and shared basket | Strategy configurations link their saved IS and OOS backtests. Add, remove, set weights, equal-weight, check coverage on Run, and simulate one account. Target MNQ and actual tier-limited fills are disclosed separately. | Bridge also supports dragging strategies into the portfolio and clearing it in one action. Identical rounding, overlap admission, and treatment of competing entries remain unverified. |
+| Evaluation and Funded Simulation | Single-attempt outcomes, median time to pass, fresh-funded payout and breach outcomes, payout ladder, cutoff disclosure, and separate trader receipts and account deductions. Historical portfolio and member curves show net closed-trade equity and the verified IS/OOS boundary when available. | Bridge leads with OOS account outcomes at the selected size when OOS exists, shows corresponding IS figures, and also displays a median funded account receipt figure and a run-to-run interval for Evaluation. AQ Simulation account outcomes use IS. A linked OOS backtest extends the historical chart. |
+| Simulation sizing | Manual whole-MNQ size and size sweep, account outcomes and equity by tested size. The editable observation horizon is available for LucidFlex Evaluation. | Bridge offers automatic IS-based **Optimal** and **Conservative** in Evaluation, **First year** and **Account life** in Funded, and 30/60/90-day observation shortcuts for Evaluation. AQ has automatic size selection within Optimise. Exact Bridge sizing grid and the Conservative rule are still unverified. |
+| Optimise | All nonempty subsets by default within the workload limit. One IS-selected size and one ranked row per subset. Funded size selection uses the chosen receipts horizon, then ranks by payout probability. Rows reopen with equity and admitted-trade downloads. | Bridge supplies its own sizing grid. AQ asks for the tested MNQ range and caps work at 48 combination-size pairs and 16,000 pair-days. The Bridge Funded table describes ordering contestants within one standard error of the best by median first-payout day. AQ Funded gives equal scores a shared rank and orders those rows by size, member count and pool order. The exact Bridge tie calculation and payout-rate denominator for every preset remain unverified. |
+| OOS by Optimise result | Milestone 6 computes a frozen IS/OOS account comparison on demand for the saved first-ranked combination. Other rows can show historical OOS equity when linked sources support it. | Bridge shows an OOS account rate beside each ranked row on the search's shared history. The Simulation opened by Bridge's **Load** can score a different window and size. Keep those observations distinct when checking parity. |
+| Account profiles | Apex 50K EOD and LucidFlex 50K for both phases under their existing local rule versions. | Live Bridge produced Lucid Pro 50K results for both phases and Apex 25K, 100K and 150K results in Funded. AQ has none of these additional profiles. The LucidFlex 25K control did not switch profiles in Funded. Other provider and phase variants are unverified. |
+| Strategy diagnostics | Reopenable strategy cone, historical drawdown, Drawdown matrix and rolling Sum diagnostics. AQ uses the selected member's positive whole-MNQ allocation and labels the local convention. | Bridge's strategy detail opens independently at 1 MNQ. Its strategy cards have status and sparklines, its detail has the live/backtest comparison and Warning/Critical status history, and its Optimise picker has **OK only** and **All** filters. AQ does not provide those status views or filters. |
+| Luck Alone | The unavailable state remains documented and visible. | Bridge displays a row-one comparison using 16 zero-edge copies. The copy-generation, sizing, scoring and aggregation rules still do not define a reproducible match. See the prior Luck Alone investigation above. |
+
+Execution Desk, Connect prop firm and Go Live were labelled **Soon** in the
+inspected Bridge session. The audit covers the active Prop Desk research
+workflow.
+
+### Reproduction and evidence
+
+1. In the existing Bridge session, open **Prop Desk → Simulation → Funded →
+   Lucid Flex → 50K → First year**. Record the four-member starting portfolio
+   (Relative Strength, Twin Continuation, Overnight Bias, VWAP Pullback ADX),
+   its displayed weights (57/14/14/14%) and 1 MNQ per member. Switch to
+   **Evaluation** to inspect the 30/60/90-day and Optimal/Conservative controls.
+   In each phase select **Lucid Pro → 50K** and wait for the result to settle.
+   [Bridge starting view](evidence/prop-desk-post-m6-parity/bridge-start.png) ·
+   [Evaluation sizing](evidence/prop-desk-post-m6-parity/bridge-evaluation.png) ·
+   [Lucid Pro Evaluation](evidence/prop-desk-post-m6-parity/bridge-lucid-pro-evaluation.png) ·
+   [Lucid Pro Funded](evidence/prop-desk-post-m6-parity/bridge-lucid-pro-funded.png)
+2. Open **Optimise** and inspect the IS and OOS ranking columns, median
+   first-payout tie description, OK-only filter and Luck Alone. The captured
+   preview is a retained earlier Funded result. The settings-changed flag
+   applies to the currently selected controls. The audit did not replace that
+   result with a new search. Return to Simulation and restore the starting
+   Funded profile and size preset.
+   [Bridge ranking preview](evidence/prop-desk-post-m6-parity/bridge-optimise.png) ·
+   [Restored Simulation](evidence/prop-desk-post-m6-parity/bridge-restored.png) ·
+   [Earlier controlled subset evidence](evidence/prop-desk-optimizer-v2/bridge-three-strategies.png) ·
+   [Earlier strategy status capture](evidence/bridge-strategy-diagnostics-v2-9-16/relative-detail-status.png)
+3. In Bridge Funded, select **Apex** and open **25K**, **100K**, and **150K**.
+   Each produced its own simulation, including a six-payout ladder, account
+   limit and activation step. The observed OOS payout rates were 19.4%,
+   78.3%, and 66.3%, respectively, at each variant's selected size. The
+   LucidFlex 25K control left the Lucid Flex 50K result unchanged. Restore
+   **Funded → Lucid Flex → 50K → First year**. The original portfolio,
+   allocation, and displayed 57.9% payout rate returned.
+   [Apex 25K](evidence/prop-desk-post-m6-parity/bridge-apex-25k-funded.png) ·
+   [Apex 100K](evidence/prop-desk-post-m6-parity/bridge-apex-100k-funded.png) ·
+   [Apex 150K](evidence/prop-desk-post-m6-parity/bridge-apex-150k-funded.png) ·
+   [Lucid Flex 25K control](evidence/prop-desk-post-m6-parity/bridge-lucid-flex-25k-control.png)
+4. In the running local AlphaQuest portal, open **Prop Desk → Simulation**.
+   Check the two profile options. Reopen basket `58b9339ae2c64a50be070dd946cef3ba`.
+   Reopen Optimise `ffc773ae8fa64bdc9aea73a8ac995a23` and its OOS account
+   assessment `81d1457c2659417fb3195e956053bd3e` on desktop and a 390 px
+   viewport. Reopen diagnosis `74d595d8e1fe4ecca2934c004acbc59b` to inspect
+   its cone and drawdown. Inspect the two Funded sizing presets in Optimise
+   setup. The served source assets matched the checkout and the live audit
+   issued zero write requests.
+   [AQ Simulation](evidence/prop-desk-post-m6-parity/aq-simulation-setup.png) ·
+   [AQ Optimise and OOS](evidence/prop-desk-post-m6-parity/aq-optimise-and-oos.png) ·
+   [AQ mobile assessment](evidence/prop-desk-post-m6-parity/aq-oos-mobile.png) ·
+   [Verified asset and report identities](evidence/prop-desk-post-m6-parity/live-verification.json)
+
+Ten focused engine checks and the isolated desktop/mobile browser journey passed.
+The browser fixture runs both phases with controlled saved trades and checks
+the frozen IS ranking, OOS outcomes, download and reopen. Production code and
+persistent reports were untouched.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_oos.py tests/test_prop_desk_diagnostics.py \
+  tests/test_prop_desk_optimizer.py::test_optimizer_reuses_path_streams_and_funded_tiers
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_oos_browser.py \
+  --basetemp /private/tmp/aq-propdesk-post-m6-parity-browser
+```
+
+**Numerical parity remains unverified.** The inspected Bridge Simulation
+shows 10,000 account paths. AQ uses 1,000 and takes costs from the saved
+backtest. The earlier inspected Bridge Lucid Evaluation screen showed 52%
+consistency. AQ uses its local 40% rule. The captures do not supply a
+matched v2.9.16 Prop Desk input package with identical trades, costs, dates,
+allocation, account rules, sampling and outcome definitions. The live totals
+confirm that the controls produce results. They do not quantify an engine
+discrepancy on matched inputs.
+
+### Plan to close the remaining Prop Desk gaps
+
+1. **Sizing and Simulation OOS.** Test one whole-MNQ grid on common observed
+   IS sessions and save each phase's named automatic allocation. Reuse the
+   same grid for manual inspection. Show IS and OOS account outcomes for each
+   tested size, along with the separate historical equity chart. Freeze the
+   allocation and disclose the local grid, seed, observation horizon and
+   account rules. Keep existing fixed-size and historical report contracts.
+2. **Optimise OOS and ordering.** Rank and size on IS before assessing OOS.
+   Save OOS outcomes at each ranked row's frozen size on the same verified
+   observed sessions. Give a reason where coverage is missing. Use the
+   applicable First year or Account life payout rate and put fastest median
+   first payout first among near-best Funded results. Keep existing report
+   identities and the Milestone 6 assessment API.
+3. **Workflow controls and diagnostics.** Add one-action portfolio clearing,
+   drag-and-drop alongside the accessible Add button, and Evaluation horizon
+   shortcuts for models without a provider expiry. Add a standalone 1 MNQ
+   diagnostic view with sealed trade inputs. Establish the exact historical
+   status thresholds and recovery transitions before statuses filter an IS
+   candidate pool. Distinguish held-out backtest evidence from live fills.
+4. **Rules and unsupported profiles.** Capture complete Evaluation and
+   Funded rule packages for Lucid Pro 50K and Apex 25K/100K/150K, including
+   stop and drawdown ordering, consistency, expiry and inactivity, tiers,
+   activation, payout eligibility, deductions, split and terminal state.
+   Validate each package with boundary fixtures before enabling it. Keep
+   the installed Apex 50K and LucidFlex definitions intact. Verify the
+   Conservative objective and tie rule with a controlled size-grid example
+   and retain the unresolved Luck Alone evidence requirements above.
+5. **Numerical qualification.** Save a matched Bridge v2.9.16 case with
+   identical trades, dates, costs, risk marks, rules and model settings.
+   Reconcile the fixed-size admitted ledger and path outcomes before
+   comparing the size curve, winner, or ranked subsets. Repeat in both phases.
+
+### Implemented parity work — 2026-11-22
+
+**Simulation.** The new sealed `prop-desk-simulation-v2` report uses a
+single observed-session model for IS and OOS, including one-member baskets.
+Apex and LucidFlex use their existing AQ account rules. Sizing uses only IS,
+skips automatic allocations with a zero member target and breaks equal
+scores using smaller total MNQ. The manual slider, equity chart and ledger
+remain available. When the maximum is blank, the form supplies the largest
+contiguous range from the entered minimum within the local work and profile
+limits. Simulation's manual **Compare linked OOS account outcomes** control
+can be cleared to retain historical OOS equity and the previous basket
+account model. The fixed-size single-strategy path and legacy API request
+shapes still work.
+
+- **Optimal** maximizes the single-attempt pass rate.
+- **Conservative** maximizes the same rate with IS breach probability at
+  most 20%. Bridge's rule is visible in the new capture. If the local grid
+  has no qualifying size, AQ saves the curve and labels the preset
+  unavailable. Bridge's exact grid, tie and empty-grid conventions remain
+  unverified. [Bridge Conservative evidence](evidence/prop-desk-parity-implementation/bridge-conservative.png)
+- **First year** maximizes mean receipts through trading day 261.
+  **Account life** maximizes mean receipts through resolution or the saved
+  cutoff. Lifetime selections are provisional when an eligible size still
+  has open accounts. The OOS account panel shows median and mean receipts
+  separately from deductions and exposes the corresponding IS comparison.
+
+**Optimise.** New portal searches use `prop-desk-optimizer-v3`. Individual
+OOS rates, breach, timing, and funded receipts and cutoff counts are saved
+at each ranked row's frozen size. The account comparison windows use the
+intersection of the candidate pool's linked OOS sources. A row with an
+unlinked source is unavailable. OOS historical equity can use a wider
+per-subset interval and remains separately labelled. The account-only
+OOS ledger and sampled paths can be downloaded for each ranked row. IS
+funded ranking uses any payout through the selected reporting horizon and
+orders contenders within one binomial standard error by median day of
+first payout, followed by rate, smaller size, and pool order. The exact
+Bridge standard-error estimator and final tie-breaks remain unverified.
+Existing v2 rankings, archives, and row-one assessment remain readable and
+continue to use their original API contract.
+
+**Workflow and diagnostics.** Add or drag saved strategy cards, clear the
+portfolio in one action and use 30/60/90 trading-day Evaluation shortcuts
+for LucidFlex. In any result, select **Standalone at 1 MNQ** for sealed
+single-strategy charts without changing the parent allocation. Held-out
+status uses the 95th-percentile 10- and 100-trade drawdown lines. The local
+retrospective convention starts the held-out equity at zero, measures
+half-recovery from the deepest drawdown since the current high, and clears
+at a strict new high. Thresholds use the entire observed held-out window.
+Status is advisory and keeps the candidate pool, ranking and sizing
+independent of OOS. Bridge's exact retrospective status transitions and
+catalogue sparklines remain open.
+
+#### Reproduce the product checks
+
+1. Load [SYNTHETIC winning data](evidence/prop-desk-parity-implementation/SYNTHETIC-winning.csv)
+   and use the saved NQ strategy and split setup in the Milestone 6
+   reproduction above. Add the two-minute hold member first, then the
+   one-minute hold, both weight 1. Use size 4–5 MNQ and choose Apex 50K EOD
+   Evaluation and **Optimal**. The first member wins the simultaneous
+   signal. Its 2 MNQ earn USD 798 net including USD 2 commission each
+   observed session. Both IS and OOS pass day 4 on all 1,000 paths. Switch
+   the inspected size to 5, return to the preset's 4, and reopen.
+   [Desktop view](evidence/prop-desk-parity-implementation/evaluation-desktop.png) ·
+   [OOS ledger](evidence/prop-desk-parity-implementation/evaluation-oos-trades.csv) ·
+   [Report](evidence/prop-desk-parity-implementation/evaluation.json)
+2. Choose **Funded → First year**, keep size 4–5, and run at a 390 px
+   viewport. At 4 MNQ all funded accounts reach the first payout on
+   day 5 and collect USD 13,000. Mean and median receipts agree in this
+   fixture. In Optimise, test all subsets at sizes 4 and 5. Expect three
+   ranked subsets and six tested pairs. Each row has its own OOS output
+   through the 261-session reporting horizon. Download and reopen.
+   [Mobile Funded](evidence/prop-desk-parity-implementation/funded-mobile.png) ·
+   [Mobile Optimise](evidence/prop-desk-parity-implementation/optimise-mobile-reopened.png) ·
+   [Sealed Optimise ZIP](evidence/prop-desk-parity-implementation/optimise.zip)
+3. Repeat Optimise with the [SYNTHETIC flat holdout](evidence/prop-desk-parity-implementation/SYNTHETIC-flat.csv).
+   The IS ranking hash stays identical while the two-member row drops
+   from 100% to zero OOS payouts. Omit one member's OOS link for the
+   specific unavailable reason. In the winning Simulation choose the
+   two-minute strategy's **Standalone at 1 MNQ** diagnostics and confirm
+   its OOS trade is USD 399 after USD 1 commission, independent of the
+   parent's 2 MNQ member target.
+   [Flat report](evidence/prop-desk-parity-implementation/alternate.json) ·
+   [Unlinked report](evidence/prop-desk-parity-implementation/missing.json) ·
+   [Standalone trades](evidence/prop-desk-parity-implementation/standalone-trades.csv)
+
+The browser test disables the full bar parser after preparing the sources.
+The focused arithmetic tests cover the inclusive 20% boundary, near-best
+ordering, first-year cutoff and status recovery. Timing and dropdowns can
+be rechecked using the test commands below. The evidence manifest records
+the exact fixture outputs. [Manifest](evidence/prop-desk-parity-implementation/journey.json)
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_parity.py tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_diagnostics.py tests/test_prop_desk_parity_browser.py
+```
+
+The running portal on port 8000 was refreshed after finding zero queued or
+running jobs. From the saved Twin Continuation and VWAP Pullback Risk
+Sizing configurations, use Apex Evaluation, 2–3 MNQ and **Optimal**.
+The live Simulation and all three Optimise subsets each scored 391 common
+OOS sessions. The mobile Optimise report reopened and linked its 1-MNQ
+diagnosis with held-out status. Both earlier Milestone 6 report hashes
+were identical before and after the live run. Browser fixtures ended
+their temporary servers. The current portal owner is PID 50211. To stop
+it, check for active jobs before sending `kill -TERM 50211`.
+[Live Simulation](evidence/prop-desk-parity-implementation/live-simulation.png) ·
+[Live mobile Optimise](evidence/prop-desk-parity-implementation/live-optimise-mobile.png) ·
+[Live status](evidence/prop-desk-parity-implementation/live-status.png) ·
+[Live report IDs and hashes](evidence/prop-desk-parity-implementation/live-verification.json) ·
+[Evidence checksums](evidence/prop-desk-parity-implementation/SHA256SUMS)
+
+**Still open.** Lucid Pro 50K and Apex 25K/100K/150K need complete
+versioned account-rule evidence. The visible activity and payout panels
+do not establish all daily-loss tiers, boundary ordering, or settlement
+rules. Luck Alone still needs copy-level evidence as described above.
+An OOS-based **OK only** candidate filter would change the search pool
+using the holdout, so the implemented held-out status stays advisory.
+Whole-grid sizing, exact Bridge sampling, larger-search workload parity
+and numerical outcomes await a matched Bridge source package. The
+preserved AQ rules, 1,000-path budget, overlap policy and weighted
+round-down allocator remain the local model.
+
+### Prop Desk campaign qualification gate — 2026-11-22
+
+New Prop Desk selections use the existing verified Prop Sim campaign
+catalogue. A strategy configuration must have passed Mechanics, IS Broad,
+IS Narrow, OOS, and the latest current-policy full-period Monte Carlo
+assessment. The picker lists the exact qualifying IS run and its campaign
+OOS run. An independently saved OOS backtest does not establish campaign
+qualification. If a user supplies an OOS ID in a new request, it must match
+the exact qualifying evidence for that IS configuration.
+
+Both source checks and launches enforce current qualification server-side
+for fixed Simulation, basket Simulation and Optimise. The campaign gate
+controls membership before simulation. The chosen account sizes and the
+ranking within the admitted pool still use IS. A report can be reopened
+with its originally saved inputs and evidence even if its strategies
+would now be ineligible for a new run.
+
+1. Create the synthetic NQ campaign used in
+   `tests/test_prop_desk_qualification_browser.py`. Complete the existing
+   Mechanics, Broad, Narrow, OOS and full-period Monte Carlo workflow.
+   Before qualification, Prop Desk shows an empty picker and Run is disabled.
+2. Open **Prop Desk → Simulation** and add a qualified configuration.
+   Its OOS link matches the campaign evidence. Run Apex Evaluation at 1 MNQ
+   with the OOS comparison selected. Open the sealed report on mobile and
+   check that the saved OOS result is visible.
+3. Submit the ID of an unqualified saved Narrow trial directly to the fixed,
+   basket and both Optimise launch routes. Expect HTTP 422 for every route
+   and no queued report. A mismatched OOS ID also rejects. In the isolated
+   fixture, altering the current Monte Carlo report bytes removes its
+   candidates from the picker and rejects relaunch. The already-sealed
+   Prop Desk result still reopens with identical report bytes.
+
+[Qualified picker](evidence/prop-desk-qualified-sources/qualified-desktop.png) ·
+[Mobile report](evidence/prop-desk-qualified-sources/reopened-mobile.png) ·
+[Exact qualifications and rejections](evidence/prop-desk-qualified-sources/journey.json) ·
+[API responses](evidence/prop-desk-qualified-sources/rejections.json)
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_qualification_browser.py
+```
+
+The short synthetic calculator regressions isolate arithmetic and saved
+report behaviour using a test-only qualification fixture. The browser
+journey above uses the full production campaign gate.
+
+On the running portal, the qualified picker listed six configurations.
+The previously selectable VWAP trial `27de27ee` was absent and its direct
+launch rejected. The qualified VWAP variant `1443ec1b` ran with OOS source
+`7dba7e97` and its result reopened on mobile. The earlier Optimise report
+`dd99213c4cb94189811344d5c78fc0c4` reopened with the same SHA-256 and
+the original missing-OOS message. The production portal was refreshed
+after checking for active jobs. Its current owner is PID 51945. Check for
+active jobs before stopping it with `kill -TERM 51945`.
+[Live picker](evidence/prop-desk-qualified-sources/live-qualified-picker.png) ·
+[Live mobile report](evidence/prop-desk-qualified-sources/live-qualified-reopen.png) ·
+[Live check and saved IDs](evidence/prop-desk-qualified-sources/live-verification.json) ·
+[Checksums](evidence/prop-desk-qualified-sources/SHA256SUMS)

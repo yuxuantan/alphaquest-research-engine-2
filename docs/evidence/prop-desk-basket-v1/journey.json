@@ -1,0 +1,32 @@
+{
+  "members": [
+    {
+      "source_backtest_id": "4e15722341104f0aace657eaa6f412e2",
+      "oos_backtest_id": "ef94d492eac142c1a4036f87a3318bdf",
+      "weight": 2
+    },
+    {
+      "source_backtest_id": "bffea8c2b7844e35a54885496cf960a7",
+      "oos_backtest_id": "9bbdace99bd446c6994f21e9200d2c18",
+      "weight": 1
+    }
+  ],
+  "analysis_ids": {
+    "evaluation": "06e28a4c687c4ad6afd642cc22eabdfd",
+    "funded": "4cff1ee40eaf4acaa2d0568d6719da9e"
+  },
+  "evidence_type": "Synthetic product demonstration; Bridge parity unverified.",
+  "sha256": {
+    "SYNTHETIC-basket.csv": "0f227b8e6b308595bed4143ab7659c8cecb9ba0b9eb996ad618287c0ebc645a8",
+    "evaluation-analysis.zip": "aeeeceb6d8746fec0f1fc376aacbe91f9c14cc85554be78ec42cce82bda7bee0",
+    "evaluation-desktop.png": "a8fa1b6987a48e98958c0add50daf9090885d7cb36fbfd6211769702096ab5f7",
+    "evaluation-report.json": "a5e4deb8575837f4b7e36675ddef2e9187becf1708c51ea6fe239fea01f80102",
+    "evaluation-source-check.json": "6807ce3db51f2c54180c472adf01db521d04bfc2130d1f27a9c77c8db2fe2a0b",
+    "funded-analysis.zip": "46d8e54aa64561bd114262d11ddf9c11e4ce6d35538ab3ab6aa278616d8e6d0a",
+    "funded-desktop.png": "bf5933ee9d90da918af281839397db1015f60bfcf5f631d7d78520ac28eae2df",
+    "funded-mobile-reopened.png": "a1a483cbef76a0c71f2c4e1028f4d0e719aa98c2c91b14dbd22d5635f8d69408",
+    "funded-report.json": "3cdaffdf6506cfb1b6cef28157e78ac85bc9dbf24f67f66a34ec3fa9e8ca3ff8",
+    "funded-source-check.json": "3af659548e4be3d16a5d914d1e3474b2081cf00995376b7cd6603812ede32507",
+    "rejected-source.json": "6c77cf77d2e43193067f3d7d1bda1e9f08bc72c08d1f0fa9837646ee349c9163"
+  }
+}

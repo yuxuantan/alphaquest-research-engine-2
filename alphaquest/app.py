@@ -170,6 +170,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(prop_sim_router)
     from .prop_portfolio import router as prop_portfolio_router
     app.include_router(prop_portfolio_router)
+    from .prop_desk import router as prop_desk_router
+    app.include_router(prop_desk_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")

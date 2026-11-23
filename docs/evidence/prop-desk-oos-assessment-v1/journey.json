@@ -1,0 +1,97 @@
+{
+  "evidence_type": "Synthetic normal-product frozen OOS assessment",
+  "members": [
+    {
+      "source_backtest_id": "cf5b8c59dc4d4246aee37a7ccf28221b",
+      "oos_backtest_id": "708a70d4bcab4b37baf9f31fc42dcb31",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "ba0b61f1920d4e998a4cc98872e22017",
+      "oos_backtest_id": "d52781b78cfd4c93bcec5b9f293d0560",
+      "weight": 1
+    }
+  ],
+  "flat_members": [
+    {
+      "source_backtest_id": "b7bd3905643140b4a8eed9cfad2f9804",
+      "oos_backtest_id": "fd43e9a0281d412ab89f0d1cc9004d10",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "e25eb2e7760848ef895ccdf8c5488146",
+      "oos_backtest_id": "48b5d4ba21fa4bfca7e1707e3b93eb00",
+      "weight": 1
+    }
+  ],
+  "parents": {
+    "evaluation": "c9cee04f05e3473eba0ef262cc760032",
+    "first_year": "200527d28386416bbda9295084c9a90e",
+    "flat": "d15f7893629f44269a126b0437487d1a",
+    "lifetime": "5469a90e67594bf88ee61760bbd5c64a",
+    "missing": "50c41e832e8642baafed63026956def1"
+  },
+  "assessments": {
+    "evaluation": "a3c76eb8aca545ee9c94206328e7a7e5",
+    "first_year": "58daf52d74724fb0a40ca7e6fbaa3eaf",
+    "lifetime": "d7f4288328754831a4448e618f6f1897",
+    "flat": "a40de3fb1dd349368fc552218483f4cb"
+  },
+  "parent_sha256": {
+    "c9cee04f05e3473eba0ef262cc760032": {
+      "report.json": "96d2d1e87335f2ade801a81fbf66b600532c048ce123fdd4fa59a8bc7a9e1839",
+      "analysis.zip": "0c1dd9acf3ea908d4b6501367d8a3ebe83de24e1e0be7ac7eeaedd885e4a1756"
+    },
+    "200527d28386416bbda9295084c9a90e": {
+      "report.json": "3b38336cfdc98375023edab8868296fe8e1139b148a532ca5d0fc4e6598a70aa",
+      "analysis.zip": "4180c7b8aad745f726ca10968db7b97a1e1b769ff5d6685b9247eab8f3dbc3c8"
+    },
+    "d15f7893629f44269a126b0437487d1a": {
+      "report.json": "b7c32ed01a9fb8bc21b319ea7e3039a8752f85cddc3d7e298da6d7e82190961b",
+      "analysis.zip": "5e2cd6aaa300b996d7ec1fa4fdbf3ed094945d9907c17dc97c0829abf50c09bd"
+    },
+    "5469a90e67594bf88ee61760bbd5c64a": {
+      "report.json": "40b23fa85491ad73e8752fb3387f91069e8fc57fbf37293cbd2893919678b11a",
+      "analysis.zip": "037ddd511d2824ae2f4f312355625fe4366088d45ff50f07c51476f4a50e84e3"
+    },
+    "50c41e832e8642baafed63026956def1": {
+      "report.json": "31fa2082db207c0115520bede482f64f1dba9fd0f2d4e334c6b3200839f1c166",
+      "analysis.zip": "bad1f738ce7eb7bf5fabcc056542315edc3690f5ee591666da1037bc4b870433"
+    }
+  },
+  "expected": {
+    "admitted_net": 798,
+    "evaluation_days": 4,
+    "apex_funded_receipts": 13000,
+    "lucid_is_receipts": 8995.5,
+    "lucid_oos_open": 1000
+  },
+  "sha256": {
+    "SYNTHETIC-frozen-oos-flat.csv": "80dbfa36e4c5b40c535baa585c4e2295253c85a7c9d6cc129daa4e51f1dcd9da",
+    "SYNTHETIC-frozen-oos-winning.csv": "33d9789fd3c9d4a0d8a318eb21bb747c3142a323ca13672db5bc1611f8f64941",
+    "changed-artifacts.json": "ca317e754a8b8ae0b3d45655996eee58f3a5a86012c71d03747b22c54c6346a5",
+    "evaluation-admitted_oos_trades.csv": "fe6e7dfb6892e3b678216f81be5d975237291081f0578e2573922ed2ff819102",
+    "evaluation-assessment.zip": "462983278c7c5dc279b442b214d6d563e77ce4fa38c623b9b650d522ec910989",
+    "evaluation-inline.png": "a37a3af28798d8af59c1513753c1dd46d030c48a91b89318433fa46923e293ab",
+    "evaluation-oos_account_paths.json": "975eba685fdd5975a8597e08c6ea9f8b31b2bd18e4dd3d210a36dea5f3af9d84",
+    "evaluation-parent.json": "96d2d1e87335f2ade801a81fbf66b600532c048ce123fdd4fa59a8bc7a9e1839",
+    "evaluation-reopened.png": "0334bc860e4c68a70cc9a01dc1838d0d4f9ebc10fc97d07224df5ec9f37bbabd",
+    "evaluation-report.json": "19d90367e7d86bb8ccbf3a0a3fe26248173774aadeac22ca1072e57be61ce158",
+    "first_year-admitted_oos_trades.csv": "fe6e7dfb6892e3b678216f81be5d975237291081f0578e2573922ed2ff819102",
+    "first_year-assessment.zip": "5a3741b9ee804e659ce776d6afa4b0f0669b7258795f3ce5ff0a7a02e2bf0add",
+    "first_year-oos_account_paths.json": "3dd8d0f444a03456a74b5f8af6c080f656e34b8c47b937ed172ee96deb08ce94",
+    "first_year-parent.json": "3b38336cfdc98375023edab8868296fe8e1139b148a532ca5d0fc4e6598a70aa",
+    "first_year-reopened.png": "9901fe5af7f2e8955e33c562b65cb9ff046a38874d67052cdaa0d78429d40587",
+    "first_year-report.json": "39a8a05bf70452dfb9fbceb40a11446f8c4c56254fed32ec5c05006598c6859f",
+    "flat-assessment.json": "589b06c1d1d69c3f1f6aa3e164e0108fcb6c8b924edd7a250de84dbb0f004fa7",
+    "flat-parent.json": "b7c32ed01a9fb8bc21b319ea7e3039a8752f85cddc3d7e298da6d7e82190961b",
+    "lifetime-admitted_oos_trades.csv": "bee97e82083afc623a7740a9af0405f8005b9c3d50dc4cbcc1722d1bcb22f91a",
+    "lifetime-assessment.zip": "45001296f6568480ec267f948003f6151842e48491f0222f3e5f27177e27e60b",
+    "lifetime-oos_account_paths.json": "6f0f4724c078201f8a830b7e4dc9d6bb4dd25cb3f0b29edd5c540722795ae046",
+    "lifetime-parent.json": "40b23fa85491ad73e8752fb3387f91069e8fc57fbf37293cbd2893919678b11a",
+    "lifetime-reopened.png": "12de247781183f77f60ffdb01e80da39c995224dd58b9d2c50eba52af5b3f156",
+    "lifetime-report.json": "71ea23c314809cc6454b2fe2c0c246744a83dd797ec8c8a84ae7c721e65fd930",
+    "missing-parent.json": "31fa2082db207c0115520bede482f64f1dba9fd0f2d4e334c6b3200839f1c166",
+    "missing-source.json": "360699df4188fbbf0b7942b95c22fd6b6df102ff87259c9c9227295ace0fed11"
+  }
+}

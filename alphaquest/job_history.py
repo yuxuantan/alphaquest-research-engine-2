@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
+from .prop.desk import REQUEST_PREFIX
+
 JobKind = Literal['mechanic_validation', 'backtest_batch', 'backtest', 'prop_analysis', 'prop_preparation', 'monte_carlo']
 JobFilter = Literal['all', 'active', 'completed', 'attention']
 
@@ -35,7 +37,7 @@ SOURCES = '''
  SELECT CASE WHEN c.analysis_id IS NOT NULL THEN 'monte_carlo' ELSE 'prop_analysis' END,a.id,a.created,CASE a.status WHEN 'error' THEN 'failed' ELSE a.status END,
         COALESCE(json_extract(r.manifest,'$.run_metadata.strategy.id'),''),
         COALESCE(json_extract(r.manifest,'$.run_metadata.dataset.name'),'Saved source '||a.source_id),
-        json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id,
+        json_object('progress',a.progress,'error',a.error,'source_id',a.source_id,'workflow_id',c.workflow_id,'oos_job_id',c.oos_job_id,'request_hash',a.request_hash,
             'progress_details',json((SELECT payload FROM prop_catalog.phase_analysis_progress WHERE analysis_id=a.id)),
             'prop_sim_id',COALESCE((SELECT s.simulation_id FROM prop_catalog.workflow_prop_sim_phases s JOIN prop_catalog.campaign_analyses r ON r.campaign_id=s.campaign_id WHERE r.analysis_id=a.id ORDER BY s.simulation_id LIMIT 1),
                 (SELECT s.id FROM prop_catalog.workflow_prop_simulations s WHERE EXISTS (SELECT 1 FROM json_each(s.payload,'$.portfolio.attempts') j WHERE j.value=a.id) LIMIT 1)))
@@ -117,7 +119,9 @@ def public_job(row, tracker):
             result['progress'].update(details,stage=payload.get('progress') or status,
                 completed=details.get('overall_completed',details['completed']),
                 total=details.get('overall_total',details['total']),details=details)
-        if payload.get('prop_sim_id'):
+        if payload.get('request_hash', '').startswith(REQUEST_PREFIX):
+            links.append(dict(label='Open Prop Desk', href=f'#prop-desk?analysis={id}'))
+        elif payload.get('prop_sim_id'):
             links.append(dict(label='Open Prop Sim',href=f"#prop-sim?analysis={payload['prop_sim_id']}"))
             if status in ('queued','running'):result['stop_url']=f'/api/prop-analyses/{id}/cancel'
         else:links.append(dict(label='Open prop analysis',href=f'#backtests/prop/job/{id}'))

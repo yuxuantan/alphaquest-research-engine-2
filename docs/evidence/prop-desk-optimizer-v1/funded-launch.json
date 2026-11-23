@@ -1,0 +1,38 @@
+{
+  "request": {
+    "phase": "funded",
+    "profile_id": "apex-50k-eod",
+    "observation_sessions": 261,
+    "members": [
+      {
+        "source_backtest_id": "689ad13f223a431594a282b890879a76",
+        "oos_backtest_id": "646314bedb34404981e61b718963eb92",
+        "weight": 1
+      },
+      {
+        "source_backtest_id": "7ed7fafdb4d84a87a9635e32c34eb28d",
+        "oos_backtest_id": "662beec4b0054950953b8a88bc9643ed",
+        "weight": 1
+      },
+      {
+        "source_backtest_id": "39ec05c0e5664fbe9bfaf1b3791ffd34",
+        "oos_backtest_id": "5f099e79e6a540ac8174a63976b7b3be",
+        "weight": 1
+      }
+    ],
+    "minimum_micros": 2,
+    "maximum_micros": 3,
+    "minimum_members": 2,
+    "maximum_members": 2
+  },
+  "response": {
+    "id": "6a4745521c034d65976e1716a1f97998",
+    "source_backtest_id": "689ad13f223a431594a282b890879a76",
+    "created_at_utc": "2026-11-22T05:37:57.204261+00:00",
+    "phase": "funded",
+    "mode": "optimizer",
+    "status": "queued",
+    "progress": "Queued Prop Desk Funded",
+    "error": null
+  }
+}

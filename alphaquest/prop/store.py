@@ -102,8 +102,13 @@ class AnalysisStore:
         return dict(row,progress_details=json.loads(detail[0]) if detail else None) if row else None
 
     def list(self,source):
+        from .desk import REQUEST_PREFIX
         with self.connect() as db:
-            db.row_factory=sqlite3.Row;rows=db.execute('SELECT a.* FROM analyses a WHERE a.source_id=? OR EXISTS (SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?) ORDER BY created DESC LIMIT 100',(source,source)).fetchall()
+            db.row_factory = sqlite3.Row
+            rows = db.execute('SELECT a.* FROM analyses a WHERE (a.source_id=? OR EXISTS '
+                              '(SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?)) '
+                              'AND a.request_hash NOT GLOB ? ORDER BY created DESC LIMIT 100',
+                              (source, source, REQUEST_PREFIX + '*')).fetchall()
         return [dict(row) for row in rows]
 
     def active_sources(self):

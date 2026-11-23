@@ -1,0 +1,62 @@
+{
+  "evidence": "Synthetic saved strategies with catalogue-linked OOS and normal Prop Desk runs",
+  "runs": {
+    "basket": {
+      "evaluation": "8a24605e3a4444748973c24517d530e1",
+      "funded": "d78c59148b3a420db4a1c314be03285d"
+    },
+    "optimise": {
+      "evaluation": "0ed49ffe081b44d3b171722f96444016",
+      "funded": "efa66ef0704b49488c036b5250ebb64c"
+    },
+    "fixed": {
+      "evaluation": "9a6bd461196744f58083218229891e79",
+      "funded": "708c2a19a2034e5c9e978ac3806beefc",
+      "single_size_equity": "dfd8a13a2ae74e8ea5b973398581072f"
+    }
+  },
+  "pairs": {
+    "basket": [
+      {
+        "source_backtest_id": "dac7ada5a98d4eec833733cc262e01f2",
+        "oos_backtest_id": "78b11b0c98274725a2f1aa3bae388899",
+        "weight": 2
+      },
+      {
+        "source_backtest_id": "753cbf3865044bbc802c033165c28607",
+        "oos_backtest_id": "1d5b131f15bc4395b0d45c121c9ca5b4",
+        "weight": 1
+      }
+    ],
+    "optimise": [
+      {
+        "source_backtest_id": "04bbd68e31f74dc7a9e0e281cf2cbf19",
+        "oos_backtest_id": "502ba9d5bff24c248dcd918932080e67",
+        "weight": 1
+      },
+      {
+        "source_backtest_id": "b4d29d264b1d4c56b6d7fce1d2ab9b28",
+        "oos_backtest_id": "b0d6a7bd6cb14c9fa0dc4e6054c87a09",
+        "weight": 1
+      },
+      {
+        "source_backtest_id": "2c4a0b9c7f0f4d9d8e311eb211f17000",
+        "oos_backtest_id": "954767cc04fa4f99ab344ed56554aa9e",
+        "weight": 1
+      }
+    ]
+  },
+  "sha256": {
+    "basket-evaluation-launch.json": "9a927812438659792c0806dddfb9ed3ae7da68c7993c65ce419b285addd3a0b5",
+    "basket-evaluation-report.json": "f63bf6f09d1f0e22c61f866358e7223f8f9e5ef0f0341295146b9dec4622a3c0",
+    "basket-funded-launch.json": "11a5a1f5d08a1e7f0e85dc4b956a87c5e39e66e21dba35667b846b44c3f3a48c",
+    "basket-funded-report.json": "63cc964929f4a0e0ed7f7e5001e1b546abfbb9f5b3112638485f42574b792dd5",
+    "fixed-evaluation-report.json": "1aa4244d9bdf16b298357d7ce295f7778603e7004b813af1db55de2a96d059db",
+    "optimise-evaluation-launch.json": "f4f95fc0aa229df20ec79167ff9d405ac6129dcb9ab6d2019ec475e105ffd37d",
+    "optimise-evaluation-report.json": "76b32352ad97e50207fe17dfdbc77a0018e443ab7f96b9715cdadfddda6327b9",
+    "optimise-funded-launch.json": "20791c958ba152705779dcb8beb3e1caa7c1b6525f59c14ae8e82ebe183fe904",
+    "optimise-funded-report.json": "1beeca3524a9fd11b66c0134975bacb2e41d337f82e52d7e07586ae421d6b9f7",
+    "optimise-mobile.png": "b0e22c2a511c3ed4ad7da14e21b0cf39e5d351899233698761ac159759514fd8",
+    "simulation-desktop.png": "0aedcecb50e22f315572d6d95ca998bd309cdf09775d4e7a01a7c66347d83853"
+  }
+}

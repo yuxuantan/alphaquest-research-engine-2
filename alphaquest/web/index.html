@@ -19,6 +19,9 @@
     <script src="/static/prop-progress.js?v=ASSET_VERSION" defer></script>
     <script src="/static/risk-diagnostics.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop-portfolio.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-desk-basket.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-desk-diagnostics.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-desk.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop-sim-conclusion.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop-sim-workspace.js?v=ASSET_VERSION" defer></script>
     <script src="/static/prop-sim.js?v=ASSET_VERSION" defer></script>
@@ -65,6 +68,7 @@
         <a class="nav-item" href="#research" data-screen="research" aria-label="Research"><span class="nav-icon" aria-hidden="true">▦</span>Research</a>
         <a class="nav-item" href="#campaigns" data-screen="campaigns" aria-label="Campaigns"><span class="nav-icon" aria-hidden="true">↗</span>Campaigns</a>
         <a class="nav-item" href="#prop-sim" data-screen="prop-sim" aria-label="Prop Sim"><span class="nav-icon" aria-hidden="true">◈</span>Prop Sim</a>
+        <a class="nav-item" href="#prop-desk" data-screen="prop-desk" aria-label="Prop Desk"><span class="nav-icon" aria-hidden="true">▤</span>Prop Desk</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
@@ -82,6 +86,7 @@
           <a href="#research" data-screen="research">Research</a>
           <a href="#campaigns" data-screen="campaigns">Campaigns</a>
           <a href="#prop-sim" data-screen="prop-sim">Prop Sim</a>
+          <a href="#prop-desk" data-screen="prop-desk">Prop Desk</a>
         </nav>
       </header>
       <main id="main-content" tabindex="-1">
@@ -342,6 +347,93 @@
             <a href="#prop-sim?mode=portfolio" id="prop-sim-mode-portfolio">Portfolio &amp; cash flow</a>
           </nav>
           <div id="prop-sim-content"></div>
+        </section>
+
+        <section id="prop-desk-screen" aria-labelledby="prop-desk-title" hidden>
+          <div class="page-heading"><div><h1 id="prop-desk-title">Prop Desk<span class="heading-dot">.</span></h1></div></div>
+          <form id="prop-desk-form" class="prop-desk-form">
+            <fieldset id="prop-desk-inputs" disabled>
+              <div class="prop-desk-toolbar">
+                <a id="prop-desk-simulation-back" href="#prop-desk" hidden>← Simulation</a>
+                <h2 id="prop-desk-workspace-title">Simulation</h2>
+                <button id="prop-desk-open-history" type="button" class="button secondary">Saved runs</button>
+              </div>
+              <div class="prop-desk-layout">
+                <section class="panel prop-desk-panel prop-desk-library" aria-labelledby="prop-desk-library-title">
+                  <h2 id="prop-desk-library-title">Strategies</h2>
+                  <label>Saved strategy<select id="prop-desk-source" aria-describedby="prop-desk-qualification-note"></select></label>
+                  <p id="prop-desk-qualification-note" class="field-help">Only configurations that passed all campaign stages appear here.</p>
+                  <div id="prop-desk-strategies" class="prop-desk-strategies" aria-label="Saved strategy reports"></div>
+                  <div class="prop-desk-actions prop-desk-source-actions">
+                    <button id="prop-desk-source-prev" class="button secondary" type="button">Previous strategies</button>
+                    <button id="prop-desk-source-next" class="button secondary" type="button">More strategies</button>
+                    <button id="prop-desk-add-member" class="button secondary" type="button">Add to portfolio</button>
+                    <a id="prop-desk-source-link" hidden>Open strategy report</a>
+                  </div>
+                </section>
+                <section class="panel prop-desk-panel prop-desk-portfolio" aria-labelledby="prop-desk-portfolio-title">
+                  <div class="prop-desk-section-heading">
+                    <h2 id="prop-desk-portfolio-title">Portfolio</h2>
+                    <div class="prop-desk-actions">
+                      <button id="prop-desk-equal" class="button secondary" type="button">Equal weight</button>
+                      <button id="prop-desk-clear" class="button secondary" type="button">Clear</button>
+                      <button id="prop-desk-optimise" class="button secondary" type="button">Optimise</button>
+                    </div>
+                  </div>
+                  <div id="prop-desk-members"></div>
+                  <p id="prop-desk-allocation-preview" class="field-help" aria-live="polite"></p>
+                  <label id="prop-desk-oos-option" class="prop-desk-oos-option" hidden>
+                    <input id="prop-desk-include-oos" type="checkbox" checked> Include linked OOS equity
+                  </label>
+                  <label id="prop-desk-oos-accounts-option" class="prop-desk-oos-option" hidden>
+                    <input id="prop-desk-include-oos-accounts" type="checkbox" checked> Compare linked OOS account outcomes
+                  </label>
+                  <p id="prop-desk-basket-note" class="field-help" hidden>Equity uses IS only until every portfolio strategy has a matching OOS report.</p>
+                </section>
+                <section class="panel prop-desk-panel prop-desk-account" aria-labelledby="prop-desk-account-title">
+                  <h2 id="prop-desk-account-title">Account</h2>
+                  <div class="prop-desk-phase" role="group" aria-label="Phase">
+                    <button type="button" data-desk-phase="evaluation" aria-pressed="true">Evaluation</button>
+                    <button type="button" data-desk-phase="funded" aria-pressed="false">Funded</button>
+                  </div>
+                  <input id="prop-desk-phase" type="hidden" value="evaluation">
+                  <label>Account profile<select id="prop-desk-profile" required></select></label>
+                  <label id="prop-desk-simulation-size-label">Simulation size rule
+                    <select id="prop-desk-simulation-size-rule"></select>
+                  </label>
+                  <div class="prop-desk-fields">
+                    <label>Minimum total MNQ<input id="prop-desk-minimum" type="number" min="1" step="1" value="1" required></label>
+                    <label>Maximum total MNQ<input id="prop-desk-maximum" type="number" min="1" step="1" placeholder="Optional" aria-describedby="prop-desk-size-note"></label>
+                  </div>
+                  <p id="prop-desk-size-note" class="field-help">Enter a maximum to inspect the sizing and equity charts for a single strategy.</p>
+                  <div id="prop-desk-optimizer-fields" class="prop-desk-fields" hidden>
+                    <label>At least this many strategies per combination<input id="prop-desk-min-members" type="number" min="1" max="60" step="1" value="1" disabled required></label>
+                    <label id="prop-desk-funded-size-label" hidden>Funded size rule<select id="prop-desk-funded-size-rule" disabled>
+                      <option value="first_year">First year</option><option value="account_life">Account life</option>
+                    </select></label>
+                  </div>
+                  <p id="prop-desk-workload" class="field-help" aria-live="polite" hidden></p>
+                  <label>Observation horizon (trading days)<input id="prop-desk-horizon" type="number" min="1" max="2000" step="1" required></label>
+                  <div id="prop-desk-horizon-shortcuts" class="prop-desk-actions" role="group" aria-label="Evaluation observation shortcuts" hidden>
+                    <button type="button" class="button secondary" data-desk-days="30">30 days</button>
+                    <button type="button" class="button secondary" data-desk-days="60">60 days</button>
+                    <button type="button" class="button secondary" data-desk-days="90">90 days</button>
+                  </div>
+                  <p id="prop-desk-horizon-note" class="field-help"></p>
+                  <div class="prop-desk-actions prop-desk-run-actions">
+                    <button id="prop-desk-launch" class="button primary" type="submit" disabled>Run simulation</button>
+                  </div>
+                  <p id="prop-desk-check-status" role="status" aria-live="polite"></p>
+                </section>
+              </div>
+            </fieldset>
+          </form>
+          <section id="prop-desk-history" class="panel prop-desk-panel" aria-labelledby="prop-desk-history-title" tabindex="-1">
+            <h2 id="prop-desk-history-title">Saved runs</h2>
+            <div id="prop-desk-history-items"></div>
+            <button id="prop-desk-history-next" class="button secondary" type="button" hidden>More runs</button>
+          </section>
+          <div id="prop-desk-result" hidden></div>
         </section>
         <section id="backtests-screen" aria-label="Backtests" hidden>
           <div id="backtest-setup">

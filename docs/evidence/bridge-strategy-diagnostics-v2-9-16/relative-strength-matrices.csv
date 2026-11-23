@@ -1,0 +1,11 @@
+view,horizon_trades,live_now_usd,p05_usd,median_usd,p95_usd,displayed_percentile,source
+drawdown,10,-669,-240,-684,-1637,48th,relative-drawdown-matrix.png
+drawdown,20,-669,-450,-1031,-2298,20th,relative-drawdown-matrix.png
+drawdown,30,-669,-603,-1277,-2737,8th,relative-drawdown-matrix.png
+drawdown,50,-669,-810,-1618,-3351,2nd,relative-drawdown-matrix.png
+drawdown,100,-669,-1190,-2154,-4258,<1st,relative-drawdown-matrix.png
+sum,10,666,-1230,433,2211,58th,relative-sum-matrix.png
+sum,20,1351,-1545,908,3418,62nd,relative-sum-matrix.png
+sum,30,1878,-1585,1325,4348,61st,relative-sum-matrix.png
+sum,50,1503,-1578,2276,6290,37th,relative-sum-matrix.png
+sum,100,2274,-790,4586,10169,24th,relative-sum-matrix.png

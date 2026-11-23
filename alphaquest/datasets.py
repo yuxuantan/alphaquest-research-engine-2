@@ -238,6 +238,13 @@ class DatasetStore:
                 ordinal INTEGER NOT NULL, data BLOB NOT NULL,
                 PRIMARY KEY(dataset_id, ordinal)
             )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS dataset_session_inventory (
+                dataset_id TEXT PRIMARY KEY REFERENCES datasets(id) ON DELETE CASCADE,
+                source_key TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                sha256 TEXT NOT NULL
+            )""")
+        self.persistent_session_inventory = True
 
         if (path.parent/'prop_analyses'/'catalog.sqlite3').is_file():
             from .research_access import attach_existing_access
