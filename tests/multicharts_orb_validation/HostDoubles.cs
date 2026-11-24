@@ -11,6 +11,7 @@ namespace PowerLanguage
     public sealed class InputAttribute : Attribute {}
     public enum EOrderAction { Buy, SellShort, Sell, BuyToCover }
     public enum EBarState { Close, Open }
+    public enum ESpecOrdersMode { PerPosition, PerContract }
     public enum Contracts { UserSpecified }
     public sealed class OrderExit
     {
@@ -113,6 +114,7 @@ namespace PowerLanguage
         { CurrentBar++; Time.Values.Add(time); Open.Values.Add(open); High.Values.Add(high); Low.Values.Add(low); Close.Values.Add(close); Ticks.Values.Add(1); }
     }
     public sealed class StrategyState { public double MarketPosition, AvgEntryPrice; }
+    public sealed class PositionStats { public double Profit; }
     public sealed class Commentary
     {
         public bool AtCommentaryBar;
@@ -128,6 +130,11 @@ namespace PowerLanguage
         public readonly Lines DrwTrendLine=new Lines(); public readonly Texts DrwText=new Texts();
         public readonly Commentary Output=new Commentary(), ExpertCommentary=new Commentary();
         public int TotalTrades, SessionExitCalls;
+        public readonly PositionStats[] Positions = { new PositionStats(), new PositionStats() };
+        public ESpecOrdersMode CurSpecOrdersMode;
+        public double LastStopLoss, LastProfitTarget;
+        protected void GenerateStopLoss(double amount) { LastStopLoss = amount; }
+        protected void GenerateProfitTarget(double amount) { LastProfitTarget = amount; }
         protected void GenerateExitOnClose() { SessionExitCalls++; }
         protected abstract void Create(); protected abstract void StartCalc(); protected abstract void CalcBar();
         public void Initialize() { Create(); StartCalc(); }
@@ -137,6 +144,22 @@ namespace PowerLanguage
 }
 namespace PowerLanguage.Function
 {
+    public sealed class XAverage
+    {
+        public PowerLanguage.Series<double> Price;
+        public int Length;
+        public XAverage(object owner) {}
+        public double this[int ago]
+        {
+            get
+            {
+                int last = Price.Values.Count - 1 - ago;
+                double ema = Price.Values[1], alpha = 2.0 / (Length + 1);
+                for (int i = 2; i <= last; ++i) ema += alpha * (Price.Values[i] - ema);
+                return ema;
+            }
+        }
+    }
     public sealed class ADX
     {
         public int Length; public double Value=25, Previous=26;

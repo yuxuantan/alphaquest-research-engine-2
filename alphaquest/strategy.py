@@ -177,6 +177,19 @@ class CloseIntent:
 
 
 @dataclass(frozen=True, slots=True)
+class ReverseIntent:
+    """Close the current position and enter the opposite side at the next Open."""
+
+    close: CloseIntent
+    entry: EntryIntent
+
+    def __post_init__(self):
+        if (type(self.close) is not CloseIntent or type(self.entry) is not EntryIntent
+                or self.close.timing != "next_open" or self.entry.timing != "next_open"):
+            raise ValueError("Reversal requires a next-open close and a next-open entry.")
+
+
+@dataclass(frozen=True, slots=True)
 class BracketIntent:
     """Full-position stop and optional OCO limit, active for the next bar only."""
 
@@ -215,7 +228,7 @@ class StopEntriesIntent:
 
 
 class Strategy(Protocol):
-    def on_bar(self, bar: Bar, position: Position | None) -> EntryIntent | CloseIntent | BracketIntent | StopEntriesIntent | None:
+    def on_bar(self, bar: Bar, position: Position | None) -> EntryIntent | CloseIntent | ReverseIntent | BracketIntent | StopEntriesIntent | None:
         """Inspect only the current completed bar and position; return at most one intent."""
         ...
 

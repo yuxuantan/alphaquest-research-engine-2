@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType
 from decimal import Decimal, InvalidOperation
 
-from . import consecutive_green_hold, overnight_bias_orb, vwap_pullback_risk_sizing, vwap_features, twin_continuation
+from . import consecutive_green_hold, noise, overnight_bias_orb, vwap_pullback_risk_sizing, vwap_features, twin_continuation
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +102,7 @@ STRATEGIES = {
     twin_continuation.STRATEGY_ID: StrategyDefinition(twin_continuation, twin_continuation.TwinContinuation, accepts_instrument=True),
     overnight_bias_orb.STRATEGY_ID: StrategyDefinition(overnight_bias_orb, overnight_bias_orb.OvernightBiasORB,
                                                      accepts_execution_config=True, accepts_instrument=True),
+    noise.STRATEGY_ID: StrategyDefinition(noise, noise.Noise, accepts_execution_config=True),
 }
 
 

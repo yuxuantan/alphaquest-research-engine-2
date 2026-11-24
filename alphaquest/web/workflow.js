@@ -64,6 +64,29 @@
       broad: ["Examples of searchable inputs include the overnight bias thresholds, ADX, breakout-candle and opening-range filters, ATR stop multiplier and target multiple."],
       narrow: ["Narrow locks the selected Broad values by default. Eligible numeric axes can be explicitly refined on a finer grid."],
     },
+    {
+      id: "noise", name: "Noise",
+      hypothesis: "Noise looks for directional moves that are unusually large for that time of day.",
+      overview: {
+        steps: [
+          "Build a separate noise band for each 15-minute slot from 09:00 through 14:15 CT. Average the prior 20 observations of the absolute percentage move from the day’s opening price at that slot. Expand the higher of the date open and previous close upward by that percentage, and the lower anchor downward.",
+          "From 09:00 through 14:00 CT, buy when the close is strictly above both the upper band and the candle’s open. Sell short when the close is strictly below both the lower band and the candle’s open. Market entries fill at the next open. The default size is two contracts.",
+          "A 50-point stop and 25-point target are active from the actual entry fill. At a warmed-up slot, a long sends a next-open exit if the close is below the higher of the upper band and EMA 20. A short exits above the lower of the lower band and EMA 20. The exact 14:30 CT close also sends a next-open exit. An early close that omits that bar can leave a position open into the next session.",
+          "An opposite breakout through 14:00 CT sends a next-open exit and can reverse. The exit still goes through if the new entry is blocked. Each chart date allows up to 10 entry submissions, including reversals, and bars new entries after three closed losses at least as large as the full position’s stop.",
+        ],
+        example: "With a date open of 20,000, a previous close of 19,980 and a prior average move of 0.25%, the upper band is 20,050 and the lower band is 19,930.05. A bullish close at 20,060 qualifies for a long if the entry gates pass. If the next open fills at 20,065, the stop is 20,015 and the target is 20,090.",
+      },
+      dataNotes: [
+        "Select close-labelled one-minute NQ or MNQ OHLC data. AlphaQuest evaluates 15-minute closes in Central time. Supply enough history for 20 prior observations of each slot inside the selected window.",
+        "The anchors come from the first candle of each Central chart date and the immediately preceding close. On a regular-session dataset they are the session open and previous session close. With Globex coverage they come from around midnight. Match the chart session template and history for comparison.",
+      ],
+      interpretationNotes: [
+        "In MultiCharts .NET, use one close-stamped 15-minute series on the Exchange clock, with IOG off and one-minute Bar Magnifier. Turn on showValidation to inspect the anchors, bands, EMA, daily limits and order submissions. Use native trade markers and the export to check fills.",
+        "AlphaQuest follows a modeled path inside each minute. Start the comparison with matching data and zero costs, then repeat with your commission and slippage settings.",
+      ],
+      broad: ["Examples of searchable inputs include band lookback and multiplier, EMA length, stop distance, target multiple and direction switches."],
+      narrow: ["Narrow locks the selected Broad values by default. Eligible numeric axes can be explicitly refined on a finer grid."],
+    },
   ];
   const list = get("#workflow-campaign-list");
   let catalogue, definitions, generation = 0, deletionNotice = null;

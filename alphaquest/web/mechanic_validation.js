@@ -8,7 +8,7 @@
     if (className) item.className = className;
     return item;
   };
-  const labels = {consecutive_green_hold:'Consecutive Green Hold',vwap_pullback_risk_sizing:'ORB + VWAP pullback',twin_continuation:'Twin continuation',overnight_bias_orb:'Overnight Bias ORB'};
+  const labels = {consecutive_green_hold:'Consecutive Green Hold',vwap_pullback_risk_sizing:'ORB + VWAP pullback',twin_continuation:'Twin continuation',overnight_bias_orb:'Overnight Bias ORB',noise:'Noise'};
   let token = 0, current, saving = false, timer;
   const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)(?:\?(?:job=([a-f0-9]{32})|broad_trial=(\d+)))?$/);
   const endpoint = id => `/api/campaign-workflows/${id}`;

@@ -9,7 +9,7 @@ from contextlib import nullcontext
 
 from .decimal_math import add as _add, multiply as _mul, subtract as _sub
 from .intratrade import IntratradeRisk, RiskCapture
-from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, StopEntriesIntent, Strategy
+from .strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position, ReverseIntent, StopEntriesIntent, Strategy
 from .execution_scenarios import FillAssumptions
 from .decision_capture import DecisionEvent
 from .entry_protection import ProtectionAmbiguity, OCOEntryAmbiguity
@@ -112,9 +112,10 @@ def _validate_bar(bar: Bar, previous: Bar | None) -> None:
 
 class _Account:
     def __init__(self, config: ExecutionConfig, capture_risk=False, fill_assumptions=None, capture_decisions=False,
-                 capture_entry_protection=False, observe_entry=None):
+                 capture_entry_protection=False, observe_entry=None, observe_exit=None):
         self.config = config
         self.observe_entry = observe_entry
+        self.observe_exit = observe_exit
         self.capture_decisions = capture_decisions
         self.decision_count = self.decision_sequence = 0
         self.pending_decision = self.active_decision = None
@@ -254,6 +255,8 @@ class _Account:
                 trade_number=trade.trade_number, reference_price=reference, fill_price=fill, net_pnl=trade.net_pnl,
                 reason=trade.exit_reason)
             self.active_decision = None
+        if self.observe_exit is not None:
+            self.observe_exit(trade)
         return trade
 
     def mark(self, bar: Bar | None) -> EquityPoint:
@@ -579,12 +582,33 @@ def _fill_entry_stops(account, orders, bar, strategy, control=None):
         return _protect_entry(account, entry, bar, strategy, reference, phase, adverse_after_entry=oco_ambiguous)
 
 
-def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_after_entry=False, control=None):
-    """Activate a precommitted bracket at fill without invoking on_bar twice.
+def protection_bracket(plan, position, tick_size):
+    """Resolve fill-relative levels on the instrument's executable tick grid."""
 
-    Market/open fills may use the remaining bar range. Intrabar stop timing
-    follows the remaining MultiCharts path by default; explicit older policies remain supported.
-    """
+    long = position.side == "long"
+    fill = position.entry_fill_price
+    with localcontext() as ctx:
+        ctx.prec = 50
+        stop = plan.stop_price if plan.stop_price is not None else fill + (-plan.stop_distance if long else plan.stop_distance)
+        if plan.max_stop_distance is not None:
+            cap = fill + (-plan.max_stop_distance if long else plan.max_stop_distance)
+            stop = max(stop, cap) if long else min(stop, cap)
+        # MC special stop amounts normalize to an adverse tick; special targets
+        # normalize to a favourable tick. Absolute swing prices already lie on
+        # the instrument's tick grid.
+        stop = (stop / tick_size).to_integral_value(
+            rounding=ROUND_FLOOR if long else ROUND_CEILING) * tick_size
+        target = plan.target_price
+        if plan.target_distance is not None:
+            target = fill + (plan.target_distance if long else -plan.target_distance)
+        if target is not None:
+            target = (target / tick_size).to_integral_value(
+                rounding=ROUND_CEILING if long else ROUND_FLOOR) * tick_size
+    return BracketIntent(stop, target)
+
+
+def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_after_entry=False, control=None):
+    """Activate a precommitted bracket on the remaining path after a fill."""
     plan = entry.protection
     if plan is None:
         if control is not None:
@@ -599,24 +623,8 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
     position = account.position
     long = position.side == "long"
     fill = position.entry_fill_price
-    with localcontext() as ctx:
-        ctx.prec = 50
-        stop = plan.stop_price if plan.stop_price is not None else fill + (-plan.stop_distance if long else plan.stop_distance)
-        if plan.max_stop_distance is not None:
-            cap = fill + (-plan.max_stop_distance if long else plan.max_stop_distance)
-            stop = max(stop, cap) if long else min(stop, cap)
-        # MC special stop amounts normalize to an adverse tick; special targets
-        # normalize to a favourable tick. Absolute swing prices already lie on
-        # the instrument's tick grid.
-        stop = (stop / account.config.tick_size).to_integral_value(
-            rounding=ROUND_FLOOR if long else ROUND_CEILING) * account.config.tick_size
-        target = plan.target_price
-        if plan.target_distance is not None:
-            target = fill + (plan.target_distance if long else -plan.target_distance)
-        if target is not None:
-            target = (target / account.config.tick_size).to_integral_value(
-                rounding=ROUND_CEILING if long else ROUND_FLOOR) * account.config.tick_size
-    bracket = BracketIntent(stop, target)
+    bracket = protection_bracket(plan, position, account.config.tick_size)
+    stop, target = bracket.stop_price, bracket.target_price
     if control is not None:
         if plan.ambiguity_policy != 'multicharts':
             raise ExecutionError('Controlled protection requires the shared MultiCharts price path.')
@@ -750,7 +758,8 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
     path_policy = getattr(strategy, 'ohlc_path_policy', 'multicharts')
     if path_policy not in PATH_POLICIES:
         raise ExecutionError('Unknown OHLC path policy.')
-    account = _Account(config, capture_risk, fill_assumptions, capture_decisions, capture_entry_protection,observe_entry)
+    account = _Account(config, capture_risk, fill_assumptions, capture_decisions, capture_entry_protection, observe_entry,
+                       observe_exit=getattr(strategy, "on_trade_closed", None))
     account._ohlc_policy = path_policy
     if continuation is not None:
         account.cash=continuation.trading_cash
@@ -776,6 +785,13 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         account._held_ohlc = None  # Build a modeled path only when exposure/orders need it.
         closed_on_bar = False
         risk_checked=False
+        if type(next_order) is ReverseIntent:
+            fill_bar = bar.tick_window.point(bar, 0) if bar.tick_window is not None else bar
+            yield account.apply(next_order.close, fill_bar, reference=bar.open, phase="open")
+            if capture_risk:
+                yield account.closed_risk
+            closed_on_bar = True
+            next_order = next_order.entry
         if next_order is not None:
             trigger=None
             if type(next_order) is StopEntriesIntent:
@@ -841,7 +857,13 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
             account.record_decision(intent, bar)
             yield from account.drain_decisions()
         next_order = None
-        if type(intent) is StopEntriesIntent:
+        if type(intent) is ReverseIntent:
+            if control is not None or capture_decisions or getattr(strategy, "allow_entry_fill", None) is not None:
+                raise ExecutionError("Paired reversals require ordinary execution without a separate entry guard or decision capture.")
+            if account.position is None or account.position.side == intent.entry.side:
+                raise ExecutionError("A reversal requires an open position opposite to the new entry.")
+            next_order = intent
+        elif type(intent) is StopEntriesIntent:
             if account.position is not None:
                 raise ExecutionError("StopEntriesIntent requires a flat account.")
             if capture_decisions and control is None:

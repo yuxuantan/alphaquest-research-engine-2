@@ -179,3 +179,63 @@ def test_overnight_bias_orb_default_mechanics_and_downloads(page, portal, tmp_pa
         download.value.save_as(tmp_path / path)
     page.get_by_role('link', name='Open backtest report', exact=True).click()
     playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('15:30 ET')
+
+
+def test_noise_campaign_explanation_mechanics_and_downloads(page, portal, tmp_path):
+    import csv
+    from decimal import Decimal
+    from test_noise import product_fixture
+
+    raw, start, signal, oos = product_fixture()
+    url = portal['url']
+    page.goto(url + '/#campaigns/noise')
+    detail = page.locator('#workflow-campaign-detail')
+    overview = detail.locator('.campaign-overview')
+    datasets = detail.locator('.workflow-datasets')
+    playwright.expect(detail.get_by_role('heading', name='Noise', exact=True)).to_be_visible()
+    playwright.expect(overview).to_contain_text('prior 20 observations')
+    playwright.expect(datasets).to_contain_text('No saved datasets for this campaign')
+    assert overview.bounding_box()['y'] < datasets.bounding_box()['y']
+    page.screenshot(path=str(tmp_path / 'noise-campaign.png'), full_page=True)
+    page.set_viewport_size({'width': 390, 'height': 844})
+    playwright.expect(overview).to_contain_text('14:30 CT')
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    page.set_viewport_size({'width': 1440, 'height': 1100})
+
+    name = 'SYNTHETIC Noise mechanics'
+    source = page.request.post(url + '/api/datasets', params=dict(filename='synthetic-noise.csv',
+        name=name, symbol='NQ', source_timezone='America/Chicago', tick_size='.25', point_value='20'), data=raw)
+    assert source.status == 201, source.text()
+    page.get_by_role('link', name='New backtest →', exact=True).click()
+    playwright.expect(page.locator('#backtest-strategy')).to_have_value('noise')
+    page.locator('#backtest-dataset').select_option(source.json()['id'])
+    page.locator('#backtest-slippage-ticks').fill('0')
+    page.locator('#backtest-commission').fill('0')
+    page.locator('#backtest-initial-capital').fill('10000')
+    declare_in_form(page, dict(is_start=str(start), is_end=str(signal), oos_start=str(oos), oos_end=str(oos)))
+    page.get_by_role('button', name='Open mechanic validation →', exact=True).click()
+    page.locator('#mechanic-run').click()
+    playwright.expect(page.locator('#mechanic-trades tbody tr')).to_have_count(1, timeout=60000)
+    playwright.expect(page.locator('#mechanic-confirm')).to_be_disabled()
+    page.screenshot(path=str(tmp_path / 'noise-mechanics.png'), full_page=True)
+    for label, path in [('Trades CSV ↓', 'trades.csv'), ('Saved review JSON ↓', 'mechanic-review.json')]:
+        with page.expect_download() as download:
+            page.get_by_role('link', name=label, exact=True).click()
+        download.value.save_as(tmp_path / path)
+
+    with (tmp_path / 'trades.csv').open() as download:
+        trade, = csv.DictReader(download)
+    assert trade['entry_reason'] == 'NoiseLong'
+    assert trade['exit_reason'] == 'take_profit'
+    assert Decimal(trade['entry_fill_price']) == 20015
+    assert Decimal(trade['exit_fill_price']) == 20040
+    assert Decimal(trade['net_pnl']) == 1000
+    (tmp_path / 'synthetic-noise.csv').write_bytes(raw)
+    page.get_by_role('link', name='Open backtest report', exact=True).click()
+    playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('exactly 14:30 CT')
+    report_id = page.url.rsplit('/', 1)[-1]
+    saved = page.request.get(url + '/api/backtests/' + report_id)
+    assert saved.ok, saved.text()
+    (tmp_path / 'report.json').write_bytes(saved.body())
+    page.reload()
+    playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('exactly 14:30 CT')

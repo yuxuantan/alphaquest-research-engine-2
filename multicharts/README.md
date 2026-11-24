@@ -5,6 +5,12 @@ Current minute-bar fill assumptions and matching chart settings are documented i
 same nearest-extreme-first path (Low first on ties), with post-entry protection.
 Older stop-first notes and dated numerical examples below remain historical.
 
+[Noise](../docs/strategies/noise.md) uses
+[OFB_Noise_Signal.cs](OFB_Noise_Signal.cs) on a close-stamped 15-minute NQ
+chart with one-minute Bar Magnifier and the Exchange clock. Turn on
+`showValidation` to inspect slot history, bands, EMA, daily limits and
+next-open submissions in Output and on the chart.
+
 [Overnight Bias ORB](../docs/strategies/overnight_bias_orb.md) uses the
 [OFB_OvernightBiasORB_Signal.cs](OFB_OvernightBiasORB_Signal.cs) signal on a
 15-minute NQ Globex chart with one-minute Bar Magnifier. Set
