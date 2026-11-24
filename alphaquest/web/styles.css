@@ -2099,6 +2099,9 @@ dialog::backdrop {
 .format-panel > p, .format-note p, .schema > div > span:last-child { color: var(--muted); font-size: 12px; }
 .format-panel .schema { margin: 12px 0; }
 .workflow-campaign-detail > .campaign-hypothesis { margin: 0 0 16px; color: var(--muted); }
+.campaign-overview li + li { margin-top: 8px; }
+.campaign-example { padding: 10px 14px; background: var(--bg); border-left: 3px solid var(--accent); }
+.campaign-overview + .campaign-strategy-notes { margin-bottom: 16px; }
 .workflow-campaign-detail > .campaign-strategy-notes {
   border-top: 1px solid var(--line);
   margin-top: 20px;

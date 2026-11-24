@@ -610,9 +610,10 @@ def _protect_entry(account, entry, bar, strategy, reference, phase, *, adverse_a
         # the instrument's tick grid.
         stop = (stop / account.config.tick_size).to_integral_value(
             rounding=ROUND_FLOOR if long else ROUND_CEILING) * account.config.tick_size
-        target = None
+        target = plan.target_price
         if plan.target_distance is not None:
             target = fill + (plan.target_distance if long else -plan.target_distance)
+        if target is not None:
             target = (target / account.config.tick_size).to_integral_value(
                 rounding=ROUND_CEILING if long else ROUND_FLOOR) * account.config.tick_size
     bracket = BracketIntent(stop, target)

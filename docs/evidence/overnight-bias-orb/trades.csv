@@ -1,0 +1,2 @@
+trade_number,side,entry_bar_number,exit_bar_number,entry_time_utc,exit_time_utc,exit_deadline_utc,contracts,entry_reference_price,exit_reference_price,entry_fill_price,exit_fill_price,entry_commission,exit_commission,total_commissions,reference_gross_pnl,slippage_cost,gross_pnl,net_pnl,actual_holding_minutes,entry_reason,exit_reason
+1,long,25106,25106,2026-03-27T14:01:00Z,2026-03-27T14:01:00Z,,1,124,140.00,124.00,140.00,0,0,0,320.00,0.00,320.00,320.00,0,ORB_L,take_profit

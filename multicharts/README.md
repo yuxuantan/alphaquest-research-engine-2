@@ -5,6 +5,12 @@ Current minute-bar fill assumptions and matching chart settings are documented i
 same nearest-extreme-first path (Low first on ties), with post-entry protection.
 Older stop-first notes and dated numerical examples below remain historical.
 
+[Overnight Bias ORB](../docs/strategies/overnight_bias_orb.md) uses the
+[OFB_OvernightBiasORB_Signal.cs](OFB_OvernightBiasORB_Signal.cs) signal on a
+15-minute NQ Globex chart with one-minute Bar Magnifier. Set
+`showValidation=true` for the decision gates, submitted brackets and observed
+position changes in the Output window and on the chart.
+
 [Twin Continuation](../docs/strategies/twin_continuation.md) is implemented in
 [`Twin_Continuation.cs`](Twin_Continuation.cs): the supplied Swing Breakout and
 Morning Momentum signal, with setup-owned exits and all original Inputs.

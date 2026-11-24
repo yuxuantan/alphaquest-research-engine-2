@@ -12,20 +12,29 @@ namespace PowerLanguage
     public enum EOrderAction { Buy, SellShort, Sell, BuyToCover }
     public enum EBarState { Close, Open }
     public enum Contracts { UserSpecified }
-    public enum OrderExit { Total }
+    public sealed class OrderExit
+    {
+        public static readonly OrderExit Total = new OrderExit();
+        public IOrderMarket Parent;
+        public static OrderExit FromEntry(IOrderMarket entry) { return new OrderExit { Parent=entry }; }
+    }
+    public enum EResolution { Minute }
+    public sealed class ResolutionInfo { public EResolution Type; public int Size=15; }
     public enum ETextStyleH { Left }
     public enum ETextStyleV { Above, Below }
     public sealed class SOrderParameters
     {
         public string Name;
+        public OrderExit Exit;
         public SOrderParameters(Contracts contracts, string name, EOrderAction action) { Name=name; }
-        public SOrderParameters(Contracts contracts, string name, EOrderAction action, OrderExit exit) { Name=name; }
+        public SOrderParameters(Contracts contracts, string name, EOrderAction action, OrderExit exit) { Name=name; Exit=exit; }
     }
     public interface IOrderMarket { void Send(int quantity); }
     public interface IOrderPriced { void Send(double price, int quantity); }
     public sealed class Orders
     {
         public readonly List<string> Sent = new List<string>();
+        public readonly Dictionary<string, IOrderMarket> Parent = new Dictionary<string, IOrderMarket>();
         private sealed class Order : IOrderMarket, IOrderPriced
         {
             public Orders Owner; public string Name;
@@ -34,8 +43,13 @@ namespace PowerLanguage
             { Owner.Sent.Add(Name + " " + price.ToString("F2",CultureInfo.InvariantCulture) + " " + quantity); }
         }
         public IOrderMarket MarketNextBar(SOrderParameters p) { return new Order { Owner=this, Name=p.Name }; }
-        public IOrderPriced Stop(SOrderParameters p) { return new Order { Owner=this, Name=p.Name }; }
-        public IOrderPriced Limit(SOrderParameters p) { return new Order { Owner=this, Name=p.Name }; }
+        private IOrderPriced Priced(SOrderParameters p)
+        {
+            if (p.Exit != null && p.Exit.Parent != null) Parent.Add(p.Name, p.Exit.Parent);
+            return new Order { Owner=this, Name=p.Name };
+        }
+        public IOrderPriced Stop(SOrderParameters p) { return Priced(p); }
+        public IOrderPriced Limit(SOrderParameters p) { return Priced(p); }
     }
     public struct ChartPoint
     {
@@ -46,26 +60,26 @@ namespace PowerLanguage
     {
         Color Color { get; set; } int Size { get; set; }
         bool ExtLeft { get; set; } bool ExtRight { get; set; }
-        void Delete();
+        bool Delete();
     }
     public interface ITextObject
     {
         ChartPoint Location { get; set; } string Text { get; set; } Color Color { get; set; }
-        ETextStyleH HStyle { get; set; } ETextStyleV VStyle { get; set; } void Delete();
+        ETextStyleH HStyle { get; set; } ETextStyleV VStyle { get; set; } bool Delete();
     }
     public sealed class Line : ITrendLineObject
     {
         public ChartPoint Begin,End; public bool Deleted;
         public Color Color { get; set; } public int Size { get; set; }
         public bool ExtLeft { get; set; } public bool ExtRight { get; set; }
-        public void Delete() { Deleted=true; }
+        public bool Delete() { bool removed = !Deleted; Deleted = true; return removed; }
     }
     public sealed class TextDrawing : ITextObject
     {
         public bool Deleted;
         public ChartPoint Location { get; set; } public string Text { get; set; } public Color Color { get; set; }
         public ETextStyleH HStyle { get; set; } public ETextStyleV VStyle { get; set; }
-        public void Delete() { Deleted=true; }
+        public bool Delete() { bool removed = !Deleted; Deleted = true; return removed; }
     }
     public sealed class Lines
     {
@@ -85,18 +99,20 @@ namespace PowerLanguage
         public T this[int ago] { get { return Values[Values.Count-1-ago]; } }
     }
     public sealed class BarInfo
-    { public string Name="NQ"; public double MinMove=25, PriceScale=0.01, BigPointValue=20; }
+    { public string Name="NQ"; public double MinMove=25, PriceScale=0.01, BigPointValue=20; public readonly ResolutionInfo Resolution=new ResolutionInfo(); }
     public sealed class BarData
     {
         public int CurrentBar; public EBarState Status=EBarState.Close; public bool LastBarOnChart=true;
         public readonly BarInfo Info=new BarInfo();
         public readonly Series<DateTime> Time=new Series<DateTime>();
-        public readonly Series<double> High=new Series<double>(), Low=new Series<double>(),
+        public readonly Series<double> Open=new Series<double>(), High=new Series<double>(), Low=new Series<double>(),
             Close=new Series<double>(), Ticks=new Series<double>();
         public void Add(DateTime time, double high, double low, double close)
-        { CurrentBar++; Time.Values.Add(time); High.Values.Add(high); Low.Values.Add(low); Close.Values.Add(close); Ticks.Values.Add(1); }
+        { Add(time,close,high,low,close); }
+        public void Add(DateTime time, double open, double high, double low, double close)
+        { CurrentBar++; Time.Values.Add(time); Open.Values.Add(open); High.Values.Add(high); Low.Values.Add(low); Close.Values.Add(close); Ticks.Values.Add(1); }
     }
-    public sealed class StrategyState { public double MarketPosition; }
+    public sealed class StrategyState { public double MarketPosition, AvgEntryPrice; }
     public sealed class Commentary
     {
         public bool AtCommentaryBar;
@@ -111,6 +127,8 @@ namespace PowerLanguage
         public readonly Orders OrderCreator=new Orders();
         public readonly Lines DrwTrendLine=new Lines(); public readonly Texts DrwText=new Texts();
         public readonly Commentary Output=new Commentary(), ExpertCommentary=new Commentary();
+        public int TotalTrades, SessionExitCalls;
+        protected void GenerateExitOnClose() { SessionExitCalls++; }
         protected abstract void Create(); protected abstract void StartCalc(); protected abstract void CalcBar();
         public void Initialize() { Create(); StartCalc(); }
         public void Restart() { StartCalc(); }

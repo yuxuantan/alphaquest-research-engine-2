@@ -20,7 +20,11 @@
     initial_capital: "Initial capital", tick_size: "Tick size", point_value: "Monetary point value",
     slippage_ticks: "Slippage · ticks per fill", commission_per_contract_per_side: "Commission · per contract per side",
   };
-  const label = (name) => name === "contracts" ? "Number of contracts" : String(name).replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+  const label = (name) => {
+    if (name === "contracts") return "Number of contracts";
+    if (name === "overnight_bias_orb") return "Overnight Bias ORB";
+    return String(name).replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+  };
 
   function element(tag, className, text) {
     const el = document.createElement(tag);
@@ -110,7 +114,8 @@
     }
     get("#backtest-fill-assumption").textContent = strategy?.id === "twin_continuation"
       ? "Use full-session one-minute close-labelled bars. Signals calculate at Close; Momentum enters next Open and Breakout uses next-bar OCO stops. Minute execution follows MultiCharts: visit the extreme nearer Open first, Low first on ties. The first entry cancels its sibling. Immediate protection defaults on and follows only the remaining path after fill. Reports include complete High-first and Low-first diagnostic replays; only the fixed primary screens candidates. These are OHLC assumptions, not observed ticks. Turning Immediate protection off restores delayed brackets. Calendar session exits include early closes; missing held closing bars reject. Native phase-controlled replay and entry-decision capture remain unsupported for Twin."
-
+      : strategy?.id === "overnight_bias_orb"
+      ? "Use close-labelled one-minute Globex OHLC. Decisions run on 15-minute closes in Eastern time. Market orders fill at the next open, with signal-close stop and target active on the entry bar. Within each minute, the engine uses the nearest-extreme-first path, Low first on ties."
       : strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_")
       ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar. Active stops/targets follow the MultiCharts path: the extreme nearer Open first, Low first on ties. This is modeled OHLC chronology. With EOD flatten enabled, the instrument's reviewed calendar sets the cutoff using Close buffer minutes (default 5), bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
@@ -359,7 +364,12 @@
       const nextOpen = flatten.order_timing === "next_open";
       const cutoff = String(metadata.strategy.parameters.eod_flat_time ?? 1555).padStart(4, "0");
       const fill = nextOpen ? "submit at cutoff; fill next observed bar Open" : "cutoff Close fill (earlier execution model)";
-      if (flatten.mode === "twin_csv_session_close_v2") {
+      if (flatten.mode === "overnight_bias_orb_chart_close_v1") {
+        const time = value => String(value).padStart(4, "0").replace(/(..)(..)$/, "$1:$2");
+        const chartClose = flatten.calendar ? `Scheduled Globex close via ${flatten.calendar.file}. Reviewed coverage ${flatten.calendar.coverage_start} through ${flatten.calendar.coverage_end}.` : `Fixed ${time(flatten.chart_session_close)} ET chart close.`;
+        pair.append(element("dt", "", "Overnight Bias ORB exits"), element("dd", "",
+          `At the first held 15-minute close at or after ${time(flatten.flat_time)} ET, submit a market exit for the next open. ${chartClose} At the chart close, active bracket orders retain priority before the session-close exit.`));
+      } else if (flatten.mode === "twin_csv_session_close_v2") {
         const calendar = flatten.calendar || {};
         pair.append(element("dt", "", "Scheduled session-close exits · no bar lookahead"), element("dd", "",
           `Auto calendar ${flatten.calendar_id} for ${flatten.instrument_symbol} · ${calendar.file}. Held positions fill at the scheduled closing bar Close, including holiday early closes; no next-Open buffer. Existing bracket fills on that bar retain priority. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Missing held closing bars reject; EOF liquidation remains labelled end_of_data.`));

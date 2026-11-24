@@ -103,7 +103,8 @@ class EntryProtection:
     """Conditional exits prepared before entry; distances resolve from actual fill.
 
     Exactly one stop basis is required. No completed entry-bar prices are used
-    to construct this plan. None target disables the profit-taking leg. The
+    to construct this plan. An absolute target preserves a signal-price anchor.
+    With neither target basis, the profit-taking leg is disabled. The
     default policy follows only the post-fill MultiCharts modeled OHLC path.
     """
 
@@ -112,6 +113,7 @@ class EntryProtection:
     target_distance: Decimal | None = None
     max_stop_distance: Decimal | None = None
     ambiguity_policy: Literal["multicharts", "reject", "adverse_first", "favorable_first"] = "multicharts"
+    target_price: Decimal | None = None
 
     def __post_init__(self):
         if self.ambiguity_policy not in ("multicharts", "reject", "adverse_first", "favorable_first"):
@@ -120,6 +122,10 @@ class EntryProtection:
             raise ValueError("Entry protection requires exactly one stop basis.")
         if self.stop_price is not None:
             _decimal("stop_price", self.stop_price)
+        if self.target_price is not None:
+            _decimal("target_price", self.target_price)
+            if self.target_distance is not None:
+                raise ValueError("Entry protection permits only one target basis.")
         for name in ("stop_distance", "max_stop_distance"):
             if getattr(self, name) is not None:
                 _decimal(name, getattr(self, name), positive=True)

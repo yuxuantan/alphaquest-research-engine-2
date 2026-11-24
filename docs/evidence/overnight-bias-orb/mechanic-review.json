@@ -1,0 +1,427 @@
+{
+  "id": "b97dc6b6e0f648629e95977e0545c509",
+  "identity": "8ec256972540f1670e65c13f02d5823a90fabd6ebc80a1d1fe3bbf62e97eee59",
+  "declaration": {
+    "version": "campaign-mechanics-v1",
+    "strategy_id": "overnight_bias_orb",
+    "dataset": {
+      "id": "5e879a3490f74b938ae1dc9ade0c5a5a",
+      "name": "SYNTHETIC Overnight Bias ORB mechanics",
+      "sha256": "e7cc5a431a70dfdc6b8dcc7db6a5f83ac4372ea19d4b6262c53fe48553b8e4fd",
+      "bytes": 1240043,
+      "row_count": 26546,
+      "source_timezone": "America/New_York",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      },
+      "symbol": "NQ",
+      "start": "2026-02-23T05:00:00Z",
+      "end": "2026-03-30T21:00:00Z"
+    },
+    "default_parameters": {
+      "sess_start": 930,
+      "or_end": 945,
+      "last_entry": 1300,
+      "flat_time": 1530,
+      "sess_end": 1600,
+      "max_trades_per_day": 4,
+      "bias_long_min": "0.67",
+      "bias_short_max": "0.33",
+      "adx_len": 16,
+      "adx_min": "20",
+      "break_skip_mult": "2.5",
+      "bar_avg_len": 20,
+      "min_or_x": "0",
+      "max_or_x": "2",
+      "or_median_days": 20,
+      "atr_k": "0.30",
+      "atr_days": 15,
+      "take_profit_rr": "3",
+      "num_contracts": 1,
+      "max_bars_back": 250,
+      "use_session_calendar": true,
+      "chart_session_close": 1700
+    },
+    "strategy_source_sha256": "a6ac86e045a475d66f43ad21d42389e296dfa09a382d55728c8aa1bf14a1268d",
+    "engine_identity": "2ae75845b183a7617be28c2b69c3a02c9bab36d5ed3d603974f8a4021b854596",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "20",
+      "slippage_ticks": 0,
+      "commission_per_contract_per_side": "0"
+    },
+    "plan": {
+      "strategy_id": "overnight_bias_orb",
+      "source_sha256": "e7cc5a431a70dfdc6b8dcc7db6a5f83ac4372ea19d4b6262c53fe48553b8e4fd",
+      "source_timezone": "America/New_York",
+      "is_start": "2026-02-23",
+      "is_end": "2026-03-27",
+      "oos_start": "2026-03-30",
+      "oos_end": "2026-03-30",
+      "is_bars": 25525,
+      "oos_bars": 1021,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "market_benchmark": {
+      "contracts": 1
+    }
+  },
+  "status": "review_required",
+  "run_id": "359bb9701f844830b6f9223b6e685e20",
+  "review": {
+    "revision": 0,
+    "result_identity": "7ff30d44054c9ac3c84a9afb76ed587eefbf1f69da36545dcd433a46a46c3c8b",
+    "metric_checks": {
+      "trades_taken": false,
+      "winning_trades": false,
+      "losing_trades": false,
+      "breakeven_trades": false,
+      "win_rate_pct": false,
+      "total_gross_pnl": false,
+      "total_slippage_cost": false,
+      "total_commissions": false,
+      "total_net_pnl": false,
+      "max_drawdown_amount": false
+    },
+    "trade_parity": {
+      "1": false
+    },
+    "trade_correctness": {
+      "1": false
+    },
+    "confirmed_at_utc": null,
+    "attestation": "User confirms MultiCharts parity and execution correctness; no automated MC comparison."
+  },
+  "error": null,
+  "created_at_utc": "2026-11-24T02:56:29.859525+00:00",
+  "updated_at_utc": "2026-11-24T02:56:35.152306+00:00",
+  "broad": {
+    "job_id": null,
+    "revision": 0,
+    "selected_trials": [],
+    "selection": [],
+    "confirmed_at_utc": null,
+    "status": "ready"
+  },
+  "narrow": [],
+  "phases": [
+    {
+      "id": "mechanic_validation",
+      "label": "Mechanic validation",
+      "status": "review_required",
+      "implemented": true
+    },
+    {
+      "id": "is_broad",
+      "label": "IS Broad",
+      "status": "locked",
+      "implemented": true
+    },
+    {
+      "id": "is_narrow",
+      "label": "IS Narrow",
+      "status": "locked",
+      "implemented": true
+    },
+    {
+      "id": "oos",
+      "label": "OOS",
+      "status": "locked",
+      "implemented": true
+    }
+  ],
+  "latest_phase": "mechanic_validation",
+  "metrics": [
+    {
+      "id": "trades_taken",
+      "label": "Trades taken",
+      "value": 1
+    },
+    {
+      "id": "winning_trades",
+      "label": "Winning trades",
+      "value": 1
+    },
+    {
+      "id": "losing_trades",
+      "label": "Losing trades",
+      "value": 0
+    },
+    {
+      "id": "breakeven_trades",
+      "label": "Breakeven trades",
+      "value": 0
+    },
+    {
+      "id": "win_rate_pct",
+      "label": "Win rate pct",
+      "value": "100"
+    },
+    {
+      "id": "total_gross_pnl",
+      "label": "Total gross pnl",
+      "value": "320.00"
+    },
+    {
+      "id": "total_slippage_cost",
+      "label": "Total slippage cost",
+      "value": "0.00"
+    },
+    {
+      "id": "total_commissions",
+      "label": "Total commissions",
+      "value": "0"
+    },
+    {
+      "id": "total_net_pnl",
+      "label": "Total net pnl",
+      "value": "320.00"
+    },
+    {
+      "id": "max_drawdown_amount",
+      "label": "Max drawdown amount",
+      "value": "0"
+    }
+  ],
+  "trade_samples": [
+    {
+      "id": "1",
+      "reasons": [
+        "First trade",
+        "Last trade",
+        "Biggest win",
+        "Shortest duration"
+      ],
+      "trade": {
+        "trade_number": 1,
+        "side": "long",
+        "entry_bar_number": 25106,
+        "exit_bar_number": 25106,
+        "entry_time_utc": "2026-03-27T14:01:00Z",
+        "exit_time_utc": "2026-03-27T14:01:00Z",
+        "exit_deadline_utc": null,
+        "contracts": 1,
+        "entry_reference_price": "124",
+        "exit_reference_price": "140.00",
+        "entry_fill_price": "124.00",
+        "exit_fill_price": "140.00",
+        "entry_commission": "0",
+        "exit_commission": "0",
+        "total_commissions": "0",
+        "reference_gross_pnl": "320.00",
+        "slippage_cost": "0.00",
+        "gross_pnl": "320.00",
+        "net_pnl": "320.00",
+        "actual_holding_minutes": "0",
+        "entry_reason": "ORB_L",
+        "exit_reason": "take_profit"
+      }
+    }
+  ],
+  "report": {
+    "id": "359bb9701f844830b6f9223b6e685e20",
+    "format_version": 2,
+    "status": "complete",
+    "created_at_utc": "2026-11-24T02:56:35.126773Z",
+    "period_start_utc": "2026-02-23T05:00:00Z",
+    "period_end_utc": "2026-03-27T21:00:00Z",
+    "timestamp_convention": "bar_close",
+    "execution_assumption": "overnight_bias_orb_15m_close_1m_magnifier_v1",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "20",
+      "slippage_ticks": 0,
+      "commission_per_contract_per_side": "0"
+    },
+    "run_metadata": {
+      "dataset": {
+        "id": "5e879a3490f74b938ae1dc9ade0c5a5a",
+        "name": "SYNTHETIC Overnight Bias ORB mechanics",
+        "sha256": "e7cc5a431a70dfdc6b8dcc7db6a5f83ac4372ea19d4b6262c53fe48553b8e4fd",
+        "source_timezone": "America/New_York",
+        "row_count": 26546,
+        "instrument_settings": {
+          "tick_size": ".25",
+          "point_value": "20"
+        }
+      },
+      "instrument": {
+        "symbol": "NQ",
+        "interval_seconds": null,
+        "interval_kind": "irregular"
+      },
+      "strategy": {
+        "id": "overnight_bias_orb",
+        "description": "Overnight Bias ORB: civil-midnight overnight range, one direction set at the RTH open, and 15-minute close breakouts on Globex one-minute data. Eastern strategy clock. Next-Open entries with fill-bar stop and target anchored to the signal Close.",
+        "source_sha256": "a6ac86e045a475d66f43ad21d42389e296dfa09a382d55728c8aa1bf14a1268d",
+        "execution_assumption": "overnight_bias_orb_15m_close_1m_magnifier_v1",
+        "parameters": {
+          "sess_start": 930,
+          "or_end": 945,
+          "last_entry": 1300,
+          "flat_time": 1530,
+          "sess_end": 1600,
+          "max_trades_per_day": 4,
+          "bias_long_min": "0.67",
+          "bias_short_max": "0.33",
+          "adx_len": 16,
+          "adx_min": "20",
+          "break_skip_mult": "2.5",
+          "bar_avg_len": 20,
+          "min_or_x": "0",
+          "max_or_x": "2",
+          "or_median_days": 20,
+          "atr_k": "0.30",
+          "atr_days": 15,
+          "take_profit_rr": "3",
+          "num_contracts": 1,
+          "max_bars_back": 250,
+          "use_session_calendar": true,
+          "chart_session_close": 1700
+        },
+        "session_flattening": {
+          "enabled": true,
+          "mode": "overnight_bias_orb_chart_close_v1",
+          "timezone": "America/New_York",
+          "order_timing": "same_close",
+          "calendar": {
+            "file": "calendars/cme_nq_closures.csv",
+            "sha256": "a71258719fdd433586250e242f5d10c78b49ea700a5312a24dc870307a05f81a",
+            "coverage_start": "2016-01-01",
+            "coverage_end": "2026-11-02",
+            "timezone": "America/Chicago",
+            "instrument": "NQ futures",
+            "rows": 124
+          },
+          "chart_session_close": 1700,
+          "flat_time": 1530,
+          "fill": "scheduled chart closing minute Close after active price exits; FlatTime is a separate next-Open exit"
+        }
+      },
+      "instrument_overrides": {},
+      "full_dataset": {
+        "id": "5e879a3490f74b938ae1dc9ade0c5a5a",
+        "name": "SYNTHETIC Overnight Bias ORB mechanics",
+        "sha256": "e7cc5a431a70dfdc6b8dcc7db6a5f83ac4372ea19d4b6262c53fe48553b8e4fd",
+        "source_timezone": "America/New_York",
+        "row_count": 26546,
+        "start": "2026-02-23T05:00:00Z",
+        "end": "2026-03-30T21:00:00Z",
+        "symbol": "NQ"
+      },
+      "research": {
+        "phase": "is",
+        "plan": {
+          "strategy_id": "overnight_bias_orb",
+          "source_sha256": "e7cc5a431a70dfdc6b8dcc7db6a5f83ac4372ea19d4b6262c53fe48553b8e4fd",
+          "source_timezone": "America/New_York",
+          "is_start": "2026-02-23",
+          "is_end": "2026-03-27",
+          "oos_start": "2026-03-30",
+          "oos_end": "2026-03-30",
+          "is_bars": 25525,
+          "oos_bars": 1021,
+          "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+          "version": 1
+        },
+        "workflow_id": "b97dc6b6e0f648629e95977e0545c509",
+        "workflow_phase": "mechanic_validation"
+      },
+      "selection": {
+        "from_date": "2026-02-23",
+        "to_date": "2026-03-27",
+        "source_timezone": "America/New_York",
+        "warmup": "none",
+        "start_utc": "2026-02-23T05:00:00Z",
+        "first_source_bar_number": 1,
+        "end_utc": "2026-03-27T21:00:00Z",
+        "last_source_bar_number": 25525,
+        "row_count": 25525
+      }
+    },
+    "summary": {
+      "initial_capital": "10000",
+      "final_equity": "10320.00",
+      "trades_taken": 1,
+      "winning_trades": 1,
+      "losing_trades": 0,
+      "breakeven_trades": 0,
+      "win_rate_pct": "100",
+      "total_gross_pnl": "320.00",
+      "total_slippage_cost": "0.00",
+      "total_commissions": "0",
+      "total_net_pnl": "320.00",
+      "ending_position_contracts": 0,
+      "max_drawdown_amount": "0",
+      "max_drawdown_pct": "0",
+      "max_drawdown_duration_seconds": "0"
+    },
+    "reconciliation": {
+      "total_net_equals_sum_trade_net": true,
+      "gross_minus_commissions_equals_net": true,
+      "final_equity_equals_initial_plus_net": true,
+      "equity_equals_cash_plus_unrealized_at_every_point": true,
+      "realized_net_equals_cash_minus_initial_at_every_point": true,
+      "final_position_flat": true,
+      "observed_bar_count": 25525,
+      "expected_bar_count": 25525
+    },
+    "artifacts": {
+      "report": "report.json",
+      "trades_csv": "trades.csv",
+      "equity_csv": "equity.csv",
+      "intratrade_risk_csv": "intratrade_risk.csv",
+      "market_benchmark_json": "market_benchmark.json",
+      "strategy_equity_day_csv": "strategy_equity_day.csv"
+    },
+    "price_path": {
+      "version": "multicharts-ohlc-nearest-extreme-v1",
+      "mode": "modeled_ohlc",
+      "policy": "nearest_extreme_first_low_on_tie",
+      "magnifier": false,
+      "order_activation": "next_bar; attached exits start at parent fill; no pre-entry extrema",
+      "documentation": "docs/multicharts_execution.md"
+    },
+    "intratrade_risk": {
+      "version": "held-price-path-equity-v2",
+      "sha256": "583b15e8b9a5f57679c28a611817a257a8613e24e2d6dd6adb3ab024f6e5393a",
+      "trades": 1,
+      "ambiguous_trades": 0,
+      "cross_session_trades": 0,
+      "policy": "Held MultiCharts modeled OHLC path excursions, restricted to entry-through-exit, including entry and final costs. Model estimates, not measured tick MAE/MFE."
+    },
+    "market_benchmark": {
+      "version": "price-series-holding-v1",
+      "settings": {
+        "contracts": 1
+      },
+      "observed_bar_count": 25525,
+      "sha256": "38586aef59012b283cee30cd44387c45e188d6c1a7603c6e2af1db43b1dede41",
+      "equity_sha256": "1e601f86a9dde14a0b7bf7abc50bb6d82f2570283a5f0d584828d53452c22d22",
+      "storage": {
+        "version": "daily-shared-v1",
+        "granularity": "DAY",
+        "timezone": "America/New_York",
+        "day_boundary": "last_selected_bar_of_source_calendar_date",
+        "observed_day_count": 25,
+        "strategy_sha256": "35515a10eb3385e1dbec60fb0163abf2be594e2a726848575d0cd440386ef6a8",
+        "holding_key": "61768aad6c921c2e6227c90fb4b043f97dbd669c911ede58514af948d227004f",
+        "holding_sha256": "0419e0349cf4df10e8725a1f7597ef0313f76d595106b9ea668c95b299345be8"
+      }
+    },
+    "report_storage": {
+      "detail": "compact",
+      "compression": "none",
+      "per_bar_equity_retained": false,
+      "trades": "all",
+      "equity_csv": "initial_and_trade_close"
+    }
+  },
+  "missing_samples": [
+    "Biggest loss"
+  ]
+}

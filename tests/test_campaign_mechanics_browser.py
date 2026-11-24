@@ -149,3 +149,33 @@ def test_existing_campaign_dataset_opens_setup_or_saved_validation(page,portal,t
     (tmp_path/'overlap-review.json').write_text(json.dumps(result,indent=2))
     page.evaluate('scrollTo(0,0)')
     page.screenshot(path=str(tmp_path/'05-overlap.png'),full_page=True)
+
+
+def test_overnight_bias_orb_default_mechanics_and_downloads(page, portal, tmp_path):
+    from test_overnight_bias_orb import product_fixture
+    raw, start, signal, oos = product_fixture()
+    url = portal['url']
+    source = page.request.post(url + '/api/datasets', params=dict(filename='synthetic-overnight-orb.csv',
+        name='SYNTHETIC Overnight Bias ORB mechanics', symbol='NQ', source_timezone='America/New_York',
+        tick_size='.25', point_value='20'), data=raw)
+    assert source.status == 201, source.text()
+    page.goto(url + '/#campaigns/overnight_bias_orb')
+    playwright.expect(page.locator('#workflow-campaign-detail h2')).to_have_text('Overnight Bias ORB')
+    page.get_by_role('link', name='New backtest →', exact=True).click()
+    playwright.expect(page.locator('#backtest-strategy')).to_have_value('overnight_bias_orb')
+    page.locator('#backtest-dataset').select_option(source.json()['id'])
+    page.locator('#backtest-slippage-ticks').fill('0')
+    page.locator('#backtest-commission').fill('0')
+    page.locator('#backtest-initial-capital').fill('10000')
+    declare_in_form(page, dict(is_start=str(start), is_end=str(signal), oos_start=str(oos), oos_end=str(oos)))
+    page.get_by_role('button', name='Open mechanic validation →', exact=True).click()
+    page.locator('#mechanic-run').click()
+    playwright.expect(page.locator('#mechanic-trades tbody tr')).to_have_count(1, timeout=60000)
+    playwright.expect(page.locator('#mechanic-trades')).to_contain_text('320')
+    playwright.expect(page.locator('#mechanic-confirm')).to_be_disabled()
+    for label, path in [('Trades CSV ↓', 'trades.csv'), ('Saved review JSON ↓', 'mechanic-review.json')]:
+        with page.expect_download() as download:
+            page.get_by_role('link', name=label, exact=True).click()
+        download.value.save_as(tmp_path / path)
+    page.get_by_role('link', name='Open backtest report', exact=True).click()
+    playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('15:30 ET')

@@ -58,6 +58,30 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     (tmp_path/'navigation.json').write_text(json.dumps({'destinations':destinations, 'campaigns':3, 'datasets_unchanged':True, 'mutation_requests':mutations}, indent=2))
 
 
+def test_overnight_bias_orb_explains_strategy_before_dataset_selection(page, portal):
+    page.goto(portal['url'] + '/#campaigns/overnight_bias_orb')
+    detail = page.locator('#workflow-campaign-detail')
+    overview = detail.locator('.campaign-overview')
+    datasets = detail.locator('.workflow-datasets')
+    notes = detail.locator('.campaign-strategy-notes')
+    playwright.expect(overview.get_by_role('heading', name='How it trades')).to_be_visible()
+    playwright.expect(overview).to_contain_text('at least 67%')
+    playwright.expect(overview).to_contain_text('35 points to the stop and 85 to the target')
+    playwright.expect(datasets).to_contain_text('No saved datasets for this campaign')
+    assert notes.bounding_box()['y'] < datasets.bounding_box()['y']
+
+    page.set_viewport_size({'width': 390, 'height': 844})
+    playwright.expect(overview).to_be_visible()
+    notes.locator(':scope > summary').click()
+    playwright.expect(notes.get_by_role('heading', name='Data and warm-up')).to_be_visible()
+    playwright.expect(notes).to_contain_text('preceding 20 candles')
+    playwright.expect(notes).to_contain_text('250 completed 15-minute candles')
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+
+    page.get_by_role('link', name='New backtest →', exact=True).click()
+    playwright.expect(page.locator('#backtest-strategy')).to_have_value('overnight_bias_orb')
+
+
 def test_prop_sim_empty_qualification_boundary_and_mobile(page, portal, tmp_path):
     mutations = []
     page.on('request', lambda r: mutations.append(r.url) if r.method != 'GET' else None)

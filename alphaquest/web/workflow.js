@@ -37,6 +37,33 @@
       broad: ["Breakout setup · enabled / disabled", "Momentum setup · enabled / disabled", "Immediate protection · enabled / disabled"],
       narrow: ["Breakout target multiple and ATR period", "Momentum trigger and stop distance", "Momentum entry window"],
     },
+    {
+      id: "overnight_bias_orb", name: "Overnight Bias ORB",
+      hypothesis: "This strategy tests whether a breakout in the direction suggested by the regular-session open will continue intraday.",
+      overview: {
+        steps: [
+          "Choose a side for the day. Measure the overnight high and low from midnight through 09:30 ET. If the regular-session open is at least 67% of the way from the overnight low to the high, only longs are allowed. At 33% or lower, only shorts are allowed. In between, the strategy sits out.",
+          "Wait for a breakout. Mark the high and low from 09:30 to 09:45 ET. From the 10:00 through the 13:00 ET close, look for a 15-minute close strictly above that high for a long or strictly below that low for a short. The signal must pass the trend-strength and range filters. The default is one contract, one position at a time and up to four entry submissions per day.",
+          "Enter at the next open. The initial stop is 30% of the 15-day regular-session average true range (ATR). The target is three times that distance. Both levels are measured from the breakout close and are active on the entry bar. They stay at those prices if the market gaps at entry.",
+          "Exit on the stop or target. If a position is still open at the first 15-minute close at or after 15:30 ET, send a market exit for the next open. The scheduled Globex close is the backup exit, including on early-close days.",
+        ],
+        example: "If the overnight range is 20,000–20,100 and the regular session opens at 20,080, the day is long-only. If the opening-range high is 20,095 and a qualifying bar closes at 20,100, a 100-point ATR puts the stop at 20,070 and the target at 20,190. A next-open fill at 20,105 leaves 35 points to the stop and 85 to the target, before costs.",
+      },
+      entryNotes: [
+        "Trend strength uses Wilder ADX on 15-minute candles, with length 16 and a minimum reading of 20 by default. ADX measures trend strength. The overnight range determines the trade direction.",
+        "The breakout candle’s high-low range can be at most 2.5 times the average range of the preceding 20 candles. A skipped breakout leaves the daily bias in effect for later qualifying closes.",
+        "The opening range can be at most twice its 20-period exponential moving average through the previous session. This filter starts at opening range 20 once the reference is positive. The ATR gate requires 15 completed regular sessions and a positive stop distance.",
+      ],
+      dataNotes: [
+        "Use full-session, close-labelled one-minute NQ or MNQ Globex OHLC in AlphaQuest. The strategy groups those minutes into 15-minute candles for decisions. The overnight high and low come from the post-midnight portion of the session.",
+        "Allow about two months of data inside each calculation window. The first 250 completed 15-minute candles supply MaxBarsBack, then the strategy builds its daily ATR and opening-range history.",
+      ],
+      interpretationNotes: [
+        "For MultiCharts comparison, use a single 15-minute Globex series, one-minute Bar Magnifier and the same dates, time settings and costs. With showValidation enabled, check the breakout bar’s gates and submitted stop and target against the fills in the trade export.",
+      ],
+      broad: ["Examples of searchable inputs include the overnight bias thresholds, ADX, breakout-candle and opening-range filters, ATR stop multiplier and target multiple."],
+      narrow: ["Narrow locks the selected Broad values by default. Eligible numeric axes can be explicitly refined on a finer grid."],
+    },
   ];
   const list = get("#workflow-campaign-list");
   let catalogue, definitions, generation = 0, deletionNotice = null;
@@ -53,6 +80,7 @@
     for (const value of values) bullets.append(node("li", value));
     host.append(bullets);
     parent.append(host);
+    return host;
   }
   const action = (parent, title, href) => {
     const link = node('a', title, 'workflow-inline-link'); link.href = href; parent.append(link); return link;
@@ -83,23 +111,34 @@
       get('#campaign-new-backtest').href = `#backtests/new?${new URLSearchParams({workflow:'mechanic', strategy:id})}`;
       get('#campaign-new-backtest').hidden = !definition;
       host.append(node('h2',campaign.name),node('p',campaign.hypothesis,'campaign-hypothesis'));
+      if (campaign.overview) {
+        const overview = section(host, 'How it trades', campaign.overview.steps);
+        overview.classList.add('campaign-overview');
+        const example = node('p',undefined,'campaign-example');
+        example.append(node('strong','Example. '), campaign.overview.example);
+        overview.append(example);
+      }
       const datasets = node('section',undefined,'workflow-datasets');
       const datasetsStatus = window.portalLoading.message('Loading campaign datasets…');
       datasets.append(node('h3','Datasets'),datasetsStatus);
-      host.append(datasets);
       const notes = node('details',undefined,'campaign-strategy-notes');
       notes.append(node('summary','Strategy notes and source'));
-      notes.append(node('p','No research linked yet.','field-help'));
-      section(notes,'Shared logic',campaign.logic.length ? campaign.logic : [definition?.description || 'Open a saved report to inspect its recorded logic.']);
+      if (!campaign.overview) {
+        host.append(datasets);
+        notes.append(node('p','No research linked yet.','field-help'));
+        section(notes,'Shared logic',campaign.logic.length ? campaign.logic : [definition?.description || 'Open a saved report to inspect its recorded logic.']);
+      }
       if (campaign.entryNotes?.length) section(notes,'Entry requirements and common blockers',campaign.entryNotes);
+      if (campaign.dataNotes?.length) section(notes,'Data and warm-up',campaign.dataNotes);
       if (campaign.interpretationNotes?.length) section(notes,'Live and backtest interpretation',campaign.interpretationNotes);
       const params = node('div',undefined,'workflow-parameter-layout');
-      section(params,'Broad parameters',campaign.broad.length ? campaign.broad : ['Not classified yet']);
-      section(params,'Narrow parameters',campaign.narrow.length ? campaign.narrow : ['Not classified yet']); notes.append(params);
+      section(params,'Broad parameters',campaign.broad?.length ? campaign.broad : ['Not classified yet']);
+      section(params,'Narrow parameters',campaign.narrow?.length ? campaign.narrow : ['Not classified yet']); notes.append(params);
       const source = node('details',undefined,'workflow-source');
       source.append(node('summary','Source code'),node('code',definition ? `alphaquest/strategies/${id}.py` : 'No current local strategy code. Inspect the saved report for recorded provenance.'));
       action(source,'Browse existing saved runs →',`#strategies/${encodeURIComponent(id)}`); notes.append(source);
       host.append(notes);
+      if (campaign.overview) host.append(datasets);
       const [workflows, groups] = await Promise.all([read(`/api/campaign-workflows?${new URLSearchParams({strategy_id:id})}`), read(`/api/strategies/${encodeURIComponent(id)}/datasets?limit=100`)]);
       window.portalLoading.clear(datasetsStatus);
       datasetsStatus.remove();
