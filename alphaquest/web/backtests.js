@@ -65,17 +65,24 @@
     status.hidden = !calendar;
     if (!calendar) return false;
     const twin = state.strategy?.id === "twin_continuation";
-    const enabled = get(`#optimization-ranges [data-parameter='${twin ? "use_session_calendar" : "use_eod_flat"}']`);
-    const usesCalendar = mechanicSetup() ? state.strategy?.parameters.find(p => p.name === (twin ? "use_session_calendar" : "use_eod_flat"))?.default : enabled && Array.from(enabled.querySelectorAll("select")).some((input) => input.value === "true");
+    const includesTrue = name => mechanicSetup()
+      ? state.strategy.parameters.find(p => p.name === name)?.default
+      : Array.from(document.querySelectorAll(`#optimization-ranges [data-parameter='${name}'] select`)).some(input => input.value === "true");
+    const eod = !twin && includesTrue("use_eod_flat");
+    const usesCalendar = twin ? includesTrue("use_session_calendar") : eod && includesTrue("use_external_calendar");
     if (!usesCalendar) {
-      status.textContent = twin ? "Session calendar: disabled · earlier fixed-clock Twin session model." : "Session calendar: disabled · Use EOD Flat is off.";
+      status.textContent = twin ? "Session calendar: disabled · earlier fixed-clock Twin session model."
+        : eod ? "Fixed weekday session · 16:00 Chicago close before applying the buffer and EOD cutoff. Holiday exceptions are off."
+        : "Session calendar: disabled · Use EOD Flat is off.";
       return false;
     }
     const symbol = String(selectedDataset()?.symbol || "").trim().toUpperCase();
     const supported = new RegExp(`^(?:${calendar.symbol_pattern})$`).test(symbol);
+    const instrument = !twin && symbol.replace(/^@/, "").startsWith("MNQ") ? "MNQ futures"
+      : twin ? calendar.instrument : "NQ futures";
     status.textContent = supported
-      ? `Session calendar: Auto → ${calendar.instrument} · ${calendar.file.split("/").pop()} · saved symbol ${symbol} · ${calendar.timezone}. ${twin ? "Held positions exit at the scheduled closing bar Close, including holiday early closes." : "Set Close buffer minutes below; default 5."}`
-      : `No reviewed session calendar for saved symbol ${symbol || "(not set)"}. ${twin ? "Twin calendar exits support explicit NQ/MNQ symbols; select a supported dataset or disable Use session calendar." : "Calendar EOD flattening currently supports NQ only. Select a dataset with an explicit supported symbol, or turn Use EOD Flat off."}`;
+      ? `Session calendar: Auto → ${instrument} · ${calendar.file.split("/").pop()} · saved symbol ${symbol} · ${calendar.timezone}. ${twin ? "Held positions exit at the scheduled closing bar Close, including holiday early closes." : "Set Close buffer minutes below. The default is 5."}`
+      : `No reviewed session calendar for saved symbol ${symbol || "(not set)"}. ${twin ? "Twin calendar exits support explicit NQ/MNQ symbols. Choose a supported dataset or turn Use session calendar off." : "Choose an NQ/MNQ dataset or turn Use external calendar off for fixed weekday exits."}`;
     if (!supported && mechanicSetup()) status.textContent = `Default-parameter mechanic validation requires a reviewed calendar for this strategy. Choose a supported NQ/MNQ dataset; calendar defaults cannot be disabled for validation.`;
     return !supported;
   }
@@ -134,7 +141,7 @@
       : strategy?.id === "relative_strength"
       ? "Use synchronized one-minute NQ/MNQ and ES closes. Signals enter at the next observed Open. Stop and target use the entry fill and first become active after the entry bar closes. An open position flattens at the configured Central-time close."
       : strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_")
-      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar. Active stops/targets follow the MultiCharts path: the extreme nearer Open first, Low first on ties. This is modeled OHLC chronology. With EOD flatten enabled, the instrument's reviewed calendar sets the cutoff using Close buffer minutes (default 5), bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
+      ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar. The modeled OHLC path visits the extreme nearer the Open first, with Low first on ties. With EOD flattening enabled, the cutoff uses the reviewed calendar close or a fixed 16:00 Chicago weekday close, minus the buffer and bounded by EOD Flat Time. No future bars determine the cutoff. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
     let defaults = get('#mechanic-default-parameters');
     if (!defaults) { defaults = element('details'); defaults.id = 'mechanic-default-parameters'; get('#strategy-description').after(defaults); }
@@ -400,6 +407,9 @@
         const calendar = flatten.calendar || {};
         pair.append(element("dt", "", "Scheduled session-close exits · no bar lookahead"), element("dd", "",
           `Auto calendar ${flatten.calendar_id} for ${flatten.instrument_symbol} · ${calendar.file}. Held positions fill at the scheduled closing bar Close, including holiday early closes; no next-Open buffer. Existing bracket fills on that bar retain priority. ${flatten.sessions ?? 0} observed sessions; ${flatten.early_close_sessions ?? 0} shortened. Reviewed coverage ${calendar.coverage_start} through ${calendar.coverage_end}. CSV SHA-256: ${calendar.sha256}. Missing held closing bars reject; EOF liquidation remains labelled end_of_data.`));
+      } else if (flatten.mode === "fixed_weekday_session_v1") {
+        pair.append(element("dt", "", "Fixed weekday session exits"), element("dd", "",
+          `16:00 Chicago close minus ${flatten.minutes_before_close} minutes, with the order cutoff at or before ${cutoff.slice(0, 2)}:${cutoff.slice(2)} CT. Submit at or after the cutoff and fill at the next observed bar Open by 16:00. Holiday exceptions are off.`));
       } else if (flatten.mode === "csv_session_calendar_v1") {
         const calendar = flatten.calendar || {};
         pair.append(element("dt", "", "Calendar-based session exits · no bar lookahead"), element("dd", "",

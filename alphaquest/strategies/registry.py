@@ -34,7 +34,8 @@ class StrategyDefinition:
         names = {field.name for field in fields(self.module.Parameters)}
         if self.module is vwap_pullback_risk_sizing:
             defaults=self.module.Parameters()
-            added={'use_order_flow','minimum_delta_pct','maximum_unknown_volume_pct','minimum_trade_records'}
+            added={'use_order_flow','minimum_delta_pct','maximum_unknown_volume_pct','minimum_trade_records',
+                   'use_external_calendar'}
             values={**{k:(str(getattr(defaults,k)) if isinstance(getattr(defaults,k),Decimal) else getattr(defaults,k)) for k in added if k not in values},**values}
         if values.keys() != names:
             raise ValueError(f"strategy_parameters must contain exactly: {', '.join(sorted(names))}.")

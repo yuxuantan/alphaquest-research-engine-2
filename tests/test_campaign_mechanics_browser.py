@@ -151,6 +151,43 @@ def test_existing_campaign_dataset_opens_setup_or_saved_validation(page,portal,t
     page.screenshot(path=str(tmp_path/'05-overlap.png'),full_page=True)
 
 
+def test_orb_vwap_external_calendar_is_optional_in_backtest_setup(page, portal):
+    from research_fixtures import ResearchHTTPClient, declaration
+    from test_backtests_browser import set_parameter
+    from test_inferred_session_close import csv_bytes, session_rows
+
+    with ResearchHTTPClient(base_url=portal['url']) as client:
+        upload = client.post('/api/datasets', params=dict(
+            filename='SYNTHETIC-fixed-weekday.csv', name='SYNTHETIC fixed weekday',
+            source_timezone='UTC', tick_size='.25', point_value='20'),
+            content=csv_bytes(session_rows(close=(16, 0))))
+        assert upload.status_code == 201, upload.text
+    dataset_id = upload.json()['id']
+    page.goto(portal['url'] + '/#backtests')
+    page.locator('#backtest-dataset').select_option(dataset_id)
+    page.locator('#backtest-strategy').select_option('vwap_pullback_risk_sizing')
+    declare_in_form(page, declaration(dataset_id))
+    playwright.expect(page.locator('#backtest-session-calendar')).to_contain_text('No reviewed session calendar')
+    playwright.expect(page.locator('#start-backtest')).to_be_disabled()
+    set_parameter(page, 'use_external_calendar', False)
+    playwright.expect(page.locator('#backtest-session-calendar')).to_contain_text('16:00 Chicago')
+    playwright.expect(page.locator('#start-backtest')).to_be_enabled()
+    set_parameter(page, 'stop_swing_len', 1)
+    set_parameter(page, 'target_swing_len', 1)
+    set_parameter(page, 'use_adx_elev', False)
+    set_parameter(page, 'use_adx_decay', False)
+    page.locator('#backtest-slippage-ticks').fill('1')
+    page.locator('#backtest-commission').fill('1')
+    with page.expect_response(lambda r: '/api/backtests?' in r.url and r.request.method == 'POST') as completed:
+        page.locator('#start-backtest').click()
+    report = completed.value.json()
+    assert completed.value.status == 201, report
+    assert report['run_metadata']['strategy']['parameters']['use_eod_flat'] is True
+    assert report['summary']['total_net_pnl'] == '88.00'
+    page.reload()
+    playwright.expect(page.locator('[data-setting=session_flattening]')).to_contain_text('Fixed weekday session exits')
+
+
 def test_overnight_bias_orb_default_mechanics_and_downloads(page, portal, tmp_path):
     from test_overnight_bias_orb import product_fixture
     raw, start, signal, oos = product_fixture()

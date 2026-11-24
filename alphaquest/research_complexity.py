@@ -34,7 +34,8 @@ def describe_complexity(strategy_id, parameters):
         if parameters['stop_mode'] == 2:
             inactive.append('stop_swing_len')
         if not parameters['use_eod_flat']:
-            inactive += ['eod_flat_time', 'close_buffer_minutes']
+            inactive += [name for name in ('eod_flat_time', 'close_buffer_minutes', 'use_external_calendar')
+                         if name in parameters]
         if Decimal(str(parameters['buffer_amount'])) == 0:
             inactive.append('buffer_mode')
         # max_bars_back stays active: even when an indicator is disabled, the

@@ -46,12 +46,12 @@ async def start(body: OptimizationRequest, request: Request):
     if not supported_bar_columns(dataset.get("columns")):
         raise HTTPException(422, "Unsupported dataset schema.")
     try:
-        # Validate before claiming research dates or queuing a mixed on/off grid.
-        for enabled in axes.get("use_eod_flat", [False]):
-            values = {name: axis[0] for name, axis in axes.items()}
-            if "use_eod_flat" in values:
-                values["use_eod_flat"] = enabled
-            definition.validate_source(definition.parameters(values), dataset)
+        # Validate the strictest source requirements before claiming dates or queuing.
+        values = {name: axis[0] for name, axis in axes.items()}
+        for name in ("use_eod_flat", "use_external_calendar"):
+            if name in axes:
+                values[name] = any(axes[name])
+        definition.validate_source(definition.parameters(values), dataset)
         config = body.execution_settings.execution_config(dataset)
         plan = await run_in_threadpool(request.app.state.research.resolve, request.app.state.store, dataset, body.strategy_id, body.sample_split)
         await run_in_threadpool(request.app.state.research.claim, plan)

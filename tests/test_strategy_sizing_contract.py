@@ -32,6 +32,9 @@ def test_capabilities_depend_on_parameters_not_just_strategy_name():
     assert vwap.sizing.describe(p)['percentage_risk']['supported']
     assert not vwap.sizing.describe(replace(p,use_vol_sizing=True))['fixed_contracts']['supported']
     assert not vwap.sizing.describe(replace(p,use_eod_flat=False))['percentage_risk']['supported']
+    fixed_weekday = vwap.sizing.describe(replace(p, use_external_calendar=False))
+    assert fixed_weekday['fixed_contracts']['supported']
+    assert 'Use External Calendar' in fixed_weekday['percentage_risk']['reason']
     multiple=vwap.sizing.describe(replace(p,max_trades_per_day=2))
     assert multiple['percentage_risk']['supported'] and not multiple['accelerated_native']
     twin=STRATEGIES['twin_continuation']

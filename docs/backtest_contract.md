@@ -37,11 +37,12 @@ decision capture/phase-controlled replay reject attached plans.
 Intrabar entry-bar extrema remain excursion bounds. Its guide records
 source timing, session assumptions and native decision-capture limitations.
 
-The VWAP EOD option resolves the shared calendar from the saved instrument
-symbol (currently NQ only), and applies editable `close_buffer_minutes=5` before
-scheduled close, capped by `eod_flat_time`, without future-bar inference.
-The form displays the resolved calendar; reports retain its identity/version
-and the configured buffer. Unknown symbols reject calendar-enabled runs.
+The VWAP EOD option uses the shared calendar resolved from the saved NQ/MNQ
+symbol by default. Turning `use_external_calendar` off uses a fixed 16:00
+Chicago weekday close with no holiday exceptions. Both modes apply editable
+`close_buffer_minutes=5` before the close, capped by `eod_flat_time`. Reports
+record the selected mode and settings, with calendar identity when enabled.
+Unknown symbols reject calendar-enabled runs.
 It blocks late entries and closed sessions,
 submits flattening at the first observed close at/after its scheduled cutoff,
 and fills the next observed Open only within the scheduled session. Missing

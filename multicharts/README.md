@@ -244,8 +244,15 @@ checks do not establish native SDK compatibility, rendering or fill parity.
 
 ## Shared session policy
 
-With `UseEODFlat=true` / `use_eod_flat=true`, load the CSV once when calculation
-starts. Resolve only the current bar's Chicago local session-ending date:
+With `UseEODFlat=true` and `UseExternalCalendar=true` (both default on), load
+the CSV when calculation starts. To run without a CSV, set
+`UseExternalCalendar=false` and keep `UseEODFlat=true`. In AlphaQuest the
+equivalent is `use_external_calendar=false` with `use_eod_flat=true`. Both
+assume a 16:00 Chicago weekday close and apply the buffer and EOD time cap.
+Fixed mode has no holiday exceptions or coverage requirement. **Output Window**
+shows the selected mode and cutoff inputs.
+
+Both modes use the current bar's Chicago local session-ending date:
 17:00 and later belongs to the next date; a close-labelled 17:00 bar itself is
 in maintenance. Weekends and `full_close` sessions prohibit entries. Within
 reviewed coverage an absent exception means a regular 16:00 close. Beyond the
@@ -254,10 +261,9 @@ explicit coverage, reject the calculation rather than assume regular hours.
 Calendar selection now follows the explicit instrument symbol: AQ uses the
 saved dataset symbol and MC uses `Bars.Info.Name`, the symbol-name API documented
 in the [official .NET FAQ](https://www.multicharts.com/discussion/viewtopic.php?p=115164&view=show).
-Only the reviewed NQ mapping is enabled, including `NQ`, `@NQ`, `NQ1!`, dated
-forms such as `NQZ26`, and `NQ.CME`. Blank/unknown symbols, other products and
-filenames containing NQ are rejected when EOD flattening is enabled. MNQ is
-not automatically mapped by this NQ-only increment.
+The MultiCharts CSV mode accepts the reviewed NQ mapping, including
+`NQ`, `@NQ`, `NQ1!`, `NQZ26`, and `NQ.CME`. AlphaQuest also maps MNQ in
+CSV mode. Fixed hours have no symbol mapping on either platform.
 
 AQ displays the resolved calendar before Run and exposes **Close buffer
 minutes** (`close_buffer_minutes`, default 5). MC exposes `CloseBufferMinutes`,
@@ -308,8 +314,10 @@ review date, not announcement time. Read the [calendar maintenance guide](../cal
    initial capital and all signal Inputs. Keep trade volume consistent with
    the supplied C# `Bars.Ticks` series and AQ `Volume`. Do not change stop/target
    activation or fill priority while measuring the calendar change.
-5. Set `SessionCalendarDirectory` to `C:\AlphaQuest\calendars`,
-   `UseEODFlat=true`, and match AQ's `CloseBufferMinutes` and `EODFlatTime`.
+5. For the reviewed schedule, set `UseExternalCalendar=true` and
+   `SessionCalendarDirectory` to `C:\AlphaQuest\calendars`. For fixed hours,
+   set `UseExternalCalendar=false`. Keep `UseEODFlat=true` in both modes
+   and match AQ's `CloseBufferMinutes` and `EODFlatTime`.
    The NQ chart symbol automatically selects `cme_nq_closures.csv` inside that
    directory. This directory Input replaces the earlier `SessionCalendarFile`;
    enter the containing directory, not the full filename. Recalculate from a

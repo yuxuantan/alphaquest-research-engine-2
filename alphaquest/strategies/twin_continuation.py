@@ -130,8 +130,14 @@ def source_fingerprint():
     root = Path(__file__).resolve().parents[1]
     digest = hashlib.sha256()
     for path in (Path(__file__), root / "strategy.py", root / "execution.py", root / "intratrade.py",
-                 root / "session_calendar.py", root / "entry_protection.py", root / "ohlc_path.py", calendar_path()):
+                 root / "session_calendar.py", root / "entry_protection.py", root / "ohlc_path.py"):
         digest.update(path.name.encode() + b"\0" + path.read_bytes() + b"\0")
+    path = calendar_path()
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        raw = b""  # Keep the strategy catalogue readable without the shared CSV.
+    digest.update(path.name.encode() + b"\0" + raw + b"\0")
     return digest.hexdigest()
 
 

@@ -44,12 +44,17 @@ def can_resume(job):
 def grid(definition, ranges):
     """Enumerate start + n * step through end, using exact arithmetic."""
     fields = definition.description()["parameters"]
-    if set(ranges) != {field["name"] for field in fields}:
+    names = {field["name"] for field in fields}
+    # Older ORB VWAP grids retain the reviewed calendar default.
+    if set(ranges) not in (names, names - {"use_external_calendar"}):
         raise ValueError("Supply start, end and step for every strategy parameter, with no extra parameters.")
     axes = {}
     total = 1
     for field in fields:
         name, kind = field["name"], field["type"]
+        if name not in ranges:
+            axes[name] = [field["default"]]
+            continue
         spec = ranges[name]
         start, end, step = spec.start, spec.end, spec.step
         if kind == "bool":

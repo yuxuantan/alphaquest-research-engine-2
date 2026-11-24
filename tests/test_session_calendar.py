@@ -71,7 +71,9 @@ def test_api_saves_editable_buffer_and_auto_calendar_without_reusing_different_f
         assert saved.status_code == 201, saved.text
         records = []
         for minutes, net, label in [(5, '88.00', '18:00:00Z'), (10, '28.00', '17:51:00Z')]:
-            response = client.post('/api/backtests', json=request_body(saved.json()['id'], close_buffer_minutes=minutes))
+            body = request_body(saved.json()['id'], close_buffer_minutes=minutes)
+            del body['strategy_parameters']['use_external_calendar']  # A saved parameter set can omit the switch.
+            response = client.post('/api/backtests', json=body)
             assert response.status_code == 201, response.text
             record = response.json(); records.append(record)
             assert record['summary']['total_net_pnl'] == net
@@ -79,12 +81,14 @@ def test_api_saves_editable_buffer_and_auto_calendar_without_reusing_different_f
             assert flatten['minutes_before_close'] == minutes
             assert flatten['calendar_id'] == 'cme_nq' and flatten['instrument_symbol'] == 'NQZ26'
             assert record['run_metadata']['strategy']['parameters']['close_buffer_minutes'] == minutes
+            assert record['run_metadata']['strategy']['parameters']['use_external_calendar'] is True
             trade = client.get(f"/api/backtests/{record['id']}/trades").json()['items'][0]
             assert trade['exit_time_utc'].endswith(label)
         assert records[0]['id'] != records[1]['id']
         assert client.get(f"/api/backtests/{records[0]['id']}").json() == records[0]
         ranges = {name: dict(start=value, end=value, step='0' if type(value) is str else 0)
                   for name, value in request_body(saved.json()['id'])['strategy_parameters'].items()}
+        del ranges['use_external_calendar']  # An older saved grid still selects the CSV.
         ranges['close_buffer_minutes'] = dict(start=5, end=10, step=5)
         from test_optimization import start, wait_job
         body = request_body(saved.json()['id']); body.pop('strategy_parameters')
@@ -109,6 +113,7 @@ def test_api_rejects_unsupported_calendar_before_publishing_or_queuing(tmp_path,
         values = body.pop('strategy_parameters')
         ranges = {name: dict(start=value, end=value, step='0' if type(value) is str else 0) for name, value in values.items()}
         ranges['use_eod_flat'] = dict(start=False, end=True, step=1)
+        ranges['use_external_calendar'] = dict(start=False, end=True, step=1)
         failed = client.post('/api/optimizations', json={**body, 'method': 'exhaustive', 'parameter_ranges': ranges})
         assert failed.status_code == 422 and 'No reviewed session calendar' in failed.text
         assert client.get('/api/backtests').json()['total'] == 0
@@ -126,6 +131,67 @@ def test_api_rejects_unsupported_calendar_before_publishing_or_queuing(tmp_path,
         values['use_eod_flat'] = False
         allowed = client.post('/api/backtests', json={**body, 'strategy_parameters': values})
         assert allowed.status_code == 201, allowed.text
+
+
+def test_fixed_weekday_backtest_and_grid_run_without_the_csv(tmp_path, monkeypatch):
+    from alphaquest import session_calendar
+    from alphaquest.app import create_app
+    from alphaquest.strategies import twin_continuation, vwap_pullback_risk_sizing
+    from research_fixtures import ResearchClient
+    from test_inferred_session_close import csv_bytes, request_body, session_rows
+    from test_optimization import start, wait_job
+
+    for module in (session_calendar, twin_continuation, vwap_pullback_risk_sizing):
+        monkeypatch.setattr(module, 'calendar_path', lambda: tmp_path / 'missing.csv')
+    # A weekday beyond reviewed coverage with no mapped instrument.
+    rows = [retime(row, date(2027, 1, 4)) for row in session_rows(close=(16, 0))]
+    with ResearchClient(create_app(tmp_path / 'datasets.sqlite3')) as client:
+        assert client.get('/api/strategies').status_code == 200
+        upload = client.post('/api/datasets', params=dict(filename='fixed.csv', name='SYNTHETIC fixed weekday',
+            source_timezone='UTC', tick_size='.25', point_value='20'), content=csv_bytes(rows))
+        assert upload.status_code == 201, upload.text
+        body = request_body(upload.json()['id'], use_external_calendar=False)
+        response = client.post('/api/backtests', json=body)
+        assert response.status_code == 201, response.text
+        record = response.json()
+        flatten = record['run_metadata']['strategy']['session_flattening']
+        assert flatten['mode'] == 'fixed_weekday_session_v1'
+        assert flatten['enabled'] and not flatten['lookahead'] and flatten['calendar'] is None
+        assert flatten['examples'][0]['order_cutoff'] == '2027-01-04T15:55:00-06:00'
+        assert record['summary']['total_net_pnl'] == '88.00'
+        trade = client.get(f"/api/backtests/{record['id']}/trades").json()['items'][0]
+        assert trade['exit_time_utc'] == '2027-01-04T22:00:00Z' and trade['exit_reason'] == 'eod_flat'
+        assert client.get(f"/api/backtests/{record['id']}").json() == record
+
+        values = body.pop('strategy_parameters')
+        ranges = {name: dict(start=value, end=value, step='0' if type(value) is str else 0)
+                  for name, value in values.items()}
+        job = wait_job(client, start(client, {**body, 'method': 'exhaustive', 'workers': 1,
+                              'automatic_prop': False, 'parameter_ranges': ranges}))
+        assert job['status'] == 'complete', job
+        result, = client.get(f"/api/optimizations/{job['id']}/results").json()['items']
+        assert result['metrics']['total_net_pnl'] == '88.00'
+
+    with pytest.raises(ValueError, match='Invalid NQ session calendar'):
+        VwapPullbackRiskSizing(parameters(use_eod_flat=True), execution_config=CONFIG, instrument_symbol='NQ')
+
+
+def test_fixed_weekday_mode_ignores_holiday_exception_and_keeps_the_configured_cutoff():
+    from test_inferred_session_close import session_rows
+
+    rows = session_rows()[:-1]
+    day = rows[0].timestamp_utc.astimezone(CT).date()
+    rows += [retime(bar(126, 12, 0, '120', '120', '110', '118'), day),
+             retime(bar(127, 15, 45, '119', '125', '110', '119'), day),
+             retime(bar(128, 15, 46, '124', '125', '110', '124'), day)]
+    for use_calendar, cutoff, exit_label, net in [(True, '11:55', '12:00', 88),
+                                                 (False, '15:45', '15:46', 168)]:
+        p = parameters(use_eod_flat=True, use_external_calendar=use_calendar, eod_flat_time=1545)
+        strategy = VwapPullbackRiskSizing(p, execution_config=CONFIG)
+        trade, = (event for event in execute(rows, strategy, CONFIG) if isinstance(event, Trade))
+        assert trade.exit_deadline_utc.astimezone(CT).strftime('%H:%M') == cutoff
+        assert trade.exit_time_utc.astimezone(CT).strftime('%H:%M') == exit_label
+        assert trade.exit_reason == 'eod_flat' and trade.net_pnl == net
 
 
 def test_holiday_evening_uses_next_session_and_weekends_are_closed():

@@ -280,9 +280,10 @@ def test_every_default_matches_retained_powerlanguage_inputs():
     source = (Path(__file__).parents[1] / "docs/strategies/vwap_pullback_risk_sizing.pl").read_text()
     source = source.split("Inputs:", 1)[1].split("Vars:", 1)[0]
     inputs = re.findall(r"^\s*(\w+)\(([^)]+)\)", source, re.MULTILINE)
-    definitions = fields(Parameters)
-    assert len(inputs) == len(definitions) - 2 == 31
-    for (source_name, literal), item in zip(inputs, definitions[:31]):
+    definitions = {item.name: item for item in fields(Parameters)}
+    source_fields = list(definitions.values())[4:35]  # The four leading inputs come from trade-tick support.
+    assert len(inputs) == len(source_fields) == 31
+    for (source_name, literal), item in zip(inputs, source_fields):
         if item.type is bool:
             expected = literal == "true"
         elif item.type is int:
@@ -290,8 +291,9 @@ def test_every_default_matches_retained_powerlanguage_inputs():
         else:
             expected = D(literal)
         assert item.default == expected, (source_name, item.name)
-    assert definitions[-2].name == "max_bars_back" and definitions[-2].default == 42
-    assert definitions[-1].name == "close_buffer_minutes" and definitions[-1].default == 5
+    assert definitions["max_bars_back"].default == 42
+    assert definitions["close_buffer_minutes"].default == 5
+    assert definitions["use_external_calendar"].default is True
 
 
 def test_cli_writes_real_report_with_selected_strategy_parameters(tmp_path):

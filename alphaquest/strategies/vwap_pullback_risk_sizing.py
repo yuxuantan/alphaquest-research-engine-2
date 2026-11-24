@@ -1,4 +1,4 @@
-"""PowerLanguage signal port with causal CSV-calendar session cutoffs.
+"""PowerLanguage signal port with reviewed or fixed-clock session cutoffs.
 
 See docs/strategies/vwap_pullback_risk_sizing.md for execution and parity limits.
 """
@@ -6,7 +6,7 @@ See docs/strategies/vwap_pullback_risk_sizing.md for execution and parity limits
 from collections import deque
 from dataclasses import dataclass, field, fields
 from decimal import Decimal, localcontext
-from datetime import timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 import logging
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -14,7 +14,7 @@ import hashlib
 import json
 
 from ..strategy import Bar, BracketIntent, CloseIntent, EntryIntent, ExecutionConfig, Position
-from ..session_calendar import CalendarError, MINUTES_BEFORE_CLOSE, NQ_CALENDAR, calendar_path, load_calendar, resolve_calendar, session_date
+from ..session_calendar import CalendarError, MINUTES_BEFORE_CLOSE, MNQ_SYMBOL_PATTERN, NQ_CALENDAR, SessionPlan, calendar_path, load_calendar, resolve_calendar, session_date
 
 
 STRATEGY_ID = "vwap_pullback_risk_sizing"
@@ -23,11 +23,11 @@ DESCRIPTION = (
     "confirmed pivot target, pivot or pullback stop, ADX elevation/decay gates, fixed or risk sizing. "
     "Chicago time; full-session 1-minute close-labelled bars. Next-bar Open market fills; "
     "brackets start after the entry bar and follow the MultiCharts nearest-extreme-first OHLC path (Low first on ties). With EOD flatten on, "
-    "the instrument's reviewed calendar supplies the scheduled close without future bars. Submit flatten "
+    "use the instrument's reviewed calendar or assume a regular 16:00 Chicago close. Submit flatten "
     "the configured minutes earlier (default five, bounded by the EOD cutoff), fill next observed Open; "
     "no entries at/after the cutoff."
 )
-EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_multicharts_ohlc_eod_csv_calendar_v2"
+EXECUTION_ASSUMPTION = "next_open_market_next_bar_bracket_multicharts_ohlc_eod_session_cutoff_v3"
 CT = ZoneInfo("America/Chicago")
 LOG = logging.getLogger(__name__)
 D = Decimal
@@ -36,7 +36,9 @@ from ..strategy_sizing import SizingSupport
 SIZING_SUPPORT = SizingSupport(
     fixed_path_check=lambda p: ('Fixed size scaling requires strategy-local Use Vol Sizing disabled.' if p.use_vol_sizing else None),
     native_check=lambda p: ('Native prop sizing requires Use EOD Flat enabled and strategy-local Use Vol Sizing disabled.'
-                            if not p.use_eod_flat or p.use_vol_sizing else None),
+                            if not p.use_eod_flat or p.use_vol_sizing else
+                            'Native prop sizing requires Use External Calendar for verified holding windows.'
+                            if not p.use_external_calendar else None),
     session_settings=lambda p: (p.eod_flat_time, p.close_buffer_minutes),
     holding_start=lambda p: (p.entry_start_time, False),
     accelerated_check=lambda p: (p.max_trades_per_day == 1 and 0 <= p.entry_start_time < p.entry_end_time <= 1700
@@ -92,11 +94,12 @@ class Parameters:
     entry_start_time: int = integer(900, "Entry start, exclusive, Chicago HHMM.", 0, 2359)
     entry_end_time: int = integer(1700, "Entry end, inclusive, Chicago HHMM.", 0, 2359)
     day_reset_time: int = integer(2300, "Reset only when Time > reset and previous Time <= reset.", 0, 2359)
-    use_eod_flat: bool = boolean(True, "Auto-select the reviewed calendar from the saved instrument; flatten Close buffer minutes before scheduled close, fill next Open and block later entries. Currently NQ and MNQ; no future-bar inference.")
-    eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM; fill next observed Open; scheduled early closes can move the cutoff earlier.", 0, 2359)
+    use_eod_flat: bool = boolean(True, "Apply the session cutoff to entries and submit a flatten order for any held position. Fill at the next observed Open.")
+    eod_flat_time: int = integer(1555, "Latest flatten order cutoff, Chicago HHMM. The session close minus the buffer can move the cutoff earlier.", 0, 2359)
     plot_trade_levels: bool = boolean(True, "Log signal-bar entry details through Python logging.")
     max_bars_back: int = integer(42, "Leading history bars before PowerLanguage CurrentBar=1.")
-    close_buffer_minutes: int = integer(MINUTES_BEFORE_CLOSE, "Minutes before scheduled market close to submit flattening; 1–1440, default 5. EOD Flat Time can cap this earlier. Next observed Open fill.", 1, 1440)
+    close_buffer_minutes: int = integer(MINUTES_BEFORE_CLOSE, "Minutes before the reviewed or fixed session close to submit flattening; 1–1440, default 5. EOD Flat Time can cap this earlier.", 1, 1440)
+    use_external_calendar: bool = boolean(True, "With Use EOD Flat enabled, use the reviewed NQ/MNQ CSV for holiday and early closes. Off assumes a 16:00 Chicago close on weekdays.")
 
     def __post_init__(self):
         for item in fields(self):
@@ -191,7 +194,7 @@ class VwapPullbackRiskSizing:
         self.active_stop = self.active_target = D(0)
         self.adx_value = D(0)
         self._session_cutoff = None
-        self._calendar = load_calendar(symbol=instrument_symbol) if p.use_eod_flat else None
+        self._calendar = load_calendar(symbol=instrument_symbol) if p.use_eod_flat and p.use_external_calendar else None
         self._session_plan = None
         self._pending_entry_day = None
         self._session_digest = hashlib.sha256()
@@ -201,12 +204,22 @@ class VwapPullbackRiskSizing:
             "examples": [], "plans_sha256": self._session_digest.hexdigest(),
         }
 
+    def _plan_for_day(self, day):
+        p = self.parameters
+        if self._calendar is not None:
+            return self._calendar.plan(day, p.eod_flat_time, p.close_buffer_minutes)
+        if day.weekday() >= 5:
+            return SessionPlan(day, "weekend", None, None)
+        close = datetime.combine(day, time(16), CT)
+        configured = datetime.combine(day, time(p.eod_flat_time // 100, p.eod_flat_time % 100), CT)
+        return SessionPlan(day, "regular", close, min(configured, close - timedelta(minutes=p.close_buffer_minutes)))
+
     def _set_session(self, bar):
         if not self.parameters.use_eod_flat:
             return None
         day = session_date(bar.timestamp_utc)
         if self._session_plan is None or self._session_plan.day != day:
-            plan = self._calendar.plan(day, self.parameters.eod_flat_time, self.parameters.close_buffer_minutes)
+            plan = self._plan_for_day(day)
             self._session_plan = plan
             self._session_cutoff = plan.cutoff.astimezone(timezone.utc) if plan.cutoff else None
             def stamp(value):
@@ -229,9 +242,9 @@ class VwapPullbackRiskSizing:
             return
         self._set_session(bar)  # Coverage also applies to warm-up/flat bars.
         if position is not None:
-            original = self._calendar.plan(session_date(position.entry_time_utc), self.parameters.eod_flat_time, self.parameters.close_buffer_minutes)
+            original = self._plan_for_day(session_date(position.entry_time_utc))
             if original.close is None or bar.timestamp_utc > original.close:
-                raise CalendarError("No observed liquidation price before the scheduled NQ session close; "
+                raise CalendarError("No observed liquidation price before the session close used by the strategy; "
                                  "the position cannot be filled in a later session. Use complete source bars.")
 
     def allow_entry_fill(self, bar):
@@ -427,31 +440,39 @@ class VwapPullbackRiskSizing:
         return CloseIntent("end_of_data") if position is not None else None
 
 
-SESSION_CALENDAR = NQ_CALENDAR
+SESSION_CALENDAR = dict(NQ_CALENDAR, instrument="NQ / MNQ futures",
+                        symbol_pattern=f"(?:{NQ_CALENDAR['symbol_pattern']}|{MNQ_SYMBOL_PATTERN})")
 
 
 def validate_instrument(parameters, symbol):
-    if parameters.use_eod_flat:
-        resolve_calendar(symbol)
+    if parameters.use_eod_flat and parameters.use_external_calendar:
+        try:
+            resolve_calendar(symbol)
+        except CalendarError as error:
+            raise CalendarError(f"{error} For fixed-clock EOD exits, turn Use External Calendar off.") from None
 
 
 def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
+    uses_calendar = parameters.use_eod_flat and parameters.use_external_calendar
+    close_source = "scheduled session close" if parameters.use_external_calendar else "fixed 16:00 Chicago session close"
     return {
         "enabled": parameters.use_eod_flat,
         "lookahead": False,
-        "mode": "csv_session_calendar_v1",
-        "calendar": (calendar or load_calendar(symbol=instrument_symbol)).metadata() if parameters.use_eod_flat else None,
-        "calendar_selection": "instrument_symbol",
-        "calendar_id": resolve_calendar(instrument_symbol)["id"] if parameters.use_eod_flat else None,
+        "mode": "csv_session_calendar_v1" if parameters.use_external_calendar else "fixed_weekday_session_v1",
+        "calendar": (calendar or load_calendar(symbol=instrument_symbol)).metadata() if uses_calendar else None,
+        "calendar_selection": "instrument_symbol" if parameters.use_external_calendar else None,
+        "calendar_id": resolve_calendar(instrument_symbol)["id"] if uses_calendar else None,
         "instrument_symbol": instrument_symbol,
         "timezone": "America/Chicago",
         "session_boundary": "17:00 to 16:00, labelled by local ending date",
         "minutes_before_close": parameters.close_buffer_minutes,
-        "cutoff_rule": "min(eod_flat_time, scheduled session close minus close_buffer_minutes)",
-        "missing_cutoff_bar": "submit at the first observed close at/after cutoff; require a subsequent Open by scheduled close",
+        "cutoff_rule": f"min(eod_flat_time, {close_source} minus close_buffer_minutes)",
+        "missing_cutoff_bar": f"submit at the first observed close at/after cutoff; require a subsequent Open by {close_source}",
         "truncated_session": "never changes scheduled cutoff; ordinary end_of_data policy remains explicit",
-        "outside_coverage": "reject; never infer regular hours or an early close from price bars",
-        "full_close": "block entries in the session; evening reopening is the following session",
+        "outside_coverage": ("reject; never infer regular hours or an early close from price bars"
+                             if parameters.use_external_calendar else "fixed weekday hours apply to all dates"),
+        "full_close": ("block entries in the session; evening reopening is the following session"
+                       if parameters.use_external_calendar else "weekends only; no holiday exceptions"),
         "order_timing": "next_open",
         "fill": "next observed bar Open after the cutoff with adverse slippage and commissions; brackets through the cutoff bar retain priority",
         "fill_timestamp": "containing bar close label; not a measured tick timestamp",
@@ -460,5 +481,10 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
 
 def source_fingerprint():
     """Calendar and helper changes invalidate reuse and queued strategy identity."""
-    files = (Path(__file__), Path(__file__).parents[1] / "session_calendar.py", calendar_path())
-    return hashlib.sha256(b"\0".join(path.read_bytes() for path in files)).hexdigest()
+    files = (Path(__file__), Path(__file__).parents[1] / "session_calendar.py")
+    try:
+        calendar_bytes = calendar_path().read_bytes()
+    except OSError:
+        calendar_bytes = b""  # Calendar-enabled runs still require a valid CSV at load time.
+    code = b"\0".join(path.read_bytes() for path in files)
+    return hashlib.sha256(code + b"\0" + calendar_bytes).hexdigest()

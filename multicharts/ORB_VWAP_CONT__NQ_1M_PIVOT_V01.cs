@@ -13,7 +13,7 @@ using PowerLanguage.Function;
 
 namespace PowerLanguage.Strategy
 {
-    // Active calendar-based port. Chart must use America/Chicago exchange time.
+    // Chart must use America/Chicago exchange time.
     // The original supplied C# is retained under multicharts/reference/.
     // Calendar-enabled defaults require NQ, Central-time 1-minute bars, full session.
     // VWAP uses Bars.Ticks, matching the original Ticks expression.
@@ -101,6 +101,7 @@ namespace PowerLanguage.Strategy
             EntryEndTime = 1700;
             DayResetTime = 2300;
             UseEODFlat = true;
+            UseExternalCalendar = true;
             EODFlatTime = 1555;
             PlotTradeLevels = true;
             ShowTradeValidation = false;
@@ -138,6 +139,7 @@ namespace PowerLanguage.Strategy
         [Input] public int EntryEndTime { get; set; }
         [Input] public int DayResetTime { get; set; }
         [Input] public bool UseEODFlat { get; set; }
+        [Input] public bool UseExternalCalendar { get; set; }
         [Input] public int EODFlatTime { get; set; }
         [Input] public bool PlotTradeLevels { get; set; }
         [Input] public bool ShowTradeValidation { get; set; }
@@ -188,8 +190,9 @@ namespace PowerLanguage.Strategy
             if (EODFlatTime < 0 || EODFlatTime > 2359 || EODFlatTime % 100 >= 60)
                 throw new ArgumentException("EODFlatTime must be a valid Chicago HHMM time.");
             NqSessionCalendar.ValidateCloseBuffer(CloseBufferMinutes);
-            string calendarFile = UseEODFlat ? NqSessionCalendar.ResolveCalendarFile(Bars.Info.Name, SessionCalendarDirectory) : null;
-            _calendar = UseEODFlat ? NqSessionCalendar.Load(calendarFile) : null;
+            string calendarFile = UseEODFlat && UseExternalCalendar
+                ? NqSessionCalendar.ResolveCalendarFile(Bars.Info.Name, SessionCalendarDirectory) : null;
+            _calendar = calendarFile != null ? NqSessionCalendar.Load(calendarFile) : null;
             _sessionPlan = null;
             _pendingEntrySession = _holdingSession = null;
             _previousPosition = 0;
@@ -198,6 +201,9 @@ namespace PowerLanguage.Strategy
                     Bars.Info.Name, calendarFile, CloseBufferMinutes,
                     _calendar.CoverageStart.ToString("yyyy-MM-dd"),
                     _calendar.CoverageEnd.ToString("yyyy-MM-dd"), _calendar.Sha256);
+            else if (UseEODFlat)
+                Output.WriteLine("Fixed 16:00 Chicago weekday close; EODFlatTime={0:0000}; buffer={1} minutes; holiday exceptions disabled.",
+                    EODFlatTime, CloseBufferMinutes);
             _adx.Length = ADX_Len;
 
             // .NET PriceScale is fractional (e.g. 0.01): MULTIPLY.
@@ -262,29 +268,29 @@ namespace PowerLanguage.Strategy
             double position = StrategyInfo.MarketPosition;
             if (UseEODFlat)
             {
-                _sessionPlan = _calendar.Plan(NqSessionCalendar.SessionDate(stamp), EODFlatTime, CloseBufferMinutes);
+                _sessionPlan = PlanForDay(NqSessionCalendar.SessionDate(stamp));
                 // MC has already processed this bar's orders before CalcBar.
                 // Reject late exits even if a pending bracket made us flat.
                 if (_previousPosition != 0 && _holdingSession.HasValue)
                 {
-                    NqSessionPlan previousPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime, CloseBufferMinutes);
+                    NqSessionPlan previousPlan = PlanForDay(_holdingSession.Value);
                     if (!previousPlan.ScheduledClose.HasValue || stamp > previousPlan.ScheduledClose.Value)
-                        throw new InvalidOperationException("A held position crossed the scheduled NQ close without an observed timely fill; reject this incomplete-source MC backtest.");
+                        throw new InvalidOperationException("A held position crossed the strategy session close without an observed timely fill; reject this incomplete-source MC backtest.");
                 }
                 if (position != 0)
                 {
                     if (_previousPosition == 0)
                     {
                         if (!_pendingEntrySession.HasValue)
-                            throw new InvalidOperationException("Calendar cannot establish the origin of an assigned position; start this strategy flat.");
+                            throw new InvalidOperationException("Session checks cannot establish the origin of an assigned position; start this strategy flat.");
                         _holdingSession = _pendingEntrySession;
-                        NqSessionPlan entryPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime, CloseBufferMinutes);
+                        NqSessionPlan entryPlan = PlanForDay(_holdingSession.Value);
                         if (!entryPlan.AllowsFill(stamp))
                             throw new InvalidOperationException("Entry filled at/after cutoff or in a later session. Incomplete bars are incompatible; this MC backtest is not qualified.");
                     }
-                    NqSessionPlan holdingPlan = _calendar.Plan(_holdingSession.Value, EODFlatTime, CloseBufferMinutes);
+                    NqSessionPlan holdingPlan = PlanForDay(_holdingSession.Value);
                     if (!holdingPlan.ScheduledClose.HasValue || stamp > holdingPlan.ScheduledClose.Value)
-                        throw new InvalidOperationException("No observed liquidation price before scheduled NQ close. Do not accept an evening exit as timely flattening.");
+                        throw new InvalidOperationException("No observed liquidation price by the strategy session close.");
                 }
             }
             int time = stamp.Hour * 100 + stamp.Minute; // this is how the signal gets the current time
@@ -504,6 +510,12 @@ namespace PowerLanguage.Strategy
             _firstBar = false;
             _previousPosition = position;
             _lastCalculatedBar = Bars.CurrentBar;
+        }
+
+        private NqSessionPlan PlanForDay(DateTime day)
+        {
+            return _calendar != null ? _calendar.Plan(day, EODFlatTime, CloseBufferMinutes)
+                : NqSessionCalendar.FixedWeekdayPlan(day, EODFlatTime, CloseBufferMinutes);
         }
 
         private string BuildValidation(DateTime stamp, double position, double close,
@@ -780,7 +792,7 @@ namespace AlphaQuest.MarketCalendars
             if (!Regex.IsMatch(normalized, @"\A@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?\z"))
                 throw new ArgumentException("No reviewed session calendar for instrument '" + normalized + "'. Calendar EOD flattening currently supports NQ only.");
             if (String.IsNullOrWhiteSpace(directory))
-                throw new ArgumentException("SessionCalendarDirectory is required when UseEODFlat is enabled.");
+                throw new ArgumentException("SessionCalendarDirectory is required when UseEODFlat and UseExternalCalendar are enabled.");
             return Path.Combine(directory, "cme_nq_closures.csv");
         }
 
@@ -798,12 +810,24 @@ namespace AlphaQuest.MarketCalendars
                 throw new ArgumentException(String.Format(CultureInfo.InvariantCulture,
                     "NQ session calendar does not cover {0:yyyy-MM-dd}; reviewed coverage is {1:yyyy-MM-dd} through {2:yyyy-MM-dd}. Update the shared CSV.",
                     day, CoverageStart, CoverageEnd));
+            ExceptionRow row;
+            _rows.TryGetValue(day, out row);
+            return BuildPlan(day, eodFlatTime, closeBufferMinutes, row);
+        }
+
+        public static NqSessionPlan FixedWeekdayPlan(DateTime day, int eodFlatTime, int closeBufferMinutes)
+        {
+            ValidateCloseBuffer(closeBufferMinutes);
+            return BuildPlan(day.Date, eodFlatTime, closeBufferMinutes, null);
+        }
+
+        private static NqSessionPlan BuildPlan(DateTime day, int eodFlatTime, int closeBufferMinutes, ExceptionRow row)
+        {
             if (eodFlatTime < 0 || eodFlatTime > 2359 || eodFlatTime % 100 >= 60)
                 throw new ArgumentException("EOD cutoff must use valid HHMM Chicago time.");
             if (day.DayOfWeek == DayOfWeek.Saturday || day.DayOfWeek == DayOfWeek.Sunday)
                 return new NqSessionPlan(day, "weekend", null, null);
-            ExceptionRow row;
-            bool exception = _rows.TryGetValue(day, out row);
+            bool exception = row != null;
             if (exception && row.Kind == "full_close")
                 return new NqSessionPlan(day, "full_close", null, null);
             DateTime close = day.Add(exception ? row.Close.Value : TimeSpan.FromHours(16));
@@ -816,7 +840,7 @@ namespace AlphaQuest.MarketCalendars
         public static NqSessionCalendar Load(string path)
         {
             if (String.IsNullOrWhiteSpace(path))
-                throw new ArgumentException("A calendar CSV path is required when UseEODFlat is enabled.");
+                throw new ArgumentException("A CSV path is required for external calendar mode.");
             byte[] bytes = File.ReadAllBytes(path);
             string text = new UTF8Encoding(false, true).GetString(bytes);
             if (text.Length > 0 && text[0] == '\uFEFF') text = text.Substring(1);

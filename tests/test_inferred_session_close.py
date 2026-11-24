@@ -214,11 +214,11 @@ def test_api_durable_report_exports_and_selected_range_use_the_new_rule(tmp_path
         record = response.json()
         run_id = record["id"]
         assert D(record["summary"]["total_net_pnl"]) == 88
-        assert record["execution_assumption"].endswith("csv_session_calendar_v1")
+        assert record["execution_assumption"].endswith("eod_session_cutoff_v3")
         flatten = record["run_metadata"]["strategy"]["session_flattening"]
+        assert flatten["mode"] == "csv_session_calendar_v1"
         assert flatten["enabled"] and not flatten["lookahead"] and flatten["sessions"] == 1
         assert flatten["order_timing"] == "next_open"
-        assert "eod_next_open" in record["execution_assumption"]
         assert flatten["examples"][0]["order_cutoff"].endswith("11:55:00-06:00")
         exports = {kind: client.get(f"/api/backtests/{run_id}/exports/{kind}").content for kind in ("trades", "equity", "report")}
         assert b"eod_flat" in exports["trades"] and b"88.00" in exports["equity"]

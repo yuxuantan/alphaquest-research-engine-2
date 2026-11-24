@@ -14,9 +14,10 @@ static class Program
     { typeof(Signal).GetField(name,BindingFlags.NonPublic|BindingFlags.Instance).SetValue(s,value); }
     static object Get(Signal s, string name)
     { return typeof(Signal).GetField(name,BindingFlags.NonPublic|BindingFlags.Instance).GetValue(s); }
-    static Signal Setup(bool visual, bool shortSide, int retest, string calendar)
+    static Signal Setup(bool visual, bool shortSide, int retest, string calendar, bool? externalCalendar = null)
     {
-        var s = new Signal(null) { ShowTradeValidation=visual, UseEODFlat=calendar!=null,
+        var s = new Signal(null) { ShowTradeValidation=visual, UseEODFlat=calendar!=null || externalCalendar.HasValue,
+            UseExternalCalendar=externalCalendar ?? true,
             SessionCalendarDirectory=calendar, PlotTradeLevels=false, RetestMode=retest,
             TradeLongs=!shortSide, TradeShorts=shortSide, ValidationHistoryBars=1000 };
         s.Initialize();
@@ -126,6 +127,33 @@ static class Program
         var intrabar=Setup(true,false,1,null); intrabar.Bars.Add(Start,112,98,108); intrabar.Bars.Status=EBarState.Open; intrabar.Calculate();
         Check(intrabar.OrderCreator.Sent.Count==0 && intrabar.DrwTrendLine.Created.Count==0,"incomplete bar produces no order or drawings");
     }
+
+    static void OptionalCalendar(string calendar)
+    {
+        Check(new Signal(null).UseExternalCalendar, "reviewed schedule stays the default");
+        DateTime holiday = new DateTime(2024, 1, 15, 9, 1, 0);
+        var reviewed = Setup(false, false, 1, calendar);
+        var fixedHours = Setup(false, false, 1, null, false);
+        fixedHours.EODFlatTime = 1545;
+        foreach (var s in new[] {reviewed, fixedHours})
+        {
+            Step(s, holiday, false, 0);
+            Step(s, holiday.AddMinutes(1), false, 1);
+            Step(s, holiday.Date.AddHours(11).AddMinutes(55), false, 1);
+        }
+        Check(reviewed.OrderCreator.Sent.Last()=="EOD.L market 1", "CSV noon close submits at 11:55");
+        Check(!fixedHours.OrderCreator.Sent.Contains("EOD.L market 1"), "fixed clock skips the holiday adjustment");
+        Step(fixedHours, holiday.Date.AddHours(15).AddMinutes(45), false, 1);
+        Check(fixedHours.OrderCreator.Sent.Last()=="EOD.L market 1", "fixed clock still submits EOD flatten");
+
+        var beyondCoverage = Setup(false, false, 1, null, false);
+        DateTime future = new DateTime(2027, 1, 4, 9, 1, 0);
+        Step(beyondCoverage, future, false, 0);
+        Check(beyondCoverage.OrderCreator.Sent.Single()=="Long market 1", "fixed mode needs no CSV or coverage");
+        Step(beyondCoverage, future.AddMinutes(1), false, 1);
+        Step(beyondCoverage, future.Date.AddHours(15).AddMinutes(55), false, 1);
+        Check(beyondCoverage.OrderCreator.Sent.Last()=="EOD.L market 1", "fixed 16:00 close uses the default five-minute buffer");
+    }
     static void PullbackSizingAndWindows()
     {
         var defaults=new Signal(null);
@@ -209,7 +237,7 @@ static class Program
 
     static void Main(string[] args)
     {
-        EntriesAndExits(args[0]); Rejections(args[0]); HistoryAndRestart(); PullbackSizingAndWindows(); LightweightAndOff();
+        EntriesAndExits(args[0]); Rejections(args[0]); OptionalCalendar(args[0]); HistoryAndRestart(); PullbackSizingAndWindows(); LightweightAndOff();
         Followers();
         Console.WriteLine("PASS: "+assertions+" assertions; actual signal compiled with C# 5 against test doubles. MC host/SDK/rendering/fills NOT verified.");
     }

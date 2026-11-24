@@ -9,20 +9,19 @@ All source Inputs are available in snake_case with their actual defaults:
 `PositionSize` becomes `position_size`, `Max_Contracts` becomes `max_contracts`,
 `ADXDecay_LB` becomes `adx_decay_lb`, and `ORStartTime` becomes `or_start_time`.
 The extra `max_bars_back=42` models the chart history setting, and
-`close_buffer_minutes=5` controls calendar flattening. There are 33 parameters:
-the 31 original Inputs plus those two additions. The source header
+`close_buffer_minutes=5` controls EOD flattening. The port also exposes
+`use_external_calendar` and four completed-minute order-flow parameters. The source header
 says four contracts, but its Inputs specify **one contract**, the port's default.
 Risk sizing and shorts default off; both ADX gates and EOD flatten default on.
 EOD orders fill at the next observed bar Open, matching the supplied strategy's
-`MarketNextBar` instruction. The order cutoff now uses the shared CSV session calendar, which adds
-shortened-session handling beyond the original source without future-bar
-inference. The retained `.pl` is
-the original source and is not silently rewritten.
+`MarketNextBar` instruction. The default shared CSV supplies holiday and early
+closes. With the external calendar off, the order cutoff uses fixed weekday
+hours. The retained `.pl` is the original source.
 `plot_trade_levels` emits signal details through the module's INFO logger;
 enable INFO logging in your Python host to display them.
 
-The maintained [C# MultiCharts .NET version](../../multicharts/README.md) uses
-the same closure CSV. That guide includes installation, the four discrepancy
+The maintained [C# MultiCharts .NET version](../../multicharts/README.md) exposes
+the same switch as `UseExternalCalendar`. That guide includes installation, the four discrepancy
 dates and the remaining platform qualification boundaries.
 
 Use full-session **one-minute bars labelled by closing time**, with trade volume
@@ -63,35 +62,42 @@ trade-volume provenance.
 - Reset follows the exact crossing: current HHMM **> 23:00** and previous
   HHMM **<= 23:00**, plus the first evaluated bar. Date rollover alone does
   not reset. Missing the crossing can miss a reset; RTH-only data is unsuitable.
-- With `use_eod_flat=true` (default), look up the scheduled close in the shared
-  [NQ calendar](../../calendars/README.md). Submit an exit from the first observed
+- With `use_eod_flat=true` (default), use the reviewed or fixed session close.
+  Submit an exit from the first observed
   Close at/after `close_buffer_minutes` before that scheduled close (default 5), bounded by
   `eod_flat_time=1555`, and fill at the **next observed bar Open** with costs.
   Block entries at/after cutoff and throughout full-closure/weekend sessions.
   Reserve the next one-minute fill bar when submitting entries; its close label
   must be strictly before cutoff. Cancel pending entries that gap past cutoff
-  or into a different session. `use_eod_flat=false` disables these calendar EOD
+  or into a different session. `use_eod_flat=false` disables these EOD
   rules; remaining exposure closes under the explicit EOF policy.
 
-## Causal CSV session calendar
+## External calendar setting
+
+In Backtests, set both endpoints of **Use external calendar** to **False**
+for a fixed weekday run and leave **Use EOD Flat** on. The strategy assumes
+a 16:00 Chicago close Monday through Friday and applies the same buffer and
+EOD time cap. The default cutoff is 15:55 CT. A 15:45 **EOD Flat Time** moves
+the cutoff to 15:45 with the default buffer. Fixed mode has no holiday or
+early-close adjustments and requires no CSV coverage or symbol mapping.
+Native prop replay and portfolios still require verified session calendars.
+
+With **Use external calendar** on (default), the strategy uses the shared CSV.
 
 The Python implementation reads `calendars/cme_nq_closures.csv` once per strategy
 instance. The same bytes are bundled in an installed package. Read
 [the calendar guide](../../calendars/README.md) for sources, reviewed coverage,
 manual updates and source-publication limitations. No exchange calendar is
-fetched during a run. Outside reviewed coverage, a missing/malformed file and
-unavailable timely liquidation prices reject the run with an actionable source
-error; the engine never guesses regular hours or infers a close from gaps.
+fetched during a run. Dates outside reviewed coverage, a missing or malformed
+CSV, and missing timely liquidation prices reject a calendar-enabled run.
 
 Before Run, the Backtests form displays **Session calendar: Auto → NQ futures ·
 cme_nq_closures.csv**, resolved from the dataset's saved symbol. Supported
-spellings include `NQ`, `@NQ`, `NQ1!`, `NQZ26` and `NQ.CME`; arbitrary filenames,
-point values, `MNQ` and unrelated products do not establish eligibility. A missing
-or unsupported symbol blocks calendar-enabled runs in the UI and returns 422
-from the API, including optimization grids containing an enabled EOD trial.
-Set an explicit supported symbol when saving the dataset. EOD-off runs do not
-require a calendar. Direct Python strategy construction defaults to NQ for this
-NQ-specific port; supply `instrument_symbol=` explicitly when adapting sources.
+spellings include `NQ`, `@NQ`, `NQ1!`, `NQZ26`, `NQ.CME` and their MNQ equivalents.
+A missing or unsupported symbol blocks calendar-enabled runs in the UI and returns 422
+from the API, including optimization grids containing a trial with both EOD
+flattening and the external calendar on. Direct Python strategy construction
+defaults to NQ. Supply `instrument_symbol=` explicitly when adapting sources.
 
 **Close buffer minutes** is editable in the normal strategy parameter table,
 defaults to 5, and accepts whole minutes from 1 through 1440. Set start=end
@@ -108,10 +114,10 @@ preceding evening, while any holiday-night reopening belongs to the next date.
 Regular sessions close at 16:00 CT; exception rows supply the earlier time.
 
 ```text
-scheduled_close = CSV exception time, or 16:00 within reviewed regular coverage
-order_cutoff = min(configured eod_flat_time, scheduled_close - close_buffer_minutes)
+session_close = reviewed CSV close or fixed 16:00 weekday close
+order_cutoff = min(configured eod_flat_time, session_close - close_buffer_minutes)
 flatten_submission = first observed bar Close at/after order_cutoff
-flatten_fill = next observed bar Open, whose close label must be <= scheduled_close
+flatten_fill = next observed bar Open, whose close label must be <= session_close
 ```
 
 | Scheduled close, CT | Default order cutoff, CT |
@@ -143,9 +149,10 @@ signals. This change eliminates the earlier **price-bar lookahead**; a strict
 point-in-time calendar claim still requires dated notices published before the
 simulated decision, as explained in the calendar guide.
 
-New reports identify `eod_next_open_csv_session_calendar_v1`,
-`session_flattening.lookahead=false`, the calendar SHA-256 and explicit coverage,
-observed session counts, the first five resolved plans and a digest of plans.
+Reports record `session_flattening.mode` as `csv_session_calendar_v1` or
+`fixed_weekday_session_v1` and retain the observed session counts, the first
+five resolved plans and their digest. Calendar mode includes CSV SHA-256 and
+reviewed coverage. Both modes record `session_flattening.lookahead=false`.
 The selected calendar ID, original saved instrument symbol, `minutes_before_close`
 and parameter `close_buffer_minutes` are retained with each run. Changing the
 buffer changes calculation identity; saved reports/OOS parents keep their values.

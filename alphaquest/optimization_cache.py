@@ -19,7 +19,11 @@ def engine_identity():
     files = [(str(path.relative_to(root)), hashlib.sha256(path.read_bytes()).hexdigest())
              for path in sorted(root.rglob("*.py"))]
     from .session_calendar import calendar_path
-    files.append(("calendars/cme_nq_closures.csv", hashlib.sha256(calendar_path().read_bytes()).hexdigest()))
+    try:
+        calendar_hash = hashlib.sha256(calendar_path().read_bytes()).hexdigest()
+    except OSError:
+        calendar_hash = None  # Strategies that select the calendar validate it when loading.
+    files.append(("calendars/cme_nq_closures.csv", calendar_hash))
     # Editable installs can appear through both cwd and site-packages. Import
     # path aliases do not change the executing package versions.
     dependencies = sorted({(item.metadata["Name"], item.version) for item in distributions()})
