@@ -15734,3 +15734,23 @@ active jobs before stopping it with `kill -TERM 51945`.
 [Live mobile report](evidence/prop-desk-qualified-sources/live-qualified-reopen.png) ·
 [Live check and saved IDs](evidence/prop-desk-qualified-sources/live-verification.json) ·
 [Checksums](evidence/prop-desk-qualified-sources/SHA256SUMS)
+
+### Distinguish Optimise from Simulation — 2026-11-23
+
+**Optimise** opens search setup and preloads the portfolio on the first
+visit. The search has its own candidate pool. **Run Optimise** submits the
+subset search and opens the ranking after completion. **Search settings**
+shows the active IS ranking objective, pass probability for Evaluation or
+payout probability for Funded. Simulation keeps the **Run simulation**
+action for the selected portfolio.
+
+On the running portal, add two qualified strategies in Simulation and
+click **Optimise**. With a minimum of one member, the preview shows three
+combinations. Check the distinct run action and switch to Funded at a
+390-pixel viewport to see its payout objective. Return using
+**← Simulation** and confirm **Run simulation** is available again. The
+live check used zero write requests and required no portal restart.
+[Simulation desktop](evidence/prop-desk-optimise-mode/simulation-desktop.png) ·
+[Optimise desktop](evidence/prop-desk-optimise-mode/optimise-desktop.png) ·
+[Funded search settings on mobile](evidence/prop-desk-optimise-mode/optimise-mobile.png) ·
+[Live verification](evidence/prop-desk-optimise-mode/live-verification.json)

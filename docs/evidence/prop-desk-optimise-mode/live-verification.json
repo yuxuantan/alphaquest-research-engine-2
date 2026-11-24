@@ -1,0 +1,13 @@
+{
+  "portal": "http://127.0.0.1:8000",
+  "candidate_pool_count": 2,
+  "optimiser_combinations": 3,
+  "desktop_and_mobile": true,
+  "write_requests": 0,
+  "restart": false,
+  "sha256": {
+    "optimise-desktop.png": "965323db02e87eafc97b7f4f8cb5982acd03771bc4da5df1874d7dabaae60470",
+    "optimise-mobile.png": "37b7dfaca973105fdc6f98e7c85779334bcff5a0773e25ccaa8e3923886e76e3",
+    "simulation-desktop.png": "45b8a40c13dc71268e2a9b8b98955e5b5c11f7939b1ba52cf14e5c5673173534"
+  }
+}

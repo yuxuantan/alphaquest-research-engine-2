@@ -198,6 +198,9 @@
     const basketFunded = !isFixed(terms) && phase.value === 'funded';
     const selectSizeRule = optimizing() && basketFunded;
     get('funded-size-label').hidden = fundedSizeRule.disabled = !selectSizeRule;
+    if (optimizing()) get('search-objective').textContent = phase.value === 'evaluation'
+      ? 'Test candidate subsets and rank them by in-sample pass probability.'
+      : 'Test candidate subsets and rank them by in-sample payout probability.';
     const minimumHorizon = basketFunded ? defaults.basket_first_year : 1;
     const nextHorizon = basketFunded ? (optimizing() || simulationSizeRule.value === 'first_year' ||
       (simulationSizeRule.value === 'manual' && compareOosAccounts(terms))
@@ -346,7 +349,9 @@
     const token = generation;
     const {endpoint, body} = submission();
     inputs.disabled = true;
-    checkStatus.textContent = 'Checking saved sources and preparing the simulation…';
+    checkStatus.textContent = optimizing()
+      ? 'Checking saved sources and preparing the combination search…'
+      : 'Checking saved sources and preparing the simulation…';
     try {
       const job = await request('/api/prop-desk' + endpoint, body);
       if (token === generation) location.hash = runUrl(job.id);
@@ -662,6 +667,9 @@
       }
       searchView = params.get('view') === 'optimise';
       get('workspace-title').textContent = optimizing() ? 'Optimise' : 'Simulation';
+      get('account-title').textContent = optimizing() ? 'Search settings' : 'Account';
+      get('search-objective').hidden = !optimizing();
+      launch.textContent = optimizing() ? 'Run Optimise' : 'Run simulation';
       get('simulation-back').hidden = !optimizing();
       optimise.hidden = optimizing();
       get('portfolio-title').textContent = optimizing() ? 'Candidate pool' : 'Portfolio';

@@ -155,7 +155,7 @@ def test_strategy_diagnostics_product(page, portal, tmp_path, monkeypatch, desk_
         desk.get_by_label('Minimum total MNQ').fill('2')
         desk.get_by_label('Maximum total MNQ').fill('4')
         with page.expect_response('**/api/prop-desk/optimizer/subsets') as launch:
-            desk.get_by_role('button', name='Run simulation').click()
+            desk.get_by_role('button', name='Run Optimise').click()
         assert launch.value.status == 202, launch.value.text()
         optimizer_id = launch.value.json()['id']
         playwright.expect(desk.get_by_role('heading', name='Evaluation combination rankings')).to_be_visible(timeout=45000)
