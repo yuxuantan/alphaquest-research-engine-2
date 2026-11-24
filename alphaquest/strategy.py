@@ -54,13 +54,14 @@ class Bar:
     source_fields: tuple[str, ...]
     tick_window: object = None
     flow: object = None
+    es_close: Decimal | None = None
 
     def __reduce__(self):
         # Reconstruct through the fixed constructor instead of dataclasses'
         # reflective per-field slot restoration in every worker replay.
         return type(self), (self.bar_number, self.timestamp_utc, self.date, self.time,
                             self.open, self.high, self.low, self.close, self.volume,
-                            self.up_vol, self.down_vol, self.source_fields, self.tick_window, self.flow)
+                            self.up_vol, self.down_vol, self.source_fields, self.tick_window, self.flow, self.es_close)
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,13 +192,16 @@ class ReverseIntent:
 
 @dataclass(frozen=True, slots=True)
 class BracketIntent:
-    """Full-position stop and optional OCO limit, active for the next bar only."""
+    """Full-position stop, limit, or both OCO, active for the next bar only."""
 
-    stop_price: Decimal
+    stop_price: Decimal | None
     target_price: Decimal | None = None
 
     def __post_init__(self):
-        _decimal("stop_price", self.stop_price)
+        if self.stop_price is None and self.target_price is None:
+            raise ValueError("A bracket requires at least one exit price.")
+        if self.stop_price is not None:
+            _decimal("stop_price", self.stop_price)
         if self.target_price is not None:
             _decimal("target_price", self.target_price)
 

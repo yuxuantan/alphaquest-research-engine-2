@@ -19,7 +19,7 @@ from starlette.responses import FileResponse,JSONResponse,Response
 from .backtest_data import DatasetReadError, DateRange, read_selected_bars
 from .backtest_runs import RunStore
 from .backtest_config import RunSettings, instrument_overrides
-from .datasets import COLUMNS, InvalidDataset
+from .datasets import supported_bar_columns, InvalidDataset
 from .execution import ExecutionError, execute
 from .session_calendar import CalendarError
 from .reporting import ReportError, generate_report, json_value
@@ -351,8 +351,8 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
     dataset = await run_in_threadpool(request.app.state.store.get, body.dataset_id)
     if dataset is None:
         raise HTTPException(404, "Dataset not found.")
-    if dataset.get("columns") != COLUMNS:
-        raise HTTPException(422, "Unsupported dataset schema. Backtests require: " + ",".join(COLUMNS))
+    if not supported_bar_columns(dataset.get("columns")):
+        raise HTTPException(422, "Unsupported dataset schema. Use a saved OHLCV bar CSV.")
     try:
         definition.validate_source(parameters, dataset)
         config = body.execution_settings.execution_config(dataset)

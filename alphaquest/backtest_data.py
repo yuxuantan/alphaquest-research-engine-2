@@ -17,7 +17,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory, TemporaryFile
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .datasets import COLUMNS, DatasetStore, InvalidDataset, invalid, parse_csv_row, validate_csv, validate_csv_header
+from .datasets import COLUMNS, DatasetStore, InvalidDataset, invalid, parse_csv_row, supported_bar_columns, validate_csv
 from .strategy import Bar
 
 
@@ -88,19 +88,21 @@ class SelectedBars:
         return self.metadata["row_count"]
 
 
-def _iter_bars(text, zone: ZoneInfo, expected_rows: int) -> Generator[Bar, None, None]:
+def _iter_bars(text, zone: ZoneInfo, expected_rows: int, columns=COLUMNS) -> Generator[Bar, None, None]:
     reader = csv.reader(text, strict=True)
     previous = None
     count = 0
     try:
-        validate_csv_header(next(reader, None))
+        if next(reader, None) != columns:
+            raise DatasetReadError("The CSV header does not match its saved metadata.")
         for count, row in enumerate(reader, 1):
-            timestamp, numbers = parse_csv_row(row, zone, previous, reader.line_num)
+            timestamp, numbers = parse_csv_row(row, zone, previous, reader.line_num, columns=columns)
             previous = timestamp
             yield Bar(
                 bar_number=count, timestamp_utc=timestamp, date=row[0], time=row[1],
                 open=numbers[0], high=numbers[1], low=numbers[2], close=numbers[3],
                 volume=numbers[4], up_vol=numbers[5], down_vol=numbers[6], source_fields=tuple(row),
+                es_close=numbers[7] if len(numbers) > 7 else None,
             )
     except UnicodeDecodeError:
         raise InvalidDataset([invalid("The CSV must be UTF-8 encoded.")]) from None
@@ -125,8 +127,9 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
         raise DatasetReadError(f"Dataset {dataset_id!r} was not found.")
     from .research_access import guard_read
     guard_read(store,dataset_id,origin='read_bars')
-    if metadata.get("columns") != COLUMNS:
-        raise UnsupportedDatasetSchema("Unsupported dataset schema. Backtest reading requires: " + ",".join(COLUMNS))
+    columns = metadata.get("columns")
+    if not supported_bar_columns(columns):
+        raise UnsupportedDatasetSchema("Unsupported dataset schema. Use a saved OHLCV bar CSV.")
     zone = saved_source_timezone(metadata)
     with ExitStack() as stack:
         open_snapshot = getattr(store, "open_snapshot", None)
@@ -144,7 +147,7 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
             raise DatasetReadError("Saved CSV bytes do not match the dataset metadata; the dataset may be unavailable or incomplete.")
         snapshot.seek(0)
         with io.TextIOWrapper(snapshot, encoding="utf-8-sig", newline="") as text:
-            bars = _iter_bars(text, zone, metadata.get("row_count"))
+            bars = _iter_bars(text, zone, metadata.get("row_count"), columns)
             if metadata.get("tick_data"):
                 from .tick_data import attach,check_sources
                 check_sources(metadata)  # also verify before a prepared-cache hit can return
@@ -188,7 +191,7 @@ def read_selected_bars(store: DatasetStore, dataset_id: str, date_range: DateRan
         zone = ZoneInfo(dataset["source_timezone"])
         with TemporaryFile(mode="w+", encoding="utf-8", newline="") as snapshot:
             writer = csv.writer(snapshot)
-            writer.writerow(COLUMNS)
+            writer.writerow(dataset["columns"])
             count = 0
             for bar in source:
                 if date_range.contains(bar.timestamp_utc, zone):
@@ -203,7 +206,7 @@ def read_selected_bars(store: DatasetStore, dataset_id: str, date_range: DateRan
                 raise DatasetReadError("No bars fall within the selected date range in the dataset's source timezone.")
             selection["row_count"] = count
             snapshot.seek(0)
-            bars = _iter_bars(snapshot, zone, count)
+            bars = _iter_bars(snapshot, zone, count, dataset["columns"])
             if dataset.get('tick_data'):
                 from .tick_data import attach
                 bars=attach(bars,dataset)

@@ -15,7 +15,7 @@ from .narrow_read_cache import AssessmentView, MemoRuns, ViewChanged
 from .backtest_requests import ExecutionSettings, OptimizationRequest, ParameterRange
 from .campaign_broad import candidate as broad_candidate, invoke
 from .campaign_workflow import now
-from .datasets import COLUMNS
+from .datasets import supported_bar_columns
 from .decimal_math import add, multiply, subtract
 from .market_equity import equity_rows
 from .optimization import combinations, grid
@@ -238,7 +238,7 @@ def prepare(request, workflow_id, body):
         broad_job = json.loads(db.execute('SELECT payload FROM optimizations WHERE id=?', (saved['broad']['job_id'],)).fetchone()[0])
     declared = saved['declaration']
     dataset = request.app.state.store.get(declared['dataset']['id'])
-    if not dataset or dataset.get('columns') != COLUMNS or any(dataset.get(k) != declared['dataset'].get(k)
+    if not dataset or not supported_bar_columns(dataset.get('columns')) or any(dataset.get(k) != declared['dataset'].get(k)
             for k in ('sha256', 'source_timezone', 'row_count', 'instrument_settings')):
         raise ValueError('The frozen native dataset or instrument settings are unavailable or changed.')
     definition = get_strategy(declared['strategy_id'])

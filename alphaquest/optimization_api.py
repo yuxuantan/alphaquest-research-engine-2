@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .backtest_requests import ExecutionSettings,ParameterRange,OptimizationRequest
 from .backtest_data import DateRange
-from .datasets import COLUMNS
+from .datasets import supported_bar_columns
 from .optimization import grid, can_resume, DEFAULT_WORKERS, MAX_WORKERS
 from .strategies.registry import get_strategy
 from .research import ResearchConflict,dates_for,metadata as research_metadata
@@ -43,7 +43,7 @@ async def start(body: OptimizationRequest, request: Request):
     dataset = await run_in_threadpool(request.app.state.store.get, body.dataset_id)
     if dataset is None:
         raise HTTPException(404, "Dataset not found.")
-    if dataset.get("columns") != COLUMNS:
+    if not supported_bar_columns(dataset.get("columns")):
         raise HTTPException(422, "Unsupported dataset schema.")
     try:
         # Validate before claiming research dates or queuing a mixed on/off grid.

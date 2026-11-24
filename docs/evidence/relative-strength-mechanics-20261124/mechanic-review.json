@@ -1,0 +1,434 @@
+{
+  "id": "c5ebf457903242a0b36dd968db5d408f",
+  "identity": "c89eb43d5f50634ff51add1f7da8a0dd870aeb90bd98c59c88fb1f23ff5dd8fe",
+  "declaration": {
+    "version": "campaign-mechanics-v1",
+    "strategy_id": "relative_strength",
+    "dataset": {
+      "id": "2d6442e231cf447ab770bc701a6c3306",
+      "name": "SYNTHETIC Relative Strength",
+      "sha256": "f6dc7a2ebb6a77cb69e4bf848e753a93642123c75a8d886cbeb6d640cee42f35",
+      "bytes": 188807,
+      "row_count": 3528,
+      "source_timezone": "America/Chicago",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      },
+      "symbol": "NQ",
+      "start": "2025-11-20T14:29:00Z",
+      "end": "2025-12-02T21:00:00Z"
+    },
+    "default_parameters": {
+      "decide_hhmm": 900,
+      "z_min": "1.25",
+      "beta_days": 20,
+      "stop_frac": "0.6",
+      "tgt_frac": "1.0",
+      "atr_days": 20,
+      "trade_dir": 0,
+      "num_contracts": 1,
+      "rth_start_hhmm": 830,
+      "rth_end_hhmm": 1500,
+      "flat_hhmm": 1500,
+      "skip_holidays": true
+    },
+    "strategy_source_sha256": "15378d2b2d33df8d4f147c3e57aad1694085363ddf382bbb0feff6f19f148279",
+    "engine_identity": "dae97f4da35df1ef82c1aeff2ae0582a78ef6e9ff2e6c12dd4db7e2c2a957f48",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "20",
+      "slippage_ticks": 0,
+      "commission_per_contract_per_side": "0"
+    },
+    "plan": {
+      "strategy_id": "relative_strength",
+      "source_sha256": "f6dc7a2ebb6a77cb69e4bf848e753a93642123c75a8d886cbeb6d640cee42f35",
+      "source_timezone": "America/Chicago",
+      "is_start": "2025-11-20",
+      "is_end": "2025-12-01",
+      "oos_start": "2025-12-02",
+      "oos_end": "2025-12-02",
+      "is_bars": 3136,
+      "oos_bars": 392,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "market_benchmark": {
+      "contracts": 1
+    }
+  },
+  "status": "review_required",
+  "run_id": "c49cab406e5e4abfaf7edb75d1c77371",
+  "review": {
+    "revision": 0,
+    "result_identity": "f1821aa7c7290b555fc548b7a7f7dc664aba9eb254a1ff51756d12c6d8b02d3d",
+    "metric_checks": {
+      "trades_taken": false,
+      "winning_trades": false,
+      "losing_trades": false,
+      "breakeven_trades": false,
+      "win_rate_pct": false,
+      "total_gross_pnl": false,
+      "total_slippage_cost": false,
+      "total_commissions": false,
+      "total_net_pnl": false,
+      "max_drawdown_amount": false
+    },
+    "trade_parity": {
+      "1": false
+    },
+    "trade_correctness": {
+      "1": false
+    },
+    "confirmed_at_utc": null,
+    "attestation": "User confirms MultiCharts parity and execution correctness; no automated MC comparison."
+  },
+  "error": null,
+  "created_at_utc": "2026-11-24T04:13:21.261935+00:00",
+  "updated_at_utc": "2026-11-24T04:13:22.557881+00:00",
+  "broad": {
+    "job_id": null,
+    "revision": 0,
+    "selected_trials": [],
+    "selection": [],
+    "confirmed_at_utc": null,
+    "status": "ready"
+  },
+  "narrow": [],
+  "phases": [
+    {
+      "id": "mechanic_validation",
+      "label": "Mechanic validation",
+      "status": "review_required",
+      "implemented": true
+    },
+    {
+      "id": "is_broad",
+      "label": "IS Broad",
+      "status": "locked",
+      "implemented": true
+    },
+    {
+      "id": "is_narrow",
+      "label": "IS Narrow",
+      "status": "locked",
+      "implemented": true
+    },
+    {
+      "id": "oos",
+      "label": "OOS",
+      "status": "locked",
+      "implemented": true
+    }
+  ],
+  "latest_phase": "mechanic_validation",
+  "metrics": [
+    {
+      "id": "trades_taken",
+      "label": "Trades taken",
+      "value": 1
+    },
+    {
+      "id": "winning_trades",
+      "label": "Winning trades",
+      "value": 1
+    },
+    {
+      "id": "losing_trades",
+      "label": "Losing trades",
+      "value": 0
+    },
+    {
+      "id": "breakeven_trades",
+      "label": "Breakeven trades",
+      "value": 0
+    },
+    {
+      "id": "win_rate_pct",
+      "label": "Win rate pct",
+      "value": "100"
+    },
+    {
+      "id": "total_gross_pnl",
+      "label": "Total gross pnl",
+      "value": "400.00"
+    },
+    {
+      "id": "total_slippage_cost",
+      "label": "Total slippage cost",
+      "value": "0.00"
+    },
+    {
+      "id": "total_commissions",
+      "label": "Total commissions",
+      "value": "0"
+    },
+    {
+      "id": "total_net_pnl",
+      "label": "Total net pnl",
+      "value": "400.00"
+    },
+    {
+      "id": "max_drawdown_amount",
+      "label": "Max drawdown amount",
+      "value": "0"
+    }
+  ],
+  "trade_samples": [
+    {
+      "id": "1",
+      "reasons": [
+        "First trade",
+        "Last trade",
+        "Biggest win",
+        "Shortest duration"
+      ],
+      "trade": {
+        "trade_number": 1,
+        "side": "long",
+        "entry_bar_number": 2777,
+        "exit_bar_number": 2778,
+        "entry_time_utc": "2025-12-01T15:01:00Z",
+        "exit_time_utc": "2025-12-01T15:02:00Z",
+        "exit_deadline_utc": null,
+        "contracts": 1,
+        "entry_reference_price": "20100",
+        "exit_reference_price": "20120.00",
+        "entry_fill_price": "20100.00",
+        "exit_fill_price": "20120.00",
+        "entry_commission": "0",
+        "exit_commission": "0",
+        "total_commissions": "0",
+        "reference_gross_pnl": "400.00",
+        "slippage_cost": "0.00",
+        "gross_pnl": "400.00",
+        "net_pnl": "400.00",
+        "actual_holding_minutes": "1",
+        "entry_reason": "RS.L",
+        "exit_reason": "take_profit"
+      }
+    }
+  ],
+  "report": {
+    "id": "c49cab406e5e4abfaf7edb75d1c77371",
+    "format_version": 2,
+    "status": "complete",
+    "created_at_utc": "2026-11-24T04:13:22.526763Z",
+    "period_start_utc": "2025-11-20T14:29:00Z",
+    "period_end_utc": "2025-12-01T21:00:00Z",
+    "timestamp_convention": "bar_close",
+    "execution_assumption": "relative_strength_1m_next_open_delayed_bracket_v1",
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "20",
+      "slippage_ticks": 0,
+      "commission_per_contract_per_side": "0"
+    },
+    "run_metadata": {
+      "dataset": {
+        "id": "2d6442e231cf447ab770bc701a6c3306",
+        "name": "SYNTHETIC Relative Strength",
+        "sha256": "f6dc7a2ebb6a77cb69e4bf848e753a93642123c75a8d886cbeb6d640cee42f35",
+        "source_timezone": "America/Chicago",
+        "row_count": 3528,
+        "instrument_settings": {
+          "tick_size": ".25",
+          "point_value": "20"
+        }
+      },
+      "instrument": {
+        "symbol": "NQ",
+        "interval_seconds": null,
+        "interval_kind": "irregular"
+      },
+      "strategy": {
+        "id": "relative_strength",
+        "description": "Relative Strength trades NQ or MNQ continuation when its 09:00 CT move diverges from the move implied by ES. Requires aligned one-minute OHLCV with an ESClose column.",
+        "source_sha256": "15378d2b2d33df8d4f147c3e57aad1694085363ddf382bbb0feff6f19f148279",
+        "execution_assumption": "relative_strength_1m_next_open_delayed_bracket_v1",
+        "parameters": {
+          "decide_hhmm": 900,
+          "z_min": "1.25",
+          "beta_days": 20,
+          "stop_frac": "0.6",
+          "tgt_frac": "1.0",
+          "atr_days": 20,
+          "trade_dir": 0,
+          "num_contracts": 1,
+          "rth_start_hhmm": 830,
+          "rth_end_hhmm": 1500,
+          "flat_hhmm": 1500,
+          "skip_holidays": true
+        },
+        "session_flattening": {
+          "enabled": true,
+          "mode": "relative_strength_chart_close_v1",
+          "timezone": "America/Chicago",
+          "flat_time": 1500,
+          "rth_start": 830,
+          "order_timing": "same_close",
+          "holiday_table": "Supplied NYSE dates 2010\u20132027",
+          "skip_holidays": true,
+          "signal_data": "ESClose at the same timestamp in the hashed primary dataset",
+          "entry_protection": "Stop and target first active after the entry bar closes"
+        }
+      },
+      "instrument_overrides": {},
+      "full_dataset": {
+        "id": "2d6442e231cf447ab770bc701a6c3306",
+        "name": "SYNTHETIC Relative Strength",
+        "sha256": "f6dc7a2ebb6a77cb69e4bf848e753a93642123c75a8d886cbeb6d640cee42f35",
+        "source_timezone": "America/Chicago",
+        "row_count": 3528,
+        "start": "2025-11-20T14:29:00Z",
+        "end": "2025-12-02T21:00:00Z",
+        "symbol": "NQ"
+      },
+      "research": {
+        "phase": "is",
+        "plan": {
+          "strategy_id": "relative_strength",
+          "source_sha256": "f6dc7a2ebb6a77cb69e4bf848e753a93642123c75a8d886cbeb6d640cee42f35",
+          "source_timezone": "America/Chicago",
+          "is_start": "2025-11-20",
+          "is_end": "2025-12-01",
+          "oos_start": "2025-12-02",
+          "oos_end": "2025-12-02",
+          "is_bars": 3136,
+          "oos_bars": 392,
+          "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+          "version": 1
+        },
+        "workflow_id": "c5ebf457903242a0b36dd968db5d408f",
+        "workflow_phase": "mechanic_validation"
+      },
+      "selection": {
+        "from_date": "2025-11-20",
+        "to_date": "2025-12-01",
+        "source_timezone": "America/Chicago",
+        "warmup": "none",
+        "start_utc": "2025-11-20T14:29:00Z",
+        "first_source_bar_number": 1,
+        "end_utc": "2025-12-01T21:00:00Z",
+        "last_source_bar_number": 3136,
+        "row_count": 3136
+      }
+    },
+    "summary": {
+      "initial_capital": "10000",
+      "final_equity": "10400.00",
+      "trades_taken": 1,
+      "winning_trades": 1,
+      "losing_trades": 0,
+      "breakeven_trades": 0,
+      "win_rate_pct": "100",
+      "total_gross_pnl": "400.00",
+      "total_slippage_cost": "0.00",
+      "total_commissions": "0",
+      "total_net_pnl": "400.00",
+      "ending_position_contracts": 0,
+      "max_drawdown_amount": "0",
+      "max_drawdown_pct": "0",
+      "max_drawdown_duration_seconds": "0"
+    },
+    "reconciliation": {
+      "total_net_equals_sum_trade_net": true,
+      "gross_minus_commissions_equals_net": true,
+      "final_equity_equals_initial_plus_net": true,
+      "equity_equals_cash_plus_unrealized_at_every_point": true,
+      "realized_net_equals_cash_minus_initial_at_every_point": true,
+      "final_position_flat": true,
+      "observed_bar_count": 3136,
+      "expected_bar_count": 3136
+    },
+    "artifacts": {
+      "report": "report.json",
+      "trades_csv": "trades.csv",
+      "equity_csv": "equity.csv",
+      "intratrade_risk_csv": "intratrade_risk.csv",
+      "execution_decisions_jsonl": "execution_decisions.jsonl",
+      "risk_metrics_json": "risk_metrics.json",
+      "market_benchmark_json": "market_benchmark.json",
+      "strategy_equity_day_csv": "strategy_equity_day.csv"
+    },
+    "price_path": {
+      "version": "multicharts-ohlc-nearest-extreme-v1",
+      "mode": "modeled_ohlc",
+      "policy": "nearest_extreme_first_low_on_tie",
+      "magnifier": false,
+      "order_activation": "next_bar; attached exits start at parent fill; no pre-entry extrema",
+      "documentation": "docs/multicharts_execution.md"
+    },
+    "intratrade_risk": {
+      "version": "held-price-path-equity-v2",
+      "sha256": "0a5980023b2c858eb7ba42b0e886e841f74837fb76580c56788d13854d82c2d7",
+      "trades": 1,
+      "ambiguous_trades": 0,
+      "cross_session_trades": 0,
+      "policy": "Held MultiCharts modeled OHLC path excursions, restricted to entry-through-exit, including entry and final costs. Model estimates, not measured tick MAE/MFE."
+    },
+    "execution_decisions": {
+      "version": "native-entry-decisions-v1",
+      "events": 4,
+      "decisions": 1,
+      "filled_trades": 1,
+      "cancelled_decisions": 0,
+      "bracket_submissions": 1,
+      "quantity_path_policy": "native_rerun_required",
+      "sha256": "b981f4a9f9f2997d10514b9a7858f48a7b02802df9fc8605f97afbfce70759cf",
+      "policy": "Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry."
+    },
+    "risk_diagnostics": {
+      "version": "planned-net-r-v1",
+      "sha256": "89ab521a5a5a5ec7f438ad1e4680b9678b64a06cbed4c3900e540dcffaf86cf3",
+      "status": "unavailable",
+      "coverage": {
+        "valid_trades": 0,
+        "total_trades": 1,
+        "complete": false,
+        "missing_reasons": {
+          "initial_stop_unavailable": 1
+        }
+      },
+      "summary": {
+        "mean_planned_net_r": null,
+        "median_planned_net_r": null,
+        "total_planned_net_r": null,
+        "worst_planned_net_r": null,
+        "best_planned_net_r": null
+      }
+    },
+    "market_benchmark": {
+      "version": "price-series-holding-v1",
+      "settings": {
+        "contracts": 1
+      },
+      "observed_bar_count": 3136,
+      "sha256": "b200cc9cde7ac0768c87092a4db3dd317841cb64bd17f9358b96fe045111db1a",
+      "equity_sha256": "355415e171d10ee39d20662bdbcc3a700deefeb7b4854ccdbc30da625d030898",
+      "storage": {
+        "version": "daily-shared-v1",
+        "granularity": "DAY",
+        "timezone": "America/Chicago",
+        "day_boundary": "last_selected_bar_of_source_calendar_date",
+        "observed_day_count": 8,
+        "strategy_sha256": "6af46b02d3c1d4ac3bc660b511b711badb0b0b1a0a9368ae046c971b39e3c355",
+        "holding_key": "1cb74b1deb6399d220260be003230836cf67f97d2728f03c341d0af59bdf5dc5",
+        "holding_sha256": "3a1d7a82192d7d582d41daf8966c16aaf1767f6332f220b8f74cd91f53a467b4"
+      }
+    },
+    "report_storage": {
+      "detail": "compact",
+      "compression": "none",
+      "per_bar_equity_retained": false,
+      "trades": "all",
+      "equity_csv": "initial_and_trade_close"
+    }
+  },
+  "missing_samples": [
+    "Biggest loss"
+  ]
+}

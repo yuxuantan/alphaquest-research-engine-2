@@ -65,6 +65,28 @@
       narrow: ["Narrow locks the selected Broad values by default. Eligible numeric axes can be explicitly refined on a finer grid."],
     },
     {
+      id: "relative_strength", name: "Relative Strength",
+      hypothesis: "When NQ moves unusually far beyond what its relationship with ES explains, the move may continue through the session.",
+      overview: {
+        steps: [
+          "Estimate how NQ moves with ES. During 08:30–15:00 CT, update exponential averages of one-minute log returns squared and multiplied together. Their default span is 20 regular sessions. These averages give the NQ-on-ES beta and the variance of the move left over after accounting for ES.",
+          "Check once per day at the first regular-session close at or after 09:00 CT. Measure both moves from the last close at or before the 08:30 CT opening boundary. Subtract beta times the ES move from the NQ move, then divide by the estimated standard deviation for the number of observed minutes since the anchor. The decision minute is included in the estimate.",
+          "Buy NQ at the next bar’s open if Z is at least +1.25, or sell short if Z is at most −1.25. The defaults allow both sides and one contract. A day can produce at most one entry. The supplied NYSE holidays and early closes through 2027 are skipped by default.",
+          "Use 0.6× the average high–low range of the prior 20 eligible regular sessions for the stop and 1.0× for the target. Both distances are measured from the actual fill. Orders are first submitted at the entry bar’s close and can fill from the following bar. If still open, flatten on the 15:00 CT bar’s close.",
+        ],
+        example: "If NQ gains 60 basis points, ES gains 20, beta is 1.5 and the residual standard deviation is 20 basis points, Z is +1.50. A qualifying long filled at 20,000 with a 300-point average range has a stop at 19,820 and a target at 20,300 before costs.",
+      },
+      dataNotes: [
+        "In Datasets, upload one close-labelled one-minute Globex CSV for NQ or MNQ with an ESClose column joined from ES at exactly the same timestamps. Use the same feed, continuous-contract conventions and session template for both series. The first regular-session bar closes at 08:31 CT.",
+        "Include about three months of history inside each calculation window for comparison. The first trade needs at least 1,950 eligible minute observations at the default settings. Estimates start from the first eligible return, and the range average uses the eligible history available up to its 20-session limit.",
+      ],
+      interpretationNotes: [
+        "In MultiCharts .NET, apply OFB_RelStrength_Signal to NQ Data1 with ES as Data2, set Exchange time and enable showValidation. Inspect both anchor and decision closes, beta, residual variance, Z, direction gates, observed position changes, stop/target levels and the close-exit order. Compare with native trade markers and the performance export.",
+      ],
+      broad: ["Searchable inputs include the Z threshold, beta span, stop and target multipliers, range lookback and trade direction."],
+      narrow: ["Narrow locks selected Broad values by default. Eligible numeric axes can be refined. The −1 / 0 / +1 trade-direction codes are categories."],
+    },
+    {
       id: "noise", name: "Noise",
       hypothesis: "Noise looks for directional moves that are unusually large for that time of day.",
       overview: {

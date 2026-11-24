@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .database import connection
 
 COLUMNS = ["Date", "Time", "Open", "High", "Low", "Close", "Volume", "UpVol", "DownVol"]
+PAIRED_COLUMNS = [*COLUMNS, "ESClose"]
 MAX_BYTES = 1_000_000_000
 CHUNK_BYTES = 4 * 1024 * 1024
 MAX_ERRORS = 20
@@ -68,15 +69,20 @@ def parse_timestamp(date_value: str, time_value: str, source_zone: ZoneInfo) -> 
     return candidates.pop()
 
 
+def supported_bar_columns(columns):
+    return columns in (COLUMNS, PAIRED_COLUMNS)
+
+
 def validate_csv_header(header) -> None:
-    if header != COLUMNS:
-        raise InvalidDataset([invalid("The header must be exactly: " + ",".join(COLUMNS), 1)])
+    if not supported_bar_columns(header):
+        raise InvalidDataset([invalid("The header must be exactly: " + ",".join(COLUMNS)
+                                      + " (optionally followed by ,ESClose for paired data).", 1)])
 
 
-def parse_csv_row(row: list[str], source_zone: ZoneInfo, previous_timestamp: datetime | None = None, line: int | None = None) -> tuple[datetime, tuple[Decimal, ...]]:
-    """Shared upload/reader rules; return UTC time and seven ordered Decimals."""
-    if len(row) != len(COLUMNS):
-        raise InvalidDataset([invalid("Every row must contain exactly 9 non-empty fields; blank rows are not allowed.", line)])
+def parse_csv_row(row: list[str], source_zone: ZoneInfo, previous_timestamp: datetime | None = None, line: int | None = None, *, columns=COLUMNS) -> tuple[datetime, tuple[Decimal, ...]]:
+    """Shared upload/reader rules; return UTC time and ordered numeric fields."""
+    if len(row) != len(columns):
+        raise InvalidDataset([invalid(f"Every row must contain exactly {len(columns)} non-empty fields; blank rows are not allowed.", line)])
     errors = []
     values = [value.strip() for value in row]
     timestamp = None
@@ -87,11 +93,15 @@ def parse_csv_row(row: list[str], source_zone: ZoneInfo, previous_timestamp: dat
     except (ValueError, OverflowError) as exc:
         errors.append(invalid(str(exc), line, "Date/Time"))
     numeric = {}
-    for column, value in zip(COLUMNS[2:], values[2:]):
+    for column, value in zip(columns[2:], values[2:]):
         if not NUMBER.fullmatch(value):
             errors.append(invalid("Must be a finite number (no missing values, NaN, or infinity).", line, column))
         else:
             numeric[column] = Decimal(value)
+    if columns == PAIRED_COLUMNS:
+        for column in ("Close", "ESClose"):
+            if column in numeric and numeric[column] <= 0:
+                errors.append(invalid(f"{column} must be positive for paired log returns.", line, column))
     for column in ("Volume", "UpVol", "DownVol"):
         if column in numeric and numeric[column] < 0:
             errors.append(invalid(f"{column} must be non-negative.", line, column))
@@ -100,7 +110,7 @@ def parse_csv_row(row: list[str], source_zone: ZoneInfo, previous_timestamp: dat
             errors.append(invalid("Require Low ≤ Open/Close ≤ High.", line, "High/Low"))
     if errors:
         raise InvalidDataset(errors)
-    return timestamp, tuple(numeric[column] for column in COLUMNS[2:])
+    return timestamp, tuple(numeric[column] for column in columns[2:])
 
 
 def validate_csv(raw: bytes, filename: str, source_timezone: str = "UTC") -> dict:
@@ -163,15 +173,16 @@ def _validate_rows(reader, filename, source_timezone, zone, size, sha256, progre
     errors, preview = [], []
     count = 0
     first = previous = last = None
-    interval = None
+    interval = minimum_step = None
     irregular = False
     rows_checked = 0
     try:
-        validate_csv_header(next(reader, None))
+        columns = next(reader, None)
+        validate_csv_header(columns)
         for rows_checked, row in enumerate(reader, 1):
             line = reader.line_num
             try:
-                timestamp, _ = parse_csv_row(row, zone, previous, line)
+                timestamp, _ = parse_csv_row(row, zone, previous, line, columns=columns)
             except InvalidDataset as exc:
                 errors.extend(exc.errors)
             else:
@@ -179,6 +190,7 @@ def _validate_rows(reader, filename, source_timezone, zone, size, sha256, progre
                 if previous is not None:
                     delta = timestamp - previous
                     step = delta.days * 86400_000000 + delta.seconds * 1_000000 + delta.microseconds
+                    minimum_step = step if minimum_step is None else min(minimum_step, step)
                     if interval is None:
                         interval = step
                     elif step != interval:
@@ -187,7 +199,7 @@ def _validate_rows(reader, filename, source_timezone, zone, size, sha256, progre
                 previous = last = timestamp
                 count += 1
                 if len(preview) < 8:
-                    preview.append({**dict(zip(COLUMNS, values)), "datetime": timestamp.isoformat().replace("+00:00", "Z")})
+                    preview.append({**dict(zip(columns, values)), "datetime": timestamp.isoformat().replace("+00:00", "Z")})
             if len(errors) >= MAX_ERRORS:
                 raise InvalidDataset(errors[:MAX_ERRORS], truncated=True)
             if progress and rows_checked % 1000 == 0:
@@ -198,6 +210,8 @@ def _validate_rows(reader, filename, source_timezone, zone, size, sha256, progre
         raise InvalidDataset(errors[:MAX_ERRORS])
     if not count:
         raise InvalidDataset([invalid("Include at least one data row below the header.")])
+    if columns == PAIRED_COLUMNS and minimum_step != 60_000000:
+        raise InvalidDataset([invalid("Paired data must be one-minute bars with at least one consecutive minute.")])
     if progress:
         progress(rows_checked)
     regular = interval is not None and not irregular
@@ -211,7 +225,7 @@ def _validate_rows(reader, filename, source_timezone, zone, size, sha256, progre
         "source_timezone": source_timezone,
         "interval_seconds": interval / 1_000000 if regular else None,
         "interval_kind": "regular" if regular else "single row" if interval is None else "irregular",
-        "columns": COLUMNS,
+        "columns": columns,
         "preview": preview,
         "warnings": ["Bar spacing varies. Gaps are preserved; no bars are filled or removed."] if irregular else [],
     }

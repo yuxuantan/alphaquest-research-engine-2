@@ -459,7 +459,7 @@ def _controlled_fill(account,bracket,bar,control,*,include_range=True,reference=
         floor=orders.daily_floor_engine_equity;trigger='daily'
     stop=executable_floor_reference(control.snapshot(bar),floor,account.config.tick_size,account.config.point_value)
     reason='native_'+trigger+'_floor'
-    if bracket is not None and (bracket.stop_price>stop if position.side=='long' else bracket.stop_price<stop):
+    if bracket is not None and bracket.stop_price is not None and (bracket.stop_price>stop if position.side=='long' else bracket.stop_price<stop):
         stop=bracket.stop_price;reason='stop_loss';trigger=None
     trade, hit_reason = _ohlc_exit(account, BracketIntent(stop, bracket.target_price if bracket else None), bar, stop_reason=reason)
     return trade, trigger if hit_reason == reason and reason.startswith('native_') else None
@@ -502,7 +502,8 @@ def _ohlc_exit(account, bracket, bar, *, stop_reason='stop_loss'):
     if hit is None:
         return None, None
     _observe_path(account, bar, hit.prefix(path))
-    is_stop = hit.price <= bracket.stop_price if long else hit.price >= bracket.stop_price
+    stop = bracket.stop_price
+    is_stop = stop is not None and (hit.price <= stop if long else hit.price >= stop)
     reason = stop_reason if is_stop else 'take_profit'
     # In non-magnified MC emulation the penetration level is the first eligible
     # price. Opening limits improve to Open unless explicitly disabled.
@@ -872,7 +873,7 @@ def _execute(bars: Iterable[Bar], strategy: Strategy, config: ExecutionConfig, *
         elif type(intent) is BracketIntent:
             if account.position is None:
                 raise ExecutionError("BracketIntent while flat is inconsistent.")
-            if intent.target_price is not None and ((account.position.side == "long" and intent.stop_price >= intent.target_price)
+            if intent.stop_price is not None and intent.target_price is not None and ((account.position.side == "long" and intent.stop_price >= intent.target_price)
                     or (account.position.side == "short" and intent.stop_price <= intent.target_price)):
                 raise ExecutionError("Bracket stop and target order is inconsistent with position side.")
             account.record_bracket(intent, bar)

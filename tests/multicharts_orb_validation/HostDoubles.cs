@@ -38,12 +38,13 @@ namespace PowerLanguage
         public readonly Dictionary<string, IOrderMarket> Parent = new Dictionary<string, IOrderMarket>();
         private sealed class Order : IOrderMarket, IOrderPriced
         {
-            public Orders Owner; public string Name;
-            public void Send(int quantity) { Owner.Sent.Add(Name + " market " + quantity); }
+            public Orders Owner; public string Name; public string MarketTiming = " market ";
+            public void Send(int quantity) { Owner.Sent.Add(Name + MarketTiming + quantity); }
             public void Send(double price, int quantity)
             { Owner.Sent.Add(Name + " " + price.ToString("F2",CultureInfo.InvariantCulture) + " " + quantity); }
         }
         public IOrderMarket MarketNextBar(SOrderParameters p) { return new Order { Owner=this, Name=p.Name }; }
+        public IOrderMarket MarketThisBar(SOrderParameters p) { return new Order { Owner=this, Name=p.Name, MarketTiming=" this close " }; }
         private IOrderPriced Priced(SOrderParameters p)
         {
             if (p.Exit != null && p.Exit.Parent != null) Parent.Add(p.Name, p.Exit.Parent);
@@ -125,6 +126,8 @@ namespace PowerLanguage
     {
         protected SignalObject(object ctx) {}
         public readonly BarData Bars=new BarData();
+        public readonly BarData SecondaryBars=new BarData();
+        protected BarData BarsOfData(int number) { return number == 2 ? SecondaryBars : Bars; }
         public readonly StrategyState StrategyInfo=new StrategyState();
         public readonly Orders OrderCreator=new Orders();
         public readonly Lines DrwTrendLine=new Lines(); public readonly Texts DrwText=new Texts();

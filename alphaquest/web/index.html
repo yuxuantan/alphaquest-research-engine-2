@@ -118,7 +118,7 @@
             </div>
             <form id="upload-form">
               <label>Source format<select id="dataset-format">
-                <option value="bars">Minute OHLCV CSV</option>
+                <option value="bars">Minute OHLCV CSV (optional ESClose)</option>
                 <option value="ticks">Trade ticks · Sierra SCID or trade CSV</option>
               </select></label>
               <p id="tick-format-help" class="small muted" hidden>Individual trades only. SCID v1 or CSV columns: timestamp,price,volume,bid_volume,ask_volume. CSV timestamps must use UTC; equal timestamps retain file order. SCID timestamps are UTC. Set the root instrument (e.g. NQ), tick size and point value. Import validates the whole source, retains the original price path and builds completed-minute order flow. Aggregated records and timestamp inversions reject. <a href="/api/datasets/ticks/example">Download CSV example</a>.</p>

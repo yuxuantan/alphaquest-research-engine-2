@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 from .backtest_requests import ExecutionSettings
 from .research import SplitDeclaration,ResearchConflict,dates_for,metadata
 from .strategies.registry import get_strategy
-from .datasets import COLUMNS
+from .datasets import supported_bar_columns
 from .market_benchmark import VERSION as BENCHMARK_VERSION
 
 router=APIRouter()
@@ -31,7 +31,7 @@ def source(request,dataset_id,strategy_id):
     except ValueError as exc:raise HTTPException(422,str(exc)) from None
     dataset=request.app.state.store.get(dataset_id)
     if not dataset:raise HTTPException(404,'Dataset not found.')
-    if dataset.get('columns')!=COLUMNS:raise HTTPException(422,'Unsupported dataset schema.')
+    if not supported_bar_columns(dataset.get('columns')):raise HTTPException(422,'Unsupported dataset schema.')
     return dataset
 
 

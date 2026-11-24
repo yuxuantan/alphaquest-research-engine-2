@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, Strict
 from starlette.concurrency import run_in_threadpool
 
 from .backtest_requests import ExecutionSettings
-from .datasets import COLUMNS
+from .datasets import supported_bar_columns
 from .market_benchmark import BenchmarkSettings
 from .market_benchmark import file_hash
 from .optimization_cache import digest, engine_identity
@@ -394,7 +394,7 @@ async def create(body: CreateWorkflow, request: Request):
         dataset = request.app.state.store.get(body.dataset_id)
         if not dataset:
             raise HTTPException(404, 'Dataset not found.')
-        if dataset['columns'] != COLUMNS:
+        if not supported_bar_columns(dataset['columns']):
             raise ValueError('Mechanic validation requires a native OHLCV dataset.')
         definition = get_strategy(body.strategy_id)
         description = definition.description()

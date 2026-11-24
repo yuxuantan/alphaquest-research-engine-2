@@ -14,6 +14,8 @@
   const tickSize = get("#backtest-tick-size");
   const pointValue = get("#backtest-point-value");
   const count = new Intl.NumberFormat("en-US");
+  const barSchema = "Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol";
+  const pairedSchema = `${barSchema},ESClose`;
   const state = { datasets: [], strategies: [], busy: false, loading: false, ready: false, strategy: null, instrumentEdited: false };
   let reportRecord, detailedBusy = false;
   const executionLabels = {
@@ -24,6 +26,7 @@
     if (name === "contracts") return "Number of contracts";
     if (name === "overnight_bias_orb") return "Overnight Bias ORB";
     if (name === "noise") return "Noise";
+    if (name === "relative_strength") return "Relative Strength";
     return String(name).replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
   };
 
@@ -105,9 +108,18 @@
     return result;
   }
 
-  function renderStrategy() {
+  function renderStrategy(resetInstrumentValues = false) {
     const strategy = state.strategies.find((item) => item.id === strategySelect.value);
     state.strategy = strategy || null;
+    for (const option of datasetSelect.options) {
+      if (!option.value) continue;
+      const schema = option.dataset.schema;
+      option.disabled = schema !== pairedSchema && (strategy?.id === "relative_strength" || schema !== barSchema);
+    }
+    if (datasetSelect.selectedOptions[0]?.disabled) {
+      datasetSelect.value = "";
+      resetInstrumentValues = true;
+    }
     get("#strategy-description").textContent = strategy?.description || "Select a strategy to see its description.";
     if (strategy?.parameters.some((parameter) => !["int", "integer", "bool", "Decimal"].includes(parameter.type))) {
       state.strategy = null;
@@ -119,6 +131,8 @@
       ? "Use close-labelled one-minute Globex OHLC. Decisions run on 15-minute closes in Eastern time. Market orders fill at the next open, with signal-close stop and target active on the entry bar. Within each minute, the engine uses the nearest-extreme-first path, Low first on ties."
       : strategy?.id === "noise"
       ? "Use close-labelled one-minute NQ or MNQ OHLC. Decisions run on observed 15-minute closes in Central time. Market orders fill at the next observed Open, with the stop and target measured from the fill. The engine models the path inside each minute, visiting the nearer extreme first and Low first on ties. A missing exact flat signal can leave a position open across sessions."
+      : strategy?.id === "relative_strength"
+      ? "Use synchronized one-minute NQ/MNQ and ES closes. Signals enter at the next observed Open. Stop and target use the entry fill and first become active after the entry bar closes. An open position flattens at the configured Central-time close."
       : strategy?.execution_assumption?.startsWith("next_open_market_next_bar_bracket_")
       ? "Signals use completed closes. Market orders fill at the next observed bar Open. Brackets begin after the entry bar. Active stops/targets follow the MultiCharts path: the extreme nearer Open first, Low first on ties. This is modeled OHLC chronology. With EOD flatten enabled, the instrument's reviewed calendar sets the cutoff using Close buffer minutes (default 5), bounded by your EOD time. Later entries and full-closure sessions are blocked. No future bars determine the cutoff. Missing liquidation prices and dates outside reviewed calendar coverage reject the run. Use full-session one-minute data."
       : "Signals and simulated fills use that same close, adjusted by your slippage setting.";
@@ -128,8 +142,7 @@
     defaults.replaceChildren(element('summary', '', 'Default strategy parameters for mechanic validation'));
     defaults.append(element('pre', '', JSON.stringify(Object.fromEntries(strategy?.parameters.map(p => [p.name,p.default]) || []),null,2)));
     window.optimizations.configure(state.strategy);
-    window.researchSplit.configure(datasetSelect.value,strategySelect.value);
-    controls();
+    renderDataset(resetInstrumentValues === true);
   }
 
   function renderDataset(resetValues = true) {
@@ -137,7 +150,9 @@
     window.researchSplit.configure(datasetSelect.value,strategySelect.value);
     get("#backtest-dataset-info").textContent = dataset
       ? `${count.format(dataset.row_count)} bars · ${dataset.filename} · ${dataset.start.replace("T", " ").replace("Z", " UTC")} to ${dataset.end.replace("T", " ").replace("Z", " UTC")}`
-      : "Choose a saved dataset. New datasets can be uploaded and saved in Datasets.";
+      : state.strategy?.id === "relative_strength"
+        ? "Choose a paired NQ/MNQ CSV with ESClose. Upload the paired file in Datasets if needed."
+        : "Choose a saved dataset. New datasets can be uploaded and saved in Datasets.";
     get("#backtest-timezone").textContent = dataset?.source_timezone || "Choose a dataset";
     const settings = dataset?.instrument_settings;
     const grid = get("#backtest-instrument-settings");
@@ -186,8 +201,10 @@
       datasetSelect.replaceChildren(new Option("Choose a saved dataset", ""));
       let supported = 0;
       for (const dataset of datasets) {
-        const compatible = dataset.columns?.join(",") === "Date,Time,Open,High,Low,Close,Volume,UpVol,DownVol";
-        const option = new Option(`${dataset.name} · ${count.format(dataset.row_count)} bars${compatible ? "" : " · unsupported CSV schema"}`, dataset.id);
+        const schema = dataset.columns?.join(",") || "";
+        const compatible = schema === barSchema || schema === pairedSchema;
+        const option = new Option(`${dataset.name} · ${count.format(dataset.row_count)} bars${schema === pairedSchema ? " · with ES closes" : compatible ? "" : " · unsupported CSV schema"}`, dataset.id);
+        option.dataset.schema = schema;
         option.disabled = !compatible;
         datasetSelect.add(option);
         if (compatible) supported++;
@@ -199,12 +216,11 @@
         ? previousStrategy : strategies.length ? strategies[0].id : "";
       state.ready = supported > 0 && strategies.length > 0;
       get("#backtest-options-status").textContent = !supported
-        ? "No supported saved datasets. Upload and save a nine-column CSV in Datasets first."
+        ? "No supported saved datasets. Upload and save a minute OHLCV CSV in Datasets first."
         : !strategies.length ? "No strategies are available on this server." : "";
       get("#backtest-form-hint").textContent = "Review dataset instrument defaults or override them for this run. Configure account capital and costs separately. Automatic legacy Apex and Lucid prop reports are enabled by default; uncheck the automatic-report option to skip them.";
       if (mechanicSetup()) get("#backtest-form-hint").textContent = "Save the dataset, IS/OOS split and execution costs. The next page runs one backtest using default strategy parameters, then requires your MC parity and execution review.";
-      renderStrategy();
-      renderDataset(previousDataset !== datasetSelect.value || !state.instrumentEdited);
+      renderStrategy(previousDataset !== datasetSelect.value || !state.instrumentEdited);
     } catch (error) {
       state.ready = false;
       showError(error, "Could not load backtest choices");
@@ -376,6 +392,10 @@
         const time = String(flatten.flat_time).padStart(4, "0");
         pair.append(element("dt", "", "Noise clock exit"), element("dd", "",
           `An observed 15-minute close at exactly ${time.slice(0, 2)}:${time.slice(2)} CT sends a market exit for the next observed Open. If that bar is missing, the stop and target stay active and the position can carry across sessions.`));
+      } else if (flatten.mode === "relative_strength_chart_close_v1") {
+        const time = value => String(value).padStart(4, "0").replace(/(..)(..)$/, "$1:$2");
+        pair.append(element("dt", "", "Relative Strength exits"), element("dd", "",
+          `Flatten on the Close of the first held bar at or after ${time(flatten.flat_time)} CT, or at or before ${time(flatten.rth_start)} CT. Active brackets retain priority. ES closes are part of the saved dataset hash. ${flatten.skip_holidays ? "The supplied 2010–2027 NYSE dates were skipped." : "The holiday filter was off."}`));
       } else if (flatten.mode === "twin_csv_session_close_v2") {
         const calendar = flatten.calendar || {};
         pair.append(element("dt", "", "Scheduled session-close exits · no bar lookahead"), element("dd", "",

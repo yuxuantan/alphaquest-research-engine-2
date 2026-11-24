@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .backtest_requests import ExecutionSettings, OptimizationRequest, ParameterRange
 from .campaign_workflow import now
-from .datasets import COLUMNS
+from .datasets import supported_bar_columns
 from .optimization import grid, combinations
 from .optimization_cache import artifacts, digest, engine_identity
 from .research import SplitDeclaration, dates_for, metadata
@@ -67,7 +67,7 @@ def prepare(request, workflow_id, body):
         raise ValueError('IS Broad selection is confirmed and cannot be changed or rerun.')
     declared = saved['declaration']
     dataset = request.app.state.store.get(declared['dataset']['id'])
-    if not dataset or dataset.get('columns') != COLUMNS:
+    if not dataset or not supported_bar_columns(dataset.get('columns')):
         raise ValueError('The native source dataset is unavailable.')
     if any(dataset.get(key) != declared['dataset'].get(key) for key in ('sha256','source_timezone','row_count','instrument_settings')):
         raise ValueError('The source dataset or instrument settings changed; configure and validate a new workflow.')

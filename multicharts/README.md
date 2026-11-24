@@ -5,6 +5,12 @@ Current minute-bar fill assumptions and matching chart settings are documented i
 same nearest-extreme-first path (Low first on ties), with post-entry protection.
 Older stop-first notes and dated numerical examples below remain historical.
 
+[Relative Strength](../docs/strategies/relative_strength.md) uses
+[OFB_RelStrength_Signal.cs](OFB_RelStrength_Signal.cs) on a synchronized
+one-minute NQ Data1 and ES Data2 Globex chart in Exchange time. Turn on
+`showValidation` for the decision inputs, gate results, stop and target levels,
+and exit submissions in Output and on the chart.
+
 [Noise](../docs/strategies/noise.md) uses
 [OFB_Noise_Signal.cs](OFB_Noise_Signal.cs) on a close-stamped 15-minute NQ
 chart with one-minute Bar Magnifier and the Exchange clock. Turn on
