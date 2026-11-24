@@ -36,6 +36,8 @@ namespace PowerLanguage.Strategy
         private double stopPrice, targetPrice;
 
         private const int DrawingLimit = 240;
+        private const int AlignmentLogLimit = 10;
+        private int alignmentLogs;
         private readonly Queue<Action> drawings = new Queue<Action>();
         private static readonly HashSet<int> Holidays = new HashSet<int>
         {
@@ -100,6 +102,7 @@ namespace PowerLanguage.Strategy
         {
             while (drawings.Count > 0) drawings.Dequeue()();
             lastBar = rangeIndex = rangeCount = previousSide = entriesToday = samples = barsSinceAnchor = 0;
+            alignmentLogs = 0;
             dayOK = decided = true;
             haveRth = lastRthOK = false;
             rthHigh = rthLow = averageRange = anchorNq = anchorEs = previousEs = 0;
@@ -184,10 +187,22 @@ namespace PowerLanguage.Strategy
                 esBars.Info.Resolution.Type != EResolution.Minute || Bars.Info.Resolution.Size != 1 ||
                 esBars.Info.Resolution.Size != 1))
                 throw new InvalidOperationException("Relative Strength requires synchronized one-minute NQ/MNQ Data1 and ES Data2.");
-            if (stamp != esBars.Time[0] || (first && previousStamp != esBars.Time[1]))
-                throw new InvalidOperationException("Relative Strength requires matching Data1 and Data2 close timestamps: " + stamp);
-            // PowerLanguage C2[1] refers to the prior calculated C2 variable.
-            double es = esBars.Close[0], lastEs = previousEs;
+
+            // Read the secondary close exposed by the chart as of this Data1 bar.
+            // C2[1] is the preceding Data1 calculation's C2, even when Data2 repeats.
+            DateTime exposedEsStamp = esBars.Time[0];
+            DateTime? usedEsStamp = null;
+            double es = 0, lastEs = previousEs;
+            if (exposedEsStamp <= stamp)
+            {
+                usedEsStamp = exposedEsStamp;
+                es = esBars.Close[0];
+            }
+            else if (esBars.Time[1] <= stamp)
+            {
+                usedEsStamp = esBars.Time[1];
+                es = esBars.Close[1];
+            }
             bool newDate = stamp.Date != previousStamp.Date;
             if (first || newDate)
             {
@@ -253,13 +268,26 @@ namespace PowerLanguage.Strategy
 
             if (showValidation)
             {
-                if (decision) ShowDecision(stamp, high, nq, es, side, residual, z, signal, submitted);
+                if (exposedEsStamp != stamp && alignmentLogs < AlignmentLogLimit)
+                {
+                    ++alignmentLogs;
+                    Output.WriteLine("Relative Strength Data2 alignment | Data1={0:yyyy-MM-dd HH:mm:ss} | " +
+                        "Data2 exposed={1:yyyy-MM-dd HH:mm:ss} | ES used={2} | Close={3:G17}",
+                        stamp, exposedEsStamp, FormatStamp(usedEsStamp), es);
+                }
+                if (decision)
+                    ShowDecision(stamp, high, nq, es, usedEsStamp, side, residual, z, signal, submitted);
                 if (changed || flatten) ShowExit(stamp, low, side, qty, entryPrice, sendStop, sendTarget, flatten);
             }
             previousSide = side;
         }
 
-        private void ShowDecision(DateTime stamp, double high, double nq, double es, int side,
+        private static string FormatStamp(DateTime? stamp)
+        {
+            return stamp.HasValue ? stamp.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "unavailable";
+        }
+
+        private void ShowDecision(DateTime stamp, double high, double nq, double es, DateTime? usedEsStamp, int side,
             double residual, double z, int signal, int submitted)
         {
             string action = submitted == 1 ? "RS.L next open" : submitted == -1 ? "RS.S next open" : "No entry submitted";
@@ -268,10 +296,10 @@ namespace PowerLanguage.Strategy
                 "NQ close/anchor={6:G17}/{7:G17} | ES close/anchor={8:G17}/{9:G17} | beta={10:G17} | " +
                 "residual variance={11:G17} | residual bp={12:G17} | Z={13:G17} | threshold={14:G17}\n" +
                 "signal={15} | TradeDir={16} | MP={17} | filled today={18} | before flat cutoff={19} | " +
-                "entry qty={20} | avg RTH range={21:G17} ({22} days)",
+                "entry qty={20} | avg RTH range={21:G17} ({22} days) | ES used={23}",
                 stamp, action, dayOK, samples, 5 * barsDay, barsSinceAnchor, nq, anchorNq, es, anchorEs,
                 beta, residualVariance, residual, z, ZMin, signal, TradeDir, side, entriesToday,
-                Clock(stamp) < FlatHHMM, NumContracts, averageRange, rangeCount);
+                Clock(stamp) < FlatHHMM, NumContracts, averageRange, rangeCount, FormatStamp(usedEsStamp));
             Marker(stamp, high, string.Format(CultureInfo.InvariantCulture,
                 "{0}\nZ {1:F3} / ±{2:G} | β {3:F3}\nClean {4} | Samples {5}/{6}",
                 action, z, ZMin, beta, dayOK, samples, 5 * barsDay), ETextStyleV.Above);
