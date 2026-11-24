@@ -171,6 +171,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            multiAccount.StartPicker(this, MultiAccountFollowers);
             ClearValidation();
             _lastCalculatedBar = -1;
             if (ShowTradeValidation && ValidationHistoryBars < 1)

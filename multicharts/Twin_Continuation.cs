@@ -855,6 +855,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            multiAccount.StartPicker(this, MultiAccountFollowers);
             lastProcessedBar=-1;
             protectionSetup=null;
             validationReplay=ShowTradeValidation ? new AlphaQuest.Twin.ValidationReplay() : null;

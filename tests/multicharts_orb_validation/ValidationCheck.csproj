@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <LangVersion>5</LangVersion>
+    <DefineConstants>AQ_ROUTING_TEST</DefineConstants>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>

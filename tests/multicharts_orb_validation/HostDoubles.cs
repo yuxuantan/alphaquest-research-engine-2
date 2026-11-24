@@ -128,10 +128,12 @@ namespace PowerLanguage
         public void WriteLine(string format, params object[] args) { Written.Add(string.Format(CultureInfo.InvariantCulture,format,args)); }
     }
     public class CStudyControl {}
+    public enum EApplicationCode { Unknown, Charting, Scanner, Portfolio }
     public enum CalculationReason { Default, Timer, LeftMouseClick, RightMouseClick }
     public sealed class CalculationEnvironment
     {
-        public bool IsAutoTradingMode, IsRealTimeCalc, OrderConfirmationRequired;
+        public bool IsAutoTradingMode, IsRealTimeCalc, OrderConfirmationRequired, Optimizing;
+        public EApplicationCode ApplicationCode;
         public CalculationReason CalcReason;
     }
     public sealed class CalculationControl
@@ -146,6 +148,8 @@ namespace PowerLanguage.Strategy
     {
         protected SignalObject(object ctx) {}
         public string Profile, Account;
+        public string PersistData;
+        internal PowerLanguage.Function.FollowerToolbar FollowerToolbar;
         public PowerLanguage.TradeManager.ITradeManager TradeManager;
         public readonly CalculationEnvironment Environment = new CalculationEnvironment();
         public readonly CalculationControl ExecControl = new CalculationControl();

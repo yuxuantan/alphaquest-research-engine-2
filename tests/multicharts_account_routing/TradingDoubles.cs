@@ -20,7 +20,30 @@ namespace PowerLanguage.Function
     {
         protected FunctionSimple(CStudyControl owner) {}
         protected abstract T CalcBar();
+        protected virtual void StopCalc() {}
         protected virtual void Destroy() {}
+    }
+
+    internal sealed class FollowerToolbar : IDisposable
+    {
+        private readonly Action<int, bool, FollowerRoute[]> request;
+        private readonly PowerLanguage.Strategy.SignalObject owner;
+        private int requestId;
+        public FollowerPickerState Latest;
+        public int InitialCount;
+
+        public FollowerToolbar(PowerLanguage.Strategy.SignalObject owner, int count,
+            Action<int, bool, FollowerRoute[]> request)
+        {
+            this.owner = owner;
+            this.request = request;
+            InitialCount = count;
+            owner.FollowerToolbar = this;
+        }
+
+        public void Submit(bool save, FollowerRoute[] selection) { request(++requestId, save, selection); }
+        public void Receive(FollowerPickerState state) { Latest = state; }
+        public void Dispose() { if (owner.FollowerToolbar == this) owner.FollowerToolbar = null; }
     }
 }
 

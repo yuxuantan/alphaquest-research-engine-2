@@ -85,6 +85,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            multiAccount.StartPicker(this, MultiAccountFollowers);
             while (drawingDeletes.Count > 0) drawingDeletes.Dequeue()();
             if (validationPanel != null) { validationPanel.Delete(); validationPanel = null; }
             if (Bars.Info.Resolution.Type != EResolution.Minute || Bars.Info.Resolution.Size != 15)

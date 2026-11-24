@@ -1,11 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using ATCenterProxy.interop;
 using PowerLanguage.Strategy;
 using PowerLanguage.TradeManager;
 using BrokerOrder = PowerLanguage.TradeManager.Order;
 using BrokerPosition = PowerLanguage.TradeManager.Position;
+#if !AQ_ROUTING_TEST
+using System.Drawing;
+using System.Windows.Forms;
+#endif
 
 namespace PowerLanguage.Function
 {
@@ -15,6 +20,7 @@ namespace PowerLanguage.Function
     {
         private AccountRouter router;
         private SignalObject signal;
+        private FollowerPicker picker;
         private string configuredDestinations, configuredProfile, configuredAccount;
         public bool Active { get; private set; }
 
@@ -22,27 +28,56 @@ namespace PowerLanguage.Function
 
         protected override int CalcBar() { return 0; }
 
+        public void StartPicker(SignalObject owner, string destinations)
+        {
+            StopPicker();
+            if (owner.Environment.ApplicationCode == EApplicationCode.Charting && !owner.Environment.Optimizing)
+                picker = new FollowerPicker(owner, destinations);
+        }
+
+        protected override void StopCalc()
+        {
+            StopPicker();
+            base.StopCalc();
+        }
+
         protected override void Destroy()
         {
+            StopPicker();
             if (router != null) router.Release();
             base.Destroy();
+        }
+
+        private void StopPicker()
+        {
+            if (picker == null) return;
+            picker.Dispose();
+            picker = null;
         }
 
         public bool Service(SignalObject owner, string destinations)
         {
             Active = false;
-            if (string.IsNullOrWhiteSpace(destinations)) return false;
             var reason = owner.Environment.CalcReason;
             if (reason == CalculationReason.LeftMouseClick || reason == CalculationReason.RightMouseClick)
                 return false;
             bool timer = reason == CalculationReason.Timer;
+            if (picker != null) picker.Process(destinations, SaveFollowers);
             if (!owner.Environment.IsAutoTradingMode || (!owner.Environment.IsRealTimeCalc && !timer))
-                return timer;
+                return timer && (picker != null || router != null || !string.IsNullOrWhiteSpace(destinations));
+            string savedDestinations;
+            bool saved = FollowerSelection.TryRead(owner.PersistData, out savedDestinations);
+            if (saved) destinations = savedDestinations;
+            if (string.IsNullOrWhiteSpace(destinations)) return timer && picker != null;
             if (owner.Environment.OrderConfirmationRequired)
                 throw new InvalidOperationException("Clear Require Order Confirmation on the primary chart before enabling multi-account routing.");
 
             if (router == null)
             {
+                if (saved)
+                    FollowerSelection.RequireAvailable(
+                        FollowerRoute.Parse(destinations, owner.Account),
+                        FollowerSelection.ConnectedAccounts(owner.TradeManager, owner.Account));
                 signal = owner;
                 configuredDestinations = destinations;
                 configuredProfile = owner.Profile;
@@ -66,6 +101,25 @@ namespace PowerLanguage.Function
                 reason == CalculationReason.Default && owner.Bars.Status == EBarState.Close);
             Schedule();
             return timer;
+        }
+
+        private void SaveFollowers(SignalObject owner, string destinations)
+        {
+            if (owner.Environment.IsAutoTradingMode)
+                throw new InvalidOperationException("Turn off Auto Trading to change followers.");
+            string previous;
+            if (!string.IsNullOrEmpty(owner.PersistData) &&
+                !FollowerSelection.TryRead(owner.PersistData, out previous))
+                throw new InvalidOperationException("This signal already uses workspace storage for other data.");
+            bool replaceRouter = router != null && (destinations != configuredDestinations ||
+                owner.Profile != configuredProfile || owner.Account != configuredAccount);
+            if (replaceRouter) router.RequireIdleForReconfiguration();
+            owner.PersistData = FollowerSelection.Encode(destinations);
+            if (replaceRouter)
+            {
+                router.Release();
+                router = null;
+            }
         }
 
         public void Enter(int side, int quantity, AccountBracket bracket)
@@ -248,15 +302,30 @@ namespace PowerLanguage.Function
             this.symbolName = symbolName;
             this.tick = tick;
             this.log = log;
-            var accountNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { primaryAccount };
-            foreach (string destination in destinations.Split(';'))
+            foreach (FollowerRoute destination in FollowerRoute.Parse(destinations, primaryAccount))
             {
-                string[] fields = destination.Split('|').Select(field => field.Trim()).ToArray();
-                if ((fields.Length != 2 && fields.Length != 3) || fields.Any(string.IsNullOrEmpty) ||
-                    !accountNames.Add(fields[1]))
-                    throw new ArgumentException("Use unique follower accounts as Profile|Account[|BrokerSymbol] separated by semicolons. Exclude the primary account.");
-                routes.Add(new Route { ProfileName = fields[0], Account = fields[1],
-                    BrokerSymbol = fields.Length == 3 ? fields[2] : symbolName });
+                routes.Add(new Route { ProfileName = destination.Profile, Account = destination.Account,
+                    BrokerSymbol = destination.BrokerSymbol ?? symbolName });
+            }
+        }
+
+        public void RequireIdleForReconfiguration()
+        {
+            manager.ProcessEvents();
+            var orders = manager.TradingData.Orders.Items;
+            var positions = manager.TradingData.Positions.Items;
+            foreach (Route route in routes.Where(route => route.Armed))
+            {
+                var accountOrders = orders.Where(order =>
+                    order.Profile == route.ProfileName && order.Account == route.Account).ToArray();
+                if (!Connected(route) ||
+                    positions.Any(position => position.Profile == route.ProfileName &&
+                        position.Account == route.Account && position.Value != 0) ||
+                    accountOrders.Any(order => !order.IsDead) ||
+                    route.Tickets.Any(ticket => !ticket.Final &&
+                        !accountOrders.Any(order => order.OrderID == ticket.Id && order.IsDead)))
+                    throw new InvalidOperationException("Confirm " + route.ProfileName + "|" + route.Account +
+                        " is connected, flat, and has no working or unconfirmed orders.");
             }
         }
 
@@ -660,4 +729,392 @@ namespace PowerLanguage.Function
             log("MULTI-ACCOUNT HALTED " + route.ProfileName + "|" + route.Account + " | " + reason);
         }
     }
+
+    internal sealed class FollowerRoute
+    {
+        public readonly string Profile, Account, BrokerSymbol;
+
+        public FollowerRoute(string profile, string account, string brokerSymbol = null)
+        {
+            Profile = profile;
+            Account = account;
+            BrokerSymbol = brokerSymbol;
+        }
+
+        public string Key { get { return Profile + "|" + Account; } }
+
+        public override string ToString()
+        {
+            return BrokerSymbol == null ? Key : Key + "|" + BrokerSymbol;
+        }
+
+        public static FollowerRoute[] Parse(string destinations, string primaryAccount)
+        {
+            if (string.IsNullOrWhiteSpace(destinations)) return new FollowerRoute[0];
+            var accounts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { primaryAccount };
+            var routes = new List<FollowerRoute>();
+            foreach (string destination in destinations.Split(';'))
+            {
+                string[] fields = destination.Split('|').Select(field => field.Trim()).ToArray();
+                if ((fields.Length != 2 && fields.Length != 3) || fields.Any(string.IsNullOrEmpty) ||
+                    !accounts.Add(fields[1]))
+                    throw new ArgumentException("Use unique follower accounts as Profile|Account[|BrokerSymbol] separated by semicolons. Exclude the primary account.");
+                routes.Add(new FollowerRoute(fields[0], fields[1], fields.Length == 3 ? fields[2] : null));
+            }
+            return routes.ToArray();
+        }
+    }
+
+    internal static class FollowerSelection
+    {
+        private const string Prefix = "AlphaQuest.Followers.v1\n";
+
+        public static string Encode(string destinations) { return Prefix + destinations; }
+
+        public static bool TryRead(string data, out string destinations)
+        {
+            bool saved = data != null && data.StartsWith(Prefix, StringComparison.Ordinal);
+            destinations = saved ? data.Substring(Prefix.Length) : null;
+            return saved;
+        }
+
+        public static FollowerRoute[] ConnectedAccounts(ITradeManager manager, string primaryAccount)
+        {
+            return manager.TradingProfiles
+                .Where(profile => profile.ConnectionState == ETM_ConnectionChanged.eTM_CC_Connected &&
+                    Representable(profile.Name))
+                .SelectMany(profile => (profile.Accounts ?? new string[0])
+                    .Where(account => Representable(account) &&
+                        !string.Equals(account, primaryAccount, StringComparison.OrdinalIgnoreCase))
+                    .Select(account => new FollowerRoute(profile.Name, account)))
+                .GroupBy(route => route.Key, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .OrderBy(route => route.Profile, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(route => route.Account, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        private static bool Representable(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.Trim() == value &&
+                value.IndexOfAny(new[] { ';', '|', '\r', '\n' }) < 0;
+        }
+
+        public static string[] Missing(FollowerRoute[] selected, FollowerRoute[] available)
+        {
+            return selected.Select(route => route.Key).Except(available.Select(route => route.Key), StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        public static void RequireAvailable(FollowerRoute[] selected, FollowerRoute[] available)
+        {
+            string[] missing = Missing(selected, available);
+            if (missing.Length != 0)
+                throw new InvalidOperationException("Followers unavailable: " + string.Join(", ", missing) +
+                    ". Reconnect or update Follower Accounts.");
+        }
+    }
+
+    internal sealed class FollowerPickerState
+    {
+        public int RequestId;
+        public string PrimaryProfile, PrimaryAccount, Message;
+        public FollowerRoute[] Saved, Draft, Available;
+        public bool Editable, Applied;
+    }
+
+    // UI requests are posted to the chart's calculation thread. Broker reads,
+    // validation and workspace writes all happen there.
+    internal sealed class FollowerPicker : IDisposable
+    {
+        private sealed class Request
+        {
+            public int Id;
+            public bool Save;
+            public FollowerRoute[] Selection;
+        }
+
+        private readonly SignalObject owner;
+        private readonly FollowerToolbar toolbar;
+        private readonly Action<TimeSpan> schedule;
+        private Request pending;
+        private volatile bool disposed;
+
+        public FollowerPicker(SignalObject owner, string fallback)
+        {
+            this.owner = owner;
+            schedule = owner.ExecControl.RecalcLastBarAfter;
+            string saved;
+            if (!FollowerSelection.TryRead(owner.PersistData, out saved)) saved = fallback;
+            int count;
+            try { count = FollowerRoute.Parse(saved, owner.Account).Length; }
+            catch (ArgumentException) { count = 0; }
+            toolbar = new FollowerToolbar(owner, count, Enqueue);
+        }
+
+        private void Enqueue(int id, bool save, FollowerRoute[] selection)
+        {
+            if (disposed) return;
+            Interlocked.Exchange(ref pending, new Request { Id = id, Save = save, Selection = selection });
+            try { schedule(TimeSpan.FromMilliseconds(100)); }
+            catch
+            {
+                Interlocked.Exchange(ref pending, null);
+                throw;
+            }
+        }
+
+        public void Process(string fallback, Action<SignalObject, string> save)
+        {
+            Request request = Interlocked.Exchange(ref pending, null);
+            if (disposed || request == null) return;
+            var state = new FollowerPickerState
+            {
+                RequestId = request.Id,
+                Saved = new FollowerRoute[0],
+                Available = new FollowerRoute[0],
+                Draft = request.Selection
+            };
+            try
+            {
+                state.PrimaryProfile = owner.Profile;
+                state.PrimaryAccount = owner.Account;
+                state.Editable = !owner.Environment.IsAutoTradingMode &&
+                    !string.IsNullOrWhiteSpace(state.PrimaryProfile) &&
+                    !string.IsNullOrWhiteSpace(state.PrimaryAccount);
+                string saved;
+                if (!FollowerSelection.TryRead(owner.PersistData, out saved)) saved = fallback;
+                // A previously configured account may now be the primary. Keep
+                // the row visible so it can be removed from the saved selection.
+                try { state.Saved = FollowerRoute.Parse(saved, null); }
+                catch (ArgumentException ex) { state.Message = ex.Message; }
+                if (state.Draft == null) state.Draft = state.Saved;
+                owner.TradeManager.ProcessEvents();
+                state.Available = FollowerSelection.ConnectedAccounts(owner.TradeManager, state.PrimaryAccount);
+                if (request.Save)
+                {
+                    if (!state.Editable)
+                        throw new InvalidOperationException(owner.Environment.IsAutoTradingMode
+                            ? "Turn off Auto Trading to change followers."
+                            : "Select the primary account in Strategy Properties → Auto Trading.");
+                    string destinations = string.Join(";", state.Draft.Select(route => route.ToString()));
+                    FollowerRoute[] selected = FollowerRoute.Parse(destinations, state.PrimaryAccount);
+                    FollowerSelection.RequireAvailable(selected, state.Available);
+                    save(owner, destinations);
+                    state.Saved = selected;
+                    state.Applied = true;
+                    state.Message = null;
+                }
+                else if (owner.Environment.IsAutoTradingMode)
+                    state.Message = "Turn off Auto Trading to change followers.";
+                else if (!state.Editable)
+                    state.Message = "Select the primary account in Strategy Properties → Auto Trading.";
+            }
+            catch (Exception ex)
+            {
+                state.Message = ex.Message;
+                if (!request.Save) state.Editable = false;
+            }
+            if (state.Draft == null) state.Draft = state.Saved;
+            toolbar.Receive(state);
+        }
+
+        public void Dispose()
+        {
+            disposed = true;
+            Interlocked.Exchange(ref pending, null);
+            toolbar.Dispose();
+        }
+    }
+
+#if !AQ_ROUTING_TEST
+    internal sealed class FollowerToolbar : IDisposable
+    {
+        private readonly ICustomToolBar host;
+        private readonly Action<int, bool, FollowerRoute[]> request;
+        private ToolStripDropDownButton button;
+        private ToolStripDropDown popup;
+        private ListView accounts;
+        private Label primary, status;
+        private Button refresh, cancel, save;
+        private FollowerPickerState state;
+        private int requestId;
+        private bool updating, loading, saving;
+        private volatile bool disposed;
+
+        public FollowerToolbar(SignalObject owner, int count, Action<int, bool, FollowerRoute[]> request)
+        {
+            this.request = request;
+            host = owner.ChartToolBar;
+            if (host == null) return;
+            host.AccessToolBarAsync(toolBar =>
+            {
+                if (disposed) return;
+                button = new ToolStripDropDownButton(Caption(count))
+                {
+                    ToolTipText = "Choose follower accounts for " + owner.GetType().Name
+                };
+                popup = new ToolStripDropDown();
+                Control panel = BuildPanel();
+                popup.Items.Add(new ToolStripControlHost(panel) { AutoSize = false, Size = panel.Size,
+                    Margin = Padding.Empty, Padding = Padding.Empty });
+                button.DropDown = popup;
+                button.DropDownOpening += delegate
+                {
+                    state = null;
+                    accounts.Items.Clear();
+                    primary.Text = "Loading connected accounts…";
+                    Request(false, null);
+                };
+                popup.Closing += (sender, args) =>
+                {
+                    if (args.CloseReason == ToolStripDropDownCloseReason.ItemClicked ||
+                        (saving && args.CloseReason != ToolStripDropDownCloseReason.CloseCalled))
+                        args.Cancel = true;
+                };
+                toolBar.Items.Add(button);
+                host.Visible = true;
+            });
+        }
+
+        private Control BuildPanel()
+        {
+            var panel = new TableLayoutPanel { Width = 435, Height = 354, Padding = new Padding(10),
+                RowCount = 4, ColumnCount = 1, AutoSize = false };
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            primary = new Label { AutoSize = true, Margin = new Padding(3, 3, 3, 8) };
+            accounts = new ListView { View = View.Details, CheckBoxes = true, FullRowSelect = true, Dock = DockStyle.Fill,
+                HideSelection = false, HeaderStyle = ColumnHeaderStyle.Nonclickable, AccessibleName = "Follower accounts" };
+            accounts.Columns.Add("Account", 225);
+            accounts.Columns.Add("Availability", 145);
+            accounts.ItemChecked += delegate { if (!updating) ShowSelection(); };
+            status = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+            refresh = new Button { Text = "Refresh", AutoSize = true };
+            cancel = new Button { Text = "Cancel", AutoSize = true };
+            save = new Button { AutoSize = true };
+            refresh.Click += delegate { Request(false, state == null ? null : Selected()); };
+            cancel.Click += delegate { popup.Close(); };
+            save.Click += delegate { Request(true, Selected()); };
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            actions.Controls.Add(save);
+            actions.Controls.Add(cancel);
+            actions.Controls.Add(refresh);
+            panel.Controls.Add(primary, 0, 0);
+            panel.Controls.Add(accounts, 0, 1);
+            panel.Controls.Add(status, 0, 2);
+            panel.Controls.Add(actions, 0, 3);
+            return panel;
+        }
+
+        private static string Caption(int count)
+        {
+            return count == 0 ? "Follower Accounts" : "Follower Accounts (" + count + ")";
+        }
+
+        private FollowerRoute[] Selected()
+        {
+            return accounts.CheckedItems.Cast<ListViewItem>().Select(item => (FollowerRoute)item.Tag).ToArray();
+        }
+
+        private void Request(bool persist, FollowerRoute[] selection)
+        {
+            loading = true;
+            saving = persist;
+            status.Text = persist ? "Checking and saving followers…" : "Checking broker profiles…";
+            accounts.Enabled = refresh.Enabled = save.Enabled = false;
+            cancel.Enabled = !persist;
+            try { request(++requestId, persist, selection); }
+            catch (Exception ex)
+            {
+                loading = saving = false;
+                ShowSelection();
+                status.Text = ex.Message;
+            }
+        }
+
+        public void Receive(FollowerPickerState result)
+        {
+            if (host == null || disposed) return;
+            host.AccessToolBarAsync(toolBar =>
+            {
+                if (disposed || button == null || result.RequestId != requestId) return;
+                loading = saving = false;
+                button.Text = Caption(result.Saved.Length);
+                if (!popup.Visible) return;
+                if (result.Applied)
+                {
+                    popup.Close();
+                    return;
+                }
+                state = result;
+                primary.Text = string.IsNullOrEmpty(result.PrimaryAccount)
+                    ? "Primary account: select in Strategy Properties"
+                    : "Primary: " + result.PrimaryAccount + " · " + result.PrimaryProfile;
+
+                updating = true;
+                accounts.BeginUpdate();
+                accounts.Items.Clear();
+                accounts.Groups.Clear();
+                var chosen = result.Draft.ToDictionary(route => route.Key, StringComparer.Ordinal);
+                var available = new HashSet<string>(result.Available.Select(route => route.Key), StringComparer.Ordinal);
+                var rows = result.Available.Where(route => !chosen.ContainsKey(route.Key)).Concat(result.Draft)
+                    .OrderBy(route => route.Account, StringComparer.OrdinalIgnoreCase);
+                foreach (var group in rows.GroupBy(route => route.Profile).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    var header = new ListViewGroup(group.Key);
+                    accounts.Groups.Add(header);
+                    foreach (FollowerRoute route in group)
+                    {
+                        var row = new ListViewItem(route.Account, header) { Tag = route };
+                        row.SubItems.Add(available.Contains(route.Key) ? "Connected" : "Unavailable");
+                        accounts.Items.Add(row);
+                        row.Checked = chosen.ContainsKey(route.Key);
+                    }
+                }
+                accounts.EndUpdate();
+                updating = false;
+                ShowSelection();
+            });
+        }
+
+        private void ShowSelection()
+        {
+            if (loading) return;
+            FollowerRoute[] selected = Selected();
+            save.Text = selected.Length == 0 ? "Save without followers" :
+                "Save " + selected.Length + (selected.Length == 1 ? " follower" : " followers");
+            bool missing = state != null && FollowerSelection.Missing(selected, state.Available).Length != 0;
+            bool duplicate = selected.Select(route => route.Account)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != selected.Length;
+            accounts.Enabled = state != null && state.Editable;
+            refresh.Enabled = cancel.Enabled = true;
+            save.Enabled = accounts.Enabled && !missing && !duplicate;
+            status.Text = state != null && state.Message != null ? state.Message :
+                missing ? "Reconnect or uncheck the unavailable accounts." :
+                duplicate ? "Choose one profile for each account ID." :
+                selected.Length + " selected · " + (selected.Length + 1) + " accounts including the primary";
+        }
+
+        public void Dispose()
+        {
+            disposed = true;
+            if (host == null) return;
+            try
+            {
+                host.AccessToolBarAsync(toolBar =>
+                {
+                    if (button == null) return;
+                    toolBar.Items.Remove(button);
+                    popup.Dispose();
+                    button.Dispose();
+                    if (toolBar.Items.Count == 0) host.Visible = false;
+                });
+            }
+            catch (ObjectDisposedException) { }
+        }
+    }
+#endif
 }

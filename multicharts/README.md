@@ -2,12 +2,11 @@
 
 ## One chart with multiple broker accounts
 
-All five signals support the optional `MultiAccountFollowers` input. The
-account in **Strategy Properties → Auto Trading** runs the original managed
-strategy and supplies its position, trade-count and loss-count inputs. The
-signal submits the same entry decisions directly to the listed followers via
-MultiCharts .NET `TradeManager`. Each follower has its own fill and order
-tracking. Leave the input blank for the original single-account path.
+All five signals expose a **Follower Accounts** dropdown on the chart. Select
+any number of accounts from the connected broker profiles. The account in
+**Strategy Properties → Auto Trading** drives the strategy decisions. Each
+follower has its own order and fill tracking through MultiCharts .NET
+`TradeManager`.
 
 1. In PowerLanguage .NET Editor, create a C# **Function** named
    `AQMultiAccountRouting`, replace its source with
@@ -20,15 +19,19 @@ tracking. Leave the input blank for the original single-account path.
    tradable dated futures contract. Select `SIM-A` in the chart's Auto Trading
    properties. Clear **Require Order Confirmation** for the paper run.
    [Paper Trader setup](https://www.multicharts.com/trading-software/index.php?title=Paper_Trader)
-3. Set `MultiAccountFollowers` to
-   `Paper Trader Test|SIM-B;Paper Trader Test|SIM-C`. Add one
-   `profile|account` pair per follower, including a different profile name for
-   a separate login. Use exact names and exclude the primary account. When the
-   broker reports a different symbol name in its position snapshot, an
-   optional third field identifies it, such as
-   `Other Profile|SIM-C|MNQZ6`. Configure the actual order mapping in
-   MultiCharts' **Symbol Mapping** for that broker.
-4. Enable Auto Trading and use **Output** and **Order and Position Tracker**.
+3. With Auto Trading off, open **Follower Accounts** on the chart. The primary
+   appears above the scrollable checklist. Check `SIM-B` and `SIM-C` and
+   verify that the count shows **2 selected · 3 accounts including the
+   primary**. Select **Save 2 followers**. Reopen the dropdown and confirm both
+   accounts are checked. Save the MultiCharts workspace to keep this
+   selection on this signal after reopening it.
+4. For an availability check, disconnect the paper profile or remove a paper
+   follower from the profile, then click **Refresh**. A selected account that
+   is missing appears as **Unavailable**. Reconnect it or uncheck it before
+   saving. **Cancel** discards the edits. **Save without followers** selects
+   single-account mode.
+5. Reconnect the paper profile, restore the two followers, and enable Auto
+   Trading. Use **Output** and **Order and Position Tracker**.
    Start both the primary and followers flat with no working orders. Expect an
    armed message per follower and one order of the signal's quantity per
    account on a qualifying entry. For Twin breakout, expect the eligible stop
@@ -37,6 +40,14 @@ tracking. Leave the input blank for the original single-account path.
    bracket exit, a timed flatten and, for Noise, a reversal. On reversal,
    each follower clears its working orders, closes its own position and waits
    for confirmed flat before entering in the opposite direction.
+
+Before the first picker save on a signal, `MultiAccountFollowers` still accepts
+the prior `profile|account` format separated by semicolons, for example
+`Paper Trader Test|SIM-B;Paper Trader Test|SIM-C`. A saved picker selection
+takes precedence over the text on that signal, including an explicitly
+empty selection. The picker carries forward an existing optional broker
+symbol suffix such as `Other Profile|SIM-C|MNQZ6`. Configure order mapping in
+MultiCharts' **Symbol Mapping** for that broker.
 
 Use each follower account exclusively for the running signal while this mode
 is enabled. The router halts one follower on unexpected outside orders,
@@ -70,7 +81,10 @@ The isolated router checks run with the .NET 9 SDK using
 `dotnet run --project tests/multicharts_account_routing/RoutingCheck.csproj`.
 They exercise multiple profiles and accounts, partial fills, OCO order
 requests, cancel acknowledgements, rejection isolation and callbacks using
-test doubles.
+test doubles. Picker cases cover a dynamic inventory, unavailable accounts,
+workspace reload and attempts to change a route with Auto Trading on or with
+outstanding orders. Confirm the toolbar, workspace reopen and paper fills in
+the MultiCharts host using the steps above.
 
 ## Signal setup
 

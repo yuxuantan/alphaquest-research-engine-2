@@ -33,6 +33,8 @@ internal static class Program
         FlattenAndReverse();
         RejectionsAndIsolation();
         ConfigurationAndCallbacks();
+        PickerWorkspaceSelection();
+        PickerReconfiguration();
         Console.WriteLine("MultiCharts routing checks passed: " + checks);
     }
 
@@ -240,13 +242,118 @@ internal static class Program
         public int Decisions;
         public Study() : base(null) {}
         protected override void Create() { routing = new AQMultiAccountRouting(this); }
-        protected override void StartCalc() {}
+        protected override void StartCalc() { routing.StartPicker(this, Routes); }
         protected override void CalcBar()
         {
             if (routing.Service(this,Routes)) return;
             ++Decisions;
             if (EmitEntry) routing.Enter(1,1,NoBracket);
         }
+    }
+
+    private static Study PickerStudy(TestBroker broker, string routes, string saved = null)
+    {
+        var study = new Study {
+            Routes=routes, PersistData=saved, Profile="Paper", Account="Primary",
+            TradeManager=broker, EmitEntry=true
+        };
+        study.Bars.Info.Name = "MNQ";
+        study.Environment.ApplicationCode = EApplicationCode.Charting;
+        study.Initialize();
+        return study;
+    }
+
+    private static FollowerPickerState Pick(Study study, bool save, FollowerRoute[] selection = null)
+    {
+        study.FollowerToolbar.Submit(save, selection);
+        int decisions = study.Decisions;
+        study.Environment.CalcReason = CalculationReason.Timer;
+        study.Calculate();
+        study.Environment.CalcReason = CalculationReason.Default;
+        Check(study.Decisions == decisions, "A picker timer cannot trigger a new strategy decision");
+        return study.FollowerToolbar.Latest;
+    }
+
+    private static void PickerWorkspaceSelection()
+    {
+        var broker = new TestBroker();
+        broker.AddProfile("Paper", "Primary", "PickerA", "PickerB", "PickerC");
+        broker.AddProfile("Other", Enumerable.Range(0,20).Select(n => "Other" + n).ToArray());
+        var disconnected = broker.AddProfile("Offline", "PickerMissing");
+        disconnected.ConnectionState = ETM_ConnectionChanged.eTM_CC_Disconnected;
+        var study = PickerStudy(broker,"Paper|PickerA|BrokerMNQ;Offline|PickerMissing");
+        Check(study.FollowerToolbar.InitialCount == 2, "Legacy followers initialize the picker");
+        var state = Pick(study,false);
+        Check(state.PrimaryAccount == "Primary" && state.Available.Length == 23 &&
+            state.Available.All(route => route.Account != "Primary"), "The current inventory excludes the primary");
+        Check(state.Draft.Any(route => route.Key == "Offline|PickerMissing") &&
+            FollowerSelection.Missing(state.Draft,state.Available).SequenceEqual(new[] { "Offline|PickerMissing" }),
+            "A disconnected saved follower remains visible and is flagged");
+        Check(!Pick(study,true,state.Draft).Applied && string.IsNullOrEmpty(study.PersistData),
+            "An unavailable account cannot be silently saved or removed");
+
+        var draft = state.Draft.Where(route => route.Profile != "Offline")
+            .Concat(state.Available.Where(route => route.Profile == "Other")).ToArray();
+        Check(Pick(study,false,draft).Draft.Length == 21 && string.IsNullOrEmpty(study.PersistData),
+            "Refreshing keeps pending choices without persisting them");
+        Check(Pick(study,false).Draft.Length == 2, "Reopening after Cancel loads the original selection");
+        state = Pick(study,true,draft);
+        string destinations;
+        Check(state.Applied && FollowerSelection.TryRead(study.PersistData,out destinations) &&
+            destinations.Contains("Paper|PickerA|BrokerMNQ"), "Saving preserves an existing broker-symbol override");
+        Check(broker.Placed.Count == 0 && state.Saved.Length == 21, "A variable number of selected accounts saves without orders");
+
+        var restored = PickerStudy(broker,"Paper|PickerC",study.PersistData);
+        Check(restored.FollowerToolbar.InitialCount == 21 && Pick(restored,false).Saved.Length == 21,
+            "A recreated signal restores its workspace selection");
+        Check(Pick(restored,true,new FollowerRoute[0]).Applied, "The picker supports saving without followers");
+        restored.Environment.IsAutoTradingMode = restored.Environment.IsRealTimeCalc = true;
+        restored.Calculate();
+        Check(broker.Placed.Count == 0, "An explicitly empty workspace selection overrides legacy text");
+        int decisions = restored.Decisions;
+        restored.Environment.CalcReason = CalculationReason.Timer;
+        restored.Calculate();
+        Check(restored.Decisions == decisions, "A late picker timer with no pending request remains broker-only");
+
+        var stale = PickerStudy(broker,"", FollowerSelection.Encode("Paper|PickerB;Offline|PickerMissing"));
+        stale.Environment.IsAutoTradingMode = stale.Environment.IsRealTimeCalc = true;
+        bool rejected = false;
+        try { stale.Calculate(); }
+        catch (InvalidOperationException ex) { rejected = ex.Message.Contains("Offline|PickerMissing"); }
+        Check(rejected && broker.Placed.Count == 0,
+            "A saved selection that went offline blocks follower startup instead of silently starting a subset");
+    }
+
+    private static void PickerReconfiguration()
+    {
+        var broker = new TestBroker();
+        broker.AddProfile("Paper", "Primary", "ChangeA", "ChangeB");
+        var study = PickerStudy(broker,"",FollowerSelection.Encode("Paper|ChangeA"));
+        var state = Pick(study,false);
+        var next = state.Available.Where(route => route.Account == "ChangeB").ToArray();
+
+        study.FollowerToolbar.Submit(true,next);
+        study.Environment.IsAutoTradingMode = true;
+        study.Environment.CalcReason = CalculationReason.Timer;
+        study.Calculate();
+        Check(!study.FollowerToolbar.Latest.Applied && study.PersistData.EndsWith("Paper|ChangeA"),
+            "Saving is blocked if Auto Trading is switched on before the request reaches the calculation thread");
+        study.Environment.IsRealTimeCalc = true;
+        study.Environment.CalcReason = CalculationReason.Default;
+        study.Calculate();
+        Check(broker.Placed.Count == 1 && broker.Placed[0].Snapshot.Account == "ChangeA",
+            "Trading uses the last saved follower");
+        study.Environment.IsAutoTradingMode = false;
+        Check(!Pick(study,true,next).Applied && study.PersistData.EndsWith("Paper|ChangeA") &&
+            study.FollowerToolbar.Latest.Message.Contains("unconfirmed orders"),
+            "Replacing followers waits while an old route still has working orders");
+        broker.Placed[0].Snapshot.State = ETM_OrderState.eTM_OS_Cancelled;
+        Check(Pick(study,true,next).Applied && study.PersistData.EndsWith("Paper|ChangeB") &&
+            broker.Placed.Count == 1, "Clearing the old route permits editing without a new order");
+        study.Environment.IsAutoTradingMode = true;
+        study.Calculate();
+        Check(broker.Placed.Count == 2 && broker.Placed[1].Snapshot.Account == "ChangeB",
+            "The next real-time decision uses the new saved follower");
     }
 
     private static void ConfigurationAndCallbacks()

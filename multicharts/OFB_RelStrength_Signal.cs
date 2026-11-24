@@ -105,6 +105,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            multiAccount.StartPicker(this, MultiAccountFollowers);
             while (drawings.Count > 0) drawings.Dequeue()();
             lastBar = rangeIndex = rangeCount = previousSide = entriesToday = samples = barsSinceAnchor = 0;
             alignmentLogs = 0;

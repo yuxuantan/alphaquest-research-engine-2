@@ -91,6 +91,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            multiAccount.StartPicker(this, MultiAccountFollowers);
             while (validationEventDeletes.Count > 0) validationEventDeletes.Dequeue()();
             if (validationPanel != null) { validationPanel.Delete(); validationPanel = null; }
             observedPosition = 0;
