@@ -1,0 +1,192 @@
+{
+  "synthetic": true,
+  "profile": "apex-50k-eod",
+  "source": {
+    "selection": {
+      "workflow_id": "dadc3d6e-3e4a-4c11-a678-384de7008442",
+      "oos_job_id": "27f875c1-b12a-4450-b9fc-0c204aaed61a",
+      "monte_carlo_id": "6fb7b492-e113-4f81-a291-52e0c982f200",
+      "candidate": 1
+    },
+    "source_backtest_id": "89c5f5d5c2204898a4d38a48e3d06392",
+    "strategy_id": "consecutive_green_hold",
+    "dataset": {
+      "id": "d26b58afff0f48748e148763825ed412",
+      "name": "SYNTHETIC frozen OOS",
+      "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+      "bytes": 909491,
+      "row_count": 18816,
+      "source_timezone": "UTC",
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      },
+      "symbol": "NQ",
+      "start": "2024-01-01T09:00:00Z",
+      "end": "2026-12-31T14:24:00Z"
+    },
+    "parameters": {
+      "green_bar_count": 3,
+      "hold_minutes": 16,
+      "contracts": 1
+    },
+    "plan": {
+      "strategy_id": "consecutive_green_hold",
+      "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+      "source_timezone": "UTC",
+      "is_start": "2024-01-01",
+      "is_end": "2025-12-31",
+      "oos_start": "2026-01-01",
+      "oos_end": "2026-12-31",
+      "is_bars": 12552,
+      "oos_bars": 6264,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "broad_trial": 1,
+    "narrow_trial": 2,
+    "oos_report_id": "e48a432e919c494a81be90367d721cd5",
+    "monte_carlo_report_sha256": "d299b49254ba700a350e58464cd1a83323917e09f3fcbdf1ec0fb130a143cb4a",
+    "frozen_identity": "e1e8d4d50fd9d9ab6707903ec8b521b110a8f5d78ac9fa85d81cd227a11782f4",
+    "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed"
+  },
+  "initial_clicks": [
+    "Run IS and OOS"
+  ],
+  "required_followup_actions": 0,
+  "source_checked_inside_run": true,
+  "navigated_away_during_work": true,
+  "automatic_candidate_micros": [
+    9
+  ],
+  "reports": {
+    "evaluation": {
+      "analysis_id": "355bb8789de4442c87552caa032f2f1e",
+      "selection": {
+        "phase": "evaluation",
+        "selection_identity": {
+          "policy": {
+            "version": "prop-sim-auto-selection-v1",
+            "evaluation_maximum": 3,
+            "evaluation_fast_time_multiplier": 1.25,
+            "funded_maximum": 2,
+            "funded_receipts_retention": 0.95,
+            "tie_break": "smaller_micros_then_candidate_id",
+            "data_role": "IS_only",
+            "unresolved": "exclude_without_blocking_resolved_candidates",
+            "duplicates": "collapse_within_phase"
+          },
+          "source_sha256": "79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70"
+        },
+        "status": "selected",
+        "candidates": [
+          {
+            "candidate_id": "2321d6e74d695985733e3c4cbffb88e1ad1b6331b483dfe6f92577107d2a0e6e",
+            "micros": 9,
+            "roles": [
+              "Lowest acquisition cost",
+              "Fastest funding",
+              "Lowest cost within 25% of fastest"
+            ],
+            "is_metrics": {
+              "cost_per_funded": 178.0,
+              "expected_calendar_days_to_funded": 2.0
+            }
+          }
+        ],
+        "excluded_count": 0,
+        "interpretation": "Automatic IS-only selection of resolved eligible point estimates; no OOS tuning or certified superiority. Lower exposure does not guarantee lower breach probability.",
+        "selection_sha256": "97c772f0bf10cd0a61d6703b1ad7db100ad58084c602b2dad7213a3dafcc2b8a",
+        "is_analysis_id": "31fbbbc92f14403389c97166d23b8dee",
+        "is_report_sha256": "122568bdad62336f60b63384206b9f5d8ecb01dc8f4043e6fc34b1a148a3384c"
+      },
+      "metrics": {
+        "cost_per_funded": 178.0,
+        "expected_attempts_per_funded": 1.0,
+        "expected_calendar_days_to_funded": 2.0,
+        "funded_accounts_per_30_calendar_days": 15.0,
+        "median_calendar_days_to_funded": 2,
+        "p90_calendar_days_to_funded": 2,
+        "pass_probability": 1.0,
+        "pass_probability_bounds": [
+          1.0,
+          1.0
+        ],
+        "pass_probability_ci": [
+          0.6755843804891231,
+          1.0
+        ],
+        "probability_funded_by_day_30": 1.0,
+        "probability_funded_by_day_30_bounds": [
+          1.0,
+          1.0
+        ],
+        "probability_funded_by_day_60": 1.0,
+        "probability_funded_by_day_60_bounds": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    "funded": {
+      "analysis_id": "2137d601a5ff40a6947f9319f60d5cf5",
+      "selection": {
+        "phase": "funded",
+        "selection_identity": {
+          "policy": {
+            "version": "prop-sim-auto-selection-v1",
+            "evaluation_maximum": 3,
+            "evaluation_fast_time_multiplier": 1.25,
+            "funded_maximum": 2,
+            "funded_receipts_retention": 0.95,
+            "tie_break": "smaller_micros_then_candidate_id",
+            "data_role": "IS_only",
+            "unresolved": "exclude_without_blocking_resolved_candidates",
+            "duplicates": "collapse_within_phase"
+          },
+          "source_sha256": "79ba16c2b9d23c7a547bfb2f4b1a9334c43ea56ded61063d5269fc42a9ceab70"
+        },
+        "status": "selected",
+        "candidates": [
+          {
+            "candidate_id": "64607f9ad0caf062e536f5b5a3d9c77c118d80c47142af2a0fcf71f2ac87ebea",
+            "micros": 9,
+            "roles": [
+              "Highest mean trader receipts",
+              "Smallest size retaining 95% of peak receipts"
+            ],
+            "is_metrics": {
+              "expected_funded_cash_payouts_within_horizon": 13000.0
+            }
+          }
+        ],
+        "excluded_count": 0,
+        "interpretation": "Automatic IS-only selection of resolved eligible point estimates; no OOS tuning or certified superiority. Lower exposure does not guarantee lower breach probability.",
+        "selection_sha256": "d3bd49a6b12c5a7e2a6579d20ec52eb57dd465f25e4d7e8f6e8df17b935025f3",
+        "is_analysis_id": "9b009f7d34ce4534995ad8d5da523665",
+        "is_report_sha256": "b1246a18e840a50eb19e2a1fd51188140ddd6f35a1a9bca209daaed6b90cd8d2"
+      },
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": 39.0,
+        "expected_days_to_first_payout_conditional_on_payout": 6.0,
+        "expected_funded_cash_payouts_within_horizon": 13000.0,
+        "expected_gross_account_deductions": 13000.0,
+        "expected_number_of_payouts": 6.0,
+        "expected_payouts": 13000.0,
+        "expected_pending_cash": 0.0,
+        "median_payouts": 13000.0,
+        "p10_payouts": 13000.0,
+        "p90_payouts": 13000.0,
+        "probability_first_payout": 1.0,
+        "probability_inactivity": 0.0,
+        "probability_payout_limit_completion": 1.0,
+        "probability_surviving_to_horizon": 0.0,
+        "probability_zero_payout": 0.0,
+        "restricted_mean_account_lifetime_calendar_days": 39.0
+      }
+    }
+  },
+  "interpretation": "Local arithmetic/integration demonstration only; no real paper execution, live readiness or future performance claim.",
+  "server": "Temporary server stopped by fixture teardown."
+}

@@ -140,11 +140,15 @@ def read_bars(store: DatasetStore, dataset_id: str) -> Iterator[Iterator[Bar]]:
             digest.update(chunk)
             size += len(chunk)
         # iter_csv has fully exited its database context before any bar is yielded.
-        if size != metadata.get("bytes") or digest.hexdigest() != metadata.get("sha256"):
+        if size != metadata.get("bytes") or digest.hexdigest() != metadata.get("csv_sha256", metadata.get("sha256")):
             raise DatasetReadError("Saved CSV bytes do not match the dataset metadata; the dataset may be unavailable or incomplete.")
         snapshot.seek(0)
         with io.TextIOWrapper(snapshot, encoding="utf-8-sig", newline="") as text:
             bars = _iter_bars(text, zone, metadata.get("row_count"))
+            if metadata.get("tick_data"):
+                from .tick_data import attach,check_sources
+                check_sources(metadata)  # also verify before a prepared-cache hit can return
+                bars = attach(bars, metadata)
             try:
                 yield bars
             finally:
@@ -200,6 +204,9 @@ def read_selected_bars(store: DatasetStore, dataset_id: str, date_range: DateRan
             selection["row_count"] = count
             snapshot.seek(0)
             bars = _iter_bars(snapshot, zone, count)
+            if dataset.get('tick_data'):
+                from .tick_data import attach
+                bars=attach(bars,dataset)
             try:
                 yield SelectedBars(bars, selection)
             finally:

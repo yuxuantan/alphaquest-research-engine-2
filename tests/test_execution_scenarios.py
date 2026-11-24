@@ -96,7 +96,7 @@ def test_reason_label_cannot_turn_an_ordinary_market_exit_into_a_stop():
     ('100', '105', '104', False),       # A touch does not meet penetration.
     ('105.25', '105.25', '101', False), # Favorable gap still below the fill hurdle.
     ('100', '105.50', '104', True),
-    ('105.25', '106', '104', True),     # Later intrabar penetration; fill at limit.
+    ('105.25', '106', '104', True),     # Later intrabar penetration; MC fills at eligible price.
 ])
 def test_limit_penetration_never_invents_a_touch_or_insufficient_gap_fill(short, opening, extreme, closed, filled):
     last = prices(3, opening, extreme, '96', closed)
@@ -109,9 +109,9 @@ def test_limit_penetration_never_invents_a_touch_or_insufficient_gap_fill(short,
     actual = trade(events)
     assert actual.exit_reason == ('take_profit' if filled else 'end_of_data')
     assert (strategy.observed[-1][1] is None) == filled
-    assert actual.exit_fill_price == (target if filled else last.close)
+    assert actual.exit_fill_price == ((target-D('.5') if short else target+D('.5')) if filled else last.close)
     if filled:
-        assert actual.net_pnl == 50
+        assert actual.net_pnl == 55
         assert risk(events).mfe_lower == D('55')  # Reached .5 beyond target before its limit fill.
 
 
@@ -130,11 +130,11 @@ def test_limit_opening_improvement_is_explicit_and_market_slippage_never_worsens
     assert risk(events).exit_phase == 'open'
 
 
-def test_stop_wins_when_gap_did_not_meet_limit_penetration_and_both_levels_touch_later():
+def test_near_high_wins_when_open_did_not_meet_limit_penetration():
     events, _ = replay([bar(1), bar(2), prices(3, '105.25', '106', '94', '100')],
         {1: EntryIntent(1, 'entry', timing='next_open'), 2: BracketIntent(D(95), D(105))},
         scenario(limit_penetration_ticks=2))
-    assert trade(events).exit_reason == 'stop_loss' and trade(events).exit_fill_price == D('94.75')
+    assert trade(events).exit_reason == 'take_profit' and trade(events).exit_fill_price == D('105.50')
 
 
 def test_failed_limit_hurdle_does_not_extend_an_unrenewed_order():

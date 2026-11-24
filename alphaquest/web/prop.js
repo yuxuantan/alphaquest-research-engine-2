@@ -8,7 +8,7 @@
   const cashFields={'prop-monthly-cap':'MONTHLY_CAP','prop-budget-timezone':'BUDGET_TIMEZONE','prop-start-date':'START_DATE','prop-horizon-end':'HORIZON_END','prop-receipt-days':'PAYOUT_RECEIPT_DAYS','prop-payout-assumption':'PAYOUT_TIMING_ASSUMPTION','prop-deadline-days':'ACTIVATION_DEADLINE_DAYS','prop-payment-days':'ACTIVATION_PAYMENT_DELAY_DAYS','prop-activation-assumption':'ACTIVATION_TIMING_ASSUMPTION','prop-fee-note':'FEE_OVERRIDE_NOTE'};
   const el = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const display = v => v === null || v === undefined ? 'Unavailable' : typeof v === 'number' ? String(v) : String(v);
-  async function read(url, options) {const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));return j;}
+  async function read(url, options) {const r=await window.portalLoading.fetch(url,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));return j;}
   const post = (url, data) => read(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   function details(parent,title,data) {const d=el('details');d.append(el('summary',title),el('pre',JSON.stringify(data,null,2)));parent.append(d);}
   function table(parent,rows,columns) {
@@ -197,6 +197,8 @@
   async function configure(id,t,previousId,workspaceOptions={}) {
     $('#prop-heading-title').textContent='Configure prop analysis';$('#prop-heading-note').textContent='Choose assumptions, check the source, then run locally.';
     sourceId=id;checked=false;$('#prop-config').hidden=true;$('#prop-report').hidden=true;$('#prop-status').textContent='Loading source and matching exports…';
+    const finishSectionLoading=window.portalLoading.begin($('#prop-status'));
+    try {
     const [data,defaults,previous]=await Promise.all([read(`/api/prop-analyses/sources/${id}?discover_exports=false`),read('/api/prop-analyses/defaults'),previousId?read(`/api/prop-analyses/${previousId}/downloads/report.json`):null]);if(t!==token)return;
     if(previous&&previous.source?.backtest?.id!==id)throw Error('The saved analysis belongs to a different source backtest.');
     holdoutSource=data.source.run_metadata.research?.phase==='oos';nativeRiskSource=!!data.source.intratrade_risk;externalSource=data.source.run_metadata.source?.kind==='external_trade_export';
@@ -261,6 +263,7 @@
       inspect:()=>window.nativeReplay.configure(data.source,defaults.native_phase_replay),
       legacy:loadLegacy,budget:loadLegacy,pair:()=>window.pairComparison.configure(data.source,defaults.predefined_lifecycle_comparison),
     }});
+    } finally { finishSectionLoading(); }
   }
   function render(r) {
     $('#prop-delete').hidden=false;$('#prop-delete').disabled=deletingReports.has(r.id);$('#prop-delete').onclick=()=>deleteProp(r.id);
@@ -615,7 +618,7 @@
         $('#prop-report').hidden=false;let stop=$('#prop-analysis-cancel');
         if(!stop){const p=$('#prop-report-content');p.replaceChildren(el('p','A stop request takes effect at the next safe calculation checkpoint. A finishing report may complete before the request arrives.'));
           stop=el('button','Request stop at next checkpoint','button secondary');stop.id='prop-analysis-cancel';stop.type='button';p.append(stop);
-          stop.onclick=async()=>{stop.disabled=true;try{const response=await fetch(`/api/prop-analyses/${id}/cancel`,{method:'POST'});const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:'Could not request a stop.');}catch(e){$('#prop-status').textContent=e.message;stop.disabled=false;}};
+          stop.onclick=async()=>{stop.disabled=true;try{const response=await window.portalLoading.fetch(`/api/prop-analyses/${id}/cancel`,{method:'POST'});const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:'Could not request a stop.');}catch(e){$('#prop-status').textContent=e.message;stop.disabled=false;}};
         }
         if(j.stop_requested)stop.disabled=true;
       }
@@ -632,7 +635,7 @@
     if(deletingReports.has(id)||!confirm(`Delete prop report ${id}?\n\nThis permanently removes this analysis and its downloads. Backtest reports, source datasets, saved optimization metrics and OOS execution history are kept. This cannot be undone.`))return;
     deletingReports.add(id);const hash=location.hash,status=$('#prop-delete-status');status.hidden=false;status.textContent='Deleting selected prop report…';$('#prop-delete').disabled=true;if(row)row.querySelector('button').disabled=true;
     try{
-      const response=await fetch(`/api/prop-analyses/${id}`,{method:'DELETE'});
+      const response=await window.portalLoading.fetch(`/api/prop-analyses/${id}`,{method:'DELETE'});
       if(!response.ok&&response.status!==404){const error=await response.json();throw Error(error.detail||`HTTP ${response.status}`);}
       if(location.hash===hash){
         status.textContent='Prop report deleted. Backtests, datasets and OOS execution history kept.';

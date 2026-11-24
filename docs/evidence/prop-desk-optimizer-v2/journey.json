@@ -1,0 +1,39 @@
+{
+  "members": [
+    {
+      "source_backtest_id": "c3de764911dc4924a866817605975b4c",
+      "oos_backtest_id": "24463a0d31ba4bed8a8f980c81082b43",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "f69a9ac2236849f7bb22292810dae2b2",
+      "oos_backtest_id": "c6f1a7ba4e104688a94534fece7756f4",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "62b9838335144c7691e1a5fca2266055",
+      "oos_backtest_id": "e90938f9fa804b30952dee3a167896b6",
+      "weight": 1
+    }
+  ],
+  "analysis_ids": {
+    "evaluation": "cbbe533a83534072862e8b91cf4f5ea9",
+    "funded": "536f7abe69c84fdd85d19b21e0ba23c3"
+  },
+  "evidence_type": "Synthetic local subset workflow. Bridge labels and subset counts were checked separately.",
+  "sha256": {
+    "SYNTHETIC-optimizer.csv": "0f227b8e6b308595bed4143ab7659c8cecb9ba0b9eb996ad618287c0ebc645a8",
+    "evaluation-admitted-trades.csv": "fd2dea2b6be701af16f71e2f1253d8ef6dce4f57745423a441fcff2e7fc9651e",
+    "evaluation-analysis.zip": "9b3bb7ed09305c9b664d34b1b41605b95a38a69ddc7da86a3b7d5e178bc9d91e",
+    "evaluation-desktop.png": "cb11eaa594b74a6c94eb54253b00398b2e6d330653d1672593943abfe31219d9",
+    "evaluation-launch.json": "6e3534709ded69ce165be66b134b506d940dcc7249ffb6697f5d193bb651f4b7",
+    "evaluation-report.json": "4ed1b109f141045a3453797183c9d9f9a63a60b1b19940cee5b7304d44aa264a",
+    "funded-admitted-trades.csv": "fd2dea2b6be701af16f71e2f1253d8ef6dce4f57745423a441fcff2e7fc9651e",
+    "funded-analysis.zip": "7879b02d603f614e9918e5ef2d1051ff0efb8b8fa5fdf72d3c543049f7696a53",
+    "funded-launch.json": "a1ef5ecdf0091241c05717fcdc15ac2154abb31074e334dab55fa9dcd24eee83",
+    "funded-mobile-reopened.png": "a152e2c40090221c2dab74a5410937201c56d17a7e24ea9b13d6844dfd806f75",
+    "funded-report.json": "69c5d37eac157a5e9e3296629c70780342ec959981968163c47ddb5d9a257082",
+    "rejected-source.json": "7167d0ba0649685ecb7791407cb5499f086afd89805c204a7f4573ea1f301745",
+    "setup-desktop.png": "1c7e649c6bb59ac58640bc22e190211756f3c44728ec29ece17d1a9acf3630d2"
+  }
+}

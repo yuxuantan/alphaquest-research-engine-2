@@ -1,12 +1,17 @@
 """Fresh-funded orchestration; acquisition inputs never enter these runners."""
 import numpy as np
-from .native_control import NativeControlBase
+from .native_control import NativeControlBase,verified_native_profile
 
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, FundedProfile, FundedProfileResult, ResearchPeriod,
     SamplingConfig, SavedTradeSource, SimulationConfig, SourceCosts, SizingConfiguration, SizingTrace,
-    positive_integer, prepare_phase_source, provenance, verify_phase_source,
+    positive_integer, prepare_phase_source, provenance, verify_phase_source, DatedPhasePreparation,
 )
+
+
+class DatedFundedPreparation(DatedPhasePreparation):
+    """Compatibility name for shared immutable phase preparation."""
+    VERSION = 'dated-funded-preparation-v1'
 
 
 class NativeFundedController(NativeControlBase):
@@ -22,7 +27,7 @@ class NativeFundedController(NativeControlBase):
         from .native_control import exact_rule_values
         from .phase_profiles import profile_settings
         if type(profile) is not FundedProfile:raise ValueError('Native funded control requires a FundedProfile.')
-        profile_settings(profile,SourceCosts())
+        verified_native_profile(profile)
         if type(receipt_delay_calendar_days) is not int or not 0<=receipt_delay_calendar_days<=365:
             raise ValueError('Native funded receipts require an explicit calendar-day lag.')
         if receipt_amount_convention not in ('kernel_entitlement_unrounded','usd_cents_half_up'):
@@ -31,7 +36,7 @@ class NativeFundedController(NativeControlBase):
             start_date=start_date,cutoff_date_exclusive=cutoff_date_exclusive)
         self.profile=profile;self.lucid=profile.profile_id=='lucidflex-50k'
         self.kernel=(lucid_backend if self.lucid else native_backend).module()
-        rules=self.kernel.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if self.lucid else self.kernel.Rules(approval_day_counts=profile.approval_day_counts)
+        rules=self.kernel.Rules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced) if self.lucid else self.kernel.Rules(approval_day_counts=profile.approval_day_counts)
         self.rules=self.kernel.Rules(**{key:exact_rule_values(value) for key,value in asdict(rules).items()})
         args=dict(rules=self.rules,equity=Decimal(0),high=Decimal(0),cycle_start=Decimal(0))
         if not self.lucid:args['best_day']=Decimal(0)
@@ -48,6 +53,7 @@ class NativeFundedController(NativeControlBase):
 
     def _advance_calendar(self,until):
         from datetime import timedelta
+        if self.account.outcome!='open':self._calendar_cursor=max(self._calendar_cursor,until);return
         while self._calendar_cursor<until:
             self._calendar_cursor+=timedelta(days=1)
             if self.lucid and self.account.outcome=='open':
@@ -127,7 +133,7 @@ class NativeFundedController(NativeControlBase):
             modeled_rules=dict(profile_id=self.profile.profile_id,rule_version=self.profile.rule_version,
                 initial_configured_capital='50000',parameters=asdict(self.rules),
                 arithmetic='Exact Decimal state for native actual fills; legacy fixed-book float arithmetic is unchanged.'),
-            lifetime_censored=self.account.outcome=='open',observed_sessions=len(self.session_trace),active_sessions=self.account.day,
+            lifetime_censored=self.account.outcome=='open',observed_sessions=len(self._visited_sessions),active_sessions=self.account.day,
             gross_account_deductions=str(gross),raw_trader_entitlement=str(raw),provider_retained_share=str(share),
             cash_received=str(received),pending_cash=str(pending),net_cash=str(received),receipt_rounding_delta=str(rounding),
             receipt_amount_convention=self.receipt_convention,payout_events=events,cash_ledger=ledger,
@@ -137,36 +143,47 @@ class NativeFundedController(NativeControlBase):
 def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factory, config,
         profile, sizing, micros, *, forecast, receipt_delay_calendar_days,
         receipt_amount_convention, max_micros=40, checkpoint=lambda: None,
-        progress=lambda message: None, origin_weights=None):
+        progress=lambda message: None, origin_weights=None, preparation=None,parallel=True):
     """One fresh funded account per modeled path; receipt means include zeros."""
     from collections import Counter
     from dataclasses import asdict
     from .native_draws import build_schedule, run_path
+    from .native_market_hours import summarize_observed_coverage
     from .phase_profiles import equal_stratum_mean, native_forecast_layout
-    _, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue)
+    _, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,preparation=preparation)
     parameters = strategy_factory().parameters
     paths, schedules, captures = [], [], []
+    prepared_outputs=None
+    if forecast.model=='native_percentage_observed_blocks_v2':
+        from .native_preparation import prepared_forecast_outputs
+        prepared_outputs=prepared_forecast_outputs(catalogue,target_contexts_by_cohort,strategy_factory,config,profile,sizing,micros,forecast,
+            phase='funded',max_micros=max_micros,checkpoint=checkpoint,progress=progress,preparation=preparation,
+            origin_weights=origin_weights,parallel=parallel,receipt_delay_calendar_days=receipt_delay_calendar_days,receipt_amount_convention=receipt_amount_convention)
     for path_index in range(forecast.simulations):
         checkpoint()
         cohort_index = path_index % len(cohorts)
         start, first, cutoff, contexts = cohorts[cohort_index]
-        progress(f'Native Funded forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
-        schedule = build_schedule(catalogue, contexts, parameters, phase='funded',
-            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff,
-            **({'origin_weights':origin_weights} if origin_weights is not None else {}))
-        owner = NativeFundedController(profile, sizing, micros, max_micros=max_micros,
-            session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
-            receipt_delay_calendar_days=receipt_delay_calendar_days,
-            receipt_amount_convention=receipt_amount_convention)
-        detailed = path_index < forecast.capture_paths
-        output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
-            capture=detailed, checkpoint=checkpoint)
+        if prepared_outputs is None:progress(f'Native Funded forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
+        detailed=path_index<forecast.capture_paths
+        if prepared_outputs is not None:
+            output=prepared_outputs[path_index];schedule=output['schedule']
+        else:
+            schedule = build_schedule(catalogue, contexts, parameters, phase='funded',
+                seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff,
+                **({'origin_weights':origin_weights} if origin_weights is not None else {}))
+            owner = NativeFundedController(profile, sizing, micros, max_micros=max_micros,
+                session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
+                receipt_delay_calendar_days=receipt_delay_calendar_days,
+                receipt_amount_convention=receipt_amount_convention)
+            detailed = path_index < forecast.capture_paths
+            output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
+                capture=detailed, checkpoint=checkpoint,preparation=preparation)
         result = output['result']
         row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
             cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
             positive_received_cash=float(result['cash_received'])>0,
             breached=result['outcome']=='blown', open_at_cutoff=result['outcome']=='open',
-            sizing_summary=result['sizing']['summary'])
+            sizing_summary=result['sizing']['summary'],observed_bar_diagnostics=result['observed_bar_diagnostics'])
         for key in ('outcome','terminal_date','lifetime_censored','cash_received','pending_cash',
                     'gross_account_deductions','raw_trader_entitlement','provider_retained_share',
                     'net_cash','receipt_rounding_delta','receipt_amount_convention','payout_events',
@@ -174,8 +191,8 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             row[key] = result[key]
         paths.append(row); schedules.append(schedule)
         if detailed:
-            captures.append(dict(path_index=path_index, cohort_index=cohort_index, **output))
-        progress(f'Native Funded forecast completed path {path_index+1}/{forecast.simulations}.')
+            captures.append({**output,'path_index':path_index,'cohort_index':cohort_index})
+        if prepared_outputs is None:progress(f'Native Funded forecast completed path {path_index+1}/{forecast.simulations}.')
     def estimate(key):
         return equal_stratum_mean([[row[key] for row in paths if row['cohort_index']==index]
                                   for index in range(len(cohorts))])
@@ -191,6 +208,8 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
         outcome_counts=dict(Counter(row['outcome'] for row in paths)))
     return dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='funded',
         model=forecast.model,settings=forecast.model_dump(mode='json'),catalogue=catalogue.metadata(),
+        execution_preparation=(dict(version='twin-causal-market-cache-v1',market_features_reused=True,
+            original_fill_and_account_engine=True,account_state_shared=False) if getattr(preparation,'twin',None) is not None else None),
         phase_configuration=dict(profile=asdict(profile),sizing=asdict(sizing),micros=micros,
             max_micros=max_micros,receipt_delay_calendar_days=receipt_delay_calendar_days,
             receipt_amount_convention=receipt_amount_convention),
@@ -201,6 +220,7 @@ def forecast_native_funded(catalogue, target_contexts_by_cohort, strategy_factor
             scope='Conditional Monte Carlo noise under the declared empirical draw law only; not uncertainty in the law or future performance.',
             historical_mean_uncertainty_available=False),
         paths=paths,schedules=schedules,captures=captures,capture_path_indices=list(range(forecast.capture_paths)),
+        observed_bar_diagnostics=summarize_observed_coverage(paths),
         assumptions=[
             'Exactly one fresh funded account per path; every path remains in receipt means, including zero cash, breach and inactivity.',
             'Only modeled trader receipts strictly before the civil cutoff count as cash; pending entitlement, gross account deductions and provider equity stay separate.',
@@ -259,7 +279,7 @@ def simulate_funded_profile(
     trace = SizingTrace(sizing) if sizing is not None else None
     if profile.profile_id == 'lucidflex-50k':
         from .lucid_backend import Rules as LucidRules
-        rules = LucidRules(daily_loss=1200. if profile.daily_loss_limit else None)
+        rules = LucidRules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced)
     else:
         rules = replace(Rules(), approval_day_counts=profile.approval_day_counts)
     backend = account_backend(rules)
@@ -334,7 +354,7 @@ def lifetime_profile(value):
 
 def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calendar_days,
         calendar, receipt_delay_calendar_days, simulation=SimulationConfig(),
-        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None):
+        period=None, sampling=SamplingConfig(), costs=SourceCosts(), sizing=None, observed_sessions=None, *, checkpoint=lambda:None, progress=lambda value:None):
     """Dated fresh-account paths using the same native funded transitions.
 
     The legacy weekday interface above remains unchanged. Dates are civil session
@@ -357,7 +377,7 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
         observed_sessions=observed_sessions)
     trace = SizingTrace(sizing) if sizing is not None else None
     paths, schedule_sha256, rules = _dated_funded_paths(days, profile, micros, horizon_calendar_days,
-        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace)
+        calendar, receipt_delay_calendar_days, simulation, sampling, sizing, trace,checkpoint=checkpoint,progress=progress)
     verify_phase_source(runs, source, snapshot)
     result = dict(paths=paths, schedule_sha256=schedule_sha256,
         provenance=provenance('funded', snapshot, profile, micros, simulation, sampling,
@@ -375,42 +395,80 @@ def simulate_dated_funded_profile(runs, source, profile, micros, horizon_calenda
 
 
 def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
-        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None):
+        receipt_delay_calendar_days, simulation, sampling, sizing=None, trace=None, *, chronological=False, checkpoint=lambda:None,
+        preparation=None, summary_only=False, progress=lambda value:None,path_indices=None,schedule_sink=None,_parallel=True):
     """The same fresh-account dated kernel for original and resampled histories."""
     from dataclasses import replace
     from datetime import date, timedelta
     from hashlib import sha256
     from . import native_engine, lucid_engine
     lucid = profile.profile_id == 'lucidflex-50k'
-    rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid
+    rules = (lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced) if lucid
              else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts))
     account_class = lucid_engine.FundedAccount if lucid else native_engine.FundedAccount
+    if summary_only and (sizing is not None or chronological):
+        raise ValueError('Compact Funded capture requires fixed-quantity sampled paths.')
+    from .path_parallel import available,run
+    if _parallel and available() and not chronological and not summary_only:
+        rows,schedule=run('funded',dict(days=days,profile=profile,micros=micros,horizon_calendar_days=horizon_calendar_days,
+            calendar=calendar,receipt_delay_calendar_days=receipt_delay_calendar_days,simulation=simulation,
+            sampling=sampling,sizing=sizing),simulation.simulations,trace,checkpoint,progress)
+        return rows,schedule,rules
     paths = []
-    schedule = sha256()
+    from .saved_trade_simulation import enabled,PathProgress
+    report=PathProgress(progress,sizing) if enabled(sizing) else None
+    if report:report(0,1 if chronological else simulation.simulations)
+    cash_values = np.zeros(simulation.simulations)
+    if summary_only:
+        from .lucid_backend import module as lucid_module
+        from .native_backend import module as native_module
+        account_class = (lucid_module() if lucid else native_module()).FundedAccount
+    schedule = None if summary_only else schedule_sink if schedule_sink is not None else sha256()
     closed = set(calendar.closures)
     starts = sorted(calendar.start_dates)
-    for i in range(simulation.simulations):
+    # Calendar preparation also benefits ordinary one-off runs. Only a caller
+    # retaining a worker context prefetches indices for reuse across refits.
+    calendar_cache = preparation if preparation is not None else DatedFundedPreparation()
+    identity = (calendar.version, calendar.timezone, calendar.coverage_end,
+                tuple(starts), tuple(sorted(closed)))
+    calendars = {s: calendar_cache.calendar(identity, s, horizon_calendar_days, checkpoint) for s in starts}
+    for i in (range(1 if chronological else simulation.simulations) if path_indices is None else path_indices):
+        checkpoint()
         start = date.fromisoformat(starts[i % len(starts)])
         cutoff = start + timedelta(days=horizon_calendar_days)
-        rng = np.random.RandomState(np.random.SeedSequence([simulation.seed, i]).generate_state(1)[0])
-        stream = native_engine.sampled_days(rng, len(days), sampling.block_weekdays)
+        prepared_calendar = calendars[starts[i % len(starts)]]
+        if preparation is not None and prepared_calendar is not None and not chronological:
+            stream = preparation.indices(simulation.seed, i, len(days), sampling.block_weekdays, prepared_calendar[1])
+        else:
+            rng = np.random.RandomState(np.random.SeedSequence([simulation.seed, i]).generate_state(1)[0])
+            stream = native_engine.sampled_days(rng, len(days), sampling.block_weekdays)
         account = account_class(rules)
         events = []
+        cash_received = 0.
         terminal_date = None
+        source_cursor=0
         for offset in range(horizon_calendar_days):
-            day = start + timedelta(days=offset)
-            is_session = day.weekday() < 5 and day.isoformat() not in closed
+            if offset%32==0:checkpoint()
+            if prepared_calendar is None:
+                day = start + timedelta(days=offset)
+                day_text = day.isoformat()
+                is_session = day.weekday() < 5 and day_text not in closed
+            else:
+                day, is_session, day_text = prepared_calendar[0][offset]
             if not is_session:
                 # Reuse the native calendar expiry check even across weekends or
                 # declared closures; never increment the account's session count.
                 if lucid:
                     account.expire_inactive(offset)
             else:
-                index = next(stream)
-                schedule.update(f'{i}:{day.isoformat()}:{index};'.encode())
+                if chronological and source_cursor>=len(days):
+                    raise ValueError('Chronological OOS source does not cover the frozen Funded horizon.')
+                index = source_cursor if chronological else next(stream)
+                source_cursor+=1
+                if schedule is not None:schedule.update(f'{i}:{day_text}:{index};'.encode())
                 before = len(account.payouts)
                 dynamic = (dict(**sizing.kernel_arguments(stage='funded_calendar_sample', path_index=i,
-                    source_session_index=index, calendar_date=day.isoformat()), trace=trace) if sizing is not None else {})
+                    source_session_index=index, calendar_date=day_text), trace=trace) if sizing is not None else {})
                 if lucid:
                     account.advance(days[index], micros, simulation.max_micros, calendar_day=offset, **dynamic)
                 else:
@@ -419,14 +477,18 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
                     entitlement = account.payouts[-1][1]
                     gross = account.withdrawals[-1][1] if lucid else entitlement
                     due = day + timedelta(days=receipt_delay_calendar_days)
-                    events.append(dict(eligibility_date=day.isoformat(), request_date=day.isoformat(),
-                        deduction_date=day.isoformat(), receipt_date=due.isoformat(),
+                    if due < cutoff:cash_received += entitlement
+                    if not summary_only:events.append(dict(eligibility_date=day_text, request_date=day_text,
+                        deduction_date=day_text, receipt_date=due.isoformat(),
                         gross_account_deduction=gross, trader_cash_entitlement=entitlement,
                         received_within_horizon=due < cutoff,
                         trader_cash_received=entitlement if due < cutoff else 0.))
             if account.outcome != 'open':
                 terminal_date = day
                 break
+        if summary_only:
+            cash_values[i] = cash_received
+            continue
         receipts = [e for e in events if e['received_within_horizon']]
         paths.append(dict(path=i, start_date=start.isoformat(), cutoff_exclusive=cutoff.isoformat(),
             outcome=account.outcome, observed_sessions=account.day,
@@ -440,7 +502,8 @@ def _dated_funded_paths(days, profile, micros, horizon_calendar_days, calendar,
             pending_cash=sum(e['trader_cash_entitlement'] for e in events if not e['received_within_horizon']),
             number_of_payouts=len(receipts),
             days_to_first_payout=(date.fromisoformat(receipts[0]['receipt_date'])-start).days if receipts else None))
-    return paths, schedule.hexdigest(), rules
+        if report:report(i+1,1 if chronological else simulation.simulations)
+    return (cash_values if summary_only else paths), schedule.hexdigest() if schedule is not None else None, rules
 
 
 def native_historical_preflight(catalogue_metadata, forecast_plan, configuration, family_size):
@@ -673,7 +736,7 @@ def replay_funded_profile(runs, source, profile, micros, window, calendar, *,
         receipt_delay_calendar_days=receipt_delay_calendar_days, receipt_amount_convention=receipt_amount_convention)
     lucid = profile.profile_id == 'lucidflex-50k'
     kernel = lucid_engine if lucid else native_engine
-    rules = lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None) if lucid else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts)
+    rules = lucid_engine.Rules(daily_loss=1200. if profile.daily_loss_limit else None,inactivity_enforced=profile.lucid_inactivity_enforced) if lucid else replace(native_engine.Rules(), approval_day_counts=profile.approval_day_counts)
     account = kernel.FundedAccount(rules)
     first, cutoff = date.fromisoformat(window.first_session), date.fromisoformat(window.cutoff_date_exclusive)
     collector = SizingTrace(sizing)

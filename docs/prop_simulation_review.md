@@ -9774,3 +9774,5983 @@ comparison also passed 18,556 bars with 15 state fields/effective orders
 here is for the supplied historical IS trade fields under stated settings;
 other Inputs, capped fractional stops, live fills, actual MC cost settings,
 provider certification and later OOS remain outside this qualification.
+
+## 2026-11-10 — Main navigation workflow preview
+
+This increment on `epic/revamp-workflow` changes the existing main page to four
+navigation destinations, in order: **Dataset, Research, Campaigns, Prop Sim**.
+The Dataset screen markup is unchanged. Research now contains only a thesis and
+summary placeholder. The former research catalogue is detached from the main
+Research tab; existing `#backtests/research` bookmarks and report links remain
+available under Prop Sim, alongside prop draft helpers and saved backend records.
+
+Campaigns contains two hardcoded examples, **ORB + VWAP pullback** and **Twin
+continuation**, each mapped to one strategy code. Selecting a campaign shows its
+hypothesis, linked-research placeholder, shared entry/stop/target logic, broad
+and narrow parameters, source file path, and example ES/NQ periods and stages.
+These are labeled illustrative, not inferred from saved runs. **Saved runs** and
+**New backtest** retain access to the existing product routes.
+
+Prop Sim is a requested presentation placeholder in the main page, not a new
+calculation path or report store. It shows APEX 50K EOD, a checkbox dropdown with
+four example parameter sets, separate Evaluation and Funded sizing sections,
+an evaluation-profile selector, and a three-year cash table. Risk examples are
+$0/$200/$300/$50; no optimality or numerical parity is claimed. Annual costs,
+trader receipts and net remain `—`, because no source check or calculation ran.
+Existing backtest → configure → check → run → durable report paths and all
+calculation owners are unchanged. This prompt does not implement simulation or
+change source, account, selection or settlement behavior.
+
+Reproduce from this checkout:
+
+```sh
+.venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+1. Open `http://127.0.0.1:8017/`. Expect the four navigation buttons in the
+   specified order. Dataset upload, validation and library remain as before.
+2. Select **Research**. Expect “No research theses yet”, without WFA controls or
+   a saved campaign/study catalogue. `/#research` opens this empty thesis screen;
+   older `/#backtests/research` bookmarks still open saved studies under Prop Sim.
+3. Select **Campaigns**, then **Twin continuation**. Expect Twin-specific logic,
+   `twin_continuation.py` under **Source code**, and two illustrative datasets
+   dated 2021-01-01 → 2024-12-31. ES shows “Mechanic validation”; NQ shows
+   “IS broad · 1 pass”. Reload preserves the chosen campaign URL. Browser Back
+   restores ORB; `/#campaigns/missing` shows “Campaign not found”.
+4. Select **Prop Sim**. Expect four example inputs and separate sizing lists.
+   Select the first Twin Evaluation choice: the example profile reads **$300**.
+   Open **Choose strategy inputs**, uncheck every choice: both lists show the
+   empty state and the prior evaluation selection clears. Recheck one choice:
+   both lists contain just that choice. The three-year table always contains
+   nine `—` cells, with no fabricated cash outcomes. **+ Add inputs** reopens the
+   dropdown. These interactions send no mutation requests.
+5. At a 390px viewport, expect all four buttons in the top navigation, stacked
+   campaign/sizing sections, and no horizontal page overflow. From Campaigns,
+   **Saved runs** opens the retained browser and **New backtest** opens setup.
+6. Stop the optional manual server with **Ctrl-C**.
+
+Automated reproduction (use a fresh output directory to retain earlier evidence):
+
+```sh
+mkdir -p artifacts/workflow-nav-REVIEW
+.venv/bin/python -m pytest -q tests/test_workflow_navigation_browser.py \
+  --basetemp=artifacts/workflow-nav-REVIEW/browser
+```
+
+Saved browser evidence: `artifacts/workflow-nav-20261110/evidence/`
+contains desktop Research/Campaigns/Prop Sim screenshots, mobile Campaigns/Prop
+Sim screenshots, and `navigation.json`. Tests use an isolated synthetic library
+and stop their temporary servers. No persistent server is started by this work.
+The screenshots and JSON document UI behavior, not simulated performance.
+Earlier dated numerical findings and evidence remain unchanged. Existing saved-run
+browser journeys now enter via Campaigns → Saved runs.
+The old saved-study route is retained separately from the new thesis tab.
+
+Validation: **52 affected browser checks passed** (51 in the affected-module run,
+plus the saved-run navigation/reload check), including
+Dataset upload/edit/download/delete, backtest input persistence, report reopening,
+automatic prop reports, optimization results, compact-report → prop-analysis
+execution/downloads, and the retained saved-study catalogue. JavaScript syntax,
+unchanged Dataset markup and `git diff --check` also passed. The verification
+manifest and screenshot checksums are saved in `evidence/verification.json`.
+This is targeted UI/workflow verification, not a full-suite or provider-parity claim.
+
+## 2026-11-10 — Real campaign datasets and mechanic validation (workflow revamp 2)
+
+This increment on `epic/revamp-workflow` replaces the preceding revision's
+illustrative campaign datasets/stages with saved workspace sources and durable
+workflow state. The campaign list now includes every registered or archived
+strategy code. The two narrative descriptions remain illustrative; all displayed
+dataset periods, saved results and mechanic-validation status are real. Prop Sim
+remains the previously labeled placeholder and no prop calculation was changed.
+
+The four research phases are **Mechanic validation → IS Broad → IS Narrow →
+OOS**. This increment implements mechanic validation and ordered navigation.
+IS Broad becomes navigable only after the saved mechanic review passes; its
+screen states that execution is not implemented. IS Narrow and OOS stay locked.
+No endpoint in this increment can mark those later phases passed. Existing
+backtests and independent Evaluation/Funded reports remain available through
+their original routes; these research phases do not replace those account-phase
+optimizers.
+
+The normal product journey is Campaigns → New backtest → existing backtest setup
+with a saved dataset or **Upload a new dataset** → ordinary Dataset validation
+and save → **Continue to backtest** → declare IS/OOS and costs → **Open mechanic
+validation** → **Run validation · default parameters** → ordinary local backtest
+report plus mechanic review. Configuration does not run a backtest. The initial
+mechanic page has one run action, with saved settings in a collapsed disclosure.
+It runs the declared IS range with the current strategy's defaults, using the
+user's saved instrument/cost settings. It never reads OOS prices for this run.
+Unsupported default strategy/source combinations reject instead of changing the
+parameters. Automatic prop reports are omitted for this validation-only run.
+
+Every outcome row comes from the real saved summary. Trade samples are selected
+from actual completed trades: first, last, greatest positive **net** P&L, most
+negative net P&L, and shortest elapsed holding duration. All rankings use exact
+decimals; ties use the earliest trade number. Overlap produces one row containing
+all selection reasons, so there are at most five rows. A run without wins or
+losses explicitly discloses the missing category. No trade is fabricated.
+
+Every metric needs an MC-parity check. Every sampled trade needs both MC-parity
+and execution-correctness checks. Each click saves an optimistic review revision;
+reload resumes it. Confirmation requires all the exact server-defined rows,
+matching saved results, and at least one closed trade. A zero-trade run remains
+inspectable and cannot pass mechanics. Final confirmation is a durable **user
+attestation**, not an automatic/independently measured MultiCharts comparison.
+Confirmed reviews are immutable. Saved workflow JSON, report JSON and trades
+CSV are downloadable through the normal product routes.
+
+The API enforces ordered phase admission, incomplete/stale review rejection,
+strict boolean checks, source/code/instrument binding, and idempotent run
+submission. A lost response reopens the saved run; interrupted requests can be
+retried without overwriting an earlier report. RunStore retains referenced
+validation reports, including deletion through an activity. Reviewed report or
+trade changes fail closed. Opening a mechanic report in the ordinary report UI
+cannot bypass the campaign gate through its old manual OOS action. Workflow
+metadata/reviews use tables in the existing backtest catalogue; numerical
+results remain in RunStore, with no new engine, service, database or result store.
+Existing conservative engine identity includes this production code change;
+earlier reports and qualification evidence remain unchanged.
+
+### Reproduce the saved synthetic demonstration
+
+Evidence/downloads are in `artifacts/campaign-mechanics-20261110/evidence/`:
+ready/unreviewed/confirmed/mobile screenshots, `SYNTHETIC-mechanics.csv`, the
+ordinary `report.json`, `trades.csv`, `mechanic-review.json`, and `journey.json`.
+The browser exercised confirmations on synthetic rows to test the workflow;
+this evidence does **not** establish measured MultiCharts parity. The independent
+expected values are analytical test oracles in `tests/test_campaign_mechanics.py`,
+not product fixtures or a separate test dashboard.
+
+Start this checkout:
+
+```sh
+.venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+1. Open `http://127.0.0.1:8017/#campaigns/consecutive_green_hold`. Choose **New
+   backtest**, then **Upload a new dataset**. Upload the saved
+   `SYNTHETIC-mechanics.csv` with name **SYNTHETIC mechanics review**, source
+   timezone **UTC**, symbol **SYNTHETIC**, tick size **0.25**, point value **10**.
+   Validate/save using the ordinary Dataset page. The source has **25 rows**.
+2. Select **Continue to backtest**. Expect the new dataset selected and the
+   parameter grid hidden. Set initial capital **10000**, slippage **1 tick per
+   fill**, commission **1 per contract per side**. Use explicit dates: IS
+   **2026-01-05 → 2026-01-05**, OOS **2026-01-06 → 2026-01-06**. Review the split,
+   then choose **Open mechanic validation**. Expect no results yet and three
+   locked later phases. Saved defaults must be `green_bar_count=3`,
+   `hold_minutes=20`, `contracts=1`.
+3. Choose **Run validation · default parameters**. Expect **6** completed trades
+   from **24 IS rows**, initial equity **10000**, final equity **10078**, gross
+   after slippage **90**, commissions **12**, net **78**, slippage cost **30**,
+   and maximum drawdown **37**. Each entry fills **100.25**. The six net P&Ls
+   are **3, 43, -37, 13, 23, 33**. These come from entry reference price 100,
+   exit reference prices 101/105/97/102/103/104, point value 10, a 0.25 adverse
+   price adjustment at each fill, and 2 commission per round trip. No costs are
+   deducted twice. The reserved 900-price OOS bar does not enter these outcomes.
+4. Expect sample rows **1, 6, 2, 3, 4**, respectively first/last/biggest win/
+   biggest loss/shortest duration. Holding durations in trade order are
+   **21, 24, 25, 20, 23, 22 minutes**. Open **All recorded execution fields** to
+   inspect exact source bar numbers, reference/fill prices, costs and reasons.
+5. Before real confirmation, compare the same data, timezone, parameters, dates,
+   execution assumptions and costs in MultiCharts and check trade execution.
+   Tick one metric and reload: that check remains saved. Leave any metric or
+   either trade check unticked: confirmation stays disabled and a direct confirm
+   API request returns **409**. When legitimately reviewed, check every row and
+   confirm. Expect a user-attested pass timestamp and **IS Broad ready**.
+6. Open **IS Broad**: expect a navigation-only placeholder, with no run action.
+   IS Narrow/OOS remain locked. A forged workflow `/oos` hash or phase API call
+   returns the previous-phases rejection. The ordinary mechanic report also
+   hides manual OOS and its OOS POST returns **409**, including after mechanics
+   is confirmed. No OOS attempt is recorded.
+7. Return to Campaigns and click the real saved dataset or **Inspect validation
+   results**. Expect the same run and checks, with no new backtest. An existing
+   historical dataset without a workflow opens setup; **Inspect saved results**
+   opens its original report browser. New validation does not inherit a historical
+   report's arbitrary parameters or treat its existence as a passed phase.
+8. Download **Saved review JSON**, **Trades CSV**, or open the ordinary backtest
+   report. At 390px, phase navigation is arranged in two columns; the tables
+   scroll horizontally to reveal all values and checkboxes without page overflow.
+   Stop the optional manual server with **Ctrl-C**.
+
+For a clean automated reproduction, keep the earlier artifacts and use a fresh
+output directory:
+
+```sh
+mkdir -p artifacts/campaign-mechanics-REVIEW
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics.py
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py \
+  --basetemp=artifacts/campaign-mechanics-REVIEW/browser
+```
+
+These browser tests use isolated normal dataset/backtest libraries and stop
+their temporary servers. No persistent server was started for this increment.
+
+Validation: **143 distinct backend checks passed**, covering native backtests,
+splits/OOS isolation, both deletion paths, instrument settings, phase-owner
+compatibility and the new mechanics contracts. The first run passed 141 checks;
+two multiprocessing cases hit sandbox socket denials, then both passed outside
+the sandbox. **37 product/browser checks passed** across the new journey, main
+navigation, existing backtests, instrument/date settings, deletion and saved
+strategy datasets. The final two mechanics journeys were repeated to save the
+one-trade overlap demonstration: default one-contract arithmetic run nets **13**
+and has one sample row with first/last/biggest-win/shortest-duration reasons, with
+no fabricated biggest loss. `05-overlap.png` and `overlap-review.json` retain it.
+JavaScript syntax and `git diff --check` passed. Exact source/download hashes and
+run scopes are recorded in `evidence/verification.json`. This is targeted
+workflow qualification, not a full-suite or MultiCharts/provider parity claim.
+
+The saved synthetic library can also be reopened without resimulation:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/campaign-mechanics-20261110/demonstration/test_upload_default_run_review0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+Open the `workflow_hash_route` in `evidence/journey.json`, or navigate to
+Campaigns → Consecutive Green Hold → SYNTHETIC mechanics product review. Expect
+one saved validation run, its synthetic user-attested checks and IS Broad ready.
+Stop this optional inspection server with **Ctrl-C**. The portable source CSV
+and exported review/report allow reproducing the journey if the ignored test
+library is unavailable in another checkout.
+
+## 2026-11-10 — Running/completed job history (workflow revamp 3)
+
+**Job history** is now available in the top bar at `/#jobs`. The four primary
+navigation buttons remain Dataset, Research, Campaigns and Prop Sim. History
+combines mechanic-validation attempts, existing backtest batches, saved standalone
+backtests and prop-analysis jobs from their existing catalogues. It supports
+running/queued, completed, failed/stopped and type filters; strategy/dataset/job-ID
+search; 25-row paging; refresh; and automatic updates. Click a recorded timestamp
+or View action to open `/#jobs/{kind}/{id}`. The detail view links directly to the
+normal mechanic review, backtest report, batch progress/results or prop report.
+
+UI-started mechanic validation now submits a server-owned background task and
+returns HTTP **202**. Leaving the initiating page, navigating to Job history or
+reloading the browser does not cancel it. The original synchronous API remains
+available for existing callers. Native execution still uses the existing local
+backtest function and ordinary RunStore publication. No new calculation engine,
+service, database or numerical result store was added. Each mechanic attempt
+stores only job metadata in the existing backtest catalogue; a failed attempt
+remains visible after a successful retry. Progress comes from the existing
+server tracker, with completed bar counts reconciled to the saved report.
+Unknown totals do not produce a percentage. Batches show completed/total trials;
+prop analyses show their recorded progress text. Completed standalone backtests
+appear once saved; their older in-flight HTTP executions are not registered as
+background jobs. Batch trial reports and mechanic reports are not listed twice
+as standalone jobs.
+
+**Completed** means that execution produced its result. It does not mean that
+MC parity or execution correctness was reviewed, nor does it unlock IS Broad.
+The existing row checks, immutable user confirmation and ordered phase gates
+remain in force. History polling does not load numerical report files or rerun
+calculations. Earlier reports, source inputs and saved review evidence stay
+unchanged. Earlier mechanic runs are backfilled from recorded metadata; unknown
+start/finish times display **Not recorded**. A server/process interruption is
+recorded as interrupted rather than silently rerunning the calculation. Graceful
+shutdown waits for owned background validations. The older batch/prop result
+and recovery behavior remains with its existing owner.
+
+### Product demonstration and expected observations
+
+Saved outputs are in `artifacts/job-history-20261110/evidence/`: running history
+and detail screenshots, completed history/detail and mobile screenshots,
+`running-jobs.json`, `completed-job.json`, `completed-jobs.json`, ordinary
+`workflow.json`, the downloaded `SYNTHETIC-source.csv`, and `journey.json`.
+The browser test pauses before the real native replay solely to make navigation
+and reload during execution reproducible; it does not fabricate measured
+progress or trade outcomes. The visible preparing/zero-known-bars snapshot is
+real tracker state before replay. The later 24 bars and 78 net come from the
+ordinary saved native report.
+
+```sh
+.venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+1. Open the normal Campaigns → New backtest workflow. For the synthetic check,
+   upload `evidence/SYNTHETIC-source.csv` through Dataset validation/save with
+   timezone UTC, tick size 0.25 and point value 10. Choose Consecutive Green Hold,
+   initial capital 10000, slippage 1 tick/fill and commission 1/contract/side.
+   Set IS to 2026-01-05 and OOS to 2026-01-06; open mechanic validation. Configuration
+   alone does not appear as an executed job in history.
+2. Click Run validation and immediately choose **Job history** in the top bar.
+   While running, expect the mechanic job and its actual stage/counts. On this
+   tiny source the job may finish before a manual click; larger real sources
+   naturally remain active longer. Do not expect artificial delays in production.
+3. Click the job and reload during execution. Expect it to continue and update
+   to Completed, **24 / 24 bars**. Open mechanic validation: expect the real
+   **6 trades**, net **78**, and the five deduplicated sample rows described in
+   revision 2. Confirm remains disabled until the user reviews the rows. Merely
+   opening a completed job must not mark any check or phase as passed.
+4. Choose Completed, then the Mechanic validation type filter, or search using
+   the job ID. Expect one matching job. An unmatched search shows an empty state.
+   A missing job ID returns 404; unsupported status/type filters return 422.
+5. Existing batch jobs appear in the same list. The saved demonstration also
+   executes a two-trial native batch (1 and 2 contracts, automatic prop disabled).
+   Expect **2** history jobs total—one mechanic attempt and one batch—with **3**
+   underlying backtest reports. Click the batch, then Open batch progress/results
+   to reach its original results screen. The trial reports are not duplicate
+   history rows. Expected trial net P&Ls for this synthetic source are 78 and 156.
+6. On mobile, the top-bar shortcut remains accessible and the history table
+   scrolls horizontally without widening the page. Stop the optional inspection
+   server with Ctrl-C. Test servers stop through fixture teardown; this work
+   starts no persistent server.
+
+Focused reproduction:
+
+```sh
+.venv/bin/python -m pytest -q
+mkdir -p artifacts/job-history-REVIEW
+.venv/bin/python -m pytest -q tests/test_job_history_browser.py \
+  --basetemp=artifacts/job-history-REVIEW/browser
+```
+
+Validation: **9 fast default checks passed in 5.10 seconds** (six mechanics,
+three history contracts), and **2 affected browser journeys passed in 12.27
+seconds** (new history/navigation/reload/result path and the existing full
+mechanics review journey). Covered boundaries include retry retention, old-run
+backfill without invented start times, interruption, exact paging/filtering,
+missing IDs, source-report immutability and deduplication across catalogues.
+JavaScript syntax and `git diff --check` passed. No broad legacy suite was run.
+The manifest records exact scope and source/export hashes; this is workflow
+qualification, not MultiCharts/provider or full-repository certification.
+
+A fresh application lifespan also reopened the demonstration catalogues with
+**2 completed jobs** and actual batch net P&Ls **78 / 156**, with byte-identical
+saved backtest artifacts. `batch-results.json` and `reopened-history.json` retain
+those ordinary API outputs. To inspect that saved normal-product library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/job-history-20261110/product-verified/test_running_job_survives_navi0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+Open `http://127.0.0.1:8017/#jobs`; stop this optional inspection server with
+Ctrl-C. The portable CSV and saved JSON exports also support reproduction when
+this ignored test library is unavailable in another checkout.
+
+## 2026-11-10 — Shorter mechanic outcome parity checklist
+
+Mechanic validation now omits **Initial capital, Final equity, Ending position
+contracts, Max drawdown pct, and Max drawdown duration seconds** from its outcome
+parity table and required checks. The current report has **10** remaining outcome
+rows. Underlying backtest summaries, numerical results, trade samples, report
+files and earlier saved evidence retain those values. No backtest rerun is
+needed to reopen an already completed mechanic validation with the shorter table.
+
+For an existing incomplete review, reload the workflow. Retained checked rows
+stay checked; the five removed rows are no longer confirmation requirements.
+Reads do not rewrite stored review evidence. The next explicit save/confirmation
+uses the reduced checklist. Confirmed historical reviews keep their original
+stored attestations and remain read-only; their visible outcome table uses the
+shorter list. Every remaining metric and each sampled trade's MC parity and
+execution correctness still requires confirmation before IS Broad unlocks.
+
+Reproduce through the existing Campaigns → dataset → mechanic validation flow,
+or reopen one of its completed jobs through Job history. Expect the five named
+rows to be absent and 10 outcome rows on the saved synthetic example. Open the
+ordinary backtest report or download the review JSON: its nested report summary
+still contains all five values. The synthetic example remains **6 trades**, net
+**78**, maximum drawdown **37**, and five sampled trades. No measured MultiCharts
+parity is claimed by the automated checkbox exercise.
+
+Saved evidence: `artifacts/mechanics-parity-metrics-20261110/evidence/` contains
+the updated unreviewed screenshot, ordinary report JSON and saved review JSON.
+Earlier screenshots and immutable reports remain unchanged.
+
+Focused validation: **one backend contract passed in 1.54s**, including legacy
+pending/confirmed review handling and report-file preservation; **one existing
+product browser journey passed in 6.95s**, including upload, real default replay,
+10-row checklist, confirmation, reload and phase gates. `git diff --check` passed.
+Temporary test servers stopped; no persistent server was started. To reproduce:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics.py::test_default_run_exact_samples_review_gate_and_durable_reopen
+mkdir -p artifacts/mechanics-parity-metrics-REVIEW
+.venv/bin/python -m pytest -q tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
+  --basetemp=artifacts/mechanics-parity-metrics-REVIEW/browser
+```
+
+## 2026-11-10 — Remove Campaigns validation-results shortcut
+
+Removed the **Inspect validation results** link from completed workflow cards on
+Campaigns. Dataset-name navigation and unfinished **Resume backtest** links
+remain available. Job history and saved review/report routes remain available.
+To verify, open Campaigns → a campaign with a completed validation: expect its
+dataset name and stage, without the removed shortcut. The dataset name still
+opens the normal workflow. Saved screenshot:
+`artifacts/campaign-link-removal-20261110/evidence/campaign-navigation.png`.
+The one affected browser journey passed in **6.92s**; JavaScript syntax and
+`git diff --check` passed. Its temporary server stopped after the check.
+
+## 2026-11-10 — Sequential phase navigation
+
+The four phases now use numbered **01 → 02 → 03 → 04** chevrons to make their
+order explicit. The current phase is filled teal; passed phases show a checkmark;
+locked phases use subdued styling and remain disabled. The helper text reads
+“Complete each phase to unlock the next.” Desktop uses a left-to-right sequence;
+mobile uses downward-pointing segments in one column, preserving the same order.
+Buttons expose their step number, phase and state to assistive technology.
+
+To inspect, open a campaign dataset's mechanic page. Expect step 01 current and
+02–04 locked. After the normal row-by-row review and confirmation, expect 01
+passed and 02 ready. Open IS Broad: step 02 becomes current, with 03/04 still
+locked. At 390px, expect steps 01–04 stacked vertically without page overflow.
+Earlier saved reports and review evidence remain intact.
+
+Screenshots: `artifacts/phase-chevron-nav-20261110/evidence/phase-sequence.png`,
+`01-ready.png` and `04-mobile.png`. The one affected normal-product browser
+journey passed in **8.32s**, including phase ordering, disabled-state enforcement,
+confirmation and mobile layout. JavaScript syntax and `git diff --check` passed.
+Its temporary server stopped; no persistent server was started. Refresh the app
+page to load the updated frontend assets.
+
+## 2026-11-10 — IS Broad optimization and locked configuration selection
+
+IS Broad now executes the existing native exhaustive optimizer from the campaign
+workflow after the mechanic review has passed. It uses the workflow's saved
+source, IS dates, strategy and execution costs. The parameter grid supports
+start/end/step, server-validated iteration counts and bounded worker selection.
+Jobs run in the existing background executor and remain accessible through Job
+history after navigation or reload. Automatic legacy prop reports are disabled
+for these grid requests; this increment selects strategy configurations only.
+No production prop calculation, phase optimizer objective or numerical engine
+was changed.
+
+The results table shows every strategy parameter and the ordinary backtest
+metrics, with the existing independent show/hide, freeze and reorder controls,
+sorting, paging, report links and full results CSV. Column preferences persist
+in this browser and never change calculated results. The current admission rule
+is **strictly positive IS total net P&L after slippage and commissions**. Losing
+and zero-profit rows are dark and their selection checkboxes are disabled.
+Choose **one or two** eligible, distinct configurations. Checkbox changes save a
+revisioned draft; **Confirm configs and continue to IS Narrow** permanently
+locks the selection. IS Narrow shows those exact saved parameter sets and source
+reports. Its execution is a later increment; OOS stays locked.
+
+The server independently enforces phase order, grid completion, membership,
+profitability, the two-choice limit and matching source/strategy/cost/IS identity.
+Confirmation freezes selected report/artifact hashes. A modified or missing
+selected artifact blocks carry-forward/download. Stale drafts and code changes
+between preview/run or grid/confirmation reject. After confirmation, selections
+cannot be replaced, unchecked or rerun. Before confirmation, a different grid
+may replace a completed/failed grid; old jobs and reports remain in history.
+Duplicate submissions reuse the existing job. Campaign grid jobs and their
+candidate reports are retained against deletion. State and references live in
+the existing backtest database; trial results and files use their normal store.
+
+Saved demonstration: `artifacts/is-broad-20261110/evidence/` contains desktop
+grid/results/IS Narrow screenshots, mobile navigation, actual results JSON/CSV,
+the downloaded frozen package, the synthetic source CSV, both selected native
+report directories and a SHA-256 manifest. The legacy table control check also
+retains its screenshot and immutability observations. Earlier evidence remains
+unchanged. This is a synthetic workflow/selection qualification: checking the
+synthetic MC attestations does **not** establish measured MultiCharts parity.
+
+To reproduce through the actual product:
+
+1. Restart the app after updating code. For an isolated local review library:
+
+   ```sh
+   ALPHAQUEST_DATA_DIR=/tmp/alphaquest-is-broad-review \
+     .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+   ```
+
+   Open `http://127.0.0.1:8017/`. Upload the saved `SYNTHETIC-source.csv` through
+   Dataset, with a synthetic name/symbol, timezone UTC, tick size 0.25 and point
+   value 10. Choose Campaigns → Consecutive Green Hold → New backtest. Select
+   this dataset, capital 10000, slippage 1 tick per fill, commission 1 per
+   contract per side; declare IS 2026-01-05 through 2026-01-05 and reserved OOS
+   2026-01-06 through 2026-01-06.
+2. Run mechanics at default parameters. Expect six trades and net **78**. Review
+   every visible outcome and sampled trade checkbox, then confirm mechanics.
+   For this labeled synthetic exercise, the checkbox action only tests the
+   attestation flow; real research requires your actual MC comparison. Before
+   mechanics confirmation, direct IS Broad requests return 409.
+3. Open step 02, IS Broad. Set green bar count **3 → 4, step 1**, hold minutes
+   **20 → 60, step 20**, and contracts **1 → 3, step 1**, with one worker. Click
+   Calculate iterations: expect **18**. Run IS Broad. Expect **COMPLETE · 18 / 18**;
+   OOS's reserved 900-price bar must not enter any trial. Leaving the page does
+   not cancel the job. Job history has one mechanic job and one native batch,
+   with links back to IS Broad; the normal backtest library contains 19 reports.
+4. Independent expected arithmetic for one contract: the hold-20 quote gains
+   are `[1,5,-3,2,3,4] × 10 = 120`; subtract 30 slippage and 12 commissions to
+   obtain **78**. Hold 40 exits three trades at the next hour's first close,
+   each `(-2 × 10) - 5 - 2 = -27`, total **-81**. Hold 60 exits three at equal
+   quote prices, each `0 - 5 - 2 = -7`, total **-21**. Quantities 2 and 3 scale
+   each value linearly. Green count 4 never enters and returns zero. Thus trial
+   net P&Ls in trial order must be:
+
+   ```text
+   78, 156, 234, -81, -162, -243, -21, -42, -63,
+   0, 0, 0, 0, 0, 0, 0, 0, 0
+   ```
+
+   Only trials **1–3** qualify; the other 15 are disabled. Net P&L already
+   includes costs; the displayed cost columns are not deducted again.
+5. Open Columns, hide Total gross pnl and freeze Contracts. Expect the saved
+   browser layout on reload. Choose two profitable trials: other unchecked rows
+   become disabled at the cap. Uncheck one before confirmation to change the
+   draft. Losing/zero rows remain disabled even when a slot opens. The backend
+   rejects a forced losing/zero trial, unknown trial, duplicate configuration,
+   third choice, another job's ID, or stale revision. An all-zero grid cannot
+   confirm or unlock IS Narrow; selecting one eligible configuration is valid.
+6. Choose trials **2 and 3** and confirm. Expect IS Narrow to show contracts
+   **2 / 3**, green count **3**, hold minutes **20**, with IS net **156 / 234**.
+   Reload: both inputs remain. Return to IS Broad: choices remain checked and
+   disabled, and rerun is disabled. Download Saved IS Broad package and Results
+   CSV; expect the same IDs/parameters/profits and the recorded confirmation
+   timestamp. Report files stay byte-identical after navigation/review/downloads.
+   OOS stays locked. Stop this optional inspection server with Ctrl-C.
+
+The ignored local test library can also be reopened at
+`artifacts/is-broad-20261110/browser-final/test_broad_search_columns_prof0`
+using the same `ALPHAQUEST_DATA_DIR` startup command. Its workflow URL is
+`/#campaigns/workflows/67f26c98bb88489fbce6f33b452d0bb7/is_broad`. Portable evidence
+exports remain available in another checkout without that local database.
+
+Focused validation: **12 default backend checks passed in 18.61s**, including
+three new broad contracts; **3 affected product browser journeys passed in
+18.59s** (new broad flow, existing mechanics confirmation, existing column
+show/freeze/reorder/sort/persistence). Backend boundaries include concurrent
+duplicate launch, stale previews/revisions, source/report identity, capped and
+positive-only selection, code drift, all-zero results, deletion protection,
+artifact tampering, durable reopen and job-history deduplication. No 180-test or
+full legacy suite was run. JavaScript syntax and `git diff --check` passed.
+Temporary test servers stopped through fixture teardown; no persistent server
+was started. Reproduce only these affected checks with:
+
+```sh
+.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -x -q tests/test_campaign_broad_browser.py \
+  tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
+  tests/test_optimization_layout_browser.py::test_select_columns_reorder_both_groups_sort_and_persist \
+  --basetemp=artifacts/is-broad-REVIEW/browser
+```
+
+## 2026-11-10 — Six-criterion IS Broad gate and visible stage policies
+
+This increment replaces the profitability-only rule **for new IS Broad grids**
+with the six approved requirements in `docs/workflow_screening.md`. That document
+also preserves the agreed IS Narrow requirements for later implementation.
+Every workflow page now exposes **Passing criteria by stage**: mechanics and
+Broad are implemented; Narrow's additional tests and OOS execution are visibly
+pending. Expanding a future stage's rules does not execute it or unlock it.
+
+Each Broad configuration now runs twice through the existing native strategy
+and execution engine: normal costs and **one additional tick of slippage per
+fill**. Native stress reports use the existing backtest catalogue and files;
+the batch remains one history job, with each candidate linking its base and
+stress reports. The result CSV includes the new screening metrics. Each result
+also links a checked `is_screening.json` download containing the six measured
+verdicts, complete-month P&L, observed coverage, policy and stress provenance.
+
+The new streaming measurement observes every engine bar-close equity point,
+including unrealized P&L. Earlier trade-close summary metrics and old files are
+preserved. Policy snapshots bind the job, run and manual selection. The server
+requires all six checks and sufficient evidence, rechecks native artifact
+identities before confirmation/carry-forward, and blocks modified or missing
+evidence. Cached results include native stress evidence and its integrity checks.
+Both base and stress reports are retained against campaign deletion. No external
+engine, provider oracle or future IS Narrow calculation is invoked.
+
+Earlier **confirmed** profitability-only choices retain their original identities
+and display a historical-rule notice; they are not certified against the new
+six-test policy. Older **unconfirmed** grids display a rerun requirement and
+cannot select configurations until a new grid records the six tests. Saved old
+reports, screenshots, exports and reviews remain unchanged.
+
+Actual product evidence is saved in
+`artifacts/is-screening-20261110/evidence/`: stage/grid/results/Narrow/mobile
+screenshots, insufficient-history and cost-stress rejection screenshots, normal
+results JSON/CSV, frozen package, native screening measurements, labeled source
+CSVs, both selected native baseline/stress report pairs, their shared comparison
+artifacts, focused check logs and a SHA-256 manifest. `report-directories.json`
+maps chosen trials to the original native run IDs. This is synthetic workflow
+qualification; MC checkbox exercise is not measured MultiCharts/provider parity.
+
+### Reproduce the passing grid
+
+1. Restart with the new code. For an isolated inspection library:
+
+   ```sh
+   ALPHAQUEST_DATA_DIR=/tmp/alphaquest-six-criteria-review \
+     .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+   ```
+
+   Open `http://127.0.0.1:8017/`. Upload the saved `SYNTHETIC-source.csv`, using
+   a synthetic name/symbol, UTC timezone, tick size **0.25**, point value **10**.
+   Through Campaigns → Consecutive Green Hold → New backtest, select that source,
+   initial capital **10000**, slippage **1 tick per fill**, commission **1 per
+   contract per side**, IS **2024-01-01 → 2025-12-31**, and reserved OOS
+   **2026-01-01 → 2026-01-01**. The reserved bar's 900 price must not enter any
+   base/stress result or screening measurement.
+2. Run default mechanics and perform the required review/confirmation. The
+   synthetic source has **144 trades and 1872 net profit**. Open IS Broad. Expect
+   all six rules visible, including the 24-month/100-trade floor and cost stress.
+   Expand IS Narrow's rule summary even while it is locked: expect inherited
+   Broad tests, 70% profitable neighbors, three of four profitable time blocks
+   including the last, positive profit excluding the best month, and a
+   dependence/search-adjusted 95% lower daily-profit bound. Its status explicitly
+   says not implemented.
+3. Set green count **3 → 4, step 1**, hold minutes **20 → 60, step 20**, contracts
+   **1 → 3, step 1**, workers **1**. Calculate: expect **18 configurations**. The
+   portal explains that each runs at normal and extra-slippage costs. Run and
+   wait for **COMPLETE · 18 / 18**. Navigation/reload does not cancel execution;
+   Job history links back to Broad. Expect **37 native reports** (mechanics plus
+   18 base and 18 stress runs) and **2 history jobs**, without duplicate stress
+   jobs.
+4. Independent arithmetic: the source repeats the six-trade pattern from the
+   earlier mechanic fixture each month for 24 months. Each month's quote gains
+   sum to **120** per contract. Normal fills subtract **30** slippage and **12**
+   commissions: **78/month × 24 = 1872**. An extra tick per fill costs another
+   **30/month**, leaving **48/month × 24 = 1152** in the actual stress rerun.
+   Two and three contracts scale those exact source results. Thus the native
+   base net profits in trial order are:
+
+   ```text
+   1872, 3744, 5616, -1944, -3888, -5832, -504, -1008, -1512,
+   0, 0, 0, 0, 0, 0, 0, 0, 0
+   ```
+
+   Only trials **1–3** pass all six criteria. For trial 1, expect **24 months**,
+   **144 closed trades**, **24/24 profitable full months**, annual net profit
+   approximately **935.3406** over 731 days, and maximum **MTM drawdown 40.50**.
+   The legacy closed-trade drawdown remains **37**. The MTM low includes the
+   fourth trade's **3.50** entry cost/unrealized loss while still recovering
+   from the third trade's **37** loss. Longest MTM drawdown is **12180 seconds**
+   (11:01 → 14:24 on a pattern day), approximately **0.019285%** of IS. The
+   annual-profit/drawdown ratio is approximately **23.0948**.
+5. Open trial 1's eligibility details: expect six PASS rows and actual values.
+   Open its Cost-stress report: expect **144 trades, 1152 net profit**, with
+   slippage set to **2 ticks**. Download Screening measurements: expect those
+   values, complete monthly marks and the saved policy version `is-broad-v2`.
+   Losing/zero and insufficient-trade configurations remain dark and disabled.
+   Show/hide/freeze columns, then reload: layout preferences and results remain.
+6. Choose trials **2 and 3**, then confirm. IS Narrow displays the exact locked
+   parameters and **3744 / 5616** base profits; its criteria are visible but its
+   search is not implemented. Reload or reopen through Job history: choices
+   stay locked. OOS stays disabled. Downloads and review do not modify saved
+   native result files. Stop the optional server with Ctrl-C.
+
+### Reproduce the rejection cases
+
+- **Insufficient history:** upload `short-SYNTHETIC-source.csv`, using the same
+  instrument/cost settings, IS **2026-01-05**, OOS **2026-01-06**. After mechanics
+  review, run Broad at fixed defaults. Its **6 trades / +78 net** must show
+  **Insufficient evidence**, with history/trade and complete-month failures.
+  It cannot be selected or unlock Narrow despite positive profit.
+- **Cost fragility:** upload `cost-stress-SYNTHETIC-source.csv` and use the same
+  2024–2025 split/settings as the passing source. Run fixed defaults. Only the
+  final exit quote of each month's pattern changes from 104 to 99. This reduces
+  normal monthly net by **50**, giving **28 × 24 = 672**, and stressed net to
+  **−2 × 24 = −48**. Expect **Not qualified · 5 / 6 passed**, with cost stress
+  failing and the other five passing. Selection and confirmation stay disabled;
+  direct API selection also returns 409.
+- **Strict boundaries:** the contract checks cover exactly 24 months/100 trades
+  passing the evidence floor; 23 months/99 trades failing; profit or stress net
+  equal to zero failing; annual profit equal to DD failing; exactly 50%
+  profitable months failing; and drawdown duration exactly 25% failing. Partial
+  months, zero-observation months, source-timezone month boundaries, DST,
+  unresolved DD and padded declarations have independent numerical cases.
+- **Integrity and history:** changing a stress trade file blocks selection and
+  the screening download; changing a frozen base artifact blocks carry-forward.
+  Valid cached base/stress pairs reuse together without extra native reports.
+  Existing confirmed legacy choices reopen with their original rule and hashes;
+  incomplete old grids cannot pass the new gate without rerunning.
+
+Focused verification: **17 default backend checks passed in 35.56s**, **3 focused
+legacy reporting checks passed in 1.86s**, and **3 affected browser journeys
+passed in 28.91s**. The legacy cases prove historical trade-close summaries,
+open-equity reconciliation and compact outputs retain their contracts. The
+browser cases cover the passing grid, both explained rejections and existing
+mechanics review. One additional targeted replay check passed in **7.50s** after
+verifying that a normal full-detail replay can reuse the original candidate's
+bound native stress evidence and download its screening measurements. Original
+selection identity and source files remain unchanged. JavaScript syntax and source whitespace checks passed; raw
+downloaded CSV evidence retains native CRLF bytes. No full/180-test suite was
+run. Temporary browser servers stopped via fixture teardown; no persistent
+server was started.
+
+```sh
+.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -q \
+  tests/test_reporting.py::test_exact_sums_and_final_equity_reconcile_and_open_position_marks_are_preserved \
+  tests/test_reporting.py::test_compact_retains_exact_metrics_and_csvs_without_creating_arrays \
+  tests/test_drawdown.py::test_reporter_uses_closed_equity_after_costs_and_ignores_open_position_dips
+mkdir -p artifacts/is-screening-REVIEW
+.venv/bin/python -m pytest -x -q tests/test_campaign_broad_browser.py \
+  tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock \
+  --basetemp=artifacts/is-screening-REVIEW/browser
+```
+
+The ignored saved normal-product library is
+`artifacts/is-screening-20261110/browser-final/test_broad_search_columns_prof0`.
+Set `ALPHAQUEST_DATA_DIR` to that directory to reopen the saved workflow
+`/#campaigns/workflows/5699ee9da8344ff7ab0a28cfb722538c/is_broad` without recomputing.
+Portable exports and report artifacts remain available when that local test
+database is absent in another checkout.
+
+## 2026-11-10 — One campaign results destination
+
+Campaign IS Broad jobs now expose only **Open IS Broad** from Job history.
+The duplicate **Open batch progress / results** link is removed for these jobs.
+Both old `/#backtests/batches/{job_id}` and `/#optimizations/{job_id}` bookmarks
+redirect to the corresponding campaign run at
+`/#campaigns/workflows/{workflow_id}/is_broad?job={job_id}`. Generic batch-history
+entries also link to that canonical view. The underlying optimizer, result/export
+APIs, calculations, source files and report storage are unchanged.
+
+IS Broad now includes the useful execution information from the generic view:
+elapsed time, worker count, reuse count, active-trial stage/bar progress, errors,
+saved run/source/grid/cost settings, queued cancellation and failed/interrupted
+run resume. Results CSV, native report links, column controls, screening evidence
+and locked selection remain available. The generic batch viewer continues to
+serve standalone legacy jobs, which have no campaign phase page.
+
+Earlier runs are preserved within IS Broad. A superseded job opens with an
+**Earlier IS Broad run** notice, its original parameters/results/downloads and
+disabled execution/selection controls. **Open current IS Broad** returns to the
+active run. The server verifies that the requested job belongs to this workflow;
+unknown or another workflow's jobs return 404. A direct selection request using
+an older job ID still returns 409. Read-only archive state is projected from the
+existing job catalogue; it does not create another result store or invent an
+earlier confirmation.
+
+Saved evidence is in `artifacts/single-campaign-results-20261110/evidence/`:
+the job-detail screenshot with one destination, consolidated results, an earlier
+run, mobile layout, native failed/resumed controls, original current/earlier
+packages and result downloads, labeled synthetic source, standalone-viewer
+verification, scoped check logs and a SHA-256 manifest. Previous dated evidence
+and native artifacts remain unchanged. This navigation change makes no new
+MultiCharts/provider or future-performance claim.
+
+To reproduce in the normal product:
+
+1. Restart the app and refresh. Open Job history → a campaign's IS Broad job.
+   Expect one result link, **Open IS Broad**, with no generic batch-results link.
+   Open it: expect the correct run, progress/settings and normal result table.
+2. Open that job's former batch URL, then its old optimization alias. Both should
+   land on IS Broad with the same job ID and saved rows. Opening or redirecting
+   must not run any backtests or change a confirmed selection.
+3. For a workflow with an older replaced grid, open the earlier job from history
+   or its old batch URL. Expect **Earlier IS Broad run**, the earlier table and
+   matching downloads, all selection/run controls disabled, and a link to the
+   current run. Returning to current must preserve its confirmed choices.
+4. In the saved synthetic demonstration, the earlier grid contains **one** row
+   with net **1872**; the current grid contains **18** rows, with chosen trials
+   **2/3** retaining **3744/5616**. Exactly **3 history jobs** and **37 native
+   reports** exist: one mechanic run, an earlier one-trial grid, and the later
+   grid, which safely reuses that first base/stress pair. All saved native
+   artifacts remain byte-identical after links, redirects, reviews and downloads.
+5. The focused controls journey cancels a genuinely queued native grid before
+   execution: only its mechanic report should exist. It then runs a two-trial
+   grid with a labeled, injected publication failure on trial 2. Expect trial 1
+   retained and **Resume remaining 1 trials** on IS Broad. Restoring publication
+   and clicking resume finishes the **same job**, with nets **1872/3744** and a
+   byte-identical first report. This is controlled failure qualification, not a
+   claim about an actual provider outage. No generic results page is needed.
+
+Focused validation: **4 backend checks passed in 7.60s**. Three affected browser
+journeys passed: consolidated campaign navigation/archive inspection, queued
+cancellation/actual resume, and retained standalone column/report behavior. The
+final campaign capture passed in **12.22s**, controls in **6.23s**; the original
+combined campaign/standalone check passed in **15.71s**. JavaScript syntax and
+whitespace checks passed. No default/full/180-test suite was run. Temporary test
+servers stopped via fixture teardown; no persistent server was started.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_job_history.py \
+  tests/test_campaign_broad.py::test_no_profitable_rows_do_not_advance_retries_are_idempotent_and_one_choice_is_enough
+mkdir -p artifacts/single-campaign-results-REVIEW
+.venv/bin/python -m pytest -x -q \
+  tests/test_campaign_broad_browser.py::test_broad_search_columns_profit_filter_and_locked_selection \
+  tests/test_campaign_broad_browser.py::test_queued_cancel_and_failed_run_resume_live_on_is_broad \
+  tests/test_optimization_layout_browser.py::test_select_columns_reorder_both_groups_sort_and_persist \
+  --basetemp=artifacts/single-campaign-results-REVIEW/browser
+```
+
+To reopen the ignored saved product library without recomputation:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/single-campaign-results-20261110/browser-final/test_broad_search_columns_prof0" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8017
+```
+
+Open `http://127.0.0.1:8017/#jobs/backtest_batch/c8ded000cffc4ecaa1bf76931f898537`.
+The earlier job is `ff78862bee70406299870af5b044183d`; the workflow is
+`55a105ed8906460cabe6ba89833f5f24`. Stop this optional inspection server with
+Ctrl-C. Portable exports and the synthetic source remain available when the
+ignored test database is absent from another checkout.
+
+## 2026-11-11 — IS Narrow campaign stage (normal product workflow)
+
+This campaign workflow increment uses the existing native optimizer, job history,
+backtest catalogue, phase navigation and downloads. It does not run prop
+simulation and does not claim provider parity. The implemented screening policy
+and exact method are in `docs/workflow_screening.md`; OOS execution remains a
+future stage.
+
+### Saved normal-product evidence
+
+`docs/evidence/is_narrow/` contains the labeled synthetic source uploaded by the
+browser journey, a screenshot of the final Narrow page, saved Narrow results JSON,
+a saved confirmed Narrow package and `journey.json` with the workflow/job
+identity. The browser fixture starts a temporary Uvicorn server and stops it in
+teardown; no persistent server was left running. Recreate the package and
+screenshot with:
+
+```sh
+ALPHAQUEST_NARROW_EVIDENCE_DIR=docs/evidence/is_narrow \
+  .venv/bin/python -m pytest -q tests/test_campaign_narrow_browser.py
+.venv/bin/python -m pytest -q tests/test_campaign_narrow.py
+```
+
+To inspect through the actual portal, start the ordinary app in a separate
+local data directory and open `http://127.0.0.1:8000`:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/data/narrow-review" \
+  .venv/bin/python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000
+```
+
+Stop it with Ctrl-C after review. Upload
+`docs/evidence/is_narrow/SYNTHETIC-source.csv` as a UTC
+synthetic dataset (tick size 0.25, point value 10), choose Consecutive Green
+Hold, use IS 2024-01-01 through 2025-12-31 and OOS 2026-01-01, with 10,000 CU
+initial capital, one tick slippage, and one CU commission per contract per side.
+Complete the mechanic validation checklist only after your own parity review;
+the automated fixture marks these checks as a synthetic UI exercise and does
+not claim a MultiCharts comparison. Run Broad with `green_bar_count=3`,
+`hold_minutes=20`, `contracts=1..2 step 1`, confirm both passing rows. In Narrow,
+select Broad trial 1 and vary `hold_minutes=20..21 step 1`, keeping
+`green_bar_count=3` and `contracts=1` fixed. Repeat for Broad trial 2 with
+`contracts=2`. The portal prevents changing the Broad-varied `contracts`
+value. Wait for both jobs to finish, inspect all nine checks per row, select
+trial 1 from each branch, and confirm each. The OOS step becomes navigable.
+
+Independent fixture arithmetic: six trades per active source date earn 78 CU
+net at one contract. The 120 active IS dates earn 9,360 CU total, 2,340 CU in
+each of four calendar periods, and 8,970 CU after subtracting the best
+complete 390 CU month. The two-contract branch doubles these amounts. Two
+Broad plus four Narrow configurations yield a Bonferroni family of six.
+The native +1-tick cost-stress report, daily equity, monthly screening and
+neighboring trial are checked before a row can be selected. Direct requests
+to alter a frozen Broad input, select before both branches finish, or use a
+changed neighboring result are rejected. Both selected packages and their
+native reports reopen after app restart without resimulation; deleting their
+native jobs or screening reports is rejected. The original source and OOS holdout
+remain unchanged.
+
+## 2026-11-11 — Optional local refinement of IS Broad values in IS Narrow
+
+The normal campaign Narrow form now locks every Broad-varied value by default.
+When a saved numeric Broad grid has a finer representable step, the researcher
+may explicitly check **Refine in Narrow** for that parameter. The preview API
+checks the opt-in, selected Broad anchor, finer step, at least one new value,
+and a range strictly within the midpoint to the nearest other Broad value.
+Binary coded modes such as `retest_mode=1,2` have no finer integer step and
+stay locked. Ordinary numeric parameters need no campaign-specific declaration;
+a future sparse coded mode can declare `refinement_kind: categorical` in its
+strategy metadata. The saved job and native reports identify the Broad anchor,
+refined names, still-locked names and refinement rule version. The existing
+nine Narrow admission checks, two selections per Broad branch and OOS handoff
+are unchanged.
+
+### Reproduce and inspect the saved normal-product example
+
+The separate `docs/evidence/is_narrow_refinement/` folder preserves a labeled
+synthetic CSV, actual Narrow result JSON, the downloaded confirmed package,
+portal screenshot and job/workflow IDs. The browser fixture uses a temporary
+server and stops it in teardown. Recreate the evidence and run the focused API
+checks with:
+
+```sh
+ALPHAQUEST_REFINEMENT_EVIDENCE_DIR=docs/evidence/is_narrow_refinement \
+  .venv/bin/python -m pytest -q tests/test_campaign_narrow_browser.py::test_narrow_portal_explicit_local_refinement_and_saved_result
+.venv/bin/python -m pytest -q tests/test_campaign_narrow.py
+```
+
+To repeat manually, start the ordinary app with a fresh data directory using
+the command in the preceding IS Narrow section. Upload
+`docs/evidence/is_narrow_refinement/SYNTHETIC-source.csv` as a UTC synthetic
+dataset with tick size 0.25 and point value 10. Choose Consecutive Green Hold,
+IS 2024-01-01 through 2025-12-31, OOS 2026-01-01, 10,000 CU initial capital,
+one tick slippage and one CU commission per contract per side. Complete the
+mechanic checklist after reviewing the displayed native evidence; the fixture's
+automatic attestation is synthetic and does not establish MultiCharts parity.
+In Broad, hold `green_bar_count=3` and `contracts=1` and search
+`hold_minutes=20..40 step 20`. Confirm the passing `hold_minutes=20` row.
+Open IS Narrow. Expect `hold_minutes` disabled and **Refine in Narrow** off.
+Check it; search `19..21 step 1` while the other parameters stay fixed.
+Preview expects **three** combinations. Run and inspect the native reports,
+screening details, frozen varied column and saved grid. The fixture's 120
+active days and six trades per day at 78 CU net/day independently imply
+**9,360 CU** for hold 20; the saved 19 and 20 rows both show 9,360 CU.
+The 21 row shows 1,800 CU and fails the measured extra-slippage rerun, so it
+cannot be selected. The search family contains two Broad plus three Narrow
+trials. Select one qualifying Narrow row and confirm; OOS navigation unlocks.
+Reopen the downloaded package or restart the app to inspect the same saved
+reports without resimulation.
+
+Boundary checks: without explicit opt-in, changing a Broad-varied value is
+rejected. So are an unvaried parameter opt-in, duplicate opt-ins, a coarse
+step, a range reaching the next Broad neighborhood, a range omitting the
+selected Broad value, and a stale preview token. Existing two-branch Narrow
+jobs continue to keep `contracts=1,2` locked. Altering saved refinement
+provenance after confirmation blocks OOS navigation. The synthetic source and its
+OOS holdout are unchanged; this increment does not execute OOS or prop
+simulation.
+
+## 2026-11-11 — IS Narrow fine-grid plateau assessment
+
+The campaign workflow now uses `is-narrow-v3`. Its seven required checks retain
+four Broad gates, four-period source coverage, and best-month removal. The
+parameter-stability gate now requires both local directions on every varied
+ordered numeric axis. Every neighbor must retain at least 70% of candidate net
+IS profit and remain profitable in its own native +1-tick-per-fill run. The
+portal shows the local-step declaration and each neighbor's actual results or
+missing value. It compares saved evidence without starting another replay.
+Integer local steps default to 1; Decimal defaults use the declared grid step.
+An explicit meaningful local step can be frozen before launch. The application
+cannot establish that an arbitrary user-declared increment is economically local.
+
+`docs/evidence/is_narrow_plateau/README.md` gives exact reproduction commands,
+manual normal-product steps, independent expected values, and the evidence
+inventory. The saved normal portal journey runs the synthetic native dataset
+through mechanics, Broad, two Narrow branches, confirmation, and package
+download. Hold-minute values 17..20 with local step 1 earn 9,360 CU at one
+contract and 18,720 CU at two; extra-slippage results are 5,760 and 11,520 CU.
+Interior values 18 and 19 have both sides with 100% retention. Boundary values
+17 and 20 are disabled for missing local evidence despite positive profit.
+Each branch can still choose two rows, at most four total. OOS becomes ready
+only after both branches are confirmed; no OOS or prop simulation is executed.
+
+The separate `is_narrow_plateau/refinement/` evidence contains an actual native
+failure example: explicitly refining Broad hold 20 into Narrow values 18..21
+leaves hold 19 eligible. Hold 20 itself earns 9,360 CU but its higher neighbor
+21 earns only 1,800 CU (19.23% retained) and −1,200 CU under extra slippage.
+The plateau therefore rejects hold 20 even though its own baseline and stressed
+results are profitable. This extends the earlier dated refinement journey;
+the earlier source, results, policy and screenshots remain unchanged.
+
+Unconfirmed older grids are assessed directly from saved reports when their
+local evidence exists. Missing observations are never interpolated. A finer or
+wider replacement can be launched from the same unconfirmed branch; older jobs
+and reports remain in history. Previously confirmed v1/v2 selections retain
+their original measured admission. Focused API tests cover exact retention
+boundaries, cost-stress failure, missing neighbors, policy preservation, and
+replacement without rewriting old files. The browser test uses a temporary
+server and stops it after recording the evidence. Synthetic mechanics
+attestations do not establish external MultiCharts parity or trading readiness.
+
+## 2026-11-11 — IS Narrow plateau using existing tested neighbors
+
+The current campaign policy is `is-narrow-v4`. Seven required checks remain.
+The plateau gate uses the nearest already-tested lower/higher value on each
+varied ordered numeric axis, changing one coordinate at a time. It requires at
+least two available neighbors; every one must retain at least 70% of candidate
+baseline net IS profit and remain positive in its own saved +1-tick-per-fill
+rerun. Boundaries use available directions and are labeled one-sided. The form
+has no additional local plateau step. Assessment schedules no extra backtests
+and reports the actual tested spacing, without claiming robustness to smaller
+untested changes. Historical confirmed v1/v2/v3 policies and evidence remain
+unchanged; v3's two-sided fine-grid reader is retained for those snapshots.
+
+`docs/evidence/is_narrow_tested_grid/README.md` contains exact normal-product
+steps, independent expected values, and evidence/download descriptions. The
+saved two-branch portal journey uses hold values 14,16,18,20, step 2. Each
+one-contract row earns independently expected 9,360 CU and 5,760 CU under extra
+slippage, with 100% neighbor retention. Interior values 16 and 18 qualify;
+one-axis endpoints have only one neighbor and cannot qualify. Two contracts
+double both profit amounts. Confirming two rows in each branch unlocks OOS
+navigation with four frozen candidates; no OOS or prop simulation is executed.
+
+The separate `boundary/` product evidence varies green-bar count 2,3 and hold
+14,16,18,20 at one contract. The green=3 / hold=14 corner earns 9,360 CU and
+qualifies using green=2 / hold=14 (16,560 CU) and green=3 / hold=16 (9,360 CU).
+The retained amounts are 176.92% and 100%. Both axes are one-sided; the page
+labels them explicitly. Green=2 settings fail because their green=3 neighbors
+retain only 56.52%, despite positive baseline and extra-slippage results. Job
+counts are unchanged before and after opening the saved-results page.
+
+Focused API checks also forbid replay/job creation while assessing and
+confirming genuine older coarse v2/v3 grids, then verify native file hashes and
+job counts are unchanged. They cover exact 70% acceptance, positive profit just
+below the retention threshold, zero stressed profit, fewer than two neighbors,
+missing internal grid evidence, unequal Decimal spacings, categorical/diagonal
+exclusions, and preserved v1/v2/v3 confirmations. Three browser journeys check
+the actual portal, local Broad refinement, two-branch selection and downloads,
+and qualifying one-sided corners. All temporary test servers stop at teardown.
+These labeled synthetic outputs verify arithmetic and workflow; no external
+MultiCharts parity, statistical edge, or provider qualification is claimed.
+
+## 2026-11-11 — Complete frozen-family OOS assessment
+
+`campaign-oos-v1` now executes every confirmed Narrow candidate (one to four)
+on the frozen OOS window through the ordinary backtest batch worker. It runs
+only those exact dictionaries; no Cartesian parameter expansion or OOS-driven
+IS reselection is permitted. The existing catalogue owns jobs, ordinary native
+reports, cost-stress reports, research-access events and OOS-attempt history.
+No prop simulation, portfolio sizing, separate execution engine, or demo-only
+product surface is added.
+
+The actual OOS page contains one sortable table with frozen varied parameters,
+IS/OOS annual profit, net per trade, MTM depth, retention, monthly profitability,
+extra-slippage profit, durations in calendar days, and seven per-row reasons.
+The gates require six observed and complete months plus 50 trades; positive
+net profit; at least 50% IS annualized and per-trade net profit retention; MTM
+drawdown no more than 1.5 × IS; profitable months at least max(40%, IS minus
+15 percentage points); and positive net in a native +1-tick-per-fill rerun.
+Zero IS drawdown allows only zero OOS drawdown. Each candidate can pass; the
+phase passes after the full batch finishes with at least one eligible row.
+These are frozen pragmatic historical screens, not guarantees or provider
+qualification. Initial positions are flat; sizing parameters and base execution
+settings remain frozen, with actual trade quantities determined by the strategy.
+
+`docs/evidence/campaign_oos/README.md` supplies exact startup/UI/test commands,
+independent arithmetic, saved native outputs and downloads. The stable portal
+journey selects four IS configurations from two Broad branches: hold 16/18 at
+one contract and hold 14/20 at two contracts. Their IS totals are 9,360/18,720 CU;
+OOS totals are 4,680/9,360 CU, with 2,880/5,760 CU under extra slippage. All four
+pass, and the actual worker count is four rather than the eight configurations
+that a Cartesian product would imply. The source has 120 IS and 60 OOS active
+days; six trades/date, 12 price points/date, 30 CU baseline slippage and 12 CU
+commissions independently give 78 CU/date. The degraded native OOS has 7.8
+points/date, giving 36 CU net/date: 2,160 CU baseline and 360 CU stressed per
+contract. It fails retention at 46.15% net/trade despite positive net results.
+Native report, trade/equity CSV and measured sidecars remain inspectable.
+
+Job history opens the exact OOS attempt. Progress uses the lightweight existing
+job record and reloads measurements on candidate completion, not each bar update.
+Jobs continue after leaving the page, support checkpoint stopping, and retain
+completed reports when resuming remaining candidates. Explicit repeats append
+history and disclose previous OOS attempts and local prior access; no untouched
+certificate is claimed. Protected holdout reservations retain their normal read
+guard. Campaign report actions return to the matching phase, and old generic
+batch links redirect to OOS rather than a duplicate results page.
+
+Focused checks exercise stable/degraded native four-worker execution, exact
+membership, frozen parameters and dates, authoritative bar-close MTM capture,
+threshold boundaries and short/no-trade evidence, zero drawdown, phase gates,
+launch idempotence, repeated-history preservation, source/verdict corruption,
+delete protection, reopening without replay, and resuming after one real
+candidate completes. The browser journey covers the real table, column freezing,
+sorting, automatic phase status, history navigation, JSON/CSV downloads and
+reload. Earlier IS evidence and confirmed v1/v2/v3 policies remain unchanged.
+All temporary test servers stop at teardown. Synthetic mechanic attestations do
+not establish MultiCharts parity, statistical edge, or live trading readiness.
+
+### 2026-11-11 — Final full-period Monte Carlo after campaign OOS
+
+Implemented a separately labeled retrospective sanity check inside the existing
+OOS page, for every verified OOS-passing frozen configuration (up to four). The
+existing AnalysisStore supplies its worker, cancellation, catalogue, atomic
+sealed report and downloads. Job history opens the exact campaign/OOS attempt.
+The task continues after navigation and reopening never reruns price replay or
+the bootstrap. No prop sizing/account model or new candidate-selection phase
+was introduced; IS selections and OOS verdicts remain unchanged.
+
+The calculation reconciles native IS and OOS daily equity with saved closed
+trade counts/net totals, then bootstraps the pooled additive daily P&L. Existing
+costs are included once. It retains observed no-trade dates and daily open marks,
+labels absent dates and the split gap, and preserves the two original phases'
+execution boundary behavior. It runs 5,000 deterministic stationary-block paths
+at mean block lengths 5 and 20, fixed seed 42. Each candidate needs ≥100 observed
+source dates/100 trades, positive 5th-percentile full-period net, and 95th-percentile
+daily-close drawdown ≤2× observed daily-close drawdown under both block settings.
+The thresholds are local sanity gates, not proof of edge. Daily-close risk is
+explicitly distinguished from native bar-close MTM and intraday risk. Pooling IS
+with accessed OOS creates no new holdout and corrects no selection bias.
+
+[Saved normal-product evidence and exact reproduction steps](evidence/campaign_monte_carlo/README.md)
+include the source CSV, actual portal screenshot, JSON report, full-period daily
+P&L CSV, 40,000 path outcomes and the sealed evidence ZIP. The synthetic native
+journey's independently derived full-period totals are **14,040 CU** for each
+one-contract candidate and **28,080 CU** for each two-contract candidate, with
+**1,080 closed trades** each. Daily net increments are nonnegative, giving exactly
+zero historical and simulated daily-close drawdown; all four pass. Those are
+synthetic arithmetic expectations, not fabricated market outcomes or measured
+MultiCharts parity. Earlier report/evidence folders are preserved.
+
+Focused checks include deterministic constant gains/losses, positive historical
+profit failing the bootstrap lower tail, a separate clustering/drawdown failure,
+inclusive drawdown limits, insufficient trade evidence, OOS rejection, net/trade
+reconciliation, no new OOS access/backtests, frozen IS preservation, idempotent
+launches, cooperative cancellation, artifact tampering, immutable downloads and
+application reopening. The Chromium journey starts from the actual OOS page,
+leaves for job history, returns, downloads the ordinary reports and reloads them.
+Temporary test servers stop at teardown; no persistent server is started.
+
+### 2026-11-12 — Monte Carlo v2 diagnostics and saved-population reassessment
+
+Revised the final campaign Monte Carlo policy to require only minimum evidence
+and positive 5th-percentile full-period net profit under both block settings.
+Removed the 2× historical daily-close drawdown rejection rule. Added mean net
+profit, displayed median profit, median drawdown, drawdown multiple and the
+historical drawdown's percentile within simulated outcomes. All these metrics
+are explicitly diagnostic; no mean/median retention gate or prop sizing model
+was added. Percentile ties use half weight; an all-identical population ranks
+at 50%, and a zero historical drawdown gives an undefined multiple displayed N/A.
+
+The normal OOS page labels v1 reports as historical and offers **Apply updated
+policy to saved paths**. This validates the same native source membership and
+sealed population, then publishes a new v2 AnalysisStore report, copying the
+daily/path CSVs byte-for-byte. It adds no strategy replay, random draws, OOS
+attempts, or cost deduction. The original policy/verdict/report/archive remain
+unchanged and are linked from the updated report. GET requests do not mutate
+assessments. Updated jobs continue to use ordinary history, cancellation,
+publication, integrity checking and downloads.
+
+[The v2 product journey and saved evidence](evidence/campaign_monte_carlo/v2/README.md)
+retain the prior evidence folder. The actual synthetic native source still
+produces independently derived totals of 14,040 CU at one contract and 28,080 CU
+at two, with 1,080 trades each. The browser journey starts a normal current
+assessment, then represents its sealed population in a test-only v1 schema and
+uses the real portal update action with simulation disabled. Original files
+retain every checksum; all 40,000 saved outcomes are preserved in the new
+assessment. Updated diagnostics appear in the table and JSON/ZIP downloads and
+reopen unchanged after reload and job-history navigation. The test server stops
+at teardown; no persistent server is started or user server restarted.
+
+Focused arithmetic checks cover positive-tail qualification despite a drawdown
+multiple of 3×, positive mean/median failing a negative lower tail, zero-drawdown
+and percentile-tie handling, insufficient evidence, and cancellation. Native API
+checks retain OOS admission/source verification, frozen IS preservation,
+idempotence, no replay, download integrity and application reopening. No claim
+of measured MultiCharts parity, future robustness or trading readiness is made.
+
+### 2026-11-12 — Foreground MTM risk and collapse daily-close diagnostics
+
+Updated the normal OOS/Monte Carlo presentation to show separate frozen IS/OOS
+bar-close MTM maximum drawdowns in the primary results table. Values come from
+the already verified OOS results, without another source read, calculation,
+backtest or simulation. They are labeled by period and are not presented as a
+stitched full-period MTM measurement. The existing IS/OOS result tables continue
+to expose their MTM measurements.
+
+Moved all daily-close bootstrap drawdown columns into **Daily-close Monte Carlo
+drawdown diagnostics (optional)**, collapsed by default. Its explanation states
+that source-local daily observations can miss intraday peaks/losses and cannot
+establish intraday account-rule survival. Mean/median profit, lower-tail profit
+and required checks remain in the main table. Existing saved measurements,
+verdicts, policy versions, JSON/CSV/ZIP downloads and report identities remain
+unchanged. There is no migration, strategy replay or Monte Carlo rerun required.
+
+[Presentation evidence and reproduction steps](evidence/campaign_monte_carlo/drawdown_ui/README.md)
+preserve earlier v1/v2 evidence. The affected browser journey checks primary
+MTM values against native OOS results, collapsed/expanded daily diagnostics,
+two-decimal formatting, saved downloads, reload and history navigation. It uses
+the actual product workflow and shuts its temporary server down at teardown.
+
+
+### 2026-11-12 — Qualified single-configuration Prop Sim, independent phase results
+
+The actual **Prop Sim** tab replaces its former hardcoded preview with current
+campaign admission, editable scenarios, source checking, background Evaluation /
+Funded execution and sealed results. The same native IS backtest report opens
+this configuration screen. Exactly one parameter configuration is supported;
+failed/unconfirmed mechanics, frozen IS stages, current OOS, latest Monte Carlo
+policy/source identities or source-risk compatibility prevent admission. Client
+values cannot assert eligibility. Each explicit launch rechecks current evidence,
+including cached/idempotent launches; reading saved results does not rerun or
+mutate qualification.
+
+The increment reuses independent phase owners and CampaignStore/AnalysisStore.
+Evaluation retains all cost/time Pareto points; Funded ranks mean cash received
+from all fresh starts under its saved horizon and breach constraint. Neither
+phase uses the other's fees, durations, probabilities or objective. Parent records
+hold only declaration/qualification/phase links, with pinned campaign references.
+Existing numerical modules/hashes and historical reports remain unchanged.
+Navigation does not stop jobs; status, cancellation, retries, reopening and
+normal CSV/JSON/ZIP exports are integrated with Job history. Polling does not
+reload completed numerical reports repeatedly.
+
+[Saved synthetic normal-product outputs and exact reproduction](evidence/qualified_prop_sim/README.md)
+include source CSV, both phase reports/CSV/ZIPs, screenshots and journey/config
+snapshots. The labeled synthetic NQ source passes the real campaign and current
+Monte Carlo pipeline; no demonstration-only API, result store or test dashboard
+is added. With three sizes and 32 paths each, Evaluation independently satisfies
+`49 / p + 129`: size 1 has 21/32 passes and 203.6666667 USD expected cost;
+sizes 2 and 3 each have 24/32 passes, 194.3333333 USD cost and 19.25 calendar days,
+and both exact ties remain on the frontier. For each Funded size, all 32 starts
+sum to 58,500 USD received, 2,000 USD pending and 60,500 USD deducted; their means
+are 1,828.125 / 62.5 / 1,890.625 USD. The median/P10 receipts are zero. All three
+cash estimates tie, explicitly shown as tied alternatives rather than evidence
+of a unique optimal size. These are synthetic model outcomes, not future claims.
+
+Focused API checks verify exact cost and all-start receipt arithmetic, phase
+independence under fee/horizon changes, single-selection and forged-evidence
+rejection, source checks, idempotence, download availability, Job history,
+unchanged frozen Narrow choices and application reopening. Tampered latest
+Monte Carlo evidence blocks even cached launch while historical Prop Sim results
+remain readable. Browser checks exercise the actual backtest → configure →
+check → run → navigate away → reopen → download journey plus the empty-source
+and mobile boundaries. Temporary browser servers stop at teardown. The existing
+user server is not restarted by testing; no persistent test server is created.
+
+The user's existing qualified VWAP configuration was also run through the normal
+API, saved as `58d1433331a2429e9a6f0032a6ca108b` on the local workspace (not
+bundled as synthetic evidence). Both phases completed with 1–10 MNQ, 1,000 paths
+per size/phase and the displayed scenario defaults. Numerical values remain in
+the normal durable reports; original campaign/backtests/results are preserved.
+
+Model assumptions remain visible: IS-only sizing after OOS qualification,
+fixed-signal-path exposure scaling, conservative held-OHLC bounds, declared
+weekday calendars, editable fees/receipt delay, 21-session expiry/inactivity
+clocks and the existing exactly-50% consistency boundary. Current provider parity,
+complete strategy resimulation under account pauses and a portfolio allocation
+are not claimed or implemented by this increment.
+
+
+### 2026-11-12 — Independent phase size ranges, optional risk cap and Pareto chart
+
+Extended the same qualified backtest → Prop Sim → source check → native phase
+execution → sealed results/download journey with separate size ranges. Apex
+Evaluation admits through 60 MNQ and explicitly sends that cap into simulation;
+Funded admits through 40 MNQ while retaining its account scaling tiers. Backend
+and HTML validate both ceilings/range ordering. The parameter configuration and
+IS source remain fixed, and changing one phase's size range leaves the other's
+calculation identity unchanged. Historical shared-range settings remain readable
+and idempotently launchable without modifying earlier reports.
+
+The Funded breach cap is optional and blank/null by default, as approved by the
+user. Breach remains a diagnostic across the selected modeled horizon. Explicit
+caps remain enforceable; old saved runs retain their explicit 25% caps. No
+account needs to survive the entire IS history: that history supplies sampled
+scenarios, while the existing finite-horizon owner can terminate on breach,
+inactivity or completed payouts. No numerical engine, provider rule, reporting
+store, replacement-account or portfolio-allocation change is introduced.
+
+Added an interactive/exportable Evaluation cost/time Pareto chart to the actual
+result section. Resolved candidates appear with the existing frontier verdicts,
+exact coordinate ties retain all sizes, hover/keyboard/click reveals values and
+highlights rows, and the SVG download preserves axes/points/labels. Unresolved
+rows are excluded only from chart geometry. A single distinct frontier point
+and a wholly unresolved population are represented explicitly.
+
+[New saved normal-product evidence and reproduction](evidence/qualified_prop_sim/phase_ranges/README.md)
+use the existing labeled synthetic NQ source through all campaign phases and the
+current Monte Carlo gate. The actual portal runs 58–60 MNQ Evaluation and 38–40
+MNQ Funded, 32 paths per size/phase, then downloads native CSV/JSON/ZIP, Pareto
+SVG and result screenshots. This exercises the real upper boundaries rather
+than a mock execution service. Earlier evidence remains in the parent folder.
+The API additionally checks 61/41-MNQ and inverted-range rejection, distinct
+phase membership and cache independence, optional versus explicit risk caps,
+legacy shared-range requests, normal qualification/reopen protections, and a
+separate arithmetic oracle: 50 USD NQ-equivalent net per session at 60 MNQ earns
+300 USD/session and reaches the 3,000 USD target in exactly ten sessions; the
+old accidental 40-MNQ cap would require fifteen. A presentation-only chart test
+keeps its synthetic tradeoff/tie/missing-point oracle in tests, never in product
+storage or exported product evidence. Temporary browser servers stop at teardown.
+
+### 2026-11-12 — Readable dense Pareto frontier and responsive inspection
+
+Refined the existing Prop Sim result chart without changing any numerical owner,
+input, verdict, objective, report hash or saved selection. The previous full-range
+origin-based axes compressed nearby frontier points and overlaid their labels.
+The default **Frontier detail** now fits the frontier with nearby configurations;
+**All sizes** retains full context. A visible count discloses what is in view,
+while every result remains in the table. Nice tick intervals, fewer/smaller grey
+markers and drawing the green frontier last make the curve legible. Permanent
+size labels and the SVG-wide browser tooltip are removed.
+
+**Inspect size** selects an exact coordinate group even when markers overlap.
+Hover/focus/click and keyboard inspection update separate cost/time readouts and
+highlight rows. Exact ties remain grouped; off-view picker choices switch to full
+context. The responsive SVG and stacked mobile inspector avoid page overflow.
+SVG exports retain the current view, legend and inspected measurements. Resize
+observers are released on navigation; no added simulation, polling or third-party
+chart library is involved.
+
+[Saved actual normal-product evidence and exact reproduction](evidence/qualified_prop_sim/pareto_ui/README.md)
+reopen the user's already completed report through its ordinary Prop Sim URL.
+It has 53 resolved sizes, five frontier configurations and seven unresolved/
+censored sizes. The captured focused view shows 27 nearby sizes; the full view
+shows all 53. Inspecting 27 MNQ displays 271.44 USD and 42.21 calendar days.
+Desktop/mobile screenshots, the normal SVG download and a read-only verification
+record are saved. Before/after report bytes match exactly, with no mutation
+requests or browser errors. This is actual stored research data, not synthetic
+future performance. Earlier evidence and source/report snapshots remain intact.
+
+The focused browser check keeps its analytical display oracle only in tests:
+known tradeoffs/ties, a 40-point dense frontier plus distant outliers, precise
+picker/keyboard inspection, front-to-back ordering, one/no frontier, unresolved
+rows, mobile overflow and SVG export. It runs without backtests/Monte Carlo and
+stops its isolated server at teardown. The actual-product check starts no server
+and does not rerun or mutate the user's saved analysis.
+
+### 2026-11-12 — Selectable LucidFlex 50K and revised setup/results experience
+
+The main Prop Sim workflow now offers Apex 50K EOD and LucidFlex 50K standard
+40% accounts. Backend declarations pin the profile, rule version, optional
+Lucid DLL, account-specific costs and 40/40-MNQ Lucid limits; Apex retains 60/40.
+Eligibility still independently verifies every campaign phase and current Monte
+Carlo. Unknown profiles, incompatible ranges, nonzero Lucid activation and
+invalid source shapes reject. Legacy saved requests default to their original
+Apex identity, retaining explicit historical fees/risk caps.
+
+Lucid Evaluation uses a new saved-signal **calendar acquisition** branch in
+`evaluation_profiles.py` / `evaluation_optimization.py`. It calls the existing
+Lucid session transitions on modeled civil dates, with empty-date inactivity,
+seeded fresh retry streams, consistency, optional DLL and actual fee charges.
+It does not reuse the Apex empirical-IID/session deadline or rerun source bars.
+Calendar/attempt guards censor unresolved paths; unconditional cost/time means
+require complete acquisition across all paths. The existing all-path metric /
+Pareto contract is reused, with first-attempt probability labeled separately.
+Funded continues through its existing dated Lucid owner and cash ledger. No
+Evaluation fee/probability/time enters Funded, and no legacy joint selector or
+external engine is called. Numerical source identity includes the changed owners;
+older reports stay readable and incompatible frozen execution remains closed.
+
+The portal groups source/account and independent phase settings, provides live
+capture-limit warnings before launch, and collapses advanced controls. Saved
+results open directly to the account/source summary, frozen parameters, phase
+navigation, chart and sortable tables with a sticky size column. Adjusting inputs
+creates another saved run; it does not edit existing outputs. Mobile review and
+profile switching were checked through the actual product.
+
+[Saved evidence, independent expected values and exact reproduction](evidence/qualified_prop_sim/lucidflex/README.md)
+include the normal synthetic NQ → campaign → Monte Carlo → Lucid check/run →
+durable native results journey, both numerical reports/CSV/ZIPs, Pareto SVG and
+screenshots. Across 32 chains the Evaluation oracle has 36 purchases, 2,898 USD
+paid fees and 761 calendar days: means 90.5625 USD / 23.78125 days. Funded totals
+79,200 received + 1,800 pending = 90% × 90,000 withdrawn. Pure calendar oracles
+cover Friday/weekend/closure readiness, Sunday inactivity, DLL variants, charged
+retries and guard censoring. Existing owner tests, profile-isolation API checks,
+qualification rejection, sorting/download/reopen and browser/mobile checks pass.
+Temporary test servers stop at teardown; no persistent test server is created.
+
+The user's real qualified VWAP source was additionally run through normal APIs
+as `64f1f4603bdf40e9b776b3668cd1e227` (1–10 MNQ, 128 paths per size/phase). Both
+phases completed; separate actual-library screenshots and read-only verification
+are labeled in the evidence folder. Prior Apex reports reopen unchanged. These
+conditional model outputs are not forecasts or provider certification. Lucid's
+50% add-on and live-account outcomes are outside this implementation; fixed
+1,200 USD DLL, account readiness and settlement assumptions remain explicit.
+
+### 2026-11-12 — Delete saved Prop Sim simulations with reference-safe cleanup
+
+Added Delete actions to the existing saved-result header and saved-run selector.
+The product checks current dependencies, displays the exact profile/strategy/date
+and report removal/retention counts, and requires confirmation. Active jobs must
+be stopped or complete first. Deleting a run releases its parent/internal phase
+links and removes unreferenced report/catalogue/cache/job entries; shared or
+frozen/dependent results are kept. Source datasets/backtests, campaign workflow
+phases and OOS/Monte Carlo are never deletion targets. A durable metadata receipt
+prevents deleted request-ID reuse and supports repeat deletion/file-cleanup retry.
+
+The increment reuses AnalysisStore guards and metadata cleanup plus CampaignStore
+transactional reference release, without changing numerical owners or identity.
+Catalogue changes and file staging share one locked SQL transaction; failure
+restores rows and directories. Final file cleanup occurs after commit and any
+pending cleanup remains retryable from the durable product receipt page. No
+second result store, numerical engine, provider change or automatic cancellation
+is added.
+
+[Saved normal-product deletion evidence and exact reproduction](evidence/qualified_prop_sim/deletion/README.md)
+create a labeled synthetic qualified source through the real campaign/Monte
+Carlo pipeline and publish normal Evaluation/Funded reports. Dismissing the
+product confirmation preserves the run. Accepting it removes exactly two
+unshared phase reports and their job entries. Source backtest JSON, frozen Narrow
+selection and Monte Carlo report bytes remain identical; reload/mobile receipt
+behavior is verified. All actual user simulations and earlier evidence remain
+unchanged. The temporary demonstration server stops at teardown.
+
+Focused lifecycle checks additionally cover shared and last-owner references,
+stale confirmation, active-job blocking, frozen report preservation, injected SQL
+rollback, filesystem cleanup retry and symbolic-link refusal. Existing analysis-
+and campaign-deletion rollback/shared-report regressions pass. This work does
+not require the broad historical or numerical suite: no calculation changes are
+introduced.
+
+### 2026-11-12 — Lucid variants and frozen Prop Sim validation
+
+Prop Sim's Evaluation now supports explicit 40% standard / 50% add-on Lucid
+profiles, with a required user-declared add-on purchase fee. The account keeps
+trading until both target and consistency pass; this gate never clips a winner
+or fabricates an earlier strategy exit. Every sampled retry charges its own fee.
+All-path summaries add target/consistency timing, failed-before/after-target
+counts, median/P90, funding within 30/60/90 days, nominal mean uncertainty and
+paired cost/time comparisons. Approximate family intervals and near ties are
+conditional MC diagnostics; the point-estimate cost/time frontier is preserved.
+
+The existing saved Prop Sim phase reports now offer immutable selection of up
+to four eligible sizes per phase, rationale/package download, and explicit OOS,
+IS sensitivity and more-path assessments. These reuse CampaignStore freezing,
+source/access guards, existing assessment history, AnalysisStore workers,
+cancellation, Job history, numerical owners and sealed downloads. OOS applies
+exactly the frozen size/profile/cost/sampling settings to the already-qualified
+native OOS report. It publishes MC estimates and IS comparisons plus a separate
+actual-order saved-signal replay; it does not rerank candidates. Funded remains
+fresh-account, receipt-horizon only, without acquisition or replacement inputs.
+
+IS robustness samples blocks 1/5/20 and the two weekday halves at the original
+block. More-path runs retain the frozen source/size/options/seed, require more
+paths than the original search and publish another report instead of mutating
+it. Both declare their path count; combined capture bounds reject excessive
+work. Unknown kinds, changed/fake membership, code mismatch and missing sources
+fail closed. The fixed-signal/OHLC-bound assumptions, prior OOS access, expiry/
+DLL caveats and absence of live/provider certification remain explicit.
+
+[Normal-product demonstration, outputs and exact reproduction](evidence/qualified_prop_sim/validation/README.md)
+use the actual labeled synthetic backtest -> qualification -> account form ->
+source check -> engines -> freeze -> six assessments -> durable reload/download
+journey. Independent fee/day sums and deterministic clock/gap/boundary oracles
+support the results; both phase packages and original IS reports remain intact.
+The temporary browser server stops on teardown. Earlier saved evidence and all
+real user simulations remain unchanged. Numerical source identity advances;
+old packages stay readable but cannot silently execute under the new code.
+
+Validation scope: 31 distinct focused cases passed (15 Prop Sim/clock/deletion
+cases, 14 existing assessment/resource/cancellation/native-control compatibility
+cases, and two browser journeys including the existing Pareto interaction).
+The four new arithmetic/assessment cases and both browser journeys were rerun
+successfully after the final summary-reader integration. JavaScript/Python syntax
+and `git diff --check` passed. No full historical/180-check suite was run.
+Saved demonstration numerical source hashes match the current owners, and all
+six assessments reference their exact original frozen IS report identities.
+
+### 2026-11-12 — Select sizes in IS results; focus validation on frozen OOS
+
+The repeated size tile grid obscured the IS-selection step with disabled sizes.
+Both main Prop Sim phase tables now own eligible checkboxes next to their
+metrics. Excluded rows remain inspectable with specific frontier/unresolved/
+constraint reasons. A shared selection state retains checked IDs through
+sorting, caps the UI at four and synchronizes with the existing frozen package.
+The checkbox/MNQ columns stay pinned while comparing wide results.
+
+A compact selection summary and required single-line note replace the grid and
+large textarea. After freeze, only the frozen sizes appear in the OOS validation
+summary; the primary button runs their OOS assessment. Optional robustness and
+more-path controls/results live under collapsed Additional diagnostics. Saved
+OOS results remain directly visible on reload. Hidden diagnostic result bodies
+load when opened; status/progress polling still follows their active jobs.
+
+[Normal-product evidence, expected arithmetic and reproduction](evidence/qualified_prop_sim/selection-flow/README.md)
+use the actual synthetic qualified-source journey through both phase engines,
+IS selection/sorting, freezing, six saved assessments, downloads and mobile
+reload. A separate forty-size test oracle covers exclusions, the four-choice
+boundary and sticky columns, alongside the existing chart/ties regression.
+No API/numerical owner/rule/source or historical evidence was changed. Current
+saved runs need only a browser refresh; no new calculation is required for this
+presentation increment. Temporary test servers stop at teardown.
+
+Validation: all three focused browser cases passed, including actual phase
+execution and six durable assessments. JavaScript syntax and `git diff --check`
+passed. All 33 numerical source hashes in each phase match the prior commit,
+and the saved demonstration identities match the current owners. No full suite
+was run; no persistent server was started.
+
+### 2026-11-13 — Freeze resolved choices with unresolved alternatives
+
+The backend and Prop Sim UI previously blocked the whole search if any size was
+unresolved. Admission now checks the selected family: every chosen candidate
+must be resolved and belong to the saved Evaluation frontier or Funded feasible
+ranking. Unresolved alternatives retain their rows and cannot be selected.
+Evaluation summaries, charts and exported SVG disclose that comparisons cover
+resolved candidates only. OOS remains an immutable-family assessment; no
+unresolved means are invented and no numerical code or historical report changes.
+
+[Saved evidence and exact reproduction steps](evidence/qualified_prop_sim/resolved-selection-freeze/README.md)
+cover a native synthetic backtest/campaign calculation with two genuinely
+censored sizes, rejecting unresolved/mixed/unknown selections, freezing only the
+resolved point without recomputation, and assessing only that frozen point on
+OOS. Independent expected values are $70 and two calendar days at 10 MNQ.
+The qualified Prop Sim browser journey also exercises both phase engines,
+freezing, six durable assessments and downloads. A read-only browser inspection
+of saved simulation `2d19909ce7b3404ca73adb534d6a8d2a` verifies that its chosen
+3/6/8/12 MNQ sizes can freeze while 1/2 remain unresolved, without submitting
+any user selection or assessment. Temporary test servers stop at teardown; the
+user's existing server and sources are preserved. Refresh compatible saved runs;
+no new sizing calculation is needed for this admission change.
+
+Validation: four distinct focused cases passed (native unresolved-selection
+freeze/OOS, existing independent campaign freeze/reopen, forty-row presentation
+boundaries, and the qualified two-phase product browser journey). Both changed
+JavaScript files passed syntax checks; `git diff --check` passed. All 33 source
+hashes for each numerical phase remain unchanged. The actual saved-run browser
+inspection recorded zero write requests. No full historical suite was run.
+
+### 2026-11-13 — Admit frozen OOS with period-specific session audit output
+
+A full strategy-dictionary equality check rejected valid VWAP OOS reports because
+session counts, example dates and session-plan hashes differ between periods.
+The saved-source guard now excludes only the six known audit fields while
+preserving every static strategy/calendar rule. Dataset, IS parent, declared
+split and execution costs remain enforced. Full IS/OOS audit dictionaries and
+frozen packages remain unchanged.
+
+Read-only admission against actual simulation
+`2d19909ce7b3404ca73adb534d6a8d2a` then exposed a second boundary: its declared OOS
+start is 2025-01-01, before the first saved session on 2025-01-02. Assessment
+requests now use actual saved coverage within the unchanged declared split,
+through 2026-07-07. No missing dates are fabricated. The read-only check admits
+all four Evaluation and all four Funded frozen sizes and verifies all original
+IS source identities, without launching or mutating the user's simulation.
+
+The admission source hash advances and is retained honestly in new reports.
+A directed, exact old/new admission-revision compatibility check accepts this
+correction only when all other numerical/kernel/environment identities match.
+It preserves existing report/package bytes and does not bypass changed numerical
+code. The old revision is `5fae2e87…76e0a`; the reviewed correction is
+`a078590d…3a051`. Unknown revisions reject.
+
+[Saved normal-product reports, read-only verification and reproduction](evidence/qualified_prop_sim/oos-session-audit/README.md).
+
+Validation: eight focused cases passed: five audit/coverage/compatibility cases
+(including actual VWAP Evaluation and Funded OOS calculations), two existing
+manual frozen-history cases and the complete qualified Prop Sim browser journey.
+Both changed admission paths preserve IS/package bytes, and genuine parent,
+strategy, dataset, costs, split or calendar-rule mismatches reject. Python syntax
+and `git diff --check` passed. Of 33 phase source fingerprints, only the reviewed
+admission file changed; the other 32 sources and all numerical kernels remain
+unchanged. Saved reports retain current fingerprints plus their original frozen
+packages. No full historical suite was run. Temporary servers stopped at teardown;
+no persistent server was started and no user assessment was submitted.
+
+### 2026-11-13 — Economic OOS assessment, richer summaries and account starts
+
+Implemented in the existing qualified Prop Sim journey: backtest report ->
+configuration -> source check -> independent IS workers -> choose/freeze sizes ->
+declare immutable phase business limits -> manual OOS -> durable economic review
+-> prespecified chronological account starts -> reload and normal JSON/ZIP
+downloads. No separate demonstration page, service or result store is added.
+
+Evaluation checks declared maximum mean cost/time; Funded checks declared minimum
+mean receipts over its frozen horizon. Evidence/complete estimates determine
+whether a verdict is conclusive; adverse IS changes are separate watch flags.
+Funded summaries include zeros, payout request/receipt funnels and conditional
+first-receipt timing. Each account start has the full declared window; censorship,
+zero receipts and pending cash remain visible. New review metadata is separately
+versioned; the existing phase numerical source identities are unchanged.
+Retrospective review reuses sealed compatible OOS paths without resimulation and
+preserves the original report/package. No size is selected through OOS.
+
+[Saved portal screenshots, actual output downloads, independent expected values,
+and exact reproduction](evidence/qualified_prop_sim/oos-policy-starts/README.md).
+The normal-product synthetic example selects 12 MNQ for both phases and declares
+Evaluation limits of $500/180 days and a Funded minimum of $100 over 90 days.
+These are explicitly demonstration limits, not recommended business thresholds.
+Its five Evaluation chronological funding times are 6, 20, 5, 21 and 5 calendar
+days, with one $99.50 purchase each. Funded receives $3,600/$1,800/$3,600/$0/$3,600;
+the second start has $1,800 pending outside its cutoff, and the fourth expires
+through inactivity. Thus a passing mean does not conceal a weak start date.
+
+Boundary checks cover equality, economic failure versus inconclusive evidence,
+phase-isolated/finite/required limits, immutable policies, retrospective labels,
+missing-first-OOS/split identity compatibility, no completed-only acquisition
+statistics, zero-inclusive cash ranges, pending requests versus receipts, full
+window coverage, frozen selection preservation and MC-free result reuse. Poisoned
+MC optimizers prove re-review/start jobs do not run a search. Changed review code
+or tampered sealed evidence reject; old reports remain unchanged and readable.
+The two-phase Chromium journey verifies downloads, durable reload and a mobile
+viewport; a focused table check retains selection/exclusion/sorting behavior.
+Temporary servers stop at teardown; no persistent server or user job is started.
+The user's existing server, datasets, campaigns, Windows VM and reports are kept.
+No full historical suite or new external/provider parity claim is included.
+
+Retained rule choices: no Evaluation consistency cushion, fixed DLL above the
+profit threshold, and 30-calendar-day inactivity. Portfolio allocation and full
+replacement-account cash-flow analysis are explicitly deferred.
+
+Validation for this increment: 18 distinct focused cases passed (14 arithmetic/API,
+2 manual campaign-history cases, and 2 browser journeys). JavaScript/Python
+syntax and `git diff --check` passed. Independently summed product outputs and
+all 33 numerical source hashes per phase were verified; the saved evidence
+contains the reproducible arithmetic and source-hash record.
+
+### 2026-11-13 — Change saved OOS limits through explicit policy revisions
+
+The normal qualified backtest -> Prop Sim configure/check/run -> freeze -> OOS
+journey now adds **Revise assessment limits**, a required reason, cancellation,
+policy history and report version labels. Each revision appends configuration;
+original limits, plans, reports and verdicts remain intact. Running jobs retain
+the policy they captured. After a revision, running OOS assessment reuses the
+verified sealed MC paths and publishes a new economic review. Account starts
+then use that version's full-window date plan. No replacement simulation, new
+IS optimization or new Monte Carlo paths are needed for changed limits.
+
+[Saved product evidence, independent expectations and reproduction](evidence/qualified_prop_sim/oos-policy-revisions/README.md).
+The isolated two-phase synthetic portal journey first saves PASS reports with
+Evaluation $500/180 days and Funded minimum $100. It cancels an edit, then revises
+to Evaluation maximum $50 and Funded minimum $5,000. Existing OOS means remain
+$130.59375 acquisition cost and $2,812.50 received cash, so each revised result
+must FAIL while its original PASS report remains unchanged. Saved downloads,
+policy history and reload show both versions, retrospective timing and unchanged
+MC paths. The browser verifies mobile layout too. These are labeled synthetic
+business thresholds/outcomes, not financial recommendations or market forecasts.
+
+Focused API checks cover reason validation, stale edits, idempotent retries,
+version history, explicit reversion, preserved sealed reports, no MC optimizer
+call and current-policy account-start admission. A paused running OOS review
+captures version 2, permits a concurrent version 3 declaration, then completes
+with version 2 unchanged. The existing phase/account numerical sources and review
+calculation implementation are unchanged. Old evidence is preserved. Temporary
+servers shut down at teardown; no user report, running job or persistent server
+is modified. Portfolio/replacement analysis remains deferred.
+
+Validation: the focused two-phase API case and real qualified Chromium journey
+passed, including revision while running, retry/stale-edit rejection, preserved
+old verdicts, unchanged MC paths, reload and mobile layout. Independent saved
+fee/cash checks, numerical/review source identity verification, Python/JavaScript
+syntax and `git diff --check` passed. No full historical suite was run.
+
+### 2026-11-13 — Remove size-dependent path-count rejection
+
+The normal qualified backtest -> Prop Sim configure/check/run -> durable results
+workflow no longer caps paths according to the size range. The portal displays
+per-size and total path counts, and the shared saved-source admission reports
+work estimates without rejecting basic runs at 100 MiB or 50 million aggregate
+path-days. Publication for plain saved-source phase jobs no longer imposes the
+aggregate 128-MiB ceiling either; no completed paths or source evidence are dropped.
+Optional historical refits/native reruns and other legacy report bounds retain
+their existing contracts. The per-size input range stays 8–20,000 for every range.
+
+[Actual outputs, independent expected values and reproduction](evidence/qualified_prop_sim/uncapped-path-count/README.md).
+The isolated normal-product browser journey requests 40 sizes and 1,000 paths in
+each phase, checks source/settings, launches both actual workers, downloads the
+normal sealed ZIPs, verifies all 40,000 captured paths per phase and reloads the
+saved tables. A deliberately short 10-calendar-day Funded horizon keeps this
+boundary demonstration focused; it is an explicit synthetic scenario, not a
+recommendation. Independent arithmetic includes every Funded path's cash and
+verifies Evaluation acquisition cost from its empirical attempt probability.
+
+Focused boundaries cover baseline searches above both former work/capture
+thresholds, optional-refit safeguards, unknown-mode rejection, publication of a
+129-MiB captured artifact, retained legacy publication rejection, and exact
+forward-only identity compatibility. The reviewed admission source hash changes
+honestly while the other 32 numerical source hashes remain unchanged. Existing
+sealed product reports qualify through the directed compatibility check. Earlier
+snapshots are preserved. Temporary test servers stop at teardown; no user data,
+account rules or persistent server is changed. No full historical suite is run.
+
+Validation: 10 distinct focused checks passed (9 admission/publication/identity
+boundaries and the real 80,000-path Chromium product journey). The initial
+30-second browser submission budget was corrected; the complete rerun passed
+with all paths retained and its temporary server stopped. Independent saved
+cash/cost arithmetic, source-hash compatibility, Python/JavaScript syntax and
+`git diff --check` passed. No user job was submitted or stopped.
+
+### 2026-11-13 — Historical OOS qualification and separate forward execution gate
+
+Delivered in the actual qualified backtest -> Prop Sim configure/check/run ->
+independent phase results -> select/freeze -> **Run OOS qualification** -> durable
+report/download workflow. Required dollar declarations are superseded by the
+approved fixed degradation policy; historical optional business-limit reports and
+revisions remain available unchanged. No portfolio or replacement-account
+analysis is added.
+
+Evaluation requires simultaneous historical upper bounds on acquisition cost
+and calendar-time OOS/IS ratios ≤1.50; Funded requires its mean-receipt ratio's
+lower bound ≥0.70 at the same horizon. At least twelve complete OOS calendar
+months, 100 closed source trades, complete account estimates and adequate inner
+MC precision are required. The new owner block-resamples actual source histories
+10,000 times and reruns unchanged local account owners with every frozen path.
+Intervals use a conservative twelve-metric family budget. Clearly adverse bounds
+give NO_GO, overlap/missing evidence gives INSUFFICIENT_EVIDENCE, and GO opens
+forward review. Bounds are conditional on historical/block assumptions; prior
+strategy OOS access is explicitly retrospective and no future-profit probability
+or provider parity is claimed.
+
+**Paper execution and parity review** binds a historical GO member to the existing
+supplied-event monitor. It requires twenty distinct sessions with recorded trading,
+thirty closed trades, no unexplained discrepancies, frozen-sizing agreement,
+prospective supplied-paper clocks, manual per-trade signal/execution review and
+notes. Synthetic, retrospective, stale, foreign-phase and paused/retired evidence
+cannot silently pass. The resulting execution verdict is a new sealed assessment,
+with references to the original observation and qualification reports. Bound
+monitors protect their parent simulation from deletion. No future paper evidence
+is invented; no broker connection or order placement is added.
+
+[Normal-product screenshots, downloads, independent arithmetic and exact
+reproduction](evidence/qualified_prop_sim/oos-confidence/README.md).
+The Apex and LucidFlex browser demonstrations use an explicitly synthetic daily
+repeat with 1,566 OOS closed trades and twelve full months. Every resampled history
+is numerically identical, so all ratios and confidence bounds independently must
+be exactly 1.00. Apex acquisition is $49+$129=$178 over two calendar days;
+LucidFlex is $80.50 over three days at 40% consistency. Fresh-Funded receipts are
+$13,000 and $9,000 respectively; independent sums include all account paths and
+separate trader cash from account deductions. All 10,000 traces are captured;
+exact whole-history memoization preserves the complete eight-path test request.
+Forward stays PENDING. A separate normal-product synthetic one-trade observation
+produces INSUFFICIENT_EVIDENCE, with its original event/declaration/report downloads.
+
+Validation: 65 distinct focused cases passed across qualification arithmetic/API,
+legacy business-review/revision behavior, forward reconciliation/conformance and
+current-procedure binding, plus the two real browser account journeys. The
+qualification API journey also verifies MC/bootstrap-free account-start reuse and
+forward review. Both browser journeys verify durable reload, mobile layout,
+report/ZIP downloads and server-authoritative paper declaration admission. The
+initial collapsed observation form was corrected to open on its configure action;
+the Apex page-load assertion uses a 30-second budget for qualification-source
+loading. Final reruns passed. All 33 phase numerical hashes and the old business
+review implementation remain unchanged. Independent saved-output verification,
+Python/JavaScript syntax and `git diff --check` passed. No full historical suite
+was run. Temporary servers stopped; the user server, VM, data, jobs and earlier
+saved evidence are unchanged.
+
+### 2026-11-13 — Reopen identical OOS assessments and simplify the saved portal
+
+Implemented in the existing qualified backtest → Prop Sim configure/check/run →
+freeze → OOS → durable results workflow. Identical assessment meaning reopens its
+canonical queued/running/completed job instead of reserving another request/report.
+The existing AnalysisStore lock protects lookup and submission across tabs.
+Qualification timestamps, caller UUIDs and reuse-parent pointers are excluded;
+real policy/implementation/source distinctions and diagnostic paths remain.
+Complete reuse verifies sealed reports, numerical compatibility and IS/OOS source
+captures; corrupt evidence rejects. Stopped/failed attempts remain retryable.
+No new database, engine, result store or legacy-report migration is added.
+
+The portal shows one current OOS table per phase. Completed buttons become View
+results; IS sizing collapses after freeze, with criteria/per-size checks, historical
+versions and optional diagnostics behind disclosures. History initially contains
+metadata only; a saved report loads only when its individual entry opens. Current
+forward reviews share the OOS table. Original reports and bindings are preserved.
+Changed business limits reuse qualification MC paths even for their first review,
+without inheriting a qualification verdict as the business verdict.
+
+[Actual screenshots, downloads, independent expected outcomes and exact
+reproduction](evidence/qualified_prop_sim/assessment-reuse/README.md).
+The synthetic ten-MNQ example has $13,000 mean Funded receipts. A $1 minimum must
+PASS and a $999,999 revision must FAIL over the exact same account paths. Repeated
+qualification submission adds no fourth assessment: only the qualification and
+two substantive policy versions exist. Initial load fetches one current report;
+opening history fetches none, and opening one entry fetches exactly one more.
+Reload and mobile layout retain the compact presentation. No future execution
+observations or provider qualification are fabricated.
+
+Validation: five focused cases passed: two identity/current-card unit boundaries,
+one actual API concurrency/reuse/policy test, the existing two-phase policy revision
+regression, and the real Chromium product journey. The API covers concurrent
+running/completed reuse, unchanged sealed evidence, explicit policy changes,
+MC-free review, corrupt evidence and stopped-job retry eligibility. The running
+revision regression now declares a substantively different policy before queueing,
+since unchanged requests correctly reuse their completed result. The browser
+asserts no POST on View, one current table, lazy history, downloads, reload and
+390-pixel layout. An initially broad browser selector was narrowed to the direct
+rules disclosure; its complete rerun passed. All 33 phase numerical source hashes,
+qualification, forward and business-review implementation hashes are unchanged.
+Independent saved-output verification, Python/JavaScript syntax and diff checks
+passed. No broad historical suite was run. Temporary servers stopped at teardown;
+user jobs/data/server/VM and earlier evidence remain unchanged.
+
+### 2026-11-13 — One Run for automatic sizing, IS and OOS
+
+Delivered through the existing qualified backtest → Prop Sim configuration →
+**Run IS and OOS** → durable Evaluation/Funded IS and OOS reports. Source checking
+is integrated into launch. No sizing checkbox, rationale, freeze confirmation,
+OOS button or dollar declaration is required after the initial Run. Old manual
+records retain their original workflow; their reports and freezes are unchanged.
+
+Automatic IS-only family selection reads the original sealed reports. Evaluation
+chooses cheapest, fastest and cheapest within 1.25× fastest time, at most three.
+Funded chooses peak mean receipts and the smallest size retaining at least 95%
+of peak receipts, at most two. Roles collapse on duplicates; exact ties prefer
+smaller MNQ. Unresolved/infeasible estimates are excluded without blocking valid
+resolved choices. No positive eligible Funded mean ends that branch explicitly;
+the independent Evaluation branch can still finish. Original IS frontier/ranking
+reports retain all tested sizes. Point-estimate tolerances are disclosed and are
+not statistical equivalence or guarantees about future breach risk.
+
+The existing parent metadata saves the policy/code identity, selected roles,
+original IS report hash and selection checksum before immutable freeze. Normal
+OOS options/downloads carry this snapshot. The existing AnalysisStore worker
+continues on phase completion without a resident page, new scheduler, engine,
+service or result store. Startup recovery preserves the exact frozen choices and
+replays interrupted work; genuine errors stop and unfavorable OOS is never
+reselected. Stop persists intent before cancellation, prevents follow-on work and
+preserves shared IS jobs for another consumer. Qualification and forward owners,
+all 33 phase numerical hashes, legacy calculations and prior evidence are unchanged.
+
+[Screenshots, sealed IS/OOS downloads, independent arithmetic and exact
+reproduction](evidence/qualified_prop_sim/automatic-flow/README.md).
+Both actual Chromium journeys enter from the qualified backtest report, test
+9–10 MNQ for Apex/LucidFlex, click only Run, navigate to Dataset while working,
+then return to both OOS results. On this explicitly synthetic constant-history
+example the tested sizes tie, so 9 MNQ must receive all 3/2 roles. Independently
+expected Evaluation acquisition is $178/2 days for Apex and $80.50/3 days for
+LucidFlex; Funded receipts are $13,000/$9,000. All historical OOS ratios and
+bounds are exactly 1.00 across 10,000 replicates and all eight requested paths.
+Forward stays PENDING; no paper evidence or live authorization is invented.
+The portal shows automatic status/roles, read-only sizes, current OOS results,
+progress, cancellation and normal downloads. Reload/mobile layout retain results.
+
+Validation: 18 distinct focused checks cover selection boundaries, ties,
+phase independence, unresolved/zero-receipt cases, manual-override rejection,
+full real API execution, interruption after freeze/launch reservation, owned and
+shared-job cancellation, canonical assessment reuse, the existing independent
+phase regression and three actual browser journeys (two automatic and one manual
+compatibility). The earlier independent-phase regression initially hit its
+20-second synthetic-fixture wait while other work competed for CPU; an isolated
+rerun passed. The final sequential run passed 17 checks, then the last manual
+compatibility browser fixture exhausted temporary disk space while copying its
+library. Only that run's temporary libraries were removed, and the affected
+browser check was rerun separately. Independent saved-output
+arithmetic/hash verification, Python/JavaScript syntax and diff checks pass.
+No full historical suite is claimed. Temporary servers stop at teardown; no
+persistent server was started and the user server, jobs, data and VM are preserved.
+
+### 2026-11-13 — Parallel OOS confidence with live progress in both pages
+
+The normal backtest report → Prop Sim configure/check-on-Run → automatic IS,
+freeze and OOS → durable reports now distributes independent historical refits
+over the existing process pool, four workers by default. The same role/index
+seeds, 10,000 historical replicates, all requested inner paths, account owners,
+confidence budget and pass/fail rules are retained. Bounded completion-order
+dispatch restores replicate order; actual worker PIDs/counts are saved. No new
+engine/service/store or nested worker pools are introduced. The phase numerical
+hashes remain unchanged, while qualification captures the dispatcher/runtime
+implementation hashes explicitly. Original reports remain unchanged and readable.
+
+Prop Sim and Job history show current size/family position, completed resamples,
+progress bar, active/allocated workers, elapsed time, approximate current-size ETA
+and last update. Existing catalogue metadata is written at most once per second;
+page polling does not read numerical report files or recalculate results. Normal
+cooperative cancellation reaches active child paths and queued work, drains
+siblings before releasing the shared reservation, and publishes no partial result.
+Transient progress rows are removed with their original analysis.
+
+[Inspectable screenshots, ZIPs, live progress samples, independent numerical
+checks and reproduction](evidence/qualified_prop_sim/parallel-confidence/README.md).
+The actual LucidFlex browser journey begins at the qualified synthetic backtest,
+tests 9–10 MNQ with eight inner paths and clicks Run once. It captures advancing
+four-worker progress on Prop Sim and Job history, then both completed OOS ZIPs,
+reload and mobile layout. Both reports contain 10,000 ordered resamples and four
+distinct child PIDs. Independent constant-history expectations remain $80.50 and
+three calendar days for Evaluation, $9,000 fresh-Funded mean receipts, ratio bounds
+exactly 1.00, GO and forward PENDING. No future paper execution or provider parity
+is fabricated. The fixture is explicitly synthetic, including future-dated bars.
+
+Validation: nine focused checks passed: eight numerical/runtime/metadata cases
+and the actual product browser journey. Non-identical Evaluation and Funded
+daybooks match an independent copy of the preceding serial seed/refit contract
+exactly, including all traces and metrics. Boundaries cover identical-history
+memoization, shared-budget release, no nested pool, cancellation/drain and pool
+reuse, lightweight progress reads and deletion cleanup. Independent exported-output
+arithmetic/source identities and Python/JavaScript syntax checks pass. No full
+historical suite is claimed. The temporary browser server stopped at teardown.
+Development/testing used an isolated copy to preserve the user's active job;
+application to the live server and restarting unfinished OOS was explicitly
+approved, retaining completed IS reports and frozen packages.
+
+Live application verification: the approved restart cancelled only the unfinished
+OOS jobs through the normal parent cancellation API, applied the tested files,
+then retried the same saved simulation. Evaluation resumed under job
+`4b184f9d2ed34c21a24d2ab7b2d7ae7c`, advancing from 3 to 22 completed resamples in
+the observed interval, with four child processes each near one CPU core. Funded
+OOS `31b8953ee1f049f29d611db8eeed89e2` remains normally queued behind it. Both
+completed IS analysis IDs and both immutable frozen-package hashes matched the
+pre-restart values exactly. This verifies dispatch and progress, not a completed
+OOS verdict for the user's real history. No extra persistent server was started;
+the existing user-managed server continues running.
+
+## 2026-11-13 — native percentage risk, both portfolio placements and replacement cash
+
+The actual campaign-qualified Prop Sim workflow now exposes an additive portfolio
+mode alongside the existing independent fixed-size Evaluation/Funded workflow.
+One initial Run checks qualified sources, searches the declared finite IS family,
+freezes the winning allocation, and calculates fresh-start OOS plus continuous
+full-period replacements/cash receipts. The portal leads with phase cash insights
+and compact tables; optional tables, Pareto exploration and technical evidence
+are expandable. Earlier dated reports, milestones and numerical owners remain.
+
+New owners are narrow orchestration/adaptation modules: `portfolio_sources.py`
+checks and temporarily spools actual sessions, `portfolio_lifecycle.py` calls the
+existing native strategy/execution and phase controllers, `portfolio_cash.py`
+coordinates the shared monthly fee cap, and `portfolio_search.py` ranks the finite
+observed-IS allocation family. The existing API, workers, AnalysisStore, job
+history and saved Prop Sim parent own persistence. No Bridge runtime, new service,
+new database, invented measured adverse excursion or demo-only route is added.
+
+The user journey begins at the existing qualified IS report, opens Prop Sim,
+selects the new portfolio mode, configures one or more supported strategies and
+trade risk, runs once, navigates away, reopens durable results and downloads the
+normal sealed ZIP. [The saved real-data demonstration](evidence/qualified_prop_sim/native-portfolio/README.md)
+contains exact inputs/steps, desktop/mobile screenshots, original parent/summary,
+source checks, native trades/risk decisions, ledgers, independent expected values
+and API rejection evidence. The demonstration uses an isolated copy of the user's
+already-qualified NQ source; its reference-price/MNQ-fill limitation is explicit.
+It does not mutate or add artificial qualification to the original data.
+
+The short example correctly selects the zero-purchase baseline: invested
+alternatives pay $80.50 without trader receipts in that IS window. The invested
+IS diagnostic remains inspectable and is not substituted in OOS. Its actual
+26 December trade independently reconciles to 15 MNQ from a $500 risk budget
+and $32.50 planned unit risk; actual fill/exit produce $1,860 gross, $15 costs and
+$1,845 net. Retained Evaluation P&L is not cash received. Zero-account OOS/full
+period results remain $0.00 with the same frozen allocation. This is a short
+workflow/arithmetical example, not a long-term strategy or sizing recommendation.
+
+Analytical fixture oracles remain in tests: known current-balance quantities
+10/9/5, initial-capital quantities 10/10/5, one-position shared arbitration,
+Evaluation-to-Funded transitions, repeated payout-limit replacements, exact
+activation reservations, monthly resets that cannot use receipts, pending cash
+cutoffs and last-Sunday inactivity without an out-of-window replacement purchase.
+A session-spool equality/tamper check demonstrates identical native outputs while
+pool children receive a small index rather than a multi-year history. Stop,
+idempotent launch/retry, all-attempt history, immutable freeze, source/report
+pins, deletion and deleted-ID rejection are exercised through the ordinary API.
+Six real qualification/provider/date/count rejection cases are saved separately.
+
+Validation scope: 21 focused native/core/API/lifecycle/deletion/history checks
+and both existing automatic fixed-size browser journeys (Apex and LucidFlex)
+pass. The normal real-source browser run, reload/download arithmetic audit and
+390px desktop/mobile inspection also pass; no full historical suite is claimed.
+`scripts/verify_native_portfolio_report.py` checks the normal ZIP without invoking
+the engine. All existing numerical phase owners/legacy joint sizing are unchanged.
+Temporary browser servers are stopped after inspection. Live deployment is kept
+separate because applying Python files triggers the user's port-8000 auto-reload
+and interrupts unfinished OOS confidence work; completed IS/frozen evidence is
+preserved, and application/restart must follow the user's explicit choice.
+
+Supported scope is VWAP EOD-flat configurations on one common NQ/MNQ dataset,
+separate integer account counts and shared 25% risk shares with one open position
+at a time. Initial $50,000, current balance or remaining drawdown cushion may be
+the risk base. The downstream objective is observed IS received cash minus actual
+fees, including abstention; it does not alter independent phase objectives or
+claim a Monte Carlo portfolio optimum/new GO. Source coverage, local account-rule
+assumptions, modeled receipt delays and prior OOS access remain explicit.
+
+### Live application — 2026-11-14
+
+Applied to `epic/revamp-workflow` after the user's explicit approval to restart
+unfinished OOS. The ordinary parent cancellation API stopped the old attempts;
+a first retry reached the closing server and was cooperatively cancelled before
+waiting for the new portfolio routes and retrying again. Cancelled history was
+retained. Evaluation OOS `aab0ee8cfc58473590635b2acb4888a5` then advanced from
+14 to 62 of 10,000 historical resamples with four workers; Funded OOS
+`893d3d05ade841539b448c7b13e29b7b` is normally queued behind it. This confirms
+restart/progress, not a completed OOS verdict.
+
+Both original completed IS analysis IDs, report hashes, selected families and
+frozen-package hashes match the before-application snapshot exactly. All 21
+focused checks pass again in the real workspace; the downloaded ZIP's independent
+arithmetic audit passes. A live browser check verifies the new portfolio form,
+Apex 60/40 phase caps, mobile overflow and qualified source checking without
+launching an additional simulation. [Live application evidence](evidence/qualified_prop_sim/native-portfolio/live-application.json)
+and [live UI check](evidence/qualified_prop_sim/native-portfolio/live-ui-check.json)
+are saved beside the normal-product demonstration. The unrelated pre-existing
+`workflow.js` edit is unchanged and excluded from this increment's commit.
+All owned temporary test servers are stopped; the existing user-managed port-8000
+server continues running. No additional persistent server was introduced.
+
+### Saved Apex Evaluation/Pareto audit — 2026-11-14
+
+Read-only audit of simulation `ede834c9fea44f2fa663e481dd8d4582`, Evaluation IS
+report `0d0ddfa2a8a0469c8e5d8015dabc9ba5`. Independent source-cost/account arithmetic
+matches all 60,000 saved attempts and independent calendar/cash arithmetic matches
+all 53,000 resolved acquisition chains. Catalogue seals, 12 captured artifacts,
+13 ZIP members and all 33 recorded numerical source files match. The frontier
+correctly contains sizes 27, 46 and 48; the UI joins their discrete estimates with
+straight segments. No report, frozen choice, database or production code changed.
+
+For 27 versus 48, pass fractions are 33.4% versus 32.8%, making `49/p + 129`
+acquisition costs almost equal ($275.71 versus $278.39), while mean attempt
+durations fall from 10.153 to 7.201 sessions. Saved calendar means are 45.541 and
+32.686 days. For 49 the pass fraction falls to 30.7%, increasing cost to $288.61
+and calendar mean to 34.000 days. Three source winners cross the $1,000 DLL
+between 48 and 49: their commission-adjusted adverse bound is $984.96 versus
+$1,005.48. A fresh-account check on source trade 86 passes at 48 (+$3,671.04)
+but DLL-pauses at 49 (-$1,000, account remains open). These are conservative OHLC
+bounds, not tick measurements.
+
+The small IS price ordering is not precise: a 20,000-attempt IS-only audit
+diagnostic gives 27/48 approximately $286.30/$285.72, with independently solved
+fitted-law calendar means 47.281/34.273 days; 49 remains worse at $294.93/36.353
+days. This diagnostic does not replace normal reports, certify an optimum or
+reselect frozen candidates. The original report retains its explicit lack of
+provider parity: 21-session expiry differs from Apex's current 30 calendar days;
+activation, holiday calendars, prices and execution retain their saved assumptions.
+
+Evidence and exact reproduction, including the normal portal and existing ZIP
+download journey: [audit explanation and commands](../artifacts/apex-evaluation-audit-20261114-ede834c9/README.md),
+[independent verifier](../artifacts/apex-evaluation-audit-20261114-ede834c9/audit.py),
+[actual audit output](../artifacts/apex-evaluation-audit-20261114-ede834c9/audit-results.json).
+Nine focused arithmetic/calendar/Pareto checks passed. The requested port 8000
+was unreachable from this audit environment; saved catalogue/report evidence was
+read directly. No server was started or stopped and no browser check is claimed.
+
+### Portal responsiveness diagnosis and stable launch — 2026-11-14
+
+Subsequent live inspection found the port-8000 web main thread blocked writing
+terminal output while Funded confidence job `609ec63f9b2f4af2ad84c40d920eb484`
+continued with four workers. Both the static page and Prop Sim history timed out.
+The new `scripts/serve_portal.sh` removes per-request terminal logging and reload,
+uses rotating server log files, binds the port before initialization, and guards
+against duplicate ownership or accidental recovery of live jobs. The existing
+server and active numerical calculation were not restarted or cancelled.
+
+An isolated actual-portal check reproduces blocked inherited output, verifies
+responsive normal endpoints and an interactive Prop Sim form in Chrome, and
+checks duplicate-port/data-owner and active-job rejection. All temporary servers
+stopped. The isolated library was empty; no claim is made about large-history
+rendering or universal task isolation. Broader UI loading, read-path and
+asynchronous logging protections remain proposed in
+[the diagnosis and solution](portal_responsiveness.md), with
+[saved measurements](../artifacts/portal-responsiveness-20261114/validation.json)
+and [the normal-product screenshot](../artifacts/portal-responsiveness-20261114/usable-prop-sim.png).
+
+At the later terminal-restart follow-up, the last Funded confidence job completed
+before recovery. All four phase IS/OOS reports and ZIP seals were verified, the
+exact old idle portal process tree was stopped, and the stable file-logging
+launcher started detached on port 8000 at 09:58:51 Singapore time. All four report
+seals remained unchanged and no calculation reran. Live HTTP and real-data browser
+checks are in the [recovery record](../artifacts/portal-responsiveness-20261114/live-recovery.json)
+and [restored validation](../artifacts/portal-responsiveness-20261114/live-restored-validation.json).
+The replacement server is intentionally persistent, PID 25985; stop it with
+`kill -TERM 25985` when no analysis needs to finish. Earlier temporary check
+servers remain stopped. See [the live recovery details](portal_responsiveness.md).
+
+### Prop Sim runtime audit and isolated speedup prototype — 2026-11-14
+
+The saved Apex run `ede834c9fea44f2fa663e481dd8d4582` took approximately 83 min
+09 s from parent creation to final ZIP publication. Direct recorded confidence
+timers account for 17 min 23 s Evaluation (three sizes) and 63 min 06 s Funded
+(two sizes), 96.8% of total time. The IS searches took approximately 1 min 07 s
+and 1 min respectively; remaining setup/base OOS/publication time is a residual,
+not a separately measured breakdown. Queue time is kept separate from execution.
+
+Isolated reuse of Funded fixed random-index sequences and calendar tables gave
+2.26×/2.32× speedups on interleaved real-source 13/14-MNQ refit samples. Metrics
+matched their saved bootstrap rows, and 12,000 full path records/events/schedules
+matched the existing owner exactly. Extrapolation projects about 28 minutes for
+Funded confidence and 48 minutes overall; a full optimized product run has not
+been performed. Four versus six workers gave only 1.16× on a separate baseline
+sample; all 86 concurrent portal metadata requests succeeded (maximum ~54 ms).
+
+This increment is an audit/design artifact, not a production numerical change.
+No saved report, frozen family, path count, policy or live worker setting changed.
+The existing insufficient-precision verdicts remain unchanged. Evidence, exact
+commands, limitations and the normal saved-simulation/download inspection journey
+are in [the runtime analysis](prop_simulation_performance.md). All audit-owned
+process pools closed; the user portal remains running under its existing launcher.
+
+### Delivered bounded Funded preparation reuse — 2026-11-14
+
+Implemented the primary performance recommendation in `funded_profiles.py`, with
+one worker-context preparation object connected through the existing
+`oos_bootstrap.py` / `oos_qualification._means` owners. The 32 MiB accounted cache
+retains immutable calendar/index preparation only; a full cache falls back to the
+original stream without truncating paths. Account arithmetic, seeds, policy,
+ordered outcomes and the four-worker default remain unchanged. New normal report
+downloads retain preparation version, budget and observed-byte diagnostics.
+
+The independent previous-owner comparison matches 12,000 complete real-source
+path records, payout events, schedule hashes/rules and sampled saved refit metrics.
+Interleaved implemented-owner timings improve 2.55×/2.64× at 13/14 MNQ, projecting
+about 44 minutes overall versus the earlier 83-minute run; no full optimized
+real-data qualification report is claimed. All 46 focused backend cases, the full
+qualified pipeline API case and both Apex/Lucid browser journeys pass. Synthetic
+examples preserve eight account paths and all 10,000 refits, independently expect
+$178 Apex Evaluation / $13,000 Funded and $80.50 Lucid Evaluation / $9,000 Funded,
+collapse equal IS objectives to 9 MNQ, and retain GO/PENDING outcomes. ZIP artifacts
+are verified by a standalone script importing no production calculator.
+
+The numerical-owner change is included in its actual phase hash; qualification
+hashes also change. No compatibility bypass was added. Old frozen Funded packages
+cannot relaunch with this owner, while original reports/ZIPs remain readable.
+The idle live server was gracefully restarted to PID 28156 using the stable
+launcher; all four original real report/ZIP seals match before/after and the live
+source picker/form/history were verified. No user simulation was rerun. All
+temporary test servers/pools stopped; stop the persistent user portal with
+`kill -TERM 28156` when no analysis needs to finish.
+
+[Exact normal-product journey, saved downloads, qualification evidence, boundaries and reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).
+
+### Current Evaluation/Funded IS and OOS methodology guide — 2026-11-14
+
+Documentation-only increment, traced against implementation `8f6d85a`.
+[The calculation guide](prop_simulation_methodology.md) now documents the current
+qualified Prop Sim tab end to end: source admission and already-accessed OOS,
+IS/OOS bounds, commission replacement and adverse paths, source/session/calendar
+clocks, Apex attempt-law/renewal acquisition, Lucid direct dated acquisition,
+fresh-Funded receipt accounting, automatic IS-only families, frozen OOS Monte
+Carlo plus chronological replay, historical confidence refits and exact verdict
+boundaries. It also distinguishes the native percentage-risk portfolio workflow
+and its finite observed-cash objective from independent fixed-size Monte Carlo
+searches. Percentage-grid optimization is explicitly not claimed implemented.
+
+The guide is linked near the top of `prop_simulation.md`, the documentation
+index and the repository README. Historical dated specifications/evidence are
+retained. No numerical source, account policy, saved report, server or running
+job was modified/restarted for this increment.
+
+Normal reader journey: open the guide from the documentation index, follow its
+product steps from a qualified backtest through Prop Sim configuration/Run and
+saved phase downloads, then compare `request.json`, candidate `metrics`, path
+outcomes and `prop_qualification`. Expected observations: Evaluation uses the
+cost/time frontier and at most three automatic choices; Funded uses received cash
+and at most two; OOS keeps those identities and never selects replacement sizes.
+Account cash includes zero-receipt paths and excludes pending receipts. Native
+portfolio policies use actual pre-entry stops/account state, with a separate
+replacement fee/receipt ledger and no claimed portfolio Monte Carlo GO.
+
+Verification: the exact seven-node pytest command in the guide executes **eight
+passing cases** because the tie test covers both phases. It checks the inclusive
+1.25×/95% selection boundaries, tie/duplicate behavior, unresolved-row handling,
+IS/phase independence, 1.50/0.70 OOS margins, insufficient-evidence distinctions,
+complete-month counting and the 12-test confidence tail. The existing Starlette
+httpx deprecation warning is unrelated. The guide's independent saved native ZIP
+audit also passes: frozen zero-purchase scenarios each retain zero fees/receipts;
+the diagnostic invested IS alternative retains one trade/decision, USD 80.50
+fees, zero receipts and net cash −USD 80.50. These are existing saved outputs,
+not new simulations or claimed future outcomes. Guide links/anchors and whitespace
+were checked. No browser server or full regression suite was needed.
+
+### Prop Sim conclusions and next steps — 2026-11-14
+
+Added a shared presentation owner, `web/prop-sim-conclusion.js`, to the existing
+independent Prop Sim screen. The top **Conclusion & next steps** view summarizes
+Evaluation/Funded separately; a phase-level explanation appears before the IS
+finding, with actual saved confidence/evidence/precision blockers. OOS rows name
+their next action. Inconclusive prop sizing is distinguished from a failed
+campaign, historical GO leads to supplied paper review, and forward GO still
+requires economic/deployment-control review. The existing paper-review controls
+are now accessible from a current GO conclusion on automatic runs as well.
+
+No account calculation, policy, source admission, worker, path count, source
+hash or frozen report changes. Conclusions use saved server verdicts, not a new
+client acceptance rule. Historical versions remain historical. When current
+qualification is unavailable, only the latest saved qualification summary is
+read for its original explanation; other history stays lazy. Viewing a conclusion
+or opening evidence/diagnostic controls submits no new analysis. Additional-path
+diagnostics are not described as automatically updating an OOS verdict.
+
+Normal product demonstration: the user's saved simulation
+`ede834c9fea44f2fa663e481dd8d4582` now shows three Evaluation and two Funded
+inconclusive outcomes, original campaign prerequisites recorded as passed,
+and actual confidence/inner-MC blockers. Its pre-existing numerical-version
+incompatibility is explicit. GET-only browser inspection on the existing live
+port-8000 portal verified unchanged report/ZIP seals, unchanged frozen choices
+and assessment history, zero POSTs, no JS errors and no mobile body overflow.
+The live user server was not restarted and no user job was stopped or rerun.
+
+Three focused Chrome journeys pass: the automatic saved-backtest → configure →
+Run → navigate away → durable results → existing paper-review action journey;
+ten display-only conclusion boundaries over a normal sealed run; and current
+result reuse with lazy historical loading. The existing history test's stale
+policy-layout selector was corrected to target the already-collapsed diagnostics.
+The normal synthetic account oracle remains USD 178/2 days Evaluation and
+USD 13,000 fresh-Funded receipts, historical ratio bounds 1.00 and forward PENDING.
+Boundary fixtures cover confidence/precision/source evidence, NO-GO, mixed
+families, forward issues/pass, historical versions, running and unassessed
+states without rewriting the source report. JavaScript syntax, evidence links,
+saved-verdict preservation and diff whitespace checks pass. The only warning
+is the existing Starlette httpx deprecation. No full/180-check suite was run.
+All owned temporary test servers/browser/worker processes were stopped; the
+original user portal remains the only server intentionally retained.
+
+[Screenshots, original summaries, exact normal-product steps, test commands and preservation evidence](evidence/qualified_prop_sim/conclusions/README.md).
+
+## 2026-11-14 — exact refit acceleration and resumable confidence work
+
+Implemented compact internal fixed-quantity refits, bounded Evaluation preparation,
+matching compiled Lucid calendar/Apex renewal loops, and checksummed outer-refit
+checkpoints in the existing AnalysisStore catalogue. Full published point evidence,
+all 10,000 refits and requested inner paths, policy/streams and four-worker default
+are retained. Actual saved-data parity covers twenty refits with 1,000 IS/OOS
+accounts each; 78 full-capture boundary oracles match the preceding owner exactly.
+Small warm samples show 2.75–6.50× Lucid Evaluation, 3.84× Apex Evaluation and
+1.45–1.61× Funded speedups; these are not complete production runtime promises.
+
+Reproduce through the existing report → Prop Sim configuration → source admission
+inside Run → automatic IS selection/freezing → OOS results flow. Use the labeled
+synthetic constant-day source in the saved journey, 9–10 MNQ, eight paths, and
+2026-11-16. Expected independent outcomes: Apex Evaluation USD 178 (49+129),
+Lucid USD 80.50; Funded mean received cash USD 13,000 / USD 9,000 respectively.
+Both phases retain 10,000 ordered historical refits with ratios/bounds exactly one,
+historical GO and forward-review PENDING. These arithmetic fixtures imply no
+future trading result or provider certification.
+
+For restart behavior, use normal **Stop running analyses** after confidence work
+has begun, then **Retry incomplete phases**. Prop Sim and the new job's Job history
+show restored completed resamples; the final sealed report still contains the
+entire 10,000-index family. Changed source/settings/implementation cannot reuse
+old checkpoints; checksum corruption rejects. No partial result/GO is published.
+Old numerical freezes remain readable but reject current-owner launch. A job
+started before this feature cannot recover unsaved historical rows retroactively.
+
+See [saved normal-product reports, screenshots, oracles and commands](evidence/qualified_prop_sim/refit-acceleration/README.md).
+Temporary browser servers are stopped by their fixtures; no demo-only page,
+service, result store, source rewrite or external Bridge execution was introduced.
+
+Application was explicitly authorized after isolated validation. The matching
+compiled kernels are rebuilt in `epic/revamp-workflow`, 49 focused checks pass
+there, and the stable port-8000 portal was restarted as PID 41520. Old simulation
+`3444051a2ad94a709a39b362115792c3` is preserved as stopped; replacement
+`f0c73356f2f140b6ac22ebeed2e6ee82` launches the same automatic configuration under
+the new numerical identity. Six historical report/ZIP seals are verified unchanged.
+See the delivery evidence's `live/` snapshots. This verifies launch/progress,
+not completion of the full real-data confidence work. Stop the persistent server
+with `kill 41520` after cooperatively stopping active jobs in the portal.
+
+## 2026-11-14 — audit of Lucid 3-MNQ IS funding within 60 days
+
+Read-only investigation of saved Prop Sim `3444051a2ad94a709a39b362115792c3`,
+Evaluation `203112a3eedc47ca80d4e7dc082c655f`, reproduces **5/1,000 = 0.50%**.
+An independent integer-cent calculator reconciles all 480 captured one-NQ source
+trades against fill prices and costs, scales to three MNQ, and matches all 1,000
+saved account paths, funding dates, retry counts, fees, captured first/last account
+states and sampling-schedule hash. Existing report/source seals verify. The saved
+run uses 50% add-on consistency, DLL on and the 2021–2024 IS history.
+
+At three MNQ this source has USD 151.99 mean winners, USD -181.02 mean losers,
+USD 13.99 net expectancy per trade and no absolute trade result above USD 1,000.
+The independent unrestricted 60-day sample averages 19.271 trades and USD 294.53
+net; the same five paths reach USD 3,000 even with all account barriers removed.
+The full replay matches 488.848 mean acquisition calendar days and USD 182.9478
+mean fees. No DLL pauses or consistency delays explain this size's low rate.
+This verifies the saved calculation under its empirical model, not future odds
+or provider parity; the nominal conditional MC interval is about 0.21%–1.17%.
+
+Reopen the existing portal at
+`#prop-sim?analysis=3444051a2ad94a709a39b362115792c3`, expand Evaluation IS sizing,
+and inspect 3 MNQ: 0.50%, USD 182.95 and 488.85 days. Download its normal report
+JSON/ZIP and inspect the matching candidate's metrics and paths. Exact read-only
+reproduction, assumptions and inspectable audit output are in
+[the audit evidence](../artifacts/lucid-is-sizing-audit-20261114/README.md).
+No new production report, OOS access, server or numerical-engine change was made
+for this audit. Concurrent performance work and its replacement run remain separate.
+
+## Percentage-risk research increment — 2026-11-14
+
+Scope and status: M1 of `percentage_risk_research_plan.md` is delivered; exact
+percentage-grid contracts and native prefix preparation are foundations. The main
+one-click percentage optimizer, native two-history OOS estimator and forward
+percentage review are not delivered. Do not infer their implementation from the
+presence of a pure grid helper or bounded native research simulations.
+
+The M0 release gate remains unmet. The live IS source inspected read-only was
+`bfa89f7e4714444391e19ef577efeeb4`, NQ point value 20, with observed coverage
+2021-01-03 through 2024-12-31. Its dataset has 3,210,351 rows. Current native
+research admission requires actual MNQ point value 2, at most 366 source calendar
+days/510,000 bars and complete one-minute sessions. Forecasts retain 512-path,
+365-day and separate work/capture bounds. No source was relabeled or resized and
+no native or OOS count was lowered to manufacture support. Checked NQ-to-MNQ
+adaptation and production-scale exact native execution remain required.
+
+Bounded capacity experiment (synthetic three-session source; four 3-day paths per
+profile/phase) compared full output dictionaries, including paths, captures,
+schedules, quantities, account cash and dates:
+
+| Local account / phase | Original seconds | Prepared seconds | Complete output parity |
+| --- | ---: | ---: | --- |
+| Apex Evaluation | 1.61 | 0.54 | Exact |
+| Apex Funded | 1.29 | 0.55 | Exact |
+| LucidFlex Evaluation | 1.34 | 0.51 | Exact |
+| LucidFlex Funded | 1.28 | 0.53 | Exact |
+
+These timings are illustrative measurements on this machine, not production
+runtime promises. Source preparation was about 0.20 seconds, accounted snapshots
+15,168 bytes, process peak RSS about 108 MB. A 10,000-refit × 1,000-inner-path ×
+two-history assessment has 20 million account paths per frozen policy. Even this
+small horizon costs about 0.12–0.17 seconds per prepared path; extrapolation is
+multiple weeks serial and is not a measured full-history benchmark. It cannot
+establish practical production capacity. The approved plan's section 14 therefore
+keeps the qualified main percentage option off while shipping the useful risk
+diagnostics. No production job was stopped to run the experiment.
+
+Normal product reproduction:
+
+1. Open an ordinary saved backtest report, or a campaign's mechanic validation,
+   Broad, Narrow or OOS results. Expand **Risk-normalized research · diagnostics**.
+2. Inspect causal-risk coverage, the saved baseline quantity/sizing owner, point
+   value, commission/slippage assumptions, mean/median/total/worst planned net R,
+   complete-month evidence when available, and the initial-risk trade details.
+   Mechanic validation restricts displayed rows to its existing trade samples;
+   no additional parity checkbox appears.
+3. In a new Broad/Narrow grid, use **Columns** to show the optional planned-R
+   metrics. Existing varied input parameters stay visible/frozen by default;
+   R columns are initially hidden. Historical grids keep their saved columns.
+4. Use **Risk diagnostics JSON ↓** to retain every trade row and source hashes.
+   Reload/reopen without recalculating the backtest. Missing old stop evidence
+   remains unavailable; changed or missing captured files reject with HTTP 409.
+
+The labeled synthetic product example uses the normal dataset -> IS backtest ->
+report -> diagnostic download workflow. Its independent fixture expects initial
+unit risks 10, 10, 20 USD and trade net profits -10, +20, +20 USD: planned net R
+is -1, +2, +1; mean 2/3, median 1, total 2 and worst -1. The UI shows 0.67, 1.00,
+2.00 and -1.00 respectively. A 0.20% initial-capital budget of 50,000 USD is 100
+USD; a 20-point MNQ stop with 0.50 USD commission each side and no slippage costs
+41 USD per contract and permits two contracts. NQ/ES diagnostic point values are
+independently checked; the MNQ sizing admission guard is not loosened for them.
+
+Reproduce the saved normal-product evidence and capacity experiment:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_RISK_EVIDENCE_DIR="$PWD/artifacts/percentage-risk-research-20261114/product" \
+.venv/bin/python -m pytest -q tests/test_research_risk_browser.py
+.venv/bin/python tests/review_percentage_native_capacity.py \
+  --output artifacts/percentage-risk-research-20261114/prepared-capacity.json
+```
+
+Evidence: `artifacts/percentage-risk-research-20261114/product/risk_metrics.json`,
+`risk-panel.png`, `risk-mobile.png`, `journey.json`, and the capacity JSON.
+Temporary browser servers are shut down by fixture teardown; no additional
+persistent server is needed. Analytical oracle data remains in tests, not in a
+new product endpoint or secondary result store.
+
+Focused checks cover arithmetic, reporting (including compact/streamed legacy
+reports), source/tamper/download/historical derivation, unchanged campaign parity,
+exact grids, native zero/full-cache parity and cancellation, ordinary native
+campaign persistence/freezing, and the affected report/mechanics/Broad/Narrow/OOS
+browser journeys. Two old browser expectations were aligned with already-approved
+behavior: campaign dataset selection resumes the latest selectable phase, and
+Narrow's tested-grid plateau requires 70% rather than the former two-thirds text.
+No campaign screening policy or backend threshold changed.
+
+Existing sealed reports and prior confirmations remain intact. Numerical source
+identity changes are explicit; old frozen native launches may require compatible
+requalification rather than bypassing their saved implementation guards.
+
+Applied-product verification: the existing port-8000 normal report
+`/#backtests/report/bfa89f7e4714444391e19ef577efeeb4` displays all 480/480 trades
+with valid NQ risk evidence, point value 20, and mean planned net R 0.19. This was
+derived from the original saved trades/decisions without a new backtest. Both
+source files retained their SHA-256 hashes. Inspect
+`artifacts/percentage-risk-research-20261114/existing-nq-verification.json`,
+`existing-nq-risk-diagnostics.json`, `existing-nq-risk-download.json` and
+`existing-nq-risk-panel.png`. The saved source period and campaign verdicts were
+not altered. The idle stable portal was restarted to load commit `baec9a3`; no
+queued/running optimization, mechanic or prop jobs were interrupted. Its new PID
+is 51439; stop it with `kill 51439` if needed. All temporary test servers were
+closed.
+
+## Independent percentage-risk Prop Sim optimizer — 2026-11-15
+
+The M0–M7 extension is implemented in the existing product. The earlier capacity
+checkpoint remains historical. Main Prop Sim now has independent exact-decimal
+Evaluation/Funded percentage grids for Apex 50K EOD and LucidFlex 50K, actual
+causal native execution, automatic IS selection/freeze, frozen OOS forecasts and
+chronology, versioned native historical qualification and supplied-event forward
+review. Campaign screening rules and the separate portfolio objective are unchanged.
+
+### Normal user journey
+
+1. Open a qualified campaign source backtest, then **Prop Sim**. Qualification is
+   rechecked by the server; an unqualified or unsupported source cannot launch.
+2. Select the prop account and **Percentage of account risk**. Set independent
+   minimum/maximum/increment and whole-MNQ ceilings for Evaluation and Funded.
+   The default reference is initial $50,000 capital. Advanced controls expose
+   current balance or available drawdown cushion and default-off planning guards.
+   The form shows the initial dollar budget and its share of the initial $2,000
+   account drawdown; 0.20 means 0.20%, not 20%.
+3. Click **Run IS and OOS** once. Both independent IS searches run, the documented
+   phase selectors freeze their percentage families, and OOS qualification runs
+   without another selection or confirmation. Navigating away does not stop it.
+4. Follow source preparation, account paths and historical refits in Prop Sim or
+   Job history. The normal stop/retry controls preserve stop intent and completed
+   refits. A partially computed refit restarts at its own index.
+5. Reopen the simulation from Previous analyses. Inspect percentage policies,
+   separate admitted-quantity/skip/cap diagnostics, objective-specific results,
+   current OOS verdicts, chronology, source evidence and ordinary sealed downloads.
+   The cap is never presented as a fixed executed quantity. GO still opens paper
+   review; it does not authorize live trading.
+
+Supported native capability is explicit: the existing VWAP strategy, EOD flat,
+strategy-local volume sizing off, one accepted entry per reset day, and a
+same-day entry window ending by 17:00 Chicago with its reset before entries.
+Unknown capabilities reject rather than falling back to resizing saved trades.
+NQ/MNQ reference prices execute as MNQ with point value 2 and explicit replacement
+commissions charged once. Basis/liquidity and future provider rules are not newly
+certified. Source CSVs, baseline trades, existing campaign verdicts and reports
+remain unchanged.
+
+### Independent expected values and the actual portal journey
+
+The saved browser journey uses a clearly labeled **SYNTHETIC native percentage
+orchestration** source. Only prior campaign admission is a test fixture; source
+backtests, native phase execution, freezing, OOS calculations, stores and portal
+routes are actual. It must not be treated as a newly qualified real campaign.
+
+For its known signal 118, stop 113, target 268, MNQ point value 2 and zero costs:
+
+- At 0.20% of $50,000, the budget is $100. One MNQ risks `(118−113)×2 = $10`;
+  quantity is `floor(100/10) = 10`, rather than the 60/40-MNQ ceiling. A target
+  trade earns `(268−118)×2×10 = $3,000`.
+- At 0.30%, quantity is 15. These policies remain distinct even when their
+  acquisition metrics tie. Apex Evaluation costs $49+$129 = **$178**, with
+  **2 calendar days** including the saved readiness convention. Both Funded
+  policies receive **$1,500** within the nine-day modeled horizon, including
+  zero/pending receipt handling through the ordinary owner.
+- Automatic exact-tie selection freezes **0.20%** for both phases. It does not
+  freeze "60 MNQ" or "40 MNQ" as an executed quantity.
+- Its seven OOS sessions correctly produce **INSUFFICIENT_EVIDENCE**: there are
+  neither twelve complete months nor one hundred closed source trades. A ratio
+  of 1.00 alone cannot turn that into GO. No production evidence gate is bypassed.
+
+The complete 10,000-refit publication branch is additionally exercised in an
+explicitly labeled numerical-branch test. Its short-history evidence override is
+confined to that test; it is not a product report or a market qualification claim.
+Both histories retain eight inner paths at every addressed outer index, independent
+IS/OOS role seeds and exact equal-law results. Separate tests retain the real
+short-history rejection above.
+
+Saved normal-product evidence is under
+`artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/`: configuration
+and result screenshots, parent record, sealed-assessment hashes and a copy of the
+ordinary completed synthetic library. The saved one-click parent is
+`eb80590e13b741fa935962e5603a62dd`; its OOS reports are
+`6e4e3ad51c774535984c0a65bb838f06` (Evaluation) and
+`14442b64e3f940d193fe626fdf36ba23` (Funded). Reopen without simulation:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/percentage-risk-optimizer-20261115/synthetic-automatic/data" /bin/sh scripts/serve_portal.sh --port 8018
+```
+
+Open `http://127.0.0.1:8018/#prop-sim?analysis=eb80590e13b741fa935962e5603a62dd`.
+Expected: complete automatic workflow, one frozen 0.20% family member per phase,
+$178 / two-day Evaluation estimate, $1,500 Funded receipts and explicit OOS
+insufficiency. The source is synthetic, with fixture-only prior admission, so it
+is not a template for bypassing admission on a new run. Stop the temporary server
+with Ctrl-C. No separate demonstration page, API or result store was introduced.
+
+### Real-source execution parity and capacity
+
+The real admission/capacity work uses an isolated read-only-derived copy of the
+existing qualified NQ workflow `3a9a24936f3d4034b722650547baedc3`, candidate 2,
+IS backtest `bfa89f7e4714444391e19ef577efeeb4`. The dataset is
+`094287965d4444f69cb7eefe0d2f054c`, SHA-256
+`2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377`.
+Its 2021–2024 native source has 1,415,817 observed rows across 1,034 sessions.
+The explicit reviewed historical venue pause is preserved; no prices are imputed.
+
+Eight comparisons cover both accounts, both phases and two addressed source
+schedules. Ordinary full-bar execution is the independent expected owner. All
+quantities, fills, monetary state, calendar transitions and controller events
+match; only the engine-local trade ordinal is normalized because it restarts
+with each execution call. Five-session samples consume 6,825–6,900 observed source
+bars, versus 0–32 actual event bars in the indexed route. Full inputs and actual
+outcomes are in `real-native-full-engine-parity.json`; zero event bars denote a
+proved no-entry slice with real account/calendar transitions, not invented data.
+
+Reproduce the comparison against a compatible saved library and its saved normal
+Evaluation report:
+
+```sh
+PYTHONPATH=. .venv/bin/python scripts/verify_percentage_real_trace.py /private/tmp/aq-percentage-product/data /private/tmp/aq-percentage-product/evidence
+```
+
+The four normal API capacity runs each use **1,000 actual native paths**, 0.20%
+of initial capital, seed 42, five-session source blocks, explicit $0.51 MNQ
+commission per side and the ordinary phase cap. Funded uses 90 calendar days;
+Lucid Evaluation retains the full 3,650-day computation guard. This is a
+single-policy capacity measurement, not a claim that 0.20% is optimal. The
+supplemental harness explicitly disables automatic follow-on OOS while measuring
+these point workloads; the normal one-click automatic journey is tested separately.
+The real campaign's prior admission is not stubbed.
+
+| Account | Phase | Retained paths | Actual point result | Reservation → publication |
+| --- | --- | --- | --- | --- |
+| apex-50k-eod | evaluation | 1,000 | Censored; acquisition means withheld | 204.67 s |
+| apex-50k-eod | funded | 1,000 | $1.50 mean received / 90 days | 385.13 s |
+| lucidflex-50k | evaluation | 1,000 | Censored; acquisition means withheld | 362.57 s |
+| lucidflex-50k | funded | 1,000 | $59.41 mean received / 90 days | 548.74 s |
+
+These elapsed times include queueing, source admission/preparation and publication;
+they are not isolated account-kernel timings. Peak parent RSS was 4.31 GiB.
+Apex Evaluation first-attempt pass probability was 3.50%; Funded received $1.50
+on average, with 99.90% zero receipts. Lucid acquisition completed on 919/1,000
+paths; 81 guard-censored paths correctly withhold untruncated means. Lucid Funded
+mean received cash was $59.41, with 94.40% zero receipts. None of these
+single-policy capacity measurements is a live qualification or optimality claim.
+
+The capacity reports predate a later admission-only correction to the native OOS
+launch window. Their phase numerical implementation hashes exactly match the
+final owners; the broader captured admission identity remains historical.
+No identity guard was bypassed to reuse them for a new frozen launch.
+
+The real-source launch check found legacy OOS coverage ending in a partial extra
+session beyond the saved split. `research_campaigns.finish_assessment` now uses
+`saved_oos_period` for native and fixed sources alike, matching the frozen-family
+validator. Parent, parameters, dataset, plan and execution-cost guards remain. A
+focused regression overstates saved coverage beyond the frozen end date and
+proves only the admitted in-window data reaches the native OOS owner. Direct
+individual campaign reruns remain rejected; Prop Sim binds the already-qualified
+complete campaign OOS source.
+
+A fresh current-identity NQ run (`c373e39312fa41bf833a992d6a10e961`, eight
+paths per phase) completes both IS searches. Its frozen Prop Sim OOS request now
+passes the family/parent/window checks and correctly rejects **before queueing**:
+the supplied source lacks **2025-04-02 15:32 America/Chicago** (16:32 New York),
+inside the strategy's possible holding interval before its 15:40 cutoff. The
+surrounding original rows are saved in `real-oos-source-gap.json`; the cause is
+unverified, so no price or venue pause was inferred. No native OOS performance or
+qualification verdict was published for this source. Compatible observed prices
+or verified market-status evidence are needed to use it for native OOS.
+
+`fresh-real-oos-admission.json` and the normal parent/validation snapshots retain
+that expected rejection. Independent fill/cash oracles also check the real
+long-only IS samples: `(exit−entry) × 2 × quantity − commissions`, with exactly
+$1.02 commission per closed MNQ. Dataset bytes and original IS/OOS trade/equity
+files match their preimplementation copy; see `original-source-integrity.json`.
+The source-data rejection is preserved alongside the positive synthetic native
+OOS journeys and full-count numerical qualification tests, without manufacturing
+an empirical GO result.
+
+
+The real run artefacts, normal analysis ZIPs, requests, source checks, progress
+logs and compact measured results are saved under
+`artifacts/percentage-risk-optimizer-20261115/`. The committed compact evidence
+index is `docs/evidence/percentage-risk-optimizer-20261115.json`. Timings reflect
+this machine and concurrent verification work. Peak RSS measurements explicitly
+refer to the parent process, not total worker/system memory. Full native OOS can
+remain substantially more expensive than a point estimate; it retains all
+10,000 outer refits and every requested inner account path.
+
+### Boundaries, retention and focused verification
+
+Preparation bounds its prefix and common-uniform caches at 32 MiB each; a cache
+miss takes the same exact uncached route. Checksummed read-only worker spools
+preserve original source fields. Detailed captures cover the first five source
+sessions of each explicitly captured path and label where they end; complete
+financial outcomes, payout events, aggregate quantities and every requested
+point path/schedule remain. V2 basic searches do not inherit V1's aggregate
+bar-work or 128-MiB publication bound. Legacy V1 and separately bounded optional
+research methods retain their own contracts.
+
+Focused checks verify exact grid endpoints/tiny-percent serialization, phase
+independence, 20,000 retained paths, both 3,650-day guard cases, ordinary-engine
+parity, all four account/phase API paths, native OOS chronology, no OOS reselection,
+current-mode automatic selection, full-count refits and deterministic completed-
+refit reuse. Cancellation drains siblings; completed outer indices survive a
+stop and match serial resume. Source-spool corruption, genuine holding gaps,
+unsupported strategy capabilities, invalid phase caps and changed source/code
+identities reject. Economic-review arithmetic and existing fixed-size automatic,
+native replay and parallel-confidence journeys remain covered.
+
+The final chart checks include opening the intentionally collapsed chart,
+exact-tie inspection, linked-row highlighting, numeric sorting of decimal-string
+metrics, dense frontiers and the shared native progress renderer. The legacy
+native OOS journey also passes after the source-window correction.
+
+Release verification commands (focused, not the old 180-check/full suite):
+
+```sh
+PYTHONPATH=. .venv/bin/pytest -xq tests/test_native_event_preparation.py tests/test_percentage_native_forecasts.py tests/test_percentage_account_starts.py tests/test_percentage_grid.py tests/test_percentage_market_hours.py tests/test_percentage_source_spool.py tests/test_prop_assessment_review.py tests/test_prop_confidence_parallel.py
+PYTHONPATH=. .venv/bin/pytest -xq tests/test_percentage_grid.py tests/test_percentage_native_bootstrap.py tests/test_percentage_account_starts.py tests/test_prop_sim_automatic.py::test_full_pipeline_needs_only_run_preserves_frozen_family_and_reopens tests/test_native_replay_api.py::test_real_native_report_workflow tests/test_prop_assessment_review.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome PYTHONPATH=. .venv/bin/pytest -xq tests/test_percentage_prop_browser.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome PYTHONPATH=. .venv/bin/pytest -xq tests/test_prop_sim_browser.py::test_evaluation_pareto_chart_tradeoffs_ties_and_unresolved_rows tests/test_percentage_prop_browser.py::test_shared_progress_labels_percentage_paths_and_refits tests/test_native_phase_campaigns.py::test_native_manual_oos_is_actual_chronology_with_frozen_horizon_and_no_reselection
+```
+
+The final real port-8000 form was also inspected with Chrome against the existing
+qualified source: independent percentage controls, Apex/Lucid phase ceilings,
+mode-correct assumptions, 390-pixel layout and no page errors. No simulation was
+launched in the user's library for that inspection. Its idle stable portal was
+restarted with zero interrupted jobs, PID **62236**; stop it with `kill 62236`.
+All temporary browser servers were closed. Real performance work and synthetic
+product evidence remain in isolated libraries; original user datasets, backtests,
+simulations, Windows VM and other processes were preserved.
+
+## Complementary Prop Sim evidence — 2026-11-15
+
+Delivered policy `prop-complementary-evidence-v2` through the existing Prop Sim
+workflow, for Apex 50K EOD and LucidFlex 50K, fixed contracts and native percentage
+risk, Evaluation and Funded. New assessments run no nested historical refits.
+The original IS-only selector and immutable family remain unchanged. Old reports
+retain their verdicts; a compatible completed automatic family can explicitly
+**Run current evidence review** without repeating its IS search. Incompatible
+numerical/source captures still reject instead of bypassing the freeze.
+
+The normal Run includes both IS searches, automatic selection/freeze, 5,000-path
+IS/OOS account comparisons, up to 24 covered chronological starts and five
+1,000-path stress scenarios. Evaluation has three explicit 90/180/365-day
+observations so each deadline's expenditure is an actual all-path calculation.
+Funded retains its configured fresh-account horizon and receipt lag. It does not
+use acquisition inputs. Sampling, costs, source identities, rules, complete
+financial paths and the new review identity are in the sealed ordinary report
+and evidence ZIP. Identical current assessments reopen the existing report.
+Compatible original path captures and checksummed completed stages can be reused;
+no separate result store or new scheduler was introduced.
+
+The page leads with a phase conclusion and next step, followed by one expandable
+candidate at a time. Each candidate has six labeled findings: coverage, account
+economics, numerical precision, IS→OOS change, chronological starts and stress.
+The visible account table includes conditional simulation intervals and all-path
+outcomes. Stress and date tables expand independently and show expenditure/cash,
+clustering/cost sensitivity and unsuccessful windows. Source/policy detail remains
+available without obscuring the findings. Review warnings, insufficient evidence
+and unsupported account outcomes have different explanations/actions. Historical
+intervals are not fabricated from the new design. Paper execution/controls remain
+separate; a ready research package is not live-trading approval.
+
+### Saved normal-product evidence and independent expected observations
+
+The committed compact index is `docs/evidence/complementary-prop-20261115.json`.
+Full inspectable outputs, ZIPs and screenshots are under
+`artifacts/complementary-prop-evidence-20261115/`. These are **synthetic market
+sources**, actual production phase calculations, normal APIs, immutable freezes
+and sealed reports, not future-return or provider-parity evidence.
+
+Fixed-contract normal-product API parents:
+
+- Apex: `6f0124f8f96f4407bd0a79a7f539a240`;
+  Evaluation `4c338b79d23e4e2a8c01b3a9af43a2db`,
+  Funded `f5e62d76ecce42549021fa3d219931b8`.
+- LucidFlex: `2ee77853b37b491f97c2270eeef210dd`;
+  Evaluation `60599fd017964fb78dfd6cb90e654dfb`,
+  Funded `a127c19bbb364d1e84a1e187df2cc9e0`.
+
+Both use the complete qualified synthetic campaign from the existing backtest
+report, 10 MNQ, eight original IS search paths, seed 42, five-day blocks,
+2026-11-16 modeled start, 90-day Funded horizon, two-day receipt lag and $0.51/MNQ
+per-side commission. The **comparison still executes 5,000 paths per history and
+deadline**; the small original search is not a reduced-count qualification fixture.
+The source has constant profitable daily opportunities, so independently:
+
+- Every Evaluation observation becomes funded. There is exactly one purchase
+  and one activation payment: Apex $49 + $129 = **$178** per path; Lucid's explicit
+  50% add-on test fee $99.50 and no activation = **$99.50** per path.
+- In the full 90-day Funded window, all capped modeled receipts arrive: **$13,000**
+  for Apex and **$9,000** trader receipts for Lucid. They are fresh-Funded receipts,
+  not acquisition-adjusted profit or full replacement-account economics.
+- Both histories and all deadlines contain 5,000 paths; all five stress scenarios
+  contain 1,000. There are 24 actual-order start windows per candidate and zero
+  outer refits. All six findings are checked; the result is ready for **paper
+  review**, with supplied forward evidence still pending.
+- The mean intervals can collapse on this deliberately constant source. That is
+  conditional numerical precision, not zero uncertainty about real markets.
+- A second identical request returns the same report; the original sealed IS
+  report hash remains unchanged. The summary API omits full comparison paths.
+
+The two browser journeys start at the actual backtest report, select account and
+size ranges, click Run once, navigate to Dataset while work runs, and return to
+the saved analysis. Both phases finish without subsequent input. JSON/ZIP
+outputs, desktop screenshots and 390-pixel mobile screenshots are saved under
+`browser/<profile>/`. The final saved-result/browser boundary check captures the
+final UI under `browser/final-reopen/`; its warning/failure inputs are **DOM-only
+analytical fixtures**, not rewritten reports or production verdicts.
+
+Native percentage branch evidence is under `native/<profile>/`. This exercises
+actual VWAP execution, phase controls, both histories/deadlines and all five
+stress scenarios at the full production counts. Its short synthetic source has
+**test-only prior-admission and history-minimum overrides**, clearly recorded in
+`scope.json`; it is not a production-qualified campaign. The missing 180-day
+chronological coverage stays an evidence gap. Independent 9-day first-receipt
+oracles are Apex $1,500 and Lucid $2,000 gross × 90% = $1,800; no Evaluation fees
+enter those Funded receipts. Ordinary seven-session sources still fail the real
+12-month/100-trade admission and skip the expensive package.
+
+Boundary arithmetic checks retain unfunded accounts: five funded in 10 days and
+five unfunded at day 365 gives 50% funding and **187.5 capped waiting days**, not
+10-day completed-only waiting. A path guarded at day 30 cannot claim a complete
+365-day observation. Funded examples retain zero receipts and pending cash
+separately. Wilson probability precision, review versus failure, uncovered start
+windows and cancellation are checked. Explicit legacy-bound arithmetic and
+forward-evidence checks remain valid; no broad/180-test suite was run.
+
+### Reproduce through the final product
+
+1. Use an isolated library, preserving the user's live workspace. Saved normal
+   libraries from the API journey are at
+   `/private/tmp/aq-complementary-libraries/apex-50k-eod` and
+   `/private/tmp/aq-complementary-libraries/lucidflex-50k`.
+2. From the repository, start one when needed:
+   `ALPHAQUEST_DATA_DIR=/private/tmp/aq-complementary-libraries/apex-50k-eod /bin/sh scripts/serve_portal.sh --port 8008`.
+   Open `http://127.0.0.1:8008/#prop-sim?analysis=6f0124f8f96f4407bd0a79a7f539a240`
+   to inspect the saved result without resimulation. Stop that server using its
+   PID from the isolated library's `.portal-server.lock` when finished.
+3. For a fresh one-click journey, open the source backtest recorded in
+   `<profile>/journey.json`, choose Configure Prop Sim, the desired profile,
+   10–10 MNQ for each phase, and the configuration above. Set explicit account
+   fees as listed. Run once. No freeze/OOS confirmation is required for new runs.
+4. Observe the six findings, the 90/180/365-day Evaluation rows, 90-day Funded
+   cash, five predefined stress scenarios and 24 chronological windows. Expand
+   the scenario/date details; verify the fee/receipt arithmetic above. Download
+   report JSON and evidence ZIP, navigate away and reload the saved analysis.
+5. Reproduce targeted automation:
+   `ALPHAQUEST_QUALIFICATION_SEED_LIBRARY=/private/tmp/aq-complementary-libraries/apex-50k-eod .venv/bin/pytest -q tests/test_prop_complementary_api.py`.
+   For browser journeys also set `ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome` and
+   select `tests/test_prop_complementary_browser.py`. Native numerical branches
+   are explicitly in `tests/test_prop_complementary_native.py`; do not interpret
+   their labeled short-history overrides as market qualification.
+
+Temporary browser servers stopped in fixture teardown. The live port-8000 portal
+was refreshed only after checking there were **no active user jobs**. Persistent
+replacement PID: **74499**, stop with `kill 74499`. No jobs were interrupted. The
+user's original Evaluation report `257e20f97a644d12bce7d108a1ba1a77` retained SHA256
+`2b714a6957b5c1eb3851ea9515b0c8dbd4c84bac2f86140244413fe8c6478f3c` across restart.
+The application record is `portal-application.json` in the artifact directory.
+
+## Ordered trade source delivery — 15 November 2026
+
+The Dataset → Trade ticks workflow imports checked SCID or canonical trade CSV,
+retains trade ordering and derives completed-minute flow. The existing execution
+engine resolves fills and account floors; prepared/date-selected/worker/portfolio
+spools preserve the source references. The optional VWAP order-flow filter runs
+through the same ordinary and controlled strategy callbacks. No separate prop
+engine or result catalogue was created.
+
+Normal-product proof is retained in
+`/private/tmp/alphaquest-tick-product-proof-reviewed-20261115`; its temporary
+server and Chrome closed after verification. Inputs are explicitly SYNTHETIC.
+The [downloaded evidence](evidence/trade-ticks-20261115/product-evidence.json) binds
+the original SCID, source report, source trade/risk CSVs, native trade CSV, sealed
+prop report and ZIP by hash. [Upload](evidence/trade-ticks-20261115/tick-source-upload.png),
+[rejection](evidence/trade-ticks-20261115/rejected-aggregated-record.png) and
+[result](evidence/trade-ticks-20261115/tick-percentage-prop-result.png) screenshots
+show the actual portal. No test-only page or API was added.
+
+Saved source report: `0124509025e94ed89aa1a0bca52ebfd4`. Saved Funded percentage replay:
+`269c83578b56458a8699cfe3349440fb`, child backtest `5faf1bf7e0a044099da253d2066065d2`.
+Expected quantities are 10, 9, 5 and trade net results are -120, 180, 100.
+The first source stop is 113; the next actual recorded price is 112 after entry
+at 118, producing `(112 - 118) × 2 × 10 = -120`. Final provider trading balance
+is 50,160. This is historical execution arithmetic, not a forecast or GO verdict.
+An intentionally aggregated record was rejected before saving.
+
+Reproduce from the [tick source guide](tick_datasets.md#verification-and-normal-product-demonstration).
+Use a fresh `AQ_TICK_PRODUCT_DIR`, then reopen that normal data directory through
+uvicorn. Reports reopen from existing sealed files. The original raw path and
+minute index must remain at their saved locations for new calculations; report
+reads do not resimulate. No extra persistent server was left running by tests.
+
+Validation: 26 focused tick import/execution/API checks passed, including the real
+Mechanics → Broad → Narrow → OOS → final Monte Carlo → automatic Prop Sim IS/OOS
+pipeline without gate bypasses. Both account profiles and phases passed native
+percentage replay; indexed/full replay and shared/separate portfolio cash matched
+independent oracles. The final native disclosure update was checked again across
+all four profile/phase combinations. The Chrome journey passed with negative
+import and successful durable replay. Relevant existing decision-capture, immediate
+protection and prepared-execution checks passed (52 checks); the broader legacy
+suite was not run.
+
+Observed ordering does not certify completeness, liquidity, spread, latency or
+provider parity. Trade-sized records are not inferred parent orders. Campaign
+criteria retain their documented minute-close MTM sampling and campaign Monte
+Carlo retains its daily inputs. Old reports are preserved; changed numerical
+identities are not silently applied to old frozen packages.
+
+
+## 2026-11-16 — shared MultiCharts OHLC execution contract
+
+New native strategy/account replays now arbitrate strategy stops/targets and
+account/daily floors on the documented MultiCharts non-magnified OHLC path.
+A target reached before a later floor touch wins. Held risk excludes prices before
+entry and after exit; saved source reports and prior verdicts remain immutable.
+The change introduces no prop optimizer or extra account simulation. Numerical
+source guards require compatible new source/workflows when old freezes reject.
+See `docs/multicharts_execution.md` for setup, independent arithmetic oracles,
+reproduction and the installed-platform qualification boundary. The normal-product
+mechanics → IS Broad → backtest report review is
+`tests/review_entry_protection.py`; expected synthetic primary338.00, High-first
+-52.00, Low-first338.00 for its capped second row, with declared 1-tick slippage
+and 1.00 commission per side. These are modeled results on labeled synthetic data,
+not a new qualified campaign or prop GO. Fixed-source historical prop reports keep
+their captured path/risk identity; no existing dataset, backtest or report is changed.
+
+
+## 2026-11-16 — permanent deletion scoped to an individual workflow
+
+The staged November 15 source-family cleanup was recovered and changed to require
+one explicit workflow ID (or a legacy saved-results group). Campaign cards now
+show creation dates and saved versions. On **Campaigns → a dataset workflow →
+Delete workflow and results…**, the preview lists every affected workflow/batch,
+report/file and downstream Prop Sim/portfolio analysis, plus shared evidence kept.
+The destructive confirmation is disabled until acknowledged; running work blocks
+it. Only the selected workflow is removed, even when another card references the
+identical uploaded dataset. There is no reversible unlink, Undo or Restore.
+
+The normal-product browser journey creates two workflows on the same synthetic
+native source, runs mechanics in both, cancels deletion once, deletes one, reloads
+and verifies the other's complete file hashes. Further journeys show legacy saved
+results, running-job blockers and an explicit downstream cascade. The dependency
+graph files are marked test metadata; they do not claim simulated economic results.
+A native Broad-grid API journey verifies removal of actual phase reports and jobs.
+Controlled percentage/OOS child backtests are included through their owning
+analyses. Shared owners retain complete source/stress dependencies; original raw
+datasets, campaign definitions and research/OOS access history remain.
+
+Both existing catalogues commit together; pre-commit file staging rolls back or
+recovers on startup, and post-commit cleanup can be retried. Minimal package ID
+tombstones prevent accidental reuse without retaining deleted metric/frozen output.
+Inspect `docs/campaign_dataset_links.md` and the saved browser/verification outputs
+under `artifacts/workflow-deletion-20261116/`. No user workflow or saved analysis is
+deleted when installing this increment.
+## 2026-11-17: strategy-owned fixed/native sizing admission
+
+Implemented contract: [strategy_sizing.md](strategy_sizing.md). Every registered
+strategy declares parameter-dependent fixed-path and native sizing support;
+registration rejects a missing declaration. Twin's real protected momentum and
+breakout OCO orders now use the shared account/execution owners. VWAP retains
+its exact fast path and uses general bar replay outside that accelerator's
+restrictions. Consecutive Green Hold remains fixed-path only: no stop or EOD
+exit has been invented to make percentage sizing possible.
+
+Normal-product checks:
+
+- `tests/test_strategy_sizing_api.py` uploads an explicitly SYNTHETIC minute
+  dataset, creates a real Twin IS backtest, declares independent prop phase
+  searches, checks admission, runs existing workers, and downloads sealed JSON
+  and ZIP evidence. Both Apex and LucidFlex Evaluation/Funded are exercised.
+  Separate checks cover fixed-path searches in all four combinations and an
+  immutable frozen native percentage policy assessed on actual OOS bars. The
+  latter publishes a normal controlled backtest and does not reselect its IS
+  candidate or shorten the saved horizon.
+- `tests/test_prop_sim_browser.py::test_strategy_sizing_capability_is_visible_before_running`
+  uses a normally qualified synthetic Green Hold campaign in the actual Prop
+  Sim portal. Fixed size is available. Selecting percentage risk displays the
+  missing-stop/session-exit reason and disables Check/Run before any work is
+  queued. Switching back restores fixed-size admission.
+- The existing `shared-range` Prop Sim browser journey still completes normal
+  source checking, both independent searches, sorting, Pareto inspection and
+  downloads, navigation away, Job history and saved-result reopening. Its
+  chart inspection now explicitly opens the existing collapsed chart section.
+
+Independent arithmetic/boundaries live in
+`tests/test_strategy_sizing_contract.py`: every current fixed path preserves
+entry/exit decisions when quantity changes from 1 to 3 and triples net/costs;
+Twin's real long/short momentum and breakout orders run through native sizing;
+a USD 100 budget with USD 10 planned unit risk admits 10 contracts before a
+later gap, both at 110 and at 130 actual entry; a USD 150 unit-risk opportunity
+is skipped. OCO siblings cancel and unfilled orders expire. A pre-entry adverse
+extreme cannot breach a future position. With the initial Funded tier clipping
+40 requested MNQ to 20, a 30-point win returns USD 1,200; a later provider daily
+floor takes USD 1,000 before a farther strategy stop. Cash reconciles to the
+actual completed trades. These are execution/model oracles, not provider parity.
+
+Reproduce focused product evidence from the repository root:
+
+```sh
+ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR=artifacts/strategy-sizing-20261117 \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_native_percentage_both_account_profiles_and_phases
+
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR=artifacts/strategy-sizing-20261117 \
+  .venv/bin/python -m pytest -q \
+  tests/test_prop_sim_browser.py::test_strategy_sizing_capability_is_visible_before_running
+```
+
+Saved local evidence: `artifacts/strategy-sizing-20261117/summary.json`, four
+profile/phase subdirectories with source CSV, source manifest, request, sealed
+report and ZIP, plus `unsupported-percentage.png`. Each phase also retains its
+ordinary product library in `library/`; this uses the existing catalogue/store,
+not another evidence service. To inspect one through the existing portal:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/strategy-sizing-20261117/apex-50k-eod-evaluation/library" \
+  sh scripts/serve_portal.sh --port 8011
+```
+
+Use the `analysis_id` in `summary.json` at
+`http://127.0.0.1:8011/#backtests/prop/job/ANALYSIS_ID`, or open its source
+backtest and saved independent phase campaign. Stop that inspection server
+with Ctrl-C. The tests themselves stop their temporary servers. Synthetic
+short histories do not satisfy campaign qualification and are not admitted to
+the main qualified-campaign selector by this demonstration. Eight paths are
+retained per native phase example. The supplied weak synthetic 0.2% policy
+produces no funded receipts and no completed acquisition in these examples;
+unresolved means remain unavailable rather than inventing an acquisition mean
+or a passing result. Provider parity and live readiness are not claimed.
+
+Numerical identities include the new contract/adapters. Existing sealed results
+are preserved. A source whose strategy implementation differs must be regenerated
+before a new native execution; earlier reports are not silently recertified.
+
+## 2026-11-17: dependent research-study deletion preview
+
+Campaign dataset/result deletion now explicitly lists dependent nested-research
+studies and removes their study records, checkpoints and unshared generated
+reports in the existing cross-catalogue cleanup transaction. Surviving Prop Sim,
+phase, workflow and live owners retain their shared evidence. Original strategy
+definitions, datasets and research/OOS-access history remain. Running research,
+stale previews and frozen-procedure/live bindings still block deletion.
+
+Normal product reproduction: Campaigns → intended dataset workflow or legacy
+saved-results card → Delete → expand **Dependent research studies that will also
+be deleted**. Expect name, date, state, checkpoint count, ID and report link.
+Cancel preserves all evidence; permanent deletion requires the existing explicit
+checkbox and confirmation. Reload confirms removal without losing the dataset
+or strategy. `tests/test_campaign_dataset_links.py` includes a real completed
+nested study and access-retention check; its browser journey is in
+`test_campaign_dataset_links_browser.py`. Screenshots and the real user's
+inspection-only preview are saved in
+`artifacts/dependent-research-deletion-20261117/`. User data was not deleted to
+demonstrate this feature, and temporary browser servers stop in fixture teardown.
+
+## 2026-11-18: allow flat gaps in native percentage-risk replay
+
+Current numerical contract: [actual-exposure minute coverage](prop_simulation.md#actual-exposure-minute-coverage-2026-11-18).
+The existing source/backtest → independent phase configuration → Check → Run →
+sealed report/ZIP workflow now accepts original sparse prices while flat. It
+checks positions and accepted stop-entry orders separately for every account,
+phase and sampled path. This adds no simulator, store, scheduler or demo page.
+
+### Independent checks and expected observations
+
+`tests/test_percentage_market_hours.py` uses the actual controlled execution
+engine and an independent USD 100 budget / USD 10 unit-risk fixture. A 09:02
+Chicago entry at 118, stop at 113 and USD 2 point value produce 10 MNQ and a
+USD 100 loss at 09:03. Missing 08:59 and 09:04 prices are flat gaps and preserve
+that result. Missing 09:03 rejects while held, but the same source passes for a
+budget too small to buy a contract. Both Evaluation/Funded and full/accelerated
+paths exercise these outcomes. A missing minute under a Twin OCO entry rejects
+while still flat because that order could have filled. Missing liquidation tails
+cannot fabricate EOF exits. The reviewed 2021 pause is exempt before June 28,
+then the same absent minutes reject when exposed after its removal.
+
+### Normal-product saved examples
+
+Synthetic data is explicitly labelled. Run the following from the repository
+root to regenerate normal product libraries, original source CSVs, requests,
+sealed reports, ZIPs and journey IDs in a new evidence directory:
+
+```sh
+ALPHAQUEST_GAP_EVIDENCE_DIR=artifacts/native-flat-gaps-20261118/final \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_percentage_flat_gap_source_check_run_and_durable_report \
+  tests/test_strategy_sizing_api.py::test_percentage_exposed_gap_fails_job_without_a_replacement_draw
+```
+
+The Evaluation and Funded examples each upload a real synthetic Twin minute
+source, save its normal IS backtest, compare a 0.2% initial-capital policy with a
+40-MNQ cap, check the source and run eight native paths over seven modeled
+calendar days. The first source session omits 17:11 Chicago on January 4, 2026,
+before any order exists. Each check/report retains exactly that one missing
+minute. Both phases complete with admitted opportunities and unchanged report
+bytes when reopened. The short, weak example has no completed acquisition or
+Funded payout; this is coverage/execution evidence, not a qualification or
+provider-parity claim. The separate `*-held-gap` libraries retain a failed job
+with the missing 09:03 Chicago minute and no published success report.
+
+Current saved positive examples under that directory:
+
+- Evaluation campaign `70aadab87a8d4922a2c3d206ccc4a986`, report
+  `abc5c65632e14cd6a1f93fbbd8d6facd`, source
+  `186dffe4ae1c4c0cabb230703abe0182`.
+- Funded campaign `fbf2753b43ea4cbf953aa7990ae659b1`, report
+  `7874fb369f674f628bdcdc0b1c7a4e66`, source
+  `00299826b2dc4e95aa2e9e0a86509f1f`.
+
+To inspect through the existing portal, set `ALPHAQUEST_DATA_DIR` to either
+example's `library` subdirectory and run `sh scripts/serve_portal.sh --port 8011`.
+Open `/#backtests/report/SOURCE_ID`, use its Prop setup to inspect the saved
+independent campaign, or open `/#backtests/prop/campaign/CAMPAIGN_ID` directly.
+Download `source_checks.json` for `observed_coverage`, and the analysis ZIP for
+source/capture evidence. Stop this optional inspection server with Ctrl-C.
+Browser verification screenshots are saved beside each positive example;
+temporary verification servers are stopped after inspection.
+
+Validation: 30 focused checks passed across minute coverage, full/accelerated
+execution parity, worker source spooling, positive/negative normal phase APIs,
+automatic frozen OOS for both Apex and Lucid, and the existing native-results
+browser journey. Both saved Twin examples also reopened in Chrome without
+report mutations on desktop/mobile. Inspection uncovered and fixed the existing
+Twin per-session clock-mapping renderer, which previously assumed legacy array
+fields, and the Evaluation censoring explanation now uses the saved censored
+path count. No numerical report is rewritten by either display correction.
+The legacy broad regression suite was not run.
+
+The actual port-8000 portal was restarted only after verifying zero active
+analyses, optimizations and mechanic jobs. Its 591 backtest IDs, six optimization
+IDs, one workflow ID and 928 analysis IDs were preserved; the restart proof is
+`final/live-portal-restart.json`. The restored stable portal is PID 53172; stop
+it, when idle, with `kill -TERM 53172`. No user simulation was launched to verify
+this increment. Refresh the portal before retrying; an error on a genuinely
+exposed gap is still expected behavior, rather than a reason to replace paths.
+
+## Observed-bar gap diagnostics — 2026-11-18
+
+This increment supersedes the previous dated actual-exposure rejection behavior
+for new prepared percentage-risk runs. See the [current execution
+contract](prop_simulation.md#observed-bar-replay-and-diagnostic-minute-completeness-2026-11-18).
+Earlier failed jobs and sealed reports remain unchanged. No original NQ dataset
+or saved user simulation is changed for this demonstration.
+
+### Independent expectations and boundaries
+
+`tests/test_percentage_market_hours.py` executes original synthetic observed
+bars through both full execution and acceleration, for Evaluation and Funded.
+With entry 118, causal stop 113, point value $2 and ten MNQ, omit 09:03 and set
+the next observed 09:04 Open to 110: actual net is
+`10 × (110 − 118) × $2 = −$160`, under the explicitly zero-cost fixture.
+The held-gap diagnostic is one minute, one exposed completed trade and −$160
+attributed trading P&L. A budget that buys zero contracts remains unexposed.
+Working Twin OCO entries continue too and carry exposure to the actual filled
+trade. Known observed bars skipped by acceleration are not counted as holes;
+multiple real ranges in one jump are counted once each. Removing the actual
+liquidation tail still rejects, without fabricating an EOF exit. Original invalid
+input and iterator-failure checks still apply.
+
+### Existing-product demonstration and saved outputs
+
+Generate fresh isolated normal-product libraries and sealed downloads with:
+
+```sh
+ALPHAQUEST_GAP_EVIDENCE_DIR=artifacts/observed-bar-replay-20261118/final \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_percentage_flat_gap_source_check_run_and_durable_report \
+  tests/test_strategy_sizing_api.py::test_percentage_exposed_gap_completes_with_diagnostics_without_replacement_draw
+```
+
+These tests use actual uploaded synthetic minute datasets, ordinary saved
+backtests, independent phase configuration, source check, existing worker runs,
+sealed report downloads and reopen checks. They do not replace the phase engines
+or introduce an evidence API. Example folders contain:
+
+- `evaluation` / `funded`: Twin with one flat pre-entry minute omitted;
+- `evaluation-working-entry-gap` / `funded-working-entry-gap`: Twin with its
+  18:46 Chicago source minute omitted while its OCO entry is working;
+- `evaluation-held-gap` / `funded-held-gap`: VWAP with each 09:03 Chicago source
+  minute omitted while actually holding.
+
+Each has `journey.json` (source/campaign/report IDs), `request.json`, a labelled
+synthetic source CSV, `report.json`, the normal `analysis.zip`, and an isolated
+`library/`. Expected: eight requested paths retained, completion rather than the
+former missing-minute error, exposure counters positive only for affected
+accounts, actual opportunity/trade/cash reconciliation, and identical saved
+report contents on reopening. The small histories are execution demonstrations,
+not claims of OOS qualification or provider parity.
+
+To inspect a saved example, run an **unused port** with its library:
+
+```sh
+ALPHAQUEST_DATA_DIR="$PWD/artifacts/observed-bar-replay-20261118/final/funded-working-entry-gap/library" \
+  sh scripts/serve_portal.sh --port 8011
+```
+
+Use IDs from that folder's `journey.json`. Open
+`http://127.0.0.1:8011/#backtests/report/SOURCE_ID` and its Prop setup, then
+`/#backtests/prop/campaign/CAMPAIGN_ID`. Select the saved candidate; the native
+forecast shows “Observed-bar replay · gaps accepted”, expandable exposure/P&L
+counters and original/model clock evidence. Download `source_checks.json`,
+`native_forecast_paths.json` and the evidence ZIP. Stop this manually launched
+example server with Ctrl-C. Normal UI checks use temporary servers and stop them
+in their fixture cleanup.
+
+The automatic one-click test covers both account profiles through independent IS
+searches, immutable freezes, actual OOS forecasts and chronological replay, and
+reopening the ordinary evidence ZIP. The short fixture deliberately fails the
+12-month/100-trade evidence minimum; no GO result is manufactured. Its prior
+campaign admission is explicitly a synthetic test fixture, while all account
+calculations are real.
+
+The browser journey in `test_percentage_prop_browser.py` verifies the normal
+Run IS and OOS screen, completed phase status, diagnostics in both OOS evidence
+panels, desktop/mobile layout, and absence of browser errors. The native campaign
+browser journey separately checks retained actual fills and clock mappings.
+
+Current saved examples in `artifacts/observed-bar-replay-20261118/final`:
+
+| Example | Campaign | Sealed report | Runtime observation |
+| --- | --- | --- | --- |
+| Twin Evaluation, working entry | `bfe4c0b0251a4947ba17374b1f1d177b` | `3f30767ac5434af8b9739a3e54b1a762` | 10 working-entry gap encounters, 10 exposed completed trades, 8 paths |
+| Twin Funded, working entry | `7b4bfb5a00d848e090acd9fcf0194dc0` | `9d0948161a7e43acb617754002f2f3af` | 9 working-entry gap encounters, 9 exposed completed trades, 8 paths |
+| VWAP Evaluation, held gap | `ec2d39b12cab49e3b7f379ec7ba36047` | `8387d9c84dd84bd8829df66a9a32bfaf` | 24 held-gap encounters over 8 paths |
+| VWAP Funded, held gap | `622ba9c693a846c29fb65df35276317c` | `ea610e0dd9f342d5b2350025821c1a0d` | 24 held-gap encounters over 8 paths |
+
+The Twin Funded example's `browser-verification.json` and desktop/mobile PNGs
+record a direct source-report -> saved campaign inspection. Reopening issued no
+write requests, produced no browser errors or mobile overflow, and retained the
+same report SHA-256. `final/summary.json` indexes all six examples and their
+actual diagnostics. The separate `browser/` directory contains the one-click
+Prop Sim configuration/result screenshots and its synthetic simulation record.
+
+Validation: 44 distinct targeted cases passed across gap/arithmetic and
+full-versus-accelerated execution, source spool, malformed bars and iterator
+failure, six actual phase API examples, two automatic account-profile journeys,
+and the two affected browser journeys. No broad regression suite was run.
+The normal product browser fixture now asserts the current complementary-evidence
+cards rather than the retired table/old conclusion wording.
+
+Applied to the idle stable port-8000 portal without reload mode; no running job
+was interrupted. Existing analysis/optimization/mechanic-attempt IDs were checked
+before and after startup (930 / 6 / 1 records). Persistent server PID: `67100`;
+stop with `kill -TERM 67100`. All demonstration/test servers were stopped.
+
+## Job history: one live progress view (2026-11-18)
+
+The Job history detail view now uses the existing detailed worker progress as its
+single live progress section. It no longer adds the generic summary/count and a
+second progress bar above it. Worker activity, completed paths, percentage,
+elapsed time and ETA remain visible. The list uses the worker's saved summary
+once, without appending the same path count a second time. Queued/completed jobs
+and ordinary backtest batches retain the generic fallback; active batch trials
+retain their separate per-trial bar counts.
+
+This is a static JavaScript change only. No numerical identity, report, source,
+worker, polling cadence or API computation changes. Refreshing the live Job
+history page loads it without restarting the server or interrupting the running
+Evaluation/Funded workflow.
+
+Validation: two focused `test_job_history_browser.py` cases pass: running Prop
+analysis detail/list/terminal fallback, and ordinary batch active-trial progress.
+A direct read-only inspection of the actual running Prop analysis is saved in
+`artifacts/job-history-progress-20261118/verification.json`, `desktop.png` and
+`mobile.png`. Expected: one stage summary, one path count and one progress bar,
+with worker/ETA details; no browser errors, mobile overflow or write requests.
+Reproduce by refreshing the existing `/#jobs/prop_analysis/JOB_ID` route, then
+returning to `/#jobs`. The original stable server remains PID `67100`; no new
+persistent server is started. Temporary browser-test servers stop on teardown.
+
+## Twin cached market features — 2026-11-18
+
+Implementation was tested in `/tmp/aq-twin-cached-replay`, then applied to
+`epic/revamp-workflow` after the user explicitly approved stopping unfinished
+work and restarting with the same settings. Original strategy/execution source
+fingerprints are retained; native implementation identities include the new cache.
+
+The [implementation contract](prop_simulation.md#twin-market-calculation-reuse-2026-11-18)
+describes causal market features versus independent account state. Ordinary
+strategy and execution files are unchanged. Native source/cost/implementation
+checks, immutable freezes and report seals remain in force.
+
+### Focused checks and independent oracles
+
+`tests/test_twin_market_preparation.py` compares original full replay against the
+cached path for long/short BO and MO, mixed setups, skipped unaffordable entries,
+changed risk, fixed quantity, fill-relative capped stops, rounded targets,
+provider-floor exits and real missing-minute diagnostics. It compares actual
+fills, trade P&L, quantities, acceptance/cancellation counts, fees, cash ledgers,
+provider balances and conservation. Reusing the tape at a different risk must not
+reuse the earlier account's eligibility. A future-price mutation must not change
+earlier features. Zero prefix-cache budget falls back to exact original history;
+calendar digests and all eligibility prefix fields match the original warmup.
+A serial/worker comparison retains all 65 paths and identical complete forecasts.
+Session-relative exit tests cover 18:00, midnight, 09:00, 15:45 and 16:00.
+A changed Twin strategy fingerprint disables the specialized cache and retains
+the original replay until the new revision is qualified.
+
+Sizing memo checks prove that repeated quotes still receive separate IDs, a
+future-known stop is rejected even after a cache hit, and a changed provider cap
+forces a new sizing calculation. Existing native arithmetic tests retain exact
+balance-based sizing and Evaluation retry fee/capital reconciliation under both
+Python and matching compiled account backends.
+
+### Existing-product runs and durable downloads
+
+The four account/phase examples use the existing upload -> ordinary backtest ->
+independent campaign -> source check -> Run -> sealed report workflow. Their
+source CSVs are explicitly synthetic and are not performance or provider-parity
+claims. Generate them in a fresh output directory with:
+
+```sh
+ALPHAQUEST_STRATEGY_SIZING_EVIDENCE_DIR=artifacts/twin-market-cache-20261118/final \
+  .venv/bin/python -m pytest -q \
+  tests/test_strategy_sizing_api.py::test_twin_native_percentage_both_account_profiles_and_phases
+```
+
+Each of `apex-50k-eod-evaluation`, `apex-50k-eod-funded`,
+`lucidflex-50k-evaluation`, and `lucidflex-50k-funded` retains its real product
+`library/`, source CSV, request, source report, sealed `report.json` and ordinary
+`analysis.zip`. Report metadata identifies cached market features; all eight
+requested account paths and original detailed captures remain present. Reopening
+returns identical report contents. These small histories do not establish OOS
+qualification. `test_twin_frozen_native_oos_keeps_policy_and_creates_actual_controlled_backtest`
+also runs the original native chronological OOS child and separately cached OOS
+forecast, retaining the exact frozen IS package without reselection.
+
+The real browser journey
+`test_native_campaign_browser.py::test_twin_cached_market_features_visible_in_normal_saved_report`
+starts from the saved ordinary Twin report, checks/runs its phase campaign and
+opens that actual saved campaign report. Expected: the cached-market note,
+independent account/fill statement, gap diagnostics and normal downloads. Its
+original-source OCO gap remains present. Desktop/mobile PNGs, report, source CSV,
+ZIP and journey IDs are retained in `artifacts/twin-market-cache-20261118/browser/`.
+Reopening triggers no write request or simulation, and the report is unchanged.
+The existing one-click Prop Sim IS/freeze/OOS browser journey also passes, with
+normal evidence-minimum failures retained. All browser servers are temporary and
+stop on teardown.
+
+### Read-only real NQ comparison
+
+`artifacts/twin-market-cache-20261118/real-source-reference.json`,
+`real-source-cached.json` and `comparison.json` retain four independently run
+comparisons using the current campaign's actual Twin parameters, 54,506 original
+NQ bars across 41 source sessions in early 2021 and ten modeled target sessions.
+Both Evaluation/Funded and 0.25%/2.75% policies use the same source rows, original
+prices, seeds, costs and Lucid account rules. The reference process imports the
+unchanged live-checkout replay; the cached process imports the isolated change.
+Exact financial summaries, execution counts, gap attribution, sizing summaries,
+fees and conservation match in all four cases. No live job or user dataset is
+changed by this diagnostic.
+
+The measured per-path benefit is modest on this short sample, approximately
+1.1–1.3 times in the retained run, excluding one-time preparation and under a
+concurrent user workload. It is not a prediction for all 1,000 paths, a substitute
+for output parity, or a claim that every three-hour setting will finish quickly.
+Working-order admission/cancellation still runs on every observed bar.
+
+
+### Applied run and restart evidence
+
+The ordinary Prop Sim cancel endpoint persisted stop intent and drained the old
+Evaluation workers; its queued Funded search was cancelled too. Both original
+job records remain readable. All 765 previously completed analyses were checked
+before and after application and remain present. Old reports were not rewritten.
+
+The replacement simulation is `5c4c908309aa4597831686e04c0e064d`, replacing stopped
+simulation `d67c1f085bbb41e7a7a1818aec105d41`. It uses the identical source, LucidFlex
+50K rules, 0.25–4% grids in 0.25% steps, 40-MNQ caps, 1,000 paths per setting,
+seed 42, five-session blocks, fees, commissions, calendar start and 90-day Funded
+horizon. The saved configuration was compared field-for-field; only the new
+request UUID differs. Normal jobs are Evaluation `0b451b675fac4907b35edc3f67b9998f`
+and Funded `b429e98f4eb041769a8cb0940b12831b`.
+
+`restart-before.json`, `restart-after.json`, `restart-response.json` and the
+implementation manifest in the evidence directory retain the application and
+settings comparison. The exact final strategy-revision guard is also exercised
+through a fresh saved Lucid Funded report in `current/`. The normal browser
+journeys and 65 distinct focused checks passed before application; four selected
+cache checks passed again in the live checkout after copying the tested files.
+
+The stable portal runs on port 8000 without autoreload, PID `72788`. Stop it with
+`kill -TERM 72788` after accounting for active work. No persistent test server
+was left running. Existing native compilation binaries were unchanged.
+
+
+## Native ETA display correction and prepared path-progress update (2026-11-18)
+
+The shared Prop Sim / Job history display now hides unversioned native ETA
+values, whose earlier calculation extrapolated a captured evidence path plus
+startup across all remaining paths. The legacy completed count remains visible
+with an explicit batch-reporting label. Refresh the current Job history route to
+observe **remaining for this size Estimating…**; no job restart is needed for
+this display correction.
+
+The per-path backend update is tested in an isolated copy and remains pending
+the user's active-job restart decision. It returns one indexed path per task
+on the existing worker pool, retains each worker's checked source cache, and
+uses actual worker replay throughput after a warm-up sample. Numerical replay,
+seeds, requested paths and phase objectives match the preceding serial owner.
+The final patch, hashes, actual normal-product IS/OOS progress and ordinary
+phase ZIP downloads are in `artifacts/native-path-progress-20261118/`.
+`implementation-manifest.json` distinguishes tested/staged changes from applied
+changes; do not describe the backend as active until that manifest records it.
+
+Twelve focused checks passed: independent ETA arithmetic (eight worker paths in
+eight seconds after 2,010 seconds of evidence/setup imply ten seconds for ten
+remaining paths); exact 65-path serial/multicore output; the normal one-click
+Prop Sim IS/OOS journey; both Job history presentations including desktop/mobile;
+read-only metadata endpoints; and cooperative cancellation/pool reuse. The five
+progress unit checks passed again after their final test-only refinement.
+All temporary test servers stopped on teardown.
+
+Read-only browser evidence for the active user job is saved in
+`live-readonly-check.json` and `current-job-legacy-eta-hidden.png`. It confirms
+zero write requests/page errors and that the original simulation remains running.
+
+
+## Individual path progress and corrected native ETA (2026-11-18)
+
+Scope: existing native percentage searches, both Evaluation/Funded and account
+profiles, plus the shared progress display in Prop Sim and Job history. No new
+page, source, scheduler or result store; no decrease in requested paths.
+
+Reproduce the actual one-click product journey and retain evidence with:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_NATIVE_PROGRESS_EVIDENCE_DIR=artifacts/native-path-progress-20261118 \
+  .venv/bin/python -m pytest -q \
+  tests/test_percentage_prop_browser.py::test_percentage_form_one_run_progress_and_complete_oos \
+  tests/test_job_history_browser.py::test_native_path_eta_warmup_and_legacy_batch_estimates_are_clear
+```
+
+The first test creates a labeled synthetic source through the normal backtest
+API, opens its normal Prop Sim configuration, clicks Run once, navigates away,
+and reopens the completed automatic IS/OOS workflow. `actual-path-progress.json`
+records real worker notifications from the existing catalogue update path.
+`simulation.json`, configuration/result screenshots and each phase's ordinary
+IS `analysis.zip` retain source identities, actual results and downloads. These
+fixtures verify arithmetic/integration, not real-world qualification or provider
+parity. All requested paths remain in their durable reports, and reload reads
+saved results without rerunning them. Temporary browser servers stop on teardown.
+
+The second test uses explicitly synthetic job presentation metadata on the
+normal Job history route: a legacy one-path/106-hour estimate is hidden; a
+current warm-up shows Estimating; nine completed paths and a 120-second
+worker-based estimate display 9 / 1,000 and 2 min. Desktop/mobile screenshots
+are saved. This presentation fixture is not measured progress of a user job.
+
+Independent ETA oracle: after 1,000 seconds of evidence and 1,010 more seconds
+of setup, eight worker paths finish in eight replay seconds. With 19 paths
+requested and one captured, nine have completed and ten remain: ETA must be
+10 seconds, not an extrapolation of 2,018 seconds of setup/evidence. Warm-up,
+uneven last-task counts, single-worker fallback and exact final counts are
+covered in `tests/test_native_path_progress.py`. Serial/multicore native
+forecasts retain identical complete output across 65 paths, including schedule
+hashes, captures, sizing and cash. The existing cooperative-stop test verifies
+sibling drainage before CPU slots are released.
+
+Application status and active-job handling are recorded in the accompanying
+evidence manifest. Do not restart a user job simply to update this display.
+
+### Applied after explicit restart approval
+
+The user approved applying the worker update and restarting with identical
+settings. The normal Prop Sim stop API persisted cancellation and drained both
+old jobs before the verified port-8000 server was stopped. The worker update was
+then copied from its tested isolated tree; seven focused progress/parity/identity
+checks passed again in the actual checkout. The preceding staged-status entry
+above is historical; this paragraph and the evidence manifest record application.
+
+The old simulation `5c4c908309aa4597831686e04c0e064d` remains stopped and readable.
+Its normal retry returned 409 because native candidate identities include the
+changed dispatcher source hash; that guard was retained. The authorized restart
+therefore uses a new request UUID with every research setting unchanged.
+`restart-before.json`, `stopped-simulation.json`,
+`restart-existing-record-response.json`, `restart-request.json`,
+`restart-response.json` and `restart-after.json` retain both attempts and resulting
+IDs. The replacement request is `ba49bc3f4c8d46b09766069bf91f218c`. All 765 preexisting completed report records and their seals were
+compared and preserved. No source dataset, saved backtest or prior report was
+rewritten. The original cancelled jobs remain in Job history.
+
+The persistent portal is on port 8000 without autoreload, PID `74484`, with four
+simulation workers. Stop it using `kill -TERM 74484` after accounting for active
+work. Its command/log are recorded in `server.json`; all test servers stopped.
+
+The replacement simulation is running: Evaluation job
+`b8c3eda984944b768fb9e0b07201ea93`; Funded job
+`e88d09679de04f2c824a2ac877d6d78b` is queued behind it. Every research setting
+was compared field-for-field; only the request UUID differs. Initial production
+metadata has `eta_basis=completed-worker-paths-v1`, zero completed paths and
+`eta_status=capturing_evidence`, with no ETA. The initial detailed evidence path
+is deliberately serial; the configured four-worker pool follows it.
+
+The normal Prop Sim IS phase panels now call the same shared progress renderer
+as Job history and OOS assessments. They hide the duplicate one-line running
+summary while detailed progress is present, and restore it at completion.
+The updated one-click browser journey pauses its real first worker callback
+after saving initial progress, inspects both existing pages, then releases actual
+replay and verifies the complete durable IS/OOS outputs. This is test
+synchronization only; no progress count or financial outcome is fabricated.
+It and the Job history warm-up/mobile journey passed again after application.
+Their retained evidence is under `applied-browser/`.
+
+A separate read-only browser verified both live production pages, with no
+write requests or page errors. `applied-live-verification.json`,
+`applied-job-live.png` and `applied-prop-sim-live.png` retain the actual display
+and metadata. The portal shows **Estimating…** during initial evidence capture;
+subsequent completed paths and worker-based ETA appear without further user
+action. This increment corrects reporting and does not claim a faster replay.
+
+## ZIP-backed Prop Sim detail JSON (2026-11-19)
+
+The existing ZIP holds exact copies of the largest detail JSON. The storage
+increment removes the redundant unpacked `calculations.json` and legacy
+`joint_sizing.json`, retaining the original `report.json`, ZIP, IDs and catalogue
+seals. Both independent phase numerical identity dictionaries were compared
+with the pre-change checkout and match exactly. Storage is outside their
+numerical-owner lists. Global source/cache guards remain conservative; do not
+weaken any launch guard merely to reuse a historical execution snapshot.
+
+### Existing-product evidence
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_PROP_SIM_EVIDENCE_DIR=artifacts/prop-report-storage-20261119/browser \
+  .venv/bin/python -m pytest -q \
+  'tests/test_prop_sim_browser.py::test_prop_sim_qualified_single_configuration_real_results_and_downloads[shared-range]'
+```
+
+This normal synthetic journey qualifies a campaign through its real OOS/Monte
+Carlo gates, opens its IS source backtest, configures/checks/runs the normal
+Prop Sim phase searches, navigates away, and reopens their durable reports.
+Existing independent arithmetic remains checked: Evaluation acquisition cost is
+`49 / empirical_attempt_pass_probability + 129`; Funded mean receipts equal
+all-path received cash divided by 32. No external outcome engine is used.
+Fixture qualification is not a real-market/provider-parity claim.
+
+The browser downloads each phase's original report, CSV and ZIP. The JSON result
+export matches `calculations.json` inside the original ZIP byte-for-byte, while
+the unpacked JSON is absent. It explicitly restores and remigrates both saved
+phase reports, reopens/downloads them again, and checks identical report/ZIP
+seals, logical artifact fingerprints and existing dependency-deletion rejection.
+`storage-verification.json`, `journey.json`, original CSV/report/ZIP downloads
+and portal screenshots remain inspectable. Every temporary server stops on
+fixture teardown. No demo-only page, admission API or duplicate result store.
+
+### Focused verification and rejection cases
+
+Fifteen focused cases passed: eight storage oracles, the normal legacy source
+check/run/download journey, real automatic calculation reuse with unchanged
+cash/source identity, metadata-only job progress, three deletion ownership cases
+(unshared/shared/active-frozen), and the existing portal journey above. One
+preexisting legacy test assertion expected the obsolete `Held OHLC` source
+label; it failed identically in the untouched checkout. That fixture assertion
+now matches the current documented MultiCharts excursion wording; all numeric
+assertions remain unchanged and the full reuse case passes.
+
+Storage cases independently verify SHA/byte equality, old unpacked/new packed
+readers, restore/retry, interruption after the first unlink, validation of all
+members before any deletion, corrupt ZIP/raw JSON, duplicate members, symlink
+refusal, held-descriptor downloads across compaction, exact cache reuse and
+corruption misses, active-record exclusion, and original catalogue seals.
+Packed JSON is streamed from a held descriptor and checked before serving;
+corruption produces a verification error rather than an untrusted result.
+
+### Current-library migration
+
+The read-only audit verified all 765 completed analyses and their original
+report/ZIP seals. It identified 1,200 redundant JSON copies totaling
+2,243,915,583 logical bytes; no report file was removed in that dry run.
+The original report entry points remain readable and every removed byte is
+already in the original checksummed ZIP. Completed reports are retained; the
+storage task does not select any historical analysis as unwanted for deletion.
+
+Before application, no portal listener or surviving application workers were
+present. The saved Funded entry at 787/1,000 paths was stale, not live work.
+Normal startup recovery records interrupted work; storage maintenance itself
+never cancels, restarts, tunes or replays a simulation. The application manifest
+records the eventual migration, server PID/log, actual folder allocation and
+post-migration read-only API/browser verification. No original dataset,
+backtest, frozen selection, historical verdict or report bytes are rewritten.
+
+Applied migration (`9d23411`) retained all **765** completed report IDs and their
+original report/ZIP seals. It removed **1,200** verified duplicate JSON files
+from **764** report folders, reclaiming **2,243,915,583 logical bytes**. Total
+store size fell from **4,592,324,546** to **2,348,408,963 bytes** (4.59 to
+2.35 decimal GB); catalogue and all other report evidence remain present.
+An independent read-only verifier checked every manifest entry: **10,845**
+standalone artifacts and **1,200** ZIP-backed artifacts matched their original
+SHA-256 and byte lengths. SQLite `quick_check` returned `ok`.
+
+The upgraded production portal reopened the original 40-candidate Evaluation
+and Funded tables. All eight original JSON/report/CSV/ZIP exports matched their
+saved hashes, including actual browser-clicked JSON downloads. The current saved
+Prop Sim page also reopened its retained configuration/interrupted status.
+`live-verification.json` records zero page errors, zero write requests and zero
+new analyses; the checker used only GET requests. `evaluation-live.png`,
+`funded-live.png` and `saved-prop-sim-live.png` retain those real pages.
+
+Inspect `artifacts/prop-report-storage-20261119/README.md`, the per-report
+`applied/journal.jsonl`, `applied/result.json` and `verified-after.json`.
+`verify_migrated.py` reproduces the independent full-library verification without
+constructing an application store or running simulations. Exact original JSON
+can be restored with the documented maintenance command; this needs disk space
+for the unpacked copies and does not rerun any analysis.
+
+The portal was already offline before application. Its restarted single-server
+process is **10826**, listening at `http://127.0.0.1:8000`, without auto-reload;
+Prop Sim has four worker slots. Logs use
+`data/portal_logs/prop-storage-upgrade.log` and the existing configured log sinks.
+Stop this persistent server with `kill -TERM 10826`, after checking that no new
+user simulation is running. No temporary browser/test server remains running.
+Normal startup marked the earlier stale job `e88d09679de04f2c824a2ac877d6d78b`
+as interrupted. No new analysis was launched for the storage migration.
+
+### Stable-launcher repeat-start verification (2026-11-19)
+
+The reported queued/running refusal referred to the old orphaned job
+`e88d09679de04f2c824a2ac877d6d78b`; its current saved state is already
+`error` / `Interrupted`. The healthy existing portal was retained, with no
+active jobs and no server restart. `sh scripts/serve_portal.sh` now verifies
+the existing listener's exact catalogue path and returns its URL successfully
+instead of treating a healthy same-library duplicate launch as an error.
+Different-library/unresponsive listeners still reject. Stale job records without
+an owner still require explicit `--recover-interrupted`; the message explains
+that saved status is not proof of live work, and that partial paths cannot be
+restored. See `docs/portal_responsiveness.md` for the recovery workflow.
+
+The user's exact command returned zero against production, with **765**
+completed reports retained and no changes to any job state, saved simulation
+payload or report seal. Evidence is
+`artifacts/portal-launcher-20261119/live-verification.json`. Four isolated
+checks in `tests/test_portal_launcher.py` exercise duplicate startup (including
+the recovery flag), wrong-library refusal and orphaned-record preservation.
+Only temporary HTTP readers are created by those checks and are stopped on
+teardown; no additional persistent server or simulation is launched.
+
+### Visible launch blockers (2026-11-19)
+
+The disabled Run action could leave `Settings changed. Run will check the source
+and execute both IS and OOS phases automatically.` visible while a missing
+selection or invalid field still blocked launch. The form now shows the actual
+reason beside both buttons, including the phase and field for native browser
+validation, and returns to ready after correction. This changes presentation
+and required-input checks, without weakening server qualification or launching
+a calculation while editing.
+
+Reproduce in the existing Prop Sim form: edit a setting without choosing a
+configuration (expect `Cannot run: Choose a qualified campaign configuration.`).
+Select an eligible source, switch to percentage risk and enter Funded minimum
+`0` (expect a Funded grid error). Set minimum `.25`, maximum `.5`, step `.25`
+(expect exactly two Funded policies and an enabled Run button). A fractional
+whole-MNQ ceiling or blank seed names that exact field. Switching to fixed
+contracts ignores disabled percentage fields; an inverted fixed range names
+the affected phase. Correct all settings to re-enable both actions.
+
+Explicit browser cases are in `tests/test_percentage_prop_browser.py`:
+`test_run_button_names_the_blocker_and_recovers_after_correction` and
+`test_percentage_form_one_run_progress_and_complete_oos`. The first creates a
+real labeled synthetic native source and exercises the form without any prop
+calculation. The second retains the existing actual one-click native IS/OOS
+calculation, durable results, downloads and insufficient-history conclusions.
+Prior campaign admission is explicitly a test fixture; it is not production
+qualification. Their screenshots, exact source identity and phase ZIPs are
+under `artifacts/prop-form-validation-20261119/`. Temporary servers stop on
+fixture teardown; the production server and its jobs need no restart.
+
+Both targeted browser cases passed. A separate GET-only Chrome check against
+`http://localhost:8000/#prop-sim` confirmed the live missing-selection, Funded
+grid and blank-seed explanations, followed by an enabled corrected form.
+`live-verification.json`, `live-grid-blocker.png` and
+`live-corrected-ready.png` retain that result. All production job states, saved
+simulation payloads and report seals were unchanged; no simulation or server
+restart was initiated by the live check.
+
+### Shared native account and decoded-source optimization (2026-11-19)
+
+The existing native account controller now avoids repeated ISO/model validation
+on checked geometries and unused detail materialization on ordinary MC paths.
+Every submission still validates its real causal clocks and bounded amounts.
+Its quantity cache retains the latest 128 configurations; the old cache stopped
+inserting after its first 128 entries, causing long paths to recalculate newer
+quotes. Shared cash/floor memo keys retain exact object identity, so resets,
+withdrawals, floor/halt changes and Decimal scale cannot reuse a stale result.
+The shared checked bar reader reuses decoded rows and exact Decimal source cells
+under explicit memory bounds. No sizing law, trade/order ordering, account rule,
+requested path count, sampling seed or qualification threshold changes.
+
+`tests/test_native_loop_acceleration.py` independently checks accepted/skipped
+fixed-contract, fixed-dollar and percentage quantities, exact aggregate budgets,
+all opportunity/cancellation counts, independent acceptance containers, cache
+overflow and invalidation, future/naive/non-UTC clocks and equal-valued invalid
+Decimal scales. The spool cases compare every source row under zero, tiny and
+normal cache budgets, empty worker caches after pickling, and corruption
+rejection. Existing original/prepared Twin comparisons, captured continuation,
+both phase controllers, serial/multicore schedules/cash and private tick-spool
+parity are selected explicitly rather than running the old general suite.
+
+Normal-product demonstration: the two explicit cases in
+`test_percentage_prop_browser.py::test_percentage_form_one_run_progress_and_complete_oos`
+and
+`test_prop_sim_browser.py::test_prop_sim_qualified_single_configuration_real_results_and_downloads[shared-range]`
+continue through the existing synthetic backtest -> configure -> source check ->
+IS execution -> durable report/download workflow. Percentage runs retain their
+actual automatic OOS execution and short-history rejection; fixed-contract
+arithmetic remains independently checked as paid Evaluation fees/pass probability
+and all-start Funded receipts. Synthetic prior admission is labeled in fixtures;
+it is not real-market or provider qualification. Screenshots, report/CSV/ZIP
+exports and original expected observations are retained under
+`artifacts/native-loop-acceleration-20261119/percentage-product-final` and
+`fixed-product-final`. All temporary test servers close on teardown.
+
+The development benchmark compares original code at `f4d5274` with the optimized
+code using the exact checked Twin source programme captured from the user's
+running job. Twelve explicitly diagnostic 14-calendar-day paths cover Apex and
+LucidFlex, Evaluation and Funded, 0.25%/2% risk and fixed five contracts. It
+compares the complete returned path outputs, including schedules, outcomes,
+cash, costs, retries, opportunity/quantity statistics and gap diagnostics.
+Short diagnostic paths measure execution throughput; their timings are not a
+completion estimate or qualification of the full 10-year/1,000-path run.
+Benchmark inputs do not modify the production source or become another report
+store. Inspect the JSON outputs and timing summary in the same evidence folder.
+
+The user explicitly authorized rerunning unfinished work. Original simulation
+`7f87e3e4ae5c42d78adf2ca736504c8c`, its configuration, completed IDs and seals
+were captured before cancelling both unfinished phase jobs through the normal
+API. New work must retain those settings under a fresh request with the new
+implementation identity. No old report, frozen selection or history is edited
+to pretend it ran the optimized code. Production restart/rerun verification is
+recorded in the evidence folder; only the main portal remains persistent.
+
+Final validation: **65** focused backend/tick/browser cases passed, plus **4**
+launcher safety cases. The 12-path checked-source benchmark matched every
+returned output: original **11.23 s**, optimized **8.84 s** in aggregate
+(approximately **21% less elapsed time**, 1.27x throughput). The narrow repeated
+quotation microbenchmark improved about 2x; it is not a whole-simulation claim.
+Actual path speed varies with risk size, outcome and working-order frequency.
+The larger extension to skip working-entry intervals remains separate.
+
+The old server PID 10826 stopped after both old phase jobs drained. The new
+stable-launcher server is PID **17345**, port **8000**, four worker slots, no
+auto-reload. Stop it with `kill -TERM 17345` only after checking for active work.
+Its logs are `data/portal_logs/server.log` and
+`data/portal_logs/native-loop-restart.log`. A transient recently-closed-socket
+bind refusal was resolved with `SO_REUSEADDR`; all active-listener/data-lock and
+explicit orphan-recovery checks remain in force. No extra persistent service
+or temporary test server was left running. All **765** original report and ZIP
+hashes, completed IDs and catalogue seals were reverified, with SQLite integrity
+`ok`, before the fresh automatic request.
+
+Applied as `877c5e7` on `epic/revamp-workflow`. The normal API accepted fresh
+simulation `fd725561831e47ea9169a3bae0d28ae5`; its configuration matches the
+original exactly except for the new request UUID. Evaluation job
+`b11ecf8f15244e04819dd0440fc70dcd` is running and Funded job
+`aebe812788fe4c25ad6f2b4a3316e080` is queued. Automatic selection/OOS continuation
+remains enabled. A later snapshot shows 11/1,000 paths at the 2% policy with
+four active workers and a populated ETA. Candidate membership/counts and seeds
+are unchanged; deterministic candidate-ID ordering may place a different risk
+policy first under a new implementation identity.
+
+The real saved Prop Sim and Evaluation Job history pages reopened in a GET-only
+Chrome check with zero write requests or page errors. Inspect
+`rerun-verification.json`, `latest-progress.json`, `live-browser-verification.json`,
+`live-rerun-prop-sim.png` and `live-rerun-job.png` in the evidence folder.
+The user's original simulation remains cancelled in history. No source/frozen
+identity check was disabled to launch the replacement.
+
+
+## 2026-11-20 — Saved-trade stop-budget percentage searches
+
+Current contract and decision rationale: [saved_trade_prop_simulation.md](saved_trade_prop_simulation.md).
+New main-portal percentage searches use saved opportunities, causal initial stops,
+strict requested-budget admission and ideal bounded stop/limit fills. The old
+native-execution declaration and native progress journey were removed from this
+route; standalone native APIs and portfolios retain their independent callers.
+Prior sealed reports are historical and are not recalculated or relabeled.
+
+Normal product journey: qualified campaign report → Prop Sim → Percentage of
+account risk → independent Evaluation/Funded grids → Run IS and OOS → automatic
+IS selection/freezing → immutable OOS evidence and downloads. Risk guards are
+mandatory admission, not optional controls. Quantity counters describe admitted
+saved entries and skips; MAE never sizes a trade. The visible model note explains
+why low breach rates do not demonstrate gap resilience.
+
+Reproduce the labeled synthetic product demonstration:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_SAVED_TRADE_EVIDENCE_DIR=artifacts/saved-trade-prop-20261120/browser \
+.venv/bin/python -m pytest -q \
+  tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey
+```
+
+This uses the normal dataset/backtest/product routes. Only prior campaign
+qualification is a labeled fixture; source trades, phase calculations, automatic
+freeze, OOS mathematics, files, server verdict and browser interactions are real.
+It is not market evidence, provider parity or strategy qualification. The test
+server is temporary and closes after the journey.
+
+Independent expected observations: with the synthetic stop/target source and
+0.2–0.3% grids, Apex Evaluation acquisition cost is USD 49+129=178 and modeled
+funding time is two calendar days. Fresh Funded cash is USD 1,500 within the
+nine-day horizon (five qualifying sessions followed by the declared two-day
+receipt delay). Each phase automatically freezes an eligible risk policy and
+runs OOS; only seven OOS sessions are present, so the conclusion is evidence gaps,
+not a fabricated GO. All requested paths remain in outcomes. No native per-path
+replay or nested refits may run. Source reports remain unchanged.
+
+Evidence files include configuration/progress/results screenshots, both IS
+report JSONs and ZIPs, both OOS reports, `saved_trade_model.json` (causal plans,
+assumptions, provenance and every bounded loss), and sizing-decision CSVs. They
+come from the final product's download routes. Pure arithmetic oracles remain in
+`tests/test_saved_trade_simulation.py`: USD 250 / USD 11 = 22 whole MNQ; requested
+USD 250 is rejected at remaining USD 250 or USD 125 even with a one-contract cap;
+source MAE changes cannot alter the calculation; missing/future stops reject.
+Actual complementary baseline/cost/block scenarios verify that the same strict
+sizing law reaches each provider kernel. Fixed-contract and ordinary execution
+compatibility checks remain separate from new-model economic outcomes.
+
+For old sources without causal sidecars, source recovery may take one original
+backtest's preparation/replay time. Its exact source trade match is mandatory.
+Derived plans use the existing bounded, disposable ReplayCache, guarded by raw
+source bytes, strategy/adapter/execution identity and plan checksums. Durable
+financial evidence remains in the existing sealed phase report, not the cache.
+
+
+Application verification: installed on `epic/revamp-workflow` after explicit
+approval to stop the prior native simulation. The installed checkout passed
+36 focused checks, including both account types, actual complementary sizing,
+compiled/Python account parity and fixed-contract compatibility; the installed
+browser journey passed separately. The older Twin source reconstructed all 741
+completed trades exactly (661.97 seconds for the cold, one-time recovery while
+four old simulation workers were active). This preparation time is separate
+from saved-trade account-path execution.
+
+The prior run `fd725561831e47ea9169a3bae0d28ae5` was cancelled through its normal
+API; its two phase records remain cancelled and its settings were copied to the
+new request `cc15c97663534376bb9c3328c82d5741`. All 765 pre-existing sealed reports
+and 1,530 report/ZIP files retained their hashes (1,609,629,848 bytes checked).
+Application evidence, requests, preservation checks and installed-browser
+screenshots are under `artifacts/saved-trade-prop-20261120/` (generated evidence,
+not committed market data). The port-8000 portal runs via
+`sh scripts/serve_portal.sh`, PID 47116; stop it with `kill -TERM 47116` only after
+checking active work. Browser test servers were temporary and stopped by their
+fixtures. Source recovery precedes job queueing on a cold older source.
+
+### 2026-11-20 — Visible daily loss limit amounts
+
+In Prop Sim configuration, the DLL checkbox now shows the amounts from the
+selected account's server-owned rules. Choose LucidFlex 50K: expect "$1,200
+daily loss limit — Evaluation and Funded"; it remains optional. Choose Apex
+50K EOD: expect $1,000 Evaluation and $1,000–$3,000 Funded by tier, with the
+existing required checkbox. Switching profiles updates the amounts immediately.
+This changes display only, without changing simulations or saved evidence.
+
+Reproduce with `ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m
+pytest -q tests/test_prop_sim_browser.py::test_daily_loss_limit_amount_tracks_account_profile`.
+The normal portal configuration journey checks profile switching and Lucid's
+off/on option without launching an analysis; its temporary server stops on exit.
+The focused browser check passed. Read-only verification on the actual port-8000
+portal also passed, without restarting the server or launching a simulation.
+Screenshot and observed labels: `artifacts/dll-display-20261120/` (generated,
+uncommitted evidence).
+
+### 2026-11-20 — Frozen account-limit handling and minimum-one sizing
+
+New Prop Sim configurations expose independent Evaluation/Funded controls:
+**Skip trade** (default) or **Enter with account-limit exit**, and a percentage-only
+**Trade one MNQ when the percentage budget cannot afford one** option (off by
+default). Fixed-contract searches use the same causal stop-risk admission and
+account-limit owner. Excursions are outcome evidence only; missing captured MAE
+rejects early-exit mode. Source OHLC model estimates/bounds retain their labels.
+
+Normal product demonstration: the focused saved-trade browser journey uploads
+labeled synthetic price bars, executes the real registered VWAP strategy and
+source/OOS backtests, inspects its existing report, then uses main Prop Sim
+navigation, source checking, automatic IS/freeze/OOS, report/CSV/model/ZIP downloads,
+and desktop/mobile views. The prior campaign-qualification fixture is explicitly
+synthetic; it does not certify an edge or provider parity. Production history
+minima remain active and the seven-session OOS correctly reports evidence gaps.
+
+The synthetic prices are scaled around 100 by 20 before upload, not by editing
+saved outcomes. Their submitted reference is 460 and stop 360: 100 points times
+$2/MNQ = $200 planned stop risk with zero declared commission. Captured adverse
+excursion is $40/MNQ. Percentage policies are 0.01% and 20.01% of $50,000;
+Evaluation uses account-limit exit, Funded uses Skip, both enable minimum-one.
+At the saved seed/count, expected and independently asserted observations are:
+
+| Phase / policy | Expected observation |
+| --- | --- |
+| Either / 0.01% | $5 requested budget cannot afford $200 risk. One MNQ trades; 100% over-budget entries, 0.40% mean/max actual planned risk. |
+| Evaluation / 20.01% | floor($10,005 / $200) = 50 MNQ. $40 adverse excursion times 50 = $2,000 reaches the nearer loss floor: 16/16 entries exit at a limit (8 daily pauses, 8 account terminations). |
+| Funded / 20.01% | Provider capacity is initially 20 MNQ, so $4,000 planned position risk exceeds the $1,000 DLL. All 56 visited opportunities skip; no entry-based percentages are fabricated. |
+
+Warnings are visible above collapsed IS results, with **Review trade-handling
+impact** opening the five-column summary and expandable reasons/examples. OOS
+shows the same diagnostics for its frozen family. Counts describe repeated sampled
+eligible opportunities; unique source trade count is separately labeled. Paused,
+passed or terminated accounts do not turn later opportunities into skip records.
+Changing controls requires a new simulation; existing evidence is preserved.
+Automatic freeze names are bounded to the existing 120-character display limit;
+the complete policy and selection roles remain in its frozen rationale.
+
+Reproduce the product demonstration and save inspectable downloads/screenshots:
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome \
+ALPHAQUEST_SAVED_TRADE_EVIDENCE_DIR=artifacts/trade-handling-20261120/browser \
+.venv/bin/python -m pytest -q \
+  tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey
+```
+
+The saved directory includes the actual synthetic input CSV, both phase report
+JSONs/ZIPs, source/model evidence, sizing-decision CSVs, frozen OOS report JSONs
+and configuration/progress/diagnostic screenshots. It is generated local evidence,
+not committed market data or a separate product store. Arithmetic and boundary
+oracles are in `tests/test_prop_trade_handling.py`: exact floors and ties,
+winning-trade adverse exits, same-session halt, account termination, minimum-one
+on/off, zero capacity, post-cap admission, missing MAE, invalid options, immutable
+IS/OOS propagation and actual complementary baseline/cost/block runs. Python and
+compiled kernels agree on cash and complete decision traces for both providers
+and phases. Existing fixed/legacy sizing compatibility is checked separately.
+
+Full model and compatibility details: `docs/saved_trade_prop_simulation.md` under
+Account-policy v2. Temporary browser servers stop through their fixtures.
+
+Installed verification: focused admission/sizing/workflow checks passed (70),
+followed by the final 24 account-policy checks after validation hardening.
+Eight selected compiled/reference regression checks passed; the final two browser
+journeys passed, including the real calculated warning examples and the retained
+DLL profile display. Read-only Chrome verification on port 8000 confirmed the
+new independent controls, correct defaults, mobile layout and readable historical
+results without submitting an analysis. All 772 prior sealed reports / 1,544
+report-and-ZIP files retained their hashes (2,916,172,206 uncompressed bytes).
+The idle portal was restarted to load the backend; zero jobs were interrupted.
+Its persistent PID is 59402, using `sh scripts/serve_portal.sh`; stop with
+`kill -TERM 59402` only after checking for active work. Preservation manifests,
+live screenshots and API verification are in `artifacts/trade-handling-20261120/`.
+
+### 2026-11-20: Responsive admission and multicore account paths
+
+Use the ordinary backtest report -> Prop Sim configuration -> Run IS and OOS ->
+durable phase reports journey. Set **Parallel workers** to four (default), then
+run. The form appears while source qualification loads. Run returns a saved
+preparation job promptly; its source checks execute in a process, outside the
+catalogue publication lock. Navigate to Job History and back: preparation or
+account-path progress remains visible without recalculation from polling. Stop
+preparation via its normal Job History control: it must publish no phase report.
+After successful preparation, IS and frozen OOS continue without page presence.
+The worker setting is inherited by both phases and their assessments. Expected
+progress is up to four active independent path workers, with original financial
+outcomes and all requested paths retained. Small/sequential tasks can use fewer.
+
+Focused independent oracles:
+
+- `tests/test_saved_path_parallel.py`: three phase/profile pairs, fixed Skip and
+  percentage Enter-with-limit policies, two start strata and a closure. Compare
+  all ordered paths, schedule SHA, cash/payout events, complete sizing aggregates,
+  behavior examples and a deliberately bounded 37-decision trace against the
+  serial owner. Four-worker output must match exactly, with multiple worker PIDs.
+- `tests/test_prop_sim_preparation.py`: real qualified synthetic campaign through
+  process preparation and automatic IS/OOS, repeat-request canonical reuse,
+  source mutation rejection, stop/recovery, unchanged-evidence cache reuse,
+  concurrent readers sharing one HTTP worker, metadata-only polling and readers
+  that never recover active jobs or modify source reports.
+- Focused browser cases in `test_prop_sim_browser.py` deliberately hold source
+  listing/preparation to prove navigation and stop controls remain usable. The
+  actual saved-percentage browser journey retains normal downloads/report seals.
+- `test_portal_launcher.py` verifies duplicate/stale server admission; ordinary
+  backtest grids retain their existing worker controls/default-four contract.
+
+Reproduce the arithmetic check with
+`PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_saved_path_parallel.py`.
+Run only the named preparation/browser journeys for this orchestration increment.
+Screenshots, original stopped configuration, live restart response, timing samples
+and downloaded normal-product evidence are retained locally under
+`artifacts/portal-responsiveness-20261120/`; synthetic product fixtures are labeled
+by their test sources and do not constitute new provider or live qualification.
+The user's running LucidFlex simulation was explicitly stopped before applying
+this increment; its completed reports, original settings and historical seals
+were retained. A new request uses the same economics/source with four workers.
+
+Live deployment observations (2026-11-20): replacement `9babbf79015241ebaeba0be4f26835aa`, same LucidFlex 50K / 50% add-on / 1–20 MNQ per phase / 1,000 paths / original costs and seed, with four workers. Initial POST returned 202 in 0.006 s. While source preparation was active, defaults took 0.034 s, Job History 0.074 s, and status 0.003 s. Actual Chrome new-form rendering took 0.447 s, navigation to Job History 0.063 s and back 0.064 s, with no JavaScript errors. The source preparation process can still take time for historical causal replay; it no longer blocks navigation. All 771 pre-existing report-seal records were unchanged. Evidence is local under the artifact directory above.
+
+### 2026-11-20: Future Lucid maintained-activity assumption
+
+Decision and rationale: see the final dated section of `prop_simulation.md`.
+The implementation was staged separately while the four-worker v4 simulation
+ran. Both automatic phases completed before idle deployment of v5. No active
+simulation was interrupted, no report was rerun and no captured v4 settings or
+verdicts were rewritten.
+
+Normal-product reproduction after idle deployment:
+
+1. Open an eligible campaign source report, choose Prop Sim and LucidFlex 50K.
+   The configuration note says inactivity expiry is disabled, manual activity
+   is assumed and its small costs are omitted. Expanded account assumptions show
+   no enforced inactivity window and explicitly separate this local assumption
+   from the previously reviewed provider requirement.
+2. Configure fixed contracts or percentage sizing and Run IS and OOS. Both phase
+   manifests and their frozen OOS candidates use the v5 maintained-activity model
+   and `lucid_inactivity_enforced:false`. Inspect their normal report/ZIP
+   downloads; earlier v4 reports remain unchanged.
+3. No synthetic maintenance trade should appear in sizing decisions or source
+   trades, and no profitable-day credit or commission should be created for it.
+   Other account limits and campaign commissions still operate normally.
+
+Independent expected boundaries in `tests/test_lucid_activity_assumption.py`:
+
+- With zero campaign trades, a 65-calendar-day Evaluation path retains one
+  USD 80.50 purchase, zero equity, and one open attempt until guard censoring.
+  Historical enforced inactivity creates retries and additional purchase fees.
+- A zero-trade Funded account remains open through 90 calendar days with zero
+  equity, zero payouts and zero simulated maintenance fees. A direct 100-day
+  controller check also has zero qualifying days and zero consumed trades.
+- Explicit historical enforcement still expires on its original boundary;
+  compiled/Python transitions agree. An old v4 phase package is not silently
+  admitted under the current v5 model. Apex expiry/inactivity is unchanged.
+
+Focused checks: the new activity tests, affected Lucid calendar/legacy arithmetic
+cases, both native phase controllers, exact serial/four-worker saved-path parity,
+and the normal one-click Lucid percentage IS/OOS pipeline. The Lucid browser
+journey verifies the visible note, desktop/mobile layout, successful phase
+completion and original-route downloadable reports. Synthetic input bars and
+saved reports/screenshots are staged in the artifact directory above; these are
+labeled test fixtures, not provider or live-trading qualification.
+
+### 2026-11-20: Show the saved account-start observation window
+
+Account-start finding cards now show the window in calendar days per starting
+date. The expanded chronological-start heading repeats it and distinguishes a
+diagnostic cutoff from a provider expiry. The current Evaluation diagnostic is
+180 days; the main account-economics comparison separately includes 365 days.
+The 180-day choice is a fixed six-month research convention, not a calibrated
+acceptance threshold or provider rule. It trades observation time against the
+range of fully covered starting dates. A 200-day funding scenario can miss this
+window without implying it would never pass.
+
+Presentation reads the saved assessment's start-plan horizon, with a historical
+fallback to exclusive cutoff minus starting date. It never reads today's policy
+to relabel an old report. Missing or conflicting saved windows show unavailable.
+No account calculation, numerical identity, finding status or sealed report is
+changed. Verify the normal complementary-results browser journey for both phase
+cards, plus historical-cutoff, 90-day, missing-window and conflicting-window cases.
+
+### 2026-11-20: Separate phase workspaces and simplify the results journey
+
+The automatic Prop Sim result page now has separate **Evaluation** and **Funded**
+tabs. Only one phase is visible. Its header names the independent objective and
+shows execution status; completion remains distinct from the saved verdict.
+Each phase has four views:
+
+- **Overview:** saved conclusion, next action and a short table of frozen OOS
+  choices. Evaluation leads with funding by the saved observation deadline and
+  fees spent; Funded leads with receipts and the chance of no receipts over the
+  saved horizon. Neither conditional means nor historical qualification imply
+  future confidence. When account measurements were not produced, show the
+  frozen sizing and evidence-gap action instead of unavailable-number columns.
+- **IS sizing:** existing sortable results and automatic-selection markers,
+  with the Evaluation Pareto chart. Additional metrics use the existing toggle;
+  per-row inspection opens a keyboard-dismissible dialog instead of expanding
+  every table row.
+- **Evidence:** a sizing selector, compact server-owned findings, and one chosen
+  supporting table: trade handling, source coverage where available, IS/OOS
+  comparison, chronological starts, stress or policy. Saved account-start windows
+  remain explicit. Historical assessments are labeled with their original
+  findings; changing a view never changes a verdict or sizing choice.
+- **Tools & downloads:** original exports, IS trade-handling review, previous
+  assessments, optional diagnostics, policy revisions and paper-review actions.
+  These remain available without stacking them in the primary reading flow.
+
+Settings and deletion remain outside the phase's main result flow. The initial
+configuration and one-click automatic pipeline remain the ordinary product
+workflow. Historical manual API semantics remain supported.
+
+This follows [progressive disclosure](https://www.nngroup.com/articles/progressive-disclosure/)
+and the [WAI-ARIA tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/):
+visible phase/task navigation, one pane at a time, accessible labels, selected
+states and Arrow/Home/End keyboard controls. Mobile phase views use a two-column
+navigation grid; tables scroll inside their container. Empty, loading and failed
+reads stay visible; each phase loads independently and a failed read can retry
+without submitting any simulation work.
+
+`GET /api/prop-sim/{id}/results/{phase}?summary=true` is a display projection of
+verified sealed IS results. It keeps every candidate's configuration, metrics,
+uncertainty, selection membership and relevant quantity diagnostics, omitting
+path arrays and repeated source captures from the HTTP response. The default
+endpoint, full original downloads, calculation owners, numerical hashes and
+qualification policies are unchanged. OOS continues to use its existing summary
+endpoint. No new result store, resampling, optimization or source qualification
+is triggered by this display projection.
+
+Normal-product verification and reproduction:
+
+1. Open a qualified source backtest → Prop Sim → configure/check → **Run IS and
+   OOS**. Both account profiles and percentage sizing remain supported. The
+   focused browser journey uses labeled synthetic bars through these real routes,
+   independent arithmetic assertions and ordinary durable report downloads.
+2. Open the saved results. Evaluation appears first and Funded is hidden; switch
+   using the phase tabs or Home/End/arrow keys. Overview contains no expandable
+   sections. Switch views to inspect IS sorting, trade-handling warnings, frozen
+   OOS findings and the original CSV/ZIP exports. Escape closes row inspection.
+3. A synthetic transient Evaluation display-read error leaves Funded results
+   usable. **Retry loading results** recovers Evaluation without POSTing work.
+   Short OOS coverage correctly shows the server's one insufficient-coverage
+   finding, rather than inventing six completed checks or unavailable metrics.
+4. Read-only verification of the existing Twin Continuation simulation
+   `9babbf79015241ebaeba0be4f26835aa` uses the actual portal at
+   `/#prop-sim?analysis=9babbf79015241ebaeba0be4f26835aa`. Each phase still has six
+   original findings. Evaluation 2 MNQ retains **9/24** observed starts within
+   **180 calendar days**, and its historical-version label remains. No jobs were
+   launched and saved report SHA-256 values were unchanged.
+
+Evidence: `artifacts/prop-sim-ux-20261120/` holds desktop/mobile screenshots,
+normal-product synthetic sources/reports/downloads and a read-only verification
+JSON. On the existing library, the Evaluation IS display response was **268,203
+bytes** versus its **349,701,337-byte** report; Funded was **230,737 bytes** versus
+**332,601,901 bytes**. The phase workspace shell appeared in approximately
+**0.31 seconds** in that local check. Verified report reading still takes several
+seconds; this change does not claim instantaneous artifact verification.
+
+Focused reproduction:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_sim.py::test_qualified_source_gate_real_phase_math_and_durable_results
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  'tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey[apex-50k-eod]' \
+  'tests/test_percentage_prop_browser.py::test_saved_trade_percentage_product_journey[lucidflex-50k]'
+```
+
+Temporary browser test servers shut down in fixture teardown. The user's idle
+port-8000 portal was restarted to load the display endpoint; no active simulation
+was interrupted. It remains available via `sh scripts/serve_portal.sh`'s stable
+server on port 8000; stop its exact PID from `data/.portal-server.lock` when needed.
+
+
+### 2026-11-21: Qualified-source loading during unrelated campaign work
+
+The qualification cache snapshots the relevant workflow declaration, frozen phase
+states, source manifests, associated grid/trial rows and membership in a short
+SQLite read transaction. It no longer uses the whole backtest catalogue file's
+mtime as a qualification signal: unrelated grids update that file continuously.
+The candidate index still tracks current OOS/Monte Carlo identities, status and
+seals. Workflows without a completed current Monte Carlo assessment cannot supply
+configurations; their running-grid progress is not qualification evidence. Dataset
+file invalidation, artifact inode/ctime checks, engine identity and authoritative
+qualification remain enforced. A relevant source change during verification still
+rejects publication. The disposable cache namespace advances to v2; original
+reports and verdicts are unchanged.
+
+Normal journey: open Prop Sim while another workflow grid is running. Qualified
+configurations should load and remain selectable. On an actual read failure, the
+picker says Configurations unavailable and exposes Retry loading configurations.
+Retry preserves account/worker settings and only reads admission metadata; it
+does not launch a simulation. New launches retain full server-owned admission.
+
+Evidence and reproduction: artifacts/qualified-configurations-fix-20261120/
+contains the reviewed patch and focused JUnit results. The corrected isolated
+owner found candidates 3 and 4 for workflow
+114dbec373a64ebd9ea374cbfc8cadf2 in the current library while the unrelated grid
+continued running. Seven focused backend/browser checks cover that concurrency,
+source/catalogue tampering, rejection before publication, real background source
+preparation through automatic phase completion, responsive loading and retry.
+Synthetic mutation fixtures stay in tests; no source check or campaign verdict
+is bypassed. Temporary browser servers shut down in teardown.
+
+Application on 2026-11-21: the user authorized an immediate restart and resuming
+remaining work. Both grids had already completed (100/100 and 6/6), so the idle
+portal was restarted without cancellation or a replacement job. Byte fingerprints
+of all 106 trial rows and both completed job records remained identical, as did
+738 saved report-seal records. The live source endpoint returned both qualified
+configurations with no unavailable entries; Chrome verified both dropdown options,
+capability details and no console errors or unexpected POSTs. The warm source
+request took approximately 0.21 seconds. Live screenshots, original-route response
+and before/after verification are in the evidence directory above. The existing
+port-8000 server remains running; read its PID from data/.portal-server.lock and
+use kill -TERM with that exact PID to stop it.
+
+### 2026-11-21: Shared loading graphics throughout the portal
+
+Prop Sim now uses the same loading component as the dataset library, campaigns,
+workflow phases, Job history, backtest choices and saved-report subsections.
+Its configuration picker spins while source admission loads; Evaluation/Funded
+saved-result reads and OOS summaries have their own indicators. Editing account
+settings and navigating remain available while reads are pending. Failed reads
+stop spinning and retain their existing retry actions. Calculation progress still
+uses the existing worker/path bars; a spinner does not imply a new calculation.
+
+Shared behavior and integration guidance are in `docs/ui_loading.md`. The CSS
+spinner and busy semantics have explicit completion ownership, respect reduced
+motion and do not block pointer/keyboard input. A delayed header indicator covers
+other request activity without duplicating a visible section indicator. Old-route
+requests cannot keep the new page's header indicator open. No request, polling
+schedule, financial engine, source/qualification identity or saved report changed.
+Only frontend assets were applied; the existing server and jobs were preserved.
+
+Reproduce in the actual portal: open Prop Sim with network throttling enabled.
+Observe the spinner beside the qualified-configuration status while the account
+form remains usable. When the source GET completes, the spinner clears and the
+two qualified configurations remain selectable. Read-only live verification held
+that browser request, captured the normal screen, then continued it to the real
+API. It observed no JavaScript errors or unexpected POSTs. Dataset, Campaigns and
+Job history navigation also loaded normally. The page refresh loads the new
+assets without restarting the port-8000 server.
+
+Evidence: `artifacts/portal-loading-20261121/` includes pending/completed section
+screenshots, reduced-motion/mobile screenshots, the independent report-section
+journey, focused JUnit checks and `live-verification.json`. Fourteen focused
+browser checks passed. They include a native arithmetic backtest through the
+normal upload/backtest/report owners; all other loading checks are metadata reads
+and labeled browser fault injection, with no invented financial results.
+
+### 2026-11-21 — IS Narrow sorting responsiveness
+
+This presentation/verification increment does not change Prop Sim calculations or
+campaign screening rules. It removes repeated Narrow eligibility work from table
+sorting while retaining independent checks when selections are saved/confirmed.
+
+Normal-product verification used workflow `1d3dfda940994b78b18d776c69fe2104`,
+Broad trial 11, completed Narrow job `97ab3632ac9d44a4b4f25013c10b576b`
+(100 saved trials). Before: a browser header click took 6.931 seconds, including
+6.324 seconds in the assessed results request. After: three header clicks took
+0.896, 0.837 and 0.845 seconds. Each order response was 437 bytes. Direct owner
+measurements: first assessment of all 100 rows 4.931 seconds; cached assessment
+0.669 seconds; order-only request 0.358 seconds. Timings are local observations,
+not guarantees. A cold load still verifies source evidence.
+
+Reproduce in the existing portal:
+
+1. Open `/#campaigns/workflows/1d3dfda940994b78b18d776c69fe2104/is_narrow?broad_trial=11`.
+2. Expand a row's Eligibility details. Click Total net pnl twice. Expect ascending
+   then descending ordering; expanded rows and frozen varied parameters remain.
+3. Use Next, then click Total net pnl again. Expect a return to the first 50 rows
+   of the globally sorted 100-trial grid. Pagination does not re-fetch eligibility.
+4. In browser Network, expect header requests with `order_only=true` returning
+   trial IDs and a view token. There are no calculation or selection POSTs.
+
+Saved local evidence: `artifacts/narrow-sort-performance-20261121/` contains
+before/after timings, a screenshot, and source-row/manifest integrity comparison.
+All 100 cached admissions equaled their fresh assessments; source trial payloads
+and native manifests were unchanged. Browser verification made no mutations and
+reported no JavaScript errors. The focused synthetic API tests separately check
+cache corruption, same-size artifact edits with restored mtime, concurrent trial
+and native-manifest changes, unrelated job activity, exact sorting, and rejection
+of confirmation after evidence tampering. The normal two-branch browser journey
+checks selection, confirmation, frozen columns, preserved row nodes, and OOS handoff.
+Temporary browser-test servers are stopped by fixture teardown. The existing
+persistent portal was restarted only after confirming no queued/running jobs;
+stop it with Ctrl-C in its launcher or SIGTERM to its recorded owner PID in
+`data/.portal-server.lock`.
+
+### 2026-11-21 — Portal layout cleanup
+
+Prop Sim now has direct navigation between Independent sizing and Portfolio &
+cash flow. Saved simulations appear above the setup form. Opening one leads with
+its saved results, followed by the collapsed setup. Open **Settings** to edit
+a new simulation from the saved inputs. Use the Evaluation and Funded tabs to
+switch phases, then use the phase's Overview, IS sizing, Evidence or Tools &
+downloads tab. The arrow keys move between tabs. The existing saved phase
+reports and evidence links are used directly.
+
+To verify with local saved evidence, open **Prop Sim**, choose a completed
+simulation from **Saved simulations**, and use the keyboard to switch to Funded.
+Expect the Funded heading, job link, and its own evidence and downloads. Open
+**Settings** and confirm the source and sizing inputs can still be inspected.
+Switch to **Portfolio & cash flow** and back using the mode links. Campaign
+datasets open their latest available phase, with **Passing criteria by stage**
+available next to the phase navigation. Existing backtest reports keep Trade
+and Equity CSV downloads visible and group secondary exports behind **More
+exports and detail**.
+
+The browser checks use the normal portal routes and temporary isolated servers
+for write actions. Read-only Chrome checks against the saved local portal cover
+the main screens and saved results at 320, 390, 768 and 1440 CSS pixels. They
+check keyboard navigation, accessible names and page overflow. Saved-result
+tables can scroll within their own regions.
+
+### 2026-11-21 — Portfolio coverage recognizes the historical CME pause
+
+**Portfolio & cash flow** uses the shared historical CME pause calendar during
+source preparation. The check requires observed bars during the possible holding
+window and at the scheduled close. Source validation reports the first missing
+tradable timestamp for a rejected session.
+
+The saved LucidFlex portfolio `09db1a9d80024ee2bfade1260ddc8582` uses two
+qualified VWAP configurations on `ofb_bars_NQ`. Its opening session
+(2021-01-04) has 1,365 observed and 1,365 expected tradable minute bars. The
+15-minute pause is correctly excluded, and the 16:00 Chicago close is present.
+A read-only timestamp scan of the saved windows found 1,032 passing IS sessions
+and 389 passing OOS sessions. Four sessions still fail strict tradable coverage.
+The first missing Chicago timestamps were 15:53 on 2021-03-16 and 2021-06-15,
+15:32 on 2025-04-02, and 15:40 on 2025-06-17.
+
+Open the saved simulation from **Prop Sim → Saved simulations**. An explicit retry
+of the same configuration under the updated implementation will clear the January
+4 check and stop on March 16 at 15:53 Chicago time. The checks performed here
+read the saved declarations, source reports and timestamps without submitting
+another analysis. Evidence is in `artifacts/portfolio-pause-20261121/`.
+The synthetic tests independently check the pause, a missing reopening bar, a
+missing close, and the same 15-minute hole after the pause was removed.
+
+### 2026-11-21 — Portfolio replay continues across missing minutes
+
+Open the saved LucidFlex analysis `0ac21bb0d9b2418b924031edf9e91987` in
+**Prop Sim → Portfolio & cash flow**. **Retry this saved configuration** uses
+its existing two qualified campaign configurations and all 16 allocations.
+The failed attempt remains in Job history. The source check covers 1,034 IS
+and 391 OOS sessions on `ofb_bars_NQ`. Every scheduled close is present. It
+records four missing minutes in possible holding windows, on 2021-03-16,
+2021-06-15, 2025-04-02 and 2025-06-17. The source scan is saved in
+`artifacts/portfolio-observed-bars-20261121/saved-window-coverage.json`.
+
+On completion, **Missing bars in the source** shows those four minutes and
+the number of encounters with exposure in the frozen full-period replay.
+**Download source coverage** lists the exact UTC timestamps. The detailed
+account traces record whether a position was open, an entry was pending or
+the account was flat. The synthetic replay test opens ten MNQ at 118, omits
+the following bar, and fills at the next observed Open of 111 for a loss
+of $140, with zero commissions. The missing-close test still rejects a
+session without its scheduled closing bar.
+
+### 2026-11-21 — Portfolio strategy contract and joint trade sizing
+
+In **Prop Sim → Portfolio & cash flow**, select a set of qualified configurations
+on one dataset. Choose fixed MNQ or percent risk and provide separate ranges
+for Evaluation and Funded. The IS workload shows a full grid or a bounded
+search before submission. After completion, the results show each strategy’s
+frozen Evaluation size, Funded size and account assignment. **Compare tested IS
+plans** shows the leading alternatives. The complete evaluated family, frozen
+plan, dated sizing decisions and cash-flow evidence are available as downloads.
+
+The live verification is saved as
+`ca5eeee290f24ad39403eb7dbca8a22f`. To reproduce it, choose the VWAP configurations
+Broad 11 / Narrow 1 and 5, LucidFlex 50K, both account placements, one account,
+2 MNQ in Evaluation and 2–3 MNQ in Funded. Use 2024-12-02 through 2024-12-06 in IS
+and 2025-01-02 through 2025-01-08 in OOS. Expect nine IS plans: one zero-purchase
+baseline, four single-strategy plans and four shared plans. The four shared
+plans include both ways of assigning different Funded sizes. The short IS run
+selects zero purchases. The frozen package and both OOS and continuous replay
+retain that plan. Screenshots, the submitted declaration and the verified API
+response are in `artifacts/portfolio-sizing-20261121/`.
+
+Synthetic arithmetic checks cover actual Evaluation execution at 3 MNQ and
+Funded execution at 4 MNQ through payout and replacement, and reconcile the
+received cash and fees to the sealed plan’s monthly spending cap. Twin’s paired
+breakout replay is compared with the unwrapped native strategy for fixed and
+percentage sizing on a bar that touches both entry levels. The winning side,
+filled contracts and net P&L match, and the sibling is cancelled. A second
+competing strategy is denied overlapping ownership in the shared account.
+
+The historical Twin configurations Broad 45 / Narrow 23 and 3 have a different
+execution fingerprint from the current native engine. Both remain visible with
+the source-version reason. A successor workflow
+`c1e7f314cdf349068e20117e3953f62a` uses the original dataset, date split and
+execution settings. Its mechanic run requires the normal MultiCharts parity
+review before proceeding through current screening. The original parameter
+sets are recorded in `artifacts/portfolio-sizing-20261121/twin-requalification.json`.
+The historical workflow and its reports are retained.
+
+### Portfolio source parity for the Twin entry-observer change
+
+Twin Broad 45 / Narrow 3 and 23 were qualified against the execution
+fingerprint at `e764df9`. The change in `d6c1676` only adds an optional
+entry observer, which Portfolio replay leaves unset. The Portfolio source
+check recognizes that exact reviewed fingerprint transition only when
+both current-code replays match the sealed campaign reports. It compares
+the complete trade and equity CSVs, strategy and session metadata, exact
+source selection, costs, summary, research split, and OOS-to-IS parent
+relationships. The original campaign and its qualification stay in place.
+
+The parity record stores identifiers and checksums in the existing backtest
+catalogue. It keeps the current replay reports inspectable through the
+normal backtest page. Portfolio preparation and final publication recheck
+the binding and retain it in the frozen source package. Changed or missing
+evidence and later implementation fingerprints require their own check.
+Only Portfolio uses this binding. The general native source version guard
+continues to compare exact strategy fingerprints.
+
+To reproduce the check, run an ordinary two-trial IS batch with the saved
+parameters and original split, setting the BO max stop multiplier to 8 and
+12 and disabling automatic Prop Sim. From each result, run its manual OOS
+replay once. The old IS and OOS report pairs must match the new pair before
+the corresponding Portfolio checkbox becomes available. The current
+application's candidate endpoint and launch both verify original campaign
+qualification before applying the parity record.
+
+The saved verification completed with byte-identical trade and equity
+files for all four replays. IS batch `e8d4cb20fdee46d181a3ab4e05c8a411`
+contains both current-code IS reports. The exact pair identities are:
+
+| Narrow trial | Current IS report | Current OOS report |
+| --- | --- | --- |
+| 3 | `9066bb663f2348d181f85aff6402d7dc` | `11348216f0434dcf95881eeffbecb0b5` |
+| 23 | `1f2208a521f64c38bc9c9acf879fe8d1` | `d634ec9bc5f84990a82864550f304de2` |
+
+The comparison records and submitted split are under
+`artifacts/twin-portfolio-parity-20261121/`. The Portfolio picker should
+enable both Twin rows and show that replay parity was verified.
+
+### Portfolio report storage and results loading
+
+New Portfolio reports have a 100,000,000-byte storage limit for the complete
+published directory, including the evidence ZIP. The main report contains
+the frozen allocation, source identity, cash results and search summary.
+Cash ledgers, trades, sizing decisions, transitions and compact account
+summaries are downloadable separately through the normal file endpoints.
+Their compressed copies are stored once inside the ZIP. Account event counts
+remain available. The replay retains detailed source-gap events and paired
+order cancellations, and omits routine per-bar account event and daily state
+transcripts. Storage does not change allocation selection or cash arithmetic.
+
+Open a saved Portfolio from Prop Sim. Expect the summary to appear without
+loading the ZIP or opening any detail CSV. The Portfolio setup draws its
+form and saved history while campaign sources are checked. During publication,
+Job history shows the end of replay followed by distinct saving and packaging
+stages.
+
+For a local legacy library, stop the idle portal and run
+`.venv/bin/python -m alphaquest.compact_portfolio_reports --recovery-dir artifacts/portfolio-report-recovery-20261121`.
+This projects the original summary without loading the whole report into
+memory, verifies the existing sealed ZIP, and packs the retained cash, trade,
+transition and sizing CSVs into a compact report. The original ZIP and its
+seals remain available outside the active report directory. To recover a
+historical export, read that ZIP directly. To restore the legacy on-disk
+layout, stop the portal, restore the original ZIP members and its ZIP into the
+analysis directory, and restore the original seal for the matching catalogue ID.
+
+The local Portfolio analysis `f102e67afd2c41b0ad751abbbca105e2` was reopened
+through `/#prop-sim?analysis=f102e67afd2c41b0ad751abbbca105e2` after migration.
+Its active report directory fell from 18,199,128,454 to 3,685,724 bytes. The
+original 379,332,652-byte ZIP remains in the recovery directory. The saved
+result response was 207,084 bytes and showed net cash of $7,275.46 IS,
+−$241.50 OOS, and $7,114.46 full period. The full-period cash-ledger download
+matched its saved SHA-256 checksum. The allocation appeared in local Chrome
+in under half a second. Holding the candidate request open also confirmed the
+Portfolio setup renders and shows a loading indicator in the source picker.
+
+## Prop Desk Milestone 1 — 2026-11-22
+
+Open **Prop Desk** from the sidebar or the mobile navigation. Select one saved
+backtest, **Evaluation** or **Funded**, one local account profile, and a
+whole-MNQ size. **Check source** reconciles the saved trades, net costs and
+intratrade evidence. It reuses the saved-source instrument, strategy and
+historical coverage checks. The same checked inputs are required at launch.
+After **Run simulation**, the AnalysisStore job completes to a permanent result
+URL. Open it again from **Prop Desk → Saved runs** or **Job history**.
+
+Evaluation starts one fresh attempt on every path. Apex 50K EOD uses its local
+21-session expiry. LucidFlex 50K has a separate observation cutoff, default 60
+trading days, and uses the existing standard 40% consistency and $1,200
+soft daily stop. Funded starts from one fresh $50,000 account per path and applies
+the existing plan tiers, qualifying days and payout ladder. Gross deductions
+and trader receipts are separate. The local session model credits trader
+receipts at the deduction event. A Funded account still open at the requested
+cutoff remains open. Each payout probability uses all simulated accounts and
+each milestone median uses the accounts that reached it.
+
+The fixed-size mode uses 1,000 paths, seed 42, five-weekday circular blocks,
+and the saved source's net costs. The source weekday convention preserves
+zero-trade weekdays. Each result shows the observation horizon and the applied
+local rules. The report and ZIP retain the source manifest and hashes, exact
+normalized session inputs, settings, and complete path outcomes. Prop Sim,
+Portfolio and existing reports retain their phase engines and policies.
+The existing package-wide engine fingerprint continues to invalidate
+generic backtest cache reuse and protect interrupted OOS resumes across
+production Python changes.
+
+### Reproduce and inspect
+
+The browser journey creates ordinary saved backtests from labelled synthetic
+market data, opens the saved backtest report, then runs both phases through
+the actual Prop Desk tab. Use Playwright Chromium or the installed Chrome.
+The test uses an isolated local server and closes it on teardown.
+
+```sh
+aq_prop_desk_review_dir="$(mktemp -d /tmp/aq-prop-desk-review.XXXXXX)"
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_browser.py --basetemp "$aq_prop_desk_review_dir"
+find "$aq_prop_desk_review_dir" -name journey.json -print
+.venv/bin/python -m pytest -q tests/test_prop_desk.py
+```
+
+Inspect the saved [evidence and SHA-256 manifest](evidence/prop-desk-v1/journey.json),
+[Evaluation report](evidence/prop-desk-v1/evaluation-report.json),
+[Funded report](evidence/prop-desk-v1/funded-report.json) and
+[mobile reopen](evidence/prop-desk-v1/funded-mobile-reopened.png).
+The [Evaluation ZIP](evidence/prop-desk-v1/evaluation-analysis.zip) and
+[Funded ZIP](evidence/prop-desk-v1/funded-analysis.zip) are the original
+downloads from the portal. The archived backtest and both analysis IDs
+are listed in the manifest.
+For a manual replay, upload
+[the saved synthetic CSV](evidence/prop-desk-v1/SYNTHETIC-phase-source.csv)
+as NQ with UTC timestamps, a 0.25 tick size and USD 20 per point.
+Create a Consecutive Green Hold backtest with green-bar count 1, hold time
+1 minute, 1 contract, starting capital USD 10,000, zero slippage and zero
+commission. Declare IS from 2026-01-05 through 2026-01-14 and reserve
+2026-01-15 for OOS. The saved source contains eight USD 3,000 winning NQ
+trades. Open **Prop Desk** and check and run each configuration below.
+
+| Configuration | Expected normal-product result |
+| --- | --- |
+| LucidFlex 50K Evaluation, 10 MNQ, 60 trading days | 1,000 passes, zero breaches, zero open at cutoff, median day 3 |
+| LucidFlex 50K Funded, 3 MNQ, 30 trading days | 100% reached every payout, on median days 5, 10, 15, 20 and 25. Mean deductions USD 10,000 and mean modeled trader receipts USD 9,000. Zero breaches before payout. |
+| Saved ES report in either phase | Source check returns an NQ/MNQ compatibility reason and Run remains disabled. |
+
+Independent expected values live in the focused tests. The Evaluation
+source earns USD 3,000 per day at 10 MNQ. The best day is 100%, 50% and
+then 33.3% of cumulative profit, so the 40% gate first clears on day 3.
+Funded at 3 MNQ earns USD 900 per day and reaches five qualifying days
+per cycle. The modeled gross cap is USD 2,000 per payout and the 90% share
+is USD 1,800. API checks also cover Apex's six-payout ladder, an adverse-gap
+breach before payout, the distinction between expiry and cutoff, the
+phase-specific size ceilings, duplicate submissions, stale checks, and
+report integrity and reopen after application restart.
+
+### Bridge comparison status
+
+The Bridge v2.9.16 screens are the feature reference for single-attempt
+results and payout milestone presentation. The older Lucid discrepancy
+comparison at [the November 2 checkpoint](prop_simulation.md#lucid-evaluation-discrepancy-investigation--2026-11-02)
+used a different strategy, matched sample, settings and path budget. The
+inspected v2.9.16 Lucid Evaluation screen also showed 52% consistency.
+This increment uses AlphaQuest's local 40% profile. No matching v2.9.16
+trade history and rule package is available in this demonstration.
+Bridge pass, breach, cutoff and median pass timing, as well as Funded
+any-payout, full-ladder, pre-payout breach, milestone timing, deductions
+and trader receipt values remain unverified against matched inputs.
+
+## Prop Desk Milestone 2 — 2026-11-22
+
+Open **Prop Desk** and choose **Basket and size sweep**. Select a native saved IS
+report and click **Add selected IS backtest** for each member. Adjust whole
+relative weights or use **Equal weight**. Every whole-MNQ size in the declared
+range is tested. Each member's target is its weighted share rounded down. The
+form and saved result show unused MNQ. A zero target skips that member for the
+size. A member may optionally have a saved OOS report. To add one, choose the
+saved OOS report in the picker and click **Attach selected OOS** for its IS
+parent. Attach one to every member for an OOS chart. The API checks the parent,
+split, dataset, strategy configuration and costs.
+
+The basket requires one saved native NQ/MNQ dataset version. The common
+period uses observed CME session labels supported by both the saved report
+bounds and the declared split. A session with observed source bars but no
+trades remains in the history. An absent session is never inserted into a
+multi-member sample. A one-member basket deliberately uses the Milestone 1
+account path convention and gives identical results for identical inputs. Its
+historical chart still uses the observed sessions.
+
+For each size, eligible saved opportunities are ordered by entry timestamp.
+Higher relative weight breaks ties, followed by basket order. An entry while
+another admitted trade is open is skipped. An exit at a shared timestamp
+precedes the next entry. Every sampled session uses the merged stream to
+advance one simulated Evaluation or one fresh Funded account. Existing phase
+owners apply daily stops, drawdown, tier limits and payouts. The Funded tier
+caps the admitted member's target using its existing session opening rule.
+Saved net costs and adverse marks scale with absolute whole-MNQ quantities.
+This is a fixed-opportunity model. It does not re-run strategy decisions after
+a skip or change the historical order queue.
+
+The sizing curves use IS only. Open **Inspect tested size** to review account
+metrics and chart data at a saved size. The size selection is retained in the
+report URL. Funded **First year** is cash credited through trading day 261.
+**Account life** is the mean for completed lifetimes. If any paths remain open
+at the configured cutoff, the chart shows cash through cutoff as a lower
+bound and flags the unresolved lifetime mean. Per-size paths and the full
+ZIP are saved in the existing analysis catalogue.
+
+**Historical closed-trade equity** adds the admitted, sized saved trades in
+chronological order. The portfolio curve is the sum of the member curves.
+The chart samples their cumulative marked-at-close-of-trade P&L at the end of
+each observed session. The shaded OOS segment uses exactly the same weights,
+contract targets and overlap rule. The chart applies overlap admission and
+saved net trading costs. The Monte Carlo paths separately apply account
+controls and payout accounting. **Admitted trades for this size** gives the
+source IDs, timestamps, target MNQ, commission, slippage and net P&L. Annualized
+USD return is daily mean times 252. Volatility uses sample standard deviation
+times square root of 252, and Sharpe uses a zero cash benchmark. Drawdown uses
+every admitted trade close from an initial zero P&L.
+
+### Reproduce the product journey
+
+```sh
+aq_prop_desk_basket_dir="$(mktemp -d /tmp/aq-prop-desk-basket.XXXXXX)"
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket_browser.py --basetemp "$aq_prop_desk_basket_dir"
+find "$aq_prop_desk_basket_dir" -name journey.json -print
+.venv/bin/python -m pytest -q tests/test_prop_desk_basket.py
+```
+
+The browser journey creates ordinary backtests and their manual OOS children
+from [the labelled synthetic CSV](evidence/prop-desk-basket-v1/SYNTHETIC-basket.csv),
+runs both phases, changes the inspected size, downloads the reports, and
+reopens the selected size at mobile width. The temporary portal closes at
+test teardown. Inspect the [evidence manifest](evidence/prop-desk-basket-v1/journey.json),
+[Evaluation ZIP](evidence/prop-desk-basket-v1/evaluation-analysis.zip),
+[Funded ZIP](evidence/prop-desk-basket-v1/funded-analysis.zip) and
+[mobile chart](evidence/prop-desk-basket-v1/funded-mobile-reopened.png).
+
+For a manual replay, upload the CSV with NQ, UTC, 0.25 tick size and USD 20
+per point. Create two **Consecutive Green Hold** backtests with green-bar
+count 1, one contract, initial capital USD 10,000, zero slippage and USD 5
+commission per side. Use hold times of 1 and 2 minutes. Declare January 5–14
+2026 as IS and January 15 as OOS. Run the manual OOS replay for each. Add both
+IS reports to the basket in hold-time order and attach their matching OOS
+children. Enter weights **2 and 1**, total sizes **3 through 5**, and **Apex 50K
+EOD**. Run Evaluation at its fixed 21-day expiry. For Funded enter a 261-day
+cutoff.
+
+| Observation | Independent expectation |
+| --- | --- |
+| Targets at 3, 4 and 5 MNQ | 2/1, 2/1, and 3/1 MNQ. Unused contracts are 0, 1, and 1. |
+| Competing entries | Both members enter at the same timestamp. The higher-weight member gets all nine fills and eight IS overlaps and one OOS overlap are skipped. |
+| Equity and costs | The winner earns USD 3,000 less USD 10 round trip per NQ. At 3 MNQ total, its 2 MNQ target earns USD 598/day and ends at USD 5,382 across nine sessions. At 5 MNQ total, its 3 MNQ target earns USD 897/day and ends at USD 8,073. Member 2 remains flat. |
+| Account outcomes | At 3 MNQ total, Evaluation first passes on day 6 and Funded first pays on day 7. At 5 MNQ total, Evaluation passes on day 4 and Funded first pays on day 5. Both Funded sizes complete the ladder and receive USD 13,000 in the modeled first year and lifetime. |
+| Rejected OOS attachment | Swapping the two OOS reports returns a parent mismatch and leaves Run disabled. |
+
+### Bridge comparison status
+
+The inspected v2.9.16 screens confirm portfolio and individual closed-trade
+curves with an OOS boundary, an Evaluation pass/breach size chart, and the
+Funded First year and Account life comparison. A matched export of Bridge's
+basket entries, priority/overlap rules, weight rounding, cost scaling, size
+preset formulas and lifetime cutoff remains unavailable. The new tab exposes
+the tested size range for manual inspection. It uses a documented local
+overlap rule and makes no preset, numerical, provider or live execution
+parity claim.
+
+### Prop Desk workspace layout — 2026-11-22
+
+Open **Prop Desk → Basket and size sweep**. **Strategies** lists saved runs
+and adds IS reports directly to **Portfolio**. The saved-backtest picker also
+supports paging and attaching an OOS child. Portfolio rows show the weight
+share and whole-MNQ target at the minimum size before launch. **Account**
+contains the Evaluation and Funded switch, profile, size range, source
+check, and Run. On desktop they are three columns. The form stacks on
+mobile.
+
+A saved basket puts allocation, historical equity, and the Funded payout
+timeline in the center. Account outcomes, rules, and the tested-size slider
+are beside them. The slider and exact-size selector change the same saved
+size and restore it on reload. Strategy links and downloads stay with the
+source list. On mobile the tested-size controls sit above Portfolio and
+Equity. Single-strategy simulation retains its own setup and result flow.
+
+Run the two existing browser journeys to reproduce the workspace. Their
+fixtures use ordinary saved synthetic backtests and check the original
+account outcomes and admitted-trade reconciliation. The basket journey
+also exercises direct card add, the phase switch, the keyboard size
+slider, and the mobile reopen.
+
+The labelled synthetic journey produced the
+[desktop setup](evidence/prop-desk-layout-v1/setup-desktop.png),
+[desktop Evaluation result](evidence/prop-desk-layout-v1/evaluation-desktop.png),
+and [reopened mobile Funded result](evidence/prop-desk-layout-v1/funded-mobile-reopened.png).
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket_browser.py tests/test_prop_desk_browser.py
+```
+
+### Prop Desk automatic source verification — 2026-11-22
+
+Use **Run simulation** directly from either setup. It first verifies the saved
+sources. A basket run inventories the observed sessions once, prepares the
+member trade books for the common windows, and hands that preparation to the
+existing worker. The worker rechecks dataset identity and bytes, saved report
+and trade seals, and the source policies. The size sweep consumes the same
+prepared windows and books. The existing numerical provenance and sealed
+report keys still apply. API clients can also submit directly or supply a
+fingerprint from the existing explicit check endpoint.
+
+Repeat the two-member replay above. Use **Run simulation** once for Evaluation
+with total sizes 3 through 5. At 390-pixel mobile width, return to setup,
+switch to Funded, enter 261 trading days and use **Run simulation** once.
+Inspect 5 MNQ and reload the saved result. Expect USD 8,073 final historical
+equity at 5 MNQ, USD 5,382 at 3 MNQ and a USD 13,000 mean first-year trader
+receipt for the 5 MNQ Funded paths in this synthetic example. Both submissions
+return a job ID without a client-supplied check fingerprint. With the OOS child
+attached to the wrong IS parent, Run displays the source error in setup and
+creates no job. Correct the attachment and run again.
+
+The API regression counts one observed-session inventory for a complete
+two-member sweep and verifies that a change to the queued dataset bytes or
+saved trade file prevents publication. One initial inventory still reads
+the source dataset. Each tested size still performs its account-path work
+and produces its own evidence.
+
+```sh
+aq_prop_desk_run_dir="$(mktemp -d /tmp/aq-prop-desk-run.XXXXXX)"
+.venv/bin/python -m pytest -q tests/test_prop_desk.py tests/test_prop_desk_basket.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_browser.py tests/test_prop_desk_basket_browser.py \
+  --basetemp "$aq_prop_desk_run_dir"
+find "$aq_prop_desk_run_dir" -name journey.json -print
+```
+
+The [basket journey manifest](evidence/prop-desk-one-click/journey.json)
+links the synthetic input to both runs. Inspect the
+[desktop setup](evidence/prop-desk-one-click/setup-desktop.png),
+[Evaluation launch](evidence/prop-desk-one-click/evaluation-launch.json),
+[Evaluation report ZIP](evidence/prop-desk-one-click/evaluation-analysis.zip),
+[Funded launch](evidence/prop-desk-one-click/funded-launch.json),
+[Funded report ZIP](evidence/prop-desk-one-click/funded-analysis.zip),
+[reopened mobile result](evidence/prop-desk-one-click/funded-mobile-reopened.png)
+and [rejected launch](evidence/prop-desk-one-click/rejected-source.json).
+
+## Prop Desk Milestone 3 — Combination Optimiser — 2026-11-22
+
+Open **Prop Desk → Optimize combinations**. Add saved IS strategies in the
+desired pool order. Set the member-count range and the total whole-MNQ range.
+The preview shows the number of subsets and combination-size pairs before
+launch. Each permitted subset is evaluated at each requested size. Each
+member retains its entered relative weight within the subset. Targets round
+down and zero targets remain visible. There is no weight search.
+
+The search accepts at most 48 pairs and 16,000 pair × observation trading
+days before applying the 1,000 paths per pair. At a 2,000-day cutoff the pair
+limit is eight. Reduce the pool, member range, or MNQ range to fit. The
+one-click launch builds one observed-session inventory, checks each member
+and prepares its trade book once. All candidate account calculations use
+the entire pool's common observed IS sessions. If a source fails admission,
+setup shows the error and creates no search. Successful searches include
+every pair in their declared ranges.
+
+Evaluation ranks the single-attempt pass probability. Funded ranks mean
+trader receipts through trading day 261 from a fresh account. Open accounts
+are counted separately at the selected cutoff. Within equal scores all rows
+share a competition rank. Their display order is smaller total MNQ, then
+member count and the order of subset indices in the pool. **Inspect** loads
+the existing sizing, equity, and account views for the row's combination.
+The sealed report saves the original pool, settings, source evidence, every
+row, path outcomes, equity and admitted trades. Reloading an inspection URL
+restores its combination and size.
+
+Each candidate uses the same path-indexed MT19937 streams over the same
+observed IS sessions. The saved seed for each path comes from the base seed
+42 and its zero-based index. Stopping one path early cannot shift the
+samples assigned to subsequent paths. The optimiser uses the existing
+shared-account allocation, overlap, cost and account rules throughout the
+search. Milestone 2 retains its original serial random stream and standalone
+one-member convention. A single-member optimiser row uses the same common
+observed-session model as the other rows. A varied history can therefore
+give different finite-path estimates in the standalone Milestone 2 sweep.
+
+OOS attachments affect the historical chart only. A combination shows its
+common OOS sessions when every member has a matching OOS child and those
+children overlap. The chart retains the IS weights, size and trade admission
+rule. The ranking and its saved digest are identical with or without a valid
+attachment. A child paired with the wrong IS parent rejects with a specific
+source error.
+
+### Reproduce and check the saved journey
+
+Upload the labelled synthetic CSV as NQ, UTC, tick size 0.25 and USD 20
+per point. Create three **Consecutive Green Hold** saved IS backtests.
+All use green-bar count 1, one contract, initial capital USD 10,000 and
+zero slippage. Use hold durations of 1, 2 and 3 minutes in that order.
+For strategy A set USD 1,500 commission per side. For strategies B and C
+set USD 5 per side. Declare January 5–14 2026 as IS and January 15 as OOS.
+Create each OOS child with the saved backtest's manual OOS action.
+[Synthetic input](evidence/prop-desk-optimizer-v1/SYNTHETIC-optimizer.csv)
+
+In **Optimize combinations**, add A, B, C in that order and keep equal
+weights. Set the minimum and maximum member counts to 2. Set total size
+from 2 to 3 MNQ. Attach B's OOS report to A, click **Run simulation** and
+expect a parent mismatch and no saved run. Attach each correct child instead.
+Use Apex 50K EOD. Run Evaluation at the 21-session expiry on desktop.
+Switch to a 390-pixel viewport, reopen setup via the Prop Desk mobile nav,
+switch to Funded and run with a 261-session cutoff. In both results inspect
+combination 3 at 3 MNQ, download its admitted trades, and reload.
+
+| Observation | Independently calculated expectation |
+| --- | --- |
+| Candidate count and sizing | AB, AC and BC each appear at 2 and 3 MNQ, making six rows. Both sizes target 1 MNQ per member. Size 3 has one unused contract. |
+| Simultaneous entries | All members signal at the same timestamp. The first member wins ties. A wins in AB and AC. B wins in BC. |
+| Costs and equity | A grosses USD 3,000 and pays USD 3,000 per NQ round trip, leaving zero net. B grosses USD 4,000 and pays USD 10, leaving USD 399 per admitted 1 MNQ. BC makes USD 3,192 in eight IS sessions and USD 399 in OOS, ending at USD 3,591 across nine admitted closed trades. |
+| Evaluation ranking | Both BC sizes reach USD 3,000 on day 8 and pass on all paths. Both are rank 1. AB and AC have zero pass and zero breach and expire on day 21. Their four rows share rank 3. |
+| Funded ranking | At USD 399 per day BC first clears the USD 3,600 request threshold on day 10 after satisfying five qualifying days. The six gross caps sum to USD 13,000, all paid in the first year. Both BC sizes rank 1. AB and AC have no payouts and share rank 3. |
+| OOS independence | Detach A's OOS child and run again. AB and AC show IS equity only. BC retains the same OOS segment. All ranked rows and the ranking digest are identical. |
+
+The API check compares BC against the Milestone 2 basket at both sizes and
+in both phases on the same eight IS dates. For this constant-session input
+the account paths at 3 MNQ also agree exactly. The focused kernel checks
+independently verify path-indexed outcomes on variable histories and compare
+Funded paths to the Milestone 2 owner at sizes below and above the opening
+tier on both profiles. The API check also counts one inventory and one book
+per saved source, and rejects an over-limit search before preparation.
+[Saved API comparison](evidence/prop-desk-optimizer-v1/api-comparison.json)
+
+```sh
+aq_prop_desk_optimizer_dir="$(mktemp -d /tmp/aq-prop-desk-optimizer.XXXXXX)"
+.venv/bin/python -m pytest -q tests/test_prop_desk_optimizer.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_optimizer_browser.py tests/test_prop_desk_basket_browser.py \
+  --basetemp "$aq_prop_desk_optimizer_dir"
+find "$aq_prop_desk_optimizer_dir" -name journey.json -print
+```
+
+Inspect the [journey manifest](evidence/prop-desk-optimizer-v1/journey.json),
+[desktop setup](evidence/prop-desk-optimizer-v1/setup-desktop.png),
+[desktop Evaluation ranking](evidence/prop-desk-optimizer-v1/evaluation-desktop.png),
+[reopened mobile Funded ranking](evidence/prop-desk-optimizer-v1/funded-mobile-reopened.png),
+[Evaluation ZIP](evidence/prop-desk-optimizer-v1/evaluation-analysis.zip),
+[Funded ZIP](evidence/prop-desk-optimizer-v1/funded-analysis.zip) and
+[rejected source response](evidence/prop-desk-optimizer-v1/rejected-source.json).
+The browser checks use temporary portals that stop at teardown.
+
+### Bridge comparison status
+
+The available Bridge settings capture includes a combination exclusion field
+and a separate fastest-to-funded Evaluation sizing setting. It records one
+strategy, so it cannot establish the optimiser's generated subsets, ranking
+objectives, tie handling, or matched multi-strategy account outcomes. The
+ranking and sampling rules above are AlphaQuest's versioned local rules.
+[Archived Bridge settings](../artifacts/lucid-metric-discrepancy-20261102/bridge-settings.txt)
+
+### Prop Desk optimiser subset ranking — 2026-11-22
+
+Live inspection of Bridge v2.9.16 showed 3, 7 and 15 combinations with 2, 3
+and 4 checked strategies and a minimum of one member. The optimiser describes
+Evaluation as ranking pass probability at the Optimal size. Its footer
+orders the candidates within one standard error of the best by fastest
+median time to pass. The Funded view labels the ranking **Payout rate**
+and offers **First year** and **Account life** as size rules. Funded Lab
+also offers first-year and lifetime sizing presets. The screens establish
+these workflow rules. Calculation, caching and numerical equality between
+the Funded Lab and Prop Desk presets remain unverified.
+[Bridge two-strategy preview](evidence/prop-desk-optimizer-v2/bridge-two-strategies.png) ·
+[Three-strategy preview and Evaluation ranking rules](evidence/prop-desk-optimizer-v2/bridge-three-strategies.png) ·
+[Bridge Funded Payout rate](evidence/prop-desk-optimizer-v2/bridge-funded-size-rule.png) ·
+[Funded Lab presets](evidence/prop-desk-optimizer-v2/bridge-funded-lab-presets.png)
+
+The portal now submits **Optimize combinations** to the versioned subset
+search at `POST /api/prop-desk/optimizer/subsets`. The minimum defaults
+to one and the maximum is the number of selected strategies. The preview
+shows the subset count and internal tested-pair count. Each subset has one
+selected size for ranking and retains its whole tested curve, paths, and
+admitted-trades downloads. Each included strategy must have a positive
+target for a size to be eligible for selection. A subset with no eligible
+size appears as unranked with a reason. The existing budget of 48 tested
+pairs and 16,000 pair × observation trading days still applies. The original
+pair-ranking API and previously sealed reports retain their original model.
+
+Evaluation selects the highest in-sample pass probability. It uses one
+binomial standard error around the highest selected pass probability to
+form the leading group, then orders that group by median trading days
+to pass. Funded first selects the size with the highest mean trader receipts
+through day 261 or through termination/cutoff, according to the preset.
+It then ranks by the probability of any payout at the selected size.
+The choice with the smaller tested total MNQ wins an exact size-score tie.
+For Account life, if any eligible size still has open paths, cash through
+cutoff is a lower bound and the size selection is labelled provisional.
+The exact Bridge allocation grid, tie details and provider/path arithmetic
+remain unverified. The local run uses its existing weighted, round-down
+allocator, local account profiles and common IS path draws. OOS still
+changes only the chart.
+
+Repeat the preceding synthetic replay with the minimum left at one. Add A
+and B and set total sizes 2 through 3 MNQ. The preview shows 3 subsets and
+6 tested pairs. Add C and expect 7 subsets and 14 tested pairs. Run Evaluation
+on desktop and Funded with **Account life** at 390 pixels wide. Attach the
+same OOS children and use Apex 50K EOD. The mismatched parent still rejects
+before a job is created.
+
+| Observation | Independent expectation |
+| --- | --- |
+| Subset search | A, B, C, AB, AC, BC and ABC each have one ranked row. ABC requires 3 MNQ because the 2-MNQ allocation has all zero targets. |
+| Evaluation | B and C each pass in 4 days at 2 MNQ. BC takes 8 days at 2 MNQ. All three have 100% pass and form the leading group. The other four pass 0%. |
+| Funded | B, C and BC each receive all six Apex payouts totalling USD 13,000 and rank together on 100% chance of any payout. The other four pay 0%. |
+| Inspection | BC ranks at 2 MNQ. Inspect it, move the size control to 3 MNQ, and reload. The report reopens at 3 MNQ while BC stays ranked at 2. Nine closed trades total USD 3,591. |
+| Different sizing and ranking objectives | The fast arithmetic check gives one subset USD 1,800 first-year cash at 50% payout probability and another USD 800 at 70%. The second subset ranks higher. The first subset selects a different size under Account life and its cutoff makes that choice provisional. |
+
+```sh
+aq_prop_desk_subset_dir="$(mktemp -d /tmp/aq-prop-desk-subsets.XXXXXX)"
+.venv/bin/python -m pytest -q tests/test_prop_desk_subset_optimizer.py tests/test_prop_desk_optimizer.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_optimizer_browser.py tests/test_prop_desk_basket_browser.py \
+  --basetemp "$aq_prop_desk_subset_dir"
+find "$aq_prop_desk_subset_dir" -name journey.json -print
+```
+
+The browser evidence includes setup, sealed Evaluation and Funded reports,
+the admitted trades, rejection response, and mobile reopen.
+[Synthetic journey manifest](evidence/prop-desk-optimizer-v2/journey.json) ·
+[Evaluation ZIP](evidence/prop-desk-optimizer-v2/evaluation-analysis.zip) ·
+[Funded ZIP](evidence/prop-desk-optimizer-v2/funded-analysis.zip)
+
+### Prop Desk Simulation and Optimise workspace — 2026-11-22
+
+Open **Prop Desk** to start in **Simulation**. Add strategies from the saved
+backtests list to **Portfolio**. Leave **Maximum total MNQ** blank to run
+at the minimum. Enter a maximum to inspect sizing and equity, including
+when the minimum and maximum are equal. While the minimum remains untouched,
+the minimum total MNQ follows the number of portfolio members. A single
+member with a blank maximum and no OOS child uses the fixed-size analysis. Multiple
+members, an explicit maximum, or an attached OOS child use the existing
+basket analysis. Source verification still runs on submission.
+
+Click **Optimise** beside **Equal weight** to open the search workspace.
+The first visit seeds the candidate pool from the portfolio. Editing that
+pool leaves the simulation portfolio intact. Use **← Simulation** to
+return and **← Optimise** from a search report to resume the search setup.
+Saved runs still open from their permanent links or the history list.
+
+The strategy cards identify saved OOS children that cannot be added as
+members. With an IS member in the portfolio, an OOS card shows **Attach
+to IS** and the short ID of its saved parent. Add that IS report, select the
+OOS child, and use **Attach OOS** on the matching member to extend the
+equity chart. An empty Simulation portfolio can still take a compatible
+OOS report as the sole fixed-size source. Optimise candidates use IS reports.
+The basket browser check verifies the card before adding the first member,
+its parent hint afterward, and the server rejection for a mismatched child.
+[Synthetic card example](evidence/prop-desk-workspace/oos-parent-hints.png)
+
+The browser checks use the labelled synthetic histories from the preceding
+sections. Add the rejected ES source and run once with a blank maximum.
+Expect the NQ/MNQ error and an empty job list. Remove it, add the NQ source,
+and use LucidFlex at 10 MNQ for Evaluation and 3 MNQ for Funded. The sealed
+fixed-size reports retain the median three-day pass and USD 9,000 in Funded
+receipts. Enter 10 MNQ in both fields for the single NQ source to open the
+historical equity chart at one tested size. Its eight closed trades total
+USD 24,000. Build the two-member Apex basket directly in Simulation and
+inspect 3 and 5 MNQ. Its final equity is USD 5,382 and USD 8,073 respectively.
+Then open Optimise with one portfolio member and add the other two synthetic
+members in the search workspace. Return to Simulation and verify that only
+the original portfolio member remains. Set 2–3 MNQ in Optimise and confirm
+seven ranked rows from 14 tested pairs, with the selected size preserved
+when reopening the report at mobile width.
+
+```sh
+aq_prop_desk_workspace_dir="$(mktemp -d /tmp/aq-prop-desk-workspace.XXXXXX)"
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_browser.py tests/test_prop_desk_basket_browser.py \
+  tests/test_prop_desk_optimizer_browser.py --basetemp "$aq_prop_desk_workspace_dir"
+find "$aq_prop_desk_workspace_dir" -name journey.json -print
+```
+
+[Desktop Simulation](evidence/prop-desk-workspace/simulation-desktop.png) ·
+[Desktop two-member portfolio](evidence/prop-desk-workspace/portfolio-desktop.png) ·
+[Mobile Optimise](evidence/prop-desk-workspace/optimise-mobile.png) ·
+[Saved run evidence](evidence/prop-desk-workspace/journey.json)
+
+### Prop Desk strategy selection with linked OOS — 2026-11-22
+
+In **Simulation** or **Optimise**, choose the saved strategy once or add it
+with **+**. The picker lists the strategy's base report and shows **OOS
+linked** when a saved out-of-sample child is available. The catalogue uses
+the newest child with the exact IS parent, dataset, split, strategy settings
+and costs. If a newer child fails those checks, it uses the newest compatible
+child. The selection uses saved metadata and never reads OOS performance.
+The linked report is visible under the portfolio member. Source verification
+still checks the selected reports and their saved evidence on Run.
+
+**Include linked OOS equity** defaults on. In Simulation, a portfolio whose
+members do not all have matching OOS uses the common IS equity window.
+In Optimise, each combination with a complete compatible OOS history can
+show that portion of its chart. Size selection and ranking use IS in every
+case. The individual IS and OOS reports remain available under Backtests.
+
+To reproduce, create the synthetic basket or optimiser backtests in the
+preceding sections, including their saved OOS children. Open Prop Desk,
+add only the base strategies, and run the same sizes and profile. The
+two-member basket lists two strategies, links both OOS children, and
+shows the January 15 OOS chart without a second selection. At 5 MNQ its
+nine admitted trades total USD 8,073. The three-member search still
+shows seven ranked subsets from 14 tested pairs and the same OOS chart
+under inspection. An IS-only fixed-size source remains selectable.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_basket.py -k strategy_catalogue
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket_browser.py tests/test_prop_desk_optimizer_browser.py \
+  tests/test_prop_desk_browser.py
+```
+
+[Combined strategy picker](evidence/prop-desk-linked-strategies/simulation-desktop.png) ·
+[Mobile Optimise](evidence/prop-desk-linked-strategies/optimise-mobile.png) ·
+[Saved evidence](evidence/prop-desk-linked-strategies/journey.json)
+
+### Verified session inventory reuse — 2026-11-22
+
+The dataset catalogue now retains one checksummed inventory per dataset
+version. The ordinary backtest source check publishes it while verifying
+observed sessions. Existing datasets can also be warmed once through the
+same inventory reader. Prop Desk uses it for basket and Optimise source
+preparation. It preserves observed session labels, first and last UTC
+bars, row counts and content hashes for sessions with and without strategy
+trades. Missing sessions are still excluded.
+
+The key binds the dataset identity, interpretation, reader and time-zone
+rules. A warm lookup checks the saved inventory and the backing CSV bytes
+and continues to use the existing tick-source checks where applicable.
+A missing or corrupt inventory rebuilds from the verified source. A changed
+source rejects. The table is derived dataset metadata and is deleted with
+its dataset. The per-strategy trade and risk files and their source checks
+continue to supply each run.
+
+On the running portal, the one-time backfill of **ofb_bars_NQ** parsed
+3,210,351 bars in 124.253 seconds and saved 2,360 observed sessions.
+A fresh store reopened the exact inventory in 0.246 seconds. After the
+portal refresh, the existing two-strategy report reopened and its saved
+IS/OOS windows matched the warm check. The five live preflights covered
+the same basket twice, a different tested size, a different strategy mix,
+and a different account profile. All were compatible in 0.310–0.469
+seconds. The checks include saved trade and risk file verification and
+end before account simulation. Reproduce them with the saved report's
+`configuration` posted to `/api/prop-desk/basket/check`, varying one
+field or narrowing the member list as above.
+[Local preflight measurements](evidence/prop-desk-session-inventory/local-preflight.json)
+
+Repeat the two-member saved-backtest journey above. Each member appears
+once and links its saved OOS. Run the Apex basket at 3–5 MNQ and inspect
+5 MNQ. The equity chart still shows the January 15 OOS segment and USD
+8,073 across nine admitted trades. Change the tested sizes or run the
+same dataset with a different strategy mix or profile. The focused API
+checks forbid a full inventory bar parse after the normal backtests have
+prepared the dataset. The inventory tests check persistence across store
+reopen, coalescing parallel first access, cache recovery, and changed-byte
+rejection.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_research_folds.py -k 'inventory or normal_readers'
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_basket.py tests/test_prop_desk_optimizer.py tests/test_prop_desk_basket_browser.py
+```
+
+[Saved synthetic run manifest](evidence/prop-desk-session-inventory/journey.json)
+
+## Bridge Prop Desk v2.9.16 strategy diagnostics — 2026-11-22
+
+Reviewed the existing Bridge demo in the running Parallels Windows session.
+The demo calls each strategy's held-out trades “live.” The diagnostic split
+is the individual strategy's went-live date. The Simulation account panels
+and the Optimise shared-history search show their own split and date coverage.
+[Screenshots and transcribed observations](evidence/bridge-strategy-diagnostics-v2-9-16/README.md)
+
+### Strategy detail
+
+1. Open **Prop Desk → Simulation**. Keep **Relative Strength** in the Portfolio
+   at 100% and use **Funded → Lucid Flex → 50K → First year**. Wait for the
+   size and results to settle. In this session Bridge picked 2 MNQ.
+2. Click the diagonal arrow on the Relative Strength card under **Strategies**.
+   **Live against the Monte Carlo** opens at **1 MNQ**, net of $1.70 a trade.
+   **Whole history** shows the backtest and then the live curve with the cone
+   anchored at the went-live boundary. **Since going live** isolates that
+   latter segment and shows the terminal values on the same net-dollar basis.
+3. Scroll down to **Drawdown since the last high** and **Drawdown matrix**.
+   Observe the 10, 20, 30, 50 and 100 trade horizons. Click **Sum** to switch
+   to the rolling net P&L comparison. Scroll to the bottom for **Status now**,
+   **Live against the backtest**, and **Status changes**.
+   [Whole history](evidence/bridge-strategy-diagnostics-v2-9-16/strategy-open-now.png) ·
+   [Since going live](evidence/bridge-strategy-diagnostics-v2-9-16/relative-strength-since-live.png) ·
+   [Drawdown](evidence/bridge-strategy-diagnostics-v2-9-16/relative-drawdown-matrix.png) ·
+   [Sum](evidence/bridge-strategy-diagnostics-v2-9-16/relative-sum-matrix.png) ·
+   [Status and recovery](evidence/bridge-strategy-diagnostics-v2-9-16/relative-detail-status.png)
+
+**Cone.** Bridge labels the source as Relative Strength's 869 backtest trades
+from 2017-01-10 through 2023-12-05. It shows 2,000 simulated paths and compares
+their endpoints at the current live trade count. The demo overlay spans 440
+held-out trades from 2023-12-06 through 2026-11-19. The legend shows the median,
+a band containing half the paths, and a band containing nine in ten. The end
+labels give the 5th, median and 95th values as $1,569, $8,402 and $15,583.
+The live result is $20,180 at a displayed 100th percentile. The outer band
+is consistent with a central 5th–95th interval. The inner 25th–75th cutoffs
+are inferred from the legend rather than explicitly labelled.
+
+**Drawdown.** The history is drawdown from the last high, displayed in USD
+and updated after each live trade. The matrix compares the same current
+drawdown against the deepest drawdown in 10,000 simulated sequences of
+each length, drawn from all 440 OOS trades. Its percentile is the share
+of simulated drawdowns smaller in magnitude. Here the current drawdown
+was −$669 at the 48th percentile for 10 trades and below the first
+percentile for 100. The **Sum** matrix compares the net P&L of the last
+N live trades with simulated terminal net P&L over N trades. Its percentile
+is the share of simulations with a smaller sum.
+
+**Recovery.** Warning and Critical use the 95th-percentile drawdown at 10
+and 100 trades, respectively. Here those levels were −$1,637 and −$4,258.
+Bridge says Critical eases to Warning when half is won back and a new high
+clears Warning. The status strip shows per-trade status, time in each status,
+and transitions. The screen calls this an advisory status and leaves
+execution decisions with the user.
+
+### Change size, phase or strategy
+
+4. Return with **‹ Simulation**. Drag the Funded size slider until Relative
+   Strength shows 7 MNQ and **Your own size**. Chance of a payout moves from
+   42.4% at 2 MNQ to 22.0% at 7 MNQ in this session. Reopen the arrow.
+   The diagnostic still shows 1 MNQ, 869 backtest trades, 440 live trades,
+   +$20,180 live, $8,402 median and −$669 current drawdown.
+   [Manual Funded size](evidence/bridge-strategy-diagnostics-v2-9-16/single-fund-manual.png) ·
+   [Same strategy detail](evidence/bridge-strategy-diagnostics-v2-9-16/single-detail-after-size.png)
+5. Switch **Simulation** to **Evaluation → Lucid Flex → 50K → 30 days**.
+   Relative Strength alone shows 5 MNQ at **Optimal**. Add **Twin Continuation**
+   using the plus on its card. With equal weights the tested portfolio picks
+   3 MNQ Relative Strength and 4 MNQ Twin. The Simulation equity is the
+   closed-trade historical portfolio at those quantities, with an OOS region.
+   [Single Evaluation](evidence/bridge-strategy-diagnostics-v2-9-16/single-evaluation.png) ·
+   [Two-strategy Evaluation](evidence/bridge-strategy-diagnostics-v2-9-16/two-evaluation.png)
+6. Open each card's arrow from the two-member basket. Relative Strength keeps
+   the same values and trade pools as in step 4. Twin Continuation opens its
+   own detail at 1 MNQ, using 867 backtest trades (2017-01-05 through
+   2023-12-04) and 364 held-out trades (2023-12-05 through 2026-11-19).
+   Twin shows live net +$23,055, simulated 5th/median/95th values of
+   $2,024/$6,982/$11,813, and current equity on a high. The two strategy
+   details have different split dates even though the basket has one OOS
+   start. The history is attributable to the strategy card's own trades.
+   [Relative Strength in the basket](evidence/bridge-strategy-diagnostics-v2-9-16/two-evaluation-relative.png) ·
+   [Twin Continuation in the basket](evidence/bridge-strategy-diagnostics-v2-9-16/two-evaluation-twin.png)
+7. Return to Simulation and switch to **Funded**. Bridge retains the manual
+   Funded sizing setting and shows 7 MNQ each for this basket.
+   [Two-strategy Funded](evidence/bridge-strategy-diagnostics-v2-9-16/two-funded.png)
+   Twin's strategy detail continues to show the same 1 MNQ, split,
+   364-trade horizon and cone values as in Evaluation.
+   [Twin after switching to Funded](evidence/bridge-strategy-diagnostics-v2-9-16/two-funded-twin.png)
+
+### Optimise and Luck Alone
+
+8. From **Simulation**, click **Optimise**. Select **Pass rate → Lucid Flex
+   → 50K → 30 days**. Select only **Relative Strength**, leave **At least**
+   at 1, and click **Run**. One combination appears. The first row shows
+   5 MNQ, 23.7% in-sample pass and 21.7% out-of-sample pass. Above the
+   rows, **Luck alone** shows 16% pass with no edge, +5 points to row
+   1's OOS result, and 16 zero-edge copies with rates spanning 11%–21%.
+   **Load** returns to Simulation with the one-member portfolio.
+   [Single-strategy baseline](evidence/bridge-strategy-diagnostics-v2-9-16/single-opt-eval.png) ·
+   [Loaded single strategy](evidence/bridge-strategy-diagnostics-v2-9-16/single-opt-loaded.png)
+9. Reopen **Optimise**, also tick **Twin Continuation**, keep the other
+   settings, and run again. Three subsets appear. The winner on the shared
+   search days is Twin at 11 MNQ with 30.3% IS and 26.4% OOS. Luck Alone
+   switches its reference to Twin, with 11% pass, a +15-point gap,
+   and 16 copies spanning 8%–14%. The two-member row is second.
+   [Two-strategy baseline](evidence/bridge-strategy-diagnostics-v2-9-16/two-opt-eval.png)
+   Load the Twin row. On its own dates starting 2017-01-05, Simulation
+   reselects 8 MNQ and shows 30.6% IS and 30.9% OOS, as previewed on
+   the search row. The strategy arrow still leads to the strategy's own
+   diagnostics. Loading an Optimise row therefore need not carry that
+   row's shared-history sizing into Simulation.
+   [Loaded Twin on its own dates](evidence/bridge-strategy-diagnostics-v2-9-16/two-opt-loaded-twin.png)
+10. In **Optimise**, select **Payout rate → Lucid Flex → 50K → First year**,
+    tick the same two strategies, leave **At least** at 1, and run. Twin
+    ranks first at 3 MNQ. Its OOS first-year payout rate is 52.9% and its
+    OOS first-year dollars paid out are $3,565. Luck Alone displays a 16%
+    chance of a payout in year 1 from the 16 zero-edge copies of Twin,
+    a +37-point gap, and a 12%–22% range. The headline compares payout
+    probability. The cash figure is a separate result column.
+    [Funded first-year comparison](evidence/bridge-strategy-diagnostics-v2-9-16/two-opt-funded.png)
+11. Increase **At least** to 2 and rerun Funded. The pair becomes the only
+    row at 2 MNQ per strategy with 44.5% OOS. The headline now identifies
+    16 copies of **Rel Strength + Twin**, shows 16% for a year-one payout,
+    a +29-point gap and a 10%–23% range. **Load** returns to Funded
+    Simulation at 2 MNQ per strategy and 44.5% OOS. The Relative Strength
+    card still opens the same 1-MNQ strategy detail with the same cone
+    and current drawdown.
+    [Funded with the pair forced into row one](evidence/bridge-strategy-diagnostics-v2-9-16/pair-only-funded.png) ·
+    [Loaded pair](evidence/bridge-strategy-diagnostics-v2-9-16/pair-only-loaded.png) ·
+    [Strategy detail after Load](evidence/bridge-strategy-diagnostics-v2-9-16/pair-loaded-detail.png)
+
+Bridge's footer describes each trade result being redrawn from its own
+strategy's results after subtracting that strategy's average. Each copy uses
+the row sizing procedure. The baseline follows the winning subset and the
+chosen account phase, profile and horizon. The headline shows the zero-edge
+account success rate and the percentage-point difference from row one's OOS
+rate. The copy range is reported separately. In an earlier capture of the
+same version with **Account life**, the headline says “get a payout” with
+no year-1 qualifier, consistent with the chosen horizon. The observed screen
+also says that sorting uses in-sample outcomes and warns that choosing
+strategies by their status can flatter the OOS comparison because the status
+uses those held-out trades.
+[Archived Account life capture](evidence/bridge-strategy-diagnostics-v2-9-16/archive-optimise-funded-results.png)
+
+### Rules still unresolved
+
+| Area | Rule still unverified |
+| --- | --- |
+| Cone sampling | Sampling with replacement versus blocks or another sequence rule, any block length, seed, RNG and whether the observed live span is capped or extrapolated when history is short. |
+| Cone bands | Exact inner-band quantiles, pointwise versus whole-path band construction, empirical quantile interpolation and endpoint tie handling. |
+| Drawdown and Sum sampling | Replacement, serial dependence or blocks, seed, whether both matrices share the same draws, and the handling of short OOS histories and percentile ties. |
+| Drawdown basis | The display updates after every trade. The treatment of intratrade excursions, consecutive exits at the same timestamp, and whether the last backtest peak carries into the live segment remain unverified. |
+| Recovery | The help explains half recovery and a new high. It leaves the exact recovery anchor, threshold equality and initial state at the split unresolved. |
+| Luck Alone source and timing | The strategy-level mean subtraction and redraw are visible. The exact trade pool and date window used to estimate the mean, whether costs are subtracted before centring, redraw replacement and block rules, retention of trade times, sessions and overlaps, and cross-strategy dependence remain unresolved. |
+| Luck Alone sizing and aggregation | The footer identifies the row sizing procedure. It leaves the fixed-size versus reselected-size treatment per copy, which samples select size and measure the null rate, account-path count and seed, and whether the headline is a mean, median or pooled rate unresolved. The range endpoints and any statistical calibration remain unverified. |
+
+The inspected views exposed no native export for the trade pools, random
+draws or diagnostic settings. The evidence folder contains the original
+screen captures and CSV transcriptions of displayed values. This establishes
+the workflow and metric meanings above. Exact numerical replication still
+requires the underlying input and sampling rules.
+
+The live desktop returned to the original four-member **Lucid Flex 50K
+Funded → First year** Simulation. The same weights (57%/14%/14%/14%),
+allocation (1 MNQ each), and headline (57.9% chance of a payout) are visible.
+The Optimise inputs were restored. Its in-memory result preview reflects
+the inspection runs. The VM stayed running and saved reports were left alone.
+[Starting screen](evidence/bridge-strategy-diagnostics-v2-9-16/start.png) ·
+[Restored screen](evidence/bridge-strategy-diagnostics-v2-9-16/restored.png)
+
+## Prop Desk Milestone 4 — Strategy Diagnostics — 2026-11-22
+
+Open a saved **Simulation** and choose a tested total MNQ. For an **Optimise**
+result, use **Inspect** on a row and choose a tested size in its inspection.
+Under **Strategy diagnostics**, select a member and click **Run strategy
+diagnostics**. The allocation shown is drawn from the selected row of that
+sealed parent. A zero allocation prompts for a larger tested size or another
+member. The same workflow supports a single fixed-size Simulation with a
+declared IS source.
+
+The result opens within Prop Desk. It shows the dates, source, selected member,
+weight, total tested MNQ and member MNQ. Use **Whole history** and **Since OOS
+started** to inspect the cone. In **Drawdown and rolling sum**, switch between
+**Drawdown** and **Sum**. The return link restores the parent row and tested
+size. Reopen the same report from **Prop Desk → Saved runs**, **Job history**,
+or its permanent URL. The report JSON, strategy-trade CSV, diagnostic values
+JSON and evidence ZIP are available from the sealed result.
+
+### Local model and Bridge comparison
+
+- The diagnostic input is the **selected strategy's standalone saved closed
+  trades**, on its own complete observed sessions within the saved IS and
+  linked OOS declarations. Bridge uses 1 MNQ. AlphaQuest uses the allocation
+  from the inspected parent and freezes it across both periods. Saved net P&L,
+  commission and slippage scale by target MNQ divided by the original trade
+  quantity in MNQ equivalents. Net P&L already includes both costs.
+- The 2,000-path cone samples individual IS net trade results independently
+  with replacement. It uses PCG64 seed 42 and pointwise linear 5th, 25th, 50th,
+  75th and 95th percentiles. With OOS present it anchors at the IS close,
+  runs for the observed OOS trade count, and reports the share of endpoints
+  strictly below actual OOS net P&L. With IS alone it draws an illustrative
+  projection of the same length as the IS trade sequence. It retains all
+  simulated steps and saves up to 801 chart points, including the endpoint.
+- Historical drawdown is signed USD from the running peak, beginning at zero
+  and carrying the peak across the split. It updates after each trade closes.
+  Recovery occurs at or above the previous peak. An open episode ends its
+  reported duration at the last observed trade with a blank recovery index.
+  The JSON retains the full historical equity, drawdown and episode series.
+- The Drawdown and Sum matrix uses 10,000 OOS draws at seed 43, over 10, 20, 30,
+  50 and 100 trade horizons. It compares the last observed depth with simulated
+  maximum depth and the last N OOS trades' net P&L with simulated sums. It shows
+  the 5th, median and 95th values and strictly smaller simulated outcomes.
+  Less than two OOS trades suppress the matrix. A sum comparison is absent
+  when fewer than N OOS trades were observed. The Warning and Critical lines
+  are reference depths from the 95th percentile at 10 and 100 trades.
+- The reference establishes the display and source pools. Exact draws, seeds,
+  quantile interpolation, drawdown recovery state rules and numerical parity
+  remain unverified. Luck Alone remains unavailable pending the verified
+  centring window, copy construction and timing, size choice per copy, and
+  headline aggregation. See the [Bridge inspection](#bridge-prop-desk-v2916-strategy-diagnostics--2026-11-22).
+
+The diagnostic uses its own `prop-desk-diagnostics-v1` identity with the
+parent report SHA-256, selected configuration, model, observed session windows
+and prepared ledger digest. It reuses the source verification and dataset
+inventory, and publishes through the existing AnalysisStore worker and seal.
+OOS is read for the diagnostics and never submitted to sizing or ranking.
+
+### Synthetic reproduction and independent checks
+
+1. Upload `SYNTHETIC-diagnostics.csv` as UTC NQ, $20 per point and a 0.25
+   tick. Use **Consecutive Green Hold**, green bar count 1, one contract,
+   hold durations 1 and 2 minutes, $5 commission per side and zero slippage.
+   Use the saved IS window 2026-01-05 through 2026-01-12 and the OOS window
+   2026-01-13 through 2026-01-26. Save the two IS trials from a grid with
+   automatic prop disabled. Run each saved trial's linked OOS report.
+2. In Prop Desk, add the 1-minute member first and the 2-minute member
+   second with equal weights. Use Apex 50K EOD Evaluation and a 2–4 MNQ
+   total range. At 2 MNQ, inspect the 1-minute member. At 4 MNQ switch
+   the strategy selector to the 2-minute member and run again.
+3. In the mobile nav, open **Prop Desk → Optimise** using the same pool
+   and total size range, and require at least two strategies. Inspect the
+   combination, choose 2 MNQ, then switch to 4 MNQ and run the 1-minute
+   member's diagnosis.
+   Reload the page and return to the parent. The sealed diagnosis remains
+   at 2 MNQ for that member and restores the 4-MNQ parent inspection.
+4. For the 1-minute strategy at 1 MNQ the six IS net outcomes are
+   [500, −300, 400, −400, 100, −300]. The ten OOS outcomes are
+   [800, −200, −100, 200, −500, 200, −200, 100, −100, −100].
+   Net equity is $100, with recoveries on trades 3 and 7 and an open
+   drawdown of $700 at trade 16. At 2 MNQ both equity and drawdown dollars
+   double. The second member adds $400 per trade per MNQ for a final
+   $13,000 at 2 MNQ. The basket ledger at that size admits the first member
+   only and ends at $200. That independently distinguishes standalone from
+   shared-account evidence, and each trade's included commission is $1/MNQ.
+5. The four fixed two-trade test paths from values +5 and −3 finish
+   at [10, 2, 2, −6]. Their linear endpoint percentiles are
+   [−4.8, 0, 2, 4, 8.8]. A realized result of +2 ranks at 25% under
+   the strict basis. The matrix test computes projected sums and maximum
+   peak-to-trough depths independently from the sampled path prefixes.
+6. POST an untested 5-MNQ size to the diagnostics endpoint and expect 422.
+   A changed saved trade file rejects even when there is a canonical existing
+   result. Changing a diagnostic artifact causes its sealed report to reject
+   on reopen. An identical request reopens the same result. Removing the OOS links
+   leaves the Optimise ranking hash unchanged and yields an IS-only projection
+   and no OOS matrix. The warm source check has the full inventory parser
+   disabled for the browser and API inspection steps.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_diagnostics.py \
+  tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_basket.py::test_funded_member_target_respects_opening_tiers_and_censoring
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_diagnostics_browser.py
+```
+
+[Synthetic dataset](evidence/prop-desk-diagnostics-v1/SYNTHETIC-diagnostics.csv) ·
+[Saved evidence and launch requests](evidence/prop-desk-diagnostics-v1/journey.json) ·
+[Desktop cone and Sum](evidence/prop-desk-diagnostics-v1/simulation-2-desktop.png) ·
+[Reopened mobile Optimise diagnosis](evidence/prop-desk-diagnostics-v1/optimise-mobile-reopened.png) ·
+[Mobile evidence ZIP](evidence/prop-desk-diagnostics-v1/optimise-mobile-analysis.zip) ·
+[Unchanged ranking](evidence/prop-desk-diagnostics-v1/saved-rankings.json)
+
+The live portal was refreshed with zero active jobs. On the existing sealed
+two-strategy basket, the selected 2-MNQ size allocated 1 MNQ to the inspected
+member. The live diagnostic showed both charts about 1.27 seconds after Run.
+Its 1,006-trade ledger independently reconciled to the saved net P&L and
+maximum drawdown. The same report reopened on mobile.
+[Live verification](evidence/prop-desk-diagnostics-v1/live-verification.json)
+
+## Bridge Prop Desk Luck Alone verification — 2026-11-22
+
+**Verdict.** Bridge v2.9.16 establishes the Luck Alone workflow and displayed
+outcomes. The available evidence still leaves material choices in the null
+model, sizing and aggregation unresolved. Milestone 5 cannot implement Luck
+Alone as a verified Bridge match from this evidence. Keep the current
+unavailable state pending a matched reference with copy-level inputs and
+outputs or a version-specific calculation specification.
+
+### Reproduce the controlled comparisons
+
+Use the existing Bridge demo and open **Prop Desk → Simulation → Optimise**.
+Use **Lucid Flex → 50K** throughout. Run after each settings change and read
+the ranked result in Optimise. Every Relative Strength/Twin comparison below
+showed common history **2017-01-10 through 2026-11-19**. Optimise shows the
+outer dates, and the exact IS/OOS split and trade membership per copy were
+unavailable. **Load** is unnecessary for these comparisons. It can use a
+subset's longer history and select a different size.
+
+1. Select **Pass rate**, tick only **Relative Strength**, set **At least** to 1,
+   and select **30 days**. Click **Run** twice without editing the controls.
+   Both results displayed 5 MNQ, 23.7% IS and 21.7% OOS pass. Luck Alone showed
+   16% pass, +5 points, and an 11%–21% range across 16 copies. Switch to **60
+   days** and rerun. The row changed to 3 MNQ and 35.7% OOS. The headline
+   became 22%, +14 points, and a 14%–31% range. The horizon changed alongside
+   the ranked allocation.
+   [First 30-day run](evidence/bridge-luck-alone-v2-9-16/single-30-a.png) ·
+   [Repeat](evidence/bridge-luck-alone-v2-9-16/single-30-b.png) ·
+   [60 days](evidence/bridge-luck-alone-v2-9-16/single-60.png)
+2. Set **30 days**, tick **Relative Strength** and **Twin Continuation**,
+   and set **At least** to 2. Run. The only ranked row is the pair at 3+4 MNQ.
+   Its OOS rate is 29.9%. Luck Alone shows 16% pass, +14 points, and
+   10%–25% for 16 copies of the pair. With the same two candidates and
+   **At least** 1, Twin alone wins at 11 MNQ and Luck Alone follows Twin.
+   [Pair as row one](evidence/bridge-luck-alone-v2-9-16/pair-eval-30.png) ·
+   [All three subsets](evidence/bridge-luck-alone-v2-9-16/eval-two-candidates.png)
+3. Keep both strategies and **At least** 2. Switch to **Payout rate** and
+   run **First year**, then **Account life**. First year picks 2+2 MNQ with
+   44.5% OOS, $2,893 paid out in the result column, a 16% no-edge rate,
+   and a 10%–23% range. Account life picks 1+1 MNQ with 75.7% OOS, $5,981
+   paid out, a 15% no-edge rate, and a 10%–25% range. The headline gap
+   changes from +29 to +60 points. The First year headline specifies
+   a payout in year 1. Account life labels it a payout with no year-1
+   qualifier. The different allocations prevent isolating the horizon
+   effect in this pair.
+   [Pair First year](evidence/bridge-luck-alone-v2-9-16/pair-first.png) ·
+   [Pair Account life](evidence/bridge-luck-alone-v2-9-16/pair-life.png)
+4. For the single-strategy Funded check, untick Twin Continuation, set
+   **At least** back to 1, and run both Funded presets again. Relative
+   Strength selects 2 MNQ in First year and 1 MNQ in Account life. The
+   headlines both round to 19%, with different ranges (14%–23% and
+   11%–29%) and OOS rates (42.4% and 67.9%). Equal displayed headline
+   rates can coexist with different displayed copy ranges.
+   [Single First year](evidence/bridge-luck-alone-v2-9-16/single-first.png) ·
+   [Single Account life](evidence/bridge-luck-alone-v2-9-16/single-life.png)
+5. Keep **Payout rate**, **Lucid Flex 50K**, and **At least** 1. Untick
+   Relative Strength and tick **VWAP Pullback ADX**. Run **First year** and
+   **Account life**. Both use the displayed common history 2017-01-05
+   through 2026-11-12. The ranked row remains at 10 MNQ with 21.3% IS,
+   21.1% OOS, 95.1% blown, and first payout on day 18. Luck Alone shows
+   14% in First year and 13% in Account life, both with 16 copies and a
+   10%–18% displayed range. The displayed gap rises from +7 to +8 points.
+   Repeat both presets. The same rates and ranges appear again.
+   [Matched First year](evidence/bridge-luck-alone-v2-9-16/vwap-first.png) ·
+   [Matched Account life](evidence/bridge-luck-alone-v2-9-16/vwap-life.png) ·
+   [First year repeat](evidence/bridge-luck-alone-v2-9-16/vwap-first-repeat.png) ·
+   [Account life repeat](evidence/bridge-luck-alone-v2-9-16/vwap-life-repeat.png)
+
+[Inputs and outputs transcribed from the live screens](evidence/bridge-luck-alone-v2-9-16/observations.csv)
+
+### What the new comparisons establish
+
+- **Funded presets can change the null headline at the same ranked size.**
+  On one fixed bank of funded paths, an account with a year-one payout
+  would also count under an inclusive lifetime horizon. If the same paths,
+  null allocations, denominators, and aggregation were retained, merely
+  extending observation could not lower the rate. The matched VWAP result
+  rules out that combined explanation. It leaves open preset-dependent
+  copy sizing, copy generation or RNG streams, horizon-dependent
+  censoring, or a different definition/aggregation under the presets.
+- **Displayed precision matters.** Relative Strength's 30-day screen
+  shows 21.7% OOS and 16% Luck Alone, with a +5-point gap. The First year
+  Relative Strength screen shows 42.4%, 19%, and +24 points. Subtracting
+  the displayed rates and rounding to the nearest integer would give +6
+  and +23. The gap is consistent with using greater internal precision.
+  The exact rounding and ties remain unverified.
+- **What counts as success is visible at the headline level.** Evaluation
+  uses pass under the selected simulated window. The matched 30-day
+  Simulation display reports a separate 4.4% timeout for Relative
+  Strength, with 21.7% pass and 73.9% breach. That supports the real-row
+  interpretation. It does not expose the null-copy denominator. Funded
+  First year counts getting a payout in year 1 and Account life labels
+  the outcome as getting a payout. Both report rates rather than cash
+  in the headline. The lifetime stop guard remains undisclosed.
+  [Evaluation cutoff display from the prior inspection](evidence/bridge-strategy-diagnostics-v2-9-16/single-evaluation.png)
+- **Repeatability is visible at the displayed precision.** Repeated
+  inputs returned the same 30-day and VWAP preset summaries. Fixed
+  seeds, deterministic regenerated streams, and result reuse are
+  compatible with this result.
+
+### Rules still unresolved and the evidence needed
+
+| Rule | Alternatives still compatible with the evidence | Evidence that would distinguish them |
+| --- | --- | --- |
+| Centring and redraw source | The footer says trade results are redrawn from their own strategy after subtracting its average. The centre and pool could use IS only, OOS only, all saved trades, or trades restricted to the shared search dates. They could use different windows. Gross centring followed by execution costs, and centring already-net results, produce different null means. | A version-specific specification or a labelled input export with strategy, trade ID, shared date, split, gross P&L, commission and slippage, plus the actual source windows and centred values. A controlled test changing only costs or the OOS mean would further distinguish these cases. |
+| Draw unit and dependence | The trade-level language leaves open independent draws with replacement, a permutation, or blocks. The UI leaves open whether original slots, timestamps, flat days and overlaps are retained, and whether the two members share dates/draws or randomise separately. | At least one null copy with source and destination trade IDs, timestamps, day membership, execution order and rejected overlaps. A small paired fixture with known co-timed trades, empty sessions and a distinctive serial pattern can separate these rules. |
+| Per-copy size and selection | Using row one's allocation, selecting a size for each copy, or reusing one baseline allocation for all copies remain possible. IS selection and held-out evaluation, as well as other window use, remain indistinguishable. The real-row sizing rule and match at 10 MNQ do not establish the null allocation. | Each copy's size or candidate grid, source windows used to score and select, objective, ties and final scoring allocation. A trace where the observed optimum and null optimum differ would identify whether a size is actually reselected. |
+| Headline, range, and rounding | Mean, median, pooled successes, and other representative summaries fit the rounded headline. Min/max and other limits fit the reported bounds. Mean and pooled rate coincide when every denominator is equal. The formatting does not expose decimals or ties. | All 16 raw success counts and denominators with unrounded computed headline and range. Unequal denominators or a specification are needed to distinguish pooling from an equal-weight mean when their values coincide. Rounding boundary cases would establish display rules. |
+| Seed and account-path count | Sixteen identifies synthetic copies. It leaves open the account paths per copy, separate seed stages, and reuse of paths across presets. The visible 10,000 runs belongs to the Simulation view. The archived Funded Lab settings belong to another model. | The Optimise Luck Alone configuration or a per-copy export with seed/RNG, path count and stable IDs through both presets. |
+| First-year and lifetime endpoints and censoring | First year could use a fixed trading-day count or another clock. Account life could terminate at payout ladder completion, breach or inactivity with or without an additional computational guard. Open no-payout paths may stay in the denominator, be excluded, or be handled explicitly as censored. An open account with an earlier payout may already count. The row's blown percentage can overlap with a payout and does not identify censoring. | A rule or matched path ledger with separate payout date, observation clock, provider terminal reason, computational cutoff, and inclusion flags. Include an open path with no payout, one with an early payout, and one with a first payout after year one. For Evaluation, include a timed-out path and its denominator contribution. |
+
+The inspected Optimise controls, result header, and footer exposed the
+summaries and subset settings. No copy-level download or controllable
+cost/split input for these demo histories was visible. The existing
+Funded Lab settings cannot supply the missing Optimise rules. A public
+documentation search yielded no version-specific Luck Alone specification.
+[Archived Funded Lab settings](../artifacts/lucid-metric-discrepancy-20261102/bridge-settings.txt)
+
+The Optimise controls and original displayed First year pair preview were
+restored. The four-member Simulation remained on **Lucid Flex 50K → Funded
+→ First year**, with the starting 57%/14%/14%/14% weights and 1 MNQ per
+member. The Windows session and saved reports were preserved. The only
+repository additions are this review and its evidence.
+[Optimise before](evidence/bridge-luck-alone-v2-9-16/optimise-before.png) ·
+[Optimise after](evidence/bridge-luck-alone-v2-9-16/optimise-after.png) ·
+[Simulation before](evidence/bridge-luck-alone-v2-9-16/simulation-before.png) ·
+[Simulation after](evidence/bridge-luck-alone-v2-9-16/simulation-after.png)
+
+## Prop Desk Milestone 5 implementation gate — 2026-11-22
+
+Luck Alone remains unavailable. The checksummed Bridge observations establish
+the 16-copy display and its link to row one. They leave unresolved which trade
+window and costs define zero edge, how copies retain timing and dependence,
+whether and how each copy selects a size, the scoring denominator and cutoff,
+and how the copy rates produce the headline and range. The matched 10-MNQ
+VWAP case reproduces 14% for First year and 13% for Account life. That rules out
+extending identical paths with fixed allocations, denominators and aggregation.
+A version-specific calculation spec or a matched trace of the trades, draws,
+per-copy allocations and outcome counts is still required.
+[Bridge observations](evidence/bridge-luck-alone-v2-9-16/observations.csv)
+
+The sealed subset report already identifies row one, its IS-selected size and
+member weights, the account profile and horizon, the common IS window and
+the available common OOS sessions. Its saved account-path outcomes and the
+ranking come from IS. The OOS artifact is historical equity and admitted
+trades. A future verified Luck Alone child needs to measure the row's actual
+OOS pass or payout rate using the corresponding account engine at the frozen
+allocation. The OOS equity figure cannot supply that rate.
+
+To verify the gate, open a saved Optimise result from the Milestone 4 journey.
+Inspect its first-ranked combination and look under **Strategy diagnostics**.
+On desktop and mobile, reopen the result and expect the existing message that
+Luck Alone is pending Bridge verification. The 4-MNQ synthetic parent used
+for this check has 2+2 MNQ allocated and ten common OOS sessions. Reloading
+showed the same message, generated zero Prop Desk write requests and zero
+new jobs, and preserved the ranking, report and ZIP hashes. The running
+portal served the same diagnostics asset as the checkout and exposed no
+Luck Alone launch route. The browser check used a disposable copy of the
+existing synthetic report. Its temporary server stopped afterward.
+
+The targeted subset-sizing and strategy-diagnostics tests passed
+(`tests/test_prop_desk_subset_optimizer.py` and
+`tests/test_prop_desk_diagnostics.py`, 5 tests). The implementation gate
+precludes new Luck Alone runs, null-copy fixtures and numerical comparison
+until the reference defines the calculation.
+[Desktop and mobile gate verification](evidence/prop-desk-luck-alone-gate/verification.json)
+
+### Future Prop Desk improvements
+
+- **Luck Alone.** Deferred at the user's request. Keep the existing
+  unavailable state and the Bridge evidence above. Revisit the null
+  model, per-copy sizing and scoring after the centring, redraw,
+  aggregation and cutoff rules can be established. Record any eventual
+  AlphaQuest-specific methodology and its comparison limits explicitly.
+- **Proposed next milestone — Frozen OOS account assessment.** Assess
+  the first-ranked Optimise row on its common observed OOS sessions at
+  the allocation selected in IS. Save the Evaluation or Funded account
+  outcomes beside the existing historical equity evidence. The OOS
+  assessment cannot change the IS size, weights, or ranking. The Luck
+  Alone investigation is independent of this work.
+
+## Prop Desk Milestone 6 specification — Frozen OOS Account Assessment — 2026-11-22
+
+**Proposed.** From a completed **Optimise** result, assess the first ranked
+combination on its sealed common observed OOS history at the allocation chosen
+in IS. Add a separate **OOS account assessment** alongside the ranking and
+historical equity chart. Save one phase-specific child report. OOS evidence
+cannot change the parent ranking, chosen size, or weights. Luck Alone remains
+deferred.
+
+### Trace of the completed synthetic reports
+
+The archived `prop-desk-optimizer-v2` Evaluation report
+`cbbe533a83534072862e8b91cf4f5ea9` and Funded report
+`536f7abe69c84fdd85d19b21e0ba23c3` both put combination 2 first in display
+order. Its selected size is 2 MNQ, allocation `[2]`, unused 0. The member is
+the two-minute Consecutive Green Hold configuration at weight 1. Its sealed
+IS backtest is `f69a9ac2236849f7bb22292810dae2b2` and its OOS child is
+`c6f1a7ba4e104688a94534fece7756f4`. The search shares eight observed IS
+sessions from 2026-01-05 through 2026-01-14. The subset shares one complete
+OOS session, 2026-01-15. The stored sources pin the dataset, strategy/execution,
+trade and risk identities. Both saved ZIPs reconcile to their report manifest
+and the evidence checksums.
+[Evaluation report](evidence/prop-desk-optimizer-v2/evaluation-report.json) ·
+[Funded report](evidence/prop-desk-optimizer-v2/funded-report.json) ·
+[Evidence manifest](evidence/prop-desk-optimizer-v2/journey.json)
+
+In each archive, open the selected combination's `combination_2/paths_2.json`
+for the IS account paths, and `combination_2/admitted_trades_2.csv` and
+`combination_2/equity_2.json` for the IS/OOS historical trade evidence. The
+OOS trade is 2 MNQ net of $2 commission and zero slippage, at $798 net.
+The sealed reports contain no OOS account outcomes. The source books used
+by the account engines also carry adverse-risk inputs and payout eligibility
+that the closed-trade CSV alone cannot supply.
+[Evaluation ZIP](evidence/prop-desk-optimizer-v2/evaluation-analysis.zip) ·
+[Funded ZIP](evidence/prop-desk-optimizer-v2/funded-analysis.zip)
+
+### Frozen inputs, admission and calculation owners
+
+1. Load and verify the completed parent in AnalysisStore. Bind the child
+   to its report hash and ranking hash. Resolve the first saved entry in
+   `optimizer.ranking` by display order, including ties. Use its combination
+   ID and its saved size entry. Resolve member order and weights through the
+   combination's indexes into `configuration.members`. Use the saved target
+   allocation and unused MNQ exactly. The UI's last inspected row, a newer
+   linked backtest, and the total test size at the bottom of the search range
+   are independent of this selection.
+2. Take the common IS sessions, the selected subset's exact OOS session list
+   and saved OOS child IDs from the parent. Resolve the source records,
+   manifest and trade/risk hashes, account profile version, rules, cost
+   treatment, path count, seed list, sampling and observation horizon from
+   the seal. Reuse the persistent session inventory to verify observed
+   coverage against the original dataset bytes, without a full bar parse
+   on warm sources. Compare the reverified OOS intersection to the sealed
+   list. Keep observed zero-trade sessions and exclude unobserved dates.
+3. Rebuild the selected OOS member books with
+   `desk_basket.checked_record`, `period`, and `source_book`, then replay
+   admission using `desk_basket.admitted` with the frozen weights and
+   targets. Retain shared session order, one position at a time, earliest
+   entry first, then weight and member order for ties, and admission at a
+   prior exit. Scale the saved net costs and risk inputs once. The existing
+   Funded opening tier still caps actual quantity. Reconcile the selected
+   subset's admitted OOS ledger to its saved chart evidence. Use the
+   risk-bearing books for simulation.
+4. Call `desk_optimizer.evaluation` for one Evaluation attempt per path.
+   That path uses `desk.evaluation` and the existing Apex or Lucid
+   `evaluation_model` with `chain=False`. Call `desk_optimizer.funded`
+   for one fresh Funded account per path. It dispatches to `native_backend`
+   or `lucid_backend`, including its session-tier branch and existing payout
+   logic. Use the parent's actual local rule snapshot, including any
+   inactivity setting. Retain the parent's circular observed-session block
+   sampler, ordered path seeds and horizon. Apply the same seeds to the
+   OOS session array. Path indexes identify streams, while the two arrays'
+   different dates and lengths produce different sampled sessions. Report
+   the two history lengths and the observation horizon separately.
+5. Read the same selected size's sealed IS path artifact for the comparator.
+   Derive both sides' presentation metrics with the same definitions below.
+   Eligibility uses the parent rule, numerical owner and kernel identity,
+   with any compatibility for preparation-only changes established by
+   explicit verification. For example, the archived reports above carry the
+   earlier `research_folds.py` hash from before persistent inventory reuse.
+   The archive is a valid test oracle. Launch compatibility with a historical
+   parent requires verifying the same session inventory, accounting rules
+   and numerical behavior. A missing or incompatible frozen contract means
+   unavailable with a reason. Legacy report readers continue to work.
+6. Use the existing AnalysisStore worker and sealed-report flow. The child
+   identity binds the parent, ranked size, source fingerprints, exact
+   sessions, simulation settings, and assessment implementation identity.
+   Verify the seal and source identity at admission and publication, and
+   verify the saved child before reopening or canonical reuse. Save its
+   source and allocation identity, admitted OOS trades, path outcomes,
+   IS/OOS counts and metrics, and source/coverage disclosures. Keep the
+   parent ranking, selected size, report and ZIP byte-identical. A different
+   valid OOS attachment needs a separately sealed parent with the same IS
+   selection. Its ranking and allocation can match the original, while
+   its full report hash changes with its source evidence.
+
+[Optimise account owners](../alphaquest/prop/desk_optimizer.py) ·
+[Subset sizing and ranking](../alphaquest/prop/desk_subset_optimizer.py) ·
+[Source and execution owners](../alphaquest/prop/desk_basket.py) ·
+[Existing diagnostic sealing](../alphaquest/prop_desk.py)
+
+### Like-for-like outcomes
+
+The estimates describe resampling from each saved history using the local
+account model. Show the observed session and trade counts on both sides.
+A short window remains short evidence even when repeatedly sampled. A
+verified empty-trade window still contributes its observed sessions.
+Present the account assessment separately from the historical equity curve.
+
+**Evaluation.** Use all `N` started attempts as the denominator for pass,
+breach and no-decision outcome counts and rates. Separate Apex's saved
+provider expiry from the model observation cutoff used by Lucid. Compute
+median trading days to target only among passes, with no value when there
+are zero passes. No retried accounts enter this calculation.
+
+**Funded.** Let `H` be the parent's saved simulation horizon in trading
+sessions. Retain `H` when running the account engine. The presentation
+window `W` is day 261 inclusive for **First year**, and `H) for
+**Account life**. First year requires coverage of the full 261 simulated
+sessions in the model unless the path terminates earlier. Account life uses
+the saved horizon even if the parent used 261 sessions for that preset.
+A preset label by itself does not determine the calculation's horizon.
+
+| Metric | Common IS and OOS definition through `W` |
+| --- | --- |
+| Any payout | Fraction of all fresh accounts with at least one trader receipt dated at or before `W`. An open account with an earlier payout counts. An open account with no receipt remains in the denominator. |
+| Breach before first payout | Fraction of all fresh accounts terminally breached by `W` with no receipt through that window. Use the controller's saved terminal day and payout event order. An account that paid and later breached has an observed payout. |
+| Trader receipts and account deductions | Sum each path's trader receipts and gross account deductions through `W` separately, then divide each sum by all started accounts. Include open accounts and zero receipts. |
+| Open at window end | Count accounts without a terminal event on or before `W`. A path that terminates after day 261 was still open at the First year boundary. Report open counts and distinguish accounts that have already paid when explaining unresolved outcomes. |
+| Ladder completion | If displayed, count completed payout ladders by `W` over all started accounts. |
+
+When any Funded paths remain open at `H`, label the Account life rates as
+**observed through cutoff**. The through-cutoff mean receipts are retained
+as a lower bound on modeled lifetime receipts. Report the resolved lifetime
+mean as unavailable. When all paths terminate, the through-cutoff mean is
+the resolved modeled lifetime mean. First year is a measured finite window
+even when an account remains open thereafter. A complete terminal-event
+population is unnecessary for the First year mean.
+
+The existing Funded ranking's `probability_any_payout` counts through the
+parent's full `H`, even when the preset chooses size by First year cash.
+Use the sealed payout and terminal events to derive the IS comparison
+through `W`. Preserve the original ranking score and label. The same
+event definitions apply to OOS. In particular, the unresolved lifetime
+field is distinct from the positive cash that may have been collected
+before cutoff.
+
+### Unavailable reasons
+
+| Condition | User-facing reason |
+| --- | --- |
+| Incomplete, unreadable or invalid seal, or no ranked result | Open a completed, verified Optimise result with a ranked combination. Identify an integrity failure separately when applicable. |
+| A ranked member has no pinned, readable OOS child | Name the affected member and whether the saved OOS link is missing or its report is unavailable. |
+| Child is the wrong phase, saved parent, split, strategy/execution settings, dataset version, or costs | Name the affected report and the configuration field that failed the existing saved-source check. |
+| Member lacks complete observed OOS coverage, or eligible members have no common observed OOS sessions | Distinguish an individual coverage failure from an empty intersection. Reject an OOS window that overlaps or precedes common IS. |
+| Source/artifact fingerprint or rebuilt session inventory disagrees | Identify the changed dataset, manifest, trade/risk file, parent seal or session list. A newer child cannot silently replace the pinned evidence. |
+| Saved allocation, profile, outcome definitions, seeds or numerical contract cannot be matched | State which frozen input is missing or incompatible. A historical report can still be opened. |
+
+### Independent test oracle and reproduction
+
+**Archive arithmetic.** In the synthetic Optimise archives above, each common
+IS day and the single OOS session have one identical admitted trade for the
+selected member. One NQ trade earns $4,000 gross less $10 commission.
+At 2 MNQ, `(4000 − 10) × 2/10 = $798` after costs. The OOS session array
+contains one day. Every circular draw therefore selects the same result,
+even with the saved five-session blocks and 1,000 seeds. The arithmetic
+below independently reproduces the existing IS archives and predicts the
+frozen OOS result for this deliberately constant fixture.
+
+- **Apex Evaluation, 21-session expiry.** Three winning sessions yield
+  $2,394 and four yield $3,192. With no adverse breach, all 1,000 attempts
+  pass on day 4, with zero breaches and zero expiries. With the same
+  observed OOS session but no trades, all attempts instead reach provider
+  expiry at day 21 and the conditional median is unavailable. Covered but
+  flat OOS and absent OOS are distinct cases.
+- **Apex Funded, 261 sessions.** The target of 2 MNQ is below the opening
+  tier cap. Every $798 day qualifies. Each five-day cycle makes $3,990,
+  satisfying the saved consistency rule, and leaves room above the $2,100
+  safety net for the next deduction. All six payouts arrive on days
+  5, 10, 15, 20, 25 and 30. Their amounts sum to $13,000 and mean gross
+  deduction and mean trader receipts are both $13,000. All paths complete
+  the ladder with zero breaches and no open paths. Ending relative account
+  balance is `30 × 798 − 13,000 = $10,940`.
+
+**Window and censoring oracle.** Feed four fixed Lucid-style event streams
+to the future presentation reducer with `H=300`. These are hand-specified
+summary inputs. Each recorded receipt of $1,800 corresponds to a $2,000
+gross deduction.
+
+| Path | Terminal state by day 300 | Payout days |
+| --- | --- | --- |
+| A | Ladder completed, day 250 | 25, 50, 75, 100, 250 |
+| B | Breached, day 270 | None |
+| C | Open at cutoff | 261 |
+| D | Open at cutoff | 262 |
+
+| Expected | First year through day 261 | Account life through day 300 |
+| --- | ---: | ---: |
+| Any payout | 2/4 | 3/4 |
+| Breach before first payout | 0/4 | 1/4 |
+| Open accounts | 3/4 | 2/4 |
+| Ladder completed | 1/4 | 1/4 |
+| Mean trader receipts | $2,700 | $3,150 through cutoff |
+| Mean account deductions | $3,000 | $3,500 through cutoff |
+| Resolved lifetime receipts mean | Outside this window | Unavailable |
+
+For the future normal-product demonstration, recreate the synthetic search
+from the archived optimizer fixture, or open a compatible saved report
+produced by that journey. Inspect row one, launch the assessment, download
+the child report and reopen it on desktop and mobile. Check the numbers
+above. For the unavailable case leave one ranked member's OOS link absent,
+then separately test a source checksum failure. Re-assess a valid separately
+sealed parent with the same IS setup and different OOS evidence. Its OOS
+outcomes may change while the IS ranking hash and size stay identical.
+Repeated inspection of either saved result must leave that parent's seal
+intact.
+
+This specification was checked read-only against both archived IS path
+populations, their selected trade ledgers, and the hand-calculated 261/300
+session summary inputs. OOS values above are expectations for the future
+implementation. The archive contains no such OOS account report.
+
+### Milestone 6 implementation and product evidence
+
+A completed subset Optimise result now offers **Run OOS account assessment**
+beside the rankings. It always assesses the first-ranked saved combination at
+its IS-selected allocation. Once saved, the comparison appears beside the
+parent equity chart and also opens as a sealed report with the OOS account
+paths and the admitted-trade ledger. The report header names both windows,
+the profile, targets, path denominators and the reporting horizon. Historic
+pair-ranking reports lacking a frozen subset preset show an unavailable
+reason and remain readable.
+
+The implementation uses `prop-desk-oos-assessment-v1` and the existing
+AnalysisStore worker. The API launch accepts the parent ID. Parent and child
+seals are verified before reuse. The selected member trade and risk files
+are checked again before publication. The warm inventory is checked against
+the original dataset bytes. Both admitted histories are rebuilt and compared
+with the saved Optimise ledger before the OOS engine runs. The assessment
+uses the saved IS path artifact for the comparator.
+
+1. Upload [SYNTHETIC winning OOS](evidence/prop-desk-oos-assessment-v1/SYNTHETIC-frozen-oos-winning.csv)
+   as UTC NQ, $20 per point, tick 0.25. Save the ordinary **Consecutive Green
+   Hold** grid with a green bar count of 1, 1 NQ, hold periods of 1 and 2
+   minutes, $5 commission per side and zero slippage. Use IS dates 2026-01-05
+   through 2026-01-14 and OOS date 2026-01-15. The fixture uses a one-worker
+   grid with automatic prop disabled. Run each saved IS trial's linked OOS
+   backtest.
+2. In **Prop Desk → Optimise**, add the two-minute strategy first, then the
+   one-minute strategy. Give both weight 1, require two members, and test
+   4–5 total MNQ. Run Apex 50K EOD Evaluation. Inspect 5 MNQ in the equity
+   view, then click **Run OOS account assessment**. The assessment uses the
+   ranked 4 MNQ, with 2 MNQ per strategy. Both entries compete at the same
+   time and the first member is admitted. The OOS ledger contains one $798
+   net trade with $2 commission. Reopen the report and return to the parent
+   to see both the assessment table and the equity chart.
+3. Repeat on a 390-pixel mobile viewport with Apex 50K EOD Funded and the
+   **First year** preset. Save the ZIP and reload the assessment. Both
+   histories produce 1,000 payouts in 1,000 paths, $13,000 mean receipts and
+   deductions, and zero open accounts. The payout days for every path are
+   5, 10, 15, 20, 25 and 30. The Evaluation comparison passes all 1,000
+   attempts on day 4 in both histories.
+4. Repeat the source preparation with [SYNTHETIC flat OOS](evidence/prop-desk-oos-assessment-v1/SYNTHETIC-frozen-oos-flat.csv).
+   The IS rows are byte-identical to the winning fixture. The same OOS
+   session is fully observed but flat and generates zero trades. The Apex
+   Evaluation search keeps the same IS ranking hash and 2+2 MNQ selection.
+   The OOS assessment has zero passes and 1,000 provider expiries. The
+   separately sealed reports bind different OOS source identities. Each
+   parent's report and ZIP stay byte-identical across its own assessment.
+5. On the flat source, run LucidFlex 50K Funded with **Account life** and
+   a 300-session horizon. The same IS $798 per session earns $3,990 in the
+   first five days. The first withdrawal is half of that, $1,995, followed
+   by four $2,000 withdrawals. At the saved 90% split, mean IS trader
+   receipts are $8,995.50 and mean deductions are $9,995. With zero OOS
+   trades and the saved inactivity setting, all 1,000 OOS accounts are
+   still open at day 300. Through-cutoff receipts are $0 and the resolved
+   lifetime mean is unavailable.
+6. Run the same search with one ranked member's OOS link omitted. The
+   saved result names that member and shows the reason instead of Run.
+   An identical assessment request reopens the original child. In the
+   isolated fixture, a changed OOS trade file rejects at source admission.
+   Altering either a sealed parent or a child artifact also rejects. The
+   browser/API test disables the full inventory bar parser after preparing
+   the sources, including for the alternate data, reuse, and all reopens.
+
+The focused suite passed seven checks, including the normal desktop and
+mobile journey and the 261/300-session payout-boundary oracle.
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_oos.py tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_oos_browser.py
+```
+
+[Reproduction manifest and checksums](evidence/prop-desk-oos-assessment-v1/journey.json) ·
+[Desktop ranking, assessment and equity](evidence/prop-desk-oos-assessment-v1/evaluation-inline.png) ·
+[First year ZIP](evidence/prop-desk-oos-assessment-v1/first_year-assessment.zip) ·
+[Mobile Account life reopen](evidence/prop-desk-oos-assessment-v1/lifetime-reopened.png) ·
+[Account life ZIP](evidence/prop-desk-oos-assessment-v1/lifetime-assessment.zip) ·
+[Missing source rejection](evidence/prop-desk-oos-assessment-v1/missing-source.json) ·
+[Changed artifact rejections](evidence/prop-desk-oos-assessment-v1/changed-artifacts.json)
+
+The live portal was restarted after confirming zero active jobs. Using the
+two existing saved strategies from basket `58b9339ae2c64a50be070dd946cef3ba`,
+a new 2-MNQ Apex Evaluation Optimise parent sealed 1+1 MNQ. Its assessment
+used 1,034 observed IS sessions and 391 observed OOS sessions. On the
+running app, the OOS counts and median reconciled directly to the 1,000
+downloaded path records. The assessment reopened on mobile, appeared next
+to the parent's equity chart, and left its report hash intact.
+[Live verification](evidence/prop-desk-oos-assessment-v1/live-verification.json)
+
+These are local account estimates conditional on the sealed saved histories
+and account model. Bridge numerical parity and forward trading outcomes
+remain unverified.
+
+## Prop Desk feature parity recheck after Milestone 6 — 2026-11-22
+
+Compared the running AlphaQuest Prop Desk with Bridge v2.9.16 in the existing
+Parallels Windows session. AlphaQuest covers the main Simulation and Optimise
+workflow. Several active Bridge features remain absent or partly covered.
+
+| Feature | What AlphaQuest has today | Remaining Bridge gap |
+| --- | --- | --- |
+| Strategy picker and shared basket | Strategy configurations link their saved IS and OOS backtests. Add, remove, set weights, equal-weight, check coverage on Run, and simulate one account. Target MNQ and actual tier-limited fills are disclosed separately. | Bridge also supports dragging strategies into the portfolio and clearing it in one action. Identical rounding, overlap admission, and treatment of competing entries remain unverified. |
+| Evaluation and Funded Simulation | Single-attempt outcomes, median time to pass, fresh-funded payout and breach outcomes, payout ladder, cutoff disclosure, and separate trader receipts and account deductions. Historical portfolio and member curves show net closed-trade equity and the verified IS/OOS boundary when available. | Bridge leads with OOS account outcomes at the selected size when OOS exists, shows corresponding IS figures, and also displays a median funded account receipt figure and a run-to-run interval for Evaluation. AQ Simulation account outcomes use IS. A linked OOS backtest extends the historical chart. |
+| Simulation sizing | Manual whole-MNQ size and size sweep, account outcomes and equity by tested size. The editable observation horizon is available for LucidFlex Evaluation. | Bridge offers automatic IS-based **Optimal** and **Conservative** in Evaluation, **First year** and **Account life** in Funded, and 30/60/90-day observation shortcuts for Evaluation. AQ has automatic size selection within Optimise. Exact Bridge sizing grid and the Conservative rule are still unverified. |
+| Optimise | All nonempty subsets by default within the workload limit. One IS-selected size and one ranked row per subset. Funded size selection uses the chosen receipts horizon, then ranks by payout probability. Rows reopen with equity and admitted-trade downloads. | Bridge supplies its own sizing grid. AQ asks for the tested MNQ range and caps work at 48 combination-size pairs and 16,000 pair-days. The Bridge Funded table describes ordering contestants within one standard error of the best by median first-payout day. AQ Funded gives equal scores a shared rank and orders those rows by size, member count and pool order. The exact Bridge tie calculation and payout-rate denominator for every preset remain unverified. |
+| OOS by Optimise result | Milestone 6 computes a frozen IS/OOS account comparison on demand for the saved first-ranked combination. Other rows can show historical OOS equity when linked sources support it. | Bridge shows an OOS account rate beside each ranked row on the search's shared history. The Simulation opened by Bridge's **Load** can score a different window and size. Keep those observations distinct when checking parity. |
+| Account profiles | Apex 50K EOD and LucidFlex 50K for both phases under their existing local rule versions. | Live Bridge produced Lucid Pro 50K results for both phases and Apex 25K, 100K and 150K results in Funded. AQ has none of these additional profiles. The LucidFlex 25K control did not switch profiles in Funded. Other provider and phase variants are unverified. |
+| Strategy diagnostics | Reopenable strategy cone, historical drawdown, Drawdown matrix and rolling Sum diagnostics. AQ uses the selected member's positive whole-MNQ allocation and labels the local convention. | Bridge's strategy detail opens independently at 1 MNQ. Its strategy cards have status and sparklines, its detail has the live/backtest comparison and Warning/Critical status history, and its Optimise picker has **OK only** and **All** filters. AQ does not provide those status views or filters. |
+| Luck Alone | The unavailable state remains documented and visible. | Bridge displays a row-one comparison using 16 zero-edge copies. The copy-generation, sizing, scoring and aggregation rules still do not define a reproducible match. See the prior Luck Alone investigation above. |
+
+Execution Desk, Connect prop firm and Go Live were labelled **Soon** in the
+inspected Bridge session. The audit covers the active Prop Desk research
+workflow.
+
+### Reproduction and evidence
+
+1. In the existing Bridge session, open **Prop Desk → Simulation → Funded →
+   Lucid Flex → 50K → First year**. Record the four-member starting portfolio
+   (Relative Strength, Twin Continuation, Overnight Bias, VWAP Pullback ADX),
+   its displayed weights (57/14/14/14%) and 1 MNQ per member. Switch to
+   **Evaluation** to inspect the 30/60/90-day and Optimal/Conservative controls.
+   In each phase select **Lucid Pro → 50K** and wait for the result to settle.
+   [Bridge starting view](evidence/prop-desk-post-m6-parity/bridge-start.png) ·
+   [Evaluation sizing](evidence/prop-desk-post-m6-parity/bridge-evaluation.png) ·
+   [Lucid Pro Evaluation](evidence/prop-desk-post-m6-parity/bridge-lucid-pro-evaluation.png) ·
+   [Lucid Pro Funded](evidence/prop-desk-post-m6-parity/bridge-lucid-pro-funded.png)
+2. Open **Optimise** and inspect the IS and OOS ranking columns, median
+   first-payout tie description, OK-only filter and Luck Alone. The captured
+   preview is a retained earlier Funded result. The settings-changed flag
+   applies to the currently selected controls. The audit did not replace that
+   result with a new search. Return to Simulation and restore the starting
+   Funded profile and size preset.
+   [Bridge ranking preview](evidence/prop-desk-post-m6-parity/bridge-optimise.png) ·
+   [Restored Simulation](evidence/prop-desk-post-m6-parity/bridge-restored.png) ·
+   [Earlier controlled subset evidence](evidence/prop-desk-optimizer-v2/bridge-three-strategies.png) ·
+   [Earlier strategy status capture](evidence/bridge-strategy-diagnostics-v2-9-16/relative-detail-status.png)
+3. In Bridge Funded, select **Apex** and open **25K**, **100K**, and **150K**.
+   Each produced its own simulation, including a six-payout ladder, account
+   limit and activation step. The observed OOS payout rates were 19.4%,
+   78.3%, and 66.3%, respectively, at each variant's selected size. The
+   LucidFlex 25K control left the Lucid Flex 50K result unchanged. Restore
+   **Funded → Lucid Flex → 50K → First year**. The original portfolio,
+   allocation, and displayed 57.9% payout rate returned.
+   [Apex 25K](evidence/prop-desk-post-m6-parity/bridge-apex-25k-funded.png) ·
+   [Apex 100K](evidence/prop-desk-post-m6-parity/bridge-apex-100k-funded.png) ·
+   [Apex 150K](evidence/prop-desk-post-m6-parity/bridge-apex-150k-funded.png) ·
+   [Lucid Flex 25K control](evidence/prop-desk-post-m6-parity/bridge-lucid-flex-25k-control.png)
+4. In the running local AlphaQuest portal, open **Prop Desk → Simulation**.
+   Check the two profile options. Reopen basket `58b9339ae2c64a50be070dd946cef3ba`.
+   Reopen Optimise `ffc773ae8fa64bdc9aea73a8ac995a23` and its OOS account
+   assessment `81d1457c2659417fb3195e956053bd3e` on desktop and a 390 px
+   viewport. Reopen diagnosis `74d595d8e1fe4ecca2934c004acbc59b` to inspect
+   its cone and drawdown. Inspect the two Funded sizing presets in Optimise
+   setup. The served source assets matched the checkout and the live audit
+   issued zero write requests.
+   [AQ Simulation](evidence/prop-desk-post-m6-parity/aq-simulation-setup.png) ·
+   [AQ Optimise and OOS](evidence/prop-desk-post-m6-parity/aq-optimise-and-oos.png) ·
+   [AQ mobile assessment](evidence/prop-desk-post-m6-parity/aq-oos-mobile.png) ·
+   [Verified asset and report identities](evidence/prop-desk-post-m6-parity/live-verification.json)
+
+Ten focused engine checks and the isolated desktop/mobile browser journey passed.
+The browser fixture runs both phases with controlled saved trades and checks
+the frozen IS ranking, OOS outcomes, download and reopen. Production code and
+persistent reports were untouched.
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_oos.py tests/test_prop_desk_diagnostics.py \
+  tests/test_prop_desk_optimizer.py::test_optimizer_reuses_path_streams_and_funded_tiers
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_oos_browser.py \
+  --basetemp /private/tmp/aq-propdesk-post-m6-parity-browser
+```
+
+**Numerical parity remains unverified.** The inspected Bridge Simulation
+shows 10,000 account paths. AQ uses 1,000 and takes costs from the saved
+backtest. The earlier inspected Bridge Lucid Evaluation screen showed 52%
+consistency. AQ uses its local 40% rule. The captures do not supply a
+matched v2.9.16 Prop Desk input package with identical trades, costs, dates,
+allocation, account rules, sampling and outcome definitions. The live totals
+confirm that the controls produce results. They do not quantify an engine
+discrepancy on matched inputs.
+
+### Plan to close the remaining Prop Desk gaps
+
+1. **Sizing and Simulation OOS.** Test one whole-MNQ grid on common observed
+   IS sessions and save each phase's named automatic allocation. Reuse the
+   same grid for manual inspection. Show IS and OOS account outcomes for each
+   tested size, along with the separate historical equity chart. Freeze the
+   allocation and disclose the local grid, seed, observation horizon and
+   account rules. Keep existing fixed-size and historical report contracts.
+2. **Optimise OOS and ordering.** Rank and size on IS before assessing OOS.
+   Save OOS outcomes at each ranked row's frozen size on the same verified
+   observed sessions. Give a reason where coverage is missing. Use the
+   applicable First year or Account life payout rate and put fastest median
+   first payout first among near-best Funded results. Keep existing report
+   identities and the Milestone 6 assessment API.
+3. **Workflow controls and diagnostics.** Add one-action portfolio clearing,
+   drag-and-drop alongside the accessible Add button, and Evaluation horizon
+   shortcuts for models without a provider expiry. Add a standalone 1 MNQ
+   diagnostic view with sealed trade inputs. Establish the exact historical
+   status thresholds and recovery transitions before statuses filter an IS
+   candidate pool. Distinguish held-out backtest evidence from live fills.
+4. **Rules and unsupported profiles.** Capture complete Evaluation and
+   Funded rule packages for Lucid Pro 50K and Apex 25K/100K/150K, including
+   stop and drawdown ordering, consistency, expiry and inactivity, tiers,
+   activation, payout eligibility, deductions, split and terminal state.
+   Validate each package with boundary fixtures before enabling it. Keep
+   the installed Apex 50K and LucidFlex definitions intact. Verify the
+   Conservative objective and tie rule with a controlled size-grid example
+   and retain the unresolved Luck Alone evidence requirements above.
+5. **Numerical qualification.** Save a matched Bridge v2.9.16 case with
+   identical trades, dates, costs, risk marks, rules and model settings.
+   Reconcile the fixed-size admitted ledger and path outcomes before
+   comparing the size curve, winner, or ranked subsets. Repeat in both phases.
+
+### Implemented parity work — 2026-11-22
+
+**Simulation.** The new sealed `prop-desk-simulation-v2` report uses a
+single observed-session model for IS and OOS, including one-member baskets.
+Apex and LucidFlex use their existing AQ account rules. Sizing uses only IS,
+skips automatic allocations with a zero member target and breaks equal
+scores using smaller total MNQ. The manual slider, equity chart and ledger
+remain available. When the maximum is blank, the form supplies the largest
+contiguous range from the entered minimum within the local work and profile
+limits. Simulation's manual **Compare linked OOS account outcomes** control
+can be cleared to retain historical OOS equity and the previous basket
+account model. The fixed-size single-strategy path and legacy API request
+shapes still work.
+
+- **Optimal** maximizes the single-attempt pass rate.
+- **Conservative** maximizes the same rate with IS breach probability at
+  most 20%. Bridge's rule is visible in the new capture. If the local grid
+  has no qualifying size, AQ saves the curve and labels the preset
+  unavailable. Bridge's exact grid, tie and empty-grid conventions remain
+  unverified. [Bridge Conservative evidence](evidence/prop-desk-parity-implementation/bridge-conservative.png)
+- **First year** maximizes mean receipts through trading day 261.
+  **Account life** maximizes mean receipts through resolution or the saved
+  cutoff. Lifetime selections are provisional when an eligible size still
+  has open accounts. The OOS account panel shows median and mean receipts
+  separately from deductions and exposes the corresponding IS comparison.
+
+**Optimise.** New portal searches use `prop-desk-optimizer-v3`. Individual
+OOS rates, breach, timing, and funded receipts and cutoff counts are saved
+at each ranked row's frozen size. The account comparison windows use the
+intersection of the candidate pool's linked OOS sources. A row with an
+unlinked source is unavailable. OOS historical equity can use a wider
+per-subset interval and remains separately labelled. The account-only
+OOS ledger and sampled paths can be downloaded for each ranked row. IS
+funded ranking uses any payout through the selected reporting horizon and
+orders contenders within one binomial standard error by median day of
+first payout, followed by rate, smaller size, and pool order. The exact
+Bridge standard-error estimator and final tie-breaks remain unverified.
+Existing v2 rankings, archives, and row-one assessment remain readable and
+continue to use their original API contract.
+
+**Workflow and diagnostics.** Add or drag saved strategy cards, clear the
+portfolio in one action and use 30/60/90 trading-day Evaluation shortcuts
+for LucidFlex. In any result, select **Standalone at 1 MNQ** for sealed
+single-strategy charts without changing the parent allocation. Held-out
+status uses the 95th-percentile 10- and 100-trade drawdown lines. The local
+retrospective convention starts the held-out equity at zero, measures
+half-recovery from the deepest drawdown since the current high, and clears
+at a strict new high. Thresholds use the entire observed held-out window.
+Status is advisory and keeps the candidate pool, ranking and sizing
+independent of OOS. Bridge's exact retrospective status transitions and
+catalogue sparklines remain open.
+
+#### Reproduce the product checks
+
+1. Load [SYNTHETIC winning data](evidence/prop-desk-parity-implementation/SYNTHETIC-winning.csv)
+   and use the saved NQ strategy and split setup in the Milestone 6
+   reproduction above. Add the two-minute hold member first, then the
+   one-minute hold, both weight 1. Use size 4–5 MNQ and choose Apex 50K EOD
+   Evaluation and **Optimal**. The first member wins the simultaneous
+   signal. Its 2 MNQ earn USD 798 net including USD 2 commission each
+   observed session. Both IS and OOS pass day 4 on all 1,000 paths. Switch
+   the inspected size to 5, return to the preset's 4, and reopen.
+   [Desktop view](evidence/prop-desk-parity-implementation/evaluation-desktop.png) ·
+   [OOS ledger](evidence/prop-desk-parity-implementation/evaluation-oos-trades.csv) ·
+   [Report](evidence/prop-desk-parity-implementation/evaluation.json)
+2. Choose **Funded → First year**, keep size 4–5, and run at a 390 px
+   viewport. At 4 MNQ all funded accounts reach the first payout on
+   day 5 and collect USD 13,000. Mean and median receipts agree in this
+   fixture. In Optimise, test all subsets at sizes 4 and 5. Expect three
+   ranked subsets and six tested pairs. Each row has its own OOS output
+   through the 261-session reporting horizon. Download and reopen.
+   [Mobile Funded](evidence/prop-desk-parity-implementation/funded-mobile.png) ·
+   [Mobile Optimise](evidence/prop-desk-parity-implementation/optimise-mobile-reopened.png) ·
+   [Sealed Optimise ZIP](evidence/prop-desk-parity-implementation/optimise.zip)
+3. Repeat Optimise with the [SYNTHETIC flat holdout](evidence/prop-desk-parity-implementation/SYNTHETIC-flat.csv).
+   The IS ranking hash stays identical while the two-member row drops
+   from 100% to zero OOS payouts. Omit one member's OOS link for the
+   specific unavailable reason. In the winning Simulation choose the
+   two-minute strategy's **Standalone at 1 MNQ** diagnostics and confirm
+   its OOS trade is USD 399 after USD 1 commission, independent of the
+   parent's 2 MNQ member target.
+   [Flat report](evidence/prop-desk-parity-implementation/alternate.json) ·
+   [Unlinked report](evidence/prop-desk-parity-implementation/missing.json) ·
+   [Standalone trades](evidence/prop-desk-parity-implementation/standalone-trades.csv)
+
+The browser test disables the full bar parser after preparing the sources.
+The focused arithmetic tests cover the inclusive 20% boundary, near-best
+ordering, first-year cutoff and status recovery. Timing and dropdowns can
+be rechecked using the test commands below. The evidence manifest records
+the exact fixture outputs. [Manifest](evidence/prop-desk-parity-implementation/journey.json)
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_parity.py tests/test_prop_desk_subset_optimizer.py \
+  tests/test_prop_desk_diagnostics.py tests/test_prop_desk_parity_browser.py
+```
+
+The running portal on port 8000 was refreshed after finding zero queued or
+running jobs. From the saved Twin Continuation and VWAP Pullback Risk
+Sizing configurations, use Apex Evaluation, 2–3 MNQ and **Optimal**.
+The live Simulation and all three Optimise subsets each scored 391 common
+OOS sessions. The mobile Optimise report reopened and linked its 1-MNQ
+diagnosis with held-out status. Both earlier Milestone 6 report hashes
+were identical before and after the live run. Browser fixtures ended
+their temporary servers. The current portal owner is PID 50211. To stop
+it, check for active jobs before sending `kill -TERM 50211`.
+[Live Simulation](evidence/prop-desk-parity-implementation/live-simulation.png) ·
+[Live mobile Optimise](evidence/prop-desk-parity-implementation/live-optimise-mobile.png) ·
+[Live status](evidence/prop-desk-parity-implementation/live-status.png) ·
+[Live report IDs and hashes](evidence/prop-desk-parity-implementation/live-verification.json) ·
+[Evidence checksums](evidence/prop-desk-parity-implementation/SHA256SUMS)
+
+**Still open.** Lucid Pro 50K and Apex 25K/100K/150K need complete
+versioned account-rule evidence. The visible activity and payout panels
+do not establish all daily-loss tiers, boundary ordering, or settlement
+rules. Luck Alone still needs copy-level evidence as described above.
+An OOS-based **OK only** candidate filter would change the search pool
+using the holdout, so the implemented held-out status stays advisory.
+Whole-grid sizing, exact Bridge sampling, larger-search workload parity
+and numerical outcomes await a matched Bridge source package. The
+preserved AQ rules, 1,000-path budget, overlap policy and weighted
+round-down allocator remain the local model.
+
+### Prop Desk campaign qualification gate — 2026-11-22
+
+New Prop Desk selections use the existing verified Prop Sim campaign
+catalogue. A strategy configuration must have passed Mechanics, IS Broad,
+IS Narrow, OOS, and the latest current-policy full-period Monte Carlo
+assessment. The picker lists the exact qualifying IS run and its campaign
+OOS run. An independently saved OOS backtest does not establish campaign
+qualification. If a user supplies an OOS ID in a new request, it must match
+the exact qualifying evidence for that IS configuration.
+
+Both source checks and launches enforce current qualification server-side
+for fixed Simulation, basket Simulation and Optimise. The campaign gate
+controls membership before simulation. The chosen account sizes and the
+ranking within the admitted pool still use IS. A report can be reopened
+with its originally saved inputs and evidence even if its strategies
+would now be ineligible for a new run.
+
+1. Create the synthetic NQ campaign used in
+   `tests/test_prop_desk_qualification_browser.py`. Complete the existing
+   Mechanics, Broad, Narrow, OOS and full-period Monte Carlo workflow.
+   Before qualification, Prop Desk shows an empty picker and Run is disabled.
+2. Open **Prop Desk → Simulation** and add a qualified configuration.
+   Its OOS link matches the campaign evidence. Run Apex Evaluation at 1 MNQ
+   with the OOS comparison selected. Open the sealed report on mobile and
+   check that the saved OOS result is visible.
+3. Submit the ID of an unqualified saved Narrow trial directly to the fixed,
+   basket and both Optimise launch routes. Expect HTTP 422 for every route
+   and no queued report. A mismatched OOS ID also rejects. In the isolated
+   fixture, altering the current Monte Carlo report bytes removes its
+   candidates from the picker and rejects relaunch. The already-sealed
+   Prop Desk result still reopens with identical report bytes.
+
+[Qualified picker](evidence/prop-desk-qualified-sources/qualified-desktop.png) ·
+[Mobile report](evidence/prop-desk-qualified-sources/reopened-mobile.png) ·
+[Exact qualifications and rejections](evidence/prop-desk-qualified-sources/journey.json) ·
+[API responses](evidence/prop-desk-qualified-sources/rejections.json)
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_qualification_browser.py
+```
+
+The short synthetic calculator regressions isolate arithmetic and saved
+report behaviour using a test-only qualification fixture. The browser
+journey above uses the full production campaign gate.
+
+On the running portal, the qualified picker listed six configurations.
+The previously selectable VWAP trial `27de27ee` was absent and its direct
+launch rejected. The qualified VWAP variant `1443ec1b` ran with OOS source
+`7dba7e97` and its result reopened on mobile. The earlier Optimise report
+`dd99213c4cb94189811344d5c78fc0c4` reopened with the same SHA-256 and
+the original missing-OOS message. The production portal was refreshed
+after checking for active jobs. Its current owner is PID 51945. Check for
+active jobs before stopping it with `kill -TERM 51945`.
+[Live picker](evidence/prop-desk-qualified-sources/live-qualified-picker.png) ·
+[Live mobile report](evidence/prop-desk-qualified-sources/live-qualified-reopen.png) ·
+[Live check and saved IDs](evidence/prop-desk-qualified-sources/live-verification.json) ·
+[Checksums](evidence/prop-desk-qualified-sources/SHA256SUMS)
+
+### Distinguish Optimise from Simulation — 2026-11-23
+
+**Optimise** opens search setup and preloads the portfolio on the first
+visit. The search has its own candidate pool. **Run Optimise** submits the
+subset search and opens the ranking after completion. **Search settings**
+shows the active IS ranking objective, pass probability for Evaluation or
+payout probability for Funded. Simulation keeps the **Run simulation**
+action for the selected portfolio.
+
+On the running portal, add two qualified strategies in Simulation and
+click **Optimise**. With a minimum of one member, the preview shows three
+combinations. Check the distinct run action and switch to Funded at a
+390-pixel viewport to see its payout objective. Return using
+**← Simulation** and confirm **Run simulation** is available again. The
+live check used zero write requests and required no portal restart.
+[Simulation desktop](evidence/prop-desk-optimise-mode/simulation-desktop.png) ·
+[Optimise desktop](evidence/prop-desk-optimise-mode/optimise-desktop.png) ·
+[Funded search settings on mobile](evidence/prop-desk-optimise-mode/optimise-mobile.png) ·
+[Live verification](evidence/prop-desk-optimise-mode/live-verification.json)

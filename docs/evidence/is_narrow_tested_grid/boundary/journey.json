@@ -1,0 +1,17 @@
+{
+  "workflow_id": "6229dee4d6fd4e5c97e0d373cad3185a",
+  "dataset_id": "d8ae0fce208b416a918af32bd5843fe2",
+  "job_id": "6e88a251d6be4f8caed63df86ee08dbe",
+  "native_trials": 8,
+  "job_count_before": 3,
+  "job_count_after": 3,
+  "passing_corner_trial": 5,
+  "expected_corner_net": 9360,
+  "expected_green_2_neighbor_net": 16560,
+  "one_sided_parameters": [
+    "green_bar_count",
+    "hold_minutes"
+  ],
+  "synthetic": true,
+  "server": "Stopped by fixture teardown."
+}

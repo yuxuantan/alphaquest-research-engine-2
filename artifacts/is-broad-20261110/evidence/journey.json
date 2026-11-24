@@ -1,0 +1,23 @@
+{
+  "workflow_id": "67f26c98bb88489fbce6f33b452d0bb7",
+  "broad_job_id": "88a6a68ccc0842d5bea2912389528ae7",
+  "expected_trials": 18,
+  "expected_eligible": [
+    1,
+    2,
+    3
+  ],
+  "chosen_trials": [
+    2,
+    3
+  ],
+  "chosen_net": [
+    156,
+    234
+  ],
+  "expected_ineligible": 15,
+  "expected_backtests": 19,
+  "expected_jobs": 2,
+  "mc_parity": "Synthetic user-attestation exercise only; no automated or measured MC comparison",
+  "server": "Stopped by fixture teardown."
+}

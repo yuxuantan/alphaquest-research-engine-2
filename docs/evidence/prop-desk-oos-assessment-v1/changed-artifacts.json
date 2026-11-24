@@ -1,0 +1,11 @@
+{
+  "source": {
+    "detail": "Saved backtest 708a70d4 is unavailable or changed: Source trades/risk/export changed during phase simulation."
+  },
+  "child": {
+    "detail": "The saved OOS assessment failed its integrity check."
+  },
+  "parent": {
+    "detail": "The saved parent result failed its integrity check."
+  }
+}

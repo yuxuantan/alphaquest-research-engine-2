@@ -86,7 +86,7 @@ def test_dll_exact_floor_gaps_and_calendar_inactivity(engine):
     a=engine.FundedAccount()
     for _ in range(30):a.advance([(-1.,1.)],10)
     assert a.outcome=='open' # Losing trades satisfy activity; profits are not required.
-    a=engine.FundedAccount()
+    a=engine.FundedAccount(rules=engine.Rules(inactivity_enforced=True))
     for _ in range(23):a.advance([],10)
     assert a.outcome=='inactive' # Monday start -> day 23 is calendar day 30.
 

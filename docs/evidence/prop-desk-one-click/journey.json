@@ -1,0 +1,33 @@
+{
+  "members": [
+    {
+      "source_backtest_id": "51d5ab8362804d54803a928018050f66",
+      "oos_backtest_id": "4c1ab6f98445437ba9edeb69a1ca11a8",
+      "weight": 2
+    },
+    {
+      "source_backtest_id": "caa4bb3c18e847a29bf9bfbeece5f001",
+      "oos_backtest_id": "838794b28adc47f1a2b904b19cb58edb",
+      "weight": 1
+    }
+  ],
+  "analysis_ids": {
+    "evaluation": "9e775ab204794f71a1156802db7d7e14",
+    "funded": "136ae36155054e69ba0ecef409004f22"
+  },
+  "evidence_type": "Synthetic product demonstration; Bridge parity unverified.",
+  "sha256": {
+    "SYNTHETIC-basket.csv": "0f227b8e6b308595bed4143ab7659c8cecb9ba0b9eb996ad618287c0ebc645a8",
+    "evaluation-analysis.zip": "0f221036fdc510f6a0756157a87d1258905701128cb89e816aa57139f044806e",
+    "evaluation-desktop.png": "dc3505428ac57272d7d17dcd136fb9718ff0fe04907d0853e52ad5a221ce2ece",
+    "evaluation-launch.json": "0d95ab6d74a1c4b4c8f1c944c98270b710ec255c1ea7c75bc29eccc5cb66fccf",
+    "evaluation-report.json": "9208f3b6c167e9940247f5fa407cb4e2453bcf60b7e76f0fde37dec1d13e62d8",
+    "funded-analysis.zip": "d1d151dc13be725053546fecd71d1a9a07b113d85124f30a8d87271e50c5eea6",
+    "funded-launch.json": "abcfa725dcbbdc4b6618e489e8b8d2de1bd40c3b3d65c397345d3fd3a2b6ecf0",
+    "funded-mobile-reopened.png": "54f26a1dbb03324b317ba4a85b68f88e85729b0546f0bca0997c2239b751e939",
+    "funded-mobile.png": "54f26a1dbb03324b317ba4a85b68f88e85729b0546f0bca0997c2239b751e939",
+    "funded-report.json": "71ad8ec0715b9c39b932fcf56ab0fa10fb5b222ddd2c3e9b7b68bad46d12a52a",
+    "rejected-source.json": "091209cb897bca4a6839eca8c5fdd0561f60cac35bfd00ef6ae20d7b5ed9524d",
+    "setup-desktop.png": "3ff576e86583539032b4052f4ad7f5b624d0974f17f7c9cdbfda35f699583c2e"
+  }
+}

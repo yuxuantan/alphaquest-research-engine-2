@@ -1,0 +1,25 @@
+{
+  "source_id": "2d31d4c7b37c40fa98bb4116493cc702",
+  "rejected_source_id": "76b93c7ca4694667b2f39faf9e5da9c5",
+  "analysis_ids": {
+    "evaluation": "1fa203a9c5fc4170a81e068f89a65f65",
+    "funded": "df7ed41d998f492ebddd2e9e569a9109"
+  },
+  "evidence_type": "Synthetic normal-product evidence. No matched Bridge v2.9.16 inputs.",
+  "sha256": {
+    "01-rejected-source.png": "b6010854dda11c9ac58a9ac975011a5956979cccfbbb6550c1dea9d5a7d8c18d",
+    "SYNTHETIC-phase-source.csv": "e48960b6dc04058799f6e8bfbaf8038dff8d679185d7b7d283d26a90c47218d1",
+    "evaluation-analysis.zip": "33cacc2e7eb22d700e58bfc124097ad74df3f941e09e3e3d9ac3426afc8f619d",
+    "evaluation-desktop.png": "571349a3a7f1ec72f30bc1c9e895ecc5b390f15f6416f14bb23b599aba0504d9",
+    "evaluation-report.json": "a21bb1c2246f733541dfc8127cfd059c1571be18ad8e13e599b44cb72eb1341a",
+    "evaluation-source-check.json": "a5b9ce49c6dac438d4864ab77a64e481933464e37d87fcbb452ab138efdf16ef",
+    "funded-analysis.zip": "8c33e7f237c4462296a404e49163759541f9c24eedcdee8831bbb403d7f78585",
+    "funded-desktop.png": "7e14a76d49f6645cc74fe9ab58071e303e9e5670cea716f9398b832ce89af800",
+    "funded-mobile-reopened.png": "367639ef423d19befb5b3842998e64122b0ee52d6eb8c3c504b5683c3ba22978",
+    "funded-report.json": "33264f10f7db8bf6ba19b6fd322bea184b1f2a18fe478c3aca22ce7cbf07d9d8",
+    "funded-source-check.json": "43bc11822b668ba01e4ffd5112f42c8eead568ba106a0eab0d80f8e7e49b829b",
+    "rejected-source.json": "9933b2a3f8d8fd5530a67da27cd870dc427aca4abecf52fc33ddc728e6c232f7",
+    "source-backtest.json": "b3bfce2d6b6b829d8246e53775df647a183b021f3facb5037cc19296bcd670bf",
+    "source-trades.csv": "9d1b3dc6856f7609a254345e33e4d8584b765b41043d02454e4946c2480741f6"
+  }
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "profile": "apex-50k-eod",
+    "phase": "evaluation",
+    "chosen_mnq": 9,
+    "collapsed_roles": 3,
+    "original_is_report_hash_verified": true,
+    "required_followup_actions": 0,
+    "oos": "GO",
+    "forward": "PENDING"
+  },
+  {
+    "profile": "apex-50k-eod",
+    "phase": "funded",
+    "chosen_mnq": 9,
+    "collapsed_roles": 2,
+    "original_is_report_hash_verified": true,
+    "required_followup_actions": 0,
+    "oos": "GO",
+    "forward": "PENDING"
+  },
+  {
+    "profile": "lucidflex-50k",
+    "phase": "evaluation",
+    "chosen_mnq": 9,
+    "collapsed_roles": 3,
+    "original_is_report_hash_verified": true,
+    "required_followup_actions": 0,
+    "oos": "GO",
+    "forward": "PENDING"
+  },
+  {
+    "profile": "lucidflex-50k",
+    "phase": "funded",
+    "chosen_mnq": 9,
+    "collapsed_roles": 2,
+    "original_is_report_hash_verified": true,
+    "required_followup_actions": 0,
+    "oos": "GO",
+    "forward": "PENDING"
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "id": "a89452662be74665ae656752679a217f",
+  "deleted": true,
+  "deletable": false,
+  "active_analyses": [],
+  "campaign_ids_to_delete": [
+    "507ea9bba0b45423af15c0445bea045f",
+    "474a17bd99795e6a892dd02300f73130"
+  ],
+  "retained_campaigns": [],
+  "analysis_ids_to_delete": [
+    "0a4674d94b694e08a53ab86e4d926767",
+    "9a4f2a2845504658971a4d376a807050"
+  ],
+  "retained_analyses": [],
+  "source_backtest_id": "88ab410d95f140d48138892a3204de70",
+  "profile_id": "apex-50k-eod",
+  "strategy_id": "consecutive_green_hold",
+  "created_at_utc": "2026-11-12T07:52:39.016590+00:00",
+  "interpretation": "Delete this saved simulation, its unused phase campaigns and unshared reports. Keep datasets, source backtests, campaign phases, OOS/Monte Carlo and results used elsewhere.",
+  "confirmation_sha256": "a3df7aaef81bcbb82c6781d625e2809dde6ee776533c8925e49e94a0742a1339",
+  "deleted_at_utc": "2026-11-12T07:52:41.108903+00:00",
+  "cleanup_pending": []
+}

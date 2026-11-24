@@ -1,0 +1,3 @@
+strategy,diagnostic_mnq,cost_per_trade_usd,backtest_trades,backtest_start,backtest_end,live_trades,went_live,history_end,paths,live_net_usd,p05_usd,median_usd,p95_usd,displayed_percentile,source
+Relative Strength,1,1.70,869,2017-01-10,2023-12-05,440,2023-12-06,2026-11-19,2000,20180,1569,8402,15583,100th,relative-strength-since-live.png
+Twin Continuation,1,1.70,867,2017-01-05,2023-12-04,364,2023-12-05,2026-11-19,2000,23055,2024,6982,11813,100th,two-evaluation-twin.png

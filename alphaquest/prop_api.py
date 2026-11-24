@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from starlette.concurrency import run_in_threadpool
 from .prop.native_analysis import DEFAULTS, MODEL_VERSION,model_version
+from .prop_report_storage import artifact_response, is_artifact, capabilities as storage_capabilities
 from .prop.adapter import source_record
 from .prop.source import matching_exports
 from .prop.commissions import catalog, source_instrument
@@ -61,10 +62,10 @@ def phase_request(body):
 
 
 @router.get('/defaults')
-def defaults():
+def defaults(request:Request):
     from .prop.automatic import profiles
     from .prop.native_replay import defaults as native_defaults
-    return dict(defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog(),
+    return dict(report_storage=dict(storage_capabilities(),catalogue=str(request.app.state.prop_analyses.path.resolve())),defaults=DEFAULTS,model_version=MODEL_VERSION,engine='AlphaQuest local calculations',commissions=catalog(),
         native_phase_replay=native_defaults(),
         predefined_lifecycle_comparison=dict(mode='predefined_lifecycle_comparison', max_pairs=20,
             source='completed_ordinary_manual_oos', backend='native_strategy',
@@ -158,7 +159,7 @@ def job(id: str,request: Request):
             stop_requested=bool(control and control[0]))}
 
 @router.get('/{id}/downloads/{kind}')
-def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv'],request: Request):
+def download(id: str,kind: Literal['report.json','trades.csv','daily.csv','analysis.zip','sizing_summary.json','sizing_decisions.csv','saved_trade_model.json','assessment_policy.json','economic_assessment.json','account_start_sensitivity.json','complementary_evidence.json','oos_qualification.json','qualification_policy.json'],request: Request):
     record=job(id,request)
     if record['status']!='complete':
         raise HTTPException(409,'Operation has not published a completed report.')
@@ -174,8 +175,8 @@ def file(id: str,name: str,request: Request):
     report=json.loads((root/'report.json').read_text())
     if name not in report.get('files',{}):raise HTTPException(404,'File is not a captured result artifact.')
     path=(root/name).resolve()
-    if not path.is_relative_to(root.resolve()) or not path.is_file():raise HTTPException(404,'Invalid artifact path.')
-    return FileResponse(path,filename=None if path.suffix in ('.png','.svg') else path.name)
+    if not path.is_relative_to(root.resolve()) or not is_artifact(path):raise HTTPException(404,'Invalid artifact path.')
+    return artifact_response(path,filename=None if path.suffix in ('.png','.svg') else path.name,expected=report['files'][name])
 
 
 @router.delete('/{id}',status_code=204)

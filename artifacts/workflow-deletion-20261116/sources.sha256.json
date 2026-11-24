@@ -1,0 +1,11 @@
+{
+  "alphaquest/app.py": "5dfc682846fd1c392d79d9517d786a1ed25f1d9319e30aa274ea93b88348966b",
+  "alphaquest/campaign_dataset_links.py": "f2842f1c2e316309ded76daa4b8654c1e92991ede7683adaef2a8a40b9b6dafe",
+  "alphaquest/campaign_workflow.py": "e17837a79edc78826998e27411c000f6490f4d330deddb595db6c17a0470b384",
+  "alphaquest/web/styles.css": "1f7fdd0e8fbd78b262d95584af5854b104edc001c4c2e512bbd21122eee41644",
+  "alphaquest/web/workflow.js": "4efb8f33c32c7b66ab0fe6792eb78e9b963cf9e527226a06dd45b73cd6d61ee0",
+  "tests/test_campaign_dataset_links.py": "513efdfffd4641e1e464f333c136821164ccb3861f940f21c74ceb5eb57801ff",
+  "tests/test_campaign_dataset_links_browser.py": "d3a2548a6a77cc04ab5b43fcfe996a1ad9494429aab3a1af457f499beaee924c",
+  "docs/campaign_dataset_links.md": "1c548a19a12afd326aa1ef82ebef6bf926dcc155e7dfdae99beeb85573989a3f",
+  "docs/prop_simulation_review.md": "58097fe1b7a6d38bc46bb7930c230fc12b048a3b5dbd7ac243d768977d5c5ec1"
+}

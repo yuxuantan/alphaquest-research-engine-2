@@ -1,0 +1,61 @@
+{
+  "items": [
+    {
+      "id": "1d2be8bdebf1406f832a632a385ad6c4",
+      "kind": "backtest_batch",
+      "recorded_at_utc": "2026-11-10T08:30:02.724731+00:00",
+      "status": "complete",
+      "strategy_id": "consecutive_green_hold",
+      "dataset_name": "SYNTHETIC mechanics",
+      "started_at_utc": "2026-11-10T08:30:02.759623+00:00",
+      "finished_at_utc": "2026-11-10T08:30:02.889679+00:00",
+      "error": null,
+      "progress": {
+        "stage": "done",
+        "completed": 2,
+        "total": 2,
+        "unit": "trials"
+      },
+      "links": [
+        {
+          "label": "Open batch progress / results",
+          "href": "#backtests/batches/1d2be8bdebf1406f832a632a385ad6c4"
+        }
+      ],
+      "href": "#jobs/backtest_batch/1d2be8bdebf1406f832a632a385ad6c4"
+    },
+    {
+      "id": "7c64c290e8f246f2a0efd17cb17bfe56",
+      "kind": "mechanic_validation",
+      "recorded_at_utc": "2026-11-10T08:30:00.330526+00:00",
+      "status": "complete",
+      "strategy_id": "consecutive_green_hold",
+      "dataset_name": "SYNTHETIC mechanics",
+      "started_at_utc": "2026-11-10T08:30:00.330526+00:00",
+      "finished_at_utc": "2026-11-10T08:30:00.906267+00:00",
+      "error": null,
+      "progress": {
+        "stage": "complete",
+        "completed": 24,
+        "total": 24,
+        "unit": "bars"
+      },
+      "links": [
+        {
+          "label": "Open mechanic validation",
+          "href": "#campaigns/workflows/e70544caa94b4d96acdc1b7fce23fab0/mechanic_validation"
+        },
+        {
+          "label": "Open backtest report",
+          "href": "#backtests/report/7c64c290e8f246f2a0efd17cb17bfe56"
+        }
+      ],
+      "href": "#jobs/mechanic_validation/7c64c290e8f246f2a0efd17cb17bfe56",
+      "workflow_id": "e70544caa94b4d96acdc1b7fce23fab0",
+      "review_status": "review_required"
+    }
+  ],
+  "total": 2,
+  "offset": 0,
+  "limit": 25
+}

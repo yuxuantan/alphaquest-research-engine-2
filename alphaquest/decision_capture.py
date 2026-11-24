@@ -91,7 +91,7 @@ class DecisionRecorder:
             if event.kind == 'entry_fill':
                 require(event.trade_number == self.closed + 1 and event.reference_price is not None and event.fill_price is not None, 'filled trade identity/prices missing')
                 if self.pending.execution_timing == 'next_open':
-                    require(event.timestamp_utc > self.pending.timestamp_utc and event.bar_number > self.pending.bar_number, 'next-open fill cannot occur at or before decision')
+                    require((event.timestamp_utc > self.pending.timestamp_utc or (event.timestamp_utc == self.pending.timestamp_utc and event.reason=='actual_ordered_trade_fill')) and event.bar_number > self.pending.bar_number, 'next-open fill cannot occur at or before decision')
                 else:
                     require((event.timestamp_utc,event.bar_number,event.reference_price)==(self.pending.timestamp_utc,self.pending.bar_number,self.pending.reference_price), 'same-close outcome differs from decision')
                 self.active,self.fill=self.pending,event;self.filled+=1
@@ -206,7 +206,7 @@ def read_decision_evidence(path, description, trades, execution_settings):
                 pending=original
             elif event.kind=='entry_fill':
                 projected[str(event.trade_number)]=dict(decision_id=event.decision_id,
-                    sizing_decision=dict(timestamp_utc=pending['timestamp_utc'],reference_price=pending['reference_price'],execution_timing=pending['execution_timing']),
+                    sizing_decision=dict(timestamp_utc=pending['timestamp_utc'],reference_price=pending['reference_price'],execution_timing=('observed_open' if event.reason=='actual_ordered_trade_fill' and event.timestamp_utc.isoformat()==datetime.fromisoformat(pending['timestamp_utc'].replace('Z','+00:00')).isoformat() else pending['execution_timing'])),
                     initial_stop=(dict(price=pending['stop_price'],known_at_utc=pending['timestamp_utc'],basis='strategy_decision') if pending['stop_price'] is not None else None),
                     stop_updates=[],entry_decision=pending,entry_outcome=original,bracket_submissions=[],close_outcome=None,
                     quantity_path_policy='native_rerun_required')

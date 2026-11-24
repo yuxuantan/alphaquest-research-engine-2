@@ -1,0 +1,46 @@
+{
+  "synthetic": true,
+  "policy": "campaign-full-period-monte-carlo-v2",
+  "passed": 4,
+  "total": 4,
+  "analysis_id": "cbcd5d8edef84150ae1fd7be1b6baad6",
+  "source_report_sha256": "d1b427a85cc8b634dfd33c561ac11dbd35ae3fd0b1f7b242111fff1de605975d",
+  "expected_is_mtm_drawdown": [
+    40.5,
+    40.5,
+    81,
+    81
+  ],
+  "expected_oos_mtm_drawdown": [
+    40.5,
+    40.5,
+    81,
+    81
+  ],
+  "expected_daily_close_drawdown": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "expected_historical_drawdown_percentile_pct": [
+    50,
+    50,
+    50,
+    50
+  ],
+  "daily_drawdown_collapsed_by_default": true,
+  "main_table_has_daily_drawdown_columns": false,
+  "original_daily_and_path_files_unchanged": true,
+  "temporary_server_stopped": true,
+  "files": {
+    "daily.csv": {
+      "bytes": 17527,
+      "sha256": "e5a6acc9a6e560f1dd6ab65956341d224b6595041320e1cdfc5851a894370a78"
+    },
+    "paths.csv": {
+      "bytes": 891200,
+      "sha256": "2aff3f030bdd21b3a73430717cf336c1dca27d4c98479def3a3ff7f31faec75d"
+    }
+  }
+}

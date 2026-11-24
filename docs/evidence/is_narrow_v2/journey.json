@@ -1,0 +1,24 @@
+{
+  "workflow_id": "2e902ecae129475f8aa761441f35697a",
+  "dataset_id": "0224ecc1cd664e758868db4dbb1d5a0c",
+  "broad_trials": [
+    1,
+    2
+  ],
+  "narrow_trials_per_branch": 4,
+  "attempted_family_size": 10,
+  "chosen_narrow_trials": {
+    "1": [
+      2,
+      3
+    ],
+    "2": [
+      2,
+      3
+    ]
+  },
+  "expected_oos_navigation": "ready",
+  "synthetic": true,
+  "mc_parity": "Manual attestation in synthetic fixture; no external MultiCharts comparison",
+  "server": "Stopped by fixture teardown."
+}

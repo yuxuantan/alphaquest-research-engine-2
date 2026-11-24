@@ -27,6 +27,12 @@
   let workerState = "idle", workerValue = "";
   const workerHelp = get("#optimization-workers-help").textContent;
   const pageSize = () => jobId ? 50 : 25;
+  const campaignRoute = job => job.research?.workflow_phase==='is_broad'&&job.research.workflow_id
+    ? `#campaigns/workflows/${job.research.workflow_id}/is_broad?job=${job.id}`
+    : job.research?.workflow_phase==='is_narrow'&&job.research.workflow_id
+    ? `#campaigns/workflows/${job.research.workflow_id}/is_narrow?broad_trial=${job.research.broad_trial}`
+    : job.research?.workflow_phase==='oos'&&job.research.workflow_id
+    ? `#campaigns/workflows/${job.research.workflow_id}/oos?job=${job.id}` : null;
   const resultScroll = get("#optimization-results-scroll");
   const frozenColumns = new window.OptimizationColumns(get("#optimization-results"), resultScroll, get("#optimization-freeze"));
   const pinHeaders = () => frozenColumns.layout();
@@ -50,12 +56,14 @@
     workerState = "loading";
     select.replaceChildren(new Option("Loading worker options…", ""));
     get("#optimization-workers-help").textContent = "Loading available worker counts…";
+    const finishSectionLoading=window.portalLoading.begin(get("#optimization-workers-help"));
+    try {
     get("#optimization-workers-retry").hidden = true;
     window.dispatchEvent(new Event("optimization-workers-changed"));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch("/api/backtests/settings", {cache: "no-store", signal: controller.signal});
+      const response = await window.portalLoading.fetch("/api/backtests/settings", {cache: "no-store", signal: controller.signal});
       if ([404, 422].includes(response.status)) throw new Error("This server needs to be restarted to load parallel optimization support. Restart the backend, then retry.");
       if (!response.ok) throw new Error(`Could not load worker options (HTTP ${response.status}). Retry worker options.`);
       settings(await response.json());
@@ -73,9 +81,10 @@
       clearTimeout(timeout);
       window.dispatchEvent(new Event("optimization-workers-changed"));
     }
+    } finally { finishSectionLoading(); }
   }
   async function read(url, options = {}) {
-    const response = await fetch(url, { cache: "no-store", ...options });
+    const response = await window.portalLoading.fetch(url, { cache: "no-store", ...options });
     const result = await response.json();
     if (!response.ok) throw result;
     return result;
@@ -85,25 +94,26 @@
       ? error.detail.map((item) => `${item.loc?.join(" / ")}: ${item.msg}`).join("; ") : error.message || "Request failed. Check the server connection.";
   }
   function cancellationButton(button, job) {
-    button.hidden = job.status !== "queued";
-    button.disabled = cancelBusy || deleteBusy || resumeBusy;
+    button.hidden = !["queued", "running"].includes(job.status);
+    button.disabled = cancelBusy || deleteBusy || resumeBusy || !!job.stop_requested_at_utc;
     button.dataset.cancelActivity = job.id;
-    button.setAttribute("aria-label", `Cancel queued activity ${job.id}`);
+    button.textContent = job.stop_requested_at_utc ? "Stop requested" : job.status === "queued" ? "Cancel queued activity" : "Stop running backtest";
+    button.setAttribute("aria-label", `${job.status === "queued" ? "Cancel queued activity" : "Stop running backtest"} ${job.id}`);
     button.onclick = () => cancelActivity(job);
   }
   async function cancelActivity(job) {
     if (cancelBusy || deleteBusy || resumeBusy) return;
-    if (!window.confirm("Cancel this queued backtest activity?\n\nIt will not start. Saved reports, datasets and other activities are kept.")) return;
+    if (!window.confirm(job.status === "queued" ? "Cancel this queued backtest activity?\n\nIt will not start. Saved reports, datasets and other activities are kept." : "Stop this running backtest at the next checkpoint?\n\nCompleted trials remain available. You can resume unfinished trials later.")) return;
     cancelBusy = true;
     ++version;
     clearTimeout(timer);
     const notice = get("#optimization-cancel-status");
     notice.hidden = false;
-    notice.textContent = "Cancelling queued activity…";
+    notice.textContent = job.status === "queued" ? "Cancelling queued activity…" : "Requesting a stop at the next checkpoint…";
     document.querySelectorAll('[data-cancel-activity], [data-delete-activity], #optimization-delete, #optimization-resume').forEach(button => { button.disabled = true; });
     try {
-      await read(`/api/backtests/batches/${job.id}/cancel`, {method: "POST"});
-      notice.textContent = "Activity cancelled before execution. Saved reports, datasets and other activities are kept.";
+      const stopped = await read(`/api/backtests/batches/${job.id}/cancel`, {method: "POST"});
+      notice.textContent = stopped.status === "cancelled" ? "Activity stopped. Saved reports, datasets and other activities are kept." : "Stop requested. Active trials will stop at a checkpoint; completed reports are kept.";
     } catch (error) {
       notice.textContent = `Could not cancel activity: ${errorMessage(error)}`;
     } finally {
@@ -227,8 +237,8 @@
       row.dataset.parameter = parameter.name;
       const title = node("th", label(parameter.name));
       title.scope = "row";
-      title.append(node("small", parameter.description, "field-help"));
       row.append(title);
+      const helpId=window.strategyParameterHelp.attach(title,strategy.id,parameter,'optimization-parameter-help');
       for (const part of ["start", "end", "step", "step_count"]) {
         const cell = node("td");
         const input = node(parameter.type === "bool" && ["start", "end"].includes(part) ? "select" : "input");
@@ -258,6 +268,7 @@
         input.required = true;
         input.dataset.range = part;
         input.setAttribute("aria-label", `${label(parameter.name)} ${part === "step_count" ? "step count" : part}`);
+        if(part!=='step_count')window.strategyParameterHelp.describeInput(input,helpId);
         input.addEventListener("input", () => { rowCount(row, parameter, part === "start" || part === "end"); count(); get("#backtest-error").hidden = true; });
         cell.append(input);
         row.append(cell);
@@ -432,7 +443,7 @@
         table.tBodies[0].replaceChildren();
         for (const job of history.items) {
           const row = node("tr"), cell = node("td"), link = node("a", job.created_at_utc);
-          link.href = `#backtests/batches/${job.id}`;
+          link.href = campaignRoute(job) || `#backtests/batches/${job.id}`;
           cell.append(link);
           row.append(cell, node("td", label(job.strategy.id)), node("td", job.status), node("td", `${job.completed_trials} / ${job.total_trials}`));
           const actions = node("td"), button = node("button", "Delete activity and reports", "button danger");
@@ -452,8 +463,13 @@
         if (history.items.some((job) => ["queued", "running"].includes(job.status))) timer = setTimeout(refresh, 1500);
         return;
       }
-      const [job, page, lucid, prop] = await Promise.all([
-        read(`/api/backtests/batches/${jobId}`),
+      const job = await read(`/api/backtests/batches/${jobId}`);
+      if (current !== version) return;
+      if (campaignRoute(job)) {
+        location.replace(campaignRoute(job));
+        return;
+      }
+      const [page, lucid, prop] = await Promise.all([
         read(`/api/backtests/batches/${jobId}/results?${new URLSearchParams({sort, direction, offset, limit: 50})}`),
         read(`/api/backtests/batches/${jobId}/lucid-refresh`),
         read(`/api/backtests/batches/${jobId}/prop-refresh`),
@@ -480,7 +496,7 @@
       const activeTrials = job.active_trials?.length ? ` · active trials ${job.active_trials.map((trial) => `${trial.trial} (${trial.stage?.startsWith("prop_simulation:") ? trial.stage.slice("prop_simulation: ".length) : `${trial.bars_processed}/${trial.total_bars} bars`})`).join(", ")}` : "";
       get("#optimization-status").textContent = `${job.status.toUpperCase()}${job.cancellation_reason ? " · " + job.cancellation_reason : ""}${job.prop_error_trials ? ` · ${job.prop_error_trials} prop calculation errors` : ""} · ${job.completed_trials} / ${job.total_trials} trials saved · ${execution} · ${job.stage.replaceAll("_", " ")}${job.status === "running" ? activeTrials : ""}${job.error ? ` · ${job.error}` : ""}. Click any column heading to sort ascending or descending. ${profile ? "Historical net uses USD per slot after acquisition fees; backtest monetary metrics use CU;" : "Monetary metrics use CU;"} drawdown duration uses weekday trading days. CSV retains raw account totals and duration seconds. N/A sorts last. Completed trials remain available if a job fails or is interrupted.`;
       const resume = get("#optimization-resume");
-      resume.hidden = !["failed", "interrupted"].includes(job.status);
+      resume.hidden = !["failed", "interrupted"].includes(job.status) && !(job.status === "cancelled" && job.stop_requested_at_utc);
       resume.disabled = resumeBusy || deleteBusy || cancelBusy;
       resume.textContent = job.completed_trials < job.total_trials
         ? `Resume remaining ${job.total_trials - job.completed_trials} trials` : "Finalize saved results";
@@ -513,7 +529,7 @@
     get("#optimization-cancel-status").hidden = true;
     get("#optimization-resume").hidden = true;
     get("#optimization-resume-error").hidden = true;
-    get("#optimization-status").textContent = "Loading…";
+    get("#optimization-status").replaceChildren(window.portalLoading.message("Loading results…"));
     get("#optimization-results").tHead.replaceChildren();
     get("#optimization-results").tBodies[0].replaceChildren();
     get("#optimization-parameter-legend").hidden = true;

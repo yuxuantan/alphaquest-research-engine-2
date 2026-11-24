@@ -38,8 +38,20 @@ def trial_key(job, values):
                    "detail": job["report_detail"], "default_prop_profile": job.get("default_prop_profile")})
 
 
-def artifacts(root, record):
+def artifact_paths(root, record):
     names = {"trades.csv", "equity.csv", record["artifacts"]["report"]}
+    from .entry_protection import evidence_names
+    names.update(evidence_names(record))
+    if record.get('is_screening'):
+        from .workflow_criteria import FILE
+        if record['artifacts'].get('is_screening_json') != FILE:
+            raise ValueError('Unsupported IS screening artifact.')
+        names.add(FILE)
+    if record.get('oos_screening'):
+        from .oos_criteria import FILE
+        if record['artifacts'].get('oos_screening_json') != FILE:
+            raise ValueError('Unsupported OOS screening artifact.')
+        names.add(FILE)
     if record.get("intratrade_risk"):
         names.add("intratrade_risk.csv")
     if record.get("execution_decisions"):
@@ -47,6 +59,9 @@ def artifacts(root, record):
         if record.get("artifacts", {}).get("execution_decisions_jsonl") != SIDE_CAR:
             raise ValueError("Unsupported native decision artifact.")
         names.add(SIDE_CAR)
+    if record.get('risk_diagnostics'):
+        if record.get('artifacts',{}).get('risk_metrics_json')!='risk_metrics.json':raise ValueError('Unsupported risk diagnostic artifact.')
+        names.add('risk_metrics.json')
     if record.get('native_account_control'):
         if record.get('artifacts', {}).get('native_account_control_json') != 'native_account_control.json':
             raise ValueError('Unsupported native account-control artifact.')
@@ -58,12 +73,12 @@ def artifacts(root, record):
             names.add(STRATEGY_FILE)
         else:
             names.add('market_equity.csv')
-    result = {}
-    for name in sorted(names):
-        with (root / record["id"] / name).open("rb") as stream:
-            result[name] = hashlib.file_digest(stream, "sha256").hexdigest()
+    result = {name: root / record['id'] / name for name in sorted(names)}
     if record.get('market_benchmark', {}).get('storage'):
-        path = holding_path(root / record['id'], record['market_benchmark'])
-        with path.open('rb') as stream:
-            result['shared_holding_day'] = hashlib.file_digest(stream, 'sha256').hexdigest()
+        result['shared_holding_day'] = holding_path(root / record['id'], record['market_benchmark'])
     return result
+
+
+def artifacts(root, record):
+    from .artifact_reads import read_hash
+    return {name: read_hash(path) for name,path in artifact_paths(root,record).items()}

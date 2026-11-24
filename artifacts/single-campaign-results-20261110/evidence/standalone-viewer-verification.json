@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "job_id": "da13f5728f444d0195a8797308e5624f",
+  "visible_order": [
+    "total_net_pnl",
+    "trial",
+    "run_id",
+    "param.contracts"
+  ],
+  "frozen": [
+    "total_net_pnl",
+    "trial"
+  ],
+  "hidden_columns_not_displayed": true,
+  "keyboard_and_focus": true,
+  "separate_group_ordering": true,
+  "reload_persists": true,
+  "expected_net": [
+    13,
+    26,
+    39
+  ],
+  "original_results_unchanged": true,
+  "mutating_requests": []
+}

@@ -1,0 +1,9 @@
+{
+  "apex_caps": [
+    60,
+    40
+  ],
+  "apex_consistency_disabled": true,
+  "lucid_50_percent_requires_explicit_fee": true,
+  "job_history_links_to_saved_parent": true
+}

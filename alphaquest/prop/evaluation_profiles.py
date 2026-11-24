@@ -1,12 +1,26 @@
 """Evaluation-only orchestration over the existing provider kernels."""
 import numpy as np
-from .native_control import NativeControlBase
+from .phase_profiles import DatedPhasePreparation
+from .native_control import NativeControlBase,verified_native_profile
+from functools import lru_cache
 
 from .phase_profiles import (
     CONTRACT_VERSION, Censoring, EvaluationProfile, EvaluationProfileResult,
     EvaluationSamplingConfig, ResearchPeriod, SavedTradeSource, SimulationConfig,
     SourceCosts, SizingConfiguration, SizingTrace, prepare_phase_source, provenance, verify_phase_source,
 )
+
+
+@lru_cache(maxsize=32)
+def _native_calendar_sessions(calendar):
+    from .cash_ledger import replay_calendar_sessions
+    return tuple(replay_calendar_sessions(calendar))
+
+
+@lru_cache(maxsize=128)
+def _verify_native_calendar_inventory(calendar,inventory):
+    allowed=set(_native_calendar_sessions(calendar))
+    if any(day not in allowed for day in inventory):raise ValueError('A native session conflicts with its saved acquisition calendar.')
 
 
 class NativeEvaluationController(NativeControlBase):
@@ -23,13 +37,16 @@ class NativeEvaluationController(NativeControlBase):
         from .phase_profiles import profile_settings
         if type(profile) is not EvaluationProfile or type(retry) is not SequentialRetry:
             raise ValueError('Native acquisition requires EvaluationProfile and SequentialRetry only.')
-        profile_settings(profile,SourceCosts())
+        verified_native_profile(profile)
         super().__init__(sizing,micros,max_micros=max_micros,session_contexts=session_contexts,
             start_date=start_date,cutoff_date_exclusive=cutoff_date_exclusive)
         self.profile=profile;self.retry=retry;self.calendar=calendar
-        self.calendar_sessions=replay_calendar_sessions(calendar)
-        if any(day not in self.calendar_sessions for day in self.contexts):
-            raise ValueError('An observed native session conflicts with the saved acquisition calendar.')
+        self.calendar_sessions=_native_calendar_sessions(calendar)
+        from .native_control import NativeSessionInventory
+        if type(self.contexts) is NativeSessionInventory:_verify_native_calendar_inventory(calendar,self.contexts)
+        else:
+            allowed=set(self.calendar_sessions)
+            if any(day not in allowed for day in self.contexts):raise ValueError('An observed native session conflicts with the saved acquisition calendar.')
         self.lucid=profile.profile_id=='lucidflex-50k'
         self.kernel=(lucid_backend if self.lucid else native_backend).module()
         self.guard=self.start_date+timedelta(days=retry.max_calendar_days)
@@ -74,6 +91,7 @@ class NativeEvaluationController(NativeControlBase):
         self._cash_event(day,'evaluation_failure',attempt=self._current_attempt['index'],reason=state)
         self._current_attempt=None;self._purchase_date=next_evaluation_purchase(day,self.retry.retry_delay_calendar_days)
         self._account_status='retry_wait';self.can_trade=False
+        if getattr(self,'first_attempt_only',False):self._account_status=state;self.outcome='first_attempt_complete'
 
     def _activation_payment(self,day):
         from .native_money import money_add
@@ -83,7 +101,12 @@ class NativeEvaluationController(NativeControlBase):
 
     def _advance_calendar(self,until,*,observed_session=None):
         from datetime import date,timedelta
+        if getattr(self,'first_attempt_only',False) and self.attempts and self.attempts[0]['outcome'] not in ('open','passed'):
+            self._calendar_cursor=until;return
         while self._calendar_cursor<until:
+            if self.pass_date is not None:
+                events=[d for d in (self.eligibility_date,self.ready_date,self.guard) if d is not None and self._calendar_cursor<d<=until]
+                self._calendar_cursor=min(events)-timedelta(days=1) if events else until-timedelta(days=1)
             self._calendar_cursor+=timedelta(days=1);day=self._calendar_cursor
             if day>=self.effective_cutoff:
                 if day==self.guard and self.guard<self.cutoff and day==self.ready_date and self.activation_paid:
@@ -98,7 +121,7 @@ class NativeEvaluationController(NativeControlBase):
                 continue
             if self._current_attempt is None and day>=self._purchase_date and self.outcome!='attempt_guard_censored':self._buy(day)
             attempt=self._current_attempt
-            if self.lucid and attempt is not None and attempt['first_session'] is not None and day!=observed_session:
+            if self.lucid and self.profile.lucid_inactivity_enforced and attempt is not None and attempt['first_session'] is not None and day!=observed_session:
                 elapsed=(day-date.fromisoformat(attempt['first_session'])).days
                 if elapsed-self.last_activity>=30:self._fail(day,'inactive')
 
@@ -113,7 +136,7 @@ class NativeEvaluationController(NativeControlBase):
         if attempt['first_session'] is None:attempt['first_session']=str(session.session)
         self._calendar_day=(session.session-date.fromisoformat(attempt['first_session'])).days
         daily=Decimal(1200) if self.profile.daily_loss_limit else None
-        boundary=(self.kernel.evaluation_opening(self.equity,self.high,self.last_activity,self._calendar_day,daily)
+        boundary=(self.kernel.evaluation_opening(self.equity,self.high,self.last_activity,self._calendar_day,daily,self.profile.lucid_inactivity_enforced)
             if self.lucid else self.kernel.evaluation_opening(self.equity,self.high))
         if boundary is None:
             self._fail(session.session,'inactive');self._active_session=False;return
@@ -133,7 +156,7 @@ class NativeEvaluationController(NativeControlBase):
         if not self._active_session:return
         if self.lucid:
             self.equity,self.high,self.best_day,self.last_activity,self._account_status=self.kernel.evaluation_finish(
-                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal('.4'))
+                self.equity,self.high,self.best_day,self._opening,self.last_activity,self._calendar_day,self._account_status,Decimal(self.profile.consistency_percent)/100,self.profile.lucid_inactivity_enforced)
         else:
             self.equity,self.high,self._account_status=self.kernel.evaluation_finish(self.equity,self.high,self._account_status)
             if self._account_status=='open' and self._current_attempt['sessions']>=21:self._account_status='expired'
@@ -167,11 +190,12 @@ class NativeEvaluationController(NativeControlBase):
                 eod_floor_cap='100' if self.lucid else '3000',
                 daily_loss=('1200' if self.profile.daily_loss_limit else None) if self.lucid else '1000',
                 maximum_contracts=40 if self.lucid else 60,
-                consistency_fraction='0.4' if self.lucid else None,
+                consistency_fraction=str(self.profile.consistency_percent/100) if self.lucid else None,
                 consistency_test='best_day <= fraction * total_profit at session close' if self.lucid else None,
                 provider_expiry_sessions=None if self.lucid else 21,
-                inactivity_calendar_days=30 if self.lucid else None,
-                activity_minimum_absolute_trade_net='1' if self.lucid else None,
+                inactivity_calendar_days=30 if self.lucid and self.profile.lucid_inactivity_enforced else None,
+                inactivity_enforced=self.profile.lucid_inactivity_enforced if self.lucid else None,
+                activity_minimum_absolute_trade_net='1' if self.lucid and self.profile.lucid_inactivity_enforced else None,
                 arithmetic='Exact Decimal state for native actual fills; legacy fixed-book float arithmetic is unchanged.'),
             pass_date=self.pass_date,eligibility_date=self.eligibility_date,ready_date=self.ready_date,
             acquisition_completed=acquired,activation_paid=self.activation_paid,
@@ -182,12 +206,12 @@ class NativeEvaluationController(NativeControlBase):
             effective_observation_cutoff_exclusive=str(self.effective_cutoff),readiness_guard_inclusive=True,
             calendar_guard_truncates_window=self.guard<self.cutoff,
             strategy_state_on_retry='Continuous causal strategy features on original bars; only the provider account resets.',
-            observed_sessions=len(self.session_trace))
+            observed_sessions=len(self._visited_sessions))
 
 
 def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_factory, config,
         profile, sizing, micros, *, forecast, retry, max_micros=40, checkpoint=lambda: None,
-        progress=lambda message: None):
+        progress=lambda message: None, preparation=None,origin_weights=None,parallel=True,chain_sampling=None):
     """Actual native execution under the declared draw law, ending at acquisition.
 
     Unresolved paths retain every paid fee. They cannot identify an untruncated
@@ -197,39 +221,50 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
     from dataclasses import asdict
     from datetime import date
     from .native_draws import build_schedule, run_path
+    from .native_market_hours import summarize_observed_coverage
     from .phase_profiles import equal_stratum_mean, native_forecast_layout
-    calendar, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue)
+    calendar, cohorts = native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,preparation=preparation)
     parameters = strategy_factory().parameters
     paths, schedules, captures = [], [], []
+    prepared_outputs=None
+    if forecast.model=='native_percentage_observed_blocks_v2':
+        from .native_preparation import prepared_forecast_outputs
+        prepared_outputs=prepared_forecast_outputs(catalogue,target_contexts_by_cohort,strategy_factory,config,profile,sizing,micros,forecast,
+            phase='evaluation',max_micros=max_micros,checkpoint=checkpoint,progress=progress,preparation=preparation,
+            origin_weights=origin_weights,parallel=parallel,retry=asdict(retry))
     for path_index in range(forecast.simulations):
         checkpoint()
         cohort_index = path_index % len(cohorts)
         start, first, cutoff, contexts = cohorts[cohort_index]
-        progress(f'Native Evaluation forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
-        schedule = build_schedule(catalogue, contexts, parameters, phase='evaluation',
-            seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff)
-        owner = NativeEvaluationController(profile, sizing, micros, max_micros=max_micros,
-            session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
-            calendar=calendar, retry=retry)
-        detailed = path_index < forecast.capture_paths
-        output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
-            capture=detailed, checkpoint=checkpoint)
+        if prepared_outputs is None:progress(f'Native Evaluation forecast path {path_index+1}/{forecast.simulations}; start cohort {start}.')
+        detailed=path_index<forecast.capture_paths
+        if prepared_outputs is not None:
+            output=prepared_outputs[path_index];schedule=output['schedule']
+        else:
+            schedule = build_schedule(catalogue, contexts, parameters, phase='evaluation',
+                seed=forecast.seed, path_index=path_index, start_date=first, cutoff_date_exclusive=cutoff)
+            owner = NativeEvaluationController(profile, sizing, micros, max_micros=max_micros,
+                session_contexts=contexts, start_date=first, cutoff_date_exclusive=cutoff,
+                calendar=calendar, retry=retry)
+            detailed = path_index < forecast.capture_paths
+            output = run_path(catalogue, schedule, owner, strategy_factory, config, contexts,
+                capture=detailed, checkpoint=checkpoint,preparation=preparation)
         result = output['result']
         elapsed = (result['calendar_days_to_funded'] if result['acquisition_completed'] else
                    (date.fromisoformat(result['effective_observation_cutoff_exclusive'])-first).days)
         row = dict(path_index=path_index, cohort_index=cohort_index, start_date=start,
             cutoff_date_exclusive=str(cutoff), schedule_sha256=output['schedule_sha256'],
-            observed_calendar_days=elapsed, attempts_started=len(result['attempts']),
-            sizing_summary=result['sizing']['summary'])
+            observed_calendar_days=elapsed, attempts_started=result.get('attempts_started',len(result['attempts'])),
+            sizing_summary=result['sizing']['summary'],observed_bar_diagnostics=result['observed_bar_diagnostics'])
         for key in ('outcome','acquisition_completed','censored','paid_evaluation_fees',
                     'paid_activation_fees','paid_fees','pending_activation','net_cash',
                     'calendar_days_to_funded','pass_date','eligibility_date','ready_date',
                     'attempts','cash_ledger','equity','trading_profit','execution_counts','conservation'):
-            row[key] = result[key]
+            row[key] = result.get(key,[])
         paths.append(row); schedules.append(schedule)
         if detailed:
-            captures.append(dict(path_index=path_index, cohort_index=cohort_index, **output))
-        progress(f'Native Evaluation forecast completed path {path_index+1}/{forecast.simulations}.')
+            captures.append({**output,'path_index':path_index,'cohort_index':cohort_index})
+        if prepared_outputs is None:progress(f'Native Evaluation forecast completed path {path_index+1}/{forecast.simulations}.')
     def estimate(key):
         return equal_stratum_mean([[row[key] for row in paths if row['cohort_index']==index]
                                   for index in range(len(cohorts))])
@@ -246,8 +281,10 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
     metrics.update(completed_paths=sum(row['acquisition_completed'] for row in paths),
         censored_paths=sum(row['censored'] for row in paths), paths=len(paths),
         outcome_counts=dict(Counter(row['outcome'] for row in paths)))
-    return dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='evaluation',
+    result_forecast=dict(schema_version='native-phase-forecast-v1',mode='native_modeled_forecast',phase='evaluation',
         model=forecast.model,settings=forecast.model_dump(mode='json'),catalogue=catalogue.metadata(),
+        execution_preparation=(dict(version='twin-causal-market-cache-v1',market_features_reused=True,
+            original_fill_and_account_engine=True,account_state_shared=False) if getattr(preparation,'twin',None) is not None else None),
         phase_configuration=dict(profile=asdict(profile),sizing=asdict(sizing),micros=micros,
             max_micros=max_micros,retry=asdict(retry)),
         status='identified_model_mean' if complete else 'unresolved_censoring',
@@ -257,6 +294,7 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
             scope='Conditional Monte Carlo noise under the declared empirical draw law only; not uncertainty in the law or future performance.',
             historical_mean_uncertainty_available=False),
         paths=paths,schedules=schedules,captures=captures,capture_path_indices=list(range(forecast.capture_paths)),
+        observed_bar_diagnostics=summarize_observed_coverage(paths),
         assumptions=[
             'Every declared path is included, including failures, retries and guard/cutoff censoring; no redraw by outcome.',
             'Acquisition means are withheld unless every required path reaches funded readiness. All paid fees remain in restricted all-path summaries.',
@@ -264,15 +302,47 @@ def forecast_native_evaluation(catalogue, target_contexts_by_cohort, strategy_fa
             'Finite simulation completion does not prove finite population acquisition means. Target calendars, provider rules, execution and settlement remain unverified.',
             'No Funded outcomes or cash enter Evaluation sampling, account transitions or metrics.'])
 
+    if forecast.model=='native_percentage_observed_blocks_v2' and profile.profile_id=='apex-50k-eod':
+        from types import SimpleNamespace
+        from .evaluation_optimization import acquisition_metrics
+        from .phase_profiles import EvaluationSamplingConfig
+        attempts=[row['attempts'][0] if row['attempts'] else dict(outcome='open',sessions=0) for row in paths]
+        outcomes=[{'expired':'timeout'}.get(a['outcome'],a['outcome']) for a in attempts]
+        censored=sum(v not in ('passed','blown','timeout','inactive') for v in outcomes)
+        # A censored duration is retained and withholds the acquisition mean.
+        component=SimpleNamespace(outcomes=[v if v!='open' else 'timeout' for v in outcomes],
+            duration_weekdays=[max(1,a['sessions']) for a in attempts],censoring=SimpleNamespace(censored_paths=censored))
+        sampling=chain_sampling or EvaluationSamplingConfig(block_weekdays=forecast.block_sessions,chain_simulations=forecast.simulations,chain_seed=forecast.seed+3)
+        result_forecast['independent_acquisition']=acquisition_metrics(component,profile,retry,calendar,sampling,checkpoint=checkpoint)
+        iid=result_forecast['independent_acquisition']
+        result_forecast['status']=iid['status'];result_forecast['path_role']='native_first_attempt_samples'
+        result_forecast['metrics'].update(mean_acquisition_cost=iid['metrics']['cost_per_funded'],mean_calendar_days_to_funded=iid['metrics']['expected_calendar_days_to_funded'])
+        result_forecast['attempt_law']='Native causal first-attempt outcome/session-duration sample; stationary IID fresh-account renewal through the existing Evaluation owner.'
+    return result_forecast
+
 
 def native_acquisition_metrics(forecast):
     """Project actual native path observations onto the existing Pareto contract."""
+    if 'independent_acquisition' in forecast:return forecast['independent_acquisition']
     paths=forecast['paths'];n=len(paths)
     first=[path['attempts'][0]['outcome'] if path['attempts'] else 'unobserved' for path in paths]
     terminal={'passed','blown','inactive','expired'}
     passed=first.count('passed');open_count=sum(value not in terminal for value in first)
     complete=all(path['acquisition_completed'] for path in paths)
     m=forecast['metrics'];u=forecast['uncertainty']['metrics']
+    additional=dict(median_calendar_days_to_funded=None,p90_calendar_days_to_funded=None)
+    timing_complete=complete and all(p.get('calendar_days_to_funded') is not None for p in paths)
+    for day in (30,60,90):
+        additional[f'probability_funded_by_day_{day}']=(sum(p['acquisition_completed'] and p['calendar_days_to_funded']<=day for p in paths)/n
+            if timing_complete else None)
+    for name in ('days_before_final_attempt','final_attempt_days_before_target','final_attempt_days_after_target','pass_to_ready_days',
+                 'failed_attempts_before_target','failed_attempts_after_target','consistency_blocked_sessions'):
+        values=[p.get('acquisition_diagnostics',{}).get(name) for p in paths]
+        additional['mean_'+name]=float(np.mean(values)) if complete and all(v is not None for v in values) else None
+    if timing_complete:
+        values=[p['calendar_days_to_funded'] for p in paths]
+        additional.update(median_calendar_days_to_funded=float(np.median(values)),
+            p90_calendar_days_to_funded=float(np.quantile(values,.9,method='inverted_cdf')))
     return dict(status='estimated' if complete else 'unresolved',
         metrics=dict(cost_per_funded=m['mean_acquisition_cost'],
             expected_calendar_days_to_funded=m['mean_calendar_days_to_funded'],
@@ -281,7 +351,7 @@ def native_acquisition_metrics(forecast):
             probability_acquisition_by_cutoff=m['probability_acquisition_by_cutoff'],
             expected_attempts_per_funded=m['mean_attempts_started'] if complete else None,
             restricted_mean_paid_fees=m['restricted_mean_paid_fees'],
-            restricted_mean_observed_calendar_days=m['restricted_mean_observed_calendar_days']),
+            restricted_mean_observed_calendar_days=m['restricted_mean_observed_calendar_days'],**additional),
         uncertainty=dict(cost_se=u['mean_acquisition_cost']['mc_standard_error'],
             calendar_mean_se=u['mean_calendar_days_to_funded']['mc_standard_error'],
             cost_ci=None,calendar_mean_ci=None,robust_dominance='not_established',
@@ -303,6 +373,7 @@ def simulate_evaluation_profile(
     costs: SourceCosts = SourceCosts(),
     sizing: SizingConfiguration | None = None,
     observed_sessions=None,
+    *, checkpoint=lambda:None, progress=lambda value:None,
 ) -> EvaluationProfileResult:
     """Evaluate one saved source/size, stopping at acquisition; never run funded.
 
@@ -322,12 +393,20 @@ def simulate_evaluation_profile(
     trace = SizingTrace(sizing) if sizing is not None else None
 
     def runner(*args, **kwargs):
+        from .saved_trade_simulation import enabled,PathProgress
+        if enabled(sizing):
+            reporter=PathProgress(progress,sizing)
+            kwargs.update(checkpoint=checkpoint,progress=reporter)
+            reporter(0,simulation.simulations)
         if sampling.computational_horizon_weekdays is not None:
             kwargs['deadline'] = sampling.computational_horizon_weekdays
         if sizing is not None:
             kwargs.update(sizing.kernel_arguments(stage='attempt_sample' if not kwargs.get('chain') else 'legacy_chain'))
             if not kwargs.get('chain'):
                 kwargs['trace'] = trace
+        if profile.profile_id == 'lucidflex-50k':
+            kwargs['consistency'] = profile.consistency_percent/100
+            kwargs['inactivity_enforced'] = profile.lucid_inactivity_enforced
         return evaluation_model(*args, **kwargs)
 
     sim = runner(days, micros, simulation.simulations, simulation.seed,
@@ -486,7 +565,8 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
             if lucid and attempt['first_session'] is not None:
                 values = kernel.evaluation_session([], attempt['equity'], attempt['high'], attempt['best'],
                     attempt['last_activity'], (day-date.fromisoformat(attempt['first_session'])).days,
-                    min(micros, max_micros, 40), 1200. if profile.daily_loss_limit else None)
+                    min(micros, max_micros, 40), 1200. if profile.daily_loss_limit else None,
+                    consistency=profile.consistency_percent/100,inactivity_enforced=profile.lucid_inactivity_enforced)
                 attempt['equity'], attempt['high'], attempt['best'], attempt['last_activity'], state, hit, used = values
                 if state == 'inactive':
                     attempt.update(outcome=state, terminal_date=str(day))
@@ -505,7 +585,7 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
         if lucid:
             values = kernel.evaluation_session(trades, attempt['equity'], attempt['high'], attempt['best'],
                 attempt['last_activity'], (day-date.fromisoformat(attempt['first_session'])).days, size,
-                1200. if profile.daily_loss_limit else None, **kwargs)
+                1200. if profile.daily_loss_limit else None, consistency=profile.consistency_percent/100,inactivity_enforced=profile.lucid_inactivity_enforced, **kwargs)
             attempt['equity'], attempt['high'], attempt['best'], attempt['last_activity'], state, hit, used = values
         else:
             attempt['equity'], attempt['high'], state, hit, used = kernel.evaluation_session(
@@ -571,3 +651,69 @@ def replay_evaluation_profile(runs, source, profile, micros, window, calendar, *
             'The existing Apex model expires after 21 eligible sessions; current provider equivalence is unverified. Rule-version gaps are not deployment approval.',
             'Saved fixed-signal-path approximation: account pauses/skips are not a strategy rerun. No native execution or future profitability is certified.',
             'Calendar, activation and receipt timing are declared model assumptions. An unfinished acquisition has no fabricated finite funding-time estimate.'])
+
+class DatedEvaluationPreparation(DatedPhasePreparation):
+    """Bounded immutable calendar/index prefixes shared by Evaluation refits."""
+    VERSION = 'dated-evaluation-preparation-v1'
+
+
+def calendar_evaluation_paths(days, profile, micros, simulation, sampling, retry, calendar,
+        *, checkpoint=lambda:None, progress=lambda value:None, sizing=None, trace=None, chronological=False,
+        preparation=None,summary_only=False,path_indices=None,schedule_sink=None,_parallel=True):
+    """One dated owner; compact refits retain every path but omit unused capture."""
+    from . import lucid_backend,native_engine
+    lucid=profile.profile_id=='lucidflex-50k'
+    if type(profile) is not EvaluationProfile or (not lucid and not chronological) or not days:
+        raise ValueError('Calendar saved-path acquisition requires LucidFlex and nonempty history.')
+    if summary_only and sizing is not None:
+        raise ValueError('Compact historical refits require the admitted fixed-quantity policy.')
+    from .path_parallel import available,run
+    if _parallel and available() and not chronological and not summary_only:
+        return run('evaluation',dict(days=days,profile=profile,micros=micros,simulation=simulation,
+            sampling=sampling,retry=retry,calendar=calendar,sizing=sizing),simulation.simulations,trace,checkpoint,progress)
+    preparation=preparation if preparation is not None else DatedEvaluationPreparation()
+    layouts=preparation.evaluation_layouts(calendar,retry.max_calendar_days,retry.activation_delay_sessions,checkpoint)
+    return lucid_backend.module().calendar_acquisition(days,profile,micros,simulation,sampling,retry,layouts,
+        preparation=preparation,checkpoint=checkpoint,progress=progress,sizing=sizing,trace=trace,
+        chronological=chronological,summary_only=summary_only,native_session=native_engine.evaluation_session,
+        path_indices=path_indices,schedule_sink=schedule_sink)
+
+
+
+def simulate_calendar_evaluation_profile(runs,candidate,calendar,*,observed_sessions=None,checkpoint=lambda:None,progress=lambda value:None):
+    """Local calendar-aware saved-signal Lucid paths projected to Pareto metrics."""
+    from dataclasses import asdict
+    from .phase_profiles import equal_stratum_mean
+    c=candidate
+    snapshot,days,_=prepare_phase_source(runs,c.source,c.profile,c.micros,c.simulation,c.period,c.costs,c.sizing,
+        observed_sessions=observed_sessions)
+    trace=SizingTrace(c.sizing) if c.sizing is not None else None
+    paths,schedule=calendar_evaluation_paths(days,c.profile,c.micros,c.simulation,c.sampling,c.retry,calendar,
+        sizing=c.sizing,trace=trace,checkpoint=checkpoint,progress=progress)
+    verify_phase_source(runs,c.source,snapshot)
+    def estimate(key):
+        return equal_stratum_mean([[p[key] for p in paths if p['start_date']==start] for start in sorted(calendar.start_dates)])
+    names=dict(restricted_mean_paid_fees='paid_fees',restricted_mean_observed_calendar_days='observed_calendar_days',
+        probability_acquisition_by_cutoff='acquisition_completed',mean_attempts_started='attempts_started')
+    estimates={name:estimate(key) for name,key in names.items()};complete=all(p['acquisition_completed'] for p in paths)
+    for name,key in [('mean_acquisition_cost','paid_fees'),('mean_calendar_days_to_funded','calendar_days_to_funded')]:
+        estimates[name]=estimate(key) if complete else dict(mean=None,mc_standard_error=None)
+    forecast=dict(paths=paths,metrics=dict({k:v['mean'] for k,v in estimates.items()},censored_paths=sum(p['censored'] for p in paths)),
+        uncertainty=dict(metrics=estimates,scope='Conditional simulation noise under the saved source/calendar law; no future confidence or provider certification.'),
+        model='saved-signal-calendar-acquisition-v1',phase_configuration=dict(profile=asdict(c.profile),micros=c.micros,
+            simulation=asdict(c.simulation),sampling=asdict(c.sampling),retry=asdict(c.retry),calendar=asdict(calendar)),
+        assumptions=['Source trade signals are fixed and scaled; account stops do not regenerate subsequent signals.',
+            'Lucid account transitions use actual scenario civil dates. Inactivity expiry follows the frozen profile; the current maintained-activity model omits maintenance trades and their small commission costs. No provider evaluation deadline.',
+            'Fresh-account retries charge every purchase. Cost/time are direct all-path means, not fee divided by an IID pass probability.',
+            'Readiness is the next declared open session after eligibility; not measured provider activation latency.',
+            'Numerical calendar/attempt guards censor open paths and withhold unconditional acquisition means.',
+            'Only first/last attempt details are captured; fees and counts include all attempts.'])
+    result=native_acquisition_metrics(forecast)
+    result['assumptions'].update(native_execution=False,fixed_signal_calendar_sampling=True)
+    result['metrics'].update(p90_calendar_days_to_funded=float(np.quantile([p['calendar_days_to_funded'] for p in paths],.9,method='inverted_cdf')) if complete else None,
+        median_calendar_days_to_funded=float(np.median([p['calendar_days_to_funded'] for p in paths])) if complete else None)
+    result.update(paths=paths,schedule_sha256=schedule,reason=None if complete else 'calendar_or_attempt_guard',
+        component=dict(provenance=provenance('evaluation',snapshot,c.profile,c.micros,c.simulation,c.sampling,
+            acquisition_model=forecast['model'],calendar=asdict(calendar),
+            **({'sizing':trace.result()} if trace is not None else {}))))
+    return result

@@ -1,0 +1,22 @@
+{
+  "portal": "http://127.0.0.1:8000",
+  "server": {
+    "pid": 51945,
+    "port": 8000
+  },
+  "candidates": {
+    "1443ec1be841473c9564b409f94e20b8": "7dba7e97151243a296b8c3067e047044",
+    "5a1d1132b57e41f2a364851b7722ce6a": "dadf59bd21e04864a0d4dcdd832f0869",
+    "e593085d424e4d68aa88f1ecb04d04e5": "e32885c524534e29a181e4198432b9ff",
+    "f5fb02ad3138401b833fd40b99b1574f": "43d09d3907304f6eba4cc658c325ee96",
+    "364df13574914ca1b88d33caa10b364e": "2e1c291f413244a2883bca4fc877dc1e",
+    "759bf9dc2d714dafbe1d7f5985d99482": "82d90ca3db6a4cd996984d93563b74d8"
+  },
+  "rejected": {
+    "detail": "Backtest 27de27ee has not passed current campaign qualification. Prop Desk requires Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo."
+  },
+  "report": "5e56b2f7c2a542b98be1cb3e219317d3",
+  "earlier_report": "dd99213c4cb94189811344d5c78fc0c4",
+  "earlier_sha256": "9ce276f39c2f820833e53736c9f42575cdff377050ba2d39c505063120c7985d",
+  "verified_desktop_mobile": true
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "report": "artifacts/twin-entry-protection-qualified-20261115/backtest_runs/1055bc78669841ebbd27025fcdde53ab/report.json",
+    "version": "entry-protection-ohlc-sensitivity-v1",
+    "artifacts": 7,
+    "verified": true
+  },
+  {
+    "report": "artifacts/twin-oco-sensitivity-qualified-20261115/backtest_runs/443be9203d744ad9967772a4fa83e14b/report.json",
+    "version": "entry-protection-ohlc-sensitivity-v2",
+    "artifacts": 21,
+    "verified": true
+  }
+]

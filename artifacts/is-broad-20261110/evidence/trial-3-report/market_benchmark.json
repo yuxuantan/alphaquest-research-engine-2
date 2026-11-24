@@ -1,0 +1,201 @@
+{
+  "version": "price-series-holding-v1",
+  "settings": {
+    "contracts": 1
+  },
+  "classification": "price_series_comparison",
+  "calculation_source_sha256": {
+    "market_benchmark.py": "1abbbf42cf51fbc2a80d2c1636d5117fee607f8aea247f6a7de574e0c1e252d2",
+    "execution.py": "e7a0e4c0b89b6038f0ab92bb1a17758e56fb7d2e4c970d4726943fe038cd542d",
+    "reporting.py": "341a8d509c4a7cbb57cc7664c5e230d8e026a8542d075e71c2a9ae28e27d805c",
+    "drawdown.py": "07e7e5757cad8a63dcfdfeacae590333584aaf6501a0be4513e8e8884925cd83",
+    "decimal_math.py": "05b596b1d93a80c9eb351395c602daeccef3a98e0eac60dc4aa47c03b710dcb5"
+  },
+  "executable_futures_performance": "unverified",
+  "source": {
+    "backtest_id": "364c3cdef4794a489b7c7e871793b849",
+    "dataset": {
+      "id": "fe7719a2adcc454b8a83b15696611a7c",
+      "name": "SYNTHETIC mechanics",
+      "sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+      "source_timezone": "UTC",
+      "row_count": 25,
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "10"
+      }
+    },
+    "instrument": {
+      "symbol": "SYNTHETIC",
+      "interval_seconds": null,
+      "interval_kind": "irregular"
+    },
+    "selection": {
+      "from_date": "2026-01-05",
+      "to_date": "2026-01-05",
+      "source_timezone": "UTC",
+      "warmup": "none",
+      "start_utc": "2026-01-05T09:00:00Z",
+      "first_source_bar_number": 1,
+      "end_utc": "2026-01-05T14:24:00Z",
+      "last_source_bar_number": 24,
+      "row_count": 24
+    },
+    "research": {
+      "phase": "is",
+      "plan": {
+        "strategy_id": "consecutive_green_hold",
+        "source_sha256": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+        "source_timezone": "UTC",
+        "is_start": "2026-01-05",
+        "is_end": "2026-01-05",
+        "oos_start": "2026-01-06",
+        "oos_end": "2026-01-06",
+        "is_bars": 24,
+        "oos_bars": 1,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "workflow_id": "67f26c98bb88489fbce6f33b452d0bb7",
+      "workflow_phase": "is_broad"
+    },
+    "strategy": {
+      "id": "consecutive_green_hold",
+      "description": "Enter long at the close of N adjacent observed green bars while flat. Hold for elapsed UTC minutes, exit at the first available close at or after the deadline, and close remaining exposure at end of data. No pyramiding.",
+      "source_sha256": "81a84bc5e4aaa7966e7652d5369cf9767eff47003961ee9aca8f689e15a8dfc4",
+      "execution_assumption": "same_close_full_fill",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 3
+      }
+    },
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "10",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    }
+  },
+  "source_checks": {
+    "selected_bars_equal_native_equity": true,
+    "final_strategy_equity_reconciles": true,
+    "original_source_integrity": "validated by the backtest source reader",
+    "contract_identity": "not established by the dataset contract",
+    "roll_prices_and_costs": "not recorded",
+    "corporate_actions": "not recorded"
+  },
+  "assumptions": [
+    "Fixed long quantity chosen before replay; no compounding or risk matching.",
+    "Holding enters at the first selected Open and exits at the final selected Close; both fills include native adverse slippage and commission.",
+    "Timestamps identify bar closes, including Open fills; they are not measured execution times.",
+    "Bar-close mark-to-market drawdowns exclude intrabar paths. Existing trade-close metrics are preserved.",
+    "Exposure duration uses saved fill-bar timestamps; average/maximum notional samples post-fill bar closes and can miss intrabar peaks.",
+    "No contract rolls, dividends, cash interest, borrowing charges or margin liquidation are modelled. Do not add carry costs already embedded in futures prices.",
+    "A stitched price gap may distort holding P&L. This is a price-series diagnostic, not verified executable futures or ETF total return.",
+    "After nonpositive equity, hypothetical arithmetic continues without margin enforcement; no annualized return is reported.",
+    "Strategy historical execution assumptions, including any session-close lookahead, still apply."
+  ],
+  "period_start_utc": "2026-01-05T09:00:00Z",
+  "period_end_utc": "2026-01-05T14:24:00Z",
+  "observed_bar_count": 24,
+  "initial_capital": "10000",
+  "accounts": {
+    "strategy": {
+      "net_pnl": "234.00",
+      "final_equity": "10234.00",
+      "return_pct": "2.34",
+      "max_drawdown_amount": "121.50",
+      "max_drawdown_pct": "1.198461234957585322548826198",
+      "max_drawdown_duration_seconds": "12180",
+      "minimum_equity": "9989.50",
+      "nonpositive_equity": false,
+      "max_contracts": 3,
+      "average_bar_close_notional": "750",
+      "maximum_bar_close_notional": "3000",
+      "maximum_bar_close_leverage": "0.3",
+      "total_commissions": "36",
+      "total_slippage_cost": "90.00",
+      "time_in_market_pct": "41.66666666666666666666666667",
+      "average_contracts_while_held": "3",
+      "short_trades": 0
+    },
+    "holding": {
+      "net_pnl": "63.00",
+      "final_equity": "10063.00",
+      "return_pct": "0.63",
+      "max_drawdown_amount": "80.00",
+      "max_drawdown_pct": "0.7939264625614052498387336873",
+      "max_drawdown_duration_seconds": "14280",
+      "minimum_equity": "9996.50",
+      "nonpositive_equity": false,
+      "max_contracts": 1,
+      "average_bar_close_notional": "954.1666666666666666666666667",
+      "maximum_bar_close_notional": "1050",
+      "maximum_bar_close_leverage": "0.105",
+      "total_commissions": "2",
+      "total_slippage_cost": "5.00",
+      "time_in_market_pct": "100",
+      "average_contracts_while_held": "1"
+    }
+  },
+  "excess_net_pnl": "171.00",
+  "entry": {
+    "bar_number": 1,
+    "timestamp_utc": "2026-01-05T09:00:00Z",
+    "reference_price": "97",
+    "fill_price": "97.25"
+  },
+  "holding_trade": {
+    "trade_number": 1,
+    "side": "long",
+    "entry_bar_number": 1,
+    "exit_bar_number": 24,
+    "entry_time_utc": "2026-01-05T09:00:00Z",
+    "exit_time_utc": "2026-01-05T14:24:00Z",
+    "exit_deadline_utc": null,
+    "contracts": 1,
+    "entry_reference_price": "97",
+    "exit_reference_price": "104",
+    "entry_fill_price": "97.25",
+    "exit_fill_price": "103.75",
+    "entry_commission": "1",
+    "exit_commission": "1",
+    "total_commissions": "2",
+    "reference_gross_pnl": "70",
+    "slippage_cost": "5.00",
+    "gross_pnl": "65.00",
+    "net_pnl": "63.00",
+    "actual_holding_minutes": "324",
+    "entry_reason": "holding_start",
+    "exit_reason": "holding_end"
+  },
+  "monthly": [
+    {
+      "period": "2026-01",
+      "strategy_net_pnl": "234.00",
+      "holding_net_pnl": "63.00",
+      "excess_net_pnl": "171.00"
+    }
+  ],
+  "yearly": [
+    {
+      "period": "2026",
+      "strategy_net_pnl": "234.00",
+      "holding_net_pnl": "63.00",
+      "excess_net_pnl": "171.00"
+    }
+  ],
+  "storage": {
+    "version": "daily-shared-v1",
+    "granularity": "DAY",
+    "timezone": "UTC",
+    "day_boundary": "last_selected_bar_of_source_calendar_date",
+    "observed_day_count": 1,
+    "strategy_sha256": "ca3244890875a4c54fd2ab2afd8b03ee5bd1270ad92343bb71dd649666944a1e",
+    "holding_key": "eeb5aab55a213dc8cb6ebaf54c91bdac9a74d4e038fcef89116ef6515eb75e7e",
+    "holding_sha256": "6483d46a46672cbcea955fbb1e69177f99e4c39c6e1f4029af8f297a2ba7c743"
+  },
+  "equity_sha256": "c0c8c620b99015862494cd653cfd51c181f8aaa6661fa684a016a91389bc6a6b"
+}

@@ -1,0 +1,49 @@
+{
+  "exact": true,
+  "replicates": 24,
+  "distinct_histories": [
+    24,
+    24
+  ],
+  "execution": {
+    "workers_used": 2,
+    "worker_pids": [
+      74004,
+      74005
+    ],
+    "nested_pool": false,
+    "elapsed_seconds": 0.65,
+    "ordered_by": "replicate_index",
+    "context": "Internal temporary input loaded once per process; removed after workers finish"
+  },
+  "progress": [
+    {
+      "stage": "historical_confidence",
+      "phase": "evaluation",
+      "micros": 10,
+      "completed": 0,
+      "total": 24,
+      "unit": "resamples",
+      "worker_count": 1,
+      "active_workers": 1,
+      "elapsed_seconds": 0.0,
+      "resamples_per_second": null,
+      "eta_seconds": null,
+      "updated_at_utc": "2026-11-13T14:00:38.400599+00:00"
+    },
+    {
+      "stage": "historical_confidence",
+      "phase": "evaluation",
+      "micros": 10,
+      "completed": 24,
+      "total": 24,
+      "unit": "resamples",
+      "worker_count": 2,
+      "active_workers": 0,
+      "elapsed_seconds": 0.65,
+      "resamples_per_second": 37.1684,
+      "eta_seconds": 0.0,
+      "updated_at_utc": "2026-11-13T14:00:39.046372+00:00"
+    }
+  ]
+}

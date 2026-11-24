@@ -44,18 +44,20 @@ class DeclaredNativeCalendar:
 class NativeForecastRequest(BaseModel):
     """Explicit fitted source-block law, separate from the observed replay."""
     model_config = ConfigDict(extra='forbid', frozen=True)
-    model: Literal['observed_contiguous_blocks_with_prior_prefix_v1']
-    simulations: int = Field(strict=True, ge=2, le=512)
+    model: Literal['observed_contiguous_blocks_with_prior_prefix_v1','native_percentage_observed_blocks_v2']
+    simulations: int = Field(strict=True, ge=2, le=20000)
     seed: int = Field(strict=True, ge=0, le=2**32-1)
     block_sessions: int = Field(strict=True)
     calendar: dict
     early_closes: dict[StrictStr, StrictStr] = Field(default_factory=dict)
-    horizon_calendar_days: int = Field(strict=True, ge=1, le=365)
+    horizon_calendar_days: int = Field(strict=True, ge=1, le=3650)
     capture_paths: int = Field(strict=True, ge=1, le=20)
 
     @model_validator(mode='after')
     def declared_law(self):
         from .phase_search import PhaseCalendar
+        if self.model=='observed_contiguous_blocks_with_prior_prefix_v1' and (self.simulations>512 or self.horizon_calendar_days>365):
+            raise ValueError('Legacy native forecasts support at most 512 paths and 365 calendar days.')
         if self.block_sessions not in (1, 5, 10):
             raise ValueError('Native source blocks must contain 1, 5 or 10 consecutive observed sessions.')
         try:
@@ -132,8 +134,10 @@ class NativeReplayRequest(BaseModel):
     phase: Literal['evaluation', 'funded']
     source_backtest_id: StrictStr = Field(pattern=r'^[0-9a-f]{32}$')
     profile: dict
-    micros: int = Field(strict=True, ge=1, le=40)
-    max_micros: int = Field(default=40, strict=True, ge=1, le=40)
+    micros: int = Field(strict=True, ge=1, le=60)
+    max_micros: int = Field(default=40, strict=True, ge=1, le=60)
+    source_adaptation: Literal['saved_MNQ','NQ_or_MNQ_reference_MNQ_execution'] = 'saved_MNQ'
+    prepared_execution: bool = Field(default=False,strict=True)
     sizing: dict | None = None
     costs: dict = Field(default_factory=lambda:dict(mode='source', instrument='MNQ'))
     period: dict | None = None
@@ -146,12 +150,21 @@ class NativeReplayRequest(BaseModel):
     def phase_contract(self):
         from .evaluation_optimization import SequentialRetry
         try:
+            ceiling=60 if self.phase=='evaluation' and self.profile.get('profile_id')=='apex-50k-eod' else 40
+            if self.max_micros>ceiling:raise ValueError(f'This native account phase supports at most {ceiling} MNQ.')
+            if self.source_adaptation!='saved_MNQ' and not self.prepared_execution:raise ValueError('Reference-price adaptation requires the explicit prepared native model.')
+            if self.native_forecast is not None and (self.native_forecast.model=='native_percentage_observed_blocks_v2')!=self.prepared_execution:
+                raise ValueError('Prepared percentage execution and its V2 forecast law must be declared together.')
+            if self.prepared_execution and self.source_adaptation!='NQ_or_MNQ_reference_MNQ_execution':
+                raise ValueError('Prepared percentage execution requires its explicit reference-price adaptation.')
             if self.micros > self.max_micros:
                 raise ValueError('Native quantity cap cannot exceed max_micros.')
             (EvaluationProfile if self.phase == 'evaluation' else FundedProfile)(**self.profile)
             costs = SourceCosts(**self.costs)
-            if costs.mode != 'source' or costs.instrument not in ('auto', 'MNQ') or costs.broker is not None or costs.per_side:
+            if not self.prepared_execution and (costs.mode != 'source' or costs.instrument not in ('auto', 'MNQ') or costs.broker is not None or costs.per_side):
                 raise ValueError('Native replay uses saved MNQ fill costs exactly once; cost replacement is unsupported.')
+            if self.prepared_execution and (costs.mode!='override' or costs.per_side is None or costs.instrument not in ('auto','MNQ')):
+                raise ValueError('Prepared percentage execution requires explicit MNQ replacement commissions.')
             if self.sizing is not None:
                 SizingConfiguration(**self.sizing)
             if self.period is not None:
@@ -174,8 +187,8 @@ def _instant(value):
     return datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
-def check_replay(datasets, runs, request, *, admitted_record=None):
-    """Verify bytes, native identity, full observed sessions and immutable IS bounds."""
+def check_replay(datasets, runs, request, *, admitted_record=None,source_cache=None,forecast_cache=None):
+    """Verify source identity/inventory; native v2 minute gaps are diagnostic."""
     from ..backtest_data import read_selected_bars
     from ..optimization_cache import artifacts, engine_identity, digest
     from ..reporting import json_value
@@ -195,75 +208,16 @@ def check_replay(datasets, runs, request, *, admitted_record=None):
         raise ValueError('Native phase replay requires an ordinary saved native IS report, not imported trades, OOS or an account-controlled result.')
     if meta.get('execution_scenario') is not None:
         raise ValueError('Native phase replay currently requires baseline saved execution settings; stress-scenario reruns are not admitted.')
-    dataset = datasets.get(meta['dataset']['id'])
-    if dataset is None or any(dataset.get(k) != v for k, v in meta['dataset'].items()) or any(dataset.get(k) != v for k, v in meta['instrument'].items()):
-        raise ValueError('Saved dataset or instrument identity changed; save a new IS report.')
-    # Dated-contract expiration requires its own expiry calendar. Never label NQ
-    # prices MNQ, or silently use the 16:00 continuous-session close on expiry.
-    if not re.fullmatch(r'@?MNQ[!#12]*(?:[. ]CME)?', str(dataset.get('symbol', '')).strip().upper()):
-        raise ValueError('Native replay currently requires explicit continuous/base MNQ. NQ scaling and dated-contract expiry sessions are unsupported.')
-    # Normal uploads label inter-session maintenance gaps as irregular. The
-    # complete per-session minute inventory below proves cadence without
-    # replacing that honest dataset-wide spacing metadata.
-    if dataset.get('interval_seconds') not in (None, 60):
-        raise ValueError('Native replay requires one-minute bars; the saved regular interval is incompatible.')
-    config = ExecutionConfig(**{k:Decimal(v) if k != 'slippage_ticks' else v for k,v in record['execution_settings'].items()})
-    if config.tick_size != Decimal('.25') or config.point_value != Decimal('2') or any(Decimal(dataset['instrument_settings'][k]) != v for k,v in [('tick_size', config.tick_size), ('point_value', config.point_value)]):
-        raise ValueError('Native MNQ replay requires actual MNQ tick_size=0.25 and point_value=2 in both dataset and execution settings.')
-    strategy = meta['strategy']
-    if strategy['id'] != 'vwap_pullback_risk_sizing':
-        raise ValueError('Native account control currently supports the VWAP strategy admission hook only.')
-    definition = get_strategy(strategy['id'])
-    parameters = definition.parameters(strategy['parameters'])
-    if not parameters.use_eod_flat or parameters.use_vol_sizing:
-        raise ValueError('Native account control requires Use EOD Flat enabled and strategy-local Use Vol Sizing disabled.')
-    expected = json.loads(json.dumps(definition.provenance(parameters), default=json_value))
-    expected.pop('session_flattening', None)
-    if any(strategy.get(k) != v for k,v in expected.items()):
-        raise ValueError('Strategy implementation changed since this report; save a new IS source.')
-    inventory = inventory_sessions(datasets, dataset['id'], minimum_sessions=1)
-    bounds = inventory['bounds']
-    first, last = _instant(record['period_start_utc']), _instant(record['period_end_utc'])
-    eligible = [s for s in inventory['sessions'] if _instant(bounds[s]['first_utc']) >= first and _instant(bounds[s]['last_utc']) <= last]
-    if not eligible:
-        raise ValueError('The source IS report contains no complete observed CME sessions.')
-    period = ResearchPeriod(**request.period) if request.period is not None else ResearchPeriod(eligible[0], eligible[-1])
-    selected = [s for s in eligible if period.first_session <= s <= period.last_session]
-    if not selected or selected[0] != period.first_session or selected[-1] != period.last_session:
-        raise ValueError('Requested session endpoints must be whole observed sessions within the saved IS report.')
-    calendar = load_calendar(symbol=dataset['symbol'])
-    descriptor = resolve_calendar(dataset['symbol'])
-    start, end = date.fromisoformat(period.first_session), date.fromisoformat(period.last_session)
-    if (end-start).days > 366 or sum(inventory['counts'][s] for s in selected) > 510000:
-        raise ValueError('Native chronological capture currently supports at most 366 calendar days and 510000 observed bars; narrow the explicit window.')
-    opens, closures, plans = [], [], {}
-    day = start
-    while day <= end:
-        plan = calendar.plan(day, parameters.eod_flat_time, parameters.close_buffer_minutes)
-        if plan.close is not None:
-            opens.append(str(day)); plans[day] = plan
-        elif day.weekday() < 5:
-            closures.append(str(day))
-        day += timedelta(days=1)
-    if selected != opens:
-        raise ValueError('Observed sessions differ from the reviewed calendar; missing open sessions and bars on full closures cannot be fabricated.')
-    # This first supported subset requires every close-labelled minute. No
-    # missing bar is inferred as a venue close, no session is forward-filled.
-    seen = {s:[] for s in selected}
-    with read_selected_bars(datasets, dataset['id'], SessionDateRange.parse(period.first_session, period.last_session)) as source:
-        for bar in source.bars:
-            seen[str(session_date(bar.timestamp_utc))].append(bar.timestamp_utc)
-    sessions = []
-    for text in selected:
-        day = date.fromisoformat(text); plan = plans[day]
-        begin = datetime.combine(day-timedelta(days=1), time(17,1), CT).astimezone(timezone.utc)
-        close = plan.close.astimezone(timezone.utc)
-        count = int((close-begin).total_seconds()/60)+1
-        stamps = seen[text]
-        if len(stamps) != count or any(stamp != begin+timedelta(minutes=index) for index,stamp in enumerate(stamps)):
-            raise ValueError(f'Native session {text} requires every observed minute from 17:01 Chicago through its scheduled close; incomplete/sparse sessions are unsupported.')
-        sessions.append(dict(session=text, scheduled_close_utc=close.isoformat(), calendar_version=descriptor['id']+'-reviewed-csv-v1',
-            calendar_sha256=calendar.sha256, observed_bar_count=count, fully_observed_or_flat_after_entry_cutoff=True))
+    key=canonical(dict(source=record,period=request.period,costs=request.costs,prepared=request.prepared_execution,adaptation=request.source_adaptation))
+    if source_cache is None:source_cache={}
+    if key not in source_cache:
+        if request.prepared_execution:
+            # Causal proposals are recomputed from bars, not resized saved trades.
+            strategy=meta['strategy'];definition=get_strategy(strategy['id'])
+            definition.sizing.require(definition.parameters(strategy['parameters']), 'percentage_risk')
+        source_cache[key]=_admit_replay_source(datasets,record,request)
+    dataset,config,parameters,period,sessions,calendar,descriptor,closures,missing_minutes=source_cache[key]
+    start,end=date.fromisoformat(period.first_session),date.fromisoformat(period.last_session)
     sizing = SizingConfiguration(**request.sizing) if request.sizing is not None else SizingConfiguration(
         policy=dict(kind='fixed_contracts', contracts=request.micros), initial_configured_capital='50000',
         planning_execution=dict(tick_size='0.25', point_value='2', entry_slippage_ticks=config.slippage_ticks,
@@ -288,14 +242,33 @@ def check_replay(datasets, runs, request, *, admitted_record=None):
         source_check=dict(status='compatible', source_kind='native_strategy_rerun', actual_instrument='MNQ',
             observed_sessions=len(sessions), observed_bars=sum(s['observed_bar_count'] for s in sessions),
             sizing_uses_future_fill=False, costs_charged_once=True, cold_strategy_start=True,
-            complete_minute_sessions=True, historical_paths=1, recommendation=False,
-            limitations=['Continuous/base MNQ, one-minute complete sessions, VWAP EOD-flat only.',
+            complete_minute_sessions=not missing_minutes, historical_paths=1, recommendation=False,
+            limitations=['Registered controlled strategy, continuous/base MNQ; observed bars determine execution. Missing minutes are diagnosed, not reconstructed.',
                 'Strategy starts cold at the first retained source bar; prior source results do not enter sizing.',
                 'The historical replay is one observed path and does not select a policy. Optional native forecasts are separate; independent native IS campaigns perform policy selection.',
                 'Provider rules, OHLC ordering and payout settlement assumptions remain unverified.']))
+    from .native_market_hours import VERSION as COVERAGE_VERSION
+    result['observed_coverage']=dict(version=COVERAGE_VERSION,validation='diagnostic_only_observed_bars',
+        missing_minutes=[[a.isoformat(),b.isoformat()] for a,b in missing_minutes],
+        interpretation='Replay only observed bars; missing-minute completeness is diagnostic. No unobserved fills or excursions are reconstructed, no prices imputed and no replacement draws.',
+        missing_minute_count=sum(int((b-a).total_seconds()//60)+1 for a,b in missing_minutes),
+        longest_gap_minutes=max((int((b-a).total_seconds()//60)+1 for a,b in missing_minutes),default=0))
+    if request.prepared_execution:
+        result['source_check']['sizing_capabilities']=get_strategy(meta['strategy']['id']).sizing.describe(parameters)
+        result.update(execution_settings={k:str(v) if isinstance(v,Decimal) else v for k,v in asdict(config).items()},
+            source_adaptation=dict(price_reference=dataset['symbol'],execution_instrument='MNQ',point_value='2',commission_mode='replace_once',micro_basis_and_liquidity_verified=False))
+        result['source_check'].pop('complete_minute_sessions',None)
+        result['source_check']['full_session_completeness_required']=False
+        result['source_check']['limitations'][0]='Observed NQ/MNQ reference prices and explicit MNQ costs. Missing-minute completeness is diagnostic, including gaps during positions or working entries. No unobserved events are reconstructed; risk can be understated.'
+        result['source_check']['holding_coverage_validation']='diagnostic_only_observed_bars'
+        result['source_check']['complete_holding_intervals_required']=False
+    if dataset.get('tick_data'):
+        result['source_check'].update(execution_data='ordered_trade_ticks',decision_clock='completed_one_minute_bars',
+            source_total_trade_records=dataset['tick_data']['records'])
+        result['source_check']['limitations'][-1]='Recorded trade order resolves the observed price path. Full fills, spread, latency, feed completeness, provider rules and payout settlement remain modeling assumptions; no order-book queue reconstruction.'
     make_controller(request, result)
     if request.native_forecast is not None:
-        result['native_forecast_plan'], _, _ = prepare_native_forecast(datasets, request, result)
+        result['native_forecast_plan'], _, _ = prepare_native_forecast(datasets, request, result,cache=forecast_cache)
     return result
 
 
@@ -313,14 +286,20 @@ def make_controller(request, check, *, cutoff_date_exclusive=None):
     # Dispatch resolves optimizer contracts; simulation owners remain explicit.
     if request.phase == 'evaluation':
         from .evaluation_profiles import NativeEvaluationController
-        return NativeEvaluationController(EvaluationProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
+        controller=NativeEvaluationController(EvaluationProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
             **common, calendar=PhaseCalendar(**check['calendar']), retry=SequentialRetry(**(request.retry or {})))
-    from .funded_profiles import NativeFundedController
-    return NativeFundedController(FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
-        **common, receipt_delay_calendar_days=request.receipt_delay_calendar_days, receipt_amount_convention=request.receipt_amount_convention)
+    else:
+        from .funded_profiles import NativeFundedController
+        controller=NativeFundedController(FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
+            **common, receipt_delay_calendar_days=request.receipt_delay_calendar_days, receipt_amount_convention=request.receipt_amount_convention)
+    gaps=check.get('observed_coverage',{}).get('missing_minutes',[])
+    if gaps:
+        from .native_market_hours import ObservedExposureCoverage
+        controller.observed_coverage=ObservedExposureCoverage(tuple((_instant(a),_instant(b)) for a,b in gaps))
+    return controller
 
 
-def prepare_native_forecast(datasets, request, check):
+def prepare_native_forecast(datasets, request, check,*,cache=None):
     """Build all addressed schedules before queueing; never execute a strategy."""
     from ..backtest_data import read_selected_bars
     from ..research_folds import SessionDateRange
@@ -333,7 +312,7 @@ def prepare_native_forecast(datasets, request, check):
     if forecast is None:
         raise ValueError('An explicit native forecast declaration is required.')
     starts = sorted(forecast.calendar['start_dates'])
-    if starts[0] <= check['period']['last_session']:
+    if starts[0] <= check['period']['last_session'] and not request.prepared_execution:
         raise ValueError('Every modeled forecast start must follow the last admitted source IS session.')
     source = check['source']; strategy = source['run_metadata']['strategy']
     parameters = get_strategy(strategy['id']).parameters(strategy['parameters'])
@@ -344,17 +323,28 @@ def prepare_native_forecast(datasets, request, check):
         dataset_sha256=check['dataset']['sha256'], source_period=check['period'], strategy=strategy,
         execution=source['execution_settings'], source_calendar=check['calendar_metadata'],
         engine_identity=check['engine_identity'])
-    with read_selected_bars(datasets, check['dataset']['id'],
-            SessionDateRange.parse(check['period']['first_session'], check['period']['last_session'])) as selected:
-        catalogue = build_catalogue(selected.bars, source_contexts, parameters,
-            block_sessions=forecast.block_sessions, source_identity=source_identity)
+    if cache is None:cache={}
+    if request.prepared_execution:
+        from .native_market_hours import VERSION as COVERAGE_VERSION
+        source_identity.update(complete_holding_intervals=True,forecast_model=forecast.model,
+            execution=check['execution_settings'],source_adaptation=check['source_adaptation'],holding_coverage=COVERAGE_VERSION)
+    key=digest(dict(source=source_identity,block_sessions=forecast.block_sessions))
+    if key not in cache:
+        if request.prepared_execution:
+            with _prepared_source_bars(datasets,check['dataset']['id'],ResearchPeriod(**check['period'])) as rows:
+                cache[key]=build_catalogue(rows,source_contexts,parameters,block_sessions=forecast.block_sessions,source_identity=source_identity)
+        else:
+            with read_selected_bars(datasets,check['dataset']['id'],SessionDateRange.parse(check['period']['first_session'],check['period']['last_session'])) as selected:
+                cache[key]=build_catalogue(selected.bars,source_contexts,parameters,block_sessions=forecast.block_sessions,source_identity=source_identity)
+    catalogue=cache[key]
     calendar = forecast.target_calendar()
     cohorts, cohort_rows = {}, []
     for text in starts:
         start = date.fromisoformat(text); cutoff = start+timedelta(days=forecast.horizon_calendar_days)
         contexts = {}; day = start
         while day < cutoff:
-            plan = calendar.plan(day, parameters.eod_flat_time, parameters.close_buffer_minutes)
+            from ..strategy_sizing import native_session_plan
+            plan = native_session_plan(calendar, day, parameters)
             if plan.close is not None:
                 close = plan.close.astimezone(timezone.utc)
                 begin = datetime.combine(day-timedelta(days=1), time(17,1), CT).astimezone(timezone.utc)
@@ -364,11 +354,33 @@ def prepare_native_forecast(datasets, request, check):
             day += timedelta(days=1)
         if not contexts:
             raise ValueError('Native forecast currently requires at least one modeled open session per cohort; no target bars or zero-session account outcome are invented.')
+        if request.prepared_execution:
+            from .native_control import NativeSessionInventory
+            contexts=NativeSessionInventory(contexts,start,cutoff)
         cohorts[text] = contexts
         cohort_rows.append(dict(start_date=text, cutoff_date_exclusive=str(cutoff),
             modeled_open_sessions=len(contexts), paths=forecast.simulations//len(starts),
             context_kind='modeled', observed_target_bars=0,
             contexts=[json_native(asdict(row)) for row in contexts.values()]))
+    if request.prepared_execution:
+        from .native_preparation import NativeSchedulePreparation
+        declarations=[]
+        for start in starts:
+            prepared=NativeSchedulePreparation(catalogue,cohorts[start],parameters,phase=request.phase,seed=forecast.seed,
+                simulations=forecast.simulations,start=start,cutoff=str(date.fromisoformat(start)+timedelta(days=forecast.horizon_calendar_days)))
+            declarations.append(dict(start=start,schedule_preparation_sha256=prepared.identity,
+                complete_pool_membership=prepared.pools,slots=len(prepared.templates)))
+        metadata=catalogue.metadata()
+        compact={k:metadata[k] for k in ('version','block_sessions','source_identity','parameters','content_sha256','catalogue_sha256','source_bars','source_sessions','prefix_law','strategy_reset','price_rebasing')}
+        plan=dict(schema_version='native-percentage-forecast-plan-v2',request=forecast.model_dump(mode='json'),
+            catalogue=compact,target_calendar=calendar.metadata(),cohorts=[{k:v for k,v in r.items() if k!='contexts'} for r in cohort_rows],
+            simulations=forecast.simulations,schedules=[],schedule_declarations=declarations,
+            retained_path_indices=list(range(forecast.capture_paths)),
+            work=dict(source_validation_bars=len(catalogue.bars),total_bar_work=None,
+                execution='Shared native bar execution with exact event acceleration where supported. All requested account paths.',
+                schedule_bytes=sum(len(canonical(r).encode()) for r in declarations),estimated_capture_bytes=None))
+        plan['plan_sha256']=digest(plan)
+        return plan,catalogue,cohorts
     schedules = []; warmup = executed = validation = schedule_bytes = captured_bars = 0
     for index in range(forecast.simulations):
         start = starts[index % len(starts)]
@@ -424,7 +436,7 @@ def execute_checked_replay(datasets,runs,request,check,*,admitted_record=None,re
     if canonical(current)!=canonical(check):raise ValueError('Native source or implementation changed before chronological execution.')
     source=check['source'];strategy=source['run_metadata']['strategy']
     definition=get_strategy(strategy['id'])
-    config=ExecutionConfig(**{key:Decimal(value) if key!='slippage_ticks' else value for key,value in source['execution_settings'].items()})
+    config=ExecutionConfig(**{key:Decimal(value) if key!='slippage_ticks' else value for key,value in check.get('execution_settings',source['execution_settings']).items()})
     cutoff=date.fromisoformat(check['period']['last_session'])+timedelta(days=1)
     if replay_cutoff_date_exclusive is not None:
         from ..session_calendar import load_calendar
@@ -476,7 +488,7 @@ def run_replay(analyses, datasets, runs, id, request, expected, staged):
         raise ValueError('Native source or engine changed after submission.')
     source = check['source']; strategy = source['run_metadata']['strategy']
     definition = get_strategy(strategy['id'])
-    config = ExecutionConfig(**{k:Decimal(v) if k != 'slippage_ticks' else v for k,v in source['execution_settings'].items()})
+    config = ExecutionConfig(**{k:Decimal(v) if k != 'slippage_ticks' else v for k,v in check.get('execution_settings',source['execution_settings']).items()})
     run_id = uuid4().hex
     with analyses.lock, analyses.connect() as db:
         db.execute('INSERT INTO analysis_sources VALUES (?,?)', (id, run_id))
@@ -512,7 +524,7 @@ def run_replay(analyses, datasets, runs, id, request, expected, staged):
                 FundedProfile(**request.profile), SizingConfiguration(**check['sizing']), request.micros,
                 receipt_delay_calendar_days=request.receipt_delay_calendar_days,
                 receipt_amount_convention=request.receipt_amount_convention, **common)
-        if canonical(forecast_result['schedules']) != canonical(plan['schedules']):
+        if not request.prepared_execution and canonical(forecast_result['schedules']) != canonical(plan['schedules']):
             raise ValueError('Native forecast execution did not use the complete checked schedules.')
         forecast_result['plan_sha256'] = plan['plan_sha256']
         forecast_result['target_calendar'] = plan['target_calendar']
@@ -542,3 +554,128 @@ def run_replay(analyses, datasets, runs, id, request, expected, staged):
     if forecast_result is not None:
         report['native_forecast'] = forecast_result
     return report
+
+
+def _admit_replay_source(datasets,record,request):
+    from ..backtest_data import read_selected_bars
+    from ..reporting import json_value
+    from ..research_folds import inventory_sessions,SessionDateRange
+    from ..session_calendar import CT,load_calendar,resolve_calendar,session_date
+    from ..strategies.registry import get_strategy
+    from ..strategy import ExecutionConfig
+    meta=record['run_metadata']
+    dataset = datasets.get(meta['dataset']['id'])
+    if dataset is None or any(dataset.get(k) != v for k, v in meta['dataset'].items()) or any(dataset.get(k) != v for k, v in meta['instrument'].items()):
+        raise ValueError('Saved dataset or instrument identity changed; save a new IS report.')
+    # Dated-contract expiration requires its own expiry calendar. Never label NQ
+    # prices MNQ, or silently use the 16:00 continuous-session close on expiry.
+    if not re.fullmatch(r'@?(?:MNQ|NQ)[!#12]*(?:[. ]CME)?' if request.prepared_execution else r'@?MNQ[!#12]*(?:[. ]CME)?', str(dataset.get('symbol', '')).strip().upper()):
+        raise ValueError('Native replay currently requires explicit continuous/base MNQ. NQ scaling and dated-contract expiry sessions are unsupported.')
+    # Normal uploads label inter-session maintenance gaps as irregular. The
+    # complete per-session minute inventory below proves cadence without
+    # replacing that honest dataset-wide spacing metadata.
+    if dataset.get('interval_seconds') not in (None, 60):
+        raise ValueError('Native replay requires one-minute bars; the saved regular interval is incompatible.')
+    config = ExecutionConfig(**{k:Decimal(v) if k != 'slippage_ticks' else v for k,v in record['execution_settings'].items()})
+    expected_point=Decimal(20) if re.match(r'@?NQ',str(dataset['symbol']).upper()) else Decimal(2)
+    if config.tick_size != Decimal('.25') or config.point_value != (expected_point if request.prepared_execution else Decimal('2')) or any(Decimal(dataset['instrument_settings'][k]) != v for k,v in [('tick_size', config.tick_size), ('point_value', config.point_value)]):
+        raise ValueError('Native MNQ replay requires actual MNQ tick_size=0.25 and point_value=2 in both dataset and execution settings.')
+    if request.prepared_execution:
+        from dataclasses import replace
+        config=replace(config,point_value=Decimal(2),commission_per_contract_per_side=Decimal(request.costs['per_side']))
+    strategy = meta['strategy']
+    definition = get_strategy(strategy['id'])
+    parameters = definition.parameters(strategy['parameters'])
+    definition.sizing.require(parameters, 'percentage_risk')
+    expected = json.loads(json.dumps(definition.provenance(parameters), default=json_value))
+    expected.pop('session_flattening', None)
+    if any(strategy.get(k) != v for k,v in expected.items()):
+        raise ValueError('Strategy implementation changed since this report; save a new IS source.')
+    prepared_period=None
+    if request.prepared_execution:inventory,prepared_period=_prepared_session_inventory(datasets,record,request)
+    else:inventory=inventory_sessions(datasets,dataset['id'],minimum_sessions=1)
+    bounds = inventory['bounds']
+    first, last = _instant(record['period_start_utc']), _instant(record['period_end_utc'])
+    eligible = [s for s in inventory['sessions'] if _instant(bounds[s]['first_utc']) >= first and _instant(bounds[s]['last_utc']) <= last]
+    if not eligible:
+        raise ValueError('The source IS report contains no complete observed CME sessions.')
+    period = prepared_period or (ResearchPeriod(**request.period) if request.period is not None else ResearchPeriod(eligible[0], eligible[-1]))
+    selected = [s for s in eligible if period.first_session <= s <= period.last_session]
+    if not selected or selected[0] != period.first_session or selected[-1] != period.last_session:
+        raise ValueError('Requested session endpoints must be whole observed sessions within the saved IS report.')
+    calendar = load_calendar(symbol=dataset['symbol'])
+    descriptor = resolve_calendar(dataset['symbol'])
+    start, end = date.fromisoformat(period.first_session), date.fromisoformat(period.last_session)
+    if not request.prepared_execution and ((end-start).days > 366 or sum(inventory['counts'][s] for s in selected) > 510000):
+        raise ValueError('Native chronological capture currently supports at most 366 calendar days and 510000 observed bars; narrow the explicit window.')
+    opens, closures, plans = [], [], {}
+    day = start
+    while day <= end:
+        from ..strategy_sizing import native_session_plan
+        plan = native_session_plan(calendar, day, parameters)
+        if plan.close is not None:
+            opens.append(str(day)); plans[day] = plan
+        elif day.weekday() < 5:
+            closures.append(str(day))
+        day += timedelta(days=1)
+    if selected != opens:
+        raise ValueError('Observed sessions differ from the reviewed calendar; missing open sessions and bars on full closures cannot be fabricated.')
+    # Legacy v1 retains full-session admission. Prepared/native v2 inventories
+    # original holes and checks them against actual exposure in every replay.
+    seen={s:inventory['stamps'][s] for s in selected} if request.prepared_execution else {s:[] for s in selected}
+    if not request.prepared_execution:
+        with read_selected_bars(datasets,dataset['id'],SessionDateRange.parse(period.first_session,period.last_session)) as source:
+            for bar in source.bars:seen[str(session_date(bar.timestamp_utc))].append(bar.timestamp_utc)
+    sessions = [];missing_minutes=[]
+    for text in selected:
+        day = date.fromisoformat(text); plan = plans[day]
+        begin = datetime.combine(day-timedelta(days=1), time(17,1), CT).astimezone(timezone.utc)
+        close = plan.close.astimezone(timezone.utc)
+        count = int((close-begin).total_seconds()/60)+1
+        stamps = seen[text]
+        if request.prepared_execution:
+            from .native_market_hours import missing_minute_ranges
+            if (not stamps or len(set(stamps))!=len(stamps)
+                    or any(t.second or t.microsecond or session_date(t)!=day for t in stamps)):
+                raise ValueError(f'Native session {text} requires unique, ordered whole-minute observations in its original session.')
+            missing_minutes.extend(missing_minute_ranges(day,stamps,close))
+            count=len(stamps)
+        elif len(stamps) != count or any(stamp != begin+timedelta(minutes=index) for index,stamp in enumerate(stamps)):
+            raise ValueError(f'Native session {text} requires every observed minute from 17:01 Chicago through its scheduled close; incomplete/sparse sessions are unsupported.')
+        sessions.append(dict(session=text, scheduled_close_utc=close.isoformat(), calendar_version=descriptor['id']+'-reviewed-csv-v1',
+            calendar_sha256=calendar.sha256, observed_bar_count=count, fully_observed_or_flat_after_entry_cutoff=True))
+    return dataset,config,parameters,period,sessions,calendar,descriptor,closures,tuple(missing_minutes)
+
+
+from contextlib import contextmanager
+@contextmanager
+def _prepared_source_bars(datasets,dataset_id,period):
+    """Existing verified replay cache; original CSV is hash-checked on hits."""
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+    from ..prepared_data import prepare_data
+    from ..research_folds import SessionDateRange
+    with TemporaryDirectory(prefix='aq-native-source-') as temp:
+        prepared=prepare_data(datasets,dataset_id,SessionDateRange.parse(period.first_session,period.last_session),
+            Path(temp)/'bars.bin',cache=getattr(datasets,'replay_cache',None))
+        with prepared.selected() as selected:yield selected.bars
+
+
+def _prepared_session_inventory(datasets,record,request):
+    from ..session_calendar import session_date
+    first=session_date(_instant(record['period_start_utc']));last=session_date(_instant(record['period_end_utc']))
+    plan=record['run_metadata'].get('research',{}).get('plan',{})
+    phase=record['run_metadata'].get('research',{}).get('phase')
+    if phase in ('is','oos'):
+        first=max(first,date.fromisoformat(plan.get(phase+'_start',str(first))))
+        last=min(last,date.fromisoformat(plan.get(phase+'_end',str(last))))
+    period=ResearchPeriod(**request.period) if request.period else ResearchPeriod(str(first),str(last))
+    if not first<=date.fromisoformat(period.first_session)<=date.fromisoformat(period.last_session)<=last:
+        raise ValueError('Native research window exceeds the saved declared source coverage.')
+    counts={};bounds={};stamps={}
+    with _prepared_source_bars(datasets,record['run_metadata']['dataset']['id'],period) as rows:
+        for bar in rows:
+            day=str(session_date(bar.timestamp_utc));counts[day]=counts.get(day,0)+1
+            text=bar.timestamp_utc.isoformat();bounds.setdefault(day,dict(first_utc=text,last_utc=text));bounds[day]['last_utc']=text
+            stamps.setdefault(day,[]).append(bar.timestamp_utc)
+    return dict(sessions=list(counts),counts=counts,bounds=bounds,stamps=stamps),period

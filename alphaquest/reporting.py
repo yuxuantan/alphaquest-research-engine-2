@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 import json
 import gzip
-from hashlib import sha256
+from hashlib import sha256, file_digest
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
@@ -19,6 +19,8 @@ from .intratrade import IntratradeRisk, VERSION as RISK_VERSION
 from .decision_capture import DecisionEvent, DecisionRecorder, SIDE_CAR as DECISION_FILE
 from .execution import EquityPoint, TIMESTAMP_CONVENTION, Trade
 from .strategy import ExecutionConfig
+from .entry_protection import (ProtectionAmbiguity, OCOEntryAmbiguity, FILE as PROTECTION_FILE,
+                               OCO_FILE, VERSION as PROTECTION_VERSION)
 
 
 ZERO = Decimal(0)
@@ -68,7 +70,7 @@ def generate_report(
     on_saving: Callable[[], None] | None = None,
     execution_assumption: str = "same_close_full_fill",
     detail: str = "full", compress: bool = False, capture_risk: bool = False,
-    market_benchmark=None, capture_decisions=False,
+    market_benchmark=None, capture_decisions=False, capture_entry_protection=False, entry_protection_sensitivity=None,
 ) -> dict:
     """Exhaust engine outputs once and publish report.json, trades.csv, equity.csv.
 
@@ -102,7 +104,18 @@ def generate_report(
     saw_exposure = False
     risk_count = ambiguous_risk = cross_session_risk = 0
     drawdown = None
+    screening = None
+    research = (metadata or {}).get('research') or {}
+    if research.get('workflow_phase') in ('is_broad', 'is_narrow') and research.get('screening_policy'):
+        from .workflow_criteria import ScreeningCapture
+        screening = ScreeningCapture(config.initial_capital, research, metadata['dataset']['source_timezone'])
+    elif research.get('workflow_phase') == 'oos' and research.get('oos_policy'):
+        from .workflow_criteria import ScreeningCapture
+        screening = ScreeningCapture(config.initial_capital, research, metadata['dataset']['source_timezone'], phase='oos')
     decision_capture = decision_summary = None
+    protection_counts = dict(ambiguous_entries=0, assumed_stop_losses=0, assumed_take_profits=0, assumed_remain_open=0)
+    assumed_exit_net = ZERO
+    oco_count = 0
     with TemporaryDirectory(prefix=".alphaquest-report-", dir=destination.parent) as temporary:
         staging = Path(temporary) / "complete"
         staging.mkdir()
@@ -126,11 +139,33 @@ def generate_report(
             if capture_decisions:
                 decision_stream = stack.enter_context((staging / DECISION_FILE).open('w', encoding='utf-8', newline=''))
                 decision_capture = DecisionRecorder(decision_stream, asdict(config))
+            if capture_entry_protection:
+                protection_csv = stack.enter_context((staging / PROTECTION_FILE).open('w', encoding='utf-8', newline=''))
+                protection_writer = csv.DictWriter(protection_csv, fieldnames=[f.name for f in fields(ProtectionAmbiguity)])
+                protection_writer.writeheader()
+                oco_csv = stack.enter_context((staging / OCO_FILE).open('w', encoding='utf-8', newline=''))
+                oco_writer = csv.DictWriter(oco_csv, fieldnames=[f.name for f in fields(OCOEntryAmbiguity)])
+                oco_writer.writeheader()
             trade_writer = csv.DictWriter(trades_csv, fieldnames=TRADE_FIELDS)
             equity_writer = csv.DictWriter(equity_csv, fieldnames=EQUITY_FIELDS)
             trade_writer.writeheader()
             equity_writer.writeheader()
             for event in events:
+                if type(event) is OCOEntryAmbiguity:
+                    _check(capture_entry_protection, 'OCO entry events require explicit capture.')
+                    oco_writer.writerow(_csv_record(_record(event)))
+                    oco_count += 1
+                    continue
+                if type(event) is ProtectionAmbiguity:
+                    _check(capture_entry_protection, 'Entry protection events require explicit capture.')
+                    protection_writer.writerow(_csv_record(_record(event)))
+                    protection_counts['ambiguous_entries'] += 1
+                    key = {'stop_loss': 'assumed_stop_losses', 'take_profit': 'assumed_take_profits',
+                           'remain_open': 'assumed_remain_open'}[event.assumed_outcome]
+                    protection_counts[key] += 1
+                    if event.assumed_exit_net_pnl is not None:
+                        assumed_exit_net = add(assumed_exit_net, event.assumed_exit_net_pnl)
+                    continue
                 if type(event) is DecisionEvent:
                     _check(decision_capture is not None, 'Decision events require capture_decisions=True.')
                     decision_capture.observe(event, pending_trade)
@@ -203,7 +238,7 @@ def generate_report(
                             equity_array.write(",\n")
                     if pending_trade is not None:
                         _check(event.bar_number == pending_trade.exit_bar_number
-                               and event.timestamp_utc == pending_trade.exit_time_utc and event.position_contracts == 0,
+                               and ((metadata and metadata.get('dataset',{}).get('tick_data') and (last.timestamp_utc is None or last.timestamp_utc <= pending_trade.exit_time_utc) and pending_trade.exit_time_utc <= event.timestamp_utc) or event.timestamp_utc == pending_trade.exit_time_utc) and event.position_contracts == 0,
                                "Exit equity must match the trade's exit bar/time and finish flat.")
                         _check(last.position_contracts == (pending_trade.contracts if pending_trade.entry_bar_number < pending_trade.exit_bar_number else 0),
                                "Closing trade quantity does not match the preceding position.")
@@ -225,6 +260,8 @@ def generate_report(
                         drawdown = Drawdown(initial.equity, event.timestamp_utc)
                     if market_benchmark is not None:
                         market_benchmark.observe(event)
+                    if screening is not None:
+                        screening.observe(event)
                     last = event
             if decision_capture is not None:
                 decision_summary = decision_capture.finish(trade_count)
@@ -274,13 +311,59 @@ def generate_report(
             },
             "artifacts": {"report": report_name, "trades_csv": "trades.csv", "equity_csv": "equity.csv"},
         }
+        from .ohlc_path import VERSION as OHLC_VERSION
+        manifest['price_path'] = dict(version=OHLC_VERSION,
+            mode='observed_trades' if metadata and metadata.get('dataset', {}).get('tick_data') else 'modeled_ohlc',
+            policy=((metadata or {}).get('entry_protection_sensitivity') or {}).get('role', 'nearest_extreme_first_low_on_tie'), magnifier=False,
+            order_activation='next_bar; attached exits start at parent fill; no pre-entry extrema',
+            documentation='docs/multicharts_execution.md')
         if capture_risk:
             manifest["artifacts"]["intratrade_risk_csv"] = "intratrade_risk.csv"
-            manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held OHLC equity bounds including entry costs and final net costs; conservative MAE upper bound. Not tick measurements.")
+            manifest["intratrade_risk"] = dict(version=RISK_VERSION, sha256=sha256((staging / "intratrade_risk.csv").read_bytes()).hexdigest(), trades=risk_count, ambiguous_trades=ambiguous_risk, cross_session_trades=cross_session_risk, policy="Held MultiCharts modeled OHLC path excursions, restricted to entry-through-exit, including entry and final costs. Model estimates, not measured tick MAE/MFE.")
+        if metadata and metadata.get('dataset',{}).get('tick_data') and capture_risk:
+            manifest['intratrade_risk']['policy']='Observed ordered trade-price equity excursions and record adverse jumps, restricted to the actual holding interval, with declared entry/exit costs. No order-book queue or latency reconstruction.'
+            manifest['timestamp_convention']='completed-minute decisions; ordered observed trade fill timestamps; same-close orders retain the completed-minute clock'
+        if capture_entry_protection:
+            manifest['artifacts']['entry_protection_ambiguities'] = PROTECTION_FILE
+            manifest['artifacts']['entry_oco_ambiguities'] = OCO_FILE
+            with (staging / PROTECTION_FILE).open('rb') as stream:
+                protection_sha = file_digest(stream, 'sha256').hexdigest()
+            with (staging / OCO_FILE).open('rb') as stream:
+                oco_sha = file_digest(stream, 'sha256').hexdigest()
+            manifest['entry_protection'] = dict(version=PROTECTION_VERSION, **protection_counts,
+                oco_ambiguous_entries=oco_count, oco_sha256=oco_sha,
+                assumed_same_bar_exits_net_pnl=assumed_exit_net,
+                interpretation='Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.',
+                sha256=protection_sha)
+        if capture_entry_protection and metadata and metadata.get('dataset',{}).get('tick_data'):
+            manifest['entry_protection']['interpretation']='Entry and immediate bracket ordering resolve from observed trade records; no OHLC ambiguity scenarios are substituted.'
+        if entry_protection_sensitivity is not None:
+            from .entry_protection import attach_sensitivity
+            attach_sensitivity(staging, manifest, entry_protection_sensitivity)
+        if screening is not None:
+            if research.get('workflow_phase') == 'oos':
+                from .oos_criteria import FILE
+                measurement_key = 'oos_screening'
+            else:
+                from .workflow_criteria import FILE
+                measurement_key = 'is_screening'
+            measurements = json.loads(json.dumps(screening.finish(trade_count, total_net), default=json_value, allow_nan=False))
+            (staging / FILE).write_text(json.dumps(measurements, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+            manifest[measurement_key] = dict(measurements, sha256=sha256((staging / FILE).read_bytes()).hexdigest())
+            manifest['artifacts'][measurement_key + '_json'] = FILE
         if decision_summary is not None:
             manifest['artifacts']['execution_decisions_jsonl'] = DECISION_FILE
             manifest['execution_decisions'] = dict(decision_summary, sha256=sha256((staging / DECISION_FILE).read_bytes()).hexdigest(),
                 policy='Causal submitted entry decisions, actual outcomes and subsequent bracket submissions. Initial stop metadata does not assert an active protective order at entry.')
+        if decision_summary is not None:
+            from .risk_metrics import from_artifacts
+            diagnostic_record=json.loads(json.dumps(manifest,default=json_value,allow_nan=False))
+            risk_diagnostics=from_artifacts(staging,diagnostic_record)
+            risk_path=staging/'risk_metrics.json'
+            risk_path.write_text(json.dumps(risk_diagnostics,allow_nan=False,indent=2)+'\n')
+            manifest['risk_diagnostics']=dict(version=risk_diagnostics['version'],sha256=sha256(risk_path.read_bytes()).hexdigest(),
+                status=risk_diagnostics['status'],coverage=risk_diagnostics['coverage'],summary=risk_diagnostics['summary'])
+            manifest['artifacts']['risk_metrics_json']='risk_metrics.json'
         if market_benchmark is not None:
             manifest["market_benchmark"] = market_benchmark.finish(staging, summary)
             manifest["artifacts"].update(market_benchmark_json="market_benchmark.json", strategy_equity_day_csv="strategy_equity_day.csv")

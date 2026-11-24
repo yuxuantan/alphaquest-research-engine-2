@@ -121,6 +121,69 @@ def test_normal_campaigns_independent_math_reuse_freeze_and_reopen(library, monk
         store.close()
 
 
+def test_freeze_resolved_selection_with_other_censored_candidates(library, monkeypatch):
+    from test_campaign_assessments import saved_is
+    client, _, _, root = library
+    source = saved_is(client)
+    request = declaration(source)
+    request['sources'][0]['sizes'] = [1, 3, 10]
+    # $300/day per MNQ: 1 and 3 cannot reach $3000 within three
+    # calendar days; 10 reaches it Monday and is ready Wednesday.
+    request['retry'] = dict(max_calendar_days=3)
+    saved = run(client, create(client, request)['campaign_id'])
+    id = saved['campaign_id']
+    report = client.get(f'/api/research-campaigns/{id}/exports/report.json').content
+    calc = json.loads(report)['calculations']
+    rows = {r['manifest']['configuration']['micros']: r for r in calc['candidates']}
+    assert rows[10]['status'] == 'estimated'
+    assert rows[10]['metrics']['cost_per_funded'] == 70
+    assert rows[10]['metrics']['expected_calendar_days_to_funded'] == 2
+    assert set(calc['unresolved_candidates']) == {rows[s]['candidate_id'] for s in (1, 3)}
+    prefix = f'/api/research-campaigns/{id}'
+    chosen = [rows[10]['candidate_id']]
+    for selection in ([rows[1]['candidate_id']], chosen+[rows[3]['candidate_id']], ['unknown']):
+        rejected = client.post(prefix+'/freeze', json=dict(candidate_ids=selection, rationale='Reject unresolved or unknown selection.'))
+        assert rejected.status_code == 422, rejected.text
+        assert client.get(prefix).json()['frozen'] is None
+    before = files(root)
+    # Freeze and reopen existing evidence; neither operation may recalculate.
+    with monkeypatch.context() as m:
+        m.setattr('alphaquest.prop.evaluation_optimization.optimize_evaluation', lambda *a, **k: pytest.fail('Freeze recalculated'))
+        body = dict(candidate_ids=chosen, rationale='Resolved point; other sizes remain unresolved.')
+        frozen = client.post(prefix+'/freeze', json=body)
+        assert frozen.status_code == 200, frozen.text
+        assert frozen.json()['candidate_ids'] == chosen
+        assert len(frozen.json()['selected_candidates']) == 1
+        assert frozen.json()['selected_candidates'][0]['micros'] == 10
+        assert client.post(prefix+'/freeze', json=body).json() == frozen.json()
+        assert client.get(prefix+'/exports/report.json').content == report
+        assert client.get(prefix+'/exports/frozen_package.json').json() == frozen.json()
+    assert all(sha256((root/name).read_bytes()).hexdigest() == value for name,value in before.items())
+    with monkeypatch.context() as m:
+        m.setattr('alphaquest.prop.evaluation_optimization.pareto_sort', lambda *a, **k: pytest.fail('OOS reselected'))
+        assessment = client.post(prefix+'/assessments', json=dict(request_id=uuid4().hex))
+        assert assessment.status_code == 202, assessment.text
+        job = wait(client, assessment.json()['analysis_id'])
+        assert job['status'] == 'complete', job
+    oos_prefix = '/api/prop-analyses/'+job['id']
+    oos = client.get(oos_prefix+'/downloads/report.json')
+    assessed = oos.json()['calculations']
+    assert len(assessed['candidates']) == 1
+    assert assessed['candidates'][0]['manifest']['configuration']['micros'] == 10
+    assert assessed['selection_status'] == 'assessment_only_no_reselection'
+    assert assessed['winner'] is None
+    assert client.get(prefix+'/exports/report.json').content == report
+    import os
+    from pathlib import Path
+    if destination := os.environ.get('ALPHAQUEST_RESOLVED_FREEZE_EVIDENCE_DIR'):
+        folder = Path(destination); folder.mkdir(parents=True, exist_ok=True)
+        (folder/'evaluation-report.json').write_bytes(report)
+        (folder/'frozen-package.json').write_bytes(client.get(prefix+'/exports/frozen_package.json').content)
+        (folder/'oos-report.json').write_bytes(oos.content)
+        (folder/'oos-evidence.zip').write_bytes(client.get(oos_prefix+'/downloads/analysis.zip').content)
+        (folder/'is-evidence.zip').write_bytes(client.get(prefix+'/exports/analysis.zip').content)
+
+
 @pytest.mark.parametrize('mutate', [
     lambda r:r['sources'].append(r['sources'][0]),
     lambda r:r['sources'][0].update(sizes=[1,1]),

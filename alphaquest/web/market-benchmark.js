@@ -90,12 +90,14 @@
     get("#market-benchmark-results").hidden = true;
     get("#market-benchmark-context").textContent = "";
     get("#market-benchmark-status").textContent = "Loading saved comparison…";
+    const finishSectionLoading=window.portalLoading.begin(get("#market-benchmark-status"));
+    try {
     if (record.run_metadata.source?.kind === 'external_trade_export' || record.capabilities?.market_benchmark === false) {
       get('#market-benchmark-status').textContent = 'Market comparison unavailable: this imported source supplies completed trades without the market bars required for a benchmark or per-bar equity.';
       return;
     }
     try {
-      const response = await fetch(`/api/backtests/${record.id}/market-benchmark`, {cache: "no-store", signal: current.signal});
+      const response = await window.portalLoading.fetch(`/api/backtests/${record.id}/market-benchmark`, {cache: "no-store", signal: current.signal});
       const result = await response.json();
       if (controller !== current) return;
       if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
@@ -138,6 +140,7 @@
     } catch (error) {
       if (controller === current && !current.signal.aborted) get("#market-benchmark-status").textContent = `Comparison unavailable: ${error.message}`;
     }
+    } finally { finishSectionLoading(); }
   }
   get("#market-benchmark-view").addEventListener("change", draw);
   get("#market-benchmark-period").addEventListener("change", () => { if (data) periods(); });

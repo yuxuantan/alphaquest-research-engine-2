@@ -1,0 +1,23 @@
+{
+  "parent": "1dffe5bac1ab4b50a62d217f4e5f8004",
+  "ranking_sha256": "09ef76c7d4d607a76df165a719e1d12888ea6bceed0982414e612638f2725259",
+  "row_one_combination": 1,
+  "row_one_tested_mnq": 4,
+  "row_one_targets_mnq": [
+    2,
+    2
+  ],
+  "verified_oos_chart_sessions": 10,
+  "live_portal": "http://127.0.0.1:8000",
+  "live_asset_matches_checkout": true,
+  "luck_alone_launch_route_exists": false,
+  "desktop": "Unavailable message shown on open and reload",
+  "mobile": "Unavailable message shown on open and reload",
+  "prop_desk_write_requests": 0,
+  "new_analysis_jobs": 0,
+  "saved_parent_sha256": {
+    "report.json": "ea85f67ef5486d284a1e862c957b22aca7526359fe214356899b59441cf815ed",
+    "analysis.zip": "2115feae32d26f9ddeb56541a5bbefbb440917970ba99e6fbf43eea28ca2b70c"
+  },
+  "temporary_server_stopped": true
+}

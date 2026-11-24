@@ -57,7 +57,7 @@ def test_cancel_details_and_history_preserves_active_and_next_job(page,portal,tm
             page.once('dialog',lambda dialog:dialog.accept());cancel.click()
             row=page.locator('#optimization-results tbody tr').filter(has=page.locator(f'a[href="#backtests/batches/{third}"]'))
             playwright.expect(row).to_contain_text('cancelled')
-            playwright.expect(page.get_by_role('button',name='Cancel queued activity '+first,exact=True)).to_be_hidden()
+            playwright.expect(page.get_by_role('button',name='Stop running backtest '+first,exact=True)).to_be_visible()
             assert client.get(f'/api/optimizations/{first}').json()['status']=='running'
             assert client.get(f'/api/optimizations/{last}').json()['status']=='queued'
             page.set_viewport_size(dict(width=390,height=844))

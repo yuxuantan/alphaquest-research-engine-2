@@ -106,11 +106,11 @@ def test_orb_vwap_pivots_next_open_bracket_and_dst(short, month, utc_hour, tmp_p
     assert manifest["execution_assumption"] == get_strategy("vwap_pullback_risk_sizing").execution_assumption
 
 
-def test_ambiguous_bar_stop_first_and_actual_costs():
+def test_ambiguous_bar_nearer_high_target_first_and_actual_costs():
     _, trades, _ = replay(scenario(ending="both"))
     trade = trades[0]
-    assert (trade.exit_reason, trade.exit_reference_price, trade.exit_fill_price) == ("stop_loss", D(90), D("89.75"))
-    assert (trade.gross_pnl, trade.net_pnl) == (D(-510), D(-512))
+    assert (trade.exit_reason, trade.exit_reference_price, trade.exit_fill_price) == ("take_profit", D(130), D("130"))
+    assert (trade.gross_pnl, trade.net_pnl) == (D(295), D(293))
 
 
 def test_final_signal_does_not_fill_without_next_bar_and_final_entry_liquidates():

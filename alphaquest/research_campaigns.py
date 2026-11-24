@@ -7,8 +7,9 @@ import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .prop.parallel import CAPACITY
 from .prop.adapter import canonical, source_record
-from .prop.phase_dispatch import module_for
+from .prop.phase_dispatch import implementations_compatible, module_for
 from .prop.phase_search import CANDIDATE_CONFIRMATION_THRESHOLD, require_candidate_confirmation
 from .research import ResearchConflict
 
@@ -46,6 +47,7 @@ class CandidateSource(StrictModel):
 
 class CampaignRequest(StrictModel):
     campaign_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    workers: int = Field(default=4,ge=1,le=CAPACITY)
     phase: Literal['evaluation', 'funded']
     profile: dict
     sources: list[CandidateSource] = Field(min_length=1)
@@ -140,6 +142,7 @@ class CampaignStore:
     def __init__(self, runs, analyses, optimizations, datasets=None):
         self.runs, self.analyses, self.optimizations = runs, analyses, optimizations
         self.datasets = datasets
+        self.progress_counts = {}
 
     def sources(self, kind, query='', offset=0, limit=50):
         """Metadata-only picker; never load OOS outcomes, trades or prop metrics."""
@@ -303,7 +306,8 @@ class CampaignStore:
             screening=dict(method='exhaustive_declared_candidates', status='validated', candidates=count),
             refinement=dict(status='not_requested', reason='One declared sampling schedule; no adaptive pruning or precision certification.'))
 
-    def create(self, body):
+    def create(self, body, *, checked_manifest=None, guard=None):
+        if checked_manifest is not None and guard is None:raise ValueError('Prepared source checks require a live integrity guard.')
         with self.analyses.lock:
             with self.analyses.connect() as db:
                 if db.execute('SELECT 1 FROM campaign_deletions WHERE campaign_id=?', (body.campaign_id,)).fetchone():
@@ -316,7 +320,8 @@ class CampaignStore:
                 if CampaignRequest.model_validate(previous['declaration']).model_dump() != body.model_dump():
                     raise ResearchConflict('Campaign ID already has an immutable declaration; use a new campaign ID.')
                 return self.get(body.campaign_id)
-            manifest = self.expand(body)
+            if guard:guard()
+            manifest = checked_manifest if checked_manifest is not None else self.expand(body)
             with self.analyses.connect() as db:
                 db.execute('INSERT INTO research_campaigns VALUES (?,?,?,?,NULL,NULL)',
                     (body.campaign_id, datetime.now(timezone.utc).isoformat(), canonical(body.model_dump()), canonical(manifest)))
@@ -324,7 +329,8 @@ class CampaignStore:
                     [(body.campaign_id, id) for id in sorted({c['source']['source_backtest_id'] for c in manifest['request']['candidates']})])
                 db.executemany('INSERT INTO campaign_jobs VALUES (?,?)',
                     [(body.campaign_id, id) for id in sorted({g['optimization_id'] for g in manifest['optimization_grids']})])
-            return self.get(body.campaign_id)
+            self.progress_counts[body.campaign_id]=manifest['candidate_search_count']
+            return self.progress(body.campaign_id) if checked_manifest is not None else self.get(body.campaign_id)
 
     def _row(self, id):
         with self.analyses.connect() as db:
@@ -344,6 +350,20 @@ class CampaignStore:
             screening_status='complete' if status == 'complete' else status,
             refinement_status=row['manifest']['refinement']['status'])
 
+    def progress(self,id):
+        """Metadata-only polling; immutable large source manifests stay cold."""
+        with self.analyses.connect() as db:
+            row=db.execute('SELECT analysis_id FROM research_campaigns WHERE id=?',(id,)).fetchone()
+            if row is None:raise KeyError('Campaign not found.')
+            if id not in self.progress_counts:
+                self.progress_counts[id]=db.execute("SELECT json_extract(manifest,'$.candidate_search_count') FROM research_campaigns WHERE id=?",(id,)).fetchone()[0]
+                if len(self.progress_counts)>128:self.progress_counts.pop(next(iter(self.progress_counts)))
+            count=self.progress_counts[id]
+        analysis=self.analyses.get(row[0]) if row[0] else None
+        return dict(campaign_id=id,status=analysis['status'] if analysis else 'validated',analysis_id=row[0],
+            progress=analysis.get('progress') if analysis else None,progress_details=analysis.get('progress_details') if analysis else None,
+            error=analysis.get('error') if analysis else None,candidate_count=count)
+
     def list(self, source_id=None, limit=50, offset=0):
         with self.analyses.connect() as db:
             rows = db.execute('SELECT id FROM research_campaigns WHERE (? IS NULL OR id IN '
@@ -359,8 +379,12 @@ class CampaignStore:
                               'WHERE c.campaign_id=? ORDER BY a.created,a.id', (id,)).fetchall()
         return [self.analyses.get(id) for (id,) in rows]
 
-    def _deletion_preview(self, db, id):
+    def _deletion_preview(self, db, id, *, releasing_prop_sim=None):
         """Metadata only, on the same transaction used to release references."""
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='workflow_prop_sim_phases'").fetchone():
+            owner=db.execute('SELECT simulation_id FROM workflow_prop_sim_phases WHERE campaign_id=?',(id,)).fetchone()
+            if owner and owner[0]!=releasing_prop_sim:
+                raise ResearchConflict('This phase campaign is retained by a saved Prop Sim analysis.')
         row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
         if not row:
             saved = db.execute('SELECT payload FROM campaign_deletions WHERE campaign_id=?', (id,)).fetchone()
@@ -441,16 +465,20 @@ class CampaignStore:
                 raise ResearchConflict('Cannot delete campaign: ' + ' '.join(b['message'] for b in preview['blockers']))
             if body.confirmation_sha256 != preview['confirmation_sha256']:
                 raise ResearchConflict('Campaign dependencies changed. Review a fresh deletion preview and confirm again.')
-            row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
-            receipt = dict(preview, deleted=True, deletable=False, deleted_at_utc=datetime.now(timezone.utc).isoformat())
-            snapshot = dict(campaign_id=id, created=row[0], declaration=json.loads(row[1]), manifest=json.loads(row[2]),
-                analysis_id=row[3], frozen=None)
-            db.execute('INSERT INTO campaign_deletions VALUES (?,?,?)',
-                (id, receipt['deleted_at_utc'], canonical(dict(receipt=receipt, campaign_snapshot=snapshot))))
-            for table in ('campaign_sources', 'campaign_jobs', 'campaign_analyses'):
-                db.execute(f'DELETE FROM {table} WHERE campaign_id=?', (id,))
-            db.execute('DELETE FROM research_campaigns WHERE id=?', (id,))
-            return receipt
+            return self.delete_in_transaction(db,id,preview)
+
+    def delete_in_transaction(self,db,id,preview):
+        """Release an already checked campaign using the caller's transaction."""
+        row = db.execute('SELECT created,declaration,manifest,analysis_id,frozen FROM research_campaigns WHERE id=?', (id,)).fetchone()
+        receipt = dict(preview, deleted=True, deletable=False, deleted_at_utc=datetime.now(timezone.utc).isoformat())
+        snapshot = dict(campaign_id=id, created=row[0], declaration=json.loads(row[1]), manifest=json.loads(row[2]),
+            analysis_id=row[3], frozen=None)
+        db.execute('INSERT INTO campaign_deletions VALUES (?,?,?)',
+            (id, receipt['deleted_at_utc'], canonical(dict(receipt=receipt, campaign_snapshot=snapshot))))
+        for table in ('campaign_sources', 'campaign_jobs', 'campaign_analyses'):
+            db.execute(f'DELETE FROM {table} WHERE campaign_id=?', (id,))
+        db.execute('DELETE FROM research_campaigns WHERE id=?', (id,))
+        return receipt
 
     def validate(self, id):
         with self.analyses.lock:
@@ -463,11 +491,12 @@ class CampaignStore:
             before = row['manifest']['source_checks']
             if [r['candidate_id'] for r in checks] != [r['candidate_id'] for r in before]:
                 raise ResearchConflict('Saved source identity changed; create a new campaign.')
-            if module.implementation_identity() != row['manifest']['numerical_implementation']:
+            if not implementations_compatible(row['manifest']['numerical_implementation'], module.implementation_identity()):
                 raise ResearchConflict('Numerical implementation changed; create a new campaign.')
             return dict(status='compatible', candidate_search_count=len(checks), candidates=checks)
 
-    def run(self, id):
+    def run(self, id, *, prepared_checks=None, guard=None):
+        if prepared_checks is not None and guard is None:raise ValueError('Prepared source checks require a live integrity guard.')
         with self.analyses.lock:
             row = self.get(id)
             if row['analysis'] and row['status'] in ('queued', 'running', 'complete'):
@@ -475,7 +504,8 @@ class CampaignStore:
                         or not self.analyses.native_children_unchanged(self.runs,row['analysis_id'])):
                     raise ResearchConflict('Saved calculation failed integrity checks; preserve this campaign and create a new one.')
                 return row
-            self.validate(id)
+            if guard:guard()
+            else:self.validate(id)
             with self.analyses.connect() as db:
                 pending = db.execute("SELECT COUNT(*) FROM analyses WHERE status IN ('queued','running')").fetchone()[0]
             if pending >= 8:
@@ -484,7 +514,8 @@ class CampaignStore:
             module = module_for(manifest['phase'])
             search = module.parse_request(manifest['request'])
             # Submit with the original access snapshot, after live source validation.
-            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'], datasets=self.datasets)
+            analysis = self.analyses.submit_phase(self.runs, search, campaign_checks=manifest['source_checks'], datasets=self.datasets,
+                prepared_checks=prepared_checks,guard=guard,workers=row['declaration'].get('workers',4))
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id, analysis['id']))
                 db.execute('UPDATE research_campaigns SET analysis_id=? WHERE id=?', (analysis['id'], id))
@@ -514,8 +545,9 @@ class CampaignStore:
             report = self.report(id)
             calc = report['calculations']
             allowed = calc['frontier'] if row['manifest']['phase'] == 'evaluation' else calc['ranking']
-            if set(selection) - set(allowed) or calc.get('unresolved_candidates'):
-                raise ValueError('Freeze requires resolved frontier points or feasible funded candidates.')
+            resolved = {c['candidate_id'] for c in calc['candidates'] if c['status'] == 'estimated'}
+            if set(selection) - (set(allowed) & resolved):
+                raise ValueError('Freeze requires every selected candidate to be a resolved frontier point or feasible funded candidate.')
             # Refresh access metadata only. No OOS bars or outcomes are read.
             access = self.validate(id)
             from pathlib import Path
@@ -596,7 +628,7 @@ class CampaignStore:
                 raise ResearchConflict('Freeze IS candidates before manually launching OOS.')
             report = self.report(id)
             module = module_for(campaign['manifest']['phase'])
-            if module.implementation_identity() != report['implementation']:
+            if not implementations_compatible(report['implementation'], module.implementation_identity()):
                 raise ResearchConflict('Frozen numerical implementation changed; preserve this package and create a new campaign.')
             access = self.validate(id)
             parents = sorted({r['manifest']['configuration']['source']['source_backtest_id']
@@ -622,7 +654,7 @@ class CampaignStore:
             package = campaign['frozen']
             report = self.report(id)
             module = module_for(campaign['manifest']['phase'])
-            if module.implementation_identity() != report['implementation']:
+            if not implementations_compatible(report['implementation'], module.implementation_identity()):
                 raise ResearchConflict('Frozen numerical implementation changed during OOS launch.')
             raw = deepcopy(report['request'])
             selected, mappings = [], []
@@ -636,24 +668,64 @@ class CampaignStore:
                 if config['source']['trade_file']:
                     raise ValueError('Measured-export OOS needs a separately reconciled OOS export; this launch supports captured native risk only.')
                 config['source']['source_backtest_id'] = source_id
-                plan = manifest['source']['backtest']['run_metadata']['research']['plan']
-                if raw.get('native_execution') is not None:
-                    from .prop.phase_lifecycle import instant,session_date
-                    observed=source_record(self.runs,source_id)
-                    config['period']=dict(first_session=str(session_date(instant(observed['period_start_utc']))),
-                        last_session=str(session_date(instant(observed['period_end_utc']))))
-                else:
-                    config['period'] = dict(first_session=plan['oos_start'], last_session=plan['oos_end'])
+                # Both native and saved-signal assessments use the unchanged
+                # declared split, clipped to actual saved CME-session coverage.
+                # Legacy reports may retain a partial extra session after OOS.
+                from .prop.phase_search import saved_oos_period
+                config['period'] = saved_oos_period(source_record(self.runs, source_id))
                 selected.append(config)
                 mappings.append(dict(source_id=source_id, frozen_candidate_id=row['candidate_id'], frozen_manifest=manifest,
                     name=package.get('names', {}).get(row['candidate_id'], row['candidate_id'][:12])))
             raw.update(candidates=selected, source_backtest_id=min(oos_sources.values()))
             context = dict(campaign_id=id, request_id=attempt['request_id'], frozen_package=package,
-                sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'])
+                sources=mappings, prior_access=attempt['prior_access'], interpretation=attempt['interpretation'],
+                kind='oos' if attempt.get('kind') in ('qualification','forward_review') else attempt.get('kind'),is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']})
+            if attempt.get('report_options') is not None:
+                context['prop_sim_review'] = attempt['report_options']
             # Protect sources before queueing and keep every report in AnalysisStore.
             with self.analyses.connect() as db:
                 db.executemany('INSERT OR IGNORE INTO campaign_sources VALUES (?,?)', [(id,s) for s in oos_sources.values()])
-            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context, datasets=self.datasets)
+            analysis = self.analyses.submit_phase(self.runs, module.parse_request(raw), assessment=context, datasets=self.datasets,workers=self.get(id)['declaration'].get('workers',4))
             with self.analyses.connect() as db:
                 db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)', (id,analysis['id']))
             return self.save_assessment(dict(attempt, status=analysis['status'], analysis_id=analysis['id'], oos_sources=oos_sources))
+
+    def assess_saved(self,id,request_id,kind,paths=None,oos_sources=None,*,report_options=None):
+        """Use existing frozen packages, workers and assessment history for Prop Sim."""
+        if kind not in ('oos','is_robustness','precision','account_starts','qualification','forward_review'):raise ValueError('Unknown frozen assessment kind.')
+        if kind in ('account_starts','qualification','forward_review') and not report_options:
+            raise ValueError('Account-start sensitivity requires a declared policy and completed OOS report.')
+        with self.analyses.lock:
+            attempt,fresh=self.begin_assessment(id,request_id)
+            if not fresh:
+                if attempt.get('kind')!=kind or attempt.get('paths')!=paths or attempt.get('report_options')!=report_options:
+                    raise ResearchConflict('Assessment request ID already belongs to another declaration.')
+                return attempt
+            attempt=dict(attempt,kind=kind,paths=paths,report_options=report_options)
+            if report_options and report_options.get('automatic_selection'):
+                attempt['interpretation']='Automatic assessment of the IS-selected frozen sizing family; no OOS reselection. Prior strategy OOS access remains recorded.'
+            self.save_assessment(attempt)
+            try:
+                if kind in ('oos','account_starts','qualification','forward_review'):return self.finish_assessment(id,attempt,oos_sources)
+                report=self.report(id);campaign=self.get(id);package=campaign['frozen'];module=module_for(package['phase'])
+                raw=deepcopy(report['request']);configs=[];mappings=[]
+                for row in report['calculations']['candidates']:
+                    if row['candidate_id'] not in package['candidate_ids']:continue
+                    config=deepcopy(row['manifest']['configuration'])
+                    if kind=='precision' and paths<=config['simulation']['simulations']:
+                        raise ValueError('Precision refinement requires more paths than the saved search.')
+                    config['simulation']['simulations']=paths
+                    if 'chain_simulations' in config['sampling']:config['sampling']['chain_simulations']=paths
+                    configs.append(config)
+                    mappings.append(dict(source_id=config['source']['source_backtest_id'],frozen_candidate_id=row['candidate_id'],frozen_manifest=row['manifest']))
+                raw.update(candidates=configs,source_backtest_id=min(c['source']['source_backtest_id'] for c in configs))
+                context=dict(campaign_id=id,request_id=request_id,frozen_package=package,kind=kind,paths=paths,
+                    sources=mappings,prior_access=attempt['prior_access'],
+                    is_metrics={r['candidate_id']:r['metrics'] for r in report['calculations']['candidates'] if r['candidate_id'] in package['candidate_ids']},
+                    interpretation='Frozen IS sensitivity/precision assessment; no OOS data, new size selection or certified optimum.')
+                analysis=self.analyses.submit_phase(self.runs,module.parse_request(raw),assessment=context,datasets=self.datasets,workers=self.get(id)['declaration'].get('workers',4))
+                with self.analyses.connect() as db:db.execute('INSERT OR IGNORE INTO campaign_analyses VALUES (?,?)',(id,analysis['id']))
+                return self.save_assessment(dict(attempt,status=analysis['status'],analysis_id=analysis['id']))
+            except Exception as exc:
+                self.save_assessment(dict(attempt,status='error',error=str(exc)))
+                raise

@@ -16,7 +16,7 @@ import numpy as np
 
 from ..execution import EquityPoint, ExecutionContinuation, execute, _validate_bar
 from ..session_calendar import CT, session_date
-from ..strategies.vwap_pullback_risk_sizing import Parameters, VwapPullbackRiskSizing
+from ..strategies.vwap_pullback_risk_sizing import VwapPullbackRiskSizing
 from .adapter import canonical
 from .native_control import SessionContext, json_native
 
@@ -30,6 +30,16 @@ def _json(value):
 
 def _hash(value):
     return sha256(_json(value).encode()).hexdigest()
+
+
+def _encoded_bar(bar):
+    # Identical canonical bytes to _json(asdict(bar)), without recursive
+    # deepcopy/Decimal conversion of the immutable validated source row.
+    if bar.tick_window is not None:
+        return (_json(asdict(bar))+'\n').encode()
+    return (canonical(dict(bar_number=bar.bar_number,timestamp_utc=bar.timestamp_utc.isoformat(),
+        date=bar.date,time=bar.time,open=str(bar.open),high=str(bar.high),low=str(bar.low),close=str(bar.close),
+        volume=str(bar.volume),up_vol=str(bar.up_vol),down_vol=str(bar.down_vol),source_fields=list(bar.source_fields),tick_window=None,flow=None))+'\n').encode()
 
 
 def _integer(value, name, minimum=0, maximum=2**32-1):
@@ -77,12 +87,12 @@ def _restore_origin_weights(catalogue, header):
 
 
 def _parameters(parameters):
-    if type(parameters) is not Parameters or not parameters.use_eod_flat or parameters.use_vol_sizing:
-        raise ValueError('Native block draws require VWAP EOD-flat with local volume sizing disabled.')
+    from ..strategy_sizing import native_settings
+    native_settings(parameters)
     return _json(asdict(parameters))
 
 
-def _shape(context, parameters, *, kind):
+def _shape(context, parameters, *, kind,allow_sparse=False):
     if type(context) is not SessionContext or context.kind != kind:
         raise ValueError(f'Native draw calendar requires explicitly {kind} contexts.')
     close = context.scheduled_close_utc.astimezone(CT)
@@ -96,11 +106,12 @@ def _shape(context, parameters, *, kind):
         raise ValueError('Native draw session must have whole complete minute bars.')
     count = int(seconds/60)+1
     declared = context.observed_bar_count if kind == 'observed' else context.expected_bar_count
-    if declared != count:
+    if declared != count and not allow_sparse:
         raise ValueError('Native draw session count differs from its complete calendar shape.')
-    configured = datetime.combine(day, time(parameters.eod_flat_time//100,
-                                            parameters.eod_flat_time % 100), CT)
-    cutoff = min(configured, close-timedelta(minutes=parameters.close_buffer_minutes))
+    from ..strategy_sizing import native_settings
+    flat_time, buffer = native_settings(parameters)
+    configured = datetime.combine(day, time(flat_time//100, flat_time % 100), CT)
+    cutoff = min(configured, close-timedelta(minutes=buffer))
     return (close.strftime('%H:%M:%S'), cutoff.strftime('%H:%M:%S'), count)
 
 
@@ -112,6 +123,7 @@ class SourceSession:
     shape: tuple
     content_sha256: str
     prefix_sha256: str
+    missing_minutes: tuple = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,25 +193,33 @@ def build_catalogue(bars, source_contexts, parameters, *, block_sessions, source
     running = sha256()
     previous = None
     for context in contexts:
-        shape = _shape(context, parameters, kind='observed')
+        sparse=bool(source_identity.get('complete_holding_intervals'))
+        shape = _shape(context, parameters, kind='observed',allow_sparse=sparse)
         start = cursor
         prefix = running.hexdigest()
         content = sha256()
         beginning = datetime.combine(context.session-timedelta(days=1), time(17, 1), CT).astimezone(timezone.utc)
-        for offset in range(shape[2]):
+        for offset in range(context.observed_bar_count if sparse else shape[2]):
             if cursor >= len(values):
                 raise ValueError('Incomplete source session rows; no bars are invented.')
             bar = values[cursor]
             _validate_bar(bar, previous)
             if (session_date(bar.timestamp_utc) != context.session
-                    or bar.timestamp_utc != beginning+timedelta(minutes=offset)):
+                    or (not sparse and bar.timestamp_utc != beginning+timedelta(minutes=offset))):
                 raise ValueError('Source bars differ from complete ordered observed session contexts.')
-            encoded = (_json(asdict(bar))+'\n').encode()
+            encoded = _encoded_bar(bar)
             content.update(encoded); running.update(encoded)
             previous = bar; cursor += 1
             if cursor % 1000 == 0:
                 checkpoint()
-        groups.append(SourceSession(context, start, cursor, shape, content.hexdigest(), prefix))
+        missing=()
+        if sparse:
+            from .native_market_hours import missing_minute_ranges
+            stamps=[b.timestamp_utc for b in values[start:cursor]]
+            if any(t.second or t.microsecond for t in stamps):
+                raise ValueError('Native source requires whole-minute observation timestamps.')
+            missing=missing_minute_ranges(context.session,stamps,context.scheduled_close_utc)
+        groups.append(SourceSession(context, start, cursor, shape, content.hexdigest(), prefix, missing))
     if cursor != len(values):
         raise ValueError('Source contains bars outside the permitted observed inventory.')
     groups = tuple(groups)
@@ -215,10 +235,11 @@ def verify_catalogue(catalogue, *, checkpoint=lambda: None):
     """Rehash actual bars/prefixes; retained hash fields are not proof of bytes."""
     if type(catalogue) is not SourceCatalogue:
         raise ValueError('Native execution requires a checked source catalogue.')
+    from ..strategy_sizing import restore_parameters
     fresh = build_catalogue(catalogue.bars,
         {s.context.session:s.context for s in catalogue.sessions},
-        Parameters(**{key:Decimal(value) if isinstance(getattr(Parameters(), key), Decimal) else value
-                      for key, value in json.loads(catalogue.parameters_json).items()}),
+        restore_parameters(
+            json.loads(catalogue.parameters_json),json.loads(catalogue.source_identity_json).get('strategy',{}).get('id')),
         block_sessions=catalogue.block_sessions, source_identity=json.loads(catalogue.source_identity_json),
         checkpoint=checkpoint)
     if fresh.metadata() != catalogue.metadata():
@@ -227,7 +248,8 @@ def verify_catalogue(catalogue, *, checkpoint=lambda: None):
 
 
 def _target(contexts, parameters):
-    if type(contexts) is not dict or not contexts:
+    from .native_control import NativeSessionInventory
+    if type(contexts) not in (dict,NativeSessionInventory) or not contexts:
         raise ValueError('Supply a nonempty explicit modeled target session calendar.')
     days = sorted(contexts)
     if any(type(day) is not date or contexts[day].session != day for day in days):
@@ -263,7 +285,7 @@ def build_schedule(catalogue, target_contexts, parameters, *, phase, seed, path_
         start_date = date.fromisoformat(start_date)
     if type(start_date) is not date or start_date > target[0][0]:
         raise ValueError('Modeled start date must precede or equal its first open session.')
-    if start_date <= catalogue.sessions[-1].context.session:
+    if start_date <= catalogue.sessions[-1].context.session and json.loads(catalogue.source_identity_json).get('forecast_model')!='native_percentage_observed_blocks_v2':
         raise ValueError('Modeled forecast starts must follow the admitted source IS history.')
     if cutoff_date_exclusive is None:
         cutoff_date_exclusive = target[-1][0]+timedelta(days=1)
@@ -345,12 +367,14 @@ def modeled_stamp(stamp, source_session, target_session):
 
 
 class _ClockView:
-    def __init__(self, owner, source_contexts, target_contexts, mapping):
+    def __init__(self, owner, source_contexts, target_contexts, mapping, missing_minutes=()):
         self.owner = owner
         self.source = source_contexts
         self.target = target_contexts
         self.mapping = mapping
         self.acceptances = {}
+        from .native_market_hours import ObservedExposureCoverage
+        self.coverage=ObservedExposureCoverage(missing_minutes) if missing_minutes else None
 
     def stamp(self, value):
         if value is None:
@@ -365,6 +389,8 @@ class _ClockView:
         return replace(value, timestamp_utc=self.stamp(value.timestamp_utc), position=position)
 
     def session_context(self, stamp):
+        if self.coverage is not None:
+            for gap in self.coverage.check(stamp,self.owner.coverage_exposure()):self.owner.observe_source_gap(gap)
         day = session_date(stamp)
         if day not in self.source:
             raise ValueError('Execution received foreign source bars.')
@@ -376,20 +402,26 @@ class _ClockView:
     def risk_orders(self, snapshot):
         return replace(self.owner.risk_orders(self.snapshot(snapshot)), session=session_date(snapshot.timestamp_utc))
 
-    def admit_entry(self, proposal, snapshot):
+    def admit_entry(self, proposal, snapshot, **options):
         view = replace(proposal, decision_time_utc=self.stamp(proposal.decision_time_utc),
             initial_stop_known_at_utc=self.stamp(proposal.initial_stop_known_at_utc),
             exit_deadline_utc=self.stamp(proposal.exit_deadline_utc))
-        acceptance = self.owner.admit_entry(view, self.snapshot(snapshot))
+        acceptance = self.owner.admit_entry(view, self.snapshot(snapshot), **options)
         self.acceptances[acceptance.opportunity_id] = acceptance
         intent = replace(acceptance.accepted_intent, exit_deadline_utc=proposal.exit_deadline_utc) if acceptance.accepted_intent else None
         return replace(acceptance, accepted_intent=intent)
 
+    def activate_quoted_entry(self, acceptance, snapshot):
+        self.owner.activate_quoted_entry(self.acceptances[acceptance.opportunity_id], self.snapshot(snapshot))
+
+    def cancel_quoted_entry(self, acceptance, snapshot, reason):
+        self.owner.cancel_quoted_entry(self.acceptances.pop(acceptance.opportunity_id), self.snapshot(snapshot), reason)
+
     def after_entry_fill(self, snapshot, acceptance):
-        self.owner.after_entry_fill(self.snapshot(snapshot), self.acceptances[acceptance.opportunity_id])
+        self.owner.after_entry_fill(self.snapshot(snapshot), self.acceptances.pop(acceptance.opportunity_id))
 
     def cancel_entry(self, acceptance, snapshot, reason):
-        self.owner.cancel_entry(self.acceptances[acceptance.opportunity_id], self.snapshot(snapshot), reason)
+        self.owner.cancel_entry(self.acceptances.pop(acceptance.opportunity_id), self.snapshot(snapshot), reason)
 
     def after_trade_close(self, trade, snapshot, *, triggering_floor):
         view = replace(trade, entry_time_utc=self.stamp(trade.entry_time_utc),
@@ -401,14 +433,18 @@ class _ClockView:
 
 
 def run_path(catalogue, schedule, owner, strategy_factory, config, target_contexts, *,
-             capture=False, checkpoint=lambda: None):
+             capture=False, checkpoint=lambda: None, preparation=None):
     """Run one full declared path; failures invalidate the path, never redraw it."""
     if type(capture) is not bool:
         raise ValueError('Detailed path capture must be a strict boolean.')
-    catalogue = verify_catalogue(catalogue, checkpoint=checkpoint)
+    if preparation is not None:
+        if type(preparation) is not NativePathPreparation or preparation.catalogue is not catalogue or preparation.config!=config:
+            raise ValueError('Native preparation source/configuration differs.')
+        catalogue=preparation.checked
+    else:catalogue = verify_catalogue(catalogue, checkpoint=checkpoint)
     strategy = strategy_factory()
-    if type(strategy) is not VwapPullbackRiskSizing or strategy.config != config:
-        raise ValueError('Native draws require the actual supported VWAP strategy and exact execution configuration.')
+    if strategy.config != config:
+        raise ValueError('Native draws require a registered controlled strategy and exact execution configuration.')
     parameters = strategy.parameters
     fresh = build_schedule(catalogue, target_contexts, parameters, phase=schedule.get('phase'),
         seed=schedule.get('seed'), path_index=schedule.get('path_index'), start_date=schedule.get('start_date'),
@@ -437,22 +473,24 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
         selected = catalogue.sessions[block.first_session:block.first_session+draw['used_sessions']]
         first, end = selected[0].first_bar, selected[-1].end_bar
         strategy = strategy_factory()
-        if (type(strategy) is not VwapPullbackRiskSizing or strategy.config != config
+        if (strategy.config != config
                 or _parameters(strategy.parameters) != catalogue.parameters_json):
             raise ValueError('Strategy factory changed its immutable block parameters.')
-        for index in range(first):
-            value = catalogue.bars[index]
-            strategy.validate_holding_bar(value, None)
-            if strategy.on_bar_controlled(value, None, lambda proposal: None) is not None:
-                raise ValueError('Feature-only prefix produced an executable intent.')
-            if index % 1000 == 0:
-                checkpoint()
+        if preparation is not None:strategy=preparation.strategy(first,checkpoint)
+        else:
+            for index in range(first):
+                value = catalogue.bars[index]
+                strategy.validate_holding_bar(value, None)
+                if strategy.on_bar_controlled(value, None, lambda proposal: None) is not None:
+                    raise ValueError('Feature-only prefix produced an executable intent.')
+                if index % 1000 == 0:checkpoint()
         mapping = {s.context.session:date.fromisoformat(target)
                    for s, target in zip(selected, draw['target_sessions'], strict=True)}
         for source_day, target_day in mapping.items():
             target_provenance[str(target_day)] = dict(path_index=fresh['path_index'], draw_slot=draw['slot'],
                 source_session=str(source_day), target_session=str(target_day))
-        adapter = _ClockView(owner, {s.context.session:s.context for s in selected}, target_contexts, mapping)
+        adapter = _ClockView(owner, {s.context.session:s.context for s in selected}, target_contexts, mapping,
+            tuple(gap for s in selected for gap in s.missing_minutes))
         detail = []
         final = None
 
@@ -496,3 +534,79 @@ def run_path(catalogue, schedule, owner, strategy_factory, config, target_contex
                 source_session=None, target_session=day)))
     return dict(result=result, source_model_clock_mapping=mappings, captures=captures,
                 schedule_sha256=fresh['schedule_sha256'], catalogue_sha256=catalogue.catalogue_sha256)
+
+
+class NativePathPreparation:
+    """Checked immutable source and feature-only prefix snapshots for one worker.
+
+    Snapshots precede all sampled-block decisions. Accepted orders, positions and
+    provider state are never shared between accounts. A budget miss replays the
+    original prefix, preserving exact behavior instead of truncating history.
+    """
+    VERSION='native-prefix-preparation-v1'
+    MAX_BYTES=32*1024*1024
+
+    def __init__(self,catalogue,strategy_factory,config,*,max_bytes=MAX_BYTES,checkpoint=lambda:None):
+        if type(max_bytes) is not int or not 0<=max_bytes<=self.MAX_BYTES:raise ValueError('Native preparation budget must be 0–32 MiB.')
+        self.catalogue=catalogue;self.checked=verify_catalogue(catalogue,checkpoint=checkpoint)
+        self.factory=strategy_factory;self.config=config;self.max_bytes=max_bytes;self.bytes_used=0;self.snapshots={}
+        warm=strategy_factory()
+        if warm.config!=config or _parameters(warm.parameters)!=catalogue.parameters_json:
+            raise ValueError('Native prefix strategy identity differs.')
+        boundaries={s.first_bar for s in catalogue.sessions}
+        # No need to advance through the final session: no future prefix uses it.
+        end=max(boundaries)
+        for index in range(end+1):
+            if index in boundaries:
+                charge=self.charge(warm)
+                if self.bytes_used+charge<=self.max_bytes:
+                    self.snapshots[index]=self.clone(warm);self.bytes_used+=charge
+            if index==end:break
+            if index%1000==0:checkpoint()
+            bar=catalogue.bars[index];warm.validate_holding_bar(bar,None)
+            if warm.on_bar_controlled(bar,None,lambda proposal:None) is not None:
+                raise ValueError('Feature-only prefix produced an executable intent.')
+
+    @staticmethod
+    def clone(strategy):
+        import copy
+        from collections import deque
+        if type(strategy) is not VwapPullbackRiskSizing:
+            # Hash accumulators cannot be pickled. Immutable venue calendars
+            # are shared; all mutable signal/counter state is independently copied.
+            memo={}
+            for value in vars(strategy).values():
+                if hasattr(value,'hexdigest') and hasattr(value,'copy'):memo[id(value)]=value.copy()
+                if value is not None and hasattr(value,'plan') and hasattr(value,'sha256'):memo[id(value)]=value
+            return copy.deepcopy(strategy,memo)
+        result=copy.copy(strategy)
+        result._history=deque(strategy._history,maxlen=strategy._history.maxlen)
+        result._adx_history=deque(strategy._adx_history,maxlen=strategy._adx_history.maxlen)
+        result._adx=copy.copy(strategy._adx)
+        result._session_digest=strategy._session_digest.copy()
+        result.session_flattening=copy.deepcopy(strategy.session_flattening)
+        # Parameters/config, source Bar/Decimal values and reviewed calendar/plan
+        # objects are immutable. Latches and counters are scalar value fields.
+        return result
+
+    @staticmethod
+    def charge(strategy):
+        import sys
+        seen=set()
+        def size(value):
+            if id(value) in seen:return 0
+            seen.add(id(value));total=sys.getsizeof(value)
+            if isinstance(value,dict):total+=sum(size(k)+size(v) for k,v in value.items())
+            elif isinstance(value,(list,tuple,set)) or type(value).__name__=='deque':total+=sum(size(v) for v in value)
+            return total
+        return 4096+size(vars(strategy))
+
+    def strategy(self,first,checkpoint):
+        if first in self.snapshots:return self.clone(self.snapshots[first])
+        strategy=self.factory()
+        for index in range(first):
+            if index%1000==0:checkpoint()
+            bar=self.catalogue.bars[index];strategy.validate_holding_bar(bar,None)
+            if strategy.on_bar_controlled(bar,None,lambda proposal:None) is not None:
+                raise ValueError('Feature-only prefix produced an executable intent.')
+        return strategy

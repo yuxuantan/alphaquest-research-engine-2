@@ -1,0 +1,794 @@
+{
+  "items": [
+    {
+      "trial": 1,
+      "run_id": "494bf2579bea47bb8f73a9d8df14c073",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 20,
+        "contracts": 2
+      },
+      "metrics": {
+        "total_net_pnl": "18720.00",
+        "total_gross_pnl": "21600.00",
+        "total_commissions": "2880",
+        "total_slippage_cost": "7200.00",
+        "final_equity": "28720.00",
+        "trades_taken": 720,
+        "winning_trades": 600,
+        "losing_trades": 120,
+        "breakeven_trades": 0,
+        "win_rate_pct": "83.33333333333333333333333333",
+        "max_drawdown_amount": "74.00",
+        "max_drawdown_pct": "0.7332540626238604835513277844",
+        "max_drawdown_duration_seconds": "14280",
+        "is_history_months": 24,
+        "is_annual_net_profit": "9353.405745554035567715458276",
+        "is_mtm_max_drawdown": "81.00",
+        "is_annual_profit_dd_ratio": "115.4741450068399452804377565",
+        "is_profitable_months_pct": "100",
+        "is_full_months": 24,
+        "is_longest_dd_pct": "0.01928484572123423012615899073",
+        "is_stress_net_profit": "11520.00"
+      },
+      "execution": {
+        "worker_pid": 64053,
+        "started_at_utc": "2026-11-10T23:28:47.703251+00:00",
+        "finished_at_utc": "2026-11-10T23:28:48.668050+00:00",
+        "elapsed_seconds": 0.9647959580179304,
+        "prepared_data": true,
+        "cached_features": 0,
+        "reused": false
+      },
+      "screening": {
+        "policy": {
+          "version": "is-broad-v3",
+          "minimum_history_months": 24,
+          "minimum_closed_trades": 100,
+          "profitable_months_pct_gt": "50",
+          "longest_dd_period_fraction_lt": "0.25",
+          "extra_slippage_ticks_per_fill": 1,
+          "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+          "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+          "annualization_days": "365.2425"
+        },
+        "metrics": {
+          "is_history_months": 24,
+          "is_annual_net_profit": "9353.405745554035567715458276",
+          "is_mtm_max_drawdown": "81.00",
+          "is_annual_profit_dd_ratio": "115.4741450068399452804377565",
+          "is_profitable_months_pct": "100",
+          "is_full_months": 24,
+          "is_longest_dd_pct": "0.01928484572123423012615899073",
+          "is_stress_net_profit": "11520.00"
+        },
+        "closed_trades": 720,
+        "total_net_pnl": "18720.00",
+        "months": [
+          {
+            "month": "2024-01",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-02",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-03",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-04",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-05",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-06",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-07",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-08",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-09",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-10",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-11",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2024-12",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-01",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-02",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-03",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-04",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-05",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-06",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-07",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-08",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-09",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-10",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-11",
+            "net_pnl": "780.00",
+            "complete": true
+          },
+          {
+            "month": "2025-12",
+            "net_pnl": "780.00",
+            "complete": true
+          }
+        ],
+        "observed_start": "2024-01-01",
+        "observed_end": "2025-12-31",
+        "period_start_utc": "2024-01-01T00:00:00+00:00",
+        "period_end_exclusive_utc": "2026-01-01T00:00:00+00:00",
+        "mtm_drawdown_duration_seconds": "12180",
+        "cost_stress": {
+          "run_id": "22653eace68342c189dea54aa9824ca4",
+          "summary": {
+            "initial_capital": "10000",
+            "final_equity": "21520.00",
+            "trades_taken": 720,
+            "winning_trades": 480,
+            "losing_trades": 240,
+            "breakeven_trades": 0,
+            "win_rate_pct": "66.66666666666666666666666667",
+            "total_gross_pnl": "14400.00",
+            "total_slippage_cost": "14400.00",
+            "total_commissions": "2880",
+            "total_net_pnl": "11520.00",
+            "ending_position_contracts": 0,
+            "max_drawdown_amount": "84.00",
+            "max_drawdown_pct": "0.8339952343129467831612390786",
+            "max_drawdown_duration_seconds": "2318520"
+          },
+          "execution_settings": {
+            "initial_capital": "10000",
+            "tick_size": "0.25",
+            "point_value": "10",
+            "slippage_ticks": 2,
+            "commission_per_contract_per_side": "1"
+          },
+          "artifacts": {
+            "equity.csv": "ef0fc83664f00fd90b7960623064f46a149db6718f158abbd86a30c19dd20f69",
+            "execution_decisions.jsonl": "3fed4c765e53772889162070d1d3b30da8002d52b0938a3fc09976701c0abc01",
+            "intratrade_risk.csv": "0ae359dcbc6052b4cdf57763aeabb7952b424560bded61a5b73261a5218df738",
+            "market_benchmark.json": "c1339fb361e6f706b3b87ec8249f31787469bb56f90fc5edfbaa1902ac25e0a0",
+            "report.json": "9e4bd50f7d983783e5079f9415277247da211c1499e5e8c5f3d1edf899deeae2",
+            "strategy_equity_day.csv": "aeea4213e55165b6c5f958d6a320c0d4c175b5c86cf6f6130a3413bd2e7d3d90",
+            "trades.csv": "aeff6d66b8299746a208569e24d93234c3518544034fab81c0567b9b8d1bc6e4",
+            "shared_holding_day": "f10a631a3b3cc39a09454d392dca65de66d60152a80bbed66f2320809c300144"
+          },
+          "report_sha256": "9e4bd50f7d983783e5079f9415277247da211c1499e5e8c5f3d1edf899deeae2"
+        },
+        "status": "qualified",
+        "qualifies": true,
+        "checks": [
+          {
+            "id": "evidence",
+            "label": "History and trades",
+            "passed": true,
+            "actual": "24 months; 720 closed trades",
+            "required": "\u2265 24 months and \u2265 100 closed trades"
+          },
+          {
+            "id": "net_profit",
+            "label": "Overall profitability",
+            "passed": true,
+            "actual": "18720.00",
+            "required": "Net IS profit > 0"
+          },
+          {
+            "id": "profitable_months",
+            "label": "Profitable months",
+            "passed": true,
+            "actual": "100% of 24 complete months",
+            "required": "> 50% profitable; zero/no-trade months included"
+          },
+          {
+            "id": "drawdown_duration",
+            "label": "Longest MTM drawdown",
+            "passed": true,
+            "actual": "0.01928484572123423012615899073% of IS",
+            "required": "< 25% of IS, including unresolved drawdown"
+          },
+          {
+            "id": "cost_stress",
+            "label": "Extra-slippage native rerun",
+            "passed": true,
+            "actual": "11520.00",
+            "required": "Net profit > 0 with +1 tick per fill"
+          }
+        ],
+        "sha256": "bbcfddd2c062c840bed8d37b1e402c9f907eb0e64434736074b4f43d2a0ff69c"
+      },
+      "screening_evidence_identity": "c3d788cbfc9b47212673d9a5628b03879069c995c99849dce49c311778bb1816",
+      "display_metrics": {
+        "max_drawdown_duration_trading_days": 0
+      },
+      "admission": {
+        "policy": {
+          "version": "is-narrow-v1",
+          "neighbor_profit_fraction_gte": "0.70",
+          "time_periods": 4,
+          "profitable_periods_gte": 3,
+          "latest_period_positive": true,
+          "best_complete_month_removed_net_gt": "0",
+          "confidence_level": "0.95",
+          "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+          "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+          "hac_lag_observations": 5,
+          "minimum_observed_days": 100,
+          "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+          "neighbors": "all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent",
+          "seed": null
+        },
+        "qualifies": true,
+        "checks": [
+          {
+            "id": "evidence",
+            "label": "History and trades",
+            "passed": true,
+            "actual": "24 months; 720 closed trades",
+            "required": "\u2265 24 months and \u2265 100 closed trades"
+          },
+          {
+            "id": "net_profit",
+            "label": "Overall profitability",
+            "passed": true,
+            "actual": "18720.00",
+            "required": "Net IS profit > 0"
+          },
+          {
+            "id": "profitable_months",
+            "label": "Profitable months",
+            "passed": true,
+            "actual": "100% of 24 complete months",
+            "required": "> 50% profitable; zero/no-trade months included"
+          },
+          {
+            "id": "drawdown_duration",
+            "label": "Longest MTM drawdown",
+            "passed": true,
+            "actual": "0.01928484572123423012615899073% of IS",
+            "required": "< 25% of IS, including unresolved drawdown"
+          },
+          {
+            "id": "cost_stress",
+            "label": "Extra-slippage native rerun",
+            "passed": true,
+            "actual": "11520.00",
+            "required": "Net profit > 0 with +1 tick per fill"
+          },
+          {
+            "id": "neighbors",
+            "label": "Profitable immediate neighbors",
+            "passed": true,
+            "actual": "1 / 1",
+            "required": ">= 70% of valid immediate neighbors"
+          },
+          {
+            "id": "time_stability",
+            "label": "Four-period stability",
+            "passed": true,
+            "actual": "4680.00, 4680.00, 4680.00, 4680.00",
+            "required": "At least 3 positive, including most recent"
+          },
+          {
+            "id": "month_concentration",
+            "label": "Profit without best complete month",
+            "passed": true,
+            "actual": "17940.00",
+            "required": "> 0"
+          },
+          {
+            "id": "search_adjusted_bound",
+            "label": "Search-adjusted daily net lower bound",
+            "passed": true,
+            "actual": "149.1526 CU/day",
+            "required": "95% lower bound > 0, HAC lag 5, Bonferroni family of 6 attempted trials"
+          }
+        ],
+        "neighbors": {
+          "profitable": 1,
+          "valid": 1,
+          "fraction": 1.0,
+          "passed": true
+        },
+        "quarter_boundaries": [
+          "2024-01-01",
+          "2024-07-01",
+          "2024-12-31",
+          "2025-07-02",
+          "2026-01-01"
+        ],
+        "quarter_net_pnl": [
+          "4680.00",
+          "4680.00",
+          "4680.00",
+          "4680.00"
+        ],
+        "net_without_best_month": "17940.00",
+        "confidence": {
+          "mean_net_daily": 153.44262295081967,
+          "lower_bound": 149.15255088270817,
+          "critical_value": 2.3939797998185104,
+          "observed_days": 122,
+          "family_size": 6,
+          "hac_lag_observations": 5
+        },
+        "family_size": 6,
+        "provisional": false
+      },
+      "qualifies": true,
+      "selected": true,
+      "selectable": false
+    },
+    {
+      "trial": 2,
+      "run_id": "a1ebdd14887f42f4a8ff2321fcf5d8f8",
+      "parameters": {
+        "green_bar_count": 3,
+        "hold_minutes": 21,
+        "contracts": 2
+      },
+      "metrics": {
+        "total_net_pnl": "3600.00",
+        "total_gross_pnl": "6000.00",
+        "total_commissions": "2400",
+        "total_slippage_cost": "6000.00",
+        "final_equity": "13600.00",
+        "trades_taken": 600,
+        "winning_trades": 360,
+        "losing_trades": 240,
+        "breakeven_trades": 0,
+        "win_rate_pct": "60",
+        "max_drawdown_amount": "128.00",
+        "max_drawdown_pct": "1.268331351565596512088783195",
+        "max_drawdown_duration_seconds": "2332800",
+        "is_history_months": 24,
+        "is_annual_net_profit": "1798.731874145006839945280438",
+        "is_mtm_max_drawdown": "135.00",
+        "is_annual_profit_dd_ratio": "13.32393980848153214774281806",
+        "is_profitable_months_pct": "100",
+        "is_full_months": 24,
+        "is_longest_dd_pct": "3.690245478036175710594315245",
+        "is_stress_net_profit": "-2400.00"
+      },
+      "execution": {
+        "worker_pid": 64053,
+        "started_at_utc": "2026-11-10T23:28:48.712631+00:00",
+        "finished_at_utc": "2026-11-10T23:28:49.599275+00:00",
+        "elapsed_seconds": 0.8866437081014737,
+        "prepared_data": true,
+        "cached_features": 0,
+        "reused": false
+      },
+      "screening": {
+        "policy": {
+          "version": "is-broad-v3",
+          "minimum_history_months": 24,
+          "minimum_closed_trades": 100,
+          "profitable_months_pct_gt": "50",
+          "longest_dd_period_fraction_lt": "0.25",
+          "extra_slippage_ticks_per_fill": 1,
+          "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+          "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+          "annualization_days": "365.2425"
+        },
+        "metrics": {
+          "is_history_months": 24,
+          "is_annual_net_profit": "1798.731874145006839945280438",
+          "is_mtm_max_drawdown": "135.00",
+          "is_annual_profit_dd_ratio": "13.32393980848153214774281806",
+          "is_profitable_months_pct": "100",
+          "is_full_months": 24,
+          "is_longest_dd_pct": "3.690245478036175710594315245",
+          "is_stress_net_profit": "-2400.00"
+        },
+        "closed_trades": 600,
+        "total_net_pnl": "3600.00",
+        "months": [
+          {
+            "month": "2024-01",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-02",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-03",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-04",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-05",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-06",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-07",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-08",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-09",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-10",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-11",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2024-12",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-01",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-02",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-03",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-04",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-05",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-06",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-07",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-08",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-09",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-10",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-11",
+            "net_pnl": "150.00",
+            "complete": true
+          },
+          {
+            "month": "2025-12",
+            "net_pnl": "150.00",
+            "complete": true
+          }
+        ],
+        "observed_start": "2024-01-01",
+        "observed_end": "2025-12-31",
+        "period_start_utc": "2024-01-01T00:00:00+00:00",
+        "period_end_exclusive_utc": "2026-01-01T00:00:00+00:00",
+        "mtm_drawdown_duration_seconds": "2330700",
+        "cost_stress": {
+          "run_id": "f0ac6d8465624d538cccba3860f2a1b3",
+          "summary": {
+            "initial_capital": "10000",
+            "final_equity": "7600.00",
+            "trades_taken": 600,
+            "winning_trades": 240,
+            "losing_trades": 360,
+            "breakeven_trades": 0,
+            "win_rate_pct": "40",
+            "total_gross_pnl": "0.00",
+            "total_slippage_cost": "12000.00",
+            "total_commissions": "2400",
+            "total_net_pnl": "-2400.00",
+            "ending_position_contracts": 0,
+            "max_drawdown_amount": "2528.00",
+            "max_drawdown_pct": "25.09928514694201747418586180",
+            "max_drawdown_duration_seconds": "62721240"
+          },
+          "execution_settings": {
+            "initial_capital": "10000",
+            "tick_size": "0.25",
+            "point_value": "10",
+            "slippage_ticks": 2,
+            "commission_per_contract_per_side": "1"
+          },
+          "artifacts": {
+            "equity.csv": "461c957b21bc43e2c1e2931ec13ee974dc6eb9eac145281d5b3fcfbec67a3c47",
+            "execution_decisions.jsonl": "9dd268964c6aa54fe5ff19d4c2285c3efd988118bd474da7d7782823dfd137f1",
+            "intratrade_risk.csv": "21d6504901b937dba90696467f3d87e82d740ae7751960b6353dc7c606f57385",
+            "market_benchmark.json": "04041533200c63d19f36a097a5380674d20496306ec5e4c30d726288a73120cf",
+            "report.json": "a3572720705fbf6b4b079b71c4fa35845444f25f034abe26c45eb00308806a83",
+            "strategy_equity_day.csv": "c12306dbdc6d8a1a86e8dbaa4afeee5f38d065fb55ba083417fd2409ab8c58e4",
+            "trades.csv": "413e374eccc2f67ac1adc25c06321be84b18a97b46ae09841867411ebba83696",
+            "shared_holding_day": "f10a631a3b3cc39a09454d392dca65de66d60152a80bbed66f2320809c300144"
+          },
+          "report_sha256": "a3572720705fbf6b4b079b71c4fa35845444f25f034abe26c45eb00308806a83"
+        },
+        "status": "not_qualified",
+        "qualifies": false,
+        "checks": [
+          {
+            "id": "evidence",
+            "label": "History and trades",
+            "passed": true,
+            "actual": "24 months; 600 closed trades",
+            "required": "\u2265 24 months and \u2265 100 closed trades"
+          },
+          {
+            "id": "net_profit",
+            "label": "Overall profitability",
+            "passed": true,
+            "actual": "3600.00",
+            "required": "Net IS profit > 0"
+          },
+          {
+            "id": "profitable_months",
+            "label": "Profitable months",
+            "passed": true,
+            "actual": "100% of 24 complete months",
+            "required": "> 50% profitable; zero/no-trade months included"
+          },
+          {
+            "id": "drawdown_duration",
+            "label": "Longest MTM drawdown",
+            "passed": true,
+            "actual": "3.690245478036175710594315245% of IS",
+            "required": "< 25% of IS, including unresolved drawdown"
+          },
+          {
+            "id": "cost_stress",
+            "label": "Extra-slippage native rerun",
+            "passed": false,
+            "actual": "-2400.00",
+            "required": "Net profit > 0 with +1 tick per fill"
+          }
+        ],
+        "sha256": "68356e74c3f6e61ed3207a608b3c391fab62704411d7d6cd330e1dc2c4163ae9"
+      },
+      "screening_evidence_identity": "9e42bd76b5dabbb02074978ef6ebfa71c80c58f900d9306301de88c12f160f7d",
+      "display_metrics": {
+        "max_drawdown_duration_trading_days": 20
+      },
+      "admission": {
+        "policy": {
+          "version": "is-narrow-v1",
+          "neighbor_profit_fraction_gte": "0.70",
+          "time_periods": 4,
+          "profitable_periods_gte": 3,
+          "latest_period_positive": true,
+          "best_complete_month_removed_net_gt": "0",
+          "confidence_level": "0.95",
+          "daily_equity_basis": "last observed source-local bar close per calendar date, including open P&L",
+          "uncertainty_method": "Bartlett HAC one-sided normal lower bound",
+          "hac_lag_observations": 5,
+          "minimum_observed_days": 100,
+          "multiple_search_correction": "Bonferroni over all attempted Broad and Narrow trials, including failed/incomplete jobs",
+          "neighbors": "all valid immediate axis neighbors, one coordinate step in either direction; Boolean endpoints adjacent",
+          "seed": null
+        },
+        "qualifies": false,
+        "checks": [
+          {
+            "id": "evidence",
+            "label": "History and trades",
+            "passed": true,
+            "actual": "24 months; 600 closed trades",
+            "required": "\u2265 24 months and \u2265 100 closed trades"
+          },
+          {
+            "id": "net_profit",
+            "label": "Overall profitability",
+            "passed": true,
+            "actual": "3600.00",
+            "required": "Net IS profit > 0"
+          },
+          {
+            "id": "profitable_months",
+            "label": "Profitable months",
+            "passed": true,
+            "actual": "100% of 24 complete months",
+            "required": "> 50% profitable; zero/no-trade months included"
+          },
+          {
+            "id": "drawdown_duration",
+            "label": "Longest MTM drawdown",
+            "passed": true,
+            "actual": "3.690245478036175710594315245% of IS",
+            "required": "< 25% of IS, including unresolved drawdown"
+          },
+          {
+            "id": "cost_stress",
+            "label": "Extra-slippage native rerun",
+            "passed": false,
+            "actual": "-2400.00",
+            "required": "Net profit > 0 with +1 tick per fill"
+          },
+          {
+            "id": "neighbors",
+            "label": "Profitable immediate neighbors",
+            "passed": true,
+            "actual": "1 / 1",
+            "required": ">= 70% of valid immediate neighbors"
+          },
+          {
+            "id": "time_stability",
+            "label": "Four-period stability",
+            "passed": true,
+            "actual": "900.00, 900.00, 900.00, 900.00",
+            "required": "At least 3 positive, including most recent"
+          },
+          {
+            "id": "month_concentration",
+            "label": "Profit without best complete month",
+            "passed": true,
+            "actual": "3450.00",
+            "required": "> 0"
+          },
+          {
+            "id": "search_adjusted_bound",
+            "label": "Search-adjusted daily net lower bound",
+            "passed": true,
+            "actual": "28.6832 CU/day",
+            "required": "95% lower bound > 0, HAC lag 5, Bonferroni family of 6 attempted trials"
+          }
+        ],
+        "neighbors": {
+          "profitable": 1,
+          "valid": 1,
+          "fraction": 1.0,
+          "passed": true
+        },
+        "quarter_boundaries": [
+          "2024-01-01",
+          "2024-07-01",
+          "2024-12-31",
+          "2025-07-02",
+          "2026-01-01"
+        ],
+        "quarter_net_pnl": [
+          "900.00",
+          "900.00",
+          "900.00",
+          "900.00"
+        ],
+        "net_without_best_month": "3450.00",
+        "confidence": {
+          "mean_net_daily": 29.508196721311474,
+          "lower_bound": 28.683182862059265,
+          "critical_value": 2.3939797998185104,
+          "observed_days": 122,
+          "family_size": 6,
+          "hac_lag_observations": 5
+        },
+        "family_size": 6,
+        "provisional": false
+      },
+      "qualifies": false,
+      "selected": false,
+      "selectable": false
+    }
+  ],
+  "total": 2,
+  "offset": 0,
+  "limit": 50,
+  "prop_revision": 0,
+  "family_size": 6,
+  "all_branches_complete": true
+}

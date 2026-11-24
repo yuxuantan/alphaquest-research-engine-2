@@ -9,11 +9,15 @@ import re
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, field_serializer, model_validator
 
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True)
+
+    @field_serializer('*',check_fields=False)
+    def plain_decimal(self,value):
+        return format(value,'f') if isinstance(value,Decimal) else value
 
 
 def amount(value):
@@ -40,6 +44,12 @@ def instant(value):
 
 def session(value):
     return (value.astimezone(ZoneInfo('America/Chicago')).replace(tzinfo=None)+timedelta(hours=7)).date()
+
+
+class TradeHandling(Contract):
+    """Frozen saved-trade behavior; account rules themselves are never disabled."""
+    account_limit_action: Literal['skip', 'exit_at_limit'] = 'skip'
+    minimum_one_contract: StrictBool = False
 
 
 class SizingPolicy(Contract):
@@ -195,7 +205,17 @@ def ratio_floor(numerator, denominator, *, strict=False):
     return max(0, (a*d-int(strict))//(b*c))
 
 
-def choose_quantity(policy, state, risk=None, execution=None):
+from functools import lru_cache
+@lru_cache(maxsize=8192)
+def _distance_loss(distance,tick,point,entry_ticks,exit_ticks,commission):
+    # All original price-grid and direction checks precede this pure memo.
+    # Distance, costs and arithmetic are exact; no trade/account outcome enters.
+    from ..risk_metrics import planned_unit_loss
+    return planned_unit_loss(distance,Decimal(0),'long',tick_size=tick,point_value=point,
+        entry_slippage_ticks=entry_ticks,stop_exit_slippage_ticks=exit_ticks,commission_per_side=commission)
+
+
+def choose_quantity(policy, state, risk=None, execution=None, *, reject_budget_at_floor=False, trade_handling=None):
     """Return an auditable whole-MNQ decision without changing source or state.
 
     The caller owns source admission and account transitions. Stop and cost
@@ -205,17 +225,21 @@ def choose_quantity(policy, state, risk=None, execution=None):
     state = AccountSizingState.model_validate(state)
     risk = risk if type(risk) is KnownDecisionRisk else DecisionRisk.model_validate(risk) if risk is not None else None
     execution = PlanningExecution.model_validate(execution) if execution is not None else None
-    needs_stop = policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
+    handling = TradeHandling.model_validate(trade_handling) if trade_handling is not None else None
+    if handling and handling.minimum_one_contract and policy.kind != 'percentage_risk':
+        raise ValueError('Minimum-one override applies only to percentage-risk sizing.')
+    needs_stop = handling is not None or policy.kind != 'fixed_contracts' or policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion
     if needs_stop and (risk is None or execution is None):
         raise ValueError('This policy needs complete causal initial-stop and planning-execution metadata.')
     with localcontext() as ctx:
         ctx.prec = 256
         unit = None
         if needs_stop:
-            distance = (risk.decision_reference_price-risk.initial_stop_price)*(1 if risk.side == 'long' else -1)
             if any(price % execution.tick_size for price in (risk.decision_reference_price, risk.initial_stop_price)):
                 raise ValueError('Decision and stop prices must obey the declared executable tick grid.')
-            unit = (distance + execution.tick_size*(execution.entry_slippage_ticks+execution.stop_exit_slippage_ticks))*Decimal(execution.point_value) + 2*execution.commission_per_contract_per_side
+            distance=(risk.decision_reference_price-risk.initial_stop_price)*(1 if risk.side=='long' else -1)
+            unit=_distance_loss(distance,execution.tick_size,execution.point_value,
+                execution.entry_slippage_ticks,execution.stop_exit_slippage_ticks,execution.commission_per_contract_per_side)
         cushion = state.equity_change_from_initial-state.account_floor_from_initial
         daily = state.equity_change_from_initial-state.daily_floor_from_initial if state.daily_floor_from_initial is not None else None
         basis = None
@@ -230,20 +254,40 @@ def choose_quantity(policy, state, risk=None, execution=None):
             else:
                 budget = policy.risk_dollars
             requested = ratio_floor(budget, unit)
+        forced_one = bool(handling and handling.minimum_one_contract and requested == 0 and budget > 0)
+        if forced_one:requested = 1
         caps = dict(policy=policy.maximum_contracts, provider=state.provider_max_contracts, user=state.user_max_contracts)
-        if policy.constrain_to_account_cushion:
+        if policy.constrain_to_account_cushion and handling is None:
             caps['account_cushion'] = ratio_floor(cushion, unit, strict=True)
-        if policy.constrain_to_daily_cushion and daily is not None:
+        if policy.constrain_to_daily_cushion and daily is not None and handling is None:
             caps['daily_cushion'] = ratio_floor(daily, unit, strict=True)
         quantity = min(requested, *caps.values())
         reasons = [key+'_cap' for key,value in caps.items() if value < requested and value == quantity]
+        if forced_one:reasons.append('minimum_one_contract')
+        if handling:
+            for label,available in (('account',cushion),('daily',daily)):
+                if available is not None and (available <= 0 or (handling.account_limit_action == 'skip' and unit*quantity >= available)):
+                    quantity=0;reasons.append('planned_position_risk_reaches_'+label+'_limit')
+        if reject_budget_at_floor:
+            if budget is None:raise ValueError('Strict budget admission requires a declared risk budget.')
+            for label,available in (('account',cushion),('daily',daily)):
+                if available is not None and budget>=available:
+                    quantity=0;reasons.append('requested_budget_reaches_'+label+'_limit')
         if quantity < policy.minimum_contracts:
             quantity = 0
             reasons.append('below_minimum_tradable_quantity')
+        extra = {}
+        if handling:
+            override = quantity > 0 and budget is not None and unit*quantity > budget
+            if override:reasons.append('risk_budget_override')
+            base = basis if basis is not None else state.initial_configured_capital
+            extra = dict(minimum_one_override=bool(forced_one and quantity),risk_budget_override=override,
+                actual_risk_percent=str(unit*quantity/base*100) if quantity and base > 0 else None,
+                account_limit_action=handling.account_limit_action)
         return dict(quantity=quantity, action='trade' if quantity else 'skip', requested_contracts=requested,
                     denominator=policy.reference, denominator_value=str(basis) if basis is not None else None,
                     risk_budget=str(budget) if budget is not None else None,
                     planned_risk_per_mnq=str(unit) if unit is not None else None,
                     planned_total_risk=str(unit*quantity) if unit is not None else None,
-                    caps=caps, reasons=reasons,
+                    caps=caps, reasons=reasons, **extra,
                     interpretation='Planning stop loss including declared costs; no gap guarantee. This amount sizes quantity only and is never deducted again from source net P&L.')

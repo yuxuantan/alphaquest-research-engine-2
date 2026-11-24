@@ -1,0 +1,17 @@
+{
+  "server": {
+    "pid": 50211,
+    "port": 8000
+  },
+  "simulations": "7e61e353b565402f9206537039967bfc",
+  "optimise": "933a120980ca4dcdbf1c712d63601256",
+  "standalone_diagnostics": "6e32fdb9a8464e03bf667d3f01f95957",
+  "original_report_hashes": {
+    "ffc773ae8fa64bdc9aea73a8ac995a23": "5e0b8f30fdea663770b47b3a658ead348d531b5fb56bb8ddb8acf2e267d70dd4",
+    "81d1457c2659417fb3195e956053bd3e": "fae11d729738deb62609c3c1a62c29864cf952803249e29a0aebac1dcbe5c4e7"
+  },
+  "ranked_subset_count": 3,
+  "sim_oos_sessions": 391,
+  "shared_search_oos_sessions": 391,
+  "ranking_sha256": "5a1de1d043424a021dfb99e9f059815169f0d74497242957932d41d6704a4318"
+}

@@ -1,6 +1,7 @@
 """Exact exhaustive grids and durable optimization jobs using normal backtests."""
 
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait, FIRST_COMPLETED
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from dataclasses import asdict
 from decimal import Decimal, localcontext
@@ -18,6 +19,7 @@ import time
 from uuid import uuid4
 
 from .optimization_worker import TrialContext, compute_trial, initialize_worker, run_trial
+from .backtest_api import BacktestStopped
 from .prepared_data import prepare_data
 from .strategy_features import prepare_features
 from .optimization_cache import engine_identity, trial_key, artifacts, digest
@@ -32,6 +34,11 @@ BACKTEST_METRICS = (
     "win_rate_pct", "max_drawdown_amount", "max_drawdown_pct", "max_drawdown_duration_seconds",
 )
 METRICS = (*BACKTEST_METRICS, "historical_net", "lucid_historical_net")
+
+
+def can_resume(job):
+    return job['status'] in ('failed', 'interrupted') or (
+        job['status'] == 'cancelled' and bool(job.get('stop_requested_at_utc')))
 
 
 def grid(definition, ranges):
@@ -101,6 +108,25 @@ def combinations(axes):
     return (dict(zip(axes, values)) for values in product(*axes.values()))
 
 
+def trial_parameters(job):
+    return job['candidate_parameters'] if 'candidate_parameters' in job else combinations(job['axes'])
+
+
+def execution_run_id(research, trial):
+    if research and research.get('workflow_phase') == 'oos':
+        return research['frozen_candidates'][trial - 1]['oos_run_id']
+    return uuid4().hex
+
+
+def sync_oos_attempts(db, job):
+    if (job.get('research') or {}).get('workflow_phase') != 'oos':return
+    for candidate in job['research']['frozen_candidates']:
+        exists = db.execute('SELECT 1 FROM runs WHERE id=?', (candidate['oos_run_id'],)).fetchone()
+        status = 'complete' if exists else 'running' if job['status'] in ('queued','running') else 'failed' if job['status']=='complete' else job['status']
+        db.execute('UPDATE oos_attempts SET status=?,error=? WHERE id=?',
+                   (status, None if exists else job.get('error'), candidate['attempt_id']))
+
+
 class OptimizationStore:
     def __init__(self, runs, prop_analyses):
         self.runs = runs
@@ -128,7 +154,11 @@ class OptimizationStore:
     def close(self):
         self.executor.shutdown(wait=True)
 
-    def create(self, request, dataset, definition, config, axes, total, research=None):
+    def create(self, request, dataset, definition, config, axes, total, research=None, *, connection=None, candidates=None):
+        if candidates is not None:
+            if not research or research.get('workflow_phase') != 'oos' or not 1 <= len(candidates) == total <= 4:
+                raise ValueError('Explicit candidate batches require one to four frozen OOS configurations.')
+            for candidate in candidates:definition.parameters(candidate)
         job = {"id": uuid4().hex, "created_at_utc": datetime.now(timezone.utc).isoformat(),
                "status": "queued", "stage": "queued", "completed_trials": 0, "total_trials": total,
                "bars_processed": 0, "total_bars": 0, "active_trials": [], "results_snapshot_rowid": 0,
@@ -139,7 +169,18 @@ class OptimizationStore:
                "execution_settings": {key: str(value) if isinstance(value, Decimal) else value for key, value in asdict(config).items()},
                "step_counts": {name: len(values) for name, values in axes.items()},
                "metric_columns": list(METRICS if request.automatic_prop else BACKTEST_METRICS)}
-        with self.runs.connect() as conn:
+        from .risk_metrics import METRIC_COLUMNS as RISK_COLUMNS
+        job['metric_columns'].extend(RISK_COLUMNS)
+        if candidates is not None:
+            job['candidate_parameters'] = candidates
+            job['research'] = dict(research, oos_job_id=job['id'])
+        if research and research.get('screening_policy'):
+            from .workflow_criteria import METRICS as SCREENING_METRICS
+            job['metric_columns'].extend(SCREENING_METRICS)
+        if research and research.get('oos_policy'):
+            from .oos_criteria import METRICS as OOS_METRICS
+            job['metric_columns'].extend(OOS_METRICS)
+        with (self.runs.connect() if connection is None else nullcontext(connection)) as conn:
             conn.execute("INSERT INTO optimizations VALUES (?, ?, ?)", (job["id"], job["created_at_utc"], json.dumps(job)))
         return job
 
@@ -147,7 +188,60 @@ class OptimizationStore:
         with self.runs.connect() as conn:
             row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
             job = {**json.loads(row[0]), **values}
+            if job.get('stop_requested_at_utc') and job['status'] == 'running':
+                job['stage'] = 'stopping'
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            if values.get('status') in ('failed','interrupted','cancelled'):
+                sync_oos_attempts(conn, job)
+        return job
+
+    def stop_requested(self, job_id):
+        with self.runs.connect() as conn:
+            row = conn.execute("SELECT json_extract(payload,'$.stop_requested_at_utc') FROM optimizations WHERE id=?", (job_id,)).fetchone()
+        return bool(row and row[0])
+
+    def request_stop(self, job_id):
+        """Request a checkpoint stop without discarding completed trial reports."""
+        with self.runs.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT payload FROM optimizations WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError("Backtest activity not found.")
+            job = json.loads(row[0])
+            if job['status'] == 'queued':
+                now = datetime.now(timezone.utc).isoformat()
+                job.update(status='cancelled', stage='cancelled', cancelled_at_utc=now,
+                           finished_at_utc=now, cancellation_reason='Cancelled before execution; saved reports retained.',
+                           active_trials=[], worker_pids=[])
+            elif job['status'] == 'running':
+                if job.get('stop_requested_at_utc'):
+                    return job
+                job.update(stop_requested_at_utc=datetime.now(timezone.utc).isoformat(), stage='stopping')
+            elif job['status'] == 'cancelled':
+                return job
+            else:
+                raise ValueError(f"Only queued or running activities can be stopped; this activity is {job['status']}.")
+            conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
+        return job
+
+    def finish_execution(self, job_id, failures, elapsed):
+        """Set the terminal state under the same lock used by stop requests."""
+        with self.runs.connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            job = json.loads(conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()[0])
+            stopped = bool(job.get('stop_requested_at_utc')) and not failures and job['completed_trials'] < job['total_trials']
+            status = 'failed' if failures else 'cancelled' if stopped else 'complete'
+            job.update(status=status, stage='failed' if failures else 'cancelled' if stopped else 'done',
+                       active_trials=[], failed_trials=failures,
+                       elapsed_seconds=elapsed, finished_at_utc=datetime.now(timezone.utc).isoformat())
+            if failures:
+                job['error'] = f"Trial {failures[0]['trial']}: {failures[0]['error']}"
+            if stopped:
+                job.update(cancelled_at_utc=job['finished_at_utc'],
+                           cancellation_reason='Stopped during execution; completed trials and reports retained.')
+            conn.execute('UPDATE optimizations SET payload=? WHERE id=?', (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def cancel_queued(self, job_id):
@@ -167,6 +261,7 @@ class OptimizationStore:
                        finished_at_utc=now, cancellation_reason="Cancelled before execution; saved reports retained.",
                        active_trials=[], worker_pids=[])
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def _claim_queued(self, job_id):
@@ -193,19 +288,21 @@ class OptimizationStore:
             if row is None:
                 raise ValueError('This backtest activity has been deleted.')
             job = json.loads(row[0])
-            if job["status"] not in ("failed", "interrupted"):
-                raise ValueError("Only failed or interrupted optimizations can be resumed.")
+            if not can_resume(job):
+                raise ValueError("Only failed, interrupted or stopped running optimizations can be resumed.")
             saved = conn.execute("SELECT COUNT(*) FROM optimization_trials WHERE optimization_id=?", (job_id,)).fetchone()[0]
             if saved != job["completed_trials"]:
                 raise ValueError("Saved trial count does not match this job; inspect the catalogue before resuming.")
             attempts = list(job.get("previous_attempts", []))
             attempts.append({key: job.get(key) for key in (
-                "status", "error", "failed_trials", "elapsed_seconds", "started_at_utc", "finished_at_utc", "completed_trials")})
+                "status", "error", "failed_trials", "elapsed_seconds", "started_at_utc", "finished_at_utc", "completed_trials",
+                "cancelled_at_utc", "cancellation_reason", "stop_requested_at_utc")})
             job.update(status="queued", stage="queued", active_trials=[], failed_trials=[], previous_attempts=attempts,
                        worker_count=job.get("worker_count", 1), elapsed_seconds=0)
-            for key in ("error", "started_at_utc", "finished_at_utc"):
+            for key in ("error", "started_at_utc", "finished_at_utc", "cancelled_at_utc", "cancellation_reason", "stop_requested_at_utc"):
                 job.pop(key, None)
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(job), job_id))
+            sync_oos_attempts(conn, job)
         return job
 
     def delete(self, job_id):
@@ -222,6 +319,15 @@ class OptimizationStore:
                 'Backtest reports removed from the library, but file cleanup failed. '
                 'Retry Delete activity and reports to finish cleanup.'
             ) as (conn, stage):
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_broad_jobs'").fetchone():
+                    if conn.execute('SELECT 1 FROM campaign_broad_jobs WHERE job_id=?',(job_id,)).fetchone():
+                        raise ValueError('This IS Broad job is retained by a campaign workflow and cannot be deleted.')
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_narrow_jobs'").fetchone():
+                    if conn.execute('SELECT 1 FROM campaign_narrow_jobs WHERE job_id=?',(job_id,)).fetchone():
+                        raise ValueError('This IS Narrow job is retained by a campaign workflow and cannot be deleted.')
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='campaign_oos_jobs'").fetchone():
+                    if conn.execute('SELECT 1 FROM campaign_oos_jobs WHERE job_id=?',(job_id,)).fetchone():
+                        raise ValueError('This OOS assessment is retained by a campaign workflow and cannot be deleted.')
                 row = conn.execute('SELECT payload FROM optimizations WHERE id=?', (job_id,)).fetchone()
                 if row is None:
                     return None
@@ -270,7 +376,7 @@ class OptimizationStore:
             rows = conn.execute("SELECT payload FROM optimizations ORDER BY created_at DESC, id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
         return {"items": [json.loads(row[0]) for row in rows], "total": total, "offset": offset, "limit": limit}
 
-    def page(self, job, sort, direction, offset, limit, prop_revision=None):
+    def page(self, job, sort, direction, offset, limit, prop_revision=None, *, order_only=False):
         from .optimization_prop import revision
         from .optimization_display import trading_day_duration
         durations = {}
@@ -307,7 +413,8 @@ class OptimizationStore:
             # retain the previous count-based boundary without a migration.
             boundary = "rowid" if "results_snapshot_rowid" in job else "trial"
             snapshot = job.get("results_snapshot_rowid", job["completed_trials"])
-            rows = conn.execute(f"""SELECT t.payload, r.id IS NOT NULL,l.payload,a.payload,r.manifest
+            selected = 't.trial' if order_only else 't.payload, r.id IS NOT NULL,l.payload,a.payload,r.manifest'
+            rows = conn.execute(f"""SELECT {selected}
                 FROM optimization_trials t LEFT JOIN optimization_prop_links l ON l.id=
                 (SELECT MAX(id) FROM optimization_prop_links WHERE optimization_id=t.optimization_id AND trial=t.trial AND account='lucid' AND id<=?)
                 LEFT JOIN optimization_prop_links a ON a.id=
@@ -315,6 +422,7 @@ class OptimizationStore:
                 LEFT JOIN runs r ON r.id=json_extract(t.payload,'$.run_id')
                 WHERE t.optimization_id=? AND t.{boundary}<=? ORDER BY {order} LIMIT ? OFFSET ?""",
                 (prop_revision,prop_revision, job["id"], snapshot, columns[sort], columns[sort], limit, offset)).fetchall()
+        if order_only:return dict(trials=[row[0] for row in rows],total=job['completed_trials'],offset=offset,limit=limit,prop_revision=prop_revision)
         items=[]
         for payload,available,refresh_payload,apex_payload,manifest in rows:
             row=json.loads(payload)
@@ -356,6 +464,9 @@ class OptimizationStore:
         """Only the coordinator publishes reports and writes the SQLite catalogue."""
         prop = result.get("prop_analysis")
         publishing = time.perf_counter()
+        if result.get('cost_stress'):
+            stress = result['cost_stress']
+            self.runs.complete(stress['run_id'], context.output_root / stress['run_id'], stress['manifest'])
         record = publish_backtest(self.runs, self.prop_analyses, run_id, context.output_root / run_id, result["manifest"],
                                   prop, context.output_root / ("prop-" + prop["id"]) if prop else None)
         if result.get('performance'):
@@ -368,6 +479,20 @@ class OptimizationStore:
                "parameters": record["run_metadata"]["strategy"]["parameters"],
                "metrics": {name: record["summary"][name] for name in BACKTEST_METRICS},
                "execution": result["execution"]}
+        from .risk_metrics import result_metrics
+        row['metrics'].update(result_metrics(record))
+        if record.get('is_screening'):
+            row['screening'] = record['is_screening']
+            row['metrics'].update(record['is_screening']['metrics'])
+            stress = self.runs.get(record['is_screening']['cost_stress']['run_id'])
+            row['screening_evidence_identity'] = digest([record, artifacts(self.runs.root, record), stress, artifacts(self.runs.root, stress)])
+        if record.get('oos_screening'):
+            from .oos_criteria import evaluate, verified_oos
+            captured, stress = verified_oos(self.runs, record)
+            candidate = context.research['frozen_candidates'][trial - 1]
+            row['oos_admission'] = evaluate(captured, candidate['is_reference'])
+            row['metrics'].update(captured['metrics'])
+            row['oos_evidence_identity'] = digest([record, artifacts(self.runs.root, record), stress, artifacts(self.runs.root, stress)])
         if prop:
             row.update(prop_analysis={key: prop[key] for key in ("id", "status", "historical_net", "reason")})
             row['prop_companions']=[{key:item[key] for key in ('id','status','historical_net','reason')} for item in prop.get('companions',[])]
@@ -379,6 +504,9 @@ class OptimizationStore:
             key = trial_key(job, row["parameters"])
             cached = {"row": row, "record_hash": digest(record), "artifacts": artifacts(self.runs.root, record),
                       "optimization_id": job_id}
+            if record.get('is_screening'):
+                stress = self.runs.get(record['is_screening']['cost_stress']['run_id'])
+                cached['stress_identity'] = digest([stress,artifacts(self.runs.root,stress)])
             if prop:
                 cached["prop_fingerprint"] = self.prop_analyses.fingerprint(prop["id"])
                 cached['companion_fingerprints']={item['id']:self.prop_analyses.fingerprint(item['id']) for item in prop.get('companions',[])}
@@ -404,6 +532,7 @@ class OptimizationStore:
             elif row["execution"].get("worker_pid"):
                 current["worker_pids"] = sorted(set(current["worker_pids"]) | {row["execution"]["worker_pid"]})
             conn.execute("UPDATE optimizations SET payload=? WHERE id=?", (json.dumps(current), job_id))
+            sync_oos_attempts(conn, current)
         return current["completed_trials"]
 
     def _reuse_trial(self, job, trial, values):
@@ -424,6 +553,11 @@ class OptimizationStore:
         try:
             if not record or digest(record) != cached["record_hash"] or artifacts(self.runs.root, record) != cached["artifacts"]:
                 return False
+            if record.get('is_screening'):
+                from .workflow_criteria import verified_screening
+                _, stress = verified_screening(self.runs, record)
+                if digest([stress,artifacts(self.runs.root,stress)]) != cached.get('stress_identity'):
+                    return False
             if job.get("default_prop_profile"):
                 prop=cached["row"].get("prop_analysis")
                 if not prop or not cached.get("prop_fingerprint") or self.prop_analyses.fingerprint(prop["id"]) != cached.get("prop_fingerprint"):
@@ -453,6 +587,10 @@ class OptimizationStore:
         active = {}
         last_update = 0
 
+        def check_stop():
+            if self.stop_requested(job_id):
+                raise BacktestStopped('Stopped by user at a backtest checkpoint.')
+
         def progress(trial, stage, processed, total, worker_pid=None):
             nonlocal last_update
             active[trial] = {"trial": trial, "stage": stage, "bars_processed": processed,
@@ -477,14 +615,18 @@ class OptimizationStore:
                 logger.exception("Could not save progress for optimization %s; continuing active trials", job_id)
 
         try:
+            check_stop()
             from .research_access import guard_read
             guard_read(source,job["dataset"]["id"],date_range,kind='strategy_execution',origin='optimization:'+job_id)
             if job.get("engine_identity") and engine_identity() != job["engine_identity"]:
                 raise ValueError("Engine code changed while this job was queued. Start a new optimization.")
             with self.runs.connect() as conn:
                 saved = {row[0] for row in conn.execute("SELECT trial FROM optimization_trials WHERE optimization_id=?", (job_id,))}
-            pending = [(trial, values) for trial, values in enumerate(combinations(job["axes"]), 1)
-                       if trial not in saved and not self._reuse_trial(job, trial, values)]
+            pending = []
+            for trial, values in enumerate(trial_parameters(job), 1):
+                check_stop()
+                if trial not in saved and not self._reuse_trial(job, trial, values):
+                    pending.append((trial, values))
             with TemporaryDirectory(prefix=".optimization-", dir=self.runs.root) as temporary:
                 root = Path(temporary)
                 snapshot = root / "source.csv"
@@ -493,10 +635,12 @@ class OptimizationStore:
                 if pending:
                     with snapshot.open("wb") as stream:
                         for chunk in source.iter_csv(job["dataset"]["id"]):
+                            check_stop()
                             stream.write(chunk)
                     if job["request"].get("prepare_data", True) and len(pending) > job["worker_count"]:
                         from .optimization_worker import FrozenSource
                         def preparation_progress(stage, processed, total):
+                            check_stop()
                             self.update(job_id, stage=stage, bars_processed=processed, total_bars=total,
                                         elapsed_seconds=time.monotonic() - started)
                         preparation_progress("preparing_data", 0, job["dataset"]["row_count"])
@@ -504,6 +648,7 @@ class OptimizationStore:
                         snapshot.unlink()
                         features = prepare_features(definition, prepared, [values for _, values in pending], root,
                                                     preparation_progress, workers=job["worker_count"],cache=self.runs.replay_cache)
+                check_stop()
                 self.update(job_id, preparation_seconds=time.monotonic() - preparation_started,
                             prepared_data=prepared is not None, cached_feature_series=len(features),
                             temporary_bytes=sum(path.stat().st_size for path in root.iterdir() if path.is_file()))
@@ -515,26 +660,32 @@ class OptimizationStore:
                 workers = job["worker_count"]
                 if workers == 1:
                     for trial, values in trials:
-                        run_id = uuid4().hex
+                        check_stop()
+                        run_id = execution_run_id(job.get('research'), trial)
                         try:
+                            def serial_progress(stage, processed, total):
+                                check_stop()
+                                progress(trial, stage, processed, total, os.getpid())
                             result = compute_trial(context, trial, values, run_id,
-                                                   lambda stage, processed, total: progress(trial, stage, processed, total, os.getpid()))
+                                                   serial_progress)
                             self.publish(job_id, trial, run_id, context, result)
                             active.pop(trial, None)
+                        except BacktestStopped:
+                            raise
                         except Exception as exc:
                             logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
                             break
                 elif pending:
                     self._run_parallel(job_id, context, trials, workers, active, progress, save_progress, failures)
-            self.update(job_id, status="failed" if failures else "complete", stage="failed" if failures else "done",
-                        active_trials=[], failed_trials=failures,
-                        **({"error": f"Trial {failures[0]['trial']}: {failures[0]['error']}"} if failures else {}),
-                        elapsed_seconds=time.monotonic() - started, finished_at_utc=datetime.now(timezone.utc).isoformat())
+            self.finish_execution(job_id, failures, time.monotonic() - started)
+        except BacktestStopped:
+            self.finish_execution(job_id, [], time.monotonic() - started)
         except Exception as exc:
             logger.exception("Optimization %s coordinator failed", job_id)
             self.update(job_id, status="failed", stage="failed", error=str(exc), active_trials=[],
-                        failed_trials=failures, elapsed_seconds=time.monotonic() - started)
+                        failed_trials=failures, elapsed_seconds=time.monotonic() - started,
+                        finished_at_utc=datetime.now(timezone.utc).isoformat())
 
     def _run_parallel(self, job_id, context, trials, workers, active, progress, save_progress, failures):
         spawn = multiprocessing.get_context("spawn")
@@ -543,14 +694,19 @@ class OptimizationStore:
         pending = {}
         with spawn.Manager() as manager:
             messages = manager.Queue(maxsize=workers * 16)
+            stop_event = manager.Event()
+            if self.stop_requested(job_id):
+                stop_event.set()
             with ProcessPoolExecutor(max_workers=workers, mp_context=spawn, initializer=initialize_worker,
-                                     initargs=(context, messages)) as pool:
+                                     initargs=(context, messages, stop_event)) as pool:
                 def submit_next():
+                    if stop_event.is_set():
+                        return False
                     try:
                         trial, values = next(trials)
                     except StopIteration:
                         return False
-                    run_id = uuid4().hex
+                    run_id = execution_run_id(context.research, trial)
                     try:
                         future = pool.submit(run_trial, trial, values, run_id)
                     except Exception as exc:
@@ -566,6 +722,8 @@ class OptimizationStore:
                 save_progress()
                 while pending:
                     done, _ = wait(pending, timeout=.2, return_when=FIRST_COMPLETED)
+                    if self.stop_requested(job_id):
+                        stop_event.set()
                     while True:
                         try:
                             message = messages.get_nowait()
@@ -582,10 +740,12 @@ class OptimizationStore:
                             continue
                         try:
                             self.publish(job_id, trial, run_id, context, future.result())
+                        except BacktestStopped:
+                            continue
                         except Exception as exc:
                             logger.exception("Optimization %s trial %s failed", job_id, trial)
                             failures.append({"trial": trial, "error": str(exc)})
-                    if failures:
+                    if failures or stop_event.is_set():
                         # Do not launch more trials. Already running trials finish
                         # and successful reports are published before cleanup.
                         for future in pending:

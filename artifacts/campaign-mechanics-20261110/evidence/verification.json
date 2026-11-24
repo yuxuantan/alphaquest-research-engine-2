@@ -1,0 +1,86 @@
+{
+  "branch": "epic/revamp-workflow",
+  "base_commit": "803299d143be67eabe355a823bd3a8907bd8673e",
+  "qualification": "Real local native backtest and human review workflow; synthetic examples; no measured MultiCharts parity claim.",
+  "checks": {
+    "distinct_backend_passed": 143,
+    "backend_run": {
+      "passed": 141,
+      "sandbox_worker_socket_denials": 2,
+      "duration_seconds": 301.47
+    },
+    "worker_recheck_outside_sandbox": {
+      "passed": 2,
+      "duration_seconds": 5.85
+    },
+    "product_and_browser_passed": 37,
+    "product_run_seconds": 474.85,
+    "final_two_demonstration_cases_passed": 2,
+    "final_demonstration_seconds": 10.91,
+    "syntax_and_diff_checks": "passed"
+  },
+  "expected": {
+    "defaults": {
+      "green_bar_count": 3,
+      "hold_minutes": 20,
+      "contracts": 1
+    },
+    "net_trade_pnl": [
+      3,
+      43,
+      -37,
+      13,
+      23,
+      33
+    ],
+    "net_total": 78,
+    "gross_after_slippage": 90,
+    "commissions": 12,
+    "slippage_cost": 30,
+    "sample_trade_numbers": [
+      1,
+      6,
+      2,
+      3,
+      4
+    ],
+    "overlap_net": 13,
+    "overlap_sample_rows": 1,
+    "mechanics_user_attestation": "passed by synthetic browser exercise",
+    "is_broad": "navigation only",
+    "is_narrow": "locked",
+    "oos": "locked"
+  },
+  "temporary_servers": "All fixtures stopped their temporary servers; no persistent server started.",
+  "changed_file_sha256": {
+    "alphaquest/app.py": "4fd8c388aa5ac548e3c235c5031cee00bde140221a49ac1fc173e51e843137bc",
+    "alphaquest/backtest_runs.py": "4dda30dd28df8b1c5f271db870e78ade6453292f81c84be2fc69bb5511044f8c",
+    "alphaquest/research_api.py": "3ec9c1b627a3b6457a52c0b8ea92c1489fd1bdf81ba73e44b77b96e95165d9c5",
+    "alphaquest/web/app.js": "f43713b0c40e9a42ee2974a8893bf0c38f4cfeb9b456fa91992f0c6269c46c1f",
+    "alphaquest/web/backtests.js": "d5a00878dac0c4bbb2c9801ba510daa76b13b951250d63b7ea293dc0125fe9dc",
+    "alphaquest/web/index.html": "8a3bf6eeca50d3d54ce4c490f9bca5543dc0ea10c3d82bc2f93722fa0feb0aa8",
+    "alphaquest/web/research.js": "e1d64f12a1e63ad44c8ebc7bb6c9d66e0eecbf6a9d99fd144aa6d5cbff0f1e61",
+    "alphaquest/web/styles.css": "4ac6d2e37b99b6d092208f87f560103d70bb76a8c32ec4ded6371a7b2ba5049f",
+    "alphaquest/web/workflow.js": "a4d93bb6c78cbcf6a2ddc5e1e5135f5006783ef8ad835c478455bc3973f0d142",
+    "docs/backtests_portal.md": "6375c163a087377efab30cd6a28e9fb5b9c2f214ae6f574d1a20d95075fca891",
+    "docs/prop_simulation_review.md": "e3f042821b1b1f55b41ce00d63d49a8d62be6e51d93c1262bc7efa6d3c695f5b",
+    "tests/test_workflow_navigation_browser.py": "0d91e22e4022a60a0aa0e0683d6b10741a119c85b98750a655e5005800b87d84",
+    "alphaquest/campaign_workflow.py": "4191614424fe7c3aba4395c4ae85cdcc1e64484e668915d771148f47ec3fc277",
+    "alphaquest/web/mechanic_validation.js": "2102f2402cc6b68a1f9a43a0ddcc18a1e513be2ff03b0e738e373007c8fe4df2",
+    "tests/test_campaign_mechanics.py": "9e5d0c6dd13c4457e33c5aa9d32f833474b5e8bcf820044daf0daf06a66ebbad",
+    "tests/test_campaign_mechanics_browser.py": "f471fbc9078ef79bef70e732894bff3b948f762b142a73afc5568c59acb569a0"
+  },
+  "download_and_screenshot_sha256": {
+    "05-overlap.png": "520128bdfac13378c918fbb83327be5a2dd0cc90c8470d40d438a7f362c149af",
+    "report.json": "cc467c21059ff13b6a1ca903dd59fc24737a4d463dafc4cbaf781f7ff6636674",
+    "03-confirmed.png": "34a6520d95f996be8defa678534a82fa3d6d0450b0b4e29ec07a4244795f09d4",
+    "04-mobile.png": "34a406918c88a44b19860b6eca8fb0c42a530f73c2af2de1435d2ba1a491e8c6",
+    "mechanic-review.json": "f0409e7f88a1aa84095b605da3a3897fdcd72f96b3235b55fa59f5fc7264e60f",
+    "overlap-review.json": "71841a0682a2febfda92de4f81c7c7f7b8b86a822a3d1525a0b8efff164dcb9e",
+    "01-ready.png": "d79aa66cc3ba0bc1a7b32dfb44770fa3cc8dadb0cdf1cdcb2567d286aed5c729",
+    "SYNTHETIC-mechanics.csv": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+    "journey.json": "59f2f36b82063ac8a096b393f735647c8fa1891027208017fdcbc77828b04a2a",
+    "trades.csv": "c6cb2293935c8977f97369ef409944ca4915ab64bc8888859d8f38175d34aa5e",
+    "02-results-unreviewed.png": "bb860d32558cd4e33daf38e2d9955c3353d1a0ff6e70eb30fe7d8a5c51403f4e"
+  }
+}

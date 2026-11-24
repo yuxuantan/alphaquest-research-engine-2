@@ -1,0 +1,73 @@
+{
+  "status": "passed",
+  "analysis_id": "68b9acab37ef41d8bfe4ed7952266edf",
+  "allocation": {
+    "counts": [
+      0
+    ],
+    "placement": "separate"
+  },
+  "scenarios": {
+    "combined": {
+      "net_cash": "0.00",
+      "fees": "0.00",
+      "received": "0.00",
+      "trades": 0,
+      "sizing_decisions": 0,
+      "counts": {
+        "evaluation_attempts": 0,
+        "funded_accounts": 0,
+        "funded_breaches": 0,
+        "funded_inactivity_closures": 0,
+        "funded_payout_completions": 0,
+        "shared_signal_conflicts": 0
+      }
+    },
+    "is": {
+      "net_cash": "0.00",
+      "fees": "0.00",
+      "received": "0.00",
+      "trades": 0,
+      "sizing_decisions": 0,
+      "counts": {
+        "evaluation_attempts": 0,
+        "funded_accounts": 0,
+        "funded_breaches": 0,
+        "funded_inactivity_closures": 0,
+        "funded_payout_completions": 0,
+        "shared_signal_conflicts": 0
+      }
+    },
+    "oos": {
+      "net_cash": "0.00",
+      "fees": "0.00",
+      "received": "0.00",
+      "trades": 0,
+      "sizing_decisions": 0,
+      "counts": {
+        "evaluation_attempts": 0,
+        "funded_accounts": 0,
+        "funded_breaches": 0,
+        "funded_inactivity_closures": 0,
+        "funded_payout_completions": 0,
+        "shared_signal_conflicts": 0
+      }
+    },
+    "is_alternative": {
+      "net_cash": "-80.50",
+      "fees": "80.50",
+      "received": "0.00",
+      "trades": 1,
+      "sizing_decisions": 1,
+      "counts": {
+        "evaluation_attempts": 1,
+        "funded_accounts": 0,
+        "funded_breaches": 0,
+        "funded_inactivity_closures": 0,
+        "funded_payout_completions": 0,
+        "shared_signal_conflicts": 0
+      }
+    }
+  },
+  "interpretation": "Recorded-event arithmetic, risk rounding, membership and frozen allocation checks; no provider or future-performance certification."
+}

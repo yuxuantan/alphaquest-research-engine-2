@@ -1,0 +1,56 @@
+{
+  "applied_date_local": "2026-11-14",
+  "timezone": "Asia/Singapore",
+  "branch": "epic/revamp-workflow",
+  "user_approved_restart": true,
+  "server": "Existing user-managed port 8000 server; no additional persistent server",
+  "preserved": {
+    "evaluation": {
+      "is_analysis_id": "9bd1a5b2a3d4485bbde1644796af5838",
+      "is_report_sha256": "1c9c3ace87521fbe6abbbe9bc3d9089770e484f450e5be97affbfd2bbce31ae2",
+      "frozen_package_sha256": "f22a662f4f43dcd898a9c689b4556a0e1e7590b67c4519db3005d6bc32d67474"
+    },
+    "funded": {
+      "is_analysis_id": "cc05dd88d3bf4ee9b295b3a2540fed94",
+      "is_report_sha256": "a76095e0bf214c3ce2e44993ce27cab21ab9abf4faa5b6ff819c074b0b216937",
+      "frozen_package_sha256": "d9334227c09ad6a5c6534369a176917061e6bb740be0e7095e8c441a3312fe34"
+    }
+  },
+  "oos_jobs": {
+    "evaluation": {
+      "id": "aab0ee8cfc58473590635b2acb4888a5",
+      "status": "running",
+      "progress": "Historical confidence \u00b7 3 MNQ \u00b7 62/10,000 block resamples \u00b7 4 workers",
+      "progress_details": {
+        "active_workers": 4,
+        "candidate_count": 3,
+        "candidate_index": 1,
+        "completed": 62,
+        "elapsed_seconds": 124.5,
+        "eta_seconds": 19956.5,
+        "micros": 3,
+        "overall_completed": 62,
+        "overall_total": 30000,
+        "phase": "evaluation",
+        "resamples_per_second": 0.498,
+        "stage": "historical_confidence",
+        "total": 10000,
+        "unit": "resamples",
+        "updated_at_utc": "2026-11-13T17:05:06.728951+00:00",
+        "worker_count": 4
+      }
+    },
+    "funded": {
+      "id": "893d3d05ade841539b448c7b13e29b7b",
+      "status": "queued",
+      "progress": "Queued Funded search",
+      "progress_details": null
+    }
+  },
+  "tests": {
+    "focused_checks_passed": 21,
+    "prior_automatic_browser_journeys_passed": 2,
+    "independent_zip_audit": "passed"
+  },
+  "unrelated_workflow_edit_preserved": true
+}

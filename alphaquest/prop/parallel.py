@@ -1,5 +1,5 @@
 """Bounded independent prop tasks; optimization children never create pools."""
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor,wait,FIRST_COMPLETED
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import contextmanager,nullcontext
 from contextvars import ContextVar
@@ -9,6 +9,7 @@ from threading import Condition,Lock
 
 CAPACITY=max(1,min(8,(os.cpu_count() or 1)-1))
 _active=ContextVar('prop_runtime',default=None)
+_worker_limit=ContextVar('prop_worker_limit',default=None)
 _diagnostics=ContextVar('prop_execution',default=None)
 _budget_owner=ContextVar('prop_budget_owner',default=None)
 _optimizing=ContextVar('prop_optimizing',default=False)
@@ -35,15 +36,16 @@ class Runtime:
             with self.condition:self.occupied-=taken;self.condition.notify_all()
 
     @contextmanager
-    def activate(self,*,reserve=True):
+    def activate(self,*,reserve=True,workers=None):
         # Serial validation/replay also occupies a slot. A waiting parallel map
         # transfers that slot to its workers, avoiding upgrade deadlocks when
         # several concurrent analyses have each reserved one serial slot.
         with self.reserve(1) if reserve else nullcontext():
+            limit=_worker_limit.set(workers if workers is not None else self.workers)
             token=_active.set(self);owner=_budget_owner.set(self if reserve else None)
             diagnostic=_diagnostics.set(dict(workers_used=1,worker_pids=[],nested_pool=False))
             try:yield
-            finally:_diagnostics.reset(diagnostic);_budget_owner.reset(owner);_active.reset(token)
+            finally:_diagnostics.reset(diagnostic);_budget_owner.reset(owner);_active.reset(token);_worker_limit.reset(limit)
 
     @contextmanager
     def parallel_slots(self,count):
@@ -68,10 +70,14 @@ class Runtime:
     def close(self):
         if self.pool is not None:self.pool.shutdown(wait=True,cancel_futures=True)
 
+    @property
+    def selected_workers(self):
+        return _worker_limit.get() or self.workers
+
     def map(self,function,values,work):
         threshold=2_000_000 if self.pool is not None else 20_000_000
-        if self.workers==1 or work<threshold or len(values)<2:return [function(v) for v in values]
-        with self.parallel_slots(min(self.workers,len(values))) as slots:
+        if self.selected_workers==1 or work<threshold or len(values)<2:return [function(v) for v in values]
+        with self.parallel_slots(min(self.selected_workers,len(values))) as slots:
             if slots==1:return [function(v) for v in values]
             with self.pool_lock:
                 if self.pool is None:self.pool=ProcessPoolExecutor(max_workers=CAPACITY,mp_context=mp.get_context('spawn'))
@@ -103,6 +109,55 @@ class Runtime:
                     except BaseException:pass
                 raise
 
+    def map_reported(self,function,values,*,checkpoint,notify,cancel,on_result=lambda result:None):
+        """Bounded completion-order dispatch, ordered output and responsive stop.
+
+        Uses this same pool/budget; the worker does not recursively dispatch.
+        Notifications contain metadata only and never change calculation inputs.
+        """
+        values=list(values);total=len(values)
+        if not total:return []
+        with self.parallel_slots(min(self.selected_workers,total)) as slots:
+            if slots==1:
+                results=[]
+                for value in values:
+                    checkpoint();result=function(value);on_result(result);results.append(result);notify(len(results),total,1,[os.getpid()])
+                return results
+            with self.pool_lock:
+                if self.pool is None:self.pool=ProcessPoolExecutor(max_workers=CAPACITY,mp_context=mp.get_context('spawn'))
+                pool=self.pool
+            results=[None]*total;pending={};next_index=0;completed=0;pids=set()
+            def submit():
+                nonlocal next_index
+                pending[pool.submit(_task,function,values[next_index])]=next_index;next_index+=1
+            try:
+                for _ in range(slots):submit()
+                notify(0,total,slots,[])
+                while pending:
+                    checkpoint()
+                    done,_=wait(pending,timeout=.25,return_when=FIRST_COMPLETED)
+                    for future in done:
+                        result,pid=future.result();on_result(result);results[pending.pop(future)]=result
+                        completed+=1;pids.add(pid)
+                        if next_index<total:submit()
+                    notify(completed,total,slots,sorted(pids))
+                diagnostic=_diagnostics.get()
+                if diagnostic is not None:
+                    diagnostic['workers_used']=max(diagnostic['workers_used'],slots)
+                    diagnostic['worker_pids']=sorted(set(diagnostic['worker_pids'])|pids)
+                return results
+            except BaseException as exc:
+                cancel()  # Workers observe the marker before the reservation releases.
+                for future in pending:future.cancel()
+                for future in pending:
+                    try:future.result()
+                    except BaseException:pass
+                if isinstance(exc,BrokenProcessPool):
+                    with self.pool_lock:
+                        if self.pool is pool:self.pool=None
+                    pool.shutdown(wait=False,cancel_futures=True)
+                raise
+
 
 def map_sweep(function,values,work):
     runtime=_active.get()
@@ -113,3 +168,15 @@ def map_sweep(function,values,work):
 
 def diagnostics():
     return dict(_diagnostics.get() or dict(workers_used=1,worker_pids=[os.getpid()],nested_pool=False))
+
+
+def map_reported(function,values,*,checkpoint,notify,cancel,on_result=lambda result:None):
+    runtime=_active.get()
+    # The uvicorn reload child is a legitimate owner. Actual pool children have
+    # no active runtime context; never infer nesting from the process's name.
+    if runtime is not None and not _optimizing.get():
+        return runtime.map_reported(function,values,checkpoint=checkpoint,notify=notify,cancel=cancel,on_result=on_result)
+    results=[]
+    for value in values:
+        checkpoint();result=function(value);on_result(result);results.append(result);notify(len(results),len(values),1,[os.getpid()])
+    return results

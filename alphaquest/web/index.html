@@ -9,10 +9,28 @@
     />
     <title>Datasets · AlphaQuest</title>
     <link rel="stylesheet" href="/static/styles.css?v=ASSET_VERSION" />
+    <script src="/static/loading.js?v=ASSET_VERSION" defer></script>
     <script src="/static/app.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimization-columns.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/parameter-help.js?v=ASSET_VERSION" defer></script>
     <script src="/static/optimizations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/strategies.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/workflow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-progress.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/risk-diagnostics.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-portfolio.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-desk-basket.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-desk-diagnostics.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-desk.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-sim-conclusion.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-sim-workspace.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/prop-sim.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/campaign_broad.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/campaign_narrow.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/campaign_monte_carlo.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/campaign_oos.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/mechanic_validation.js?v=ASSET_VERSION" defer></script>
+    <script src="/static/jobs.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research.js?v=ASSET_VERSION" defer></script>
     <script src="/static/research_reservations.js?v=ASSET_VERSION" defer></script>
     <script src="/static/backtests.js?v=ASSET_VERSION" defer></script>
@@ -31,6 +49,7 @@
     <script src="/static/prop.js?v=ASSET_VERSION" defer></script>
   </head>
   <body>
+    <a class="skip-link" id="skip-to-content" href="#main-content">Skip to content</a>
     <aside class="sidebar">
       <a class="brand" href="/" aria-label="AlphaQuest home"
         ><span class="brand-mark">a<span>q</span></span
@@ -38,95 +57,73 @@
           >AlphaQuest<span class="brand-sub">RESEARCH ENGINE</span></span
         ></a
       >
-      <div class="workspace">
-        <span class="workspace-icon">A</span>
-        <div>Personal workspace<small>Local research</small></div>
-        <span class="local-dot"></span>
-      </div>
-      <p class="nav-label">WORKSPACE</p>
       <nav aria-label="Main navigation">
-        <a class="nav-item active" href="#datasets" data-screen="datasets" aria-label="Datasets" aria-current="page"
-          ><span class="nav-icon">▤</span>Datasets<span
+        <a class="nav-item active" href="#datasets" data-screen="datasets" aria-label="Dataset" aria-current="page"
+          ><span class="nav-icon" aria-hidden="true">▤</span>Dataset<span
             class="nav-count"
             id="nav-count"
             >0</span
           ></a
         >
-        <a class="nav-item" href="#strategies" data-screen="strategies" aria-label="Strategies"><span class="nav-icon">↗</span>Strategies</a>
-        <a class="nav-item" href="#backtests/research" data-screen="research" aria-label="Research"><span class="nav-icon">▦</span>Research</a>
+        <a class="nav-item" href="#research" data-screen="research" aria-label="Research"><span class="nav-icon" aria-hidden="true">▦</span>Research</a>
+        <a class="nav-item" href="#campaigns" data-screen="campaigns" aria-label="Campaigns"><span class="nav-icon" aria-hidden="true">↗</span>Campaigns</a>
+        <a class="nav-item" href="#prop-sim" data-screen="prop-sim" aria-label="Prop Sim"><span class="nav-icon" aria-hidden="true">◈</span>Prop Sim</a>
+        <a class="nav-item" href="#prop-desk" data-screen="prop-desk" aria-label="Prop Desk"><span class="nav-icon" aria-hidden="true">▤</span>Prop Desk</a>
       </nav>
       <div class="sidebar-footer">
         <span class="local-dot"></span>
         <div>
-          Stored on this computer<small
-            >Your CSVs stay in this workspace.</small
-          >
+          Data stored locally
         </div>
       </div>
     </aside>
     <div class="main-shell">
       <header class="topbar">
-        <span
-          >Workspace <span class="breadcrumb-slash">/</span>
-          <strong id="current-screen">Datasets</strong></span
-        ><span class="version">ALPHAQUEST <span>02</span></span>
+        <strong id="current-screen">Dataset library</strong>
+        <div class="topbar-actions"><span id="portal-network-loading" class="portal-network-loading" role="status" aria-live="polite" hidden><span class="portal-spinner" aria-hidden="true"></span>Loading…</span><a class="job-history-link" href="#jobs">Job history</a></div>
         <nav class="mobile-nav" aria-label="Mobile navigation">
-          <a href="#datasets" data-screen="datasets" aria-current="page">Datasets</a>
-          <a href="#strategies" data-screen="strategies">Strategies</a>
-          <a href="#backtests/research" data-screen="research">Research</a>
+          <a href="#datasets" data-screen="datasets" aria-current="page">Dataset</a>
+          <a href="#research" data-screen="research">Research</a>
+          <a href="#campaigns" data-screen="campaigns">Campaigns</a>
+          <a href="#prop-sim" data-screen="prop-sim">Prop Sim</a>
+          <a href="#prop-desk" data-screen="prop-desk">Prop Desk</a>
         </nav>
       </header>
-      <main>
+      <main id="main-content" tabindex="-1">
         <section id="datasets-screen" aria-label="Dataset library">
         <div class="page-heading">
           <div>
-            <div class="eyebrow">YOUR RESEARCH STARTS HERE</div>
-            <h1>Dataset library<span class="heading-dot">.</span></h1>
-            <p>Bring your market data. Make sure it’s ready.</p>
+            <h1>Dataset library</h1>
+            <p><strong id="dataset-count">0</strong> saved · <strong id="bar-count">0</strong> validated rows</p>
           </div>
-          <a
-            class="button secondary sample-link"
-            href="/static/example.csv"
-            download="ohlcv-example.csv"
-            ><span aria-hidden="true">↓</span> Download example</a
-          >
+          <button type="button" class="button primary" id="dataset-add">Add a dataset</button>
         </div>
-        <section class="stats" aria-label="Library overview">
-          <div class="stat">
-            <span class="stat-label">SAVED DATASETS</span>
+
+        <section class="panel library-panel" aria-labelledby="library-heading">
+          <div class="panel-heading">
             <div>
-              <strong id="dataset-count">0</strong
-              ><span class="stat-caption">in your library</span>
+              <h2 id="library-heading">Saved datasets</h2>
             </div>
           </div>
-          <div class="stat">
-            <span class="stat-label">TOTAL BARS</span>
-            <div>
-              <strong id="bar-count">0</strong
-              ><span class="stat-caption">validated rows</span>
-            </div>
-          </div>
-          <div class="stat format-stat">
-            <span class="stat-label">DATA CONTRACT</span>
-            <div>
-              <strong>OHLCV</strong
-              ><span class="pill neutral">CSV · 9 columns</span>
-            </div>
-          </div>
+          <div id="library-status" role="status"></div>
+          <div id="library"></div>
         </section>
 
         <div class="upload-layout">
           <section class="panel upload-panel" aria-labelledby="upload-heading">
             <div class="panel-heading">
               <div>
-                <span class="step-number">01</span>
-                <h2 id="upload-heading">Add a dataset</h2>
+                <h2 id="upload-heading" tabindex="-1">Add a dataset</h2>
               </div>
-              <span class="muted small">Validate before saving</span>
             </div>
             <form id="upload-form">
+              <label>Source format<select id="dataset-format">
+                <option value="bars">Minute OHLCV CSV</option>
+                <option value="ticks">Trade ticks · Sierra SCID or trade CSV</option>
+              </select></label>
+              <p id="tick-format-help" class="small muted" hidden>Individual trades only. SCID v1 or CSV columns: timestamp,price,volume,bid_volume,ask_volume. CSV timestamps must use UTC; equal timestamps retain file order. SCID timestamps are UTC. Set the root instrument (e.g. NQ), tick size and point value. Import validates the whole source, retains the original price path and builds completed-minute order flow. Aggregated records and timestamp inversions reject. <a href="/api/datasets/ticks/example">Download CSV example</a>.</p>
               <label class="dropzone" id="dropzone" for="csv-file">
-                <input type="file" id="csv-file" accept=".csv,text/csv" />
+                <input type="file" id="csv-file" accept=".csv,.scid,text/csv,application/octet-stream" />
                 <span class="upload-icon" aria-hidden="true">↥</span>
                 <strong id="file-label"
                   >Drop your CSV here, or <span>browse files</span></strong
@@ -221,47 +218,47 @@
             <div id="validation-result" hidden aria-live="polite"></div>
           </section>
 
-          <aside class="panel format-panel" aria-labelledby="format-heading">
-            <div class="format-kicker">
-              <span class="code-icon">&lt;/&gt;</span> THE EXPECTED FORMAT
-            </div>
-            <h2 id="format-heading">Nine columns.<br />One clear contract.</h2>
+          <details class="panel format-guide">
+            <summary>File format and example</summary>
+            <div class="format-panel">
+            <h2>Minute OHLCV CSV</h2>
+            <a class="workflow-inline-link" href="/static/example.csv" download="ohlcv-example.csv">Download example CSV</a>
             <p>Use these exact headers and capitalization, in this order.</p>
             <div class="schema">
               <div>
-                <span class="schema-index">01</span><code>Date</code
+                <code>Date</code
                 ><span>MM/DD/YYYY</span>
               </div>
               <div>
-                <span class="schema-index">02</span><code>Time</code
+                <code>Time</code
                 ><span>HH:MM · 24-hour</span>
               </div>
               <div>
-                <span class="schema-index">03</span><code>Open</code
+                <code>Open</code
                 ><span>number</span>
               </div>
               <div>
-                <span class="schema-index">04</span><code>High</code
+                <code>High</code
                 ><span>number</span>
               </div>
               <div>
-                <span class="schema-index">05</span><code>Low</code
+                <code>Low</code
                 ><span>number</span>
               </div>
               <div>
-                <span class="schema-index">06</span><code>Close</code
+                <code>Close</code
                 ><span>number</span>
               </div>
               <div>
-                <span class="schema-index">07</span><code>Volume</code
+                <code>Volume</code
                 ><span>number ≥ 0</span>
               </div>
               <div>
-                <span class="schema-index">08</span><code>UpVol</code
+                <code>UpVol</code
                 ><span>number ≥ 0</span>
               </div>
               <div>
-                <span class="schema-index">09</span><code>DownVol</code
+                <code>DownVol</code
                 ><span>number ≥ 0</span>
               </div>
             </div>
@@ -275,25 +272,15 @@
             <p class="small muted format-footnote">
               Gaps stay as supplied. No sorting, resampling, or filling.
             </p>
-          </aside>
+            </div>
+          </details>
         </div>
 
-        <section class="panel library-panel" aria-labelledby="library-heading">
-          <div class="panel-heading">
-            <div>
-              <h2 id="library-heading">Saved datasets</h2>
-              <span class="pill neutral" id="library-count">0</span>
-            </div>
-            <span class="small muted">Original CSV + generated metadata</span>
-          </div>
-          <div id="library-status" role="status"></div>
-          <div id="library"></div>
-        </section>
         </section>
 
           <p id="backtest-delete-status" class="small" role="status" hidden></p>
         <section id="strategies-screen" aria-labelledby="strategies-title" hidden>
-          <div class="page-heading"><div><div class="eyebrow">YOUR STRATEGY RESEARCH</div><h1 id="strategies-title">Strategies<span class="heading-dot">.</span></h1><p>Choose a strategy, then an instrument and full dataset period to compare saved runs.</p></div><div class="report-downloads"><a href="#backtests/research" class="button secondary">Research workspace</a><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new?import=external" class="button secondary">Import trades</a><a id="strategy-new-run" href="#backtests/new" class="button primary">New backtest →</a></div></div>
+          <div class="page-heading"><div><h1 id="strategies-title">Saved runs<span class="heading-dot">.</span></h1><p>Choose a strategy, then an instrument and full dataset period to compare saved runs.</p></div><div class="report-downloads"><a href="#backtests/research" class="button secondary">Research workspace</a><a href="#backtests/batches" class="button secondary">Backtest activity</a><button id="refresh-strategies" type="button" class="button secondary">Refresh</button><a href="#backtests/new?import=external" class="button secondary">Import trades</a><a id="strategy-new-run" href="#backtests/new" class="button primary">New backtest →</a></div></div>
           <p id="strategy-delete-status" class="small" role="status" hidden></p>
           <div id="strategy-picker" class="strategies-layout">
             <section class="panel strategies-instruments" aria-labelledby="strategy-instruments-heading">
@@ -304,7 +291,7 @@
             <section class="panel strategies-backtests" aria-labelledby="strategy-datasets-heading">
               <div class="panel-heading"><h2 id="strategy-datasets-heading">Instruments &amp; datasets</h2></div>
               <p id="strategy-datasets-status" role="status" class="small">Select a strategy on the left.</p>
-              <div class="strategy-dataset-scroll"><table id="strategy-datasets-table" class="library-table" hidden><thead><tr><th>Instrument</th><th>Full dataset period</th><th>Reports</th></tr></thead><tbody id="strategy-datasets"></tbody></table></div>
+              <div class="strategy-dataset-scroll" tabindex="0" role="region" aria-label="Saved runs by dataset"><table id="strategy-datasets-table" class="library-table" hidden><thead><tr><th>Instrument</th><th>Full dataset period</th><th>Reports</th></tr></thead><tbody id="strategy-datasets"></tbody></table></div>
               <div class="report-pagination"><button id="strategy-datasets-previous" class="button secondary" type="button" disabled>Previous datasets</button><span id="strategy-datasets-page"></span><button id="strategy-datasets-next" class="button secondary" type="button" disabled>Next datasets</button></div>
             </section>
           </div>
@@ -313,20 +300,150 @@
             <div class="panel-heading"><div><h2 id="strategy-results-heading">Saved runs</h2><p id="strategy-full-period" class="small"></p></div></div>
             <p id="strategy-results-status" role="status" class="small"></p>
             <div class="strategy-sort"><label for="strategy-run-sort">Sort runs by</label><select id="strategy-run-sort"><option value="created_at_utc">Created</option></select><label for="strategy-run-direction">Order</label><select id="strategy-run-direction"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
-            <div id="strategy-results-wrap" class="strategy-run-scroll" tabindex="0" aria-label="Parameters and IS/OOS metrics, scroll horizontally" hidden><table id="strategy-runs-table" class="library-table"><thead></thead><tbody id="strategy-results"></tbody></table></div>
+            <div id="strategy-results-wrap" class="strategy-run-scroll" tabindex="0" role="region" aria-label="Parameters and IS/OOS metrics, scroll horizontally" hidden><table id="strategy-runs-table" class="library-table"><thead></thead><tbody id="strategy-results"></tbody></table></div>
             <div class="report-pagination"><button id="strategy-reports-previous" class="button secondary" type="button" disabled>Previous runs</button><span id="strategy-reports-page"></span><button id="strategy-reports-next" class="button secondary" type="button" disabled>Next runs</button></div>
           </section>
         </section>
 
-        <section id="research-workspace-screen" aria-label="Research workspace" hidden></section>
-        <section id="backtests-screen" aria-labelledby="backtests-title" hidden>
+        <section id="research-workspace-screen" aria-label="Saved research workspace" hidden></section>
+        <section id="research-screen" aria-labelledby="research-title" hidden>
+          <div class="page-heading"><div><h1 id="research-title">Research<span class="heading-dot">.</span></h1><p>Theses and summaries for your campaigns.</p></div></div>
+          <div class="panel workflow-empty"><h2>No research theses yet</h2><p>Open Campaigns to review strategies and continue backtests.</p><a class="button secondary" href="#campaigns">Go to Campaigns</a></div>
+        </section>
+        <section id="campaigns-screen" aria-labelledby="campaigns-title" hidden>
+          <div class="page-heading"><div><h1 id="campaigns-title">Campaigns<span class="heading-dot">.</span></h1><p>Choose a campaign to resume a dataset workflow or start a backtest.</p></div><div class="report-downloads"><a href="#strategies" class="button secondary">Saved runs</a><a href="#backtests/new?workflow=mechanic" id="campaign-new-backtest" class="button primary">New backtest →</a></div></div>
+          <div class="workflow-campaign-layout"><nav id="workflow-campaign-list" class="panel workflow-campaign-list" aria-label="Campaign list"></nav><div id="workflow-campaign-detail" class="panel workflow-campaign-detail" aria-live="polite"></div></div>
+        </section>
+        <section id="jobs-screen" aria-labelledby="jobs-title" hidden>
+          <div class="page-heading"><div><h1 id="jobs-title">Job history<span class="heading-dot">.</span></h1><p>Follow running jobs and reopen saved results.</p></div><button id="jobs-refresh" class="button secondary" type="button">Refresh</button></div>
+          <div id="jobs-list-view">
+            <form id="jobs-filters" class="jobs-filters" aria-label="Filter jobs">
+              <label>Status<select id="jobs-filter-status"><option value="all">All statuses</option><option value="active">Running / queued</option><option value="completed">Completed</option><option value="attention">Failed / stopped</option></select></label>
+              <label>Job type<select id="jobs-filter-kind"><option value="all">All job types</option><option value="mechanic_validation">Mechanic validation</option><option value="backtest_batch">Backtest batches</option><option value="backtest">Saved backtests</option><option value="prop_analysis">Prop analyses</option><option value="prop_preparation">Prop Sim preparation</option><option value="monte_carlo">Final Monte Carlo checks</option></select></label>
+              <label>Find a job<input id="jobs-search" type="search" maxlength="200" placeholder="Strategy, dataset or job ID" /></label><button class="button secondary" type="submit">Search</button>
+            </form>
+            <p id="jobs-list-status" role="status" aria-live="polite"></p>
+            <section class="panel jobs-table-panel">
+              <p class="table-scroll-hint">Scroll across for progress, dates and controls.</p>
+              <div class="jobs-table-scroll" tabindex="0" role="region" aria-label="Job history, scroll horizontally"><table class="library-table"><thead><tr><th scope="col">Job / source</th><th scope="col">Status</th><th scope="col">Progress</th><th scope="col">Recorded</th><th scope="col">Actions</th></tr></thead><tbody id="jobs-rows"></tbody></table></div>
+            </section>
+            <div class="report-pagination"><button id="jobs-previous" class="button secondary" type="button">Previous</button><span id="jobs-page"></span><button id="jobs-next" class="button secondary" type="button">Next</button></div>
+          </div>
+          <section id="jobs-detail-view" hidden><a href="#jobs" class="workflow-inline-link">← All jobs</a><p id="jobs-detail-status" role="status" aria-live="polite"></p><div id="jobs-detail-content"></div></section>
+        </section>
+        <section id="mechanic-screen" aria-label="Campaign dataset workflow" hidden>
+          <a id="mechanic-back" href="#campaigns" class="eyebrow">← Campaign datasets</a>
+          <div class="page-heading"><div><h1 id="mechanic-title">Mechanic validation</h1><p id="mechanic-source"></p></div></div>
+          <nav id="mechanic-phases" class="mechanic-phases" aria-label="Campaign phases"></nav>
+          <p class="mechanic-phase-hint">Complete each phase to unlock the next.</p>
+          <details id="workflow-stage-criteria" class="panel stage-criteria"></details>
+          <p id="mechanic-status" role="status" aria-live="polite"></p>
+          <div id="mechanic-content"></div>
+        </section>
+        <section id="prop-sim-screen" aria-labelledby="prop-sim-title" hidden>
+          <div class="page-heading"><div><h1 id="prop-sim-title">Prop Sim<span class="heading-dot">.</span></h1><p>Compare sizing, portfolio allocation and cash outcomes from qualified campaign configurations.</p></div></div>
+          <nav class="prop-sim-mode-choice" aria-label="Prop Sim modes">
+            <a href="#prop-sim" id="prop-sim-mode-sizing" aria-current="page">Independent sizing</a>
+            <a href="#prop-sim?mode=portfolio" id="prop-sim-mode-portfolio">Portfolio &amp; cash flow</a>
+          </nav>
+          <div id="prop-sim-content"></div>
+        </section>
+
+        <section id="prop-desk-screen" aria-labelledby="prop-desk-title" hidden>
+          <div class="page-heading"><div><h1 id="prop-desk-title">Prop Desk<span class="heading-dot">.</span></h1></div></div>
+          <form id="prop-desk-form" class="prop-desk-form">
+            <fieldset id="prop-desk-inputs" disabled>
+              <div class="prop-desk-toolbar">
+                <a id="prop-desk-simulation-back" href="#prop-desk" hidden>← Simulation</a>
+                <h2 id="prop-desk-workspace-title">Simulation</h2>
+                <button id="prop-desk-open-history" type="button" class="button secondary">Saved runs</button>
+              </div>
+              <div class="prop-desk-layout">
+                <section class="panel prop-desk-panel prop-desk-library" aria-labelledby="prop-desk-library-title">
+                  <h2 id="prop-desk-library-title">Strategies</h2>
+                  <label>Saved strategy<select id="prop-desk-source" aria-describedby="prop-desk-qualification-note"></select></label>
+                  <p id="prop-desk-qualification-note" class="field-help">Only configurations that passed all campaign stages appear here.</p>
+                  <div id="prop-desk-strategies" class="prop-desk-strategies" aria-label="Saved strategy reports"></div>
+                  <div class="prop-desk-actions prop-desk-source-actions">
+                    <button id="prop-desk-source-prev" class="button secondary" type="button">Previous strategies</button>
+                    <button id="prop-desk-source-next" class="button secondary" type="button">More strategies</button>
+                    <button id="prop-desk-add-member" class="button secondary" type="button">Add to portfolio</button>
+                    <a id="prop-desk-source-link" hidden>Open strategy report</a>
+                  </div>
+                </section>
+                <section class="panel prop-desk-panel prop-desk-portfolio" aria-labelledby="prop-desk-portfolio-title">
+                  <div class="prop-desk-section-heading">
+                    <h2 id="prop-desk-portfolio-title">Portfolio</h2>
+                    <div class="prop-desk-actions">
+                      <button id="prop-desk-equal" class="button secondary" type="button">Equal weight</button>
+                      <button id="prop-desk-clear" class="button secondary" type="button">Clear</button>
+                      <button id="prop-desk-optimise" class="button secondary" type="button">Optimise</button>
+                    </div>
+                  </div>
+                  <div id="prop-desk-members"></div>
+                  <p id="prop-desk-allocation-preview" class="field-help" aria-live="polite"></p>
+                  <label id="prop-desk-oos-option" class="prop-desk-oos-option" hidden>
+                    <input id="prop-desk-include-oos" type="checkbox" checked> Include linked OOS equity
+                  </label>
+                  <label id="prop-desk-oos-accounts-option" class="prop-desk-oos-option" hidden>
+                    <input id="prop-desk-include-oos-accounts" type="checkbox" checked> Compare linked OOS account outcomes
+                  </label>
+                  <p id="prop-desk-basket-note" class="field-help" hidden>Equity uses IS only until every portfolio strategy has a matching OOS report.</p>
+                </section>
+                <section class="panel prop-desk-panel prop-desk-account" aria-labelledby="prop-desk-account-title">
+                  <h2 id="prop-desk-account-title">Account</h2>
+                  <p id="prop-desk-search-objective" class="field-help" hidden></p>
+                  <div class="prop-desk-phase" role="group" aria-label="Phase">
+                    <button type="button" data-desk-phase="evaluation" aria-pressed="true">Evaluation</button>
+                    <button type="button" data-desk-phase="funded" aria-pressed="false">Funded</button>
+                  </div>
+                  <input id="prop-desk-phase" type="hidden" value="evaluation">
+                  <label>Account profile<select id="prop-desk-profile" required></select></label>
+                  <label id="prop-desk-simulation-size-label">Simulation size rule
+                    <select id="prop-desk-simulation-size-rule"></select>
+                  </label>
+                  <div class="prop-desk-fields">
+                    <label>Minimum total MNQ<input id="prop-desk-minimum" type="number" min="1" step="1" value="1" required></label>
+                    <label>Maximum total MNQ<input id="prop-desk-maximum" type="number" min="1" step="1" placeholder="Optional" aria-describedby="prop-desk-size-note"></label>
+                  </div>
+                  <p id="prop-desk-size-note" class="field-help">Enter a maximum to inspect the sizing and equity charts for a single strategy.</p>
+                  <div id="prop-desk-optimizer-fields" class="prop-desk-fields" hidden>
+                    <label>At least this many strategies per combination<input id="prop-desk-min-members" type="number" min="1" max="60" step="1" value="1" disabled required></label>
+                    <label id="prop-desk-funded-size-label" hidden>Funded size rule<select id="prop-desk-funded-size-rule" disabled>
+                      <option value="first_year">First year</option><option value="account_life">Account life</option>
+                    </select></label>
+                  </div>
+                  <p id="prop-desk-workload" class="field-help" aria-live="polite" hidden></p>
+                  <label>Observation horizon (trading days)<input id="prop-desk-horizon" type="number" min="1" max="2000" step="1" required></label>
+                  <div id="prop-desk-horizon-shortcuts" class="prop-desk-actions" role="group" aria-label="Evaluation observation shortcuts" hidden>
+                    <button type="button" class="button secondary" data-desk-days="30">30 days</button>
+                    <button type="button" class="button secondary" data-desk-days="60">60 days</button>
+                    <button type="button" class="button secondary" data-desk-days="90">90 days</button>
+                  </div>
+                  <p id="prop-desk-horizon-note" class="field-help"></p>
+                  <div class="prop-desk-actions prop-desk-run-actions">
+                    <button id="prop-desk-launch" class="button primary" type="submit" disabled>Run simulation</button>
+                  </div>
+                  <p id="prop-desk-check-status" role="status" aria-live="polite"></p>
+                </section>
+              </div>
+            </fieldset>
+          </form>
+          <section id="prop-desk-history" class="panel prop-desk-panel" aria-labelledby="prop-desk-history-title" tabindex="-1">
+            <h2 id="prop-desk-history-title">Saved runs</h2>
+            <div id="prop-desk-history-items"></div>
+            <button id="prop-desk-history-next" class="button secondary" type="button" hidden>More runs</button>
+          </section>
+          <div id="prop-desk-result" hidden></div>
+        </section>
+        <section id="backtests-screen" aria-label="Backtests" hidden>
           <div id="backtest-setup">
-          <a href="#strategies" class="eyebrow">← Back to Strategies</a>
+          <a href="#strategies" class="eyebrow">← Saved runs</a>
           <div class="page-heading">
             <div>
-              <div class="eyebrow">PUT YOUR STRATEGY TO THE TEST</div>
+
               <h1 id="backtests-title">Run a backtest<span class="heading-dot">.</span></h1>
-              <p>Choose your data, define your assumptions, and run.</p>
+              <p>Choose a dataset and strategy, then review the execution settings.</p>
             </div>
             <button class="button secondary" id="refresh-backtest-choices" type="button">Refresh choices</button>
           </div>
@@ -338,7 +455,7 @@
               <div class="backtest-form-panels">
                 <section class="panel" aria-labelledby="backtest-selection-heading">
                   <div class="panel-heading">
-                    <div><span class="step-number">01</span><h2 id="backtest-selection-heading">Dataset &amp; strategy</h2></div>
+                    <div><h2 id="backtest-selection-heading">Dataset &amp; strategy</h2></div>
                   </div>
                   <fieldset class="backtest-fields">
                     <label for="backtest-dataset">Saved dataset</label>
@@ -346,6 +463,7 @@
                       <option value="">Choose a saved dataset</option>
                     </select>
                     <p class="field-help" id="backtest-dataset-info">Upload and save a CSV in Datasets first.</p>
+                    <a id="backtest-upload-dataset" href="#datasets" class="workflow-inline-link">Upload a new dataset →</a>
                     <dl id="backtest-instrument-settings" class="backtest-run-details"></dl>
                     <div class="backtest-execution-grid">
                       <label>Tick size for this run
@@ -390,7 +508,7 @@
                       <h3 class="parameter-heading">Parameter grid · exhaustive</h3>
                       <p class="field-help">To run one backtest, keep start and end equal for every parameter. Set a range to try more values; every combination runs automatically.</p>
                       <p class="field-help">Set start, end and step for every strategy parameter. Step defaults to 0 for equal endpoints and 1 otherwise; edit it to choose the increment. Step count is calculated automatically. Values stop at or before end; end is included only if a step lands on it. Boolean endpoints can use either order, with step 1 for both values.</p>
-                      <div class="optimization-scroll" tabindex="0" aria-label="Parameter ranges, scroll horizontally">
+                      <div class="optimization-scroll" tabindex="0" role="region" aria-label="Parameter ranges, scroll horizontally">
                         <table class="library-table optimization-grid"><thead><tr><th>Parameter</th><th>Start value</th><th>End value</th><th>Step</th><th>Step count</th></tr></thead><tbody id="optimization-ranges"></tbody></table>
                       </div>
                       <p id="optimization-count" role="status" class="optimization-count"></p>
@@ -409,7 +527,7 @@
 
                 <section class="panel" aria-labelledby="execution-settings-heading">
                   <div class="panel-heading">
-                    <div><span class="step-number">02</span><h2 id="execution-settings-heading">Account &amp; costs</h2></div>
+                    <div><h2 id="execution-settings-heading">Account &amp; costs</h2></div>
                     <span class="small muted">Separate from strategy parameters</span>
                   </div>
                   <fieldset class="backtest-fields backtest-execution-grid">
@@ -433,10 +551,8 @@
                   <p class="field-help">Holding uses the first selected Open through the final Close with the same account capital and fill costs. Price-series comparison only: contract rolls, dividends, cash interest and margin liquidation are not modelled.</p>
                 </section>
               </div>
-              <aside class="panel backtest-assumptions" aria-labelledby="backtest-assumptions-heading">
-                <div class="format-kicker"><span class="code-icon">◷</span> REVIEW BEFORE RUNNING</div>
-                <h2 id="backtest-assumptions-heading">Timestamps label <br />bar closes.</h2>
-                <span class="pill success">Bar-close convention</span>
+              <details class="panel backtest-assumptions">
+                <summary>Execution assumptions</summary>
                 <p>Every CSV timestamp represents the close of its completed bar.</p>
                 <p id="backtest-fill-assumption">Signals and simulated fills use that same close, adjusted by your slippage setting.</p>
                 <div class="backtest-clock">
@@ -445,7 +561,7 @@
                   <small>Converted to UTC for replay. Holds use elapsed time, including gaps.</small>
                 </div>
                 <p class="small muted">Tick size and monetary point value start from the dataset defaults. You can override them for this run. Values are never inferred from the filename or symbol.</p>
-              </aside>
+              </details>
             </div>
             <div class="backtest-submit-row">
               <span class="small muted" id="backtest-form-hint">Loading available datasets and strategies.</span>
@@ -459,6 +575,7 @@
             <progress id="backtest-progress-bar" max="100" aria-label="Bars processed"></progress>
             <div class="progress-details"><span id="backtest-progress-detail"></span><span id="backtest-elapsed"></span></div>
             <p id="backtest-progress-note" class="small muted" role="status"></p>
+            <button id="backtest-stop" class="button secondary" type="button" hidden>Stop running backtest</button>
           </section>
           </div>
           <section id="optimization-panel" hidden>
@@ -498,7 +615,7 @@
             </details>
             <p id="optimization-sort-note" class="small muted" hidden></p>
             <p id="optimization-visible-empty" class="validation-box" role="status" hidden>No columns selected. Open Columns to choose what to show.</p>
-            <div id="optimization-results-scroll" class="optimization-scroll" tabindex="0" aria-label="Optimization results, scroll horizontally or vertically; column headers and selected frozen columns stay visible">
+            <div id="optimization-results-scroll" class="optimization-scroll" tabindex="0" role="region" aria-label="Optimization results, scroll horizontally or vertically; column headers and selected frozen columns stay visible">
               <table id="optimization-results" class="library-table"><thead></thead><tbody></tbody></table>
             </div>
             <div class="report-pagination"><button id="optimization-previous" class="button secondary" type="button">Previous</button><span id="optimization-page"></span><button id="optimization-next" class="button secondary" type="button">Next</button></div>
@@ -506,11 +623,9 @@
           <div id="report-status" class="validation-box" role="status" hidden></div>
           <section id="backtest-completion" aria-labelledby="backtest-completion-title" hidden>
             <div class="page-heading report-heading">
-              <div><a id="report-back-strategies" href="#strategies" class="eyebrow">← Back to Strategies</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
-              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><a id="report-json-download" class="button secondary">Report JSON ↓</a><a id="report-source-download" class="button secondary" hidden>Original source JSON ↓</a><a id="report-canonical-download" class="button secondary" hidden>Normalized source JSON ↓</a><a id="report-risk-download" class="button secondary" hidden>Intratrade risk CSV ↓</a><button id="report-capture-risk" class="button secondary" type="button" hidden>Capture intratrade risk</button><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div>
+              <div><a id="report-back-strategies" href="#strategies" class="eyebrow">← Saved runs</a><h1 id="backtest-completion-title">Backtest report<span class="heading-dot">.</span></h1><p id="report-run-id" class="run-identifier"></p></div>
+              <div class="report-downloads"><a id="report-prop-setup" class="button primary">Configure prop analysis →</a><a id="report-trades-download" class="button secondary">Trade CSV ↓</a><a id="report-equity-download" class="button secondary">Equity CSV ↓</a><details class="report-export-details"><summary>More exports and detail</summary><div class="report-downloads"><a id="report-json-download" class="button secondary">Report JSON ↓</a><a id="report-source-download" class="button secondary" hidden>Original source JSON ↓</a><a id="report-canonical-download" class="button secondary" hidden>Normalized source JSON ↓</a><a id="report-risk-download" class="button secondary" hidden>Intratrade risk CSV ↓</a><button id="report-capture-risk" class="button secondary" type="button" hidden>Capture intratrade risk</button><button id="report-generate-detail" class="button secondary" type="button" hidden>Generate full detail</button></div></details></div>
             </div>
-            <button id="report-delete" class="button danger" type="button">Delete backtest</button>
-            <p id="report-storage-note" class="small muted"></p>
             <p id="report-detail-status" class="small" role="status" aria-live="polite" hidden></p>
             <section id="report-research" class="panel report-prop-content" aria-label="IS and OOS research">
               <h2 id="report-research-title">Research period</h2>
@@ -554,16 +669,22 @@
               <div class="panel-heading"><div><h2 id="report-prop-title">Prop analysis summary</h2><p id="report-prop-context" class="small muted"></p></div><div id="report-prop-actions" class="report-downloads"></div></div>
               <div class="report-prop-content"><p id="report-prop-status" class="small" role="status"></p><div id="report-prop-metrics"></div><div id="report-prop-companions" hidden></div></div>
             </section>
+            <section id="report-entry-protection" class="panel report-panel" hidden aria-label="Immediate protection sensitivity"></section>
             <details id="report-performance" class="panel runtime-panel"><summary>Runtime breakdown</summary><div class="report-prop-content"><p id="report-performance-status" class="small"></p><table class="library-table"><thead><tr><th>Phase</th><th>Seconds</th></tr></thead><tbody id="report-performance-body"></tbody></table><p><a id="report-performance-download">Timing data (JSON) ↓</a></p></div></details>
             <section class="panel report-panel" aria-labelledby="report-trades-title">
               <div class="panel-heading"><div><h2 id="report-trades-title">Every completed trade</h2></div><span id="report-trade-timezone-note" class="small muted">Dataset timezone · P&amp;L in CU</span></div>
               <p id="report-trade-timezone-hint" class="report-table-hint small muted">Entry and exit times use the dataset timezone. CSV exports use UTC. Scroll horizontally for all trade fields.</p>
-              <div class="report-table-scroll" tabindex="0" aria-label="Trade details, scroll horizontally"><table class="library-table report-trades"><thead><tr>
+              <div class="report-table-scroll" tabindex="0" role="region" aria-label="Trade details, scroll horizontally"><table class="library-table report-trades"><thead><tr>
                 <th>#</th><th id="report-entry-time-header">Entry · dataset time</th><th id="report-exit-time-header">Exit · dataset time</th><th>Entry fill</th><th>Exit fill</th><th>Contracts</th><th>Gross P&amp;L</th><th>Commissions</th><th>Net P&amp;L</th><th>Hold · minutes</th><th>Exit reason</th>
               </tr></thead><tbody id="report-trades-body"></tbody></table></div>
               <div class="report-pagination"><span id="report-trades-count" role="status"></span><div><button id="trades-previous" class="button secondary" type="button">Previous trades</button><button id="trades-next" class="button secondary" type="button">Next trades</button></div></div>
             </section>
-            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p id="report-execution-assumptions" class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. The saved execution assumption identifies same-close fills or next-bar Open markets with stop-first OHLC brackets. Market and stop fills include adverse slippage; limits fill at their price or a better Open. Gaps are preserved. Open exposure is closed at end of data.</p></details>
+            <details class="panel report-panel"><summary>Dataset, strategy &amp; settings used</summary><div id="backtest-completion-content" class="backtest-fields"></div><p id="report-execution-assumptions" class="report-assumptions small muted">Timestamps label completed bar closes. Source timestamps are converted to UTC. The saved execution assumption identifies same-close fills or next-bar Open markets with the saved OHLC bracket policy. New minute-bar runs use the MultiCharts nearest-extreme-first path (Low first on ties); historical runs retain their captured policy. Market and stop fills include adverse slippage; limits fill at their price or a better Open. Gaps are preserved. Open exposure is closed at end of data.</p></details>
+            <section class="panel report-management" aria-labelledby="report-management-title">
+              <h2 id="report-management-title">Manage report</h2>
+              <p id="report-storage-note" class="small muted"></p>
+              <button id="report-delete" class="button danger" type="button">Delete backtest…</button>
+            </section>
           </section>
           <section id="completed-runs" class="panel report-panel" aria-labelledby="completed-runs-title">
             <div class="panel-heading"><div><h2 id="completed-runs-title">Completed reports</h2></div><button id="refresh-reports" class="button secondary" type="button">Refresh reports</button></div>
@@ -670,12 +791,6 @@
           </div>
           <div id="prop-report" hidden><div id="prop-downloads" class="report-downloads"></div><div id="prop-report-content"></div></div>
         </section>
-        <footer class="page-footer">
-          <span>AlphaQuest Research Engine 02</span
-          ><span id="footer-context"
-            >Dataset management · Component 1 of your research workflow</span
-          >
-        </footer>
       </main>
     </div>
     <dialog id="dataset-dialog" aria-labelledby="detail-title">
@@ -695,5 +810,6 @@
       </div>
       <div id="detail-content"></div>
     </dialog>
-  </body>
+  <script src="/static/tick-datasets.js?v=ASSET_VERSION" defer></script>
+</body>
 </html>

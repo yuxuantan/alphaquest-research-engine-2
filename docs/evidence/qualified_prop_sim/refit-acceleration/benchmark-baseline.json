@@ -1,0 +1,539 @@
+[
+  {
+    "profile": "apex",
+    "phase": "evaluation",
+    "size": 27,
+    "inner_paths": 1000,
+    "seconds": [
+      0.13379729201551527,
+      0.11512983392458409,
+      0.1201170840067789,
+      0.18514170905109495
+    ],
+    "replicates": [
+      {
+        "replicate": 0,
+        "is_history": {
+          "seed": 2216420522,
+          "indices_sha256": "619d3e80b3f1ffce9c64d03b732765e938e175e6b5bd15add2ca7af14897b333",
+          "metrics": {
+            "cost_per_funded": 283.57413249211356,
+            "expected_calendar_days_to_funded": 48.907
+          },
+          "relative_inner_standard_error": 0.02956692320036706
+        },
+        "oos_history": {
+          "seed": 2990909732,
+          "indices_sha256": "1e6a5ee126399195cb77cbd675b4facec593c0acdd6d4a64884bd4852333881a",
+          "metrics": {
+            "cost_per_funded": 381.5773195876289,
+            "expected_calendar_days_to_funded": 62.348
+          },
+          "relative_inner_standard_error": 0.04266565851754265
+        },
+        "ratios": {
+          "cost_per_funded": 1.34559988329768,
+          "expected_calendar_days_to_funded": 1.2748277342711678
+        }
+      },
+      {
+        "replicate": 1,
+        "is_history": {
+          "seed": 1938879656,
+          "indices_sha256": "03093024ad74bd972300a16e9dc64f41bc06f5d9c6adc0868e4ec3c7c1bace58",
+          "metrics": {
+            "cost_per_funded": 280.702786377709,
+            "expected_calendar_days_to_funded": 44.077
+          },
+          "relative_inner_standard_error": 0.027407320267873125
+        },
+        "oos_history": {
+          "seed": 3757805761,
+          "indices_sha256": "2350f722e08f4c49276bb45c77bf6885a9b493e87ab51e6540f3c46a94405ff1",
+          "metrics": {
+            "cost_per_funded": 359.0469483568075,
+            "expected_calendar_days_to_funded": 52.904
+          },
+          "relative_inner_standard_error": 0.03894599476736892
+        },
+        "ratios": {
+          "cost_per_funded": 1.2791000509474098,
+          "expected_calendar_days_to_funded": 1.200263175805976
+        }
+      },
+      {
+        "replicate": 2,
+        "is_history": {
+          "seed": 47795405,
+          "indices_sha256": "936f89f1b60bd7208e3f8d9dbc55b64b8a11d051515f390aa61f4157f728d073",
+          "metrics": {
+            "cost_per_funded": 302.1448763250883,
+            "expected_calendar_days_to_funded": 57.554
+          },
+          "relative_inner_standard_error": 0.02986837682332311
+        },
+        "oos_history": {
+          "seed": 3758912497,
+          "indices_sha256": "b1a0ba16271c90e31dfe535008b0aea28f2a142cdd22713931e4ee8013755b3a",
+          "metrics": {
+            "cost_per_funded": 277.93617021276594,
+            "expected_calendar_days_to_funded": 31.587
+          },
+          "relative_inner_standard_error": 0.026976624202623634
+        },
+        "ratios": {
+          "cost_per_funded": 0.9198771582468426,
+          "expected_calendar_days_to_funded": 0.5488237133822149
+        }
+      },
+      {
+        "replicate": 17,
+        "is_history": {
+          "seed": 727347203,
+          "indices_sha256": "039f00ca6eb54a25768e2693e658e877e7f0f51deb501ee394a0df9656b176fc",
+          "metrics": {
+            "cost_per_funded": 300.9298245614035,
+            "expected_calendar_days_to_funded": 55.258
+          },
+          "relative_inner_standard_error": 0.028693563420139023
+        },
+        "oos_history": {
+          "seed": 797357588,
+          "indices_sha256": "6707e19d1f913f2aa2b63f7f4888bea329e13750e27d203c6833f224b7cfcda4",
+          "metrics": {
+            "cost_per_funded": 289.1307189542484,
+            "expected_calendar_days_to_funded": 37.67
+          },
+          "relative_inner_standard_error": 0.02692278411244601
+        },
+        "ratios": {
+          "cost_per_funded": 0.9607911724125318,
+          "expected_calendar_days_to_funded": 0.6817112454305259
+        }
+      }
+    ]
+  },
+  {
+    "profile": "apex",
+    "phase": "funded",
+    "size": 13,
+    "inner_paths": 1000,
+    "seconds": [
+      0.8319311250234023,
+      0.33379037491977215,
+      0.36186933296266943,
+      0.39128958294168115
+    ],
+    "replicates": [
+      {
+        "replicate": 0,
+        "is_history": {
+          "seed": 2216420522,
+          "indices_sha256": "619d3e80b3f1ffce9c64d03b732765e938e175e6b5bd15add2ca7af14897b333",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 502.5
+          },
+          "relative_inner_standard_error": 0.05983890977435736
+        },
+        "oos_history": {
+          "seed": 2990909732,
+          "indices_sha256": "1e6a5ee126399195cb77cbd675b4facec593c0acdd6d4a64884bd4852333881a",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 169.5
+          },
+          "relative_inner_standard_error": 0.09947680399685745
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 0.3373134328358209
+        }
+      },
+      {
+        "replicate": 1,
+        "is_history": {
+          "seed": 1938879656,
+          "indices_sha256": "03093024ad74bd972300a16e9dc64f41bc06f5d9c6adc0868e4ec3c7c1bace58",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 443.5
+          },
+          "relative_inner_standard_error": 0.06698059723278124
+        },
+        "oos_history": {
+          "seed": 3757805761,
+          "indices_sha256": "2350f722e08f4c49276bb45c77bf6885a9b493e87ab51e6540f3c46a94405ff1",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 252.5
+          },
+          "relative_inner_standard_error": 0.08316215768657113
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 0.5693348365276212
+        }
+      },
+      {
+        "replicate": 2,
+        "is_history": {
+          "seed": 47795405,
+          "indices_sha256": "936f89f1b60bd7208e3f8d9dbc55b64b8a11d051515f390aa61f4157f728d073",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 467.0
+          },
+          "relative_inner_standard_error": 0.05990720209145408
+        },
+        "oos_history": {
+          "seed": 3758912497,
+          "indices_sha256": "b1a0ba16271c90e31dfe535008b0aea28f2a142cdd22713931e4ee8013755b3a",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 419.0
+          },
+          "relative_inner_standard_error": 0.07191049392964145
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 0.8972162740899358
+        }
+      },
+      {
+        "replicate": 17,
+        "is_history": {
+          "seed": 727347203,
+          "indices_sha256": "039f00ca6eb54a25768e2693e658e877e7f0f51deb501ee394a0df9656b176fc",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 346.5
+          },
+          "relative_inner_standard_error": 0.06620304197452825
+        },
+        "oos_history": {
+          "seed": 797357588,
+          "indices_sha256": "6707e19d1f913f2aa2b63f7f4888bea329e13750e27d203c6833f224b7cfcda4",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 602.5
+          },
+          "relative_inner_standard_error": 0.05730194453718053
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 1.7388167388167388
+        }
+      }
+    ]
+  },
+  {
+    "profile": "lucid",
+    "phase": "evaluation",
+    "size": 3,
+    "inner_paths": 1000,
+    "seconds": [
+      10.925266333040781,
+      9.388363166945055,
+      7.116832000087015,
+      8.847387125017121
+    ],
+    "replicates": [
+      {
+        "replicate": 0,
+        "is_history": {
+          "seed": 2216420522,
+          "indices_sha256": "619d3e80b3f1ffce9c64d03b732765e938e175e6b5bd15add2ca7af14897b333",
+          "metrics": {
+            "cost_per_funded": 153.60029999999998,
+            "expected_calendar_days_to_funded": 392.115
+          },
+          "relative_inner_standard_error": 0.021845545019211095
+        },
+        "oos_history": {
+          "seed": 2990909732,
+          "indices_sha256": "1e6a5ee126399195cb77cbd675b4facec593c0acdd6d4a64884bd4852333881a",
+          "metrics": {},
+          "relative_inner_standard_error": null
+        },
+        "ratios": {
+          "cost_per_funded": null,
+          "expected_calendar_days_to_funded": null
+        }
+      },
+      {
+        "replicate": 1,
+        "is_history": {
+          "seed": 1938879656,
+          "indices_sha256": "03093024ad74bd972300a16e9dc64f41bc06f5d9c6adc0868e4ec3c7c1bace58",
+          "metrics": {
+            "cost_per_funded": 157.75409999999997,
+            "expected_calendar_days_to_funded": 392.561
+          },
+          "relative_inner_standard_error": 0.021585418160007436
+        },
+        "oos_history": {
+          "seed": 3757805761,
+          "indices_sha256": "2350f722e08f4c49276bb45c77bf6885a9b493e87ab51e6540f3c46a94405ff1",
+          "metrics": {},
+          "relative_inner_standard_error": null
+        },
+        "ratios": {
+          "cost_per_funded": null,
+          "expected_calendar_days_to_funded": null
+        }
+      },
+      {
+        "replicate": 2,
+        "is_history": {
+          "seed": 47795405,
+          "indices_sha256": "936f89f1b60bd7208e3f8d9dbc55b64b8a11d051515f390aa61f4157f728d073",
+          "metrics": {
+            "cost_per_funded": 233.4255,
+            "expected_calendar_days_to_funded": 633.527
+          },
+          "relative_inner_standard_error": 0.024633479971807704
+        },
+        "oos_history": {
+          "seed": 3758912497,
+          "indices_sha256": "b1a0ba16271c90e31dfe535008b0aea28f2a142cdd22713931e4ee8013755b3a",
+          "metrics": {
+            "cost_per_funded": 149.35619999999997,
+            "expected_calendar_days_to_funded": 212.645
+          },
+          "relative_inner_standard_error": 0.02209408387282522
+        },
+        "ratios": {
+          "cost_per_funded": 0.6398452611218568,
+          "expected_calendar_days_to_funded": 0.3356526241186248
+        }
+      },
+      {
+        "replicate": 17,
+        "is_history": {
+          "seed": 727347203,
+          "indices_sha256": "039f00ca6eb54a25768e2693e658e877e7f0f51deb501ee394a0df9656b176fc",
+          "metrics": {},
+          "relative_inner_standard_error": null
+        },
+        "oos_history": {
+          "seed": 797357588,
+          "indices_sha256": "6707e19d1f913f2aa2b63f7f4888bea329e13750e27d203c6833f224b7cfcda4",
+          "metrics": {
+            "cost_per_funded": 193.6032,
+            "expected_calendar_days_to_funded": 221.127
+          },
+          "relative_inner_standard_error": 0.022705332167420336
+        },
+        "ratios": {
+          "cost_per_funded": null,
+          "expected_calendar_days_to_funded": null
+        }
+      }
+    ]
+  },
+  {
+    "profile": "lucid",
+    "phase": "evaluation",
+    "size": 21,
+    "inner_paths": 1000,
+    "seconds": [
+      4.327387833967805,
+      4.977441958035342,
+      2.589878583094105,
+      2.6998919170582667
+    ],
+    "replicates": [
+      {
+        "replicate": 0,
+        "is_history": {
+          "seed": 2216420522,
+          "indices_sha256": "619d3e80b3f1ffce9c64d03b732765e938e175e6b5bd15add2ca7af14897b333",
+          "metrics": {
+            "cost_per_funded": 295.281,
+            "expected_calendar_days_to_funded": 87.147
+          },
+          "relative_inner_standard_error": 0.02609807515311774
+        },
+        "oos_history": {
+          "seed": 2990909732,
+          "indices_sha256": "1e6a5ee126399195cb77cbd675b4facec593c0acdd6d4a64884bd4852333881a",
+          "metrics": {
+            "cost_per_funded": 795.0011999999999,
+            "expected_calendar_days_to_funded": 186.193
+          },
+          "relative_inner_standard_error": 0.030565058087481643
+        },
+        "ratios": {
+          "cost_per_funded": 2.6923547400611616,
+          "expected_calendar_days_to_funded": 2.136539410421472
+        }
+      },
+      {
+        "replicate": 1,
+        "is_history": {
+          "seed": 1938879656,
+          "indices_sha256": "03093024ad74bd972300a16e9dc64f41bc06f5d9c6adc0868e4ec3c7c1bace58",
+          "metrics": {
+            "cost_per_funded": 369.9591,
+            "expected_calendar_days_to_funded": 98.348
+          },
+          "relative_inner_standard_error": 0.02742512984339516
+        },
+        "oos_history": {
+          "seed": 3757805761,
+          "indices_sha256": "2350f722e08f4c49276bb45c77bf6885a9b493e87ab51e6540f3c46a94405ff1",
+          "metrics": {
+            "cost_per_funded": 838.4355,
+            "expected_calendar_days_to_funded": 200.284
+          },
+          "relative_inner_standard_error": 0.029836081007727347
+        },
+        "ratios": {
+          "cost_per_funded": 2.266292409079815,
+          "expected_calendar_days_to_funded": 2.036482694106642
+        }
+      },
+      {
+        "replicate": 2,
+        "is_history": {
+          "seed": 47795405,
+          "indices_sha256": "936f89f1b60bd7208e3f8d9dbc55b64b8a11d051515f390aa61f4157f728d073",
+          "metrics": {
+            "cost_per_funded": 351.7185,
+            "expected_calendar_days_to_funded": 99.051
+          },
+          "relative_inner_standard_error": 0.02867268604346693
+        },
+        "oos_history": {
+          "seed": 3758912497,
+          "indices_sha256": "b1a0ba16271c90e31dfe535008b0aea28f2a142cdd22713931e4ee8013755b3a",
+          "metrics": {
+            "cost_per_funded": 341.9661,
+            "expected_calendar_days_to_funded": 84.601
+          },
+          "relative_inner_standard_error": 0.027309000079495434
+        },
+        "ratios": {
+          "cost_per_funded": 0.9722721437740692,
+          "expected_calendar_days_to_funded": 0.8541155566324419
+        }
+      },
+      {
+        "replicate": 17,
+        "is_history": {
+          "seed": 727347203,
+          "indices_sha256": "039f00ca6eb54a25768e2693e658e877e7f0f51deb501ee394a0df9656b176fc",
+          "metrics": {
+            "cost_per_funded": 352.07969999999995,
+            "expected_calendar_days_to_funded": 114.985
+          },
+          "relative_inner_standard_error": 0.027489979028137428
+        },
+        "oos_history": {
+          "seed": 797357588,
+          "indices_sha256": "6707e19d1f913f2aa2b63f7f4888bea329e13750e27d203c6833f224b7cfcda4",
+          "metrics": {
+            "cost_per_funded": 354.9693,
+            "expected_calendar_days_to_funded": 90.755
+          },
+          "relative_inner_standard_error": 0.02690274426935305
+        },
+        "ratios": {
+          "cost_per_funded": 1.0082072326237497,
+          "expected_calendar_days_to_funded": 0.7892768621994173
+        }
+      }
+    ]
+  },
+  {
+    "profile": "lucid",
+    "phase": "funded",
+    "size": 21,
+    "inner_paths": 1000,
+    "seconds": [
+      0.6999122500419617,
+      0.2604002910666168,
+      0.2921231660293415,
+      0.32355966698378325
+    ],
+    "replicates": [
+      {
+        "replicate": 0,
+        "is_history": {
+          "seed": 2216420522,
+          "indices_sha256": "619d3e80b3f1ffce9c64d03b732765e938e175e6b5bd15add2ca7af14897b333",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 894.119625
+          },
+          "relative_inner_standard_error": 0.054009548297367406
+        },
+        "oos_history": {
+          "seed": 2990909732,
+          "indices_sha256": "1e6a5ee126399195cb77cbd675b4facec593c0acdd6d4a64884bd4852333881a",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 448.96252499999997
+          },
+          "relative_inner_standard_error": 0.07510854155183946
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 0.502128029009541
+        }
+      },
+      {
+        "replicate": 1,
+        "is_history": {
+          "seed": 1938879656,
+          "indices_sha256": "03093024ad74bd972300a16e9dc64f41bc06f5d9c6adc0868e4ec3c7c1bace58",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 863.3271374999999
+          },
+          "relative_inner_standard_error": 0.05689545014189009
+        },
+        "oos_history": {
+          "seed": 3757805761,
+          "indices_sha256": "2350f722e08f4c49276bb45c77bf6885a9b493e87ab51e6540f3c46a94405ff1",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 472.22325
+          },
+          "relative_inner_standard_error": 0.07564423701055817
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 0.5469806629355493
+        }
+      },
+      {
+        "replicate": 2,
+        "is_history": {
+          "seed": 47795405,
+          "indices_sha256": "936f89f1b60bd7208e3f8d9dbc55b64b8a11d051515f390aa61f4157f728d073",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 857.8548000000001
+          },
+          "relative_inner_standard_error": 0.0539275714247097
+        },
+        "oos_history": {
+          "seed": 3758912497,
+          "indices_sha256": "b1a0ba16271c90e31dfe535008b0aea28f2a142cdd22713931e4ee8013755b3a",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 1119.813075
+          },
+          "relative_inner_standard_error": 0.056458515775139724
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 1.3053643518693372
+        }
+      },
+      {
+        "replicate": 17,
+        "is_history": {
+          "seed": 727347203,
+          "indices_sha256": "039f00ca6eb54a25768e2693e658e877e7f0f51deb501ee394a0df9656b176fc",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 827.046
+          },
+          "relative_inner_standard_error": 0.056364705695595554
+        },
+        "oos_history": {
+          "seed": 797357588,
+          "indices_sha256": "6707e19d1f913f2aa2b63f7f4888bea329e13750e27d203c6833f224b7cfcda4",
+          "metrics": {
+            "expected_funded_cash_payouts_within_horizon": 947.0957625
+          },
+          "relative_inner_standard_error": 0.057571096133177686
+        },
+        "ratios": {
+          "expected_funded_cash_payouts_within_horizon": 1.1451548795351165
+        }
+      }
+    ]
+  }
+]

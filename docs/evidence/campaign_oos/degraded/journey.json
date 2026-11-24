@@ -1,0 +1,20 @@
+{
+  "workflow_id": "0a6b72cff5b34b25a93cdb93d8a024cf",
+  "job_id": "0cb0571b670c4932831a2b7c360f9eec",
+  "expected_oos_net": [
+    2160,
+    2160,
+    4320,
+    4320
+  ],
+  "expected_stressed_net": [
+    360,
+    360,
+    720,
+    720
+  ],
+  "expected_passed": 0,
+  "expected_profit_per_trade_retention_pct": "46.15384615384615384615384615",
+  "synthetic": true,
+  "server": "Stopped by TestClient teardown."
+}

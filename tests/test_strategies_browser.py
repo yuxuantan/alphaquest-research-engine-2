@@ -33,9 +33,9 @@ def test_two_column_instrument_library_opens_saved_reports_and_survives_reload(p
     requests=[];page.on('request',lambda r:requests.append(r.url))
     page.goto(portal['url']+'/#strategies')
     nav=page.get_by_role('navigation',name='Main navigation')
-    assert nav.get_by_role('link').evaluate_all('links => links.map(n=>n.getAttribute("aria-label"))')==['Datasets','Strategies','Research']
-    playwright.expect(nav.get_by_role('link',name='Research',exact=True)).to_have_attribute('href','#backtests/research')
-    playwright.expect(page.locator('#strategy-groups a')).to_have_text(['Consecutive Green Hold','Vwap Pullback Risk Sizing'])
+    assert nav.get_by_role('link').evaluate_all('links => links.map(n=>n.getAttribute("aria-label"))')==['Dataset','Research','Campaigns','Prop Sim']
+    playwright.expect(nav.get_by_role('link',name='Research',exact=True)).to_have_attribute('href','#research')
+    playwright.expect(page.locator('#strategy-groups a')).to_have_text(['Consecutive Green Hold','Twin Continuation','Vwap Pullback Risk Sizing'])
     playwright.expect(page.locator('#strategy-results')).to_be_empty()
     assert not any('/datasets/' in url and '/backtests' in url for url in requests)
     playwright.expect(page.locator('#strategy-datasets-status')).to_contain_text('Select a strategy')
@@ -54,7 +54,7 @@ def test_two_column_instrument_library_opens_saved_reports_and_survives_reload(p
     playwright.expect(page.locator('#backtest-completion')).to_be_visible()
     playwright.expect(page.locator('#report-summary')).to_contain_text('13.00')
     page.screenshot(path=str(tmp_path/'full-backtest-report.png'),full_page=True)
-    page.locator('#backtest-completion').get_by_role('link',name='Back to Strategies',exact=False).click()
+    page.locator('#backtest-completion').get_by_role('link',name='Saved runs',exact=False).click()
     playwright.expect(page.locator('#strategy-results tr')).to_have_count(4)
     assert page.url==selected
     page.goto(selected);page.set_viewport_size(dict(width=390,height=844))
@@ -80,7 +80,7 @@ def test_one_form_and_endpoint_run_single_or_exhaustive_backtests(page,portal,tm
     page.locator('#start-backtest').click()
     playwright.expect(page.locator('#backtest-completion')).to_be_visible()
     playwright.expect(page.locator('#report-net')).to_have_text('13.00')
-    page.get_by_role('link',name='Back to Strategies',exact=False).click()
+    page.get_by_role('link',name='Saved runs',exact=False).click()
     page.get_by_role('link',name='New backtest →',exact=True).click()
     playwright.expect(page.locator('#optimization-settings')).to_be_visible()
     playwright.expect(page.locator('#strategy-parameters')).to_have_count(0)

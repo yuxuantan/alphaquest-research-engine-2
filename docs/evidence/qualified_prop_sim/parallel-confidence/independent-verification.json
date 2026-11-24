@@ -1,0 +1,30 @@
+[
+  {
+    "phase": "evaluation",
+    "workers": 4,
+    "distinct_worker_pids": 4,
+    "resamples": 10000,
+    "paths_per_size": 8,
+    "bounds": [
+      1.0,
+      1.0
+    ],
+    "oos": "GO",
+    "forward": "PENDING",
+    "numerical_source_identity_verified": true
+  },
+  {
+    "phase": "funded",
+    "workers": 4,
+    "distinct_worker_pids": 4,
+    "resamples": 10000,
+    "paths_per_size": 8,
+    "bounds": [
+      1.0,
+      1.0
+    ],
+    "oos": "GO",
+    "forward": "PENDING",
+    "numerical_source_identity_verified": true
+  }
+]

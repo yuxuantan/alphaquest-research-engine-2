@@ -1,0 +1,32 @@
+{
+  "branch": "epic/revamp-workflow",
+  "base_commit": "f2e5d8965a7b0acdb1e7f6d8d4243939a5dbe150",
+  "removed_parity_metrics": [
+    "ending_position_contracts",
+    "final_equity",
+    "initial_capital",
+    "max_drawdown_duration_seconds",
+    "max_drawdown_pct"
+  ],
+  "remaining_metric_rows": 10,
+  "report_summary_metrics_preserved": true,
+  "checks": {
+    "backend_passed": 1,
+    "backend_seconds": 1.54,
+    "browser_passed": 1,
+    "browser_seconds": 6.95
+  },
+  "scope": "Parity checklist only; no numerical change or measured MC parity claim.",
+  "temporary_servers": "Stopped by fixture teardown; no persistent server started.",
+  "source_sha256": {
+    "alphaquest/campaign_workflow.py": "745e5d563e6b88d059554e37823feb847c8693f15e7e063bf7eba782434ca5dd",
+    "tests/test_campaign_mechanics.py": "29d79bf960217183f38b02739c8f3cf21254272df6f0f35aaa26e28fc6a397cf",
+    "tests/test_campaign_mechanics_browser.py": "f00737942c2a0bc407617271ec6886979cc4083ae392e4e14aa5d51dae3bfdef",
+    "docs/prop_simulation_review.md": "a579fd9be6ec4459444b79b9866a77c741c341ac4d82c26d865f91237946c310"
+  },
+  "evidence_sha256": {
+    "report.json": "3618eeb75e4229f4a55a5bd6d27c83312b78db51d1292ccd8d7e6fde23cb59cf",
+    "mechanic-review.json": "f57a79b44e867c95631dc0d3e3e1fea03637303f1219135984259265d67aeed9",
+    "02-results-unreviewed.png": "83ad34fef6965c339b3edeb4a8dfd03655bc22982c4d2ff79be20efa47d3fef9"
+  }
+}

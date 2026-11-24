@@ -1,4 +1,4 @@
-"""Streaming OHLC excursion bounds over the bars actually held by a position.
+"""Streaming price-path excursions over the actual modeled holding interval.
 
 These are account-equity excursions including entry costs, not tick MAE/MFE.
 A limit exit's unknown ordering is retained as a bound, never a fabricated path.
@@ -10,7 +10,8 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 from .decimal_math import subtract, multiply
 
-VERSION = 'held-ohlc-equity-bounds-v1'
+LEGACY_VERSION = 'held-ohlc-equity-bounds-v1'
+VERSION = 'held-price-path-equity-v2'
 ZERO = Decimal(0)
 CHICAGO = ZoneInfo('America/Chicago')
 

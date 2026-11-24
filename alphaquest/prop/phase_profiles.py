@@ -4,18 +4,168 @@ These are Python component interfaces, not new portal modes or dated optimizers.
 The existing sampler's unit is a trading weekday, including zero-trade weekdays.
 """
 from dataclasses import asdict, dataclass, field
+from copy import deepcopy
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
+import numpy as np
 
 from .adapter import canonical, digest, source_record
 from .phase_lifecycle import instant, session_date, validate_phase_source
 
 CONTRACT_VERSION = 'phase-profiles-v1'
 ProfileId = Literal['apex-50k-eod', 'lucidflex-50k']
+
+
+class DatedPhasePreparation:
+    """Worker-local immutable calendar/index preparation, never account results.
+
+    Admit entries until the accounted 32 MiB budget is full; retain that prefix
+    for later refits rather than evicting/thrashing on large declarations. A miss
+    that cannot fit uses the original streaming sampler and full path count.
+    Instances belong to one worker context and are not shared between threads.
+    """
+    VERSION = 'dated-phase-preparation-v1'
+    MAX_BYTES = 32 * 1024 * 1024
+
+    def __init__(self, max_bytes=MAX_BYTES):
+        if type(max_bytes) is not int or not 0 <= max_bytes <= self.MAX_BYTES:
+            raise ValueError('Phase preparation budget must be 0–32 MiB.')
+        self.max_bytes = max_bytes
+        self.bytes_used = 0
+        self._entries = {}
+
+    def calendar(self, identity, start, horizon, checkpoint):
+        from datetime import date, timedelta
+        key = ('calendar', identity, start, horizon)
+        if key in self._entries:
+            return self._entries[key]
+        # Conservative accounting for owned date/string/tuple objects and the
+        # entry/key overhead; source-owned identity strings are not duplicated.
+        charge = 512 + horizon * 192
+        if self.bytes_used + charge > self.max_bytes:
+            return None
+        first = date.fromisoformat(start)
+        closed = set(identity[4])
+        rows = []
+        for offset in range(horizon):
+            if offset % 32 == 0:
+                checkpoint()
+            day = first + timedelta(days=offset)
+            text = day.isoformat()
+            rows.append((day, day.weekday() < 5 and text not in closed, text))
+        value = (tuple(rows), sum(row[1] for row in rows))
+        self._entries[key] = value
+        self.bytes_used += charge
+        return value
+
+    def indices(self, seed, path, length, block, count, *, attempt=None):
+        from .native_engine import sampled_days
+        key = ('indices', seed, path, length, block, count, attempt)
+        if key in self._entries:
+            return iter(memoryview(self._entries[key]).cast('i'))
+        charge = 512 + count * np.dtype(np.int32).itemsize
+        rng = np.random.RandomState(np.random.SeedSequence([seed, path] if attempt is None else [seed, path, attempt]).generate_state(1)[0])
+        stream = sampled_days(rng, length, block)
+        if self.bytes_used + charge > self.max_bytes:
+            return stream
+        # Keep the exact scalar MT19937 draws and their ordering. Prefetching
+        # unused suffixes cannot affect another independently seeded account.
+        values = np.fromiter((next(stream) for _ in range(count)), dtype=np.int32, count=count).tobytes()
+        self._entries[key] = values
+        self.bytes_used += charge
+        # A read-only native int32 buffer yields ordinary Python int values,
+        # retaining the original index type for sizing trace/capture callers.
+        return iter(memoryview(values).cast('i'))
+
+    def evaluation_indices(self, seed, path, length, block, count, attempt):
+        """Small immutable MT19937 prefix, then the unchanged unlimited stream.
+
+        End prefixes at a block boundary so restoring RNG state requires no
+        partially consumed block. Prefetch is independent of account outcomes.
+        """
+        from itertools import chain
+        from .native_engine import sampled_days
+        prefix=min(count,((128+block-1)//block)*block)
+        if prefix>=count:return self.indices(seed,path,length,block,count,attempt=attempt)
+        key=('evaluation_indices',seed,path,length,block,prefix,attempt)
+        if key in self._entries:
+            raw,state=self._entries[key]
+        else:
+            rng=np.random.RandomState(np.random.SeedSequence([seed,path,attempt]).generate_state(1)[0])
+            stream=sampled_days(rng,length,block);charge=4608+prefix*4
+            if self.bytes_used+charge>self.max_bytes:return stream
+            raw=np.fromiter((next(stream) for _ in range(prefix)),dtype=np.int32,count=prefix).tobytes()
+            state=rng.get_state();state[1].flags.writeable=False
+            self._entries[key]=(raw,state);self.bytes_used+=charge
+        def tail():
+            rng=np.random.RandomState(0);rng.set_state(state)
+            yield from sampled_days(rng,length,block)
+        return chain(memoryview(raw).cast('i'),tail())
+
+    def renewal_calendar(self, calendar):
+        from .cash_ledger import replay_calendar_sessions
+        from datetime import date
+        identity=(calendar.version,calendar.timezone,calendar.coverage_end,
+            tuple(sorted(calendar.start_dates)),tuple(sorted(calendar.closures)))
+        key=('renewal_calendar',identity)
+        if key in self._entries:return self._entries[key]
+        value=(tuple(d.toordinal() for d in replay_calendar_sessions(calendar)),
+            tuple(date.fromisoformat(d).toordinal() for d in sorted(calendar.start_dates)))
+        charge=1024+len(value[0])*48+len(value[1])*48
+        if self.bytes_used+charge<=self.max_bytes:
+            self._entries[key]=value;self.bytes_used+=charge
+        return value
+
+    def renewal_indices(self, seed, path, length, limit):
+        """Exact PCG64 scalar stream; cache only a bounded immutable prefix."""
+        from itertools import chain
+        import copy
+        count=min(limit,64);key=('renewal_indices',seed,path,length,count)
+        if key in self._entries:
+            raw,state=self._entries[key]
+        else:
+            rng=np.random.Generator(np.random.PCG64(np.random.SeedSequence([seed,path])))
+            charge=1024+count*4
+            if self.bytes_used+charge>self.max_bytes:
+                return (int(rng.integers(length)) for _ in range(limit))
+            raw=np.fromiter((int(rng.integers(length)) for _ in range(count)),dtype=np.int32,count=count).tobytes()
+            state=rng.bit_generator.state
+            self._entries[key]=(raw,state);self.bytes_used+=charge
+        def tail():
+            bit=np.random.PCG64(0);bit.state=copy.deepcopy(state);rng=np.random.Generator(bit)
+            for _ in range(max(0,limit-count)):yield int(rng.integers(length))
+        return chain(memoryview(raw).cast('i'),tail())
+
+    def evaluation_layouts(self, calendar, guard, delay, checkpoint):
+        """Immutable civil dates/readiness; no account state or market results."""
+        from datetime import date,timedelta
+        from .cash_ledger import replay_calendar_sessions
+        identity=(calendar.version,calendar.timezone,calendar.coverage_end,
+            tuple(sorted(calendar.start_dates)),tuple(sorted(calendar.closures)))
+        key=('evaluation_calendar',identity,guard,delay)
+        if key in self._entries:return self._entries[key]
+        sessions=replay_calendar_sessions(calendar);positions={d:i for i,d in enumerate(sessions)}
+        layouts=[];charge=1024
+        for start in sorted(calendar.start_dates):
+            first=date.fromisoformat(start);dates=[];flags=[];eligible=[];ready=[]
+            for offset in range(guard):
+                if offset%128==0:checkpoint()
+                day=first+timedelta(days=offset);dates.append(day);index=positions.get(day)
+                flags.append(index is not None)
+                ei=index+delay if index is not None else len(sessions)
+                eligible.append((sessions[ei]-first).days if ei<len(sessions) else -1)
+                ready.append((sessions[ei+1]-first).days if ei+1<len(sessions) else -1)
+            layouts.append((first,first+timedelta(days=guard),tuple(dates),bytes(flags),tuple(eligible),tuple(ready),tuple(map(str,dates))))
+            charge+=512+guard*320
+        result=tuple(layouts)
+        if self.bytes_used+charge<=self.max_bytes:
+            self._entries[key]=result;self.bytes_used+=charge
+        return result
+
 
 
 @dataclass(frozen=True)
@@ -26,12 +176,21 @@ class NativeExecution:
     early_closes: dict = field(default_factory=dict)
     capture_paths: int = 1
 
+    @property
+    def prepared_execution(self):return self.model=='native_percentage_observed_blocks_v2'
+
+    @property
+    def source_adaptation(self):return 'NQ_or_MNQ_reference_MNQ_execution' if self.prepared_execution else 'saved_MNQ'
+
     def __post_init__(self):
         import re
-        if self.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+        if self.model not in ('observed_contiguous_blocks_with_prior_prefix_v1','native_percentage_observed_blocks_v2'):
             raise ValueError('Unknown native execution law.')
-        if type(self.horizon_calendar_days) is not int or not 1 <= self.horizon_calendar_days <= 365:
-            raise ValueError('Native execution horizon must be 1 through 365 calendar days.')
+        if type(self.horizon_calendar_days) is not int or not 1 <= self.horizon_calendar_days <= (3650 if self.model=='native_percentage_observed_blocks_v2' else 365):
+            raise ValueError('Native execution horizon exceeds the declared model range (legacy: 365; prepared percentage: 3650 calendar days).')
+        if type(self.prepared_execution) is not bool or self.source_adaptation not in ('saved_MNQ','NQ_or_MNQ_reference_MNQ_execution'):
+            raise ValueError('Unknown native execution preparation/adaptation.')
+        if self.model=='native_percentage_observed_blocks_v2' and not self.prepared_execution:raise ValueError('Percentage native model requires checked event preparation.')
         if type(self.capture_paths) is not int or not 1 <= self.capture_paths <= 20:
             raise ValueError('Native detailed path capture must be 1 through 20.')
         if type(self.early_closes) is not dict:
@@ -65,16 +224,38 @@ def equal_stratum_mean(groups):
         precision_status='conditional_mc_only' if enough else 'insufficient_within_cohort_replication')
 
 
-def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
+def assessment_scenarios(candidate, assessment, *, native=False):
+    """Declared frozen-choice diagnostics; never enumerate other sizes or policies."""
+    from dataclasses import replace
+    if assessment['kind']!='is_robustness':return [('full_period',candidate)]
+    blocks=sorted({1,5,10 if native else 20,candidate.sampling.block_weekdays})
+    result=[(f'block_{block}',replace(candidate,sampling=replace(candidate.sampling,block_weekdays=block))) for block in blocks]
+    grid=pd.bdate_range(candidate.period.first_session,candidate.period.last_session)
+    if len(grid)<4:raise ValueError('Robustness halves require at least four source weekdays.')
+    midpoint=len(grid)//2
+    for name,part in [('first_half',grid[:midpoint]),('second_half',grid[midpoint:])]:
+        result.append((name,replace(candidate,period=ResearchPeriod(str(part[0].date()),str(part[-1].date())))))
+    return result
+
+
+def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue,*,preparation=None):
     """Validate the shared declared calendar/layout, without running a phase."""
     from datetime import timedelta, timezone
     from .cash_ledger import replay_calendar_sessions
     from .phase_search import PhaseCalendar
-    if forecast.model != 'observed_contiguous_blocks_with_prior_prefix_v1':
+    from .adapter import canonical
+    prepared=forecast.model=='native_percentage_observed_blocks_v2'
+    from .native_control import NativeSessionInventory
+    cache_key=None
+    if prepared and preparation is not None and all(type(c) is NativeSessionInventory for c in target_contexts_by_cohort.values()):
+        cache_key=(tuple((s,id(c)) for s,c in target_contexts_by_cohort.items()),forecast.model,forecast.simulations,forecast.seed,forecast.block_sessions,forecast.horizon_calendar_days,canonical(forecast.calendar),canonical(forecast.early_closes))
+        if not hasattr(preparation,'native_layouts'):preparation.native_layouts={}
+        if cache_key in preparation.native_layouts:return preparation.native_layouts[cache_key]
+    if forecast.model not in ('observed_contiguous_blocks_with_prior_prefix_v1','native_percentage_observed_blocks_v2'):
         raise ValueError('Unknown native forecast law.')
-    if type(forecast.simulations) is not int or not 2 <= forecast.simulations <= 512:
-        raise ValueError('Native forecasts require 2 through 512 paths.')
-    if type(forecast.capture_paths) is not int or not 1 <= forecast.capture_paths <= min(20, forecast.simulations):
+    if type(forecast.simulations) is not int or not 2 <= forecast.simulations <= (20000 if prepared else 512):
+        raise ValueError('Native forecasts require 2 through 20,000 paths in V2, or at most 512 in legacy V1.')
+    if type(forecast.capture_paths) is not int or not (0 if prepared else 1) <= forecast.capture_paths <= min(20, forecast.simulations):
         raise ValueError('Native forecasts require an explicitly bounded path capture count.')
     if catalogue.block_sessions != forecast.block_sessions:
         raise ValueError('Native forecast source block length differs from its declaration.')
@@ -105,6 +286,7 @@ def native_forecast_layout(forecast, target_contexts_by_cohort, catalogue):
                for day, context in contexts.items()):
             raise ValueError('Native forecast contexts differ from the saved modeled calendar declaration.')
         result.append((start, first, cutoff, contexts))
+    if cache_key is not None:preparation.native_layouts[cache_key]=(calendar,result)
     return calendar, result
 
 
@@ -129,11 +311,25 @@ class SizingConfiguration:
     policy: dict
     initial_configured_capital: str
     planning_execution: dict
+    execution_model: str | None = None
+    trade_handling: dict | None = None
 
     def __post_init__(self):
-        from .sizing import SizingPolicy, PlanningExecution, amount
+        from .sizing import SizingPolicy, PlanningExecution, TradeHandling, amount
         policy = SizingPolicy.model_validate(self.policy)
         planning = PlanningExecution.model_validate(self.planning_execution)
+        if self.execution_model not in (None,'saved-trade-stop-budget-v1','saved-trade-account-policies-v2'):
+            raise ValueError('Unknown saved-trade sizing execution model.')
+        if self.execution_model == 'saved-trade-stop-budget-v1' and policy.kind=='fixed_contracts':
+            raise ValueError('Stop-budget simulation requires an explicit risk budget.')
+        if self.execution_model == 'saved-trade-account-policies-v2':
+            handling=TradeHandling.model_validate(self.trade_handling if self.trade_handling is not None else {})
+            if handling.minimum_one_contract and policy.kind!='percentage_risk':raise ValueError('Minimum-one override applies only to percentage-risk sizing.')
+            if policy.constrain_to_account_cushion or policy.constrain_to_daily_cushion:
+                raise ValueError('Choose skip or account-limit exit; do not also declare quantity-reducing cushion guards.')
+            object.__setattr__(self,'trade_handling',handling.model_dump(mode='json'))
+        elif self.trade_handling is not None:
+            raise ValueError('Trade handling requires the versioned saved-trade account-policy model.')
         if amount(self.initial_configured_capital) != Decimal('50000'):
             raise ValueError('Supported 50K profiles require initial_configured_capital of 50000; source backtest equity is not the prop account balance.')
         if planning.tick_size != Decimal('0.25'):
@@ -144,13 +340,15 @@ class SizingConfiguration:
 
     @property
     def needs_stop(self):
-        return (self.policy['kind'] != 'fixed_contracts' or self.policy['constrain_to_account_cushion']
+        return (self.execution_model == 'saved-trade-account-policies-v2' or self.policy['kind'] != 'fixed_contracts' or self.policy['constrain_to_account_cushion']
                 or self.policy['constrain_to_daily_cushion'])
 
     def kernel_arguments(self, **context):
         return dict(sizing_policy=self.policy, sizing_context=dict(
             initial_configured_capital=self.initial_configured_capital,
-            planning_execution=self.planning_execution, trace_context=context))
+            planning_execution=self.planning_execution, trace_context=context,
+            **({'execution_model':self.execution_model} if self.execution_model else {}),
+            **({'trade_handling':self.trade_handling} if self.trade_handling is not None else {})))
 
 
 class SizingTrace:
@@ -171,14 +369,47 @@ class SizingTrace:
         summary['quantity_counts'][str(q)] = summary['quantity_counts'].get(str(q), 0)+1
         for reason in decision['reasons']:
             summary['reason_counts'][reason] = summary['reason_counts'].get(reason, 0)+1
+        if self.configuration and self.configuration.execution_model:
+            from ..decimal_math import add
+            d=decision['decision']
+            if d['risk_budget'] is not None:
+                summary['risk_budget_count']=summary.get('risk_budget_count',0)+1
+                summary['total_requested_risk_budget']=str(add(Decimal(summary.get('total_requested_risk_budget','0')),Decimal(d['risk_budget'])))
+            summary['total_admitted_planned_risk']=str(add(Decimal(summary.get('total_admitted_planned_risk','0')),Decimal(d['planned_total_risk'])))
+            summary['cap_bound_count']=summary.get('cap_bound_count',0)+int(q>0 and any(r.endswith('_cap') for r in decision['reasons']))
+            if self.configuration.trade_handling is not None:
+                if not q:
+                    counts=summary.setdefault('skip_reason_counts',{})
+                    for reason in decision['reasons']:counts[reason]=counts.get(reason,0)+1
+                hit=bool(decision.get('account_limit_exit'))
+                for name,flag in (('account_limit_exit',hit),('daily_limit_exit',hit and decision['account_hit']==1),
+                        ('account_breach_exit',hit and decision['account_hit']==2),('risk_budget_override',d.get('risk_budget_override',False))):
+                    summary[name+'_count']=summary.get(name+'_count',0)+int(flag)
+                if q:
+                    actual=Decimal(d['actual_risk_percent'])
+                    summary['actual_risk_count']=summary.get('actual_risk_count',0)+1
+                    summary['total_actual_risk_percent']=str(add(Decimal(summary.get('total_actual_risk_percent','0')),actual))
+                    summary['maximum_actual_risk_percent']=str(max(Decimal(summary.get('maximum_actual_risk_percent','0')),actual))
+                examples=summary.setdefault('behavior_examples',{})
+                for name,flag in (('skipped',q==0),('account_limit_exit',hit),('risk_budget_override',d.get('risk_budget_override',False))):
+                    if flag and len(examples.setdefault(name,[]))<5:
+                        examples[name].append(dict(source_trade_id=decision['source_trade_id'],phase=decision['phase'],
+                            trace_context={k:v for k,v in decision.items() if k not in ('decision','state_before','state_after') and k.endswith('_index')},
+                            quantity=q,reasons=decision['reasons'],decision=d,state_before=decision['state_before'],
+                            equity_after=decision['equity_after'],account_hit=decision['account_hit']))
         if len(self.decisions) < self.limit:
             self.decisions.append(decision)
 
     def result(self):
-        return dict(configuration=asdict(self.configuration) if self.configuration is not None else None, summary=self.summary,
+        result=dict(configuration=asdict(self.configuration) if self.configuration is not None else None, summary=self.summary,
             decisions=self.decisions, trace_limit=self.limit,
             trace_complete=self.summary['decision_count'] <= self.limit,
             interpretation='Every simulated opportunity is aggregated; only the first retained decisions are displayed. Planning costs size quantity and are not deducted from source P&L again. Future gaps and size-dependent execution remain unverified.')
+        if self.configuration and self.configuration.execution_model:
+            result['interpretation']='Every saved opportunity is aggregated. Quantity uses the causal stop and costs; requested budget must fit both allowances. Immediate bounded stop/limit fills are assumed; no gap overshoot or alternative setups are simulated.'
+            if self.configuration.trade_handling is not None:
+                result['interpretation']='All visited eligible saved opportunities are counted; opportunities after pass, termination or mandatory pause are excluded. Risk sizes from the causal stop. Frozen per-phase trade handling controls skips, minimum-one overrides and exact account-limit exits; MAE checks outcomes only. Rates describe sampled paths, not unique historical coverage or execution parity.'
+        return result
 
 
 @dataclass(frozen=True)
@@ -215,8 +446,8 @@ class SamplingConfig:
     block_weekdays: int = 5
 
     def __post_init__(self):
-        if type(self.block_weekdays) is not int or self.block_weekdays not in (1, 5, 10):
-            raise ValueError('Bootstrap block must be 1, 5 or 10 weekdays.')
+        if type(self.block_weekdays) is not int or self.block_weekdays not in (1, 5, 10, 20):
+            raise ValueError('Bootstrap block must be 1, 5, 10 or 20 weekdays.')
 
 
 @dataclass(frozen=True)
@@ -242,6 +473,14 @@ class EvaluationProfile:
     evaluation_price: str
     activation_fee: str
     daily_loss_limit: bool = True
+    consistency_percent: int = 40
+    lucid_inactivity_enforced: bool = False
+
+    def __post_init__(self):
+        if type(self.consistency_percent) is not int or self.consistency_percent not in (40, 50):
+            raise ValueError('Lucid Evaluation consistency must be 40% standard or 50% add-on.')
+        if self.profile_id != 'lucidflex-50k' and self.consistency_percent != 40:
+            raise ValueError('Consistency variants apply only to LucidFlex Evaluation.')
 
 
 @dataclass(frozen=True)
@@ -250,6 +489,7 @@ class FundedProfile:
     rule_version: str
     daily_loss_limit: bool = True
     approval_day_counts: bool = True
+    lucid_inactivity_enforced: bool = False
 
 
 @dataclass(frozen=True)
@@ -304,6 +544,8 @@ def profile_settings(profile, costs):
     if isinstance(profile, FundedProfile) and type(profile.approval_day_counts) is not bool:
         raise ValueError('approval_day_counts must be boolean.')
     lucid = profile.profile_id == 'lucidflex-50k'
+    if type(profile.lucid_inactivity_enforced) is not bool:raise ValueError('lucid_inactivity_enforced must be boolean.')
+    if not lucid and profile.lucid_inactivity_enforced:raise ValueError('Lucid activity assumptions do not apply to Apex.')
     if not lucid and not profile.daily_loss_limit:
         raise ValueError('Apex EOD requires the existing daily loss limit.')
     if lucid and isinstance(profile, FundedProfile) and not profile.approval_day_counts:
@@ -373,14 +615,19 @@ def prepare_phase_source(runs, source, profile, micros, simulation, period, cost
     external = snapshot.get('source_kind') == 'external_trade_export'
     if sizing is not None and not isinstance(sizing, SizingConfiguration):
         raise ValueError('Sizing requires a validated SizingConfiguration.')
+    if external and sizing is not None and sizing.execution_model is not None:
+        raise ValueError('The saved stop-budget model requires a native campaign source with verifiable causal stop plans; external sources retain their separately declared execution law.')
     adapt(snapshot, rows, settings)
     if external:
         snapshot['phase_suitability'] = dict(fixed_quantity=True,
             instrument=snapshot['commission_simulation']['source_instrument'], risk_covered_trades=len(rows),
             scaling='Exporter-declared invariant opportunity path with observed ordered mark jumps; size-dependent signals, fills and market impact are not independently verified.')
     else:
-        validate_phase_source(snapshot, rows)
-        if sizing is not None and sizing.needs_stop:
+        from .saved_trade_simulation import enabled,adapt_saved_trades
+        if enabled(sizing):
+            adapt_saved_trades(runs,snapshot,rows,sizing)
+        else:validate_phase_source(snapshot, rows)
+        if sizing is not None and sizing.needs_stop and not enabled(sizing):
             raise ValueError('Native risk-based policies require a strategy rerun with account-state sizing; skipping/resizing a saved native trade path is not established as signal-invariant.')
     # Check all trades, including excluded dates: no hidden invalid source rows.
     if rows:
@@ -424,6 +671,7 @@ def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
     external = snapshot.get('source_kind') == 'external_trade_export'
     canonical_source = verify_import(runs, record) if external else None
     original = {t['trade_id']: t for t in canonical_source['trades']} if external else {}
+    saved_plans=snapshot.get('saved_trade_simulation',{}).get('causal_plans',{})
     metadata = {}
     previous_exit = None
     needs_stop = sizing is not None and sizing.needs_stop
@@ -434,6 +682,7 @@ def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
             sizing_decision=t['sizing_decision'] if t else None,
             initial_stop=t['initial_stop'] if t else None,
             previous_source_exit_utc=previous_exit)
+        if saved_plans:item=deepcopy(saved_plans[str(row['trade_id'])])
         if needs_stop:
             if not item['sizing_decision'] or not item['initial_stop']:
                 raise ValueError('Risk-based sizing requires a causal decision reference and initial stop for every source trade.')
@@ -456,7 +705,7 @@ def add_sizing_metadata(runs, snapshot, rows, grid, days, sizing):
         source_opportunities=len(rows), complete_causal_stops=needs_stop,
         actual_entry_fills_used_for_sizing=False,
         path_assumption='exporter_declared_invariant' if external else 'existing_fixed_quantity_path',
-        status='compatible', native_rerun_required=False if external else needs_stop)
+        status='compatible', native_rerun_required=False if external or saved_plans else needs_stop)
 
 
 def verify_phase_source(runs, source, snapshot):
@@ -666,16 +915,18 @@ def provenance(phase, snapshot, profile, micros, simulation, sampling, **extra):
     from .native_analysis import kernel_identity
     files = ['phase_profiles.py', phase + '_profiles.py', 'native_analysis.py',
              'source.py', 'commissions.py', 'phase_lifecycle.py', 'native_engine.py',
-             'sizing.py', 'sizing_runtime.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
-             'native_draws.py', 'native_replay.py', 'native_search.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
-             '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
+             'sizing.py', 'sizing_runtime.py', 'saved_trade_simulation.py', 'cash_ledger.py', 'external_source.py', 'native_control.py', 'native_money.py',
+             'native_draws.py', 'native_replay.py', 'native_search.py', 'native_preparation.py', 'native_market_hours.py', 'twin_preparation.py', '../risk_metrics.py', '../execution.py', '../execution_scenarios.py', '../decision_capture.py',
+             '../strategy_sizing.py', '../strategies/registry.py', '../strategies/twin_continuation.py', '../strategies/consecutive_green_hold.py', '../tick_data.py', '../intratrade.py', '../session_calendar.py', '../strategies/vwap_pullback_risk_sizing.py', '../canonical_trades.py', '../trade_imports.py']
     if profile.profile_id == 'lucidflex-50k':
         files += ['lucid_engine.py', 'lucid_rules.py']
     kernel_file = 'lucid_engine.py' if profile.profile_id == 'lucidflex-50k' else 'native_engine.py'
     rule_identity = dict(profile=asdict(profile), rules=extra.get('rules'),
                          kernel_source=digest(Path(__file__).with_name(kernel_file)))
+    from .lucid_rules import ACTIVITY_ASSUMPTION
     return dict(phase=phase, source=snapshot, profile=asdict(profile), micros=micros,
         simulation=asdict(simulation), sampling=asdict(sampling),
+        **({'activity_assumption':ACTIVITY_ASSUMPTION} if profile.profile_id=='lucidflex-50k' and not profile.lucid_inactivity_enforced else {}),
         account_rule_sha256=sha256(canonical(rule_identity).encode()).hexdigest(),
         kernel=kernel_identity({'ACCOUNT_TYPE':'LucidFlex' if profile.profile_id == 'lucidflex-50k' else 'Apex EOD'}),
         implementation_sha256={name:digest(Path(__file__).parent/name) for name in files},

@@ -1,0 +1,65 @@
+{
+  "status": "compatible",
+  "check_sha256": "e8fbc2725dec032cf0e5445a046917dbdd0c9dbbacc2548be3a91acb769cdc8e",
+  "configuration": {
+    "members": [
+      {
+        "source_backtest_id": "4e15722341104f0aace657eaa6f412e2",
+        "oos_backtest_id": "ef94d492eac142c1a4036f87a3318bdf",
+        "weight": 2
+      },
+      {
+        "source_backtest_id": "bffea8c2b7844e35a54885496cf960a7",
+        "oos_backtest_id": "9bbdace99bd446c6994f21e9200d2c18",
+        "weight": 1
+      }
+    ],
+    "phase": "funded",
+    "profile_id": "apex-50k-eod",
+    "minimum_micros": 3,
+    "maximum_micros": 5,
+    "observation_sessions": 261
+  },
+  "windows": {
+    "is": [
+      "2026-01-05",
+      "2026-01-06",
+      "2026-01-07",
+      "2026-01-08",
+      "2026-01-09",
+      "2026-01-12",
+      "2026-01-13",
+      "2026-01-14"
+    ],
+    "oos": [
+      "2026-01-15"
+    ]
+  },
+  "law": "Fixed saved opportunities on shared observed sessions. At most one position. Earliest entry first, with higher weight and then basket order breaking ties. An entry at a prior exit is allowed after the exit. Positions and signals are not rerun. Saved net costs and adverse marks are scaled linearly to whole MNQ. Funded tiers cap each admitted member target at the session opening tier.",
+  "allocations": [
+    {
+      "size": 3,
+      "micros": [
+        2,
+        1
+      ],
+      "unused": 0
+    },
+    {
+      "size": 4,
+      "micros": [
+        2,
+        1
+      ],
+      "unused": 1
+    },
+    {
+      "size": 5,
+      "micros": [
+        3,
+        1
+      ],
+      "unused": 1
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "request": {
+    "phase": "evaluation",
+    "profile_id": "apex-50k-eod",
+    "observation_sessions": 21,
+    "members": [
+      {
+        "source_backtest_id": "cb52c8882fad40049e9dd1eb6bc88aaf",
+        "oos_backtest_id": "0a5279d374274af0959e91e107ff3300",
+        "weight": 2
+      },
+      {
+        "source_backtest_id": "ba95543bd29b4411a1328bc9a82cfeb7",
+        "oos_backtest_id": "914bb73f6d3e45b4b1e28cab681ff1c5",
+        "weight": 1
+      }
+    ],
+    "minimum_micros": 3,
+    "maximum_micros": 5
+  },
+  "response": {
+    "id": "4e8c1f6ecd594eac940599982dcfad1c",
+    "source_backtest_id": "cb52c8882fad40049e9dd1eb6bc88aaf",
+    "created_at_utc": "2026-11-22T07:09:06.864715+00:00",
+    "phase": "evaluation",
+    "mode": "basket",
+    "status": "queued",
+    "progress": "Queued Prop Desk Evaluation",
+    "error": null
+  }
+}

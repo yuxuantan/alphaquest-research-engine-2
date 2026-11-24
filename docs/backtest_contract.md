@@ -1,3 +1,9 @@
+> **Current minute-bar execution (2026-11-16):**
+> [MultiCharts execution contract](multicharts_execution.md) supersedes the older
+> stop-first/entry-priority policies below for new OHLC runs. Nearest extreme
+> first, Low first on ties, and only post-activation path prices can fill orders.
+> Historical report policies and the same-close-only baseline remain preserved.
+
 # Backtest contract — v1 proposal for review
 
 The v1 same-close descriptions below continue to define the sample strategy.
@@ -12,8 +18,20 @@ one-bar OCO stop entries and stop-only exits. Opening gaps take priority;
 two entry stops touched without a determining Open reject as ambiguous.
 Twin now defaults to a precommitted fill-activated `EntryProtection` plan;
 `immediate_protection=false` retains the original delayed model. Market/Open
-entry protection can use the remaining bar range; uncertain post-stop-entry
-SL timing/order rejects. An adverse extreme is not automatically after entry.
+entry protection can use the remaining bar range. Twin's current v5 model assumes
+a possible post-entry stop occurs first when entry-bar SL timing/order is unknown.
+If both OCO entries touch without a determining Open, its primary fixes the upper
+(long) entry first. Three independent diagnostics cross upper/lower entry priority
+with adverse/favorable protection; neither entry priority is inherently conservative.
+It saves all completed replays and ambiguity CSVs in the same parent report.
+An unresolved diagnostic is explicitly inconclusive with unavailable totals;
+it does not abort an independently valid primary. Cancellation, implementation
+errors and primary execution/source failures still abort publication.
+Only the fixed primary enters screening; no diagnostic profit selects a winner.
+These are explicit
+OHLC sensitivity assumptions, not measured tick order or whole-strategy bounds.
+Generic attached plans still default to rejecting ambiguity unless they declare
+a policy. An adverse extreme is not automatically after entry.
 Other strategies without attached plans retain their existing timing. Native
 decision capture/phase-controlled replay reject attached plans.
 Intrabar entry-bar extrema remain excursion bounds. Its guide records

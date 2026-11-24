@@ -220,7 +220,7 @@ def test_commission_replacement_is_applied_once_in_both_phases(library):
 
 @pytest.mark.parametrize('phase', ['evaluation', 'funded'])
 @pytest.mark.parametrize('damage,reason', [('risk', 'risk coverage'), ('cost', 'costs do not reconcile'),
-                                          ('scaling', 'size scaling'), ('hash', 'SHA-256')])
+                                          ('scaling', 'strategy_parameters'), ('hash', 'SHA-256')])
 def test_source_and_risk_rejections_are_shared(library, tmp_path, phase, damage, reason):
     original, a, _, _ = library
     runs = RunStore(tmp_path)

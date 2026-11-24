@@ -7,6 +7,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .edge_qualification import QualificationSettings
 from .execution_scenarios import ExecutionScenario
+from .prop_report_storage import artifact_response,is_artifact
 from .prop.adapter import canonical
 from .research import ResearchConflict
 from .research_folds import FoldSettings
@@ -86,9 +87,9 @@ async def export(id: UUID, kind: str, request: Request):
     if kind not in ('report.json', 'analysis.zip', 'qualification.csv', 'research_plan.json', 'calculations.json', 'economic_selection.json', 'chronological_replay.json', 'research_journal.json', 'baseline_results.json', 'reliability.json', 'reliability_folds.csv', 'baseline_comparison.csv'):
         raise HTTPException(404, 'Unknown research download.')
     path=request.app.state.prop_analyses.root/report['id']/kind
-    if not path.is_file():
+    if not is_artifact(path):
         raise HTTPException(404, 'This saved research report does not contain this artifact.')
-    return FileResponse(path, filename=f'{id.hex}-{kind}')
+    return artifact_response(path,filename=f'{id.hex}-{kind}',expected=report['files'].get(kind))
 
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -165,5 +166,5 @@ async def application_export(id:UUID,application_id:UUID,kind:str,request:Reques
                     'baseline_results.json','final_verification.json','recommendation.json','research_journal.json','access_evidence.json','calculations.json'):
         raise HTTPException(404,'Unknown procedure application download.')
     path=request.app.state.prop_analyses.root/report['id']/kind
-    if not path.is_file():raise HTTPException(404,'Saved application does not contain this artifact.')
-    return FileResponse(path,filename=f'{application_id.hex}-{kind}')
+    if not is_artifact(path):raise HTTPException(404,'Saved application does not contain this artifact.')
+    return artifact_response(path,filename=f'{application_id.hex}-{kind}',expected=report['files'].get(kind))

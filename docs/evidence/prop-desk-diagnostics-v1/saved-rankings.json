@@ -1,0 +1,16 @@
+{
+  "with_oos": "09ef76c7d4d607a76df165a719e1d12888ea6bceed0982414e612638f2725259",
+  "without_oos": "09ef76c7d4d607a76df165a719e1d12888ea6bceed0982414e612638f2725259",
+  "ranking": [
+    {
+      "combination": 1,
+      "median_days": 20.0,
+      "micros": 4,
+      "near_best": false,
+      "rank": 1,
+      "score": 0.054,
+      "size_provisional": false,
+      "size_score": 0.054
+    }
+  ]
+}

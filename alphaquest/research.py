@@ -1,5 +1,6 @@
 """Editable chronological splits and durable, explicit holdout execution history."""
 import csv
+from contextlib import nullcontext
 from datetime import datetime,timezone
 from decimal import Decimal
 import hashlib
@@ -93,7 +94,7 @@ class ResearchStore:
             digest=hashlib.sha256();size=0
             for chunk in source.iter_csv(dataset['id']):
                 snapshot.write(chunk);digest.update(chunk);size+=len(chunk)
-            if size!=dataset['bytes'] or digest.hexdigest()!=dataset['sha256']:
+            if size!=dataset['bytes'] or digest.hexdigest()!=dataset.get('csv_sha256',dataset['sha256']):
                 raise DatasetReadError('Saved CSV bytes do not match the dataset metadata.')
             snapshot.seek(0)
             counts = {}
@@ -139,9 +140,9 @@ class ResearchStore:
             pair=(plan['strategy_id'],plan['source_sha256'])
             db.execute('INSERT INTO research_plans VALUES (?,?,?) ON CONFLICT(strategy_id,source_sha256) DO UPDATE SET payload=excluded.payload',(*pair,json.dumps(plan)))
 
-    def reserve(self, plan, parent_run_id, attempt_id):
-        with self.runs.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+    def reserve(self, plan, parent_run_id, attempt_id, *, connection=None):
+        with (self.runs.connect() if connection is None else nullcontext(connection)) as db:
+            if connection is None:db.execute('BEGIN IMMEDIATE')
             row=db.execute('SELECT strategy_id,source_sha256,parent_run_id,run_id,status,error FROM oos_attempts WHERE id=?',(attempt_id,)).fetchone()
             if row:
                 if tuple(row[:3])!=(plan['strategy_id'],plan['source_sha256'],parent_run_id):

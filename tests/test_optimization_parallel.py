@@ -55,6 +55,16 @@ def sparse_failure_trial(trial, values, run_id):
     return result
 
 
+def wait_for_stop_then_run_trial(trial, values, run_id):
+    """Hold real spawned workers until their shared stop signal arrives."""
+    deadline = time.monotonic() + 12
+    while not optimization_worker._stop_event.is_set():
+        if time.monotonic() > deadline:
+            raise RuntimeError('Worker did not receive the stop signal')
+        time.sleep(.01)
+    return optimization_worker.run_trial(trial, values, run_id)
+
+
 def wait_for(client, job_id, predicate):
     deadline = time.monotonic() + 12
     while time.monotonic() < deadline:
@@ -189,6 +199,28 @@ def test_parallel_failure_stops_new_trials_and_retains_other_inflight_success(cl
     rows = client.get(f"/api/optimizations/{job_id}/results").json()["items"]
     assert [row["trial"] for row in rows] == [1]
     assert not list(store.runs.root.glob(".optimization-*"))
+
+
+@pytest.mark.skipif(MAX_WORKERS < 2, reason="Host allows one worker")
+def test_parallel_stop_signals_workers_and_resumes_missing_trials(client, monkeypatch):
+    dataset = save_fixture(client)
+    monkeypatch.setattr(optimization, 'run_trial', wait_for_stop_then_run_trial)
+    job_id = start(client, {**optimization_body(dataset['id']), 'workers': 2,
+                            'automatic_prop': False})
+    wait_for(client, job_id, lambda job: len(job['active_trials']) == 2)
+    requested = client.post(f'/api/backtests/batches/{job_id}/cancel')
+    assert requested.status_code == 200 and requested.json()['stage'] == 'stopping'
+    stopped = wait_job(client, job_id)
+    assert stopped['status'] == 'cancelled' and stopped['completed_trials'] == 0
+    assert stopped['failed_trials'] == []
+    assert client.get(f'/api/optimizations/{job_id}/results').json()['items'] == []
+    assert not list(client.app.state.runs.root.glob('.optimization-*'))
+    monkeypatch.setattr(optimization, 'run_trial', optimization_worker.run_trial)
+    assert client.post(f'/api/backtests/batches/{job_id}/resume').status_code == 202
+    completed = wait_job(client, job_id)
+    assert completed['status'] == 'complete' and completed['completed_trials'] == 3
+    assert [float(row['metrics']['total_net_pnl']) for row in client.get(
+        f'/api/optimizations/{job_id}/results').json()['items']] == [13, 26, 39]
 
 
 @pytest.mark.skipif(MAX_WORKERS < 2, reason="Host allows one worker")

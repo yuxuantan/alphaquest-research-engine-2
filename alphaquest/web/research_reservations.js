@@ -2,7 +2,7 @@
 (() => {
   const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
   const uuid=()=>crypto.randomUUID().replaceAll('-','');
-  async function api(path,body){const response=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));return result;}
+  async function api(path,body){const response=await window.portalLoading.fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));return result;}
   function field(parent,title,id,type='text'){const label=node('label',title),input=node('input');input.id=id;input.type=type;input.required=true;label.append(input);parent.append(label);return input;}
   function button(parent,title,id){const b=node('button',title);b.type='button';b.className='button secondary';b.id=id;parent.append(b);return b;}
   function accessEvidence(parent,access){

@@ -1,0 +1,4 @@
+candidate_id,status,pareto_member,dominated,cost_per_funded,expected_calendar_days_to_funded,pass_probability,pass_probability_bounds,probability_acquisition_by_cutoff,expected_attempts_per_funded,restricted_mean_paid_fees,restricted_mean_observed_calendar_days,p90_calendar_days_to_funded,median_calendar_days_to_funded
+59b008fc3171ba9c9db89ce9c4b791851268acec0a896a85e4d704355a48013e,estimated,True,False,90.5625,23.78125,0.90625,"[0.90625, 0.90625]",1.0,1.125,90.5625,23.78125,50.0,17.0
+61b308603c51ce3243bda86a8a27a19d4ed019338ade0077a94470d81ba0b95f,estimated,True,False,90.5625,23.78125,0.90625,"[0.90625, 0.90625]",1.0,1.125,90.5625,23.78125,50.0,17.0
+b24b7d4946a3050d153f89bc6620149e6224ec955632c667b3f51f7ea3b13293,estimated,True,False,90.5625,23.78125,0.90625,"[0.90625, 0.90625]",1.0,1.125,90.5625,23.78125,50.0,17.0

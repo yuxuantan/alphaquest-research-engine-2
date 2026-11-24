@@ -716,3 +716,12 @@ routes, not a second fill engine or report database.
 The dated comparison journey in `docs/prop_simulation_review.md` records normal
 saved outputs, synthetic receiver-clock provenance and exact financial oracles.
 The earlier M5 `NOT_COMPARABLE`-only evidence remains a separate immutable release.
+
+15 November 2026 ordered-trade increment: [`tick_data.py`](../alphaquest/tick_data.py)
+adds checked SCID/trade-CSV sources and explicit contract roll schedules to the
+existing DatasetStore. Minute bars carry immutable completed TradeFlow and private
+source/index references. `execution.py` resolves ordinary intents and native
+account barriers on the recorded path; strategies retain completed-minute
+callbacks. Date slices, prepared streams, native worker spools and portfolio
+session spools preserve both. Phase owners and result stores remain unchanged.
+See [the source, timing and verification contract](tick_datasets.md).

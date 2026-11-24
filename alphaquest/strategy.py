@@ -52,13 +52,15 @@ class Bar:
     up_vol: Decimal
     down_vol: Decimal
     source_fields: tuple[str, ...]
+    tick_window: object = None
+    flow: object = None
 
     def __reduce__(self):
         # Reconstruct through the fixed constructor instead of dataclasses'
         # reflective per-field slot restoration in every worker replay.
         return type(self), (self.bar_number, self.timestamp_utc, self.date, self.time,
                             self.open, self.high, self.low, self.close, self.volume,
-                            self.up_vol, self.down_vol, self.source_fields)
+                            self.up_vol, self.down_vol, self.source_fields, self.tick_window, self.flow)
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,15 +103,19 @@ class EntryProtection:
     """Conditional exits prepared before entry; distances resolve from actual fill.
 
     Exactly one stop basis is required. No completed entry-bar prices are used
-    to construct this plan. None target disables the profit-taking leg.
+    to construct this plan. None target disables the profit-taking leg. The
+    default policy follows only the post-fill MultiCharts modeled OHLC path.
     """
 
     stop_price: Decimal | None = None
     stop_distance: Decimal | None = None
     target_distance: Decimal | None = None
     max_stop_distance: Decimal | None = None
+    ambiguity_policy: Literal["multicharts", "reject", "adverse_first", "favorable_first"] = "multicharts"
 
     def __post_init__(self):
+        if self.ambiguity_policy not in ("multicharts", "reject", "adverse_first", "favorable_first"):
+            raise ValueError("Unknown entry protection ambiguity policy.")
         if (self.stop_price is None) == (self.stop_distance is None):
             raise ValueError("Entry protection requires exactly one stop basis.")
         if self.stop_price is not None:
@@ -181,8 +187,9 @@ class BracketIntent:
 class StopEntriesIntent:
     """Flat-only OCO entry stops, active for the next observed bar only.
 
-    Entries retain their own direction, quantity and reason. If both stops
-    touch after the Open, OHLC cannot determine the winner: execution rejects.
+    Entries retain their own direction, quantity and reason. The default
+    MultiCharts modeled path chooses the first crossing and cancels its sibling.
+    Simultaneously eligible overlapping thresholds reject.
     """
 
     orders: tuple[tuple[EntryIntent, Decimal], ...]

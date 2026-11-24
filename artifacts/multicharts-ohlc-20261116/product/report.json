@@ -1,0 +1,722 @@
+{
+  "format_version": 2,
+  "status": "complete",
+  "created_at_utc": "2026-11-16T05:53:56.832493Z",
+  "period_start_utc": "2024-01-15T23:01:00Z",
+  "period_end_utc": "2024-01-17T17:02:00Z",
+  "timestamp_convention": "bar_close",
+  "execution_assumption": "twin_immediate_protection_multicharts_ohlc_calendar_v6",
+  "execution_settings": {
+    "initial_capital": "10000",
+    "tick_size": "0.25",
+    "point_value": "20",
+    "slippage_ticks": 1,
+    "commission_per_contract_per_side": "1"
+  },
+  "run_metadata": {
+    "dataset": {
+      "id": "bedc4d6ba38940dca8dceaf0942b39c9",
+      "name": "SYNTHETIC Twin conservative campaign",
+      "sha256": "aa07b3bcbc88af558d75be0099122bba69ca25a76fd7c10a0c3b6091003f83a8",
+      "source_timezone": "UTC",
+      "row_count": 2463,
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      }
+    },
+    "instrument": {
+      "symbol": "NQ",
+      "interval_seconds": null,
+      "interval_kind": "irregular"
+    },
+    "strategy": {
+      "id": "twin_continuation",
+      "description": "Twin Continuation: 6-hour confirmed swing breakout plus 10-minute morning momentum. One position, setup-owned exits; Chicago one-minute close-labelled bars. Next-bar market/stop entries with immediate fill-activated SL/TP by default. Minute OHLC uses the MultiCharts nearest-extreme-first continuous path (Low first on ties). OCO entries and immediate/later protection share that path, with high-first and low-first full-strategy diagnostics. Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; source Momentum half-day heuristic is retained.",
+      "source_sha256": "de18b68eb8b863d82322cf3add19110f7933fbbf9a062b57381176fbf77ce90f",
+      "execution_assumption": "twin_immediate_protection_multicharts_ohlc_calendar_v6",
+      "session_calendar": {
+        "id": "cme_nq",
+        "file": "calendars/cme_nq_closures.csv",
+        "instrument": "NQ / MNQ futures",
+        "timezone": "America/Chicago",
+        "symbol_pattern": "(?:@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?|@?MNQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?)"
+      },
+      "parameters": {
+        "use_breakout": true,
+        "use_momentum": true,
+        "qty": 1,
+        "bo_target_mult": "2",
+        "bo_max_stop_mult": "0.25",
+        "bo_atr_period": 14,
+        "bo_vol_cap": "2",
+        "bo_vol_lookback": 50,
+        "bo_session_open": 1700,
+        "bo_session_close": 1600,
+        "bo_last_fill": 1530,
+        "bo_exit_time": 1545,
+        "bo_pivot_tf": 360,
+        "mo_basis_len": 21,
+        "mo_range_len": 14,
+        "mo_signal_len": 3,
+        "mo_trigger": "100",
+        "mo_window_start": 840,
+        "mo_window_end": 930,
+        "mo_exit_time": 1450,
+        "mo_stop_points": "75",
+        "mo_warmup": 60,
+        "mo_full_bars_only": true,
+        "mo_allow_long": true,
+        "mo_allow_short": true,
+        "clock_shift": 0,
+        "debug_log": false,
+        "immediate_protection": true,
+        "max_bars_back": 5,
+        "use_session_calendar": true
+      },
+      "session_flattening": {
+        "enabled": true,
+        "mode": "twin_csv_session_close_v2",
+        "lookahead": false,
+        "protection_activation": "on_entry_fill",
+        "entry_protection_ambiguity_policy": "multicharts",
+        "oco_entry_policy": "multicharts",
+        "entry_bar_path": "multicharts nearest extreme first; Low first on ties; only the path suffix after fill activates SL/TP",
+        "calendar": {
+          "file": "calendars/cme_nq_closures.csv",
+          "sha256": "a71258719fdd433586250e242f5d10c78b49ea700a5312a24dc870307a05f81a",
+          "coverage_start": "2016-01-01",
+          "coverage_end": "2026-11-02",
+          "timezone": "America/Chicago",
+          "instrument": "NQ futures",
+          "rows": 124
+        },
+        "calendar_selection": "instrument_symbol",
+        "instrument_symbol": "NQ",
+        "calendar_id": "cme_nq",
+        "timezone": "America/Chicago",
+        "minutes_before_close": 0,
+        "order_timing": "same_close",
+        "fill": "scheduled session-close bar Close; pending price exits on that bar retain priority",
+        "missing_close_bar": "reject held exposure before later-session orders; never infer a close from missing bars",
+        "truncated_session": "does not change the scheduled close; explicit end_of_data liquidation remains labelled",
+        "reference_status": "Original MC export qualifies delayed protection only; immediate mode needs a fresh MC export. No runtime export dependency.",
+        "sessions": 2,
+        "closed_sessions": 0,
+        "early_close_sessions": 0,
+        "examples": [
+          {
+            "session_date": "2024-01-16",
+            "session_type": "regular",
+            "scheduled_close": "2024-01-16T16:00:00-06:00"
+          },
+          {
+            "session_date": "2024-01-17",
+            "session_type": "regular",
+            "scheduled_close": "2024-01-17T16:00:00-06:00"
+          }
+        ],
+        "early_close_examples": [],
+        "plans_sha256": "b211e11efd32828ed1456fa20725e878540586bf7b2ecc10f5036fc49776055f"
+      }
+    },
+    "instrument_overrides": {},
+    "full_dataset": {
+      "id": "bedc4d6ba38940dca8dceaf0942b39c9",
+      "name": "SYNTHETIC Twin conservative campaign",
+      "sha256": "aa07b3bcbc88af558d75be0099122bba69ca25a76fd7c10a0c3b6091003f83a8",
+      "source_timezone": "UTC",
+      "row_count": 2463,
+      "start": "2024-01-15T23:01:00Z",
+      "end": "2024-01-18T17:02:00Z",
+      "symbol": "NQ"
+    },
+    "research": {
+      "phase": "is",
+      "plan": {
+        "strategy_id": "twin_continuation",
+        "source_sha256": "aa07b3bcbc88af558d75be0099122bba69ca25a76fd7c10a0c3b6091003f83a8",
+        "source_timezone": "UTC",
+        "is_start": "2024-01-15",
+        "is_end": "2024-01-17",
+        "oos_start": "2024-01-18",
+        "oos_end": "2024-01-18",
+        "is_bars": 2462,
+        "oos_bars": 1,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "workflow_id": "1bf611a3db90441b903016519578bb6b",
+      "workflow_phase": "is_broad",
+      "screening_policy": {
+        "version": "is-broad-v4",
+        "minimum_history_months": 24,
+        "minimum_closed_trades": 100,
+        "profitable_months_pct_gt": "50",
+        "extra_slippage_ticks_per_fill": 1,
+        "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+        "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+        "annualization_days": "365.2425"
+      },
+      "cost_stress": {
+        "run_id": "dfa83992edcf4bb786c8472805fbdab8",
+        "summary": {
+          "initial_capital": "10000",
+          "final_equity": "9943.00",
+          "trades_taken": 1,
+          "winning_trades": 0,
+          "losing_trades": 1,
+          "breakeven_trades": 0,
+          "win_rate_pct": "0",
+          "total_gross_pnl": "-55.00",
+          "total_slippage_cost": "20.00",
+          "total_commissions": "2",
+          "total_net_pnl": "-57.00",
+          "ending_position_contracts": 0,
+          "max_drawdown_amount": "57.00",
+          "max_drawdown_pct": "0.57",
+          "max_drawdown_duration_seconds": "151260"
+        },
+        "execution_settings": {
+          "initial_capital": "10000",
+          "tick_size": "0.25",
+          "point_value": "20",
+          "slippage_ticks": 2,
+          "commission_per_contract_per_side": "1"
+        },
+        "artifacts": {
+          "entry_oco_ambiguities.csv": "10e4712ab8bacec0bd2d2186f67ae003ebeea13537fa4f1c92061e1bfea815d8",
+          "entry_protection_ambiguities.csv": "b6f7700226e4aea00b692e07933e9727adb912d3a00bc5b7eee4af7b4c9aa009",
+          "entry_protection_high_first_entry_oco_ambiguities.csv": "e927aed5b96e5306a6c930954c3e364c4f500a6676161e74b14564264081d6aa",
+          "entry_protection_high_first_entry_protection_ambiguities.csv": "2dcc94e71ac27f6302419ce9960cfe0cac3a7bbeab4c9e96bca60e8b34823e01",
+          "entry_protection_high_first_equity.csv": "ee4b97f2b6a3c6a91a942f1739d096620b88c728422b5d186a6d95bc58ac744d",
+          "entry_protection_high_first_intratrade_risk.csv": "b14764f5c14d35c755e0196f6186a7279e289f61e74161a1af5022184fba1bb5",
+          "entry_protection_high_first_report.json": "af668b24d4d46709706defbce2443058ee6e435f5470b8bf2acbd4b862466306",
+          "entry_protection_high_first_trades.csv": "c692678bdbd06bc5ff270882a039b2b257b06be512cbeef580e861d325e6d197",
+          "entry_protection_low_first_entry_oco_ambiguities.csv": "6930dff62e1f26527d46b3eb37001c1d5c33460db2883ddb931c7f7ffc187b68",
+          "entry_protection_low_first_entry_protection_ambiguities.csv": "a51887ca0cce3341149a1e9412df34812bfdbc3e85d8e66ee32ff34fea34de44",
+          "entry_protection_low_first_equity.csv": "1854c378815726a0332543ec1cfd2c4694acaac561da0d4aa8b5a56dd5e8801d",
+          "entry_protection_low_first_intratrade_risk.csv": "542744f60cc4e1b12319c5c4a5ad607ecbf08ceec34727b334d14c933973ce8d",
+          "entry_protection_low_first_report.json": "681768f8145cb86303ead0b62a24ff93cd68cd842c766cc24af20443367c2066",
+          "entry_protection_low_first_trades.csv": "b9656d3186b9a8f7370fd70447f3a33193287ca6ceda1d97fc8ec0aef9394018",
+          "entry_protection_sensitivity.json": "5c03ecd677e456a68473db7063cbc36b64c1b0aeee278f323bdc0036f5ac6d30",
+          "equity.csv": "1854c378815726a0332543ec1cfd2c4694acaac561da0d4aa8b5a56dd5e8801d",
+          "intratrade_risk.csv": "542744f60cc4e1b12319c5c4a5ad607ecbf08ceec34727b334d14c933973ce8d",
+          "market_benchmark.json": "fd0190af6dd1a652c079df44ad6d62f08d5d0b0085347aa791497e84cfd37b10",
+          "report.json": "b3b764bea4b54a5aa859fb86d51a47d7f1a048087c1cfd8eb3c205ab7085d529",
+          "strategy_equity_day.csv": "e78d35d4363bd20a8b142d79ea0ad1fe55e7e4e83ecf9019ac24a40aacafe3f5",
+          "trades.csv": "b9656d3186b9a8f7370fd70447f3a33193287ca6ceda1d97fc8ec0aef9394018",
+          "shared_holding_day": "48aecb8d4700d4cf7f97c9eb7811200790aec6fdf0dfb9892b506f8effef9bf6"
+        },
+        "report_sha256": "b3b764bea4b54a5aa859fb86d51a47d7f1a048087c1cfd8eb3c205ab7085d529"
+      }
+    },
+    "selection": {
+      "from_date": "2024-01-15",
+      "to_date": "2024-01-17",
+      "source_timezone": "UTC",
+      "warmup": "none",
+      "start_utc": "2024-01-15T23:01:00Z",
+      "first_source_bar_number": 1,
+      "end_utc": "2024-01-17T17:02:00Z",
+      "last_source_bar_number": 2462,
+      "row_count": 2462
+    }
+  },
+  "summary": {
+    "initial_capital": "10000",
+    "final_equity": "9948.00",
+    "trades_taken": 1,
+    "winning_trades": 0,
+    "losing_trades": 1,
+    "breakeven_trades": 0,
+    "win_rate_pct": "0",
+    "total_gross_pnl": "-50.00",
+    "total_slippage_cost": "10.00",
+    "total_commissions": "2",
+    "total_net_pnl": "-52.00",
+    "ending_position_contracts": 0,
+    "max_drawdown_amount": "52.00",
+    "max_drawdown_pct": "0.52",
+    "max_drawdown_duration_seconds": "151260"
+  },
+  "reconciliation": {
+    "total_net_equals_sum_trade_net": true,
+    "gross_minus_commissions_equals_net": true,
+    "final_equity_equals_initial_plus_net": true,
+    "equity_equals_cash_plus_unrealized_at_every_point": true,
+    "realized_net_equals_cash_minus_initial_at_every_point": true,
+    "final_position_flat": true,
+    "observed_bar_count": 2462,
+    "expected_bar_count": 2462
+  },
+  "artifacts": {
+    "report": "report.json",
+    "trades_csv": "trades.csv",
+    "equity_csv": "equity.csv",
+    "intratrade_risk_csv": "intratrade_risk.csv",
+    "entry_protection_ambiguities": "entry_protection_ambiguities.csv",
+    "entry_oco_ambiguities": "entry_oco_ambiguities.csv",
+    "entry_protection_high_first_report": "entry_protection_high_first_report.json",
+    "entry_protection_high_first_trades": "entry_protection_high_first_trades.csv",
+    "entry_protection_high_first_equity": "entry_protection_high_first_equity.csv",
+    "entry_protection_high_first_intratrade_risk": "entry_protection_high_first_intratrade_risk.csv",
+    "entry_protection_high_first_entry_protection_ambiguities": "entry_protection_high_first_entry_protection_ambiguities.csv",
+    "entry_protection_high_first_entry_oco_ambiguities": "entry_protection_high_first_entry_oco_ambiguities.csv",
+    "entry_protection_low_first_report": "entry_protection_low_first_report.json",
+    "entry_protection_low_first_trades": "entry_protection_low_first_trades.csv",
+    "entry_protection_low_first_equity": "entry_protection_low_first_equity.csv",
+    "entry_protection_low_first_intratrade_risk": "entry_protection_low_first_intratrade_risk.csv",
+    "entry_protection_low_first_entry_protection_ambiguities": "entry_protection_low_first_entry_protection_ambiguities.csv",
+    "entry_protection_low_first_entry_oco_ambiguities": "entry_protection_low_first_entry_oco_ambiguities.csv",
+    "entry_protection_sensitivity": "entry_protection_sensitivity.json",
+    "is_screening_json": "is_screening.json",
+    "market_benchmark_json": "market_benchmark.json",
+    "strategy_equity_day_csv": "strategy_equity_day.csv"
+  },
+  "price_path": {
+    "version": "multicharts-ohlc-nearest-extreme-v1",
+    "mode": "modeled_ohlc",
+    "policy": "nearest_extreme_first_low_on_tie",
+    "magnifier": false,
+    "order_activation": "next_bar; attached exits start at parent fill; no pre-entry extrema",
+    "documentation": "docs/multicharts_execution.md"
+  },
+  "intratrade_risk": {
+    "version": "held-price-path-equity-v2",
+    "sha256": "2d8ca881857de93aa0a22eab02f41ca4793f746b1075f1552b8b8ff26f250452",
+    "trades": 1,
+    "ambiguous_trades": 0,
+    "cross_session_trades": 0,
+    "policy": "Held MultiCharts modeled OHLC path excursions, restricted to entry-through-exit, including entry and final costs. Model estimates, not measured tick MAE/MFE."
+  },
+  "entry_protection": {
+    "version": "entry-protection-multicharts-path-sensitivity-v3",
+    "ambiguous_entries": 1,
+    "assumed_stop_losses": 1,
+    "assumed_take_profits": 0,
+    "assumed_remain_open": 0,
+    "oco_ambiguous_entries": 1,
+    "oco_sha256": "10e4712ab8bacec0bd2d2186f67ae003ebeea13537fa4f1c92061e1bfea815d8",
+    "assumed_same_bar_exits_net_pnl": "-52.00",
+    "interpretation": "Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.",
+    "sha256": "0a236ef6850321ecbaf55ed3168833ee0c863985fd524b26b71409d4e56813b5"
+  },
+  "entry_protection_sensitivity": {
+    "version": "entry-protection-multicharts-path-sensitivity-v3",
+    "primary_policy": "multicharts",
+    "diagnostic_policy": "continuous_path_alternatives",
+    "primary_oco_entry_policy": "multicharts",
+    "scenarios": {
+      "high_first": {
+        "status": "complete",
+        "oco_entry_policy": "multicharts",
+        "protection_policy": "multicharts",
+        "ohlc_path_policy": "high_first",
+        "summary": {
+          "initial_capital": "10000",
+          "final_equity": "10338.00",
+          "trades_taken": 1,
+          "winning_trades": 1,
+          "losing_trades": 0,
+          "breakeven_trades": 0,
+          "win_rate_pct": "100",
+          "total_gross_pnl": "340.00",
+          "total_slippage_cost": "5.00",
+          "total_commissions": "2",
+          "total_net_pnl": "338.00",
+          "ending_position_contracts": 0,
+          "max_drawdown_amount": "0",
+          "max_drawdown_pct": "0",
+          "max_drawdown_duration_seconds": "0"
+        },
+        "ambiguities": {
+          "version": "entry-protection-multicharts-path-sensitivity-v3",
+          "ambiguous_entries": 1,
+          "assumed_stop_losses": 0,
+          "assumed_take_profits": 1,
+          "assumed_remain_open": 0,
+          "oco_ambiguous_entries": 1,
+          "oco_sha256": "e927aed5b96e5306a6c930954c3e364c4f500a6676161e74b14564264081d6aa",
+          "assumed_same_bar_exits_net_pnl": "338.00",
+          "interpretation": "Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.",
+          "sha256": "b9c1c7b25b818c233f739c01d0ade5e1301bd01ca615f6d0bdc86079d6d63463"
+        },
+        "artifacts_sha256": {
+          "entry_protection_high_first_report.json": "e1109e1d12b79256c3001f5264947e6a3c9d360eb658446ddaabaca48b36c8e3",
+          "entry_protection_high_first_trades.csv": "feebf4477084a2e214997085f9a07dd089425c0cc33df65a78de9d9b115aabd6",
+          "entry_protection_high_first_equity.csv": "ee4b97f2b6a3c6a91a942f1739d096620b88c728422b5d186a6d95bc58ac744d",
+          "entry_protection_high_first_intratrade_risk.csv": "6a1f90ea44a713318837aebe99564e7668da7c6cf8740ab35e7b0b6fec2ece5f",
+          "entry_protection_high_first_entry_protection_ambiguities.csv": "b9c1c7b25b818c233f739c01d0ade5e1301bd01ca615f6d0bdc86079d6d63463",
+          "entry_protection_high_first_entry_oco_ambiguities.csv": "e927aed5b96e5306a6c930954c3e364c4f500a6676161e74b14564264081d6aa"
+        },
+        "artifact_kinds": {
+          "entry_protection_high_first_report": "entry_protection_high_first_report.json",
+          "entry_protection_high_first_trades": "entry_protection_high_first_trades.csv",
+          "entry_protection_high_first_equity": "entry_protection_high_first_equity.csv",
+          "entry_protection_high_first_intratrade_risk": "entry_protection_high_first_intratrade_risk.csv",
+          "entry_protection_high_first_entry_protection_ambiguities": "entry_protection_high_first_entry_protection_ambiguities.csv",
+          "entry_protection_high_first_entry_oco_ambiguities": "entry_protection_high_first_entry_oco_ambiguities.csv"
+        },
+        "reason": null,
+        "failure_location": null,
+        "error_type": null,
+        "minus_primary_net_pnl": "390.00"
+      },
+      "low_first": {
+        "status": "complete",
+        "oco_entry_policy": "multicharts",
+        "protection_policy": "multicharts",
+        "ohlc_path_policy": "low_first",
+        "summary": {
+          "initial_capital": "10000",
+          "final_equity": "9948.00",
+          "trades_taken": 1,
+          "winning_trades": 0,
+          "losing_trades": 1,
+          "breakeven_trades": 0,
+          "win_rate_pct": "0",
+          "total_gross_pnl": "-50.00",
+          "total_slippage_cost": "10.00",
+          "total_commissions": "2",
+          "total_net_pnl": "-52.00",
+          "ending_position_contracts": 0,
+          "max_drawdown_amount": "52.00",
+          "max_drawdown_pct": "0.52",
+          "max_drawdown_duration_seconds": "151260"
+        },
+        "ambiguities": {
+          "version": "entry-protection-multicharts-path-sensitivity-v3",
+          "ambiguous_entries": 1,
+          "assumed_stop_losses": 1,
+          "assumed_take_profits": 0,
+          "assumed_remain_open": 0,
+          "oco_ambiguous_entries": 1,
+          "oco_sha256": "6930dff62e1f26527d46b3eb37001c1d5c33460db2883ddb931c7f7ffc187b68",
+          "assumed_same_bar_exits_net_pnl": "-52.00",
+          "interpretation": "Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.",
+          "sha256": "04b7d7c810ee3769e34cffc0f5f04657e91d09d8cd6be649a18620619e8742fc"
+        },
+        "artifacts_sha256": {
+          "entry_protection_low_first_report.json": "3183172cdd9057b0e03edc0ced933265727ff57dddf6fa41d8ae8de67b80eafd",
+          "entry_protection_low_first_trades.csv": "b1a2a72ed7bfcdf68e04b7f0c975db78c8640e2b9c261ae1347bff28710d50a8",
+          "entry_protection_low_first_equity.csv": "600f927b85567af71df6a559e61433f303e44e05a46456844bb51745b9a6d352",
+          "entry_protection_low_first_intratrade_risk.csv": "2d8ca881857de93aa0a22eab02f41ca4793f746b1075f1552b8b8ff26f250452",
+          "entry_protection_low_first_entry_protection_ambiguities.csv": "04b7d7c810ee3769e34cffc0f5f04657e91d09d8cd6be649a18620619e8742fc",
+          "entry_protection_low_first_entry_oco_ambiguities.csv": "6930dff62e1f26527d46b3eb37001c1d5c33460db2883ddb931c7f7ffc187b68"
+        },
+        "artifact_kinds": {
+          "entry_protection_low_first_report": "entry_protection_low_first_report.json",
+          "entry_protection_low_first_trades": "entry_protection_low_first_trades.csv",
+          "entry_protection_low_first_equity": "entry_protection_low_first_equity.csv",
+          "entry_protection_low_first_intratrade_risk": "entry_protection_low_first_intratrade_risk.csv",
+          "entry_protection_low_first_entry_protection_ambiguities": "entry_protection_low_first_entry_protection_ambiguities.csv",
+          "entry_protection_low_first_entry_oco_ambiguities": "entry_protection_low_first_entry_oco_ambiguities.csv"
+        },
+        "reason": null,
+        "failure_location": null,
+        "error_type": null,
+        "minus_primary_net_pnl": "0.00"
+      }
+    },
+    "status": "complete",
+    "interpretation": "Primary minute-bar execution follows the MultiCharts non-magnified path: Open/High/Low/Close when High is closer to Open; otherwise Open/Low/High/Close, including ties. Orders fill in path order, with SL/TP active only after entry; the sibling entry cancels. High-first and Low-first diagnostics replay the entire strategy, including later positions and costs. These are continuous modeled OHLC paths, not observed tick chronology, profit bounds or future assurance. Only the fixed primary policy screens candidates. Diagnostic failures remain inconclusive.",
+    "selection": "Only the primary MultiCharts-modeled result participates in campaign screening; no replacement selection.",
+    "primary_summary": {
+      "initial_capital": "10000",
+      "final_equity": "9948.00",
+      "trades_taken": 1,
+      "winning_trades": 0,
+      "losing_trades": 1,
+      "breakeven_trades": 0,
+      "win_rate_pct": "0",
+      "total_gross_pnl": "-50.00",
+      "total_slippage_cost": "10.00",
+      "total_commissions": "2",
+      "total_net_pnl": "-52.00",
+      "ending_position_contracts": 0,
+      "max_drawdown_amount": "52.00",
+      "max_drawdown_pct": "0.52",
+      "max_drawdown_duration_seconds": "151260"
+    },
+    "primary_ambiguities": {
+      "version": "entry-protection-multicharts-path-sensitivity-v3",
+      "ambiguous_entries": 1,
+      "assumed_stop_losses": 1,
+      "assumed_take_profits": 0,
+      "assumed_remain_open": 0,
+      "oco_ambiguous_entries": 1,
+      "oco_sha256": "10e4712ab8bacec0bd2d2186f67ae003ebeea13537fa4f1c92061e1bfea815d8",
+      "assumed_same_bar_exits_net_pnl": "-52.00",
+      "interpretation": "Net P&L of assumed same-bar exits includes actual costs; it is not the whole-strategy impact or measured tick execution.",
+      "sha256": "0a236ef6850321ecbaf55ed3168833ee0c863985fd524b26b71409d4e56813b5"
+    },
+    "source_identity": {
+      "id": "bedc4d6ba38940dca8dceaf0942b39c9",
+      "name": "SYNTHETIC Twin conservative campaign",
+      "sha256": "aa07b3bcbc88af558d75be0099122bba69ca25a76fd7c10a0c3b6091003f83a8",
+      "source_timezone": "UTC",
+      "row_count": 2463,
+      "instrument_settings": {
+        "tick_size": ".25",
+        "point_value": "20"
+      }
+    },
+    "selection_window": {
+      "from_date": "2024-01-15",
+      "to_date": "2024-01-17",
+      "source_timezone": "UTC",
+      "warmup": "none",
+      "start_utc": "2024-01-15T23:01:00Z",
+      "first_source_bar_number": 1,
+      "end_utc": "2024-01-17T17:02:00Z",
+      "last_source_bar_number": 2462,
+      "row_count": 2462
+    },
+    "strategy_identity": {
+      "id": "twin_continuation",
+      "description": "Twin Continuation: 6-hour confirmed swing breakout plus 10-minute morning momentum. One position, setup-owned exits; Chicago one-minute close-labelled bars. Next-bar market/stop entries with immediate fill-activated SL/TP by default. Minute OHLC uses the MultiCharts nearest-extreme-first continuous path (Low first on ties). OCO entries and immediate/later protection share that path, with high-first and low-first full-strategy diagnostics. Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; source Momentum half-day heuristic is retained.",
+      "source_sha256": "de18b68eb8b863d82322cf3add19110f7933fbbf9a062b57381176fbf77ce90f",
+      "execution_assumption": "twin_immediate_protection_multicharts_ohlc_calendar_v6",
+      "session_calendar": {
+        "id": "cme_nq",
+        "file": "calendars/cme_nq_closures.csv",
+        "instrument": "NQ / MNQ futures",
+        "timezone": "America/Chicago",
+        "symbol_pattern": "(?:@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?|@?MNQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?)"
+      },
+      "parameters": {
+        "use_breakout": true,
+        "use_momentum": true,
+        "qty": 1,
+        "bo_target_mult": "2",
+        "bo_max_stop_mult": "0.25",
+        "bo_atr_period": 14,
+        "bo_vol_cap": "2",
+        "bo_vol_lookback": 50,
+        "bo_session_open": 1700,
+        "bo_session_close": 1600,
+        "bo_last_fill": 1530,
+        "bo_exit_time": 1545,
+        "bo_pivot_tf": 360,
+        "mo_basis_len": 21,
+        "mo_range_len": 14,
+        "mo_signal_len": 3,
+        "mo_trigger": "100",
+        "mo_window_start": 840,
+        "mo_window_end": 930,
+        "mo_exit_time": 1450,
+        "mo_stop_points": "75",
+        "mo_warmup": 60,
+        "mo_full_bars_only": true,
+        "mo_allow_long": true,
+        "mo_allow_short": true,
+        "clock_shift": 0,
+        "debug_log": false,
+        "immediate_protection": true,
+        "max_bars_back": 5,
+        "use_session_calendar": true
+      },
+      "session_flattening": {
+        "enabled": true,
+        "mode": "twin_csv_session_close_v2",
+        "lookahead": false,
+        "protection_activation": "on_entry_fill",
+        "entry_protection_ambiguity_policy": "multicharts",
+        "oco_entry_policy": "multicharts",
+        "entry_bar_path": "multicharts nearest extreme first; Low first on ties; only the path suffix after fill activates SL/TP",
+        "calendar": {
+          "file": "calendars/cme_nq_closures.csv",
+          "sha256": "a71258719fdd433586250e242f5d10c78b49ea700a5312a24dc870307a05f81a",
+          "coverage_start": "2016-01-01",
+          "coverage_end": "2026-11-02",
+          "timezone": "America/Chicago",
+          "instrument": "NQ futures",
+          "rows": 124
+        },
+        "calendar_selection": "instrument_symbol",
+        "instrument_symbol": "NQ",
+        "calendar_id": "cme_nq",
+        "timezone": "America/Chicago",
+        "minutes_before_close": 0,
+        "order_timing": "same_close",
+        "fill": "scheduled session-close bar Close; pending price exits on that bar retain priority",
+        "missing_close_bar": "reject held exposure before later-session orders; never infer a close from missing bars",
+        "truncated_session": "does not change the scheduled close; explicit end_of_data liquidation remains labelled",
+        "reference_status": "Original MC export qualifies delayed protection only; immediate mode needs a fresh MC export. No runtime export dependency.",
+        "sessions": 2,
+        "closed_sessions": 0,
+        "early_close_sessions": 0,
+        "examples": [
+          {
+            "session_date": "2024-01-16",
+            "session_type": "regular",
+            "scheduled_close": "2024-01-16T16:00:00-06:00"
+          },
+          {
+            "session_date": "2024-01-17",
+            "session_type": "regular",
+            "scheduled_close": "2024-01-17T16:00:00-06:00"
+          }
+        ],
+        "early_close_examples": [],
+        "plans_sha256": "b211e11efd32828ed1456fa20725e878540586bf7b2ecc10f5036fc49776055f"
+      }
+    },
+    "execution_settings": {
+      "initial_capital": "10000",
+      "tick_size": "0.25",
+      "point_value": "20",
+      "slippage_ticks": 1,
+      "commission_per_contract_per_side": "1"
+    },
+    "sha256": "3899fa6b3dfc7e931148b2fe0ddd2af45be7fa5ee595f55d96138c9b5b6778b5"
+  },
+  "is_screening": {
+    "policy": {
+      "version": "is-broad-v4",
+      "minimum_history_months": 24,
+      "minimum_closed_trades": 100,
+      "profitable_months_pct_gt": "50",
+      "extra_slippage_ticks_per_fill": 1,
+      "equity_basis": "every observed bar close, cash plus open-position P&L; not tick/intrabar equity",
+      "calendar_basis": "source timezone; inclusive IS dates; complete calendar months only; zero/no-trade months count as nonprofitable",
+      "annualization_days": "365.2425"
+    },
+    "metrics": {
+      "is_history_months": 0,
+      "is_annual_net_profit": "-6330.870000",
+      "is_mtm_max_drawdown": "52.00",
+      "is_annual_profit_dd_ratio": "-121.7475",
+      "is_profitable_months_pct": null,
+      "is_full_months": 0,
+      "is_longest_dd_pct": "9.722222222222222222222222222",
+      "is_stress_net_profit": "-57.00"
+    },
+    "closed_trades": 1,
+    "total_net_pnl": "-52.00",
+    "months": [
+      {
+        "month": "2024-01",
+        "net_pnl": "-52.00",
+        "complete": false
+      }
+    ],
+    "observed_start": "2024-01-15",
+    "observed_end": "2024-01-17",
+    "period_start_utc": "2024-01-15T00:00:00+00:00",
+    "period_end_exclusive_utc": "2024-01-18T00:00:00+00:00",
+    "mtm_drawdown_duration_seconds": "25200",
+    "cost_stress": {
+      "run_id": "dfa83992edcf4bb786c8472805fbdab8",
+      "summary": {
+        "initial_capital": "10000",
+        "final_equity": "9943.00",
+        "trades_taken": 1,
+        "winning_trades": 0,
+        "losing_trades": 1,
+        "breakeven_trades": 0,
+        "win_rate_pct": "0",
+        "total_gross_pnl": "-55.00",
+        "total_slippage_cost": "20.00",
+        "total_commissions": "2",
+        "total_net_pnl": "-57.00",
+        "ending_position_contracts": 0,
+        "max_drawdown_amount": "57.00",
+        "max_drawdown_pct": "0.57",
+        "max_drawdown_duration_seconds": "151260"
+      },
+      "execution_settings": {
+        "initial_capital": "10000",
+        "tick_size": "0.25",
+        "point_value": "20",
+        "slippage_ticks": 2,
+        "commission_per_contract_per_side": "1"
+      },
+      "artifacts": {
+        "entry_oco_ambiguities.csv": "10e4712ab8bacec0bd2d2186f67ae003ebeea13537fa4f1c92061e1bfea815d8",
+        "entry_protection_ambiguities.csv": "b6f7700226e4aea00b692e07933e9727adb912d3a00bc5b7eee4af7b4c9aa009",
+        "entry_protection_high_first_entry_oco_ambiguities.csv": "e927aed5b96e5306a6c930954c3e364c4f500a6676161e74b14564264081d6aa",
+        "entry_protection_high_first_entry_protection_ambiguities.csv": "2dcc94e71ac27f6302419ce9960cfe0cac3a7bbeab4c9e96bca60e8b34823e01",
+        "entry_protection_high_first_equity.csv": "ee4b97f2b6a3c6a91a942f1739d096620b88c728422b5d186a6d95bc58ac744d",
+        "entry_protection_high_first_intratrade_risk.csv": "b14764f5c14d35c755e0196f6186a7279e289f61e74161a1af5022184fba1bb5",
+        "entry_protection_high_first_report.json": "af668b24d4d46709706defbce2443058ee6e435f5470b8bf2acbd4b862466306",
+        "entry_protection_high_first_trades.csv": "c692678bdbd06bc5ff270882a039b2b257b06be512cbeef580e861d325e6d197",
+        "entry_protection_low_first_entry_oco_ambiguities.csv": "6930dff62e1f26527d46b3eb37001c1d5c33460db2883ddb931c7f7ffc187b68",
+        "entry_protection_low_first_entry_protection_ambiguities.csv": "a51887ca0cce3341149a1e9412df34812bfdbc3e85d8e66ee32ff34fea34de44",
+        "entry_protection_low_first_equity.csv": "1854c378815726a0332543ec1cfd2c4694acaac561da0d4aa8b5a56dd5e8801d",
+        "entry_protection_low_first_intratrade_risk.csv": "542744f60cc4e1b12319c5c4a5ad607ecbf08ceec34727b334d14c933973ce8d",
+        "entry_protection_low_first_report.json": "681768f8145cb86303ead0b62a24ff93cd68cd842c766cc24af20443367c2066",
+        "entry_protection_low_first_trades.csv": "b9656d3186b9a8f7370fd70447f3a33193287ca6ceda1d97fc8ec0aef9394018",
+        "entry_protection_sensitivity.json": "5c03ecd677e456a68473db7063cbc36b64c1b0aeee278f323bdc0036f5ac6d30",
+        "equity.csv": "1854c378815726a0332543ec1cfd2c4694acaac561da0d4aa8b5a56dd5e8801d",
+        "intratrade_risk.csv": "542744f60cc4e1b12319c5c4a5ad607ecbf08ceec34727b334d14c933973ce8d",
+        "market_benchmark.json": "fd0190af6dd1a652c079df44ad6d62f08d5d0b0085347aa791497e84cfd37b10",
+        "report.json": "b3b764bea4b54a5aa859fb86d51a47d7f1a048087c1cfd8eb3c205ab7085d529",
+        "strategy_equity_day.csv": "e78d35d4363bd20a8b142d79ea0ad1fe55e7e4e83ecf9019ac24a40aacafe3f5",
+        "trades.csv": "b9656d3186b9a8f7370fd70447f3a33193287ca6ceda1d97fc8ec0aef9394018",
+        "shared_holding_day": "48aecb8d4700d4cf7f97c9eb7811200790aec6fdf0dfb9892b506f8effef9bf6"
+      },
+      "report_sha256": "b3b764bea4b54a5aa859fb86d51a47d7f1a048087c1cfd8eb3c205ab7085d529"
+    },
+    "status": "insufficient_evidence",
+    "qualifies": false,
+    "checks": [
+      {
+        "id": "evidence",
+        "label": "History and trades",
+        "passed": false,
+        "actual": "0 months; 1 closed trades",
+        "required": "\u2265 24 months and \u2265 100 closed trades"
+      },
+      {
+        "id": "net_profit",
+        "label": "Overall profitability",
+        "passed": false,
+        "actual": "-52.00",
+        "required": "Net IS profit > 0"
+      },
+      {
+        "id": "profitable_months",
+        "label": "Profitable months",
+        "passed": false,
+        "actual": "No complete months",
+        "required": "> 50% profitable; zero/no-trade months included"
+      },
+      {
+        "id": "cost_stress",
+        "label": "Extra-slippage native rerun",
+        "passed": false,
+        "actual": "-57.00",
+        "required": "Net profit > 0 with +1 tick per fill"
+      }
+    ],
+    "sha256": "4528d83f010912b2981754af128d294be57e368915266c6f82996f1d2791fa37"
+  },
+  "market_benchmark": {
+    "version": "price-series-holding-v1",
+    "settings": {
+      "contracts": 1
+    },
+    "observed_bar_count": 2462,
+    "sha256": "e7d4d40ce292a7d934da8dbbc2221563b4f2ee5ce416150b62cb1d2112bed6a8",
+    "equity_sha256": "f5c954f0a50fb8aeb8c215c0979949d2f4f0a2baad5e7cc646a6ec3c9414b9cf",
+    "storage": {
+      "version": "daily-shared-v1",
+      "granularity": "DAY",
+      "timezone": "UTC",
+      "day_boundary": "last_selected_bar_of_source_calendar_date",
+      "observed_day_count": 3,
+      "strategy_sha256": "a9b62639bc5f9767ed137bf76d1be4954c1623dfb303083b423de69ffc669dc0",
+      "holding_key": "d307a59d698116b3d32385dae60620685e1b11e0a4debe81cb4c87fcefccf22b",
+      "holding_sha256": "9d5a2923715a267bef59b787ba749b6ee845c06a2bc71ba646209599d686d0ca"
+    }
+  },
+  "report_storage": {
+    "detail": "compact",
+    "compression": "none",
+    "per_bar_equity_retained": false,
+    "trades": "all",
+    "equity_csv": "initial_and_trade_close"
+  }
+}

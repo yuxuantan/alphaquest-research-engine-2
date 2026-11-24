@@ -4,7 +4,7 @@
   const node = (tag, text) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
   const link = (text, href) => {const a=node('a',text);a.href=href;return a;};
   async function api(url, body, method='POST') {
-    const response=await fetch(url,body===undefined?{}:{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const response=await window.portalLoading.fetch(url,body===undefined?{}:{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const result=await response.json();if(!response.ok){const error=Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));error.detail=result.detail;error.status=response.status;throw error;}return result;
   }
   function details(parent,title,value){const d=node('details');d.append(node('summary',title),node('pre',JSON.stringify(value,null,2)));parent.append(d);}
@@ -152,7 +152,7 @@
           const o=node('option',sourceLabel(item,kind.value));o.value=item.id;o.disabled=!item.selectable;ref.append(o);}
         ref.value=entries.get(selected)?.selectable?selected:'';describe();}
       async function load(reset=false){const version=++requestVersion;const query=search.value.trim(),type=kind.value;
-        loading=true;more.disabled=true;more.hidden=false;listing.textContent='Loading saved sources…';
+        loading=true;more.disabled=true;more.hidden=false;listing.textContent='Loading saved sources…';const finishLoading=window.portalLoading.begin(listing);
         try{const page=await api(`/api/research-campaigns/sources?${new URLSearchParams({kind:type,q:query,offset:reset?0:offset,limit:50})}`);
           if(version!==requestVersion||!row.isConnected)return;
           if(reset){matches=[];offset=0;const selected=entries.get(ref.value);entries=new Map(selected?[[selected.id,selected]]:[]);}
@@ -160,7 +160,7 @@
           offset=page.offset+page.items.length;paint();more.hidden=offset>=page.total;more.textContent='Load more sources';
           listing.textContent=page.total?`${matches.length} of ${page.total} matching sources.${type==='optimization_id'?' Incomplete jobs cannot be selected.':''}`:(query?'No matching sources. Try another search.':type==='backtest_id'?'No completed IS backtests in this library.':'No IS optimization jobs in this library. Choose Backtest to use an individual report.');
         }catch(e){if(version===requestVersion&&row.isConnected){listing.textContent='Could not load sources: '+e.message;more.hidden=false;more.textContent='Retry loading sources';}}
-        finally{if(version===requestVersion){loading=false;more.disabled=false;}}
+        finally{finishLoading();if(version===requestVersion){loading=false;more.disabled=false;}}
       }
       function changedKind(){++requestVersion;clearTimeout(timer);entries.clear();matches=[];offset=0;search.value='';ref.value='';paint();
         const backtest=kind.value==='backtest_id';trials.disabled=backtest;trials.value='';ref.parentElement.firstChild.textContent=backtest?'Saved backtest report':'Saved optimization job';
@@ -340,7 +340,7 @@
   function chart(parent,rows,phase,frontier,assessment=false){
     const box=node('div');box.id='campaign-chart';parent.append(box);
     if(phase==='evaluation'){
-      box.append(node('h3','Acquisition cost vs calendar time'),node('p',assessment?'Frozen OOS family only; no OOS frontier or selection is computed.':'Orange rings mark the saved IS Pareto frontier. Filters hide points without recomputing dominance. Unresolved points remain in the table.'));
+      box.append(node('h3','Acquisition cost vs calendar time'),node('p',assessment?'Frozen OOS family only; no OOS frontier or selection is computed.':'Orange rings mark the saved IS Pareto frontier among resolved candidates only. Filters hide points without recomputing dominance. Unresolved points remain in the table and cannot be selected.'));
       const points=rows.filter(r=>r.metrics.cost_per_funded!=null&&r.metrics.expected_calendar_days_to_funded!=null);
       if(!points.length){box.append(node('p','No resolved cost/time points to plot.'));return;}
       const svg=svgNode('svg',{viewBox:'0 0 820 340',role:'img','aria-label':'Acquisition cost versus calendar time with Pareto frontier'});

@@ -1,0 +1,46 @@
+{
+  "simulation_id": "2d19909ce7b3404ca73adb534d6a8d2a",
+  "checks": [
+    {
+      "phase": "evaluation",
+      "compatible": true,
+      "is_source_identities_unchanged": true,
+      "admitted": 4,
+      "sizes": [
+        12,
+        6,
+        8,
+        3
+      ],
+      "period": {
+        "first_session": "2025-01-02",
+        "last_session": "2026-07-07"
+      },
+      "package_sha256": "abd96c5b3af0c9fbc437e4dc2ad2693318cdb668a025756730874949e3e8a1a0",
+      "original_phase_search_sha256": "5fae2e873d053ed8315225cc8f72a2ca2926a73974e784941f4637dc1ba76e0a",
+      "current_phase_search_sha256": "a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051"
+    },
+    {
+      "phase": "funded",
+      "compatible": true,
+      "is_source_identities_unchanged": true,
+      "admitted": 4,
+      "sizes": [
+        19,
+        26,
+        13,
+        21
+      ],
+      "period": {
+        "first_session": "2025-01-02",
+        "last_session": "2026-07-07"
+      },
+      "package_sha256": "035aa12aa760313e85bfba24f79df9361a8faf08df08965f833ea27cae22b60f",
+      "original_phase_search_sha256": "5fae2e873d053ed8315225cc8f72a2ca2926a73974e784941f4637dc1ba76e0a",
+      "current_phase_search_sha256": "a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051"
+    }
+  ],
+  "read_only": true,
+  "calculation_started": false,
+  "storage": "SQLite mode=ro; existing source files read only; GET API requests only"
+}

@@ -24,23 +24,24 @@
     pair=d+'|'+s;dataset=d;strategy=s;const token=++version;ready=false;loading=!!(d&&s);mode.value='';for(const input of inputs)input.value='';
     status.textContent=loading?'Loading saved declaration…':'Choose a dataset and strategy.';get('#sample-budget').textContent='';get('#sample-budget').classList.remove('warning');fields();notify();
     if(!loading)return;
+    const finishLoading=window.portalLoading.begin(status);
     try{
-      const data=await fetch(`/api/backtests/research-plan?${new URLSearchParams({dataset_id:d,strategy_id:s})}`,{cache:'no-store'}).then(read);
+      const data=await window.portalLoading.fetch(`/api/backtests/research-plan?${new URLSearchParams({dataset_id:d,strategy_id:s})}`,{cache:'no-store'}).then(read);
       if(token!==version)return;
       showHistory(get('#sample-budget'),data);
       if(data.plan){mode.value='dates';['is_start','is_end','oos_start','oos_end'].forEach((k,i)=>inputs[i].value=data.plan[k]);ready=true;status.textContent='Saved split; editable for a new IS run. '+bounds(data.plan);}
       else status.textContent='Choose a split method and review the declaration before running.';
     }catch(error){if(token===version)status.textContent='Could not load declaration: '+error.message;}
-    finally{if(token===version){loading=false;fields();notify();}}
+    finally{finishLoading();if(token===version){loading=false;fields();notify();}}
   }
   review.onclick=async()=>{
-    const token=++version;ready=false;loading=true;status.textContent='Checking source dates and split…';fields();notify();
+    const token=++version;ready=false;loading=true;status.textContent='Checking source dates and split…';fields();notify();const finishLoading=window.portalLoading.begin(status);
     try{
-      const data=await fetch('/api/backtests/research-plan/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataset_id:dataset,strategy_id:strategy,sample_split:payload()})}).then(read);
+      const data=await window.portalLoading.fetch('/api/backtests/research-plan/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataset_id:dataset,strategy_id:strategy,sample_split:payload()})}).then(read);
       if(token!==version)return;
       ready=true;status.textContent=bounds(data.proposed_plan)+' Initial backtests and prop simulations use IS only.';showHistory(get('#sample-budget'),data);
     }catch(error){if(token===version)status.textContent='Split needs attention: '+error.message;}
-    finally{if(token===version){loading=false;fields();notify();}}
+    finally{finishLoading();if(token===version){loading=false;fields();notify();}}
   };
   window.researchSplit={configure,payload,ready:()=>ready&&!loading};
   fields();
@@ -66,10 +67,16 @@
     get('#report-research-title').textContent=research?research.phase==='is'?'In-sample backtest':'Out-of-sample backtest':'Legacy backtest';
     get('#report-research-period').textContent=research?bounds(research.plan):'This report predates required IS/OOS declarations. Its data may already have been inspected; it does not establish an untouched holdout. Declare a split in a new IS backtest to use the controlled workflow.';
     if(!research)return;
+    if(research.workflow_id){
+      const phase=research.workflow_phase?.startsWith('oos')?'oos':research.workflow_phase?.startsWith('is_narrow')?'is_narrow':research.workflow_phase?.startsWith('is_broad')?'is_broad':'mechanic_validation';
+      message.textContent='Campaign report. Execution and phase acceptance are managed in the campaign workflow; OOS assesses the complete frozen Narrow family.';
+      const link=document.createElement('a');link.href=`#campaigns/workflows/${research.workflow_id}/${phase}`+(phase==='oos'&&research.oos_job_id?'?job='+research.oos_job_id:phase==='is_narrow'&&research.broad_trial?'?broad_trial='+research.broad_trial:'');link.textContent=' Return to campaign phase →';message.append(link);
+      return;
+    }
     get('#report-oos-parameters').textContent='Selected parameters: '+Object.entries(record.run_metadata.strategy.parameters).map(([k,v])=>`${k}=${v}`).join(', ');
     const source=research.phase==='is'?record.id:research.parent_run_id;
     try{
-      const data=await fetch(`/api/backtests/${record.id}/oos`,{cache:'no-store'}).then(read);if(token!==reportVersion)return;
+      const data=await window.portalLoading.fetch(`/api/backtests/${record.id}/oos`,{cache:'no-store'}).then(read);if(token!==reportVersion)return;
       showHistory(get('#report-oos-budget'),data);
       run.hidden=research.phase!=='is';run.disabled=oosBusy;
       const saved=data.attempts.filter(a=>a.parent_run_id===source&&a.status==='complete'&&a.report_available).at(-1);
@@ -87,12 +94,12 @@
     oosBusy=true;run.disabled=true;message.textContent='Running the manually selected OOS backtest and prop simulation.';
     const operation=crypto.randomUUID(),began=performance.now();let stopped=false,timer;
     async function poll(){
-      try{const response=await fetch(`/api/progress/${operation}`,{cache:'no-store'});if(response.ok){const p=await response.json();if(token===reportVersion&&!stopped)message.textContent=`OOS · ${p.stage} · ${p.bars_processed.toLocaleString()} / ${p.total_bars.toLocaleString()} bars · ${Math.round((performance.now()-began)/1000)}s elapsed`;}}catch{}
+      try{const response=await window.portalLoading.fetch(`/api/progress/${operation}`,{cache:'no-store'});if(response.ok){const p=await response.json();if(token===reportVersion&&!stopped)message.textContent=`OOS · ${p.stage} · ${p.bars_processed.toLocaleString()} / ${p.total_bars.toLocaleString()} bars · ${Math.round((performance.now()-began)/1000)}s elapsed`;}}catch{}
       if(!stopped)timer=setTimeout(poll,700);
     }
     void poll();
     try{
-      const response=await fetch(`/api/backtests/${record.id}/oos?progress_id=${operation}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:requestId})});
+      const response=await window.portalLoading.fetch(`/api/backtests/${record.id}/oos?progress_id=${operation}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:requestId})});
       const data=await read(response);
       if(token!==reportVersion)return;
       if(response.status===202){message.textContent='This OOS request is already running. Reload this IS report later to open its saved result.';return;}

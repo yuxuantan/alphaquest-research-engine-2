@@ -1,6 +1,7 @@
 """One local server: static portal and dataset API."""
 
 import hashlib
+import asyncio
 import os
 import time
 from collections import OrderedDict
@@ -89,8 +90,16 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         fresh_scope=not dataset_path.exists()
         app.state.store = DatasetStore(dataset_path)
         app.state.runs = RunStore(app.state.store.path.parent)
+        app.state.store.replay_cache=app.state.runs.replay_cache
         app.state.research = ResearchStore(app.state.runs)
+        from .campaign_workflow import CampaignWorkflowStore
+        app.state.campaign_workflows = CampaignWorkflowStore(app.state.runs)
+        app.state.mechanic_tasks = set()
+        app.state.mechanic_stops = {}
+        app.state.backtest_stops = {}
         app.state.prop_analyses = AnalysisStore(app.state.store.path.parent)
+        from .campaign_dataset_links import CampaignDatasetLinks
+        app.state.campaign_dataset_links=CampaignDatasetLinks(app.state.runs,app.state.prop_analyses)
         from .research_access import ResearchAccess
         app.state.research_access=ResearchAccess(app.state.prop_analyses,fresh_scope=fresh_scope)
         app.state.store.research_access=app.state.research_access
@@ -110,11 +119,26 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.research_workspace = ResearchWorkspace(app.state.campaigns)
         app.state.strategy_library=StrategyLibrary(app.state.runs,app.state.store,app.state.prop_analyses)
         app.state.progress = ProgressTracker()
+        from .prop_sim_preparation import PropSimPreparation
+        app.state.prop_sim_preparation=PropSimPreparation(app)
+        from .prop_sim_automation import PropSimAutomation
+        app.state.prop_sim_automation=PropSimAutomation(app)
+        app.state.prop_analyses.phase_finished=app.state.prop_sim_automation.analysis_finished
+        app.state.prop_sim_preparation.recover()
+        app.state.prop_sim_automation.recover()
+        from .prop_portfolio import recover as recover_portfolios
+        recover_portfolios(app)
         yield
+        app.state.prop_sim_preparation.close()
+        app.state.prop_sim_automation.close()
+        if app.state.mechanic_tasks:
+            await asyncio.gather(*list(app.state.mechanic_tasks), return_exceptions=True)
         await run_in_threadpool(app.state.optimizations.close)
         app.state.prop_analyses.close()
 
     app = FastAPI(title="AlphaQuest dataset portal", lifespan=lifespan)
+    from .tick_data import router as tick_router
+    app.include_router(tick_router)
     app.include_router(research_router)
     app.include_router(optimization_router)
     app.include_router(backtest_router)
@@ -128,6 +152,26 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from .forward_api import router as forward_router
     app.include_router(forward_router)
     app.include_router(strategy_library_router)
+    from .campaign_workflow import router as workflow_router
+    app.include_router(workflow_router)
+    from .campaign_dataset_links import router as campaign_dataset_links_router
+    app.include_router(campaign_dataset_links_router)
+    from .job_history import router as jobs_router
+    app.include_router(jobs_router)
+    from .campaign_broad import router as broad_router
+    app.include_router(broad_router)
+    from .campaign_narrow import router as narrow_router
+    app.include_router(narrow_router)
+    from .campaign_oos import router as oos_router
+    app.include_router(oos_router)
+    from .campaign_monte_carlo import router as monte_carlo_router
+    app.include_router(monte_carlo_router)
+    from .prop_sim import router as prop_sim_router
+    app.include_router(prop_sim_router)
+    from .prop_portfolio import router as prop_portfolio_router
+    app.include_router(prop_portfolio_router)
+    from .prop_desk import router as prop_desk_router
+    app.include_router(prop_desk_router)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
 
     @app.middleware("http")
@@ -270,7 +314,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         if dataset is not None:
             try:request.app.state.research_access.assert_deletable(dataset)
             except ResearchConflict as exc:raise HTTPException(409,str(exc)) from exc
-        if not request.app.state.store.delete(dataset_id):
+        try:
+            deleted=request.app.state.store.delete(dataset_id)
+        except ValueError as exc:
+            raise HTTPException(409,str(exc)) from exc
+        if not deleted:
             raise HTTPException(404, "Dataset not found.")
         return Response(status_code=204)
 

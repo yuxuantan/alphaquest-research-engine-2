@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "workflow_id": "056796e7fcb34058ba13418eb37c8f58",
+  "oos_job_id": "03f8c7f9a2824ad8bc932ceda79f038d",
+  "analysis_id": "e44b83feab1749bcb6d482d92bd8732e",
+  "expected_full_period_net": [
+    14040,
+    14040,
+    28080,
+    28080
+  ],
+  "expected_closed_trades_per_candidate": 1080,
+  "expected_paths_per_candidate": 10000,
+  "expected_candidates_passed": 4,
+  "expected_daily_close_drawdown": 0,
+  "source": "120 IS + 60 OOS active dates, each 78 CU/day/contract after existing costs. Other observed dates retained with zero net.",
+  "limitations": "Synthetic source and mechanics attestations; no measured MultiCharts parity or future-edge claim.",
+  "server": "Temporary browser server stopped at teardown."
+}

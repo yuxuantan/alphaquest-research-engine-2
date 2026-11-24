@@ -1,0 +1,124 @@
+[
+  {
+    "profile": "apex-50k-eod",
+    "phase": "evaluation",
+    "metrics": {
+      "cost_per_funded": 178.0,
+      "expected_attempts_per_funded": 1.0,
+      "expected_calendar_days_to_funded": 2.0,
+      "funded_accounts_per_30_calendar_days": 15.0,
+      "median_calendar_days_to_funded": 2,
+      "p90_calendar_days_to_funded": 2,
+      "pass_probability": 1.0,
+      "pass_probability_bounds": [
+        1.0,
+        1.0
+      ],
+      "pass_probability_ci": [
+        0.6755843804891231,
+        1.0
+      ],
+      "probability_funded_by_day_30": 1.0,
+      "probability_funded_by_day_30_bounds": [
+        1.0,
+        1.0
+      ],
+      "probability_funded_by_day_60": 1.0,
+      "probability_funded_by_day_60_bounds": [
+        1.0,
+        1.0
+      ]
+    },
+    "ratio_and_bounds": 1.0,
+    "historical_replicates": 10000,
+    "forward": "PENDING",
+    "report_sha256": "a4f7b310a0cd92778c3b668f951aed1eaa6edc5876d683766a62f416510cbc38"
+  },
+  {
+    "profile": "apex-50k-eod",
+    "phase": "funded",
+    "metrics": {
+      "account_breach_probability": 0.0,
+      "expected_account_lifetime": 39.0,
+      "expected_days_to_first_payout_conditional_on_payout": 6.0,
+      "expected_funded_cash_payouts_within_horizon": 13000.0,
+      "expected_gross_account_deductions": 13000.0,
+      "expected_number_of_payouts": 6.0,
+      "expected_payouts": 13000.0,
+      "expected_pending_cash": 0.0,
+      "median_payouts": 13000.0,
+      "p10_payouts": 13000.0,
+      "p90_payouts": 13000.0,
+      "probability_first_payout": 1.0,
+      "probability_inactivity": 0.0,
+      "probability_payout_limit_completion": 1.0,
+      "probability_surviving_to_horizon": 0.0,
+      "probability_zero_payout": 0.0,
+      "restricted_mean_account_lifetime_calendar_days": 39.0
+    },
+    "ratio_and_bounds": 1.0,
+    "historical_replicates": 10000,
+    "forward": "PENDING",
+    "report_sha256": "468212117f7bda037befb271c84fd1a030a775fcf34b1d7263d085542fc6b17f"
+  },
+  {
+    "profile": "lucidflex-50k",
+    "phase": "evaluation",
+    "metrics": {
+      "cost_per_funded": 80.5,
+      "expected_attempts_per_funded": 1.0,
+      "expected_calendar_days_to_funded": 3.0,
+      "mean_consistency_blocked_sessions": 2.0,
+      "mean_days_before_final_attempt": 0.0,
+      "mean_failed_attempts_after_target": 0.0,
+      "mean_failed_attempts_before_target": 0.0,
+      "mean_final_attempt_days_after_target": 2.0,
+      "mean_final_attempt_days_before_target": 0.0,
+      "mean_pass_to_ready_days": 1.0,
+      "median_calendar_days_to_funded": 3.0,
+      "p90_calendar_days_to_funded": 3.0,
+      "pass_probability": 1.0,
+      "pass_probability_bounds": [
+        1.0,
+        1.0
+      ],
+      "probability_acquisition_by_cutoff": 1.0,
+      "probability_funded_by_day_30": 1.0,
+      "probability_funded_by_day_60": 1.0,
+      "probability_funded_by_day_90": 1.0,
+      "restricted_mean_observed_calendar_days": 3.0,
+      "restricted_mean_paid_fees": 80.5
+    },
+    "ratio_and_bounds": 1.0,
+    "historical_replicates": 10000,
+    "forward": "PENDING",
+    "report_sha256": "33fc8a57de0aaa198862d7c6eefd16dd65a49c86cf3b6f91d14e7a1ed7272afb"
+  },
+  {
+    "profile": "lucidflex-50k",
+    "phase": "funded",
+    "metrics": {
+      "account_breach_probability": 0.0,
+      "expected_account_lifetime": 32.0,
+      "expected_days_to_first_payout_conditional_on_payout": 6.0,
+      "expected_funded_cash_payouts_within_horizon": 9000.0,
+      "expected_gross_account_deductions": 10000.0,
+      "expected_number_of_payouts": 5.0,
+      "expected_payouts": 9000.0,
+      "expected_pending_cash": 0.0,
+      "median_payouts": 9000.0,
+      "p10_payouts": 9000.0,
+      "p90_payouts": 9000.0,
+      "probability_first_payout": 1.0,
+      "probability_inactivity": 0.0,
+      "probability_payout_limit_completion": 1.0,
+      "probability_surviving_to_horizon": 0.0,
+      "probability_zero_payout": 0.0,
+      "restricted_mean_account_lifetime_calendar_days": 32.0
+    },
+    "ratio_and_bounds": 1.0,
+    "historical_replicates": 10000,
+    "forward": "PENDING",
+    "report_sha256": "7541e2b69c2a1cccced1de36734914996d303f06d839090170fa28076b8163d6"
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "evidence": "Synthetic browser journeys for the Simulation and Optimise workspace",
+  "runs": {
+    "fixed_and_single_size_equity": {
+      "evaluation": "c197490a3c944a0d8ad55b774fbd9c86",
+      "funded": "ca83b0c7b46845ccaa34d1b7e8deea16",
+      "single_size_equity": "5d2b24dd8bfe44609c271be0ec400e63"
+    },
+    "basket": {
+      "evaluation": "5d72fd0c0f584bf28034953393eaf753",
+      "funded": "917640420f8f4a1fa4f6e37b690ae475"
+    },
+    "optimise": {
+      "evaluation": "61628569b2ba447a884b26610371e258",
+      "funded": "d4967a95581e4628a20cb599058833fb"
+    }
+  },
+  "sha256": {
+    "basket-evaluation-report.json": "9a50036e38da5c5d0daea9ee1a50d376ecd8d36416cf4e37a1d7a958828a6ee0",
+    "basket-funded-report.json": "8c8021a677a2c54615ef8b5d334dae546feafbbaec860b390abb71187e54d0a6",
+    "fixed-evaluation-report.json": "527fb440a5007c2bc822920876a597672be150eac5c8f03b49f2aedbe06e7ea8",
+    "fixed-funded-report.json": "737d0f60c76bcc0166444b23c734aa38b80d2b7602dca79a19590d951f68e7a1",
+    "optimise-desktop.png": "d3c4e33c8b9744bd8cae7bce931797ee54a0a97b01aba3918a34265a16f508ab",
+    "optimise-evaluation-report.json": "f72aaf3db0c36a51ccfa8f484945d05962e9ca0f60deadbb6ffba2330ce187ad",
+    "optimise-funded-report.json": "5efe41413abb25fa82cafff65dfdb126e37a336161ad507eb68703a093828ecb",
+    "optimise-mobile.png": "8cff19b20c597f99c51a76c30db222803c19b8ad224b8e6f41ceec78e1d380bb",
+    "portfolio-desktop.png": "9d6297fcadfda54082a22c3b5d8c17f392a40a5568627f82cdc1354c33465beb",
+    "simulation-desktop.png": "8e3c6b22eface135b5197f71ddd02b34a516ad79563bc6aa1a2cbd09c959fd2d",
+    "single-size-admitted-trades.csv": "4af21c82373eb338de3348e71da4b013239387b9439c04cd04fd01aa5f792990",
+    "single-size-equity-10.json": "6c5e36113ef5c4c24a3808e952189d911506e08a0ce5f93f6e68a208cebd8c3a",
+    "single-size-equity-report.json": "771e112001a3c37764cd5a28a5c94e2dd5eeb329cd403fe56b98a68baaa35548"
+  }
+}

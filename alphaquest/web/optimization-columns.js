@@ -2,14 +2,15 @@
 
 // Browser presentation only; saved calculations, sorting and CSVs remain intact.
 window.OptimizationColumns = class {
-  constructor(table, region, panel) {
+  constructor(table, region, panel, options = {}) {
     Object.assign(this, {table, region, panel, columns: [], preferences: new Map(), frame: null, dirty: true});
     this.search = panel.querySelector("input[type=search]");
     this.choices = panel.querySelector(".optimization-column-choices");
     this.status = panel.querySelector("[role=status]");
     this.summary = panel.querySelector(".optimization-freeze-count");
     this.shownSummary = panel.querySelector(".optimization-column-count");
-    this.empty = document.querySelector("#optimization-visible-empty");
+    this.empty = options.empty || document.querySelector("#optimization-visible-empty");
+    this.defaultFrozen = options.defaultFrozen || ["trial"];
     this.search.addEventListener("input", () => this.filter());
     panel.querySelector("[data-columns=reset]").onclick = () => {
       this.state = this.defaults();
@@ -18,13 +19,21 @@ window.OptimizationColumns = class {
     panel.querySelector("[data-columns=all]").onclick = () => { this.state.visible = "all"; this.save(); };
     panel.querySelector("[data-columns=hide]").onclick = () => { this.state.visible = []; this.state.frozen = []; this.save(); };
     panel.querySelector("[data-freeze=none]").onclick = () => this.choose([]);
-    window.addEventListener("scroll", () => this.layout(), {passive: true});
-    window.addEventListener("resize", () => this.layout(true));
-    new ResizeObserver(() => this.layout(true)).observe(region);
-    new ResizeObserver(() => this.layout(true)).observe(table);
+    this.onScroll = () => this.layout();
+    this.onResize = () => this.layout(true);
+    window.addEventListener("scroll", this.onScroll, {passive: true});
+    window.addEventListener("resize", this.onResize);
+    this.observers = [new ResizeObserver(this.onResize), new ResizeObserver(this.onResize)];
+    this.observers[0].observe(region); this.observers[1].observe(table);
   }
 
-  defaults() { return {visible: null, frozen: ["trial"], order: []}; }
+  defaults() { return {visible: null, frozen: [...this.defaultFrozen], order: []}; }
+  destroy() {
+    window.removeEventListener("scroll", this.onScroll);
+    window.removeEventListener("resize", this.onResize);
+    this.observers.forEach(observer => observer.disconnect());
+    if (this.frame !== null) cancelAnimationFrame(this.frame);
+  }
   keys(value) { return Array.isArray(value) && value.every((key) => typeof key === "string"); }
   unique(keys) { return [...new Set(keys)]; }
 
@@ -77,7 +86,7 @@ window.OptimizationColumns = class {
         input.dataset.control = control;
         const action = control === "show" ? "Show" : "Freeze";
         input.setAttribute("aria-label", `${action} ${title}`);
-        input.setAttribute("aria-describedby", "optimization-freeze-help optimization-freeze-status");
+        input.setAttribute("aria-describedby", this.status.id);
         input.onchange = () => control === "show" ? this.show(key, input.checked)
           : this.choose(input.checked ? [...this.state.frozen, key] : this.state.frozen.filter((item) => item !== key));
         label.append(input, action);

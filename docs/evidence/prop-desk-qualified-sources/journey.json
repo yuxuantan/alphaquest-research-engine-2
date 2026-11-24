@@ -1,0 +1,20 @@
+{
+  "evidence_type": "Synthetic normal-product campaign qualification",
+  "workflow": "ba28b19c183c4654ade7f3c97808f2d6",
+  "analysis": "5d4cbb5c031544b6b6a3b39ac987017e",
+  "qualified": {
+    "c6da89b688b744f780287b1a90db6cf9": "bfe55f58224e4d2488678ad7604c5f37",
+    "7d9fc092d0a34e96ab6d866a240b7002": "9d239afb07f24c28a0f958926a485a52",
+    "60306e52d14849f9afd36b16129e466a": "be423f7f6d2540b788aba251a7f6ec95",
+    "7c6f7e1e65d6483c9f31bea36c6f2e52": "935a460fcd5d477eb230f8d919cfc1a9"
+  },
+  "excluded": "c8c2e7ead9b944188e16ba6a536cf311",
+  "sha256": {
+    "empty.png": "203bc5a62abcc5bb47fa1b33380c2ca1561e38225982eb61b6c3137eb6cbec79",
+    "qualified-catalogue.json": "0aa22c3eaa6c9984e606c4eff36413ff1fc35fe9c29ffd18effed3f8f322cf9a",
+    "qualified-desktop.png": "13b3703c10b4819c7ff0d75211089561081996bc8468b75a1591b4e8afe29f10",
+    "rejections.json": "5c82f80b53c941eedf6a74f0dd28b653a1c744146ad4f57e4de10aa6976da76b",
+    "reopened-mobile.png": "2d176e36f4c6a74a3a38548d666e4fa06c3fa0fc60bc4b72f79f49b3e832632e",
+    "report.json": "276c7a4285eb0608a1091d41d77b06070e62bc736dc9797a37875a630ee30d21"
+  }
+}

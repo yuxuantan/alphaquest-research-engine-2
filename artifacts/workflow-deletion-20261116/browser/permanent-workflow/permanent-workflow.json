@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "dataset_id": "18cf76ccd037497cb7ab85eeae5ff5fe",
+  "workflow_id": "c2b3d95a0f404fbaa2756d0685e67bce",
+  "run_id": "950af8e1f25a42c1b2b35b8e00307c6c",
+  "real_mechanics_run": true,
+  "preview_lists_files": true,
+  "cancel_preserves_all": true,
+  "unchecked_confirmation_disabled": true,
+  "files_and_results_deleted": true,
+  "durable_after_reload": true,
+  "campaign_and_dataset_preserved": true,
+  "other_same_dataset_workflow_id": "b9b2cd9cae564428bca102af954ca3dd",
+  "other_workflow_and_all_files_unchanged": true,
+  "temporary_server": "Stopped by fixture teardown"
+}

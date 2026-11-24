@@ -3,6 +3,7 @@
 const $ = (selector) => document.querySelector(selector);
 const fmt = new Intl.NumberFormat("en-US");
 let selectedFile = null;
+const tickMode = () => $("#dataset-format").value === "ticks";
 let validated = null;
 let generation = 0;
 let busy = false;
@@ -55,7 +56,7 @@ function pickFile(file) {
   $("#file-label").textContent = file.name;
   $("#file-hint").textContent =
     `${bytes(file.size)} · Click to choose another file`;
-  $("#dataset-name").value = file.name.replace(/\.csv$/i, "").slice(0, 120);
+  $("#dataset-name").value = file.name.replace(/\.(csv|scid)$/i, "").slice(0, 120);
   invalidate();
 }
 
@@ -72,7 +73,7 @@ function setBusy(value, action) {
   ))
     input.disabled = value;
   $("#validate-button").disabled = value || !selectedFile;
-  $("#validate-button").textContent = value ? action : "Validate CSV →";
+  $("#validate-button").textContent = value ? action : tickMode() ? "Import trade ticks →" : "Validate CSV →";
   const save = $("#save-button");
   if (save) save.disabled = value;
 }
@@ -126,7 +127,7 @@ function showProgress(state, started, saving) {
 }
 
 function upload(path) {
-  const saving = path === "/api/datasets";
+  const saving = path === "/api/datasets" || path === "/api/datasets/ticks";
   const operationId = crypto.randomUUID();
   const started = performance.now();
   const params = new URLSearchParams({
@@ -135,6 +136,7 @@ function upload(path) {
     progress_id: operationId,
     disclosure: $("#dataset-metadata-only").checked ? "metadata_only" : "standard",
   });
+  if (path === "/api/datasets/ticks") params.set("disclosure", $("#dataset-metadata-only").checked ? "metadata_only" : "standard");
   if (saving) {
     params.set("name", $("#dataset-name").value.trim());
     params.set("symbol", $("#symbol").value.trim());
@@ -163,7 +165,7 @@ function upload(path) {
     let timer;
     const poll = async () => {
       try {
-        const response = await fetch(`/api/progress/${operationId}`, {
+        const response = await window.portalLoading.fetch(`/api/progress/${operationId}`, {
           cache: "no-store",
         });
         if (response.ok && !finished) {
@@ -380,6 +382,18 @@ async function saveDataset() {
       node("span", "small muted", `${fmt.format(saved.row_count)} bars saved`),
       open,
     );
+    try {
+      const pending = sessionStorage.getItem('backtest-upload-return');
+      if (pending?.startsWith('#backtests/new')) {
+        const [route, query] = pending.split('?');
+        const params = new URLSearchParams(query || '');
+        params.set('dataset', saved.id);
+        const back = node('a', 'button primary', 'Continue to backtest →');
+        back.href = `${route}?${params}`;
+        actions.append(back);
+        sessionStorage.removeItem('backtest-upload-return');
+      }
+    } catch {}
     box.append(actions);
     await loadLibrary();
     $("#form-hint").textContent = "Saved. Choose another CSV to continue.";
@@ -415,7 +429,7 @@ async function deleteDataset(dataset) {
   }
   $("#library-status").textContent = "";
   try {
-    const response = await fetch(`/api/datasets/${dataset.id}`, {
+    const response = await window.portalLoading.fetch(`/api/datasets/${dataset.id}`, {
       method: "DELETE",
     });
     // Another tab may already have deleted it; synchronize the visible library.
@@ -445,27 +459,28 @@ function renderLibrary() {
   const total = datasets.reduce((sum, dataset) => sum + dataset.row_count, 0);
   $("#dataset-count").textContent = fmt.format(datasets.length);
   $("#nav-count").textContent = datasets.length;
-  $("#library-count").textContent = datasets.length;
   $("#bar-count").textContent = fmt.format(total);
   const library = $("#library");
   library.replaceChildren();
   if (!datasets.length) {
     const empty = node("div", "empty-state");
     empty.append(
-      node("span", "empty-icon", "▤"),
-      node("strong", "", "A clean start for your next idea"),
-      node("p", "", "Upload and validate a CSV to add your first dataset."),
+      node("strong", "", "No saved datasets"),
+      node("p", "", "Add a CSV or Sierra SCID file to get started."),
     );
     library.append(empty);
     return;
   }
   const wrap = node("div", "table-scroll");
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute("aria-label", "Saved dataset table");
   const table = node("table", "library-table");
   const head = node("thead");
   const header = node("tr");
   for (const title of [
     "Dataset",
-    "Bars",
+    "Rows",
     "Date range · UTC",
     "Spacing",
     "Status",
@@ -489,9 +504,10 @@ function renderLibrary() {
       node(
         "span",
         "dataset-sub",
-        [dataset.symbol, dataset.filename].filter(Boolean).join(" · "),
+        [dataset.symbol, dataset.tick_data?.original_filename || dataset.filename].filter(Boolean).join(" · "),
       ),
     );
+    if(dataset.tick_data) title.append(node("span","dataset-sub",`${fmt.format(dataset.tick_data.records)} ordered trades · completed-minute order flow`));
     title.append(node("span", "dataset-sub", dataset.instrument_settings
       ? `Tick ${dataset.instrument_settings.tick_size} · Point value ${dataset.instrument_settings.point_value}`
       : "Instrument settings needed for backtests"));
@@ -504,6 +520,15 @@ function renderLibrary() {
     download.href = `/api/datasets/${dataset.id}/csv`;
     download.setAttribute("aria-label", `Download ${dataset.name}`);
     downloadCell.append(download);
+    if(dataset.tick_data){
+      downloadCell.classList.add("tick-source-downloads");download.className="";download.textContent="Minute CSV ↓";
+      const flow=node("a","","Flow CSV");flow.href=`/api/datasets/${dataset.id}/ticks/flow`;downloadCell.append(flow);
+      const sources=node("details");sources.append(node("summary","",`Trade sources (${dataset.tick_data.sources.length})`));
+      for(let i=0;i<dataset.tick_data.sources.length;i++){
+        const raw=node("a","",`SCID ${i+1} ↓`);raw.href=`/api/datasets/${dataset.id}/ticks/source/${i}`;sources.append(raw);
+      }
+      downloadCell.append(sources);
+    }
     const actions = node("td");
     const edit = node("button", "button secondary", "Edit defaults");
     edit.type = "button";
@@ -528,20 +553,25 @@ function renderLibrary() {
   }
   table.append(head, body);
   wrap.append(table);
-  library.append(wrap);
+  library.append(node('p','table-scroll-hint','Scroll across for dates, downloads and dataset actions.'), wrap);
 }
 
 async function loadLibrary() {
+    const finishSectionLoading=window.portalLoading.begin($("#library-status"),{label:'Loading datasets…'});
+    try {
   try {
-    const response = await fetch("/api/datasets");
+    const response = await window.portalLoading.fetch("/api/datasets");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     datasets = await response.json();
     $("#library-status").textContent = "";
     renderLibrary();
   } catch {
-    $("#library-status").textContent =
-      "Could not load the library. Reload the page to try again.";
+    const retry = node("button", "button secondary", "Retry");
+    retry.type = "button";
+    retry.onclick = loadLibrary;
+    $("#library-status").replaceChildren("Could not load saved datasets. ", retry);
   }
+    } finally { finishSectionLoading(); }
 }
 
 function showDetails(dataset) {
@@ -553,12 +583,13 @@ function showDetails(dataset) {
   const fields = [
     ["Symbol", dataset.symbol || "Not specified"],
     ["Bars", fmt.format(dataset.row_count)],
+    ...(dataset.tick_data ? [["Execution source", `${fmt.format(dataset.tick_data.records)} ordered trades`], ["Trade classification", dataset.tick_data.flow_classification ? `${dataset.tick_data.flow_classification.classified_pct}% volume classified at bid/ask` : "Preserved from contract sources"], ["Decision clock", "Completed one-minute bars and trade flow; trade sequence resolves fills"]] : []),
     ["Observed spacing", spacing(dataset)],
     ["Start · UTC", date(dataset.start)],
     ["End · UTC", date(dataset.end)],
     ["Source timezone", dataset.source_timezone],
-    ["Original file", dataset.filename],
-    ["File size", bytes(dataset.bytes)],
+    ["Original file", dataset.tick_data?.original_filename || dataset.filename],
+    ["File size", bytes(dataset.tick_data?.raw_bytes || dataset.bytes)],
     ["Saved · UTC", date(dataset.created_at)],
   ];
   for (const [key, value] of fields) {
@@ -602,7 +633,7 @@ function showDetails(dataset) {
     inputs.forEach((input) => input.disabled = true);
     status.textContent = "Saving instrument settings…";
     try {
-      const response = await fetch(`/api/datasets/${dataset.id}/instrument-settings`, {
+      const response = await window.portalLoading.fetch(`/api/datasets/${dataset.id}/instrument-settings`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tick_size: inputs[0].value.trim(), point_value: inputs[1].value.trim() }),
       });
@@ -682,19 +713,34 @@ dropzone.addEventListener("drop", (event) => {
   }
   pickFile(event.dataTransfer.files[0]);
 });
+$("#dataset-add").addEventListener("click", () => {
+  const heading = $("#upload-heading");
+  heading.focus({preventScroll: true});
+  heading.scrollIntoView({block: "start"});
+});
+
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   checkInstrumentInputs($("#dataset-tick-size"), $("#dataset-point-value"));
   if (!$("#upload-form").reportValidity()) return;
   if (busy || !selectedFile) return;
   invalidate();
-  if (selectedFile.size > MAX_BYTES) {
+  if (!tickMode() && selectedFile.size > MAX_BYTES) {
     showError({ detail: "The CSV exceeds the 1 GB limit." });
     return;
   }
   const current = generation;
   setBusy(true, "Validating…");
   try {
+    if (tickMode()) {
+      const result = await upload("/api/datasets/ticks");
+      if (current !== generation) return;
+      const imported=resultBox("saved","Trade tick dataset imported");
+      imported.append(node("p","",`Imported ${result.name}: ${fmt.format(result.tick_data.records)} trades → ${fmt.format(result.row_count)} completed minutes. Ordered trade execution and completed-minute order flow are available in Campaigns.`));
+      await loadLibrary();
+      $("#form-hint").textContent="Tick source checked and saved. Select it when creating a campaign backtest.";
+      return;
+    }
     const result = await upload("/api/datasets/validate");
     if (current !== generation) return;
     validated = result;
@@ -722,7 +768,7 @@ $("#dataset-dialog").addEventListener("click", (event) => {
 });
 async function loadTimezones() {
   try {
-    const response = await fetch("/api/timezones");
+    const response = await window.portalLoading.fetch("/api/timezones");
     if (!response.ok) return;
     const timezones = await response.json();
     const select = $("#source-timezone");
@@ -745,3 +791,14 @@ async function loadTimezones() {
 
 loadTimezones();
 loadLibrary();
+
+const originalFormatPanel=$(".format-panel").innerHTML;
+$("#dataset-format").addEventListener("change", () => {
+  $(".format-panel").innerHTML=tickMode()?'<h2>Trade tick requirements</h2><a class="workflow-inline-link" href="/api/datasets/ticks/example">Download example CSV</a><p class="small muted">Sierra SCID v1: individual records, Last trade prices, integer UTC microseconds. Or trade CSV with these exact columns:</p><p><code>timestamp<br>price<br>volume<br>bid_volume<br>ask_volume</code></p><p class="small muted">Unknown volume is retained. Original ordering is preserved when timestamps tie. No sorting, missing-tick filling, order-book depth or queue reconstruction.</p><p class="small muted">Strategies see completed-minute OHLCV, delta, trade VWAP and record-size summaries. Stops and targets follow the recorded trades.</p>':originalFormatPanel;
+  invalidate();
+  $("#tick-format-help").hidden=!tickMode();
+  if(tickMode()) $("#source-timezone").value="UTC";
+  for(const id of ["#symbol","#dataset-tick-size","#dataset-point-value"]) $(id).required=tickMode();
+  $("#validate-button").textContent=tickMode()?"Import trade ticks →":"Validate CSV →";
+  $("#file-hint").textContent=tickMode()?"SCID or trade CSV · streamed import; original trades retained":"UTF-8 OHLCV CSV · Up to 1 GB";
+});

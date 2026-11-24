@@ -30,7 +30,8 @@ def calculate(rows,settings,snapshot,progress,compute):
     entry=_active.get().get(key)
     if entry:
         try:
-            raw=Path(entry['path']).read_bytes()
+            from ..prop_report_storage import read_bytes
+            raw=read_bytes(entry['path'])
             if sha256(raw).hexdigest()==entry['sha256']:
                 result=json.loads(raw)
                 if result.get('model_version')==expected_model:

@@ -1,0 +1,27 @@
+{
+  "workflow_id": "55a105ed8906460cabe6ba89833f5f24",
+  "broad_job_id": "c8ded000cffc4ecaa1bf76931f898537",
+  "earlier_job_id": "ff78862bee70406299870af5b044183d",
+  "expected_trials": 18,
+  "expected_eligible": [
+    1,
+    2,
+    3
+  ],
+  "chosen_trials": [
+    2,
+    3
+  ],
+  "chosen_net": [
+    3744,
+    5616
+  ],
+  "expected_ineligible": 15,
+  "expected_backtests": 37,
+  "expected_jobs": 3,
+  "single_job_destination": true,
+  "old_batch_urls_redirect": true,
+  "earlier_results_read_only": true,
+  "mc_parity": "Synthetic user-attestation exercise only; no automated or measured MC comparison",
+  "server": "Stopped by fixture teardown."
+}

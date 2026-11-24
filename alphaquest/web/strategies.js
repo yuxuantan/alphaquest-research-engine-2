@@ -6,7 +6,7 @@
   let strategy=null,group=null,datasetOffset=0,runOffset=0,generation=0,controller,sort='created_at_utc',direction='desc',strategies=[];
   const pending=new Set();
   const remember=id=>{try{sessionStorage.setItem('strategy-report-return',JSON.stringify({id,route:location.hash}));}catch{}};
-  async function read(url,signal=controller?.signal){const r=await fetch(url,{cache:'no-store',signal}),j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:`HTTP ${r.status}`);return j;}
+  async function read(url,signal=controller?.signal){const r=await window.portalLoading.fetch(url,{cache:'no-store',signal}),j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:`HTTP ${r.status}`);return j;}
   const strategyRoute=id=>`#strategies/${encodeURIComponent(id)}`;
   const datasetRoute=(id,key)=>`${strategyRoute(id)}/datasets/${key}`;
   const api=()=>`/api/strategies/${encodeURIComponent(strategy)}/datasets`;
@@ -14,15 +14,20 @@
   function resetResults(){ $('#strategy-full-period').textContent='';$('#strategy-run-sort').disabled=$('#strategy-run-direction').disabled=true;$('#strategy-results').replaceChildren();$('#strategy-results-wrap').hidden=true;$('#strategy-results-heading').textContent='Saved runs';$('#strategy-results-status').textContent='';$('#strategy-reports-page').textContent='';$('#strategy-reports-previous').disabled=$('#strategy-reports-next').disabled=true; }
   async function loadStrategies(version){
     $('#strategies-status').textContent='Loading strategies…';
+    const finishSectionLoading=window.portalLoading.begin($('#strategies-status'));
+    try {
     const page=await read('/api/strategies/library');if(version!==generation)return;
     strategies=page.items;$('#strategy-groups').replaceChildren();
     for(const item of strategies){const row=el('tr'),cell=el('td'),a=el('a',item.name,'instrument-link');a.href=strategyRoute(item.id);a.setAttribute('aria-current',item.id===strategy?'true':'false');row.dataset.strategyId=item.id;if(item.id===strategy)row.className='selected-instrument';cell.append(a,el('small',`${item.reports} saved reports${item.external_reports?` · ${item.external_reports} imported`:''}${item.registered?'':item.external_reports===item.reports?' · external strategy':' · archived strategy'}`,'field-help'));row.append(cell,el('td',String(item.datasets)));row.onclick=e=>{if(!e.target.closest('a'))location.hash=a.hash;};$('#strategy-groups').append(row);}
     $('#strategies-status').textContent=strategies.length?'Select a strategy to browse the datasets used.':'No strategies available.';
+    } finally { finishSectionLoading(); }
   }
   async function loadDatasets(version){
     if(!strategy)return;
     $('#strategy-datasets-heading').textContent=`${label(strategy)} · datasets`;$('#strategy-datasets-status').textContent='Loading full dataset periods…';$('#strategy-datasets-table').hidden=true;$('#strategy-datasets').replaceChildren();
     $('#strategy-datasets-previous').disabled=$('#strategy-datasets-next').disabled=true;
+    const finishSectionLoading=window.portalLoading.begin($('#strategy-datasets-status'));
+    try {
     try{
       const page=await read(`${api()}?${new URLSearchParams({offset:datasetOffset,limit:50})}`);if(version!==generation)return;
       if(datasetOffset>=page.total&&datasetOffset){datasetOffset=0;return loadDatasets(version);}
@@ -30,12 +35,15 @@
       $('#strategy-datasets-table').hidden=!page.total;$('#strategy-datasets-status').textContent=page.total?'Select an instrument and full dataset period to compare saved parameter runs.':'No datasets have saved reports for this strategy yet.';
       $('#strategy-datasets-page').textContent=page.total?`${datasetOffset+1}–${datasetOffset+page.items.length} of ${page.total}`:'0 datasets';$('#strategy-datasets-previous').disabled=!datasetOffset;$('#strategy-datasets-next').disabled=datasetOffset+page.items.length>=page.total;
     }catch(e){if(e.name!=='AbortError'&&version===generation)$('#strategy-datasets-status').textContent=`Could not load datasets: ${e.message}. Use Refresh.`;}
+    } finally { finishSectionLoading(); }
   }
   function metricCell(record,key,phase){const td=el('td',money(key==='historical_net'?record?.historical_net:record?.metrics[key]));td.dataset.column=`${phase}.${key}`;if(record){td.title=`Run ${record.id}${record.prop_model?' · '+record.prop_model:''}`;if(key==='historical_net'&&record.prop_id&&record.prop_status==='complete'){const a=el('a',money(record.historical_net));a.href=`#backtests/prop/job/${record.prop_id}`;a.title=`Open saved prop report · ${record.prop_model||'saved model'}`;a.onclick=()=>remember(record.id);td.replaceChildren(a);}else if(key==='historical_net'&&record.prop_status==='deleted')td.append(el('small','Prop report deleted','field-help'));}return td;}
   function reportAction(record,kind){const wrap=el('span',undefined,'strategy-report-actions'),a=el('a',`Open ${kind} report ↗`,'button secondary');a.href=`#backtests/report/${record.id}`;a.setAttribute('aria-label',`Open ${kind} backtest report ${record.id}`);a.onclick=()=>remember(record.id);const remove=el('button','Delete','button danger');remove.type='button';remove.dataset.deleteRun=record.id;remove.disabled=pending.has(record.id);remove.setAttribute('aria-label',`Delete backtest ${record.id}`);remove.onclick=()=>deleteRun(record);wrap.append(a,remove);return wrap;}
   const metricNames=[['total_net_pnl','Net P&L · CU'],['max_drawdown_amount','Max DD · CU'],['trades_taken','Trades'],['win_rate_pct','Win %'],['historical_net','Historical net · USD']];
   async function loadRuns(version){
     resetResults();$('#strategy-results-status').textContent='Loading saved IS/OOS results…';
+    const finishSectionLoading=window.portalLoading.begin($('#strategy-results-status'));
+    try {
     try{
       const page=await read(`${api()}/${group}/backtests?${new URLSearchParams({offset:runOffset,limit:25,sort,direction})}`);if(version!==generation)return;
       if(runOffset>=page.total&&runOffset){runOffset=Math.max(0,Math.floor((page.total-1)/25)*25);return loadRuns(version);}
@@ -62,11 +70,12 @@
       if(external)$('#strategy-results-status').textContent=`${page.total} imported reports · IS/OOS labels are exporter declarations; no native OOS execution or parent relationship is inferred. Source coverage and prior access remain visible in each report. N/A means no saved metric.`;
       $('#strategy-reports-page').textContent=`${runOffset+1}–${runOffset+page.items.length} of ${page.total}`;$('#strategy-reports-previous').disabled=!runOffset;$('#strategy-reports-next').disabled=runOffset+page.items.length>=page.total;
     }catch(e){if(e.name!=='AbortError'&&version===generation){resetResults();$('#strategy-results-status').textContent=`Could not load runs: ${e.message}. Use Refresh or return to datasets.`;}}
+    } finally { finishSectionLoading(); }
   }
   async function deleteRun(record){
     if(pending.has(record.id)||!confirm(`Delete backtest ${record.id}?\n\nThis removes this report and its files. Source datasets, saved prop reports, optimization metrics and OOS execution history are kept. This cannot be undone.`))return;
     pending.add(record.id);const route=location.hash,status=$('#strategy-delete-status');status.hidden=false;status.textContent='Deleting selected report…';document.querySelectorAll('[data-delete-run]').forEach(b=>{if(b.dataset.deleteRun===record.id)b.disabled=true;});
-    try{const response=await fetch(`/api/backtests/${record.id}`,{method:'DELETE'});if(!response.ok&&response.status!==404){const error=await response.json();throw Error(error.detail||`HTTP ${response.status}`);}status.textContent='Backtest report deleted. Dataset, saved prop reports and OOS execution history kept.';if(location.hash===route){const page=await read(`${api()}/${group}/backtests?limit=1`);if(page.total)await loadRuns(++generation);}}catch(e){if(e.message.includes('Saved strategy/dataset group not found'))location.hash=strategyRoute(strategy);else status.textContent=`Could not delete report: ${e.message}`;}finally{pending.delete(record.id);document.querySelectorAll('[data-delete-run]').forEach(b=>{if(b.dataset.deleteRun===record.id)b.disabled=false;});}
+    try{const response=await window.portalLoading.fetch(`/api/backtests/${record.id}`,{method:'DELETE'});if(!response.ok&&response.status!==404){const error=await response.json();throw Error(error.detail||`HTTP ${response.status}`);}status.textContent='Backtest report deleted. Dataset, saved prop reports and OOS execution history kept.';if(location.hash===route){const page=await read(`${api()}/${group}/backtests?limit=1`);if(page.total)await loadRuns(++generation);}}catch(e){if(e.message.includes('Saved strategy/dataset group not found'))location.hash=strategyRoute(strategy);else status.textContent=`Could not delete report: ${e.message}`;}finally{pending.delete(record.id);document.querySelectorAll('[data-delete-run]').forEach(b=>{if(b.dataset.deleteRun===record.id)b.disabled=false;});}
   }
   async function navigate(){
     ++generation;controller?.abort();controller=new AbortController();if(!location.hash.startsWith('#strategies'))return;const version=generation;

@@ -1,0 +1,54 @@
+{
+  "evidence": "Separate synthetic API run from this checkout",
+  "phases": {
+    "evaluation": {
+      "optimizer_job": "c768ccfc705f4273bc68d7e631c92957",
+      "basket_job": "e8ac6f35c99041a5b1f03db86a4a62a8",
+      "sizes_with_equal_metrics": [
+        2,
+        3
+      ],
+      "common_is": [
+        "2026-01-05",
+        "2026-01-06",
+        "2026-01-07",
+        "2026-01-08",
+        "2026-01-09",
+        "2026-01-12",
+        "2026-01-13",
+        "2026-01-14"
+      ],
+      "both_paths_3_mnq_sha256": "953c22d3860fa771243654220c59254102bbe6049ef2061867f7236179bc7345"
+    },
+    "funded": {
+      "optimizer_job": "1bb190f8fe3f464cbcae16602c76c2bb",
+      "basket_job": "3bdaf6fe3d024c1e8f1f80e1c07606f9",
+      "sizes_with_equal_metrics": [
+        2,
+        3
+      ],
+      "common_is": [
+        "2026-01-05",
+        "2026-01-06",
+        "2026-01-07",
+        "2026-01-08",
+        "2026-01-09",
+        "2026-01-12",
+        "2026-01-13",
+        "2026-01-14"
+      ],
+      "both_paths_3_mnq_sha256": "05aac2521d8a89cbde96077e601e866a8a65c16747ae9e96a13dabd23a5f9781"
+    }
+  },
+  "oos_comparison": {
+    "full_job": "c768ccfc705f4273bc68d7e631c92957",
+    "partial_job": "2760263d1a8c4b1980fa8b40e2c3bc96",
+    "full_attachment_count": 3,
+    "partial_attachment_count": 2,
+    "both_ranking_sha256": "e5feae8d03ba2706264b573012c56a22b21be324206d6fa3745f96e1f1695df8",
+    "full_first_combination_oos": [
+      "2026-01-15"
+    ],
+    "partial_first_combination_oos": []
+  }
+}

@@ -444,7 +444,7 @@ def _plain(value):
     return format(number, 'f')
 
 
-def project_native_source(runs, source_id: str) -> dict:
+def project_native_source(runs, source_id: str, *, include_intratrade=True) -> dict:
     """Project existing RunStore evidence without creating missing history.
 
     Reads catalogue directly to avoid RunStore.get's legacy enrichment write.
@@ -473,7 +473,7 @@ def project_native_source(runs, source_id: str) -> dict:
     import io
     rows = list(csv.DictReader(io.StringIO(original.decode('utf-8'), newline='')))
     _require(len(rows) <= MAX_TRADES and len(rows) == record['summary']['trades_taken'], 'Native source trade count differs from saved summary.')
-    risk_rows = native_risk(runs, normalized_id, record, rows)
+    risk_rows = native_risk(runs, normalized_id, record, rows) if include_intratrade else None
     decisions = None
     if record.get('execution_decisions') is not None:
         from .decision_capture import SIDE_CAR, read_decision_evidence

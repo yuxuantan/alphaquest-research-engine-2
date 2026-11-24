@@ -23,6 +23,28 @@ def declared_is_coverage(record):
 CANDIDATE_CONFIRMATION_THRESHOLD = 128
 
 
+def strategy_definition(strategy):
+    """Retain strategy/calendar rules, excluding only per-period audit output."""
+    definition = deepcopy(strategy)
+    flattening = definition.get('session_flattening')
+    if isinstance(flattening, dict):
+        for key in ('sessions', 'closed_sessions', 'early_close_sessions',
+                    'examples', 'early_close_examples', 'plans_sha256'):
+            flattening.pop(key, None)
+    return definition
+
+
+def saved_oos_period(record):
+    """Use saved CME-session coverage within the unchanged declared OOS split."""
+    from .phase_lifecycle import instant, session_date
+    plan = record['run_metadata']['research']['plan']
+    first = max(plan['oos_start'], str(session_date(instant(record['period_start_utc']))))
+    last = min(plan['oos_end'], str(session_date(instant(record['period_end_utc']))))
+    if first > last:
+        raise ValueError('OOS source has no saved coverage within its frozen split.')
+    return dict(first_session=first, last_session=last)
+
+
 def stable_phase_policy_identity(row, phase):
     """Tie preference independent of run IDs and opposite-phase declarations."""
     if phase not in ('evaluation', 'funded'):
@@ -49,7 +71,7 @@ def require_candidate_confirmation(count, confirmed_count):
 
 
 def validate_phase_work(search, observed_session_count=None):
-    """One preflight bound shared by preview, source checks and reservation.
+    """Shared work estimates; only optional historical refits impose bounds.
 
     Counts describe captured history units, never certify historical evidence.
     A scalar count applies to every candidate; per-candidate counts are accepted
@@ -60,7 +82,7 @@ def validate_phase_work(search, observed_session_count=None):
     funded = search.mode == 'funded_optimization'
     count = len(search.candidates)
     estimate = (sum(c.simulation.simulations*5000 for c in search.candidates) if funded else
-                sum(c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
+                sum(c.simulation.simulations*2600 if c.profile.profile_id=='lucidflex-50k' else c.sampling.chain_simulations*700+c.simulation.simulations*100 for c in search.candidates))
     work = sum(c.simulation.simulations for c in search.candidates)*search.horizon_calendar_days if funded else 0
     cfg = getattr(search, 'conservative_objective', None)
     indices = 0
@@ -75,9 +97,9 @@ def validate_phase_work(search, observed_session_count=None):
             estimate += indices*8
             if indices > 1_000_000:
                 raise ValueError('Historical resampling capture exceeds one million session indices; narrow the declared search.')
-    if estimate > 100*1024*1024:
+    if cfg is not None and estimate > 100*1024*1024:
         raise ValueError('Declared candidate/path capture exceeds the report resource bound; reduce the explicit search.')
-    if work > 50_000_000:
+    if cfg is not None and work > 50_000_000:
         raise ValueError('Declared funded search exceeds 50 million path calendar days including historical refits; narrow the explicit search.')
     return dict(estimated_capture_bytes=estimate, funded_path_calendar_days=work,
                 historical_session_indices=indices if observed_session_count is not None else None)
@@ -241,22 +263,33 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
                     continue
                 expected = deepcopy(mapping['frozen_manifest']['configuration'])
                 expected['source']['source_backtest_id'] = record['id']
-                expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+                if assessment.get('kind') in ('is_robustness','precision'):
+                    if assessment.get('paths') is not None:
+                        expected['simulation']['simulations']=assessment['paths']
+                        if 'chain_simulations' in expected['sampling']:expected['sampling']['chain_simulations']=assessment['paths']
+                else:expected['period'] = saved_oos_period(record)
                 if canonical(asdict(candidate)) == canonical(expected):
                     selected = mapping
                     break
             if selected is None:
                 raise ValueError('Assessment source is outside the frozen family.')
             saved = selected['frozen_manifest']['source']['backtest']
-            if (research.get('phase') != 'oos' or research.get('parent_run_id') != saved['id']
-                    or metadata['strategy'] != saved['run_metadata']['strategy']
+            diagnostic=assessment.get('kind') in ('is_robustness','precision')
+            if diagnostic and canonical(record)!=canonical(saved):
+                raise ValueError('Frozen IS diagnostic source changed.')
+            if not diagnostic and (research.get('phase') != 'oos' or research.get('parent_run_id') != saved['id']
+                    or strategy_definition(metadata['strategy']) != strategy_definition(saved['run_metadata']['strategy'])
                     or metadata['dataset'] != saved['run_metadata']['dataset']
                     or record['execution_settings'] != saved['execution_settings']
                     or research['plan'] != saved['run_metadata']['research']['plan']):
                 raise ValueError('OOS source must retain its frozen IS parent, strategy, split and execution costs.')
-            expected = dict(selected['frozen_manifest']['configuration'])
+            expected = deepcopy(selected['frozen_manifest']['configuration'])
             expected['source'] = dict(expected['source'], source_backtest_id=record['id'])
-            expected['period'] = dict(first_session=research['plan']['oos_start'], last_session=research['plan']['oos_end'])
+            if diagnostic:
+                if assessment.get('paths') is not None:
+                    expected['simulation']['simulations']=assessment['paths']
+                    if 'chain_simulations' in expected['sampling']:expected['sampling']['chain_simulations']=assessment['paths']
+            else:expected['period'] = saved_oos_period(record)
             if canonical(asdict(candidate)) != canonical(expected):
                 raise ValueError('Assessment parameters, size, profile, costs, sampling and window are frozen.')
         elif training_context is None:
@@ -308,7 +341,8 @@ def check_candidates(runs, search, assessment=None, *, training_context=None, da
                         (metadata['strategy']['id'], metadata['dataset']['sha256'])).fetchall()
                     access = dict(status='recorded', attempts=[dict(zip(('id','parent_run_id','run_id','status','created_at'), r)) for r in history],
                         interpretation='Access history only; no OOS prices, metrics or outcomes enter selection. No untouched-OOS claim.')
-        rows.append(dict(candidate_id=key, manifest=manifest, status='compatible', prior_access=access, origin_trials=origins))
+        rows.append(dict(candidate_id=key, manifest=manifest, status='compatible', prior_access=access, origin_trials=origins,
+            **(dict(frozen_candidate_id=selected['frozen_candidate_id']) if assessment else {})))
     keys = [r['candidate_id'] for r in rows]
     if len(set(keys)) != len(keys):
         raise ValueError('Duplicate candidate definitions; remove duplicates explicitly.')
@@ -370,7 +404,9 @@ def write_sizing_artifacts(staged, calculations):
     fields = ['candidate_id', 'source_trade_id', 'stage', 'path_index', 'attempt', 'session_index',
         'source_session_index', 'calendar_date', 'quantity', 'action', 'requested_contracts',
         'denominator', 'denominator_value', 'risk_budget', 'planned_risk_per_mnq',
-        'planned_total_risk', 'caps', 'reasons', 'state_before', 'state_after', 'account_hit', 'outcome']
+        'planned_total_risk', 'caps', 'reasons', 'state_before', 'state_after', 'account_hit', 'outcome',
+        'account_limit_action', 'minimum_one_override', 'risk_budget_override', 'actual_risk_percent',
+        'account_limit_exit', 'limit_kind']
     rows = []
     for candidate in calculations['candidates']:
         provenance = candidate.get('provenance') or candidate.get('component', {}).get('provenance', {})
@@ -383,6 +419,12 @@ def write_sizing_artifacts(staged, calculations):
             rows.append({k:canonical(value[k]) if isinstance(value.get(k), (dict, list)) else value.get(k) for k in fields})
     if not summaries:
         return
+    models=[]
+    for candidate in calculations['candidates']:
+        provenance=candidate.get('provenance') or candidate.get('component',{}).get('provenance',{})
+        model=provenance.get('source',{}).get('saved_trade_simulation')
+        if model:models.append(dict(candidate_id=candidate['candidate_id'],**model))
+    if models:(Path(staged)/'saved_trade_model.json').write_text(canonical(models),encoding='utf-8')
     (Path(staged)/'sizing_summary.json').write_text(canonical(summaries), encoding='utf-8')
     with (Path(staged)/'sizing_decisions.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)

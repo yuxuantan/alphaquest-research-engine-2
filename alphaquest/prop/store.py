@@ -15,7 +15,7 @@ from .native_analysis import run_analysis
 from .parallel import Runtime
 
 
-def seal_report(staged, result, id, created):
+def seal_report(staged, result, id, created, *, size_limit_bytes=128*1024*1024):
     """Build the normal durable report/downloads, without catalogue access."""
     from .adapter import digest
     result.update(id=id,created_at_utc=created,status='complete')
@@ -23,16 +23,18 @@ def seal_report(staged, result, id, created):
     for p in staged.rglob('*'):
         if p.is_symlink():raise ValueError('Analysis output contains a symbolic link.')
         if p.is_file():files[str(p.relative_to(staged))]=dict(bytes=p.stat().st_size,sha256=digest(p))
-    if sum(v['bytes'] for v in files.values())>128*1024*1024:
+    if size_limit_bytes is not None and sum(v['bytes'] for v in files.values())>size_limit_bytes:
         raise ValueError('Analysis output exceeds 128 MiB; no completed result was published.')
     result['files']=files
     report_text=canonical(result)
-    if sum(v['bytes'] for v in files.values())+len(report_text.encode('utf-8'))>128*1024*1024:
+    if size_limit_bytes is not None and sum(v['bytes'] for v in files.values())+len(report_text.encode('utf-8'))>size_limit_bytes:
         raise ValueError('Analysis artifacts and embedded report exceed 128 MiB; no completed result was published. The archive is a separate compressed copy.')
     (staged/'report.json').write_text(report_text,encoding='utf-8')
     with zipfile.ZipFile(staged/'analysis.zip','w',zipfile.ZIP_DEFLATED) as archive:
         for p in staged.rglob('*'):
             if p.is_file() and p.name!='analysis.zip':archive.write(p,str(p.relative_to(staged)))
+    from ..prop_report_storage import compact
+    compact(staged,sealed_checks(staged),logical_files=files)
 
 
 def request_key(snapshot, settings):
@@ -56,11 +58,20 @@ class AnalysisStore:
         self.path=self.root/'catalog.sqlite3';self.lock=RLock()
         self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='prop-analysis')
         self.runtime=Runtime()
+        self.phase_finished=lambda id:None
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, source_id TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, progress TEXT NOT NULL, error TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_report_checks (id TEXT PRIMARY KEY REFERENCES analyses(id), payload TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_control (analysis_id TEXT PRIMARY KEY, stop_requested INTEGER NOT NULL DEFAULT 0)')
+            db.execute('CREATE TABLE IF NOT EXISTS analysis_compute (analysis_id TEXT PRIMARY KEY, workers INTEGER NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS phase_analysis_progress (analysis_id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS historical_refit_checkpoints (analysis_id TEXT NOT NULL, context_key TEXT NOT NULL, replicate INTEGER NOT NULL, payload TEXT NOT NULL, sha256 TEXT NOT NULL, PRIMARY KEY(analysis_id,context_key,replicate))')
+            db.execute('CREATE INDEX IF NOT EXISTS historical_refits_by_context ON historical_refit_checkpoints(context_key)')
             db.execute('CREATE TABLE IF NOT EXISTS analysis_sources (analysis_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(analysis_id,source_id))')
+            from ..campaign_monte_carlo import initialize as initialize_sanity
+            initialize_sanity(db)
+            from ..prop_sim import initialize as initialize_prop_sim
+            initialize_prop_sim(db)
             db.execute('CREATE INDEX IF NOT EXISTS analysis_sources_by_source ON analysis_sources(source_id)')
             db.execute('CREATE TABLE IF NOT EXISTS lifecycle_comparisons (request_id TEXT PRIMARY KEY, declaration TEXT NOT NULL, checked TEXT NOT NULL, analysis_id TEXT NOT NULL UNIQUE)')
             db.execute('INSERT OR IGNORE INTO analysis_sources SELECT id,source_id FROM analyses')
@@ -87,16 +98,26 @@ class AnalysisStore:
     def get(self,id):
         with self.connect() as db:
             db.row_factory=sqlite3.Row;row=db.execute('SELECT * FROM analyses WHERE id=?',(id,)).fetchone()
-        return dict(row) if row else None
+            detail=db.execute('SELECT payload FROM phase_analysis_progress WHERE analysis_id=?',(id,)).fetchone()
+        return dict(row,progress_details=json.loads(detail[0]) if detail else None) if row else None
 
     def list(self,source):
+        from .desk import REQUEST_PREFIX
         with self.connect() as db:
-            db.row_factory=sqlite3.Row;rows=db.execute('SELECT a.* FROM analyses a WHERE a.source_id=? OR EXISTS (SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?) ORDER BY created DESC LIMIT 100',(source,source)).fetchall()
+            db.row_factory = sqlite3.Row
+            rows = db.execute('SELECT a.* FROM analyses a WHERE (a.source_id=? OR EXISTS '
+                              '(SELECT 1 FROM analysis_sources s WHERE s.analysis_id=a.id AND s.source_id=?)) '
+                              'AND a.request_hash NOT GLOB ? ORDER BY created DESC LIMIT 100',
+                              (source, source, REQUEST_PREFIX + '*')).fetchall()
         return [dict(row) for row in rows]
 
     def active_sources(self):
         with self.connect() as db:
             sources = {r[0] for r in db.execute("SELECT source_id FROM analyses WHERE status IN ('queued','running') UNION SELECT s.source_id FROM analysis_sources s JOIN analyses a ON a.id=s.analysis_id WHERE a.status IN ('queued','running') OR EXISTS (SELECT 1 FROM lifecycle_comparisons p WHERE p.analysis_id=a.id) UNION SELECT source_id FROM campaign_sources")}
+            sources.update(r[0] for r in db.execute("SELECT s.source_id FROM analysis_sources s JOIN workflow_prop_simulations p ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=s.analysis_id)"))
+            sources.update(r[0] for r in db.execute("SELECT s.source_id FROM analysis_sources s JOIN workflow_prop_simulations p "
+                "ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.configuration.selections') j WHERE json_extract(j.value,'$.monte_carlo_id')=s.analysis_id) "
+                "WHERE json_extract(p.payload,'$.preparation.status') IN ('queued','running')"))
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
                 sources.update(r[0] for r in db.execute('SELECT source_id FROM forward_source_refs'))
             return sources
@@ -115,10 +136,66 @@ class AnalysisStore:
         refs.extend(dict(kind='lifecycle_comparison', id=r[0]) for r in db.execute(
             'SELECT DISTINCT p.request_id FROM lifecycle_comparisons p JOIN analysis_sources s '
             'ON s.analysis_id=p.analysis_id WHERE s.source_id=? ORDER BY p.request_id', (source,)))
+        refs.extend(dict(kind='prop_portfolio',id=r[0]) for r in db.execute(
+            "SELECT DISTINCT p.id FROM workflow_prop_simulations p JOIN analysis_sources s "
+            "ON EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=s.analysis_id) WHERE s.source_id=?",(source,)))
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_source_refs'").fetchone():
             refs.extend(dict(kind='forward_monitor', id=r[0]) for r in db.execute(
                 'SELECT monitor_id FROM forward_source_refs WHERE source_id=? ORDER BY monitor_id', (source,)))
         return refs
+
+    def deletion_check(self, db, id, *, releasing_campaigns=(),releasing_prop_sim=None):
+        """Shared metadata-only guards; callers may release their own links atomically."""
+        record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
+        parents={r[0] for r in db.execute("SELECT id FROM workflow_prop_simulations p WHERE EXISTS (SELECT 1 FROM json_each(p.payload,'$.portfolio.attempts') j WHERE j.value=?)",(id,))}
+        if parents-{releasing_prop_sim}:raise ValueError('This report is retained by a saved Prop Sim portfolio.')
+        if db.execute('SELECT 1 FROM campaign_sanity_jobs WHERE analysis_id=?',(id,)).fetchone():
+            raise ValueError('This final Monte Carlo assessment is retained by its workflow history.')
+        owners={r[0] for r in db.execute('SELECT campaign_id FROM campaign_analyses WHERE analysis_id=?',(id,))}
+        owners.update(r[0] for r in db.execute('SELECT id FROM research_campaigns WHERE analysis_id=?',(id,)))
+        if owners-set(releasing_campaigns):
+            raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
+        for table in ('forward_assessments','forward_report_refs'):
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
+                if db.execute(f'SELECT 1 FROM {table} WHERE analysis_id=?',(id,)).fetchone():
+                    raise ValueError('This report is retained by a forward monitor and cannot be deleted.')
+        if record and record[0] in ('queued','running'):
+            raise ValueError('This prop analysis is queued or running. Stop it or wait for completion before deleting.')
+        return record
+
+    def load_refits(self, context_key, total):
+        """Verified completed work only; never publish partial qualification."""
+        with self.connect() as db:
+            records=db.execute('SELECT c.replicate,c.payload,c.sha256 FROM historical_refit_checkpoints c '
+                'JOIN analyses a ON a.id=c.analysis_id WHERE c.context_key=?', (context_key,)).fetchall()
+        rows={}
+        for index,payload,expected in records:
+            if sha256(payload.encode()).hexdigest()!=expected:
+                raise ValueError('Historical refit checkpoint checksum changed; completed work was not reused.')
+            row=json.loads(payload)
+            if not 0<=index<total or row['replicate']['replicate']!=index:
+                raise ValueError('Historical refit checkpoint index changed.')
+            if index in rows:
+                if any(rows[index][key]!=row[key] for key in ('replicate','precision','history_keys')):
+                    raise ValueError('Historical refit checkpoints disagree for the same immutable input.')
+                row['preparation_cache_bytes']=max(row['preparation_cache_bytes'],rows[index]['preparation_cache_bytes'])
+            rows[index]=row
+        return rows
+
+    def save_refits(self, id, context_key, rows):
+        if not rows:return
+        values=[]
+        for row in rows:
+            payload=canonical(row)
+            values.append((id,context_key,row['replicate']['replicate'],payload,sha256(payload.encode()).hexdigest()))
+        with self.lock,self.connect() as db:
+            db.executemany('INSERT OR REPLACE INTO historical_refit_checkpoints VALUES (?,?,?,?,?)',values)
+
+    def remove_catalogue_record(self, db, id):
+        """Release one report's catalogue/cache rows within the caller transaction."""
+        for table,key in (('calculation_reuse','id'),('analysis_report_checks','id'),
+                ('historical_refit_checkpoints','analysis_id'),('analysis_sources','analysis_id'),('phase_analysis_control','analysis_id'),('phase_analysis_progress','analysis_id'),('analysis_compute','analysis_id'),('analyses','id')):
+            db.execute(f'DELETE FROM {table} WHERE {key}=?',(id,))
 
     def delete(self, id):
         """Delete one inactive analysis; roll back file staging on SQL failure."""
@@ -129,15 +206,7 @@ class AnalysisStore:
             try:
                 with self.connect() as db:
                     db.execute('BEGIN IMMEDIATE')
-                    record=db.execute('SELECT status FROM analyses WHERE id=?',(id,)).fetchone()
-                    if db.execute('SELECT 1 FROM campaign_analyses WHERE analysis_id=?', (id,)).fetchone():
-                        raise ValueError('This report is referenced by an immutable research campaign and cannot be deleted.')
-                    for table in ('forward_assessments', 'forward_report_refs'):
-                        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
-                            if db.execute(f'SELECT 1 FROM {table} WHERE analysis_id=?', (id,)).fetchone():
-                                raise ValueError('This report is retained by a forward monitor and cannot be deleted.')
-                    if record and record[0] in ('queued','running'):
-                        raise ValueError('This prop analysis is queued or running. Wait for it to finish before deleting.')
+                    record=self.deletion_check(db,id)
                     if destination.is_symlink() or staged.is_symlink():
                         raise OSError('Refusing to delete a symbolic-link prop report directory.')
                     if not record and not staged.exists():return False
@@ -146,10 +215,7 @@ class AnalysisStore:
                             if destination.exists():raise OSError('Conflicting staged deletion; no report files were removed.')
                             staged.rename(destination)
                         if destination.exists():destination.rename(staged);moved=True
-                    db.execute('DELETE FROM calculation_reuse WHERE id=?',(id,))
-                    db.execute('DELETE FROM analysis_report_checks WHERE id=?',(id,))
-                    db.execute('DELETE FROM analysis_sources WHERE analysis_id=?',(id,))
-                    db.execute('DELETE FROM analyses WHERE id=?',(id,))
+                    self.remove_catalogue_record(db,id)
             except BaseException:
                 if moved:staged.rename(destination)
                 raise
@@ -325,7 +391,7 @@ class AnalysisStore:
         return self.submit_phase(runs, search)
 
     def _reserve_phase(self, runs, search, *, campaign_checks=None, assessment=None,
-                       training_context=None, inline=False, datasets=None):
+                       training_context=None, inline=False, datasets=None, prepared_checks=None, guard=None):
         """Shared checked reservation; callers hold the catalogue mutation lock."""
         from .phase_dispatch import module_for_mode
         from .phase_search import check_candidates, validate_phase_work
@@ -334,7 +400,15 @@ class AnalysisStore:
         module = module_for_mode(search.mode)
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
         validate_phase_work(search, len(training_context['session_inventory']) if training_context else None)
-        if assessment or training_context:
+        if assessment and assessment.get('kind')=='is_robustness' and getattr(search,'conservative_objective',None) is not None:
+            bound=validate_phase_work(search)
+            blocks={1,5,20,*[c.sampling.block_weekdays for c in search.candidates]}
+            if bound['estimated_capture_bytes']*(len(blocks)+2)>100*1024*1024:
+                raise ValueError('Robustness report is too large; reduce diagnostic paths or frozen choices.')
+        if prepared_checks is not None:
+            if guard is None or assessment or training_context:raise ValueError('Only guarded ordinary IS checks may be prepared before reservation.')
+            guard();checks=prepared_checks
+        elif assessment or training_context:
             checks = check_candidates(runs, search, assessment, training_context=training_context, datasets=datasets)
         else:
             checks = module.check_search(runs, search, datasets=datasets)
@@ -385,11 +459,16 @@ class AnalysisStore:
                 db.execute("UPDATE analyses SET progress='Stop requested; waiting for the next safe calculation boundary' WHERE id=?",(id,))
             return self.get(id)
 
-    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None, datasets=None):
+    def submit_phase(self, runs, search, *, campaign_checks=None, assessment=None, datasets=None, prepared_checks=None, guard=None, workers=None):
         """Public phase dispatch retains the existing worker and request meaning."""
+        selected=self.runtime.workers if workers is None else workers
+        from .parallel import CAPACITY
+        if type(selected) is not int or not 1<=selected<=CAPACITY:raise ValueError('Invalid parallel worker count.')
         with self.lock:
-            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment, datasets=datasets)
+            record, checks, fresh = self._reserve_phase(runs, search, campaign_checks=campaign_checks, assessment=assessment, datasets=datasets,
+                prepared_checks=prepared_checks,guard=guard)
             if fresh:
+                with self.connect() as db:db.execute('INSERT INTO analysis_compute VALUES (?,?)',(record['id'],selected))
                 self.worker.submit(self._run_phase, runs, record['id'], search, checks, assessment, datasets=datasets)
             return record
 
@@ -413,7 +492,7 @@ class AnalysisStore:
         module = module_for_mode(search.mode)
         optimize = module.optimize_funded if search.mode == 'funded_optimization' else module.optimize_evaluation
         phase = 'Funded' if search.mode == 'funded_optimization' else 'Evaluation'
-        reserved_children=[]
+        reserved_children=[];reused_children=[]
         def reserve_child(child_id):
             with self.lock,self.connect() as db:
                 db.execute('INSERT INTO analysis_sources VALUES (?,?)',(id,child_id))
@@ -429,14 +508,20 @@ class AnalysisStore:
                 raise AnalysisCancelled('Phase search stopped; no partial result was published. Run again to replay the same complete declaration.')
         def update(message):
             checkpoint()
-            self._update(id, 'running', message)
+            details=message if isinstance(message,dict) else None
+            if details:
+                label=details.get('sizing_label') or f"{details['micros']} MNQ"
+                stage=({'complementary_evidence':'Complementary evidence','native_execution':'Native account execution','saved_trade_execution':'Saved-trade account simulation','native_preparation':'Preparing native source'}.get(details.get('stage'),'Historical confidence'))
+                message=(f"{stage} · {label} · {details['completed']:,}/{details['total']:,} {details.get('unit','resamples')} · {details['worker_count']} workers")
+            self._update(id, 'running', message,progress_details=details)
             progress(message)
         try:
             update('Running independent '+phase+' search')
             with TemporaryDirectory(prefix='.pending-', dir=self.root) as temp:
                 staged = Path(temp)/'report'; staged.mkdir()
-                with self.runtime.activate():
-                    options = dict(assessment=True) if assessment else {}
+                with self.connect() as db:compute=db.execute('SELECT workers FROM analysis_compute WHERE analysis_id=?',(id,)).fetchone()
+                with self.runtime.activate(workers=compute[0] if compute else None):
+                    options = dict(assessment=assessment,checkpoint=checkpoint) if assessment else dict(checkpoint=checkpoint)
                     if getattr(search, 'native_execution', None) is not None:
                         if assessment is not None:
                             options['assessment'] = dict(assessment,analysis_id=id)
@@ -445,17 +530,75 @@ class AnalysisStore:
                         options['checkpoint'] = checkpoint
                     if training_context is not None:
                         options['training_context'] = training_context
-                    calculations = optimize(runs, search, checks, update, **options)
+                    review_options = assessment.get('prop_sim_review') if assessment else None
+                    base = review_options.get('base_report') if review_options else None
+                    def verified_base():
+                        from .phase_dispatch import implementations_compatible
+                        fingerprint = self.fingerprint(base['analysis_id'])
+                        if not fingerprint or fingerprint['files']['report.json'] != base['sha256']:
+                            raise ValueError('Saved OOS report changed; no numerical results were reused.')
+                        report = json.loads((self.root/base['analysis_id']/'report.json').read_text())
+                        if (report.get('assessment', {}).get('frozen_package') != assessment['frozen_package']
+                                or report['calculations'].get('assessment_kind') not in ('oos','qualification','forward_review')
+                                or not implementations_compatible(report['implementation'], module.implementation_identity())):
+                            raise ValueError('Saved OOS report does not match the frozen numerical package.')
+                        original = {r['candidate_id']:r['manifest'] for r in report['calculations']['candidates']}
+                        if original != {c['candidate_id']:c['manifest'] for c in checks}:
+                            raise ValueError('Saved OOS candidate/source identity changed; no results were reused.')
+                        if getattr(search,'native_execution',None) is not None and not self.native_children_unchanged(runs,report['id']):raise ValueError('Saved OOS native child capture changed.')
+                        return report
+                    if base:
+                        from copy import deepcopy
+                        update('Reusing verified OOS numerical results; applying declared review')
+                        previous=verified_base();calculations = deepcopy(previous['calculations'])
+                        reused_children=list(previous.get('native_backtests',{}))
+                        with self.connect() as db:
+                            for child in reused_children:db.execute('INSERT OR IGNORE INTO analysis_sources VALUES (?,?)',(id,child))
+                    else:
+                        calculations = optimize(runs, search, checks, update, **options)
+                    if review_options:
+                        if review_options.get('qualification'):
+                            from .oos_qualification import qualify
+                            calculations=qualify(calculations,search,assessment,runs,checks,checkpoint,update,staged,self,analysis_id=id,datasets=datasets)
+                        else:
+                            from .assessment_review import enrich
+                            # A business-policy review can reuse the point paths
+                            # of a qualification without inheriting its verdict.
+                            for key in list(calculations):
+                                if key.startswith('qualification_') or key=='forward_execution_review':calculations.pop(key)
+                            for row in calculations['candidates']:row.pop('prop_qualification',None)
+                            calculations = enrich(calculations, search, assessment, runs, checks, checkpoint, update,datasets=datasets)
                 if assessment:
                     calculations['assessment'] = assessment
                 result = module.write_report(runs, staged, search, checks, calculations)
-                if reserved_children:
-                    self.capture_native_children(runs, staged, result, reserved_children)
+                if reserved_children or reused_children:
+                    self.capture_native_children(runs, staged, result, [*reserved_children,*reused_children])
 
                 if assessment:
                     result['assessment'] = assessment
                     result['settings']['ANALYSIS_MODE'] = search.mode.replace('_optimization', '_assessment')
                     (staged/'frozen_package.json').write_text(canonical(assessment['frozen_package']))
+                    if review_options and review_options.get('qualification'):
+                        (staged/'qualification_policy.json').write_text(canonical(calculations['qualification_policy']))
+                        (staged/'oos_qualification.json').write_text(canonical([
+                            dict(candidate_id=r['candidate_id'],frozen_candidate_id=r['frozen_candidate_id'],
+                                micros=r['configuration']['micros'],qualification=r['prop_qualification']) for r in calculations['candidates']]))
+                        if 'qualification_bootstrap' in calculations:
+                            (staged/'historical_bootstrap.json').write_text(canonical(calculations['qualification_bootstrap']))
+                        if 'qualification_complementary' in calculations:
+                            (staged/'complementary_evidence.json').write_text(canonical(calculations['qualification_complementary']))
+                        if calculations.get('account_start_sensitivity') is not None:
+                            (staged/'account_start_sensitivity.json').write_text(canonical(calculations['account_start_sensitivity']))
+                        if calculations.get('forward_execution_review') is not None:
+                            (staged/'forward_execution_review.json').write_text(canonical(calculations['forward_execution_review']))
+                    elif review_options:
+                        (staged/'assessment_policy.json').write_text(canonical(calculations['assessment_policy']))
+                        (staged/'economic_assessment.json').write_text(canonical([
+                            dict(candidate_id=r['candidate_id'],micros=r['configuration']['micros'],
+                                 economic_assessment=r['economic_assessment'],outcome_summary=r['outcome_summary'])
+                            for r in calculations['candidates']]))
+                        if calculations.get('account_start_sensitivity') is not None:
+                            (staged/'account_start_sensitivity.json').write_text(canonical(calculations['account_start_sensitivity']))
                 if training_context is not None:
                     from .phase_search import check_candidates
                     current = check_candidates(runs, search, training_context=training_context, datasets=datasets)
@@ -467,11 +610,25 @@ class AnalysisStore:
                 # an accepted cancellation cannot race with a completed report.
                 with self.lock:
                     checkpoint()
-                    seal_report(staged, result, id, self.get(id)['created'])
+                    if assessment and review_options:
+                        if review_options.get('qualification'):
+                            from .oos_qualification import implementation
+                        else:
+                            from .assessment_review import implementation
+                        if review_options['implementation'] != implementation():
+                            raise ValueError('Review implementation changed before publication.')
+                        if base: verified_base()
+                        if review_options.get('forward_capture'):
+                            from ..prop_sim_forward import verified_observation
+                            verified_observation(review_options['forward_capture'],review_options['simulation_id'],phase.lower(),base['analysis_id'],self)
+                    size_limit = (128*1024*1024 if (getattr(search,'native_execution',None) is not None and not search.native_execution.prepared_execution)
+                                  or getattr(search,'conservative_objective',None) is not None else None)
+                    seal_report(staged, result, id, self.get(id)['created'],size_limit_bytes=size_limit)
                     staged.rename(self.root/id)
                     with self.connect() as db:
                         db.execute('INSERT INTO analysis_report_checks VALUES (?,?)', (id, canonical(sealed_checks(self.root/id))))
                         db.execute("UPDATE analyses SET status='complete',progress=? WHERE id=?", ('Saved '+phase+' search ready', id))
+                        db.execute('DELETE FROM historical_refit_checkpoints WHERE analysis_id=?',(id,))
         except AnalysisCancelled as exc:
             self._update(id,'cancelled','Phase search stopped; run again from the saved declaration',str(exc))
             if raise_errors:raise
@@ -485,6 +642,7 @@ class AnalysisStore:
                     if runs.get(child_id) is None:
                         db.execute('DELETE FROM analysis_sources WHERE analysis_id=? AND source_id=?',(id,child_id))
                         if assessment:db.execute('DELETE FROM campaign_sources WHERE campaign_id=? AND source_id=?',(assessment['campaign_id'],child_id))
+            self.phase_finished(id)
 
     def _submit(self,runs,request):
         # Source fingerprint is checked by preparation, and included in the key.
@@ -540,8 +698,12 @@ class AnalysisStore:
             return saved
         return None
 
-    def _update(self,id,status,progress,error=None):
-        with self.connect() as db:db.execute('UPDATE analyses SET status=?,progress=?,error=? WHERE id=?',(status,progress,error,id))
+    def _update(self,id,status,progress,error=None,*,progress_details=None):
+        with self.connect() as db:
+            db.execute('UPDATE analyses SET status=?,progress=?,error=? WHERE id=?',(status,progress,error,id))
+            if progress_details is not None:
+                db.execute('INSERT OR REPLACE INTO phase_analysis_progress VALUES (?,?)',(id,canonical(progress_details)))
+            elif status=='running':db.execute('DELETE FROM phase_analysis_progress WHERE analysis_id=?',(id,))
 
     def publish_prepared(self, prepared, directory):
         """Publish a worker's standard report through this single catalogue."""
@@ -669,7 +831,7 @@ class AnalysisStore:
             return False
 
     def fingerprint(self, id):
-        from .adapter import digest
+        from ..prop_report_storage import digest
         record=self.get(id)
         if not record:return None
         result=dict(record=record,files={})

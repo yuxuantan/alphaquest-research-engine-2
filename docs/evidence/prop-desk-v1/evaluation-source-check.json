@@ -1,0 +1,24 @@
+{
+  "status": "compatible",
+  "check_sha256": "c34ef9566482e71cd45758a3aabdc6f9856b001bb16d4f179bc63684c6b4924c",
+  "configuration": {
+    "source_backtest_id": "2d31d4c7b37c40fa98bb4116493cc702",
+    "phase": "evaluation",
+    "profile_id": "lucidflex-50k",
+    "micros": 10,
+    "observation_sessions": 60
+  },
+  "source": {
+    "backtest_id": "2d31d4c7b37c40fa98bb4116493cc702",
+    "strategy": "consecutive_green_hold",
+    "dataset": "SYNTHETIC dated phase arithmetic",
+    "first_session": "2026-01-05",
+    "last_session": "2026-01-14",
+    "source_sessions": 8,
+    "trades": 8,
+    "instrument": "NQ",
+    "risk_basis": "MultiCharts modeled OHLC path excursions restricted to entry-through-exit, including entry and realized exit costs once. These are model estimates, not measured tick MAE/MFE or confidence bounds. Opening gaps and cost jumps can overshoot floors; intervening modeled crossings use the threshold price. Unobserved tick gaps, liquidity and queue effects are not reconstructed.",
+    "session_convention": "CME Chicago session dates; zero-trade weekdays retained; no internal reselection or split",
+    "research_phase": "is"
+  }
+}

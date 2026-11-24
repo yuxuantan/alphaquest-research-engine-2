@@ -1,0 +1,312 @@
+{
+  "id": "35f7574b772141baa3362d2344fa147a",
+  "created_at_utc": "2026-11-13T15:18:49.392344+00:00",
+  "configuration": {
+    "request_id": "35f7574b-7721-41ba-a336-2d2344fa147a",
+    "selections": [
+      {
+        "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+        "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+        "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+        "candidate": 2
+      }
+    ],
+    "profile_id": "lucidflex-50k",
+    "daily_loss_limit": true,
+    "evaluation_consistency_percent": 40,
+    "evaluation_price": "80.50",
+    "activation_fee": "0",
+    "commission_per_mnq_side": ".50",
+    "monthly_cap": "500",
+    "maximum_accounts": 1,
+    "placements": [
+      "separate",
+      "shared"
+    ],
+    "evaluation_policy": {
+      "kind": "percentage_risk",
+      "contracts": null,
+      "risk_dollars": null,
+      "risk_percent": "1",
+      "reference": "initial_configured_capital",
+      "minimum_contracts": 1,
+      "maximum_contracts": 40,
+      "constrain_to_account_cushion": false,
+      "constrain_to_daily_cushion": false
+    },
+    "funded_policy": {
+      "kind": "percentage_risk",
+      "contracts": null,
+      "risk_dollars": null,
+      "risk_percent": "0.2",
+      "reference": "initial_configured_capital",
+      "minimum_contracts": 1,
+      "maximum_contracts": 40,
+      "constrain_to_account_cushion": false,
+      "constrain_to_daily_cushion": false
+    },
+    "receipt_delay_calendar_days": 2,
+    "is_start": "2024-12-23",
+    "is_end": "2024-12-31",
+    "oos_start": "2025-01-02",
+    "oos_end": "2025-01-10",
+    "mode": "portfolio"
+  },
+  "qualification": {
+    "selection": {
+      "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+      "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+      "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+      "candidate": 2
+    },
+    "source_backtest_id": "bfa89f7e4714444391e19ef577efeeb4",
+    "strategy_id": "vwap_pullback_risk_sizing",
+    "dataset": {
+      "id": "094287965d4444f69cb7eefe0d2f054c",
+      "name": "ofb_bars_NQ",
+      "sha256": "2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377",
+      "bytes": 201905490,
+      "row_count": 3210351,
+      "source_timezone": "America/New_York",
+      "instrument_settings": {
+        "tick_size": "0.25",
+        "point_value": "20"
+      },
+      "symbol": "NQ",
+      "start": "2017-05-21T22:01:00Z",
+      "end": "2026-07-08T00:00:00Z"
+    },
+    "parameters": {
+      "use_vol_sizing": false,
+      "position_size": 1,
+      "mm_capital_usd": "500000",
+      "mm_risk_pct": "2",
+      "max_contracts": 1,
+      "trade_longs": true,
+      "trade_shorts": false,
+      "min_rr": "0",
+      "max_stop_points": "0",
+      "use_adx_elev": true,
+      "adx_elev_thr": "20",
+      "use_adx_decay": false,
+      "adx_decay_lb": 1,
+      "adx_len": 14,
+      "retest_mode": 1,
+      "stop_mode": 1,
+      "max_trades_per_day": 1,
+      "stop_swing_len": 10,
+      "target_swing_len": 5,
+      "buffer_mode": 2,
+      "buffer_amount": "0",
+      "or_start_time": 830,
+      "or_end_time": 900,
+      "vwap_start_time": 830,
+      "vwap_end_time": 1700,
+      "entry_start_time": 900,
+      "entry_end_time": 1700,
+      "day_reset_time": 2300,
+      "use_eod_flat": true,
+      "eod_flat_time": 1540,
+      "plot_trade_levels": true,
+      "max_bars_back": 42,
+      "close_buffer_minutes": 5
+    },
+    "plan": {
+      "strategy_id": "vwap_pullback_risk_sizing",
+      "source_sha256": "2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377",
+      "source_timezone": "America/New_York",
+      "is_start": "2021-01-01",
+      "is_end": "2024-12-31",
+      "oos_start": "2025-01-01",
+      "oos_end": "2026-07-07",
+      "is_bars": 1415817,
+      "oos_bars": 534440,
+      "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+      "version": 1
+    },
+    "broad_trial": 9,
+    "narrow_trial": 5,
+    "oos_report_id": "8550eb299e0446d9b71376a80ff853a6",
+    "monte_carlo_report_sha256": "6529372cd49a6d5d898c0dddabe4d4bd1e392545e493c181699f6cfc5edaccc8",
+    "frozen_identity": "95b1fae2c8494a0504c66a0b2c22b73ccd94d2c5dc54ee2e9a8e8fd43f39d52e",
+    "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed"
+  },
+  "portfolio_sources": [
+    {
+      "selection": {
+        "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+        "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+        "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+        "candidate": 2
+      },
+      "source_backtest_id": "bfa89f7e4714444391e19ef577efeeb4",
+      "strategy_id": "vwap_pullback_risk_sizing",
+      "dataset": {
+        "id": "094287965d4444f69cb7eefe0d2f054c",
+        "name": "ofb_bars_NQ",
+        "sha256": "2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377",
+        "bytes": 201905490,
+        "row_count": 3210351,
+        "source_timezone": "America/New_York",
+        "instrument_settings": {
+          "tick_size": "0.25",
+          "point_value": "20"
+        },
+        "symbol": "NQ",
+        "start": "2017-05-21T22:01:00Z",
+        "end": "2026-07-08T00:00:00Z"
+      },
+      "parameters": {
+        "use_vol_sizing": false,
+        "position_size": 1,
+        "mm_capital_usd": "500000",
+        "mm_risk_pct": "2",
+        "max_contracts": 1,
+        "trade_longs": true,
+        "trade_shorts": false,
+        "min_rr": "0",
+        "max_stop_points": "0",
+        "use_adx_elev": true,
+        "adx_elev_thr": "20",
+        "use_adx_decay": false,
+        "adx_decay_lb": 1,
+        "adx_len": 14,
+        "retest_mode": 1,
+        "stop_mode": 1,
+        "max_trades_per_day": 1,
+        "stop_swing_len": 10,
+        "target_swing_len": 5,
+        "buffer_mode": 2,
+        "buffer_amount": "0",
+        "or_start_time": 830,
+        "or_end_time": 900,
+        "vwap_start_time": 830,
+        "vwap_end_time": 1700,
+        "entry_start_time": 900,
+        "entry_end_time": 1700,
+        "day_reset_time": 2300,
+        "use_eod_flat": true,
+        "eod_flat_time": 1540,
+        "plot_trade_levels": true,
+        "max_bars_back": 42,
+        "close_buffer_minutes": 5
+      },
+      "plan": {
+        "strategy_id": "vwap_pullback_risk_sizing",
+        "source_sha256": "2aef36dd53848cb50f90bc7007dcae7216428a3a13f95d668713fa07cc973377",
+        "source_timezone": "America/New_York",
+        "is_start": "2021-01-01",
+        "is_end": "2024-12-31",
+        "oos_start": "2025-01-01",
+        "oos_end": "2026-07-07",
+        "is_bars": 1415817,
+        "oos_bars": 534440,
+        "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+        "version": 1
+      },
+      "broad_trial": 9,
+      "narrow_trial": 5,
+      "oos_report_id": "8550eb299e0446d9b71376a80ff853a6",
+      "monte_carlo_report_sha256": "6529372cd49a6d5d898c0dddabe4d4bd1e392545e493c181699f6cfc5edaccc8",
+      "frozen_identity": "95b1fae2c8494a0504c66a0b2c22b73ccd94d2c5dc54ee2e9a8e8fd43f39d52e",
+      "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed"
+    }
+  ],
+  "campaign_ids": {},
+  "portfolio": {
+    "analysis_id": "68b9acab37ef41d8bfe4ed7952266edf",
+    "attempts": [
+      "68b9acab37ef41d8bfe4ed7952266edf"
+    ],
+    "implementation": {
+      "prop_portfolio.py": "c5550dde0128d712396ea6711a1c0da1b86067066fdcfa9bd77c9bb4e7633b5d",
+      "prop/portfolio_sources.py": "dcc5bcf844878db94fae053125d5a08debed228e908eaab98403f04933313657",
+      "prop/portfolio_search.py": "f220c57752f5cf5034dea9c2008959e5833a6a638fded8687cfc4a2865263603",
+      "prop/portfolio_lifecycle.py": "930d966bab0ea922518669abd9c00ad5ee68c1acbf095cbec1927dde221b6600",
+      "prop/portfolio_cash.py": "4066b505f911bd8c4c9d71d30e1ee6cf63faa9a397d3169fe21925776596cbcb",
+      "execution.py": "e7a0e4c0b89b6038f0ab92bb1a17758e56fb7d2e4c970d4726943fe038cd542d",
+      "prop/native_control.py": "e986ca0ec9b4e19df9402de1a61189db366c90f25df31cd0bd03c0633437df2b",
+      "prop/evaluation_profiles.py": "1757ae3e7c58cf7c5a222d7d89414d82baa09b73cc4157fbe0a644ea9990d8a7",
+      "prop/funded_profiles.py": "bb36de9ac94dea52db1358b3000d054a88528ee99156d87d5d5ebe2f6987df38",
+      "prop/sizing.py": "7915d50e60035ded169795bfbeb58a55937cb6978b3892e85ff8ac0115e32421",
+      "prop/native_engine.py": "001e57aeccc6b9cef5b09accbf99dab0a9e8b193b229fe22a3dd103d3024903e",
+      "prop/lucid_engine.py": "5ab16f732cbe1670a4039676654218de493f59d2eca80afe99c895533cb2c1d4",
+      "prop/native_money.py": "e923b007d9f129eb8ac870f751f09823eed41720211896fb8b0e4fc84813a2dc",
+      "prop/cash_ledger.py": "ce424f3809b582ea444f504ce2419500f8141d5306002bebdb67ca1e3bac1c60",
+      "strategy.py": "52bb1e631eb1c2ae4dc1b83ebe439a0d1d27715fced6462df61f7857905e5d68",
+      "strategies/vwap_pullback_risk_sizing.py": "0b2be19293fb8b5258386c26afe4710bb388a894913b333df51f2812daf23942",
+      "strategies/vwap_features.py": "26344d28552c75ff5ec327ecb7c0f8254e4af398c6ba97fdfa2fefb4b1edb320",
+      "strategies/registry.py": "e504db2f6b826fad9e276d972898e15bc5ad16d51727265e5349ce73eee36e78",
+      "decimal_math.py": "05b596b1d93a80c9eb351395c602daeccef3a98e0eac60dc4aa47c03b710dcb5",
+      "session_calendar.py": "4e15d94d09357e51a25de7867a4650cdaa9d0d4815a9abd8bbd88dafcc7cc415",
+      "intratrade.py": "dab5f0a2cf3a5bb0f70794dc49c92a9cb089f0919d6c734328f0ad78de6ae13f",
+      "execution_scenarios.py": "d61648f0b15bc990caa80989c95d4cbdebeb5df40420e83efb0c8bbdc354b3e8",
+      "decision_capture.py": "dbc9ff56c88ba52f97ae7282b01c23830530d382063cd364310ec8007f472036",
+      "strategy_features.py": "3f3ad4dcdf08efc6a290fdd0255154ac8b530a48a5393c3b37bd7d2d0c8d4dd9",
+      "../calendars/cme_nq_closures.csv": "a71258719fdd433586250e242f5d10c78b49ea700a5312a24dc870307a05f81a",
+      "prop/_native_compiled.cpython-312-darwin.so": "4eb81ba0268e7f2d7fef757016fddd38ae3d520c9423a9441580735ba45c021b",
+      "prop/_lucid_compiled.cpython-312-darwin.so": "6ea562bed6239f490f277901c503b8405c0ff5ee80df7d32feee6e3fd268de7a"
+    },
+    "windows": {
+      "is": {
+        "start": "2024-12-23",
+        "end": "2024-12-31"
+      },
+      "oos": {
+        "start": "2025-01-02",
+        "end": "2025-01-10"
+      }
+    },
+    "allocation_count": 3,
+    "request": {
+      "request_id": "35f7574b-7721-41ba-a336-2d2344fa147a",
+      "selections": [
+        {
+          "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+          "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+          "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+          "candidate": 2
+        }
+      ],
+      "profile_id": "lucidflex-50k",
+      "daily_loss_limit": true,
+      "evaluation_consistency_percent": 40,
+      "evaluation_price": "80.50",
+      "activation_fee": "0",
+      "commission_per_mnq_side": ".50",
+      "monthly_cap": "500",
+      "maximum_accounts": 1,
+      "placements": [
+        "separate",
+        "shared"
+      ],
+      "evaluation_policy": {
+        "kind": "percentage_risk",
+        "contracts": null,
+        "risk_dollars": null,
+        "risk_percent": "1",
+        "reference": "initial_configured_capital",
+        "minimum_contracts": 1,
+        "maximum_contracts": 40,
+        "constrain_to_account_cushion": false,
+        "constrain_to_daily_cushion": false
+      },
+      "funded_policy": {
+        "kind": "percentage_risk",
+        "contracts": null,
+        "risk_dollars": null,
+        "risk_percent": "0.2",
+        "reference": "initial_configured_capital",
+        "minimum_contracts": 1,
+        "maximum_contracts": 40,
+        "constrain_to_account_cushion": false,
+        "constrain_to_daily_cushion": false
+      },
+      "receipt_delay_calendar_days": 2,
+      "is_start": "2024-12-23",
+      "is_end": "2024-12-31",
+      "oos_start": "2025-01-02",
+      "oos_end": "2025-01-10"
+    }
+  }
+}

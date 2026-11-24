@@ -1,0 +1,39 @@
+{
+  "members": [
+    {
+      "source_backtest_id": "689ad13f223a431594a282b890879a76",
+      "oos_backtest_id": "646314bedb34404981e61b718963eb92",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "7ed7fafdb4d84a87a9635e32c34eb28d",
+      "oos_backtest_id": "662beec4b0054950953b8a88bc9643ed",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "39ec05c0e5664fbe9bfaf1b3791ffd34",
+      "oos_backtest_id": "5f099e79e6a540ac8174a63976b7b3be",
+      "weight": 1
+    }
+  ],
+  "analysis_ids": {
+    "evaluation": "3d1d5ae36ebc4724b732793f23223f74",
+    "funded": "6a4745521c034d65976e1716a1f97998"
+  },
+  "evidence_type": "Synthetic normal-product evidence. No matched Bridge optimiser export.",
+  "sha256": {
+    "SYNTHETIC-optimizer.csv": "0f227b8e6b308595bed4143ab7659c8cecb9ba0b9eb996ad618287c0ebc645a8",
+    "evaluation-admitted-trades.csv": "71e42b8839d8b912303b6a10421a619bc88ad591d9060dda8ff79bd275b7a6a2",
+    "evaluation-analysis.zip": "b05075ae3115e610388a993804592b68b36dd864259e54388406124d572aa7c8",
+    "evaluation-desktop.png": "61de33dd99242f03ed9bbcc97bfc12befb1146c5e7a948480d67a10778999af4",
+    "evaluation-launch.json": "8b3a29aa45c50f7bd7389f8a9578e8d127f243be9eefc8078e6f9cfffaad3a22",
+    "evaluation-report.json": "312d6ebf6cf49b00fa56d0680889c5ec8bf5b3f661c03d7a5eae66f52891d97c",
+    "funded-admitted-trades.csv": "71e42b8839d8b912303b6a10421a619bc88ad591d9060dda8ff79bd275b7a6a2",
+    "funded-analysis.zip": "04fa9c08b0745cba0e8fb58c348a5748d4abec970b8ca239a7ad647527a76268",
+    "funded-launch.json": "0a092db486615ab0afae71edc313bb99783a051439235ca5cae5209c3362333d",
+    "funded-mobile-reopened.png": "2b015db16a7fa922ed2baba68db13ff85cb8c1fdc7af71e59bef198dc9cc7b38",
+    "funded-report.json": "0aeb1aa7f99fdb4ce7bfdc38d94272f3b37402844a437d2d365a0d1cba8a4a10",
+    "rejected-source.json": "464c72541b3a413189513758be4fea142136016f34f003e1f61e454d6de03dd5",
+    "setup-desktop.png": "4d9f56fc55a00c7b1878728c0fb635564d876938a193ae43aeddb1b3ad07cfcd"
+  }
+}

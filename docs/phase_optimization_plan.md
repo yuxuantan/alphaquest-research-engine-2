@@ -21,6 +21,61 @@ and product boundary in [prop simulation](prop_simulation.md). The portal extens
 below is implemented; provider rules are not newly verified. The extraction described below retains
 legacy numerical semantics; it does not complete an optimization milestone.
 
+## Independent percentage-risk optimizer — 2026-11-15
+
+The [percentage research plan](percentage_risk_research_plan.md) is implemented
+through M0–M7 in the existing main Prop Sim workflow: independent exact percentage
+grids for Apex/Lucid Evaluation and Funded, causal native execution, automatic IS
+selection/freeze, native OOS forecasts plus chronology, the versioned 10,000-refit
+qualification law and supplied-event forward review. Supported strategy capability
+and resource/evidence limits are explicit in [the current contract](prop_simulation.md).
+Current product evidence and reproduction are in [the review](prop_simulation_review.md).
+Existing fixed-contract objectives, historical reports and portfolio work remain.
+
+## Proposed percentage-risk research extension — 2026-11-14 (historical)
+
+The following proposal describes the earlier checkpoint, superseded by the
+implementation above.
+
+[The end-to-end implementation plan](percentage_risk_research_plan.md) proposes
+one-contract campaign baselines with causal planned-R diagnostics, then independent
+percentage-risk grids for Evaluation and Funded in Apex/Lucid Prop Sim. It includes
+native execution, explicit sampling/OOS qualification, capacity gaps, automatic
+freezing, paper review, compatibility and milestone evidence. This is a proposed
+extension; the current main form remains a fixed-contract optimizer. Existing
+native research/portfolio policies are foundations, not completion of this plan.
+
+## Campaign-qualified single-source portal — 2026-11-12
+
+Current extension on this date: the main Prop Sim portal also supports explicit
+Lucid 40% standard / 50% add-on Evaluation, acquisition diagnostics and paired
+conditional MC uncertainty. Each phase can freeze up to four eligible sizes and
+run existing-worker OOS (MC plus chronological saved-signal replay), IS
+block/subperiod sensitivity and more-path assessments. These append normal
+AnalysisStore reports, never reselect on OOS or overwrite the IS decision.
+The add-on fee is user-declared, and prior OOS access remains disclosed.
+[Saved product evidence and reproduction](evidence/qualified_prop_sim/validation/README.md).
+Account-aware signal reruns and live-account returns remain separate later work;
+these fixed-signal diagnostics do not claim new provider parity.
+
+The main **Prop Sim** tab now admits one campaign configuration only after
+mechanics, both IS stages, current OOS and latest current-policy Monte Carlo
+acceptance. It runs the existing independent Evaluation cost/time frontier and
+Funded finite-horizon cash ranking across declared whole-MNQ sizes. Phase inputs,
+cache identities and objectives remain independent. The normal IS backtest
+report, source check, background jobs, durable reports/downloads and Job history
+form one usable journey. This is fixed-signal-path sizing on IS history after
+OOS-based eligibility, with disclosed local-rule/calendar limitations; it is not
+new provider qualification or untouched final OOS. Multiple-source portfolio
+allocation remains pending. See [implementation and assumptions](prop_simulation.md#campaign-qualified-prop-sim-portal--2026-11-12)
+and [saved product evidence](evidence/qualified_prop_sim/README.md).
+
+Current Prop Sim extension (12 November): Evaluation and Funded now have
+independent whole-MNQ ranges (Apex 50K EOD caps 60 / 40), an optional default-off
+Funded breach cap, and an interactive/downloadable Evaluation Pareto chart.
+Existing numerical owners and independent objectives remain unchanged. See the
+[current contract and saved evidence](prop_simulation.md#independent-size-ranges-optional-breach-cap-and-evaluation-chart--2026-11-12).
+
 ## Implemented saved-trial research campaigns — 2026-11-06
 
 [`research_campaigns.py`](../alphaquest/research_campaigns.py) now expands declared
@@ -805,3 +860,34 @@ Lucid freeze failure and is corrected. Identity changes reject future frozen
 launches and cache reuse while old reports/downloads stay readable. No changed
 calculation source is filtered out to preserve old hashes. The implementation
 and qualification record distinguishes these corrections from provider parity.
+
+## LucidFlex saved-signal calendar acquisition — 2026-11-12
+
+The main Prop Sim portal now supports selectable Apex 50K EOD and LucidFlex 50K
+standard 40% profiles. This supersedes older dated statements that only native
+bar reruns could support Lucid calendar inactivity. The new Evaluation owner
+branch samples fixed-signal histories on declared civil dates, calls existing
+Lucid session transitions, charges all retry fees and preserves guard censoring.
+Cost/time are direct complete-path means; the Apex IID estimator stays unchanged.
+Funded continues through its existing independent dated Lucid owner. Profile,
+DLL, costs, caps, source and numerical identities are captured in normal phase
+campaigns/AnalysisStore. Old reports remain immutable and incompatible frozen
+execution is not bypassed. The [current contract and actual product evidence](prop_simulation.md#selectable-lucidflex-50k--2026-11-12)
+record calendar/cash oracles, 40/40 limits, UI revisions and remaining provider /
+50%-add-on / live-transition limitations. No portfolio optimizer is added.
+
+## 2026-11-13 downstream native portfolio mode
+
+Campaign-qualified Prop Sim now exposes a downstream native percentage-risk,
+finite account-allocation and budgeted replacement-cashflow mode. It reuses
+`evaluation_profiles.py` / `funded_profiles.py` account owners and the normal
+execution engine; no independent phase selector/objective or legacy joint-sizing
+contract is replaced. `portfolio_cash.py` owns the explicit shared fee budget,
+`portfolio_lifecycle.py` orchestrates native episodes, `portfolio_sources.py`
+admits synchronized observed prices and `portfolio_search.py` ranks the finite
+IS allocation family. The normal AnalysisStore/router/UI save the frozen family
+and fresh OOS / continuous full-period historical scenarios. This is an additive
+implemented increment, not portfolio Monte Carlo or simultaneous-position
+certification. The [current contract](prop_simulation.md#native-percentage-risk-portfolio-allocation-and-replacement-cash-flow--2026-11-13)
+and review evidence supersede earlier dated portfolio-pending statements only
+within this stated subset.

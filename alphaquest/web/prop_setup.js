@@ -164,7 +164,7 @@
     }
     async function choose(key){
       if(!current()||(key in availability&&!availability[key]))return;
-      const attempt=++revision;goal=key;step='sources';all.checked=false;loading=true;workspace.hidden=false;goalPicker.open=false;goalSummary.textContent='Change goal · '+titles[key];compatibilityDetails.open=true;message.textContent='Loading this task…';heading.textContent=titles[key];
+      const attempt=++revision;goal=key;step='sources';all.checked=false;loading=true;workspace.hidden=false;goalPicker.open=false;goalSummary.textContent='Change goal · '+titles[key];compatibilityDetails.open=true;message.textContent='Loading this task…';const finishLoading=window.portalLoading.begin(message);heading.textContent=titles[key];
       for(const selector of new Set(Object.values(hosts)))$(selector).hidden=true;
       const host=$(hosts[key]);host.hidden=false;content.append(host); // Existing forms, listeners and form ownership are retained.
       for(const b of goalButtons)b.setAttribute('aria-pressed',String(b.id==='setup-goal-'+key));
@@ -181,7 +181,7 @@
         observer?.disconnect();observer=new MutationObserver(()=>{if(!loading)queueMicrotask(update);});observer.observe(host,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['disabled','hidden']});
         message.textContent='Settings are preserved when you change steps or revisit this task. Check again after editing.';
       }catch(error){initialized.delete(key);goalPicker.open=true;message.textContent='Could not open task: '+error.message+' Choose the task again to retry.';}
-      finally{if(current()&&attempt===revision){loading=false;update();if($(forms[key]))stageHeading.focus({preventScroll:true});}}
+      finally{finishLoading();if(current()&&attempt===revision){loading=false;update();if($(forms[key]))stageHeading.focus({preventScroll:true});}}
     }
     next.onclick=()=>{if(validateStep())go(steps()[steps().indexOf(step)+1]);};back.onclick=()=>go(steps()[steps().indexOf(step)-1]);all.onchange=update;only.onchange=update;
     for(const selector of new Set(Object.values(hosts)))$(selector).hidden=true;

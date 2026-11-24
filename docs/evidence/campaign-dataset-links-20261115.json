@@ -1,0 +1,58 @@
+{
+  "scope": "Campaign\u2013dataset navigation links only; campaign entries and all source/execution evidence retained.",
+  "checks": {
+    "api_storage": 4,
+    "mechanics_lifecycle": 1,
+    "browser_journeys": 2,
+    "existing_navigation": 1
+  },
+  "journeys": {
+    "workflow-link": {
+      "evidence": "artifacts/campaign-dataset-links-20261115/workflow-link/workflow-link.json",
+      "sha256": "b21b407662300d8eb1e252e21f43bf3cc993aa97745ccfd129372a269445da67",
+      "observations": {
+        "synthetic": true,
+        "workflow_id": "a423a8c34544412a9e410fb1a29f6252",
+        "dataset_id": "20dd32e273a9478eb736a3ec4c66dd93",
+        "cancel_no_delete": true,
+        "undo": true,
+        "durable_removed_state": true,
+        "restore": true,
+        "campaign_preserved": true,
+        "source_and_report_hashes_unchanged": {
+          "report.json": "5659677f313137c09236ea6c0db7f798c3c9dd1c63d3f9fcf6106fc002b908a5",
+          "strategy_equity_day.csv": "f1f170659c24d034539cc77286e52a8ffa2a8a8972e0a4a1431eb4e739356b84",
+          "market_benchmark.json": "c82d9bf41549144d11d1f8d89062ccb90af1a46ce97320b970751ed0c7c362ca",
+          "performance.json": "3be6a755e203e04549999511f26b111ff7b0d39e0e4aa73ed376292326cba5a6",
+          "trades.csv": "c6cb2293935c8977f97369ef409944ca4915ab64bc8888859d8f38175d34aa5e",
+          "risk_metrics.json": "d5e5045f3757b76083f144d0d85db319c6a6cdccd3ab7fc9d1fda994fa2f725f",
+          "execution_decisions.jsonl": "0e778fc734ec403455776780313d93c5a4892c9e7b65c6913d7e8e22166d3a39",
+          "intratrade_risk.csv": "84a97f36248ae19022f7959f5238dff7daefec938e8bbe6c8c102a5aa3c51ec4",
+          "equity.csv": "0ea9f3bc83aef0f95c2a5c7f59bb385341aa1a568175d2e5542ba026cd30b867"
+        },
+        "temporary_server": "Stopped by fixture teardown"
+      }
+    },
+    "legacy-link": {
+      "evidence": "artifacts/campaign-dataset-links-20261115/legacy-link/legacy-link.json",
+      "sha256": "bfcfb80d2875a8e41be4b64d138445d5a757c1cd22265ca5c6de11409d7dca09",
+      "observations": {
+        "synthetic": true,
+        "dataset_id": "a31842b665a04e4ca90e1d54d98660fe",
+        "run_id": "32979be24be0415887a7bc4ad02ea71a",
+        "legacy_fallback_stays_removed": true,
+        "new_explicit_workflow_relinks": true,
+        "results_retained": true
+      }
+    }
+  },
+  "application": {
+    "old_pid": 78379,
+    "new_pid": 79681,
+    "interrupted_jobs": [],
+    "protected_mechanics_job": "6ac1127dcf03420687757192e2dbbbcf",
+    "protected_status": "complete",
+    "protected_files_unchanged": true,
+    "stop_command": "kill 79681"
+  }
+}

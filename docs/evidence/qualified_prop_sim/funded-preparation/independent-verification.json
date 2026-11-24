@@ -1,0 +1,106 @@
+{
+  "synthetic": true,
+  "production_imports": false,
+  "verified": [
+    {
+      "profile": "apex-50k-eod",
+      "phase": "evaluation",
+      "analysis_id": "dba059bef54a4181af66393de0dae229",
+      "expected": 178,
+      "paths": 8,
+      "historical_refits": 10000,
+      "zip_members_verified": 20,
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 5.91,
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          27962,
+          27963,
+          27964,
+          27965
+        ],
+        "workers_used": 4
+      }
+    },
+    {
+      "profile": "apex-50k-eod",
+      "phase": "funded",
+      "analysis_id": "0090a7e2432642019f50c8ffee14db07",
+      "expected": 13000,
+      "paths": 8,
+      "historical_refits": 10000,
+      "zip_members_verified": 20,
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 4.83,
+        "funded_preparation": {
+          "budget_bytes_per_worker": 33554432,
+          "fallback": "Original streaming sampler; all requested paths retained",
+          "maximum_accounted_bytes": 30144,
+          "version": "dated-funded-preparation-v1"
+        },
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          27962,
+          27963,
+          27964,
+          27965
+        ],
+        "workers_used": 4
+      }
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "evaluation",
+      "analysis_id": "cf11afe44ee04421a6f699987fa3db6c",
+      "expected": 80.5,
+      "paths": 8,
+      "historical_refits": 10000,
+      "zip_members_verified": 20,
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 5.4,
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          28028,
+          28029,
+          28030,
+          28031
+        ],
+        "workers_used": 4
+      }
+    },
+    {
+      "profile": "lucidflex-50k",
+      "phase": "funded",
+      "analysis_id": "2374e6a3c3bc453b959aa28d15a99347",
+      "expected": 9000.0,
+      "paths": 8,
+      "historical_refits": 10000,
+      "zip_members_verified": 20,
+      "execution": {
+        "context": "Internal temporary input loaded once per process; removed after workers finish",
+        "elapsed_seconds": 4.93,
+        "funded_preparation": {
+          "budget_bytes_per_worker": 33554432,
+          "fallback": "Original streaming sampler; all requested paths retained",
+          "maximum_accounted_bytes": 30144,
+          "version": "dated-funded-preparation-v1"
+        },
+        "nested_pool": false,
+        "ordered_by": "replicate_index",
+        "worker_pids": [
+          28028,
+          28029,
+          28030,
+          28031
+        ],
+        "workers_used": 4
+      }
+    }
+  ]
+}

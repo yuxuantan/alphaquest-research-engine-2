@@ -1,0 +1,55 @@
+{
+  "reference_report": "58b9339ae2c64a50be070dd946cef3ba",
+  "dataset": "ofb_bars_NQ",
+  "parsed_bars_on_backfill": 3210351,
+  "observed_sessions": 2360,
+  "backfill_seconds": 124.253,
+  "exact_reopen_seconds": 0.246,
+  "observations": [
+    {
+      "case": "same saved basket",
+      "seconds": 0.469,
+      "status": "compatible",
+      "windows": {
+        "is": 1034,
+        "oos": 391
+      }
+    },
+    {
+      "case": "repeat same basket",
+      "seconds": 0.324,
+      "status": "compatible",
+      "windows": {
+        "is": 1034,
+        "oos": 391
+      }
+    },
+    {
+      "case": "different size",
+      "seconds": 0.35,
+      "status": "compatible",
+      "windows": {
+        "is": 1034,
+        "oos": 391
+      }
+    },
+    {
+      "case": "different strategy mix",
+      "seconds": 0.31,
+      "status": "compatible",
+      "windows": {
+        "is": 1034,
+        "oos": 391
+      }
+    },
+    {
+      "case": "different account profile",
+      "seconds": 0.324,
+      "status": "compatible",
+      "windows": {
+        "is": 1034,
+        "oos": 391
+      }
+    }
+  ]
+}

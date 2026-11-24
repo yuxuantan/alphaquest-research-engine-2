@@ -137,14 +137,16 @@ def validate_phase_source(snapshot, rows):
     if not (source_instrument(record) or snapshot['commission_simulation']['source_instrument']):
         raise ValueError('Dated phases require an identified NQ/MNQ instrument and matching USD point value.')
     params = strategy['parameters']
-    if strategy['id'] not in ('consecutive_green_hold','vwap_pullback_risk_sizing') or params.get('use_vol_sizing'):
-        raise ValueError('Source strategy is unsuitable for fixed size scaling; use fixed contracts, without account/risk-budget-dependent sizing.')
+    from ..strategies.registry import get_strategy
+    definition = get_strategy(strategy['id'])
+    capabilities = definition.sizing.require(definition.parameters(params), 'fixed_contracts')
     for row in rows:
         if session_date(instant(row['entry_utc'])) != session_date(instant(row['exit_utc'])):
             raise ValueError('A phase source must be intraday flat; overnight risk and an inherited position cannot be reconstructed.')
         if row.get('ohlc_mae_upper') is None and row.get('measured_mae') is None:
             raise ValueError('Complete intratrade risk coverage is required in both phases; close-only fallback cannot qualify a dated lifecycle.')
     snapshot['phase_suitability'] = dict(fixed_quantity=True, instrument=snapshot['commission_simulation']['source_instrument'],
+        sizing_capabilities=capabilities,
         risk_covered_trades=len(rows), scaling='Linear MNQ exposure scenario on a saved fixed-quantity path; liquidity/size-dependent fills are not resimulated.')
 
 

@@ -1,0 +1,50 @@
+{
+  "synthetic": true,
+  "description": "Actual normal-product IS Broad grid and immutable selection; no MC/provider numerical parity claim.",
+  "base_commit": "20c881a",
+  "branch": "epic/revamp-workflow",
+  "workflow_id": "67f26c98bb88489fbce6f33b452d0bb7",
+  "job_id": "88a6a68ccc0842d5bea2912389528ae7",
+  "backend_checks": {
+    "command": ".venv/bin/python -m pytest -q",
+    "passed": 12,
+    "seconds": 18.61
+  },
+  "browser_checks": {
+    "passed": 3,
+    "seconds": 18.59,
+    "command": ".venv/bin/python -m pytest -x -q tests/test_campaign_broad_browser.py tests/test_campaign_mechanics_browser.py::test_upload_default_run_review_resume_and_phase_lock tests/test_optimization_layout_browser.py::test_select_columns_reorder_both_groups_sort_and_persist --basetemp=artifacts/is-broad-20261110/browser-final"
+  },
+  "saved_backtest_files_unchanged_after_review_downloads_and_navigation": true,
+  "temporary_servers": "Stopped by browser fixture teardown; no persistent server started.",
+  "files": {
+    "01-grid.png": "37908bd3fa08e59cebb0762cf51201b2f91b7a7ee712ef1cabca18f5f5563959",
+    "02-results-and-selection.png": "2884931cb1deb91b5b349fbfc4378a31b8306a4b5baea731ca2f115f5e7e8aa7",
+    "03-is-narrow-inputs.png": "f3203028ae7b848cdd85348b856af49d73a81591ddbcd49f4a7526a0d33069c3",
+    "04-mobile.png": "05af1072fd83bbbdfe711cf2ca5475bfbc8e9c90b427876fa4ff5d614d62b12c",
+    "SYNTHETIC-source.csv": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+    "browser-checks.txt": "1da2a68b73056599adc02a262b4cce6e85835c3a2989cf8236638882bd977a62",
+    "is-broad-package.json": "280acb0481fd06e08f248aeb333e653e442bf0ea3e842a51bf924438ac4b56f8",
+    "journey.json": "1b894fb537313d1582589150feabfb730031ac1dc4a6f699d4bf2adf95066c61",
+    "legacy-columns-selected-and-reordered.png": "5d6ae584d1e3a7a917782b4d624a81604d8f537ebc66b861aa3cd01301df6042",
+    "legacy-columns-verification.json": "90d7c7ccfb8f29886746493e4a60aa04fd5735936ff6aa673aa2a0df4fd90a1c",
+    "results.csv": "162a39db7b0e17701625d68078500c0206813313b0be1cf6e087487f8e9b6098",
+    "results.json": "45fd1fde7ef866167207dcc254054f6e8cd48d076a209928d492ad965d3d186e",
+    "trial-2-report/equity.csv": "7719ff6ec5621614ef9aa8f3f9420d822956b8b03cb1fc10c57da4c400d0363f",
+    "trial-2-report/execution_decisions.jsonl": "2bf2441ae3bbb136db8757a89654024491e016c4e397f9d232a97b9815e5d13c",
+    "trial-2-report/intratrade_risk.csv": "fd03a7bce6f853915406eede3c024b16bcb730bdc008177885b2845df34312e3",
+    "trial-2-report/market_benchmark.json": "e06610e893f7f57932e5231292419a12b153127f92a77b17ae5007402618b101",
+    "trial-2-report/performance.json": "f7703ffeabb29da32502311315098ef93801e08c1e86218e117401640580c100",
+    "trial-2-report/report.json": "6cc43b572fb1dd5a1c81edcf5dd90b74ac8ff8adf920fba48ce715367d1c18ad",
+    "trial-2-report/strategy_equity_day.csv": "22aefc808c497e31fd33cac5471014d17a643f66e9868295e64e4f563d1cf0f8",
+    "trial-2-report/trades.csv": "d1a44772deada9718bc804330602584565bc9f7ef23a1e687897ac800f7626ed",
+    "trial-3-report/equity.csv": "28eee1448bce6c76acfde77a954d63ba21e999c15cc8d53e9a31a84c22ca3d24",
+    "trial-3-report/execution_decisions.jsonl": "c68562a64d6d34601a37b21172a262eb8aaf2a4b81aa0522cc3a4dce70b4a20d",
+    "trial-3-report/intratrade_risk.csv": "accaef368fcf0a2ed34316d0fff881ecb8705346a63ed1f312edd3a051c76003",
+    "trial-3-report/market_benchmark.json": "e955f26def6640e849be4bf038b41f5bb515a62ed9723ea68af45908483ce975",
+    "trial-3-report/performance.json": "650db0ec1dba9fafdbdc7058d0c4f58dc43fc33ebfaadcc250c74eb01171907e",
+    "trial-3-report/report.json": "b995f74c995acae313e3923d6c9b7ec4836256fd3bbd65a25c5481e25c9857d5",
+    "trial-3-report/strategy_equity_day.csv": "ca3244890875a4c54fd2ab2afd8b03ee5bd1270ad92343bb71dd649666944a1e",
+    "trial-3-report/trades.csv": "ec8bca490756d217b639072c6129b59e16e52c1ae373bad4be5f6e6f9e43059b"
+  }
+}

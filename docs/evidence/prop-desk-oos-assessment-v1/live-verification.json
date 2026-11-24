@@ -1,0 +1,72 @@
+{
+  "source_saved_basket": "58b9339ae2c64a50be070dd946cef3ba",
+  "parent": "ffc773ae8fa64bdc9aea73a8ac995a23",
+  "assessment": "81d1457c2659417fb3195e956053bd3e",
+  "parent_sha256": "5e0b8f30fdea663770b47b3a658ead348d531b5fb56bb8ddb8acf2e267d70dd4",
+  "parent_bytes_identical": true,
+  "configuration": {
+    "allocation": {
+      "micros": [
+        1,
+        1
+      ],
+      "unused": 0
+    },
+    "combination": 1,
+    "members": [
+      {
+        "oos_backtest_id": "d634ec9bc5f84990a82864550f304de2",
+        "source_backtest_id": "1f2208a521f64c38bc9c9acf879fe8d1",
+        "weight": 1
+      },
+      {
+        "oos_backtest_id": "7dba7e97151243a296b8c3067e047044",
+        "source_backtest_id": "1443ec1be841473c9564b409f94e20b8",
+        "weight": 1
+      }
+    ],
+    "micros": 2,
+    "observation_sessions": 21,
+    "parent_id": "ffc773ae8fa64bdc9aea73a8ac995a23",
+    "profile_id": "apex-50k-eod",
+    "size_rule": "optimal"
+  },
+  "metrics": {
+    "is": {
+      "admitted_trades": 1138,
+      "median_trading_days_to_target": null,
+      "outcome_counts": {
+        "breached": 12,
+        "passed": 0,
+        "provider_expired": 988
+      },
+      "path_count": 1000,
+      "probabilities": {
+        "breached": 0.012,
+        "passed": 0.0,
+        "provider_expired": 0.988
+      },
+      "sessions": 1034
+    },
+    "oos": {
+      "admitted_trades": 418,
+      "median_trading_days_to_target": 19,
+      "outcome_counts": {
+        "breached": 48,
+        "passed": 5,
+        "provider_expired": 947
+      },
+      "path_count": 1000,
+      "probabilities": {
+        "breached": 0.048,
+        "passed": 0.005,
+        "provider_expired": 0.947
+      },
+      "sessions": 391
+    },
+    "reporting_window": 21
+  },
+  "oos_paths_reconciled": true,
+  "reopened_on_mobile": true,
+  "inline_comparison_verified": true
+}

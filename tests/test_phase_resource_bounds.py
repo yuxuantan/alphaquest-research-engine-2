@@ -34,11 +34,35 @@ def test_combined_capture_rejects_before_large_job_and_validates_inventory_count
         with pytest.raises(ValueError,match='observed-session count'):validate_phase_work(search(),count)
 
 
-def test_legacy_resource_bounds_and_unknown_phase_remain_strict():
+def test_unknown_phase_remains_strict():
     value=search();value.conservative_objective=None
     assert validate_phase_work(value)['funded_path_calendar_days']==1280
     value.mode='unknown'
     with pytest.raises(ValueError):validate_phase_work(value)
+
+
+@pytest.mark.parametrize('phase',['evaluation','funded'])
+def test_plain_saved_paths_are_not_capped_by_size_count_or_total_work(phase):
+    candidate=SimpleNamespace(simulation=SimpleNamespace(simulations=20000),
+        profile=SimpleNamespace(profile_id='lucidflex-50k'))
+    value=SimpleNamespace(mode=phase+'_optimization',candidates=(candidate,)*40,
+        horizon_calendar_days=365,conservative_objective=None)
+    estimate=validate_phase_work(value)
+    assert estimate['estimated_capture_bytes']>100*1024*1024
+    if phase=='funded':assert estimate['funded_path_calendar_days']==292000000
+
+
+def test_large_saved_report_can_publish_without_changing_legacy_bound(tmp_path):
+    import json
+    from zipfile import ZipFile
+    from alphaquest.prop.store import seal_report
+    size=129*1024*1024
+    with (tmp_path/'paths.json').open('wb') as stream:stream.truncate(size)
+    with pytest.raises(ValueError,match='128 MiB'):seal_report(tmp_path,{},'id','created')
+    seal_report(tmp_path,{},'id','created',size_limit_bytes=None)
+    report=json.loads((tmp_path/'report.json').read_text())
+    assert report['files']['paths.json']['bytes']==size
+    with ZipFile(tmp_path/'analysis.zip') as archive:assert archive.getinfo('paths.json').file_size==size
 
 
 def test_public_funded_contract_retains_optional_configuration():

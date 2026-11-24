@@ -1,0 +1,25 @@
+{
+  "portal": "http://127.0.0.1:8000",
+  "asset_identity_verified": true,
+  "profiles": [
+    "Apex 50K EOD",
+    "LucidFlex 50K"
+  ],
+  "funded_optimizer_presets": [
+    "First year",
+    "Account life"
+  ],
+  "optimizer_parent": "ffc773ae8fa64bdc9aea73a8ac995a23",
+  "ranking_sha256": "661dcb09f50d7a216aad83ab639b89a1692ff3887364e9346632c603682f35d2",
+  "oos_child": "81d1457c2659417fb3195e956053bd3e",
+  "strategy_diagnosis": "74d595d8e1fe4ecca2934c004acbc59b",
+  "saved_basket": "58b9339ae2c64a50be070dd946cef3ba",
+  "desktop_and_mobile_reopen": true,
+  "verified_route": "existing saved reports",
+  "write_requests": 0,
+  "asset_sha256": {
+    "aq-simulation-setup.png": "4c94d5ced5cdb68cd004dfd9dc4c563c1a548a0f6725d9010a91971be488605d",
+    "aq-oos-mobile.png": "db848f7ddbec58af9a2f041adba4b0b39b350bbd11b0dd4a675e94abce531330",
+    "aq-optimise-and-oos.png": "1badfd7096929732346bb46c799d0a051baee5f0cffa932be97b13d99cf825d4"
+  }
+}

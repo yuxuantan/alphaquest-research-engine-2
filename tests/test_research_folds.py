@@ -231,6 +231,57 @@ def test_inventory_checks_minimums_and_source_integrity(tmp_path, monkeypatch):
         inventory_sessions(source, saved["id"])
 
 
+def test_saved_inventory_survives_store_reopen_and_repairs_bad_checksum(tmp_path, monkeypatch):
+    from alphaquest import research_folds
+
+    source, saved = save_source(tmp_path)
+    dataset_id = saved['id']
+    result = inventory_sessions(source, dataset_id)
+    reopened = DatasetStore(source.path)
+    original = research_folds.read_bars
+    full_reads = []
+
+    def counted(*args, **kwargs):
+        full_reads.append(args[1])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(research_folds, 'read_bars', counted)
+    assert inventory_sessions(reopened, dataset_id) == result
+    assert full_reads == []
+    with reopened.connect() as db:
+        db.execute("UPDATE dataset_session_inventory SET payload='{}' WHERE dataset_id=?", (dataset_id,))
+    assert inventory_sessions(reopened, dataset_id) == result
+    assert inventory_sessions(reopened, dataset_id) == result
+    assert full_reads == [dataset_id]
+
+
+def test_parallel_requests_share_the_first_observed_session_inventory(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from alphaquest import research_folds
+
+    source, saved = save_source(tmp_path)
+    stores = (source, DatasetStore(source.path))
+    together = Barrier(len(stores))
+    original = research_folds.read_bars
+    full_reads = []
+
+    def counted(*args, **kwargs):
+        full_reads.append(args[1])
+        return original(*args, **kwargs)
+
+    def load(store):
+        together.wait(timeout=5)
+        return inventory_sessions(store, saved['id'])
+
+    monkeypatch.setattr(research_folds, 'read_bars', counted)
+    with ThreadPoolExecutor(max_workers=len(stores)) as executor:
+        left, right = executor.map(load, stores)
+    assert left == right
+    assert full_reads == [saved['id']]
+
+
 def test_normal_readers_select_same_whole_session_and_different_calendar_day(tmp_path):
     source, saved = save_source(tmp_path)
     selected = SessionDateRange.parse("2026-01-05", "2026-01-05")

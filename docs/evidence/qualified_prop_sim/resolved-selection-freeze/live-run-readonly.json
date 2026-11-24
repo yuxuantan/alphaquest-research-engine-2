@@ -1,0 +1,19 @@
+{
+  "simulation_id": "2d19909ce7b3404ca73adb534d6a8d2a",
+  "selected_sizes": [
+    3,
+    6,
+    8,
+    12
+  ],
+  "unresolved_sizes": [
+    1,
+    2
+  ],
+  "freeze_enabled": true,
+  "selection_submitted": false,
+  "write_requests": [],
+  "summary": "10 Pareto configurations among resolved candidates only \u00b7 2 unresolved/censored. Unresolved sizes are excluded from comparisons and cannot be selected.",
+  "notice": "Freeze IS choices\n\nSelect up to four sizes in the IS results table above, then freeze them before OOS assessment.\n\nSelected: 3, 6, 8, 12 MNQ \u00b7 4 of 4 sizes\n\nUnresolved sizes cannot be selected. You can freeze resolved, eligible sizes; comparisons cover resolved candidates only.\n\nSelection note (required)\nFreeze selected sizes",
+  "inspection": "Read existing report and fill ephemeral browser controls only; no freeze, assessment or simulation submitted."
+}

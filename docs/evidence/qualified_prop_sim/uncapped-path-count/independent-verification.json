@@ -1,0 +1,39 @@
+{
+  "synthetic": true,
+  "phases": {
+    "evaluation": {
+      "candidate_count": 40,
+      "requested_paths_per_size": 1000,
+      "captured_paths": 40000,
+      "capture_estimate_bytes": 32000000,
+      "former_size_dependent_maximum": 3276,
+      "independent_metrics_verified": true,
+      "changed_fingerprinted_sources": [
+        {
+          "file": "phase_search.py",
+          "previous_sha256": "a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051",
+          "current_sha256": "14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c"
+        }
+      ],
+      "earlier_saved_report_compatible": true,
+      "all_other_source_hashes_unchanged": 32
+    },
+    "funded": {
+      "candidate_count": 40,
+      "requested_paths_per_size": 1000,
+      "captured_paths": 40000,
+      "capture_estimate_bytes": 200000000,
+      "former_size_dependent_maximum": 524,
+      "independent_metrics_verified": true,
+      "changed_fingerprinted_sources": [
+        {
+          "file": "phase_search.py",
+          "previous_sha256": "a078590de6c3f748e92b54775d900f8b7b9c5ec2ed4ab14b0e65ac94cfc3a051",
+          "current_sha256": "14fbe7844bc44be5734212513172d1fc74782c380beb0ab8a3a82f5e2e7ec36c"
+        }
+      ],
+      "earlier_saved_report_compatible": true,
+      "all_other_source_hashes_unchanged": 32
+    }
+  }
+}

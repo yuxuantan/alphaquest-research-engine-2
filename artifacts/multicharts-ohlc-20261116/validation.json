@@ -1,0 +1,40 @@
+{
+  "base_commit": "a691ce62693d2071fbc5118a5c2c20c592670c58",
+  "focused_execution": {
+    "passed": 214,
+    "full_suite": false
+  },
+  "report_api_and_vwap": {
+    "passed": 51,
+    "deselected": 2,
+    "baseline_failures_verified": true
+  },
+  "browser": {
+    "passed": 2,
+    "channel": "chrome",
+    "temporary_portal_stopped": true
+  },
+  "prop_risk_workflow": {
+    "passed": 4,
+    "stable_source_rerun": true
+  },
+  "existing_tick_regressions": {
+    "passed": 18,
+    "scope": "tick dataset tests excluding account-path and portfolio simulations"
+  },
+  "core": {
+    "state_cases": 11,
+    "bars": 18923,
+    "independent_replays": 18,
+    "exact_events_match": true,
+    "installed_multicharts_verified": false
+  },
+  "unchanged_historical_formats": [
+    "entry-protection-ohlc-sensitivity-v1",
+    "entry-protection-ohlc-sensitivity-v2"
+  ],
+  "limitations": [
+    "No installed MultiCharts SDK or native fill engine was available.",
+    "Two older VWAP default-count and CLI artifact-list tests already fail at the base commit."
+  ]
+}

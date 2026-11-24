@@ -36,7 +36,9 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     playwright.expect(page.locator("#validation-result")).to_contain_text("Dataset saved")
     dataset = next(d for d in page.request.get(portal["url"] + "/api/datasets").json()
                    if d["name"] == "SYNTHETIC compact optimization review")
-    page.get_by_role("link", name="Strategies", exact=True).click()
+    page.get_by_role("link", name="Campaigns", exact=True).click()
+    page.get_by_role("link", name="Saved runs", exact=True).click()
+    playwright.expect(page.locator("#strategies-screen")).to_be_visible()
     page.get_by_role("link", name="New backtest →", exact=True).click()
     playwright.expect(page.locator("#optimization-ranges tr")).to_have_count(3)
     page.locator("#backtest-dataset").select_option(dataset["id"])
@@ -119,6 +121,8 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     playwright.expect(page.locator('#market-benchmark-csv')).to_have_text('Daily comparison CSV ↓')
     compact_url = page.url
     page.screenshot(path=str(tmp_path / "compact-backtest.png"), full_page=True)
+    if not page.locator(".report-export-details").evaluate("d => d.open"):
+        page.get_by_text("More exports and detail",exact=True).click()
     with page.expect_download() as downloaded:
         page.locator("#report-json-download").click()
     downloaded.value.save_as(tmp_path / "compact-report.json")
@@ -129,6 +133,8 @@ def test_compact_storage_and_normal_report_to_prop_workflow(page, portal, tmp_pa
     detailed_id = page.url.rsplit("/", 1)[1]
     detailed = page.request.get(f"{portal['url']}/api/backtests/{detailed_id}").json()
     assert detailed["summary"] == compact["summary"]
+    if not page.locator(".report-export-details").evaluate("d => d.open"):
+        page.get_by_text("More exports and detail",exact=True).click()
     with page.expect_download() as downloaded:
         page.locator("#report-json-download").click()
     downloaded.value.save_as(tmp_path / "full-report.json.gz")

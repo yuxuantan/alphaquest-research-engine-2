@@ -1,0 +1,2 @@
+trade_number,bar_number,timestamp_utc,policy,buy_stop,sell_stop,open,high,low,close,chosen_side,cancelled_side
+1,2461,2024-01-17T17:01:00Z,multicharts,110,90,109,160,85,111,short,long

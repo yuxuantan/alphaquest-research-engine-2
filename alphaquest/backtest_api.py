@@ -35,6 +35,10 @@ from .backtest_requests import ExecutionSettings,OptimizationRequest
 from .research import SplitDeclaration, ResearchConflict, dates_for, metadata as research_metadata
 
 
+class BacktestStopped(Exception):
+    """User-requested stop before an in-progress report is published."""
+
+
 class BacktestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_id: StrictStr = Field(min_length=1, max_length=128)
@@ -74,6 +78,14 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
                 "instrument": {key:dataset.get(key) for key in ("symbol","interval_seconds","interval_kind")},
                 "strategy": definition.provenance(parameters),
                 "instrument_overrides": instrument_overrides(dataset, config)}
+    if dataset.get('tick_data'):
+        metadata['dataset']['tick_data']=dataset['tick_data']
+        metadata['dataset']['csv_sha256']=dataset['csv_sha256']
+        metadata['execution_data']=dict(kind='ordered_trade_ticks', version=dataset['tick_data']['version'],
+            fills='first recorded trade crossing stops; submitted limits; declared slippage; no queue/latency model',
+            decisions='completed one-minute bars and completed-minute trade flow')
+    if getattr(parameters,'use_order_flow',False) and not dataset.get('tick_data'):
+        raise ValueError('Order-flow strategy parameters require a trade tick dataset.')
     metadata["full_dataset"] = {key:dataset.get(key) for key in ("id","name","sha256","source_timezone","row_count","start","end","symbol")}
     if source_run_id:
         metadata["risk_from_run_id" if risk_replay else "detailed_from_run_id"] = source_run_id
@@ -95,6 +107,26 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         metadata["selection"] = selected.metadata
         if hasattr(strategy, "session_flattening"):
             metadata["strategy"]["session_flattening"] = strategy.session_flattening
+        # A controlled account replay keeps its actual native protection/floors.
+        # Independent ordinary-strategy sensitivity runs are not account paths.
+        protection = bool(account_control is None and getattr(definition.module, 'ENTRY_PROTECTION_POLICY', None)
+                          and parameters.immediate_protection)
+        sensitivity = None
+        if protection and not dataset.get('tick_data'):
+            from .entry_protection import sensitivity_replays
+            from .prepared_data import PreparedData, write_stream
+            workspace = Path(stack.enter_context(TemporaryDirectory(prefix='.entry-protection-')))
+            replay = prepared
+            if replay is None:
+                # Keep one identical checked source for both strategy replays.
+                path = workspace / 'bars.bin'
+                write_stream(path, selected.bars,
+                    lambda count: progress('preparing_entry_protection', count, total))
+                replay = PreparedData(path, selected.metadata)
+                selected = stack.enter_context(replay.selected())
+            with timings.span('entry_protection_sensitivity'):
+                sensitivity = sensitivity_replays(workspace / 'scenarios', definition, parameters, config,
+                    replay, feature_paths, dataset, metadata, fill_assumptions, progress)
         comparison = MarketBenchmark(config, market_benchmark, metadata, total, source_backtest_id=Path(output).name)
         # The source iterator advances here only after the engine's current
         # callback/fill. Final-bar count is visible before report publication.
@@ -115,12 +147,14 @@ def prepare_backtest_report(store, output, dataset, definition, parameters, conf
         stage("replaying")
         events = timings.iterate(execute(counted_bars(), strategy, config, capture_risk=True,
             observe_bar=comparison.set_bar, fill_assumptions=fill_assumptions, capture_decisions=capture_decisions,
-            account_control=account_control, completion='require_flat' if account_control is not None else 'strategy_finish'), 'replay')
+            account_control=account_control, completion='require_flat' if account_control is not None else 'strategy_finish',
+            capture_entry_protection=protection), 'replay')
         with timings.span('report_writing'):
             manifest = generate_report(events, output, config,
-                                       execution_assumption=definition.execution_assumption,
+                                       execution_assumption='ordered_trade_ticks_completed_minute_decisions' if dataset.get('tick_data') else definition.execution_assumption,
                                        metadata=metadata, expected_bar_count=total, on_saving=lambda: stage("saving_report"),
-                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions)
+                                       detail=report_detail, compress=compress_report, capture_risk=True, market_benchmark=comparison, capture_decisions=capture_decisions,
+                                       capture_entry_protection=protection, entry_protection_sensitivity=sensitivity)
     if account_control is not None:
         result = account_control.finish_replay()
         path = Path(output) / 'native_account_control.json'
@@ -329,12 +363,36 @@ async def start_backtest(body: BacktestRequest | OptimizationRequest, request: R
         raise HTTPException(409, str(exc)) from None
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from None
-    return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,reuse_calculations=body.reuse_calculations,research=research_metadata(plan),market_benchmark=body.market_benchmark.model_dump())
+    stop_event = None
+    if progress_id is not None:
+        from threading import Event
+        stop_event = Event()
+        if request.app.state.backtest_stops.setdefault(progress_id.hex, stop_event) is not stop_event:
+            raise HTTPException(409, 'This progress ID already belongs to a running backtest.')
+    try:
+        return await execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
+            report_detail=body.report_detail,reuse_prepared=body.reuse_prepared,reuse_results=body.reuse_results,
+            reuse_calculations=body.reuse_calculations,research=research_metadata(plan),
+            market_benchmark=body.market_benchmark.model_dump(),stop_event=stop_event)
+    except BacktestStopped:
+        raise HTTPException(409, 'Backtest stopped by user; no incomplete report was saved.') from None
+    finally:
+        if stop_event is not None:
+            request.app.state.backtest_stops.pop(progress_id.hex, None)
+
+
+@router.post('/api/backtests/progress/{progress_id}/stop')
+async def stop_one_backtest(progress_id: UUID, request: Request):
+    event = request.app.state.backtest_stops.get(progress_id.hex)
+    if event is None:
+        raise HTTPException(409, 'This backtest is no longer running. Check saved reports before starting another run.')
+    event.set()
+    return {'status': 'stopping', 'progress_id': progress_id.hex}
 
 
 async def execute_backtest(request, dataset, definition, parameters, config, date_range, progress_id,
                            *, compress_report=False, source_record=None, report_detail='compact',reuse_prepared=True,reuse_results=True,reuse_calculations=True,research=None,run_id_override=None,risk_replay=False,market_benchmark=None,
-                           execution_scenario=None,automatic_prop=True):
+                           execution_scenario=None,automatic_prop=True,stop_event=None):
     run_id = run_id_override or uuid4().hex
     tracker = request.app.state.progress
     operation_id = str(progress_id) if progress_id else None
@@ -343,6 +401,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
                                      "total_bars": 0 if date_range.active else dataset["row_count"], "run_id": run_id})
 
     def progress(stage, processed, total):
+        if stop_event is not None and stage != 'done' and stop_event.is_set():
+            raise BacktestStopped('Stopped by user at a backtest checkpoint.')
         if operation_id:
             tracker.update_backtest(operation_id, run_id, stage, processed, total)
 
@@ -361,6 +421,8 @@ async def execute_backtest(request, dataset, definition, parameters, config, dat
     except Exception as exc:
         if operation_id:
             tracker.fail_backtest(operation_id, run_id, str(exc))
+        if isinstance(exc, BacktestStopped):
+            raise
         if isinstance(exc, (DatasetReadError, InvalidDataset, ExecutionError, ReportError, CalendarError)):
             raise HTTPException(422, str(exc)) from None
         raise HTTPException(500, "Backtest failed; no completed run was saved.") from exc
@@ -482,6 +544,13 @@ def result_page(request, run_id, kind, offset, limit):
     return page
 
 
+@router.get('/api/backtests/{run_id}/risk-diagnostics')
+def risk_diagnostics(run_id:UUID,request:Request):
+    from .risk_metrics import from_report
+    try:return from_report(request.app.state.runs,run_id.hex)
+    except (ValueError,OSError,KeyError,TypeError) as exc:raise HTTPException(409,str(exc)) from exc
+
+
 @router.get("/api/backtests/{run_id}/trades")
 def trade_page(run_id: UUID, request: Request, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)):
     return result_page(request, run_id, "trades", offset, limit)
@@ -540,11 +609,42 @@ def market_comparison(run_id: UUID, request: Request, max_points: int = Query(10
 
 @router.get("/api/backtests/{run_id}/exports/{kind}")
 def download(run_id: UUID, kind: str, request: Request):
+    if kind=='risk_metrics':return JSONResponse(risk_diagnostics(run_id,request),headers={'Content-Disposition':'attachment; filename="risk_metrics.json"'})
     runs = request.app.state.runs
     record = runs.get(run_id.hex)
-    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control") or record is None:
+    from .entry_protection import export_kinds, evidence_hash
+    protection_kinds = export_kinds()
+    if kind not in ("trades", "equity", "report", "performance", "intratrade_risk", "market_benchmark", "market_equity", "source", "canonical_source", "execution_decisions", "native_account_control", "is_screening", "oos_screening", *protection_kinds) or record is None:
         raise HTTPException(404, "Completed backtest export not found.")
     _verify_external(request, record)
+    if kind in protection_kinds:
+        name = record.get('artifacts', {}).get(kind)
+        if name is None:
+            raise HTTPException(404, 'This report has no saved entry protection evidence of this kind.')
+        from .entry_protection import evidence_names
+        try:
+            if name not in evidence_names(record):
+                raise ValueError('Unknown entry protection artifact.')
+            path = runs.root / run_id.hex / name
+            expected = evidence_hash(record, name)
+            if path.is_symlink() or not path.is_file() or file_hash(path) != expected:
+                raise ValueError('Saved entry protection evidence is missing or changed.')
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return FileResponse(path, media_type='application/json' if name.endswith('.json') else 'text/csv',
+                            filename=f'{run_id.hex}-{name}')
+    if kind == 'oos_screening':
+        from .oos_criteria import FILE, verified_oos
+        try:verified_oos(runs,record)
+        except (ValueError,OSError,KeyError,TypeError) as exc:raise HTTPException(409,str(exc)) from exc
+        return FileResponse(runs.root / run_id.hex / FILE,media_type='application/json',filename=f'{run_id.hex}-{FILE}')
+    if kind == 'is_screening':
+        from .workflow_criteria import FILE, verified_screening
+        try:
+            verified_screening(runs, record)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return FileResponse(runs.root / run_id.hex / FILE, media_type='application/json', filename=f'{run_id.hex}-{FILE}')
     if kind == 'native_account_control':
         description = record.get('native_account_control')
         path = runs.root / run_id.hex / 'native_account_control.json'

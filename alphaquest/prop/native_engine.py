@@ -9,7 +9,7 @@ from collections import deque
 import numpy as np
 import cython
 from .native_money import money_add, money_sub, money_mul, rule_constant
-from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags
+from .sizing_runtime import resolve_runtime, before_trade, finish_trace, with_tags, saved_limit_result
 
 
 @dataclass(frozen=True)
@@ -91,6 +91,11 @@ class FundedAccount:
                 self.effective_micros=size
             try:
                 self.trades_consumed += 1
+                limited=saved_limit_result(runtime,trade,self.equity,floor,daily_floor,size)
+                if limited is not None:
+                    self.equity,self.last_hit=limited
+                    if self.last_hit==2:self.outcome='blown';return 0.
+                    break
                 net, adverse = trade[0], trade[1]
                 trough = self.equity - adverse * size / 10.
                 if len(trade) > 2 and trough <= max(daily_floor, floor):
@@ -227,6 +232,11 @@ def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_co
                 continue
         try:
             consumed += 1
+            limited=saved_limit_result(runtime,trade,equity,floor,daily_floor,size)
+            if limited is not None:
+                equity,hit=limited
+                if hit==2:result='blown'
+                break
             net, adverse = trade[0], trade[1]
             trough = equity - adverse * size / 10.
             if len(trade) > 2 and trough <= max(daily_floor, floor):
@@ -258,14 +268,17 @@ def evaluation_session(trades, equity, high, size, sizing_policy=None, sizing_co
                net=cython.double, adverse=cython.double, trough=cython.double,
                day=cython.longlong, duration=cython.longlong, attempt=cython.longlong)
 def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
-               max_micros=40, sizing_policy=None, sizing_context=None, trace=None):
+               max_micros=40, sizing_policy=None, sizing_context=None, trace=None,
+               checkpoint=lambda:None, progress=lambda completed,total:None):
     runtime=resolve_runtime(sizing_policy,sizing_context,trace)
     rng = np.random.RandomState(seed)
     outcomes, durations, attempts = [], [], []
     for path_index in range(sims):
+        checkpoint()
         duration = 0
         sequence = sampled_days(rng, len(days), block)
         for attempt in range(1, 10001 if chain else 2):
+            if attempt%32==0:checkpoint()
             equity = high = 0.
             result = 'timeout'
             size = min(micros, 60, max_micros)
@@ -318,6 +331,7 @@ def evaluation(days, micros, sims, seed, block=5, deadline=21, chain=False,
         outcomes.append(result)
         durations.append(duration + int(chain))
         attempts.append(attempt)
+        progress(path_index+1,sims)
     return dict(outcomes=np.array(outcomes), days=np.array(durations), attempts=np.array(attempts))
 
 
@@ -345,3 +359,52 @@ def evaluation_opening(equity,high):
 
 def evaluation_finish(equity,high,result):
     return equity,max(high,equity),result
+
+
+@cython.locals(i=cython.long,index=cython.long,cursor=cython.long,cutoff=cython.long,
+    last_index=cython.long,last=cython.long,eligible_index=cython.long,
+    ready_index=cython.long,attempts=cython.long,observed=cython.long,
+    start=cython.long,n=cython.long,session_count=cython.long,guard=cython.long,
+    retry_delay=cython.long,activation_delay=cython.long)
+def renewal_acquisition(outcomes,durations,fee,activation,retry,calendar,sampling,*,
+        preparation,summary_only=False,checkpoint=lambda:None):
+    """Existing IID renewal law, one source for full paths and compact refits."""
+    from bisect import bisect_left
+    from datetime import date
+    from decimal import Decimal
+    from hashlib import sha256
+    ordinals,starts=preparation.renewal_calendar(calendar)
+    n=len(outcomes);session_count=len(ordinals);guard=retry.max_calendar_days
+    retry_delay=retry.retry_delay_calendar_days;activation_delay=retry.activation_delay_sessions
+    schedule=None if summary_only else sha256();paths=[]
+    times=np.empty(sampling.chain_simulations,dtype=np.int64);complete=np.zeros(sampling.chain_simulations,dtype=np.bool_)
+    for i in range(sampling.chain_simulations):
+        if i%32==0:checkpoint()
+        start=starts[i%len(starts)];cutoff=start+guard;cursor=start
+        cost=Decimal(0);paid=False;attempts=0;state='attempt_guard';funded_date=None;observed=start
+        stream=preparation.renewal_indices(sampling.chain_seed,i,n,retry.max_attempts)
+        for _ in range(retry.max_attempts):
+            if cursor>=cutoff:observed=cutoff;state='calendar_guard';break
+            if not summary_only:cost+=fee
+            attempts+=1;index=next(stream)
+            if schedule is not None:schedule.update(f'{i}:{index};'.encode())
+            last_index=bisect_left(ordinals,cursor)+durations[index]-1
+            if last_index>=session_count or ordinals[last_index]>=cutoff:
+                observed=cutoff;state='calendar_guard';break
+            last=ordinals[last_index];observed=last+1
+            if outcomes[index]=='passed':
+                eligible_index=last_index+activation_delay;ready_index=eligible_index+1
+                if eligible_index<session_count and ordinals[eligible_index]<cutoff:
+                    if not summary_only:cost+=activation
+                    paid=True
+                if ready_index>=session_count or ordinals[ready_index]>cutoff:
+                    observed=cutoff;state='activation_guard';break
+                funded_date=ordinals[ready_index];observed=funded_date;state='funded';break
+            cursor=last+1+retry_delay
+        times[i]=observed-start;complete[i]=state=='funded'
+        if not summary_only:
+            paths.append(dict(path=i,start_date=str(date.fromordinal(start)),attempts=attempts,event=state,
+                observed_calendar_days=observed-start,funded_date=str(date.fromordinal(funded_date)) if funded_date is not None else None,
+                cost_accrued=str(cost),activation_paid=paid,pending_activation=state=='activation_guard' and not paid,
+                pending_readiness=state=='activation_guard'))
+    return (dict(times=times,completed=complete) if summary_only else paths),schedule.hexdigest() if schedule is not None else None

@@ -59,7 +59,7 @@ def test_normal_saved_backtest_trade_risk_downloads_and_reopen(tmp_path,kind,net
             from alphaquest.prop.source import prepare_source
             snapshot,trades=prepare_source(client.app.state.runs,run,None)
             assert Decimal(trades[0]['ohlc_mae_lower'])==6
-            assert Decimal(trades[0]['ohlc_mae_upper'])==226
+            assert Decimal(trades[0]['ohlc_mae_upper'])==6
     with TestClient(create_app(tmp_path/'datasets.sqlite3')) as client:
         assert client.get(f'/api/backtests/{run}').json()['summary']==record['summary']
 

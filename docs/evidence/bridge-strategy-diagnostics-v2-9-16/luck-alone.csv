@@ -1,0 +1,6 @@
+phase,horizon,candidate_count,subset_count,minimum_members,first_row,first_row_search_mnq,is_success_pct,oos_success_pct,luck_headline_pct,displayed_gap_pp,copies,reported_low_pct,reported_high_pct,source
+Evaluation,30-day simulation,1,1,1,Relative Strength,5,23.7,21.7,16,5,16,11,21,single-opt-eval.png
+Evaluation,30-day simulation,2,3,1,Twin Continuation,11,30.3,26.4,11,15,16,8,14,two-opt-eval.png
+Funded,First year,2,3,1,Twin Continuation,3,49.4,52.9,16,37,16,12,22,two-opt-funded.png
+Funded,First year,2,1,2,Relative Strength + Twin Continuation,2+2,45.0,44.5,16,29,16,10,23,pair-only-funded.png
+Funded,Account life,5,31,1,Twin Continuation,1,96.4,94.6,25,70,16,8,56,archive-optimise-funded-results.png

@@ -1,0 +1,45 @@
+{
+  "checked_at_utc": "2026-11-14T07:50:51.069493+00:00",
+  "new_simulation_id": "f0c73356f2f140b6ac22ebeed2e6ee82",
+  "same_settings_except_request_id": true,
+  "previous_simulation_stopped": true,
+  "historical_report_seals_unchanged": [
+    "203112a3eedc47ca80d4e7dc082c655f",
+    "a2309011784440f7acfbd6b70afb5b4e",
+    "a11f6078cef3415c96ac0c8f1d423921",
+    "609ec63f9b2f4af2ad84c40d920eb484",
+    "0d0ddfa2a8a0469c8e5d8015dabc9ba5",
+    "58f37e6e937d4f41a95af9d31f54cf32"
+  ],
+  "phases": {
+    "evaluation": {
+      "stage": "is_running"
+    },
+    "funded": {
+      "stage": "is_running"
+    }
+  },
+  "active_jobs": [
+    {
+      "id": "387dd5ef2b29418cb8f1a93aaf319279",
+      "status": "running",
+      "progress": "Lucid Evaluation paths 500/1000",
+      "error": null
+    },
+    {
+      "id": "8aed8d77d79a4d40a42a8b6d6cc2c937",
+      "status": "queued",
+      "progress": "Queued Funded search",
+      "error": null
+    }
+  ],
+  "progress": {},
+  "preserved_configuration": {
+    "profile": "lucidflex-50k",
+    "simulations_per_size_per_phase": 1000,
+    "historical_refits_per_size": 10000,
+    "seed": 42,
+    "block_weekdays": 5
+  },
+  "scope": "Live launch/progress verification; final full-data qualification not claimed complete."
+}

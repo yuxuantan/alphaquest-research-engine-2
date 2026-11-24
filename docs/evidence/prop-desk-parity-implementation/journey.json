@@ -1,0 +1,34 @@
+{
+  "analysis_ids": {
+    "evaluation": "15ec19e36ef34559bbe99ce26a623ec4",
+    "funded": "e3b4bd60ac724209bf2756a6ac07c880",
+    "optimise": "a6abc654685b46688c7d1a60031ab6b3",
+    "alternate": "5676abc5862d427eba2cd6121b07ec50",
+    "missing": "77094f2fb7924fb9afc3e20b20b3bb4b",
+    "diagnostic": "191eda0af18d42d781ad034223ac1e6e"
+  },
+  "fixture": "Synthetic normal saved backtests",
+  "expected": {
+    "oos_net": 798,
+    "diagnostic_oos_net": 399,
+    "pass_day": 4,
+    "funded_receipts": 13000
+  },
+  "sha256": {
+    "SYNTHETIC-flat.csv": "80dbfa36e4c5b40c535baa585c4e2295253c85a7c9d6cc129daa4e51f1dcd9da",
+    "SYNTHETIC-winning.csv": "33d9789fd3c9d4a0d8a318eb21bb747c3142a323ca13672db5bc1611f8f64941",
+    "alternate.json": "183234851225dc8c02b1cbdd5bbd7be7dc9a8c4b8b27febe63dde8dbe7926ffb",
+    "diagnostic.json": "f05dd93f8ec0ec267456042f2ab44be6984cf8dbae98a9758436e51e6fa9d505",
+    "evaluation-desktop.png": "03b6bf06aba87bece70b9183c9f5fcc9d570f3ec152f94d5ff4f976e6e606182",
+    "evaluation-oos-trades.csv": "c93d32aa1bda03e391c2c8e70c8926353adf5eb9e5e4044026388be3c9d194ac",
+    "evaluation.json": "b9d93f4d5b7493addc2322b2ec46135421f3e25e16a924dd787870e065b9ed87",
+    "funded-mobile.png": "6ca9af2933221ae0c9058fa97733173c34c19a3c08ae9585da432910ecfd666f",
+    "funded.json": "ad33933d8e36601d7927d9b2f2a747235b25acd4f473201d2e63931537b62082",
+    "missing.json": "b75bcf214ba5a9b85b7a9856f5add60dc8f496d6a53da0a4aa34823547986153",
+    "optimise-mobile-reopened.png": "646170958973f24d0be802dcf43eba5e8de7471f6a11f4f60d3427cafa974bec",
+    "optimise.json": "e77662fe1aa1b53bf04aba3ce6a6aaeba2675752008e2b6144f4cab37937a2ff",
+    "optimise.zip": "e94a6512db518d696df0d955ae32869ca2a4b62a5e685ec8218507ada4cb7a9a",
+    "standalone-mobile.png": "f1ecca444a418c1a902c1721978d9bfab3fa380b02cfe5b7cd0cea0653b2a18b",
+    "standalone-trades.csv": "1c46d06ab761d1fd6e4e70e56c8cb6f049c343f0eecbd38f155a73905fcc5d4b"
+  }
+}

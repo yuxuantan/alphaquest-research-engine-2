@@ -1,0 +1,265 @@
+{
+  "synthetic": true,
+  "simulation_id": "bfb6eb1b6b21473e9a8ce62852235d85",
+  "source_backtest_id": "35a18b177e9d4e358d8cb987dbc07ff9",
+  "model": "Local AlphaQuest; no Bridge runtime",
+  "consistency_percent": 50,
+  "purchase_fee": "99.50 user scenario",
+  "paths_per_size": 16,
+  "expected": "Fee/calendar means independently summed from all paths; time components sum to total. Explicit economic limits PASS; cash median/zero probability independently recomputed. Five covered chronological starts reuse the OOS MC results. Frozen IDs unchanged; five robustness scenarios; 64 precision paths; durable reload.",
+  "phases": {
+    "evaluation": {
+      "frozen": {
+        "candidate_ids": [
+          "1f7e1c0ffb3d0e0e707ae26aace1529c9ae81c6fca3636173ac3b9590ca2507c"
+        ],
+        "names": {
+          "1f7e1c0ffb3d0e0e707ae26aace1529c9ae81c6fca3636173ac3b9590ca2507c": "consecutive_green_hold \u00b7 12 MNQ \u00b7 1f7e1c0f"
+        },
+        "rationale": "Synthetic product journey: preserve this declared size across every assessment.",
+        "package_sha256": "c89c20b2177e00a64a2646e8d30df667eb6731b192bb36de747eefdfe19a1f5e",
+        "created_at_utc": "2026-11-13T02:29:36.333608+00:00"
+      },
+      "studies": [
+        {
+          "kind": "oos",
+          "request_id": "4e2c2e089f9f4633bff27ccbf544f20b",
+          "analysis_id": "63a3f93cce8949d49e44e5ae485be7e6",
+          "rows": 1
+        },
+        {
+          "kind": "account_starts",
+          "request_id": "0b0868371c10423d8fb35fbe155181fb",
+          "analysis_id": "019b4583e8f9439aa2d264354fc084bd",
+          "rows": 1
+        },
+        {
+          "kind": "is_robustness",
+          "request_id": "1bea980646984dfe8a80e6658095fd94",
+          "analysis_id": "c5372aaddbc54157b365163371512ccb",
+          "rows": 5
+        },
+        {
+          "kind": "precision",
+          "request_id": "06ac6438058d46c4a626dd2be93f7ff8",
+          "analysis_id": "5ff08089a573490a8f3a562c00c4fce3",
+          "rows": 1
+        }
+      ],
+      "baseline_metrics": [
+        {
+          "cost_per_funded": 99.5,
+          "expected_attempts_per_funded": 1.0,
+          "expected_calendar_days_to_funded": 13.875,
+          "mean_consistency_blocked_sessions": 2.3125,
+          "mean_days_before_final_attempt": 0.0,
+          "mean_failed_attempts_after_target": 0.0,
+          "mean_failed_attempts_before_target": 0.0,
+          "mean_final_attempt_days_after_target": 2.9375,
+          "mean_final_attempt_days_before_target": 9.4375,
+          "mean_pass_to_ready_days": 1.5,
+          "median_calendar_days_to_funded": 9.5,
+          "p90_calendar_days_to_funded": 32.0,
+          "pass_probability": 1.0,
+          "pass_probability_bounds": [
+            1.0,
+            1.0
+          ],
+          "probability_acquisition_by_cutoff": 1.0,
+          "probability_funded_by_day_30": 0.875,
+          "probability_funded_by_day_60": 1.0,
+          "probability_funded_by_day_90": 1.0,
+          "restricted_mean_observed_calendar_days": 13.875,
+          "restricted_mean_paid_fees": 99.5
+        },
+        {
+          "cost_per_funded": 99.5,
+          "expected_attempts_per_funded": 1.0,
+          "expected_calendar_days_to_funded": 13.875,
+          "mean_consistency_blocked_sessions": 2.3125,
+          "mean_days_before_final_attempt": 0.0,
+          "mean_failed_attempts_after_target": 0.0,
+          "mean_failed_attempts_before_target": 0.0,
+          "mean_final_attempt_days_after_target": 2.9375,
+          "mean_final_attempt_days_before_target": 9.4375,
+          "mean_pass_to_ready_days": 1.5,
+          "median_calendar_days_to_funded": 9.5,
+          "p90_calendar_days_to_funded": 32.0,
+          "pass_probability": 1.0,
+          "pass_probability_bounds": [
+            1.0,
+            1.0
+          ],
+          "probability_acquisition_by_cutoff": 1.0,
+          "probability_funded_by_day_30": 0.875,
+          "probability_funded_by_day_60": 1.0,
+          "probability_funded_by_day_90": 1.0,
+          "restricted_mean_observed_calendar_days": 13.875,
+          "restricted_mean_paid_fees": 99.5
+        }
+      ],
+      "policy_revision": {
+        "policy": {
+          "version": "prop-oos-review-v1",
+          "phase": "evaluation",
+          "limits": {
+            "maximum_cost_per_funded": "50",
+            "maximum_calendar_days_to_funded": 180,
+            "minimum_funded_receipts": null,
+            "minimum_history_calendar_days": 90,
+            "minimum_closed_trades": 30,
+            "account_start_count": 5
+          },
+          "revision": 2,
+          "implementation": {
+            "version": "prop-oos-review-v1",
+            "source_sha256": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4"
+          },
+          "declared_at_utc": "2026-11-13T02:29:48.319112+00:00",
+          "declaration_timing": "retrospective",
+          "prior_oos_attempts": 1,
+          "prior_completed_oos_assessments": 1,
+          "start_plan": {
+            "version": "evenly-spaced-covered-starts-v1",
+            "period": {
+              "first_session": "2026-01-01",
+              "last_session": "2026-12-31"
+            },
+            "horizon_calendar_days": 180,
+            "requested_starts": 5,
+            "starts": [
+              "2026-01-01",
+              "2026-02-17",
+              "2026-04-03",
+              "2026-05-19",
+              "2026-07-03"
+            ],
+            "status": "ready",
+            "eligible_starts": 132,
+            "selection": "Evenly spaced across all eligible weekday starts using coverage only; no P&L, ranking or cherry-picking.",
+            "clock": "Chicago civil dates; exclusive horizon cutoff; inherited declared weekday/closure scenario, not a newly verified exchange calendar."
+          },
+          "previous_policy_sha256": "24244f2ebee988d2eda47009b49ad3b6dcb29635636b488cbf1d1438f1babcc1",
+          "revision_reason": "SYNTHETIC: test a stricter corrected business limit without rerunning MC.",
+          "policy_sha256": "be02437e3fef1bb907b4cb1e9d8b0f14ce1c95280801dad377b32b6df58720ac"
+        },
+        "original_verdict": "PASS",
+        "new_verdict": "FAIL",
+        "mc_paths_unchanged": true,
+        "old_report_unchanged": true
+      }
+    },
+    "funded": {
+      "frozen": {
+        "candidate_ids": [
+          "946bf8bd9049e0e598692b09628142fee8b37e3c1b606df93023546ac2171111"
+        ],
+        "names": {
+          "946bf8bd9049e0e598692b09628142fee8b37e3c1b606df93023546ac2171111": "consecutive_green_hold \u00b7 12 MNQ \u00b7 946bf8bd"
+        },
+        "rationale": "Synthetic product journey: preserve this declared size across every assessment.",
+        "package_sha256": "42a726eb5aeb913708992d0a21b9b927e4123b09ef944138ef776e48cec41701",
+        "created_at_utc": "2026-11-13T02:29:52.174268+00:00"
+      },
+      "studies": [
+        {
+          "kind": "oos",
+          "request_id": "a91b41beac9c4f4bb72c3e065209851d",
+          "analysis_id": "5f89a84daaf04394a428e693eb269da0",
+          "rows": 1
+        },
+        {
+          "kind": "account_starts",
+          "request_id": "b11b3d4c1c464ca6921068aa3db63435",
+          "analysis_id": "30ce86a31bc244229d57ef2b616fe4e8",
+          "rows": 1
+        },
+        {
+          "kind": "is_robustness",
+          "request_id": "9c66ab111eb24befaa6748693995b140",
+          "analysis_id": "361d0404c8a7489a8d0ebdfd1882d6c7",
+          "rows": 5
+        },
+        {
+          "kind": "precision",
+          "request_id": "b46267dc03fb43e6b04cfdb86cebbda4",
+          "analysis_id": "14a71bb7954d4cdc80e905e32775ff72",
+          "rows": 1
+        }
+      ],
+      "baseline_metrics": [
+        {
+          "account_breach_probability": 0.0,
+          "expected_account_lifetime": null,
+          "expected_days_to_first_payout_conditional_on_payout": 34.27272727272727,
+          "expected_funded_cash_payouts_within_horizon": 2475.0,
+          "expected_gross_account_deductions": 2875.0,
+          "expected_number_of_payouts": 1.375,
+          "expected_payouts": 2475.0,
+          "expected_pending_cash": 112.5,
+          "median_payouts": 1800.0,
+          "p10_payouts": 0.0,
+          "p90_payouts": 7200.0,
+          "probability_first_payout": 0.6875,
+          "probability_inactivity": 0.5625,
+          "probability_payout_limit_completion": 0.0625,
+          "probability_surviving_to_horizon": 0.375,
+          "probability_zero_payout": 0.3125,
+          "restricted_mean_account_lifetime_calendar_days": 66.4375
+        }
+      ],
+      "policy_revision": {
+        "policy": {
+          "version": "prop-oos-review-v1",
+          "phase": "funded",
+          "limits": {
+            "maximum_cost_per_funded": null,
+            "maximum_calendar_days_to_funded": null,
+            "minimum_funded_receipts": "5000",
+            "minimum_history_calendar_days": 90,
+            "minimum_closed_trades": 30,
+            "account_start_count": 5
+          },
+          "revision": 2,
+          "implementation": {
+            "version": "prop-oos-review-v1",
+            "source_sha256": "46900554b14085fb1ddeca3b86c57a71b79e24bc5de5707f9cec57b6b8da27f4"
+          },
+          "declared_at_utc": "2026-11-13T02:30:03.869239+00:00",
+          "declaration_timing": "retrospective",
+          "prior_oos_attempts": 1,
+          "prior_completed_oos_assessments": 1,
+          "start_plan": {
+            "version": "evenly-spaced-covered-starts-v1",
+            "period": {
+              "first_session": "2026-01-01",
+              "last_session": "2026-12-31"
+            },
+            "horizon_calendar_days": 90,
+            "requested_starts": 5,
+            "starts": [
+              "2026-01-01",
+              "2026-03-11",
+              "2026-05-19",
+              "2026-07-27",
+              "2026-10-02"
+            ],
+            "status": "ready",
+            "eligible_starts": 197,
+            "selection": "Evenly spaced across all eligible weekday starts using coverage only; no P&L, ranking or cherry-picking.",
+            "clock": "Chicago civil dates; exclusive horizon cutoff; inherited declared weekday/closure scenario, not a newly verified exchange calendar."
+          },
+          "previous_policy_sha256": "9c6390a3d7921640a85dc10056be0ca8fd75975c34d1fdf88a48cf2378991eea",
+          "revision_reason": "SYNTHETIC: test a stricter corrected business limit without rerunning MC.",
+          "policy_sha256": "54e60ded4e6ac56b2204dcadfb39c3eefc1ad31c279a1a82e101305914615d84"
+        },
+        "original_verdict": "PASS",
+        "new_verdict": "FAIL",
+        "mc_paths_unchanged": true,
+        "old_report_unchanged": true
+      }
+    }
+  },
+  "temporary_server": "Stopped by fixture teardown",
+  "prior_access": "OOS already accessed during strategy qualification; no untouched holdout claim"
+}

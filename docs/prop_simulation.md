@@ -1,4 +1,62 @@
+> Current percentage-risk Prop Sim (2026-11-20): [saved-trade stop-budget model](saved_trade_prop_simulation.md) supersedes the native per-path replay described in earlier dated sections. **Portfolio & cash flow** uses the [native per-strategy sizing search](#native-portfolio-per-strategy-sizing-and-shared-replay) below.
+
+## Native Portfolio per-strategy sizing and shared replay
+
+Portfolio admission uses the strategy registry’s native sizing and session
+declarations. Every new candidate still needs current, sealed campaign
+qualification. A stale source can remain usable by single-strategy saved-trade
+Prop Sim. The Portfolio picker displays why it is unavailable for native replay.
+Twin Continuation uses the same order engine as standalone native replay. The
+portfolio routes paired breakout orders, fill callbacks, and immediate protection
+to the submitting strategy. Shared accounts take one position at a time. When
+strategies compete for a new order, selection follows the order shown in the
+picker. Portfolio requires a common NQ/MNQ dataset and observed closing prices.
+
+The form declares an Evaluation range and a Funded range in whole MNQ or percent
+risk. Each included campaign configuration gets an independent target from each
+range. Targets apply directly to that strategy’s trade and the relevant account
+state. Percentage targets use the selected basis, causal stop, and cost settings.
+The account tier and user ceiling can reduce actual contracts. The separate
+placement varies the account count by strategy. The shared placement varies the
+active subset and account count, with identical membership and policy on its
+shared accounts. Strategy exclusion and zero account purchases are valid plans.
+
+The search maximizes observed IS trader receipts less Evaluation and activation
+fees under the existing hard monthly budget. A grid that fits the replay limit
+is evaluated in full. For larger grids, deterministic starting plans and
+neighbors vary individual sizes, paired sizes, and placement within
+the declared replay limit. The default is 24 IS replays. The result reports the
+number tested, the full family size, and whether the winning plan was selected
+from a bounded search. Ties prefer fewer accounts and then canonical plan order.
+These are observed historical results. Independent single-strategy Evaluation and
+Funded Prop Sim retain their separate search objectives.
+
+The winning plan contains every strategy’s size in each phase and is sealed
+before fresh-start OOS and the full-period continuation. Both replays reuse its
+policies and placement. The report shows the frozen per-strategy sizes and
+provides the complete tested family actually evaluated, source coverage,
+and the execution and cash ledgers through the existing downloads. Legacy
+fixed-policy requests and historical reports remain readable.
+
 # AlphaQuest local prop simulation
+
+**Portal conclusions (14 November 2026):** saved independent Prop Sim results
+now lead with **Conclusion & next steps**, separately for Evaluation and Funded.
+Each phase explains its original server verdict, blockers and next action above
+the IS finding. Inconclusive qualification means hold deployment/gather evidence;
+NO-GO means do not deploy that sizing plan under the saved policy; historical GO
+leads to the existing paper execution review. Forward GO still calls for economic
+and deployment-control review, not automatic live approval. Older numerical or
+policy versions remain clearly historical. No calculation, eligibility threshold,
+freeze or report is changed by this presentation. See the
+[normal-product demonstration](evidence/qualified_prop_sim/conclusions/README.md).
+
+For the current Prop Sim tab, read the **[Evaluation/Funded IS and OOS
+calculation guide](prop_simulation_methodology.md)** (verified 14 November 2026).
+It explains Apex versus Lucid acquisition, fresh-Funded receipts, sampling and
+clocks, automatic IS selection, frozen OOS confidence gates, result columns and
+the separate native percentage-risk/portfolio mode. Earlier dated contracts and
+their saved reports remain preserved below.
 
 Current implementation (8 November 2026): later sections and the
 [execution checklist](robust_research_plan.md) supersede earlier dated pending
@@ -50,6 +108,131 @@ At that initial reliability checkpoint, final recommendation and native policy
 handoff were incomplete. The subsequent contracts below implement native
 chronological reruns, forecasts, candidate optimization, frozen campaign handoff
 and the complete-procedure workflow; the current acceptance record is separate.
+
+## Campaign-qualified Prop Sim portal — 2026-11-12
+
+**Prop Sim** (`/#prop-sim`) now connects current campaign qualification to the
+existing independent Evaluation/Funded engines. Exactly one saved parameter
+configuration may be selected. Mechanics, frozen IS Broad/IS Narrow, current OOS
+acceptance and the latest current-policy full-period Monte Carlo report must all
+pass. Listing, source checking and every explicit launch independently validate
+server-owned identities and source/report integrity; changing a client verdict
+cannot admit a failed configuration. Unsupported NQ/MNQ source shapes are rejected
+by the existing phase admission checks. No new strategy backtest is needed.
+
+The campaign's native IS report links **Configure prop analysis** to this page;
+legacy ordinary backtests keep their existing configuration route. The new page
+supports one local Apex 50K EOD profile, whole-MNQ size ranges, path count/seed,
+1/5/10-weekday blocks, replacement commission, scenario fees/calendar/closures,
+Funded horizon/receipt delay and an editable Funded breach-probability constraint.
+Defaults are 1–10 MNQ, 1,000 paths per size per phase, five-weekday blocks, seed 42,
+49 USD Evaluation / 129 USD activation, 0.51 USD per MNQ per side, 90 calendar
+Funded days, two calendar receipt-delay days and at most 25% account breach.
+These prices and receipt timing are editable scenarios, not verified quotes.
+
+Sizing uses only the frozen source's IS window. Qualification has already used
+OOS and combined-period Monte Carlo; therefore this is **post-screening research**,
+not a newly untouched holdout. Saved fixed-signal-path trades and conservative
+native held-OHLC adverse bounds are rescaled to whole MNQ. Account pauses do not
+rerun strategy signals; source timing, gap treatment and size scalability remain
+explicit assumptions. Costs replace source commissions once; existing fill
+slippage is preserved. This is not tick-precise provider execution.
+
+Evaluation estimates single-attempt pass probability `p`. Its unlimited
+independent-retry cost is `evaluation_price / p + activation_fee`; expected
+attempts are `1 / p`. Calendar-time estimates use sampled joint attempt
+outcome/duration pairs, retries, activation/readiness waits and the declared
+weekday/closure calendar. Unresolved/censored sizes withhold unconditional means
+and remain visible; the portal retains every resolved cost/time Pareto point
+and does not silently choose an Evaluation winner.
+
+Funded starts a fresh account and independently maximizes mean **cash received**
+within the saved finite horizon, counting every start including zero receipts.
+Daily risk limits, EOD trailing-floor updates, position tiers, inactivity,
+full-cap payout requests, immediate balance deductions and delayed receipts are
+applied by the existing local phase engine. Pending receipts and remaining
+account equity are not cash received. There is no replacement account and no
+Evaluation probability/fee/time in Funded selection. The breach constraint is
+an editable scenario constraint; estimates/near ties do not certify an optimum.
+
+The page exposes local rule snapshots and dated provenance. In particular the
+preserved engine uses 21-session expiry/inactivity clocks and accepts exactly
+50% funded consistency, whereas reviewed provider calendar/boundary rules differ.
+No numerical engine, rule hash, legacy selector or historical report is changed.
+No provider parity or trading readiness is claimed.
+
+`alphaquest/prop_sim.py` orchestrates existing `CampaignStore` requests and the
+normal `AnalysisStore` workers/results. New tables in that same catalogue save
+only the parent declaration, qualification proof and phase references. Each
+phase retains its existing numerical report, cache, source checks and CSV/JSON/ZIP
+exports; referenced campaigns are deletion-protected. Jobs continue after
+navigation, can be stopped/retried and reopen from the page or Job history.
+Progress polls small status records, loading numerical reports only on completion.
+The request's selection array currently enforces exactly one member; multi-source
+portfolio allocation remains future work, with no invented portfolio optimum.
+
+API: `GET /api/prop-sim/candidates`, `GET /api/prop-sim/defaults`,
+`POST /api/prop-sim/check`, `POST /api/prop-sim` (202),
+`GET /api/prop-sim` (history), `GET /api/prop-sim/{id}` (status),
+`GET /api/prop-sim/{id}/results/{evaluation|funded}` and
+`POST /api/prop-sim/{id}/cancel`. Checks and launches take the configuration
+snapshot returned by status, with a new `request_id` for changed settings.
+The same request ID is idempotent; explicit retry rechecks current qualification.
+Previously saved reports reopen without requalification or resimulation.
+
+See the [normal-product evidence and reproduction guide](evidence/qualified_prop_sim/README.md).
+
+## Independent size ranges, optional breach cap and Evaluation chart — 2026-11-12
+
+The current Prop Sim form has separate Evaluation minimum/maximum sizes and
+Funded minimum/maximum sizes. The local Apex 50K EOD limits are **60 MNQ for
+Evaluation** and **40 MNQ for Funded**. Each range enumerates every integer
+between its endpoints; defaults remain 1–10 for each phase. Funded requested
+sizes are still subject to its existing per-account scaling tiers, starting at
+20 MNQ in the preserved local model. Evaluation explicitly supplies a 60-MNQ
+simulation cap to the existing owner: candidates above 40 are not clipped by
+`SimulationConfig`'s older default. No numerical owner or rule hash is changed.
+
+New request fields are `evaluation_minimum_micros`,
+`evaluation_maximum_micros`, `funded_minimum_micros` and
+`funded_maximum_micros`. Backend/HTML validation enforce each phase's ceiling
+and ordered range. Changing either range changes only that phase's numerical
+request/cache identity. Old shared `minimum_micros` / `maximum_micros` requests
+and stored declarations are read compatibly, never rewritten. Mixed old/new
+range declarations reject. Existing saved results retain their original model
+settings and numerical snapshots. Small status/history views and source
+qualification remain unchanged. Report-resource bounds still apply separately;
+source-check errors now identify the rejecting phase.
+
+`maximum_funded_breach_probability` is now optional, **null/off by default**.
+Blank in the form means no breach eligibility cap; a number in 0–1 enables it.
+Breach probability remains a displayed measurement regardless. The cap is a
+user research preference, not provider admission or campaign qualification.
+It measures drawdown failure before the selected future-model Funded horizon;
+the number of years in the IS sampling history is a different quantity.
+Accounts may also end through inactivity or completing the payout ladder.
+Long history does not mean every sampled account must breach. With no cap,
+Funded ranks complete feasible candidates by expected cash received across all
+starts, including zero-payout failures. There is no automatic replacement account.
+Historical saved capped analyses keep their explicit original caps.
+
+Evaluation results now draw expected calendar days to Funded on the horizontal
+axis and expected acquisition cost (USD) on the vertical axis. All resolved
+sizes are shown; green points and connecting segments identify the computed
+Pareto frontier, grey points show dominated estimates. Exactly tied coordinates
+share a point listing every corresponding size. Hover, focus, Enter/Space or
+click reveals values and highlights the matching result rows. The chart exports
+a standalone SVG. Unresolved/censored rows remain in the table and are excluded
+from geometry; a single distinct frontier point is shown as one point, without
+inventing a tradeoff curve or untested intermediate sizes. A missing resolved
+population shows an explicit empty-chart explanation.
+
+[The additive product evidence](evidence/qualified_prop_sim/phase_ranges/README.md)
+includes the actual 58–60 MNQ Evaluation / 38–40 MNQ Funded journey, current
+default uncapped Funded request, native phase downloads and Pareto SVG/screenshot.
+Earlier shared-range evidence remains unchanged. Defaults of 1,000 paths and
+resource bounds are unchanged; for full 1–60 / 1–40 ranges, 500 paths fits the
+existing per-report capture bound, while 1,000 Funded paths does not.
 
 ## Canonical external sources — 2026-11-08
 
@@ -1485,7 +1668,7 @@ Its reproduction claims apply to the old notebook, not The Bridge model.
 
 # Notebook-compatible prop analysis
 
-Authority: `notebooks/PropFirm_MonteCarlo_Apex50K_2508.ipynb`, SHA-256
+Authority: `notebooks/PropFirm_MonteCarlo_Apex 50K_2508.ipynb`, SHA-256
 `f79b6c6cc54e7bd64d619bb684ec4c6537c7bcf1d1e1d3f6d5bd6e74c908f89b`.
 Downloaded on 2026-10-26; 1,016,849 bytes, 23 cells; exact reviewed revision.
 Executable cells take precedence over notebook prose. Stored outputs are not oracles.
@@ -2053,3 +2236,1622 @@ Saved evidence is shown through actual-session timelines, qualification plots
 and matched Funded forecast/actual receipt plots with complete tables/downloads.
 No new simulation, selector or separate result store is introduced. See the M4
 normal-product journey and expected observations in `prop_simulation_review.md`.
+
+## Dense Pareto chart presentation — 2026-11-12
+
+The main Prop Sim Evaluation chart now defaults to **Frontier detail**, with
+axes fitted to the existing frontier and nearby estimates. **All sizes** restores
+full context. The viewport count makes omitted out-of-view estimates explicit;
+all configurations remain in the saved result table. Nice ticks and green
+markers drawn above grey points replace the previous overlapping size labels.
+**Inspect size**, hover or keyboard focus shows exact cost/time values and
+highlights matching rows, including exact coordinate ties. Selecting an off-view
+size switches to the full overview. The SVG adapts to mobile width and exports
+the current view, legend and inspected values. No simulations, verdicts, source
+inputs, numerical identities or existing reports change. Reopen saved results to
+use it immediately. [Actual product evidence and reproduction](evidence/qualified_prop_sim/pareto_ui/README.md)
+retain the earlier calculation/phase-range evidence unchanged.
+
+## Selectable LucidFlex 50K — 2026-11-12
+
+The main Prop Sim setup now selects **Apex 50K EOD** or **LucidFlex 50K**. Lucid
+supports its standard 40% Evaluation consistency and optional DLL-on/off, 40 MNQ
+in both phases and no activation fee. Profile-specific scenario defaults are
+80.50 USD purchase / zero activation / 0.50 USD MNQ commission per side; prices
+remain editable assumptions. Apex retains its prior defaults and 60/40-MNQ caps.
+Backend validation and implementation/cache identity include the selected
+profile and settings. Unknown accounts and unsupported Lucid 50% add-on behavior
+are not silently substituted. Original Apex declarations/reports stay readable.
+
+The previous dated IID Evaluation interface rejected Lucid because a session
+count could not safely represent calendar inactivity. The implemented extension
+routes saved-signal Lucid candidates through `calendar_evaluation_paths` and
+`simulate_calendar_evaluation_profile` in the existing Evaluation owner. It
+uses actual scenario civil dates, the existing Lucid session kernel, closed-date
+inactivity and independently addressed per-attempt block streams. Direct all-path
+fees/time determine acquisition means; first-attempt pass fraction is a separate
+measurement, not a fee/pass shortcut. All paths must acquire before the declared
+calendar/attempt guards for unconditional means; otherwise means are withheld,
+fees and restricted durations remain visible. The existing Pareto/uncertainty
+contract is reused. Native source-bar rerun and legacy weekday components remain
+separate existing interfaces. Numerical files remain hashed, with explicit
+`evaluation-optimization-profile-calendar-v2` report identity for this branch.
+
+Funded reuses the existing dated Lucid model: optional soft DLL, EOD loss floor,
+account tiers, five 150-USD qualifying days per payout, 50% withdrawal up to
+2,000 USD, 90% trader entitlement, five-payout simulated-stage boundary, inactivity,
+and separate request/deduction/receipt events. It does not acquire replacement
+accounts or consume Evaluation inputs. Live profits after transition are outside
+scope. The fixed 1,200-USD DLL amount and declared next-session/receipt-calendar
+conventions remain explicit assumptions; provider parity is not asserted.
+
+Setup now groups the source, account and independent phase settings and checks
+report capture bounds visibly before launch. Saved results lead with actual
+profile/source identity and outputs, collapsing rerun controls and advanced
+assumptions. Tables sort on raw saved values, keeping the MNQ column/header
+visible. Phase navigation, frozen parameters, job links and ordinary downloads
+remain in the same workflow. [Actual outputs, UI review and reproduction](evidence/qualified_prop_sim/lucidflex/README.md)
+preserve earlier evidence, independently check the new calendar/cash arithmetic
+and distinguish the labeled synthetic source from actual local-library captures.
+
+## Remove a saved Prop Sim simulation — 2026-11-12
+
+Open a saved run and choose **Delete simulation**, or use **Delete selected
+simulation** beside the saved-run selector. A fresh dependency preview and
+confirmation identify the selected profile/strategy/date and how many phase
+reports will be removed or retained. Queued/running jobs must be stopped or
+complete first. The operation removes the saved entry, unused internal phase
+campaigns and unreferenced analysis/report/cache/job records. Other simulations'
+shared results and frozen/dependent phase reports remain protected. Original
+source datasets/backtests and the mechanics/IS/OOS/Monte Carlo workflow remain.
+
+Deletion reuses the existing catalogue and owner guards. Metadata and staged
+report directories roll back together on SQL/file-staging failure; post-commit
+cleanup failures are retried through the receipt page. A small deletion audit
+keeps provenance and blocks request-ID reuse, without keeping a duplicate numeric
+result store. A new simulation uses a new request ID. Current historical models,
+source qualification, numerical hashes and report identities are unchanged.
+
+`GET /api/prop-sim/{id}/deletion` previews or reopens the deletion receipt.
+`DELETE /api/prop-sim/{id}` requires its `confirmation_sha256` and returns removed,
+retained and pending-cleanup identities. Saved results/status return 404 after
+removal; the receipt remains available for idempotent retry. See the
+[product journey, expected observations and saved evidence](evidence/qualified_prop_sim/deletion/README.md).
+
+## Qualified Prop Sim account variants and validation — 2026-11-12
+
+The current main Prop Sim workflow supports LucidFlex 50K Evaluation **40%
+standard or 50% add-on**. The latter requires an explicitly supplied purchase
+fee; there is no assumed add-on quote or 52% variant. The immutable Evaluation
+profile carries `consistency_percent`; Funded carries neither that selection
+nor Evaluation fees. The calendar Evaluation model is
+`evaluation-optimization-profile-calendar-v3`. Prior reports remain historical
+and readable; numerical identity changes fail closed at freeze/new assessment.
+
+Acquisition paths capture first-target dates, counts of failed accounts before
+and after target, consistency-blocked sessions and four exhaustive calendar-time
+components for completed acquisition. All starts enter means. Censored paths
+retain accrued observations and withhold unconditional acquisition timing.
+Normal approximate paired path/cohort difference intervals are Bonferroni-
+adjusted across the declared pairs and two objectives; they quantify conditional
+simulation error, preserve point-estimate Pareto membership and never certify
+future/provider performance or choose an Evaluation winner.
+
+Within each phase, **Freeze choices and validate** saves up to four eligible
+sizes with a rationale using the existing research-campaign package. Immutable
+choices can launch append-only assessments through existing workers/storage:
+
+- `oos`: frozen policy on the campaign's already-verified OOS native report,
+  retaining sampling/calendar settings for comparable MC estimates; also one
+  separate actual-order replay starting at the OOS source boundary. Evaluation
+  ends at acquisition or exclusive source cutoff. Funded observes one fresh
+  account for its frozen horizon, including zero cash and pending receipts.
+- `is_robustness`: explicit diagnostic paths, full-IS block lengths 1/5/20 and
+  first/second weekday halves at the original block. No OOS inputs or new sizes.
+- `precision`: more explicitly declared paths than the original search, with
+  frozen profile/size/source/options/seed. It publishes refined estimates and
+  leaves original IS reports and choices unchanged.
+
+Assessments never call a selector or establish a new pass/fail policy. OOS was
+already accessed in strategy qualification, so these are additional research
+assessments rather than untouched holdouts. Full-source fixed-signal scaling,
+OHLC adverse bounds, daily calendar resolution and provider timing assumptions
+remain disclosed. Account-aware signal reruns remain later work; no synthetic
+profit cap or daily winner clipping is substituted.
+
+Normal API/UI integration:
+`GET /api/prop-sim/{id}/validation/{phase}` returns freeze/assessment metadata;
+`POST .../{phase}/freeze` takes the existing candidate IDs/rationale contract;
+`POST .../{phase}` takes `request_id`, `kind`, and explicit `paths` for IS
+robustness/precision (OOS path count is frozen); `GET .../{phase}/{request_id}`
+returns the sealed assessment. CampaignStore owns freeze/history and owner
+modules own the calculations. Jobs link back to the same Prop Sim; downloads
+use existing report/ZIP routes. Running assessments support ordinary phase
+cancellation. Capture/work guards and source/shared-result pins remain active.
+
+See [saved product evidence and independent expected outcomes](evidence/qualified_prop_sim/validation/README.md)
+and `tests/test_prop_evaluation_validation.py` for rejection/clock/arithmetic
+checks. Each evidence ZIP includes source inputs, scenario configurations,
+paths, code/rule identity and frozen-package provenance.
+
+### IS results selection and OOS-focused validation — 2026-11-12
+
+For each main Prop Sim phase, select up to four eligible sizes directly in the
+IS results table. Evaluation excludes non-frontier/unresolved rows; Funded
+shows applicable constraint reasons. The comparison table retains every tested
+size, while the validation section contains only a compact selection summary.
+Sorting preserves selection, and checkbox/MNQ columns stay visible during
+horizontal scrolling. Add the required selection note and freeze using the
+unchanged immutable server contract.
+
+After freezing, OOS validation shows only frozen choices and **Run OOS
+assessment** as its primary action. Saved OOS assessments appear directly there.
+Robustness, extra-path precision and their histories are in collapsed
+**Additional diagnostics**, with an explicit running/saved count. Reopening
+loads their summary results without rerunning calculations. The existing
+numerical-version/source guards remain unchanged; this UI increment itself
+requires no backtest or simulation rerun.
+
+[Saved product journey and reproduction](evidence/qualified_prop_sim/selection-flow/README.md).
+
+### Freeze admission with unresolved alternatives — 2026-11-13
+
+Freeze requires every selected size to be resolved and eligible on its saved IS
+report. Unselected unresolved/censored sizes no longer block this decision.
+Evaluation's frontier compares resolved candidates only; the portal, chart
+caption and SVG download say so. Unresolved rows remain visible and unselectable,
+with their acquisition means withheld. They are not certified dominated by the
+selected frontier. Funded selection still requires feasible ranked candidates.
+The report hash and complete original search stay in the existing frozen
+package; OOS applies only its chosen family without reselection. Existing
+compatible reports can freeze directly, with no backtest or sizing rerun.
+
+[Native boundary outputs, actual saved-run inspection and reproduction](evidence/qualified_prop_sim/resolved-selection-freeze/README.md).
+
+### Frozen OOS session-audit identity correction — 2026-11-13
+
+Saved-source OOS admission compares the strategy code, parameters, static
+session-flattening rules and calendar snapshot. Six per-period audit fields may
+differ: session/closed-session/early-close counts, examples, early-close examples
+and the generated session-plan hash. Unknown fields and changed static rules
+still reject. Full original audit metadata remains in each source/report;
+comparison uses copies and never rewrites the frozen package.
+
+The saved-source assessment window is the intersection of the unchanged OOS
+split and the report's actual CME-session coverage. An absent first date (for
+example a holiday) does not require nonexistent bars. The original split stays
+in the frozen/source manifests, the effective window stays in the assessment
+request, and an empty intersection rejects. Candidate sizes, parameters,
+profile, costs, sampling and seeds remain frozen; no OOS reselection is added.
+
+`phase_dispatch.implementations_compatible` permits only the exact reviewed
+old/new `phase_search.py` source revisions for this admission correction, with
+every other source, kernel and environment identity equal. New reports retain
+the actual current source hash; old reports and package hashes are unchanged.
+This is not a generic legacy-code override. Unknown admission revisions and
+any calculation-code changes still fail closed.
+
+[Saved evidence and exact reproduction](evidence/qualified_prop_sim/oos-session-audit/README.md).
+
+### Prop Sim OOS economic policy and account-start sensitivity — 2026-11-13
+
+The qualified Prop Sim portal now declares immutable **per-phase assessment
+limits** before new OOS jobs. Evaluation requires a maximum mean acquisition cost
+(USD) and maximum mean calendar days to Funded. Funded requires minimum mean
+trader cash received over the already frozen horizon, including zero-receipt
+accounts. These business limits have no invented defaults. Evidence safeguards
+start at 90 calendar days of history and 30 closed source trades and are editable
+before declaration. They are research admission safeguards, not universal
+statistical guarantees. An existing optional Funded breach cap remains a frozen
+constraint; default-off remains default-off.
+
+**PASS** means that candidate's resolved estimates meet the declared economic
+limits and evidence minimums; equality passes. **FAIL** means adequate resolved
+evidence misses an economic limit or existing frozen optional constraint.
+**INCONCLUSIVE** means minimum evidence or complete estimates are unavailable.
+Funded must cover its entire frozen horizon; the existing chronological owner
+rejects sources too short to replay that horizon rather than inventing future
+sessions. This is a point-estimate economic review, not provider certification,
+future profitability assurance or a confidence-bound acceptance rule.
+
+IS-to-OOS deterioration is reported separately: cost/time increases, receipt or
+first-payout/pass-probability declines, and breach increases generate **watch**
+flags. No arbitrary retention ratio silently becomes another gate. Monetary/time
+changes show absolute and relative deltas; probabilities show percentage-point
+changes. Any adverse difference is descriptive, not a statistical finding.
+Existing MC standard errors/intervals remain available separately from historical
+or future-regime uncertainty. No assessment reranks or reselects sizes.
+
+Richer OOS summaries retain Evaluation mean/median/P90 calendar time and costs,
+and Funded zero-receipt probability, P10/median/P90 cash including zeros,
+first-receipt median/P75/P90 conditional on a receipt, and each payout milestone's
+request probability versus modeled receipt probability within the horizon.
+Pending entitlements and gross account deductions remain distinct from receipts.
+A single chronological OOS replay remains beside the Monte Carlo summary.
+Historical reports without this policy explicitly have no new economic verdict.
+
+Policies are configuration metadata in the existing Prop Sim parent record;
+results remain in AnalysisStore. The policy stores phase, limits, timestamp,
+prior OOS attempts, immutable date plan and SHA-256, plus the separate review
+implementation hash. A policy declared after any prior Prop Sim OOS attempt is
+**retrospective**. All these sources were already accessed in strategy
+qualification; none is relabeled untouched. A changed declaration requires a new
+simulation. Earlier reports/packages remain unchanged and readable.
+
+**Check account-start sensitivity** becomes available after completed OOS. Before
+assessment, the policy fixes 2–12 starts (default five), evenly spaced over all
+eligible weekday dates from saved OOS coverage, excluding inherited declared
+closures. Dates never use returns. Funded uses its frozen horizon; Evaluation
+uses its declared maximum funding-time limit as a diagnostic observation window,
+not a provider deadline or a changed MC horizon. Every start must have the same
+full calendar window; if there are too few eligible starts, sensitivity is
+INCONCLUSIVE and no shortened windows are substituted. The report displays all
+actual-order accounts, fees, funding/censoring or receipts/pending amounts, and
+min/median/max ranges. Censored acquisitions do not enter a completed-only time
+mean; their fees remain paid. Zero-receipt Funded accounts remain in ranges.
+Overlapping windows are dependent scenarios, not independent statistical trials.
+The weekday/closure scenario is inherited, not a newly verified exchange calendar.
+
+The existing local Evaluation/Funded chronological owners execute these slices;
+there is no new account engine. A verified completed OOS report supplies the MC
+paths for both re-review and account-start jobs, so neither reruns Monte Carlo.
+Source/frozen-package/numerical identities and sealed report hashes are checked,
+and the existing worker, cancellation and publication bounds still apply.
+Downloads add `assessment_policy.json`, `economic_assessment.json` and, when run,
+`account_start_sensitivity.json` to the normal evidence ZIP. The API adds
+`POST /api/prop-sim/{id}/validation/{phase}/policy` and the existing assessment
+POST accepts `kind: account_starts` without a path override.
+
+Approved account-rule choices are retained: exact selected Evaluation consistency
+without a cushion, fixed USD 1,200 DLL when enabled above the trailing-profit
+threshold too, and 30-calendar-day Lucid inactivity. No numerical rule source or
+phase identity changes for this review increment. External funded-lab outputs
+remain qualification references only. Portfolio allocation and full replacement
+cash-flow analysis are deferred separate increments.
+
+[Normal-product evidence and reproduction](evidence/qualified_prop_sim/oos-policy-starts/README.md).
+
+### Revise OOS assessment limits without replacing a simulation — 2026-11-13
+
+The qualified Prop Sim portal now supports **Revise assessment limits**. This
+supersedes the preceding increment's requirement to create a new simulation when
+changing these limits. Each saved version remains immutable; a revision appends
+new limits, a required reason, timestamp, predecessor hash and revision number.
+The latest version becomes the default for subsequent assessments. Existing
+single-policy records are treated as version 1 and preserved byte-for-byte in
+history when first revised. The existing parent stores configuration history;
+AnalysisStore continues to own all results. No new storage or account engine.
+
+The user can edit Evaluation maximum cost/time, Funded minimum receipts, evidence
+minimums and account-start count. **Cancel revision** discards an unsaved edit.
+Saving does not rerun anything or change a previous verdict. **Run OOS assessment**
+applies the latest policy to verified compatible saved OOS MC paths and publishes
+a new report. Old reports show their original version and a superseded label.
+Revision after OOS access is retrospective, including a reversion to older values;
+it cannot turn accessed data into an untouched holdout. Before the first Prop Sim
+OOS attempt, a revision retains that narrower pre-result timing disclosure.
+
+Queued/running jobs keep their captured policy version, even when the user saves
+a revision. Account-start sensitivity requires a completed OOS review under the
+current version so the displayed limits/date plan and review agree. Revision of
+Evaluation time or start count creates a new covered-start plan; historical plans
+and sensitivity results remain. Frozen source, size, execution costs and account
+rules do not change. No IS or MC rerun is needed for limits alone. Changed review
+code may be adopted through an explicit revision; incompatible phase numerical
+code still fails its existing guards.
+
+`POST /api/prop-sim/{id}/validation/{phase}/policy/revisions` accepts phase limits,
+`previous_policy_sha256` and a nonblank `reason`. A stale predecessor returns 409;
+a retry of the same current revision is idempotent. A no-op revision rejects.
+The validation GET includes current policy and `assessment_policy_history`.
+Saving the original policy route still cannot overwrite an existing version.
+
+[Revision evidence and reproduction](evidence/qualified_prop_sim/oos-policy-revisions/README.md).
+
+### Path count is independent of the saved-source size range — 2026-11-13
+
+The qualified Prop Sim portal no longer lowers allowed paths as the number of
+MNQ sizes increases. A 1–40 size search with 1,000 paths retains 1,000 per size
+in each phase (80,000 declared paths overall); the former approximate 100-MiB
+capture estimate no longer disables source checking or launch. The preview now
+shows the requested per-size count and total, without clipping or a size-based
+maximum. The existing 8–20,000 per-size input range is independent of size count.
+
+Saved-source independent Evaluation/Funded admission continues to estimate work
+but does not reject a basic search based on the estimated capture size or total
+Funded path-calendar days. Optional historical-refit and native signal-rerun
+bounds remain their separate contracts. Basic saved-source sensitivity/precision
+assessments follow the same path-count admission. Report publication for these
+saved-source phase jobs also removes the aggregate 128-MiB ceiling; it retains
+all paths, source captures, checksums, normal JSON/ZIP downloads, cancellation and
+atomic completion. Legacy/native/refit report bounds remain unchanged.
+
+The only fingerprinted source revision is admission in `phase_search.py`, from
+`a078590d…3a051` to `14fbe784…ec36c`. Every numerical kernel/phase simulation and
+all other 32 fingerprinted sources remain unchanged. Directed compatibility
+accepts this exact admission revision (and the earlier reviewed audit correction)
+only when all other implementation fields match. Earlier reports and frozen
+packages remain unchanged; unknown numerical revisions still reject. Saved
+simulations remain readable and compatible for freeze/OOS/review workflows.
+
+[Full product demonstration and reproduction](evidence/qualified_prop_sim/uncapped-path-count/README.md).
+
+### Frozen-size historical qualification and forward execution review — 2026-11-13
+
+Implemented for the qualified saved-source Prop Sim workflow. This supersedes
+mandatory dollar-limit declarations as the default OOS gate. The earlier
+versioned business-limit assessments remain available under **Additional
+diagnostics → Optional business limits and historical policies**. Their saved
+reports, calculations and declarations are unchanged.
+
+After choosing up to four IS sizes independently per phase, freeze them and use
+**Run OOS qualification**. A new immutable assessment applies these fixed rules:
+
+| Requirement | Evaluation | Funded |
+| --- | --- | --- |
+| Prior strategy qualification | Mechanics, Broad, Narrow, strategy OOS and final MC must still pass | Same |
+| OOS evidence | At least 12 complete calendar months and 100 closed source trades | Same, plus coverage of the full frozen cash horizon |
+| Deterioration margins | Mean acquisition cost OOS / IS ≤ 1.50; mean calendar time to funding OOS / IS ≤ 1.50 | Mean trader receipts OOS / IS ≥ 0.70 at the same horizon; zero receipts included |
+| Historical uncertainty | Each ratio's upper bound must fit its margin | Ratio's lower bound must fit its margin |
+| Numerical precision | Relative inner MC standard error ≤ 5% in every resampled calculation | Same |
+
+The historical procedure independently circular-block-resamples the **source
+weekday daybooks** in IS and OOS, preserving each history's length, with block
+length `max(5, saved block length)` and 10,000 saved replicates. Each resample
+reruns the existing local phase account owner with the frozen whole-MNQ size,
+rules, fees, calendar, horizon and complete requested account-path count. It does
+not bootstrap previously simulated MC paths, rerank sizes, select another source,
+or substitute a shorter horizon. Only numerically identical *entire resampled
+daybooks* share a memoized owner calculation; requested paths are never clipped.
+The saved random streams and replicate index checksums make it reproducible.
+
+Nominal simultaneous 95% two-sided percentile intervals use tail probability
+`0.05 / (2 × 12)`. The conservative family budget of twelve covers four Evaluation
+sizes × two metrics plus four Funded sizes × one metric without coupling phase
+selection. GO requires every interval wholly within its allowed margin. An
+interval wholly on the adverse side gives NO_GO. A crossing interval, missing or
+undefined ratio, inadequate evidence, model censoring or inadequate MC precision
+gives INSUFFICIENT_EVIDENCE, which does not authorize progression. Undefined
+replicates are retained rather than discarded. These bootstrap bounds depend on
+the block/stationarity assumptions; they are not finite-sample coverage promises,
+independent new market history, correction for the whole earlier strategy search,
+or a probability of future trading success. These degradation margins are a
+chosen local research policy, not an industry standard.
+
+A historical GO permits **Paper execution and parity review**, using the existing
+supplied-event forward monitor, its event schema, source checks, append-only
+records, reconciliation, frozen-sizing conformance and sealed reports. The
+server derives its policy from a GO member of this Prop Sim frozen family;
+caller-authored policy packages and another phase's observations reject. A
+separate execution verdict requires at least twenty distinct CME sessions with
+recorded trading, thirty closed flat-to-flat trades, zero unacknowledged execution
+issues, matching frozen sizing, prospective supplied-paper clocks, a checkbox
+review of every closed trade for signal/execution parity and a nonblank review
+note. Counting trading sessions is conservative: isolated heartbeats do not
+prove a full zero-trade session. Historical imports and synthetic harness records
+cannot pass as prospective paper execution. Signal-generation correctness is a
+manual review assertion; no broker/platform connection is certified. A paper GO
+supports consideration of a limited pilot, not automatic order placement or
+future-profit certification.
+
+The user chooses an existing completed monitor assessment in the Prop Sim panel,
+loads its closed trades, reviews them and saves a new **Forward execution review**.
+Reports and inputs are verified server-side; new/unassessed events, a paused or
+retired monitor, another package or changed artifacts reject. The original
+qualification and forward reports remain immutable and referenced through the
+existing campaign/forward tables. A simulation bound to a forward monitor cannot
+be deleted out from under its policy. No new database, order engine, demo surface
+or duplicate result store is added. No pretend future paper trades are generated.
+
+Normal API assessment POSTs now accept `kind: qualification`; account-start
+sensitivity can follow this qualification without dollar declarations. It uses
+five coverage-only full windows, Evaluation 180 calendar days as a *diagnostic*
+window and Funded its frozen horizon, inheriting declared closures. Existing
+covered-window censoring rules apply. Forward integration adds `/forward`,
+`/forward-review/{analysis_id}` preview and `/forward-review` submission beneath
+`/api/prop-sim/{id}/validation/{phase}`. Both review kinds run through the existing
+workers, job history, progress, cooperative cancellation, AnalysisStore and normal
+report/ZIP downloads. A compatible previous OOS report supplies point MC paths;
+a current qualification supplies existing bootstrap results for forward review
+and account-start diagnostics. The first qualification can be much more expensive
+than the original simulation because it refits historical account estimates.
+
+Downloads add `qualification_policy.json`, `oos_qualification.json`,
+`historical_bootstrap.json` and, when applicable, `forward_execution_review.json`
+or `account_start_sensitivity.json`. The historical policy and its numerical
+helper hashes are separate from the unchanged phase numerical identities. Older
+reports are readable without reinterpretation. Strategy OOS/full-period MC
+already accessed these dates, so every new result explicitly remains
+retrospective/post-screening research. Evaluation costs/time and conditional
+fresh-Funded receipts remain independent. Portfolio allocation and complete
+replacement-account cash-flow economics are still deferred.
+
+[Normal-product evidence and exact reproduction](evidence/qualified_prop_sim/oos-confidence/README.md).
+
+### One current Prop Sim OOS result and on-demand history — 2026-11-13
+
+The qualified Prop Sim workflow now reopens an equivalent running/completed
+assessment instead of creating another job/report when the user clicks again or
+submits from another tab. Admission, lookup and queueing share AnalysisStore's
+existing lock. The match is scoped to the frozen phase campaign and includes
+assessment kind, declared diagnostic paths and substantive review settings.
+Request UUIDs, qualification declaration timestamps and reuse-parent bookkeeping
+are not new calculation inputs. Qualification rules, implementation identities,
+source provenance, start plans, explicit business-policy versions and forward
+observation/review inputs remain meaningful distinctions. Existing attempts are
+recognized without rewriting/migrating their sealed reports or adding a database.
+The API returns the existing canonical `request_id`/`analysis_id` and
+`reused: true`; clients use that returned ID rather than creating a new history row.
+
+Complete reuse verifies sealed artifacts, current numerical compatibility and
+both original IS and OOS source captures. Changed/tampered or incompatible evidence
+fails closed. Failed, cancelled and interrupted attempts remain in Job history
+and can be retried with a new request ID. Equivalent successful reports, including
+NO_GO or insufficient-evidence results, reopen as-is rather than running again
+until a favorable random outcome appears. Explicitly different policies or
+precision requests retain their own results. A business-policy review may now
+reuse verified qualification point paths for its first assessment too; the
+business verdict is separate from the historical qualification verdict.
+
+The page presents one current OOS table per phase. Completed actions become
+**View OOS results** (or the corresponding saved diagnostic/business view), with
+no submission on click. IS sizing collapses after freezing; passing criteria,
+per-size checks, historical records and optional diagnostics are collapsed.
+A compact sequence shows IS sizing → frozen choices → OOS → forward review.
+The current forward execution review, when present, shares the OOS table.
+**Assessment history** keeps previous qualification/business/forward reports
+available as small metadata entries; **Additional diagnostics** contains start,
+IS robustness and extra-path checks. Older report tables are fetched only when
+that individual entry opens. Expanding the history list alone does not fetch all
+its reports. Existing history and references are preserved, not deleted or
+relabeled. Default page load fetches only the current report for each phase.
+
+Numerical owners, policy thresholds, random streams, requested path counts,
+qualification/forward implementation hashes and old business-review hashes are
+unchanged. No account engine, duplicate result store or background migration is
+introduced. Previous reports and forward-monitor bindings keep their identities.
+
+[Product demonstration, saved evidence and reproduction](evidence/qualified_prop_sim/assessment-reuse/README.md).
+
+### Automatic IS selection, freeze and OOS — 2026-11-13
+
+New qualified Prop Sim runs now finish both independent IS searches, choose and
+freeze their sizing families, and run both OOS qualifications from **Run IS and
+OOS**. Source checking is included in that launch; **Check source and settings**
+is an optional preview. There is no required sizing checkbox, rationale entry,
+freeze confirmation, OOS launch or dollar-limit declaration after Run.
+
+The new `prop_sim_selection.py` reads each original sealed **IS** report and
+chooses a small family from its existing resolved eligible frontier/ranking.
+It does not replace the phase optimizer, modify the original report or consult
+OOS outcomes. The versioned `prop-sim-auto-selection-v1` policy is:
+
+| Phase | Automatic roles |
+| --- | --- |
+| Evaluation, at most three | Lowest mean acquisition cost; fastest mean calendar funding time; lowest cost subject to time ≤1.25 times the fastest |
+| Funded, at most two | Highest mean trader cash received over the saved horizon, including zeros; smallest size retaining ≥95% of that peak mean |
+
+Exact objective ties use smaller MNQ, then candidate ID. Roles choosing the same
+candidate collapse into one row; fewer than the maximum is expected. Undefined,
+unresolved, infeasible or nonfinite estimates are excluded, without blocking
+valid resolved candidates. Funding time and Funded expected receipts must be
+positive; a valid free-Evaluation cost of zero is retained. No eligible positive
+Funded estimate ends that branch with **no eligible candidates**, without freezing
+an arbitrary size or blocking the other phase. Existing optional risk constraints
+remain respected; no new breach-probability cap is introduced. These are IS point
+estimate selection tolerances, not statistical equivalence/future-risk guarantees.
+
+Selection policy/source hash, roles, quantities, objective values, original IS
+report identity/hash and selection checksum are saved in the existing parent
+metadata before freeze. Candidate IDs/roles and the checksum are included in the
+ordinary immutable freeze rationale/names; the selection snapshot follows the
+existing OOS report options and downloads. The original numerical IS report still
+contains every tested size and the full Pareto/ranking result. Automatic families
+are never replaced after observing OOS. Manual freeze overrides reject for an
+automatic run. Existing OOS pass/fail/insufficient-evidence rules remain unchanged.
+
+`prop_sim_automation.py` orchestrates normal campaigns and AnalysisStore jobs.
+Short continuations use the existing AnalysisStore worker, triggered by phase
+completion; no page polling, browser residency, new executor/service/database or
+duplicate results store is required. Cached completed IS results receive the same
+continuation. Each phase proceeds independently. On restart, interrupted IS/OOS
+jobs and a reservation interrupted between freeze and launch recover using the
+saved plan and immutable family. Original attempts remain in history, with a new
+attempt only when interrupted work needs replay. Genuine errors fail closed;
+completed/NO_GO/insufficient results do not rerun seeking a favorable outcome.
+A changed selection implementation blocks unfinished automatic selection rather
+than silently changing the saved policy. Existing completed reports stay readable.
+
+**Stop running analyses** persists stop intent before cancellation, stops this
+run's active/queued work and prevents subsequent automatic jobs. Shared IS jobs
+retained by another campaign are allowed to finish for their other consumers;
+this run remains stopped. Explicit retry resumes incomplete work while preserving
+completed reports and frozen decisions. The UI shows automatic roles/stage,
+read-only selected sizes and one current OOS table per phase, with normal job
+history, progress, cancellation, reload and JSON/ZIP downloads. Optional diagnostic
+controls remain separate. No supplied forward paper evidence or live-readiness
+approval is fabricated; forward monitoring remains a distinct later activity.
+
+The API `automatic` field defaults true. Existing parent records without an
+automatic plan retain their original manual workflow. Explicit `automatic:false`
+is retained for historical/API compatibility and is not offered as a new portal
+choice. No historical report, size or verdict is silently converted. Numerical
+phase, qualification, business-review and forward-owner hashes are unchanged;
+new family-selection policy/code identity is captured separately.
+
+[One-click actual product demonstrations, independent expectations and reproduction](evidence/qualified_prop_sim/automatic-flow/README.md).
+
+### Parallel historical confidence and live progress — 2026-11-13
+
+Qualified Prop Sim OOS historical refits use the existing bounded prop process
+pool and CPU reservation budget, with four workers by default (fewer on smaller
+machines). `ALPHAQUEST_PROP_WORKERS` retains its existing override, between one
+and the existing capacity of at most eight and no more than CPU count minus one.
+The AnalysisStore orchestration worker remains single; each OOS job distributes
+independent historical replicates across the shared calculation pool. Evaluation
+and Funded jobs still queue normally. No separate scheduler, execution engine or
+result store is added, and worker processes never create nested pools.
+
+`prop/oos_bootstrap.py` dispatches the existing `oos_qualification._means` and
+unchanged account owners. Each replicate retains its original role/index-derived
+seed, historical block length, complete requested account-path count, metrics and
+trace. Completion order does not affect results: captured rows are restored to
+replicate-index order before the same nominal confidence decision. Exact whole
+daybook memoization remains local to each worker; the reported distinct-history
+count is the union across workers. A constant fixture can consequently evaluate
+the same distinct history once per worker without changing the economics.
+The 10,000 historical replicates, 12-metric confidence budget, thresholds and all
+33 phase numerical source hashes remain unchanged. The qualification identity
+explicitly captures the new dispatcher/shared-runtime source hashes; historical
+reports remain sealed/readable and are not silently reused as current-version
+qualification results. IS freezes retain their unchanged numerical identity.
+
+Only an internal ephemeral input file is supplied to workers, verified on first
+load and cached once per process. The existing shared pool limits in-flight work
+to its reserved slots. Cancellation is checked at least between task completions
+and on short parent polling intervals; a temporary marker propagates accepted
+stop to active account paths. The reservation stays held until siblings stop,
+and no partial qualification report is published. Context/marker files are
+removed after workers finish.
+
+Metadata is saved in `phase_analysis_progress` in the existing catalogue, at most
+once per second during calculation, plus initial/final updates. It includes the
+current size, candidate position, completed/total resamples, overall family
+completed/total resamples, worker count, elapsed time, rate, approximate ETA for
+the current size and update timestamp. Progress reads never replay simulations
+or load numerical report artifacts. The normal Prop Sim card and Job history
+detail share the same renderer and polling metadata; they show a progress bar,
+workers, timing and current-size ETA. The job's existing overall progress bar
+uses the full eligible sizing family. Report execution diagnostics retain actual
+worker PIDs, counts and elapsed time. Small-machine/explicit single-worker runs
+keep the same progress and numerical contracts.
+
+[Actual four-process product evidence and exact reproduction](evidence/qualified_prop_sim/parallel-confidence/README.md).
+
+## Native percentage risk, portfolio allocation and replacement cash flow — 2026-11-13
+
+The campaign-qualified **Prop Sim** page now has a second configuration mode:
+**Portfolio allocation, percentage risk & full cash flow**. This is downstream
+portfolio research; it preserves independent Evaluation cost/time and fresh-Funded
+receipt optimizers, their numerical identities, legacy joint sizing and old reports.
+The primary single-strategy results now lead with the phase insight and a compact
+OOS table. Full IS tables, Pareto exploration, technical records and older
+assessments remain expandable/downloadable.
+
+### Trade sizing and supported sources
+
+Select one to four configurations that passed mechanics, Broad, Narrow, OOS and
+current-policy campaign Monte Carlo. The native portfolio increment supports
+`vwap_pullback_risk_sizing`, EOD Flat enabled, strategy-local Vol Sizing disabled,
+and one common saved NQ/MNQ dataset with matching execution settings. Other
+strategies, mixed datasets and overnight entry windows reject explicitly. NQ
+reference prices can proxy MNQ at $2 per point; this does not establish micro
+basis, liquidity or fill parity. Source records and original data are unchanged.
+
+Evaluation and Funded have separate declared sizing policies and contract caps.
+For percentage sizing, `budget = risk_percent / 100 × basis`. The basis can be
+initial $50,000 capital, current provider balance, or remaining account drawdown
+cushion. Initial-capital sizing keeps the dollar risk base stable as the instrument
+price changes. Current-balance sizing compounds. Known decision-close to initial
+stop distance, entry/stop slippage and round-trip commissions determine planned
+risk per MNQ; whole quantity is floored, then capped by current provider/user
+limits. A budget that cannot afford one contract skips the entry. Planning costs
+are not charged twice. Gaps, later stop changes and execution can exceed planned
+loss; percentage risk is an admission budget, not guaranteed maximum loss.
+
+Actual strategy callbacks, fills, brackets and existing native account owners are
+rerun. Saved completed trades are not multiplied by a retroactively chosen size.
+Portfolio replay uses the original observed bars. Missing tradable minutes
+are recorded in `source_checks.json` and replay continues with the next
+observed Open/OHLC. Before June 28, 2021, the expected-minute count excludes
+15:16 through 15:30 Chicago time for the reviewed CME pause. The coverage
+summary counts source gaps in the possible holding window, and the frozen
+account traces identify encounters while a position was open or an entry
+was pending. Fills and price-driven account rule events inside a gap are
+unknown, so observed replay can understate risk. The scheduled close must
+still be observed and the execution must end the session flat on actual
+prices. Incompatible strategy provenance and changed source artifacts still
+stop the job.
+
+### Allocation and account handling
+
+One initial Run automatically performs source admission, finite IS search,
+selection/freeze, fresh-start chronological OOS and a continuous full-period
+scenario. No follow-up selection/confirmation is required. Stop, retry and delete
+remain optional. Progress appears on Prop Sim and Job history; work survives page
+navigation. Native source preparation validates the saved CSV, so this step can
+be slower than lightweight job polling.
+
+Separate placement searches nonnegative integer account counts per configuration,
+up to the declared maximum concurrent accounts (1–4). Shared placement searches
+25% risk-share increments summing to 100%, and each permitted account count.
+**Shared accounts admit one open position at a time**. Larger declared risk share
+gets first opportunity when simultaneous known signals compete; ties use the
+saved source order. Each strategy continues observing bars while another owns
+the position. This is an explicit arbitration policy, not concurrent position
+netting or a sum of standalone adverse excursions. Weight is a share of the
+per-trade policy; floors/caps can change actual exposure. Zero-weight strategies
+do not trade. Both placement families may be compared in one run.
+
+All declared allocations, including a zero-purchase baseline, are retained.
+Selection maximizes **observed IS trader receipts minus actually paid Evaluation
+and activation fees**. Exact ties prefer fewer accounts then canonical allocation
+order. This is the best member of a finite historical family, not a global or
+Monte Carlo expected-profit optimum. IS fees, rules, sources, calendar, policies,
+allocation, numerical code hashes and windows are sealed before OOS prices are
+released to the calculation. OOS never reselects. A new configuration creates a
+new saved simulation; retry reuses the declaration with a new retained attempt.
+
+The same local account owners enforce target, drawdown, daily limits, consistency,
+provider size limits, expiry/inactivity and payout rules. The standard Lucid
+consistency is 40%; 50% requires an explicitly declared checkout price. There is
+no added consistency cushion or removal of the configured DLL. Existing versioned
+local rules remain assumptions, including 30-calendar-day Lucid inactivity.
+Funded closes after breach, inactivity or its payout limit, then a replacement
+Evaluation can be purchased from the next civil day. Evaluation retries retain
+causal feature state; phase/account switches start cold, flat strategy state.
+This policy is frozen and may produce different signals from an unconstrained run.
+
+### Full cash accounting and interpretation
+
+Every account shares one hard calendar-month Evaluation-plus-activation fee cap.
+An Evaluation purchase reserves its activation obligation before charging the
+purchase. Failure releases that reservation; activation consumes it. On a new
+month paid usage resets and outstanding obligations are re-reserved from that
+month's cap. Unused allowance expires; trader receipts never increase the cap.
+Daily slot order rotates deterministically to avoid permanent budget priority.
+No account is implicitly replaced by a Funded optimizer: replacements belong only
+to this explicitly selected downstream lifecycle mode.
+
+Payout requests, gross account deductions and modeled received cash are different
+events. The owner deducts gross funds exactly once; the cash ledger records that
+deduction without charging it again. Trader entitlement follows the configured
+share and cent convention. Receipts enter investor cash only on their modeled due
+date strictly before the exclusive horizon cutoff. Pending amounts and activation
+obligations are disclosed separately. Trading P&L retained inside an account is
+not investor cash. `net_cash = received_trader_cash − paid_evaluation_fees −
+paid_activation_fees`. Monthly and yearly totals reconcile to the event ledger.
+
+The three results are IS selection, **fresh-start OOS** (starts unfunded), and
+**full-period continuation** (accounts/pending settlements persist through the
+IS/OOS boundary). They are separate scenarios: adding the two fresh-start net
+figures does not reproduce the continuous full-period figure. OOS was already
+accessed in campaign qualification; it is not relabeled untouched. These native
+portfolio results are chronological historical scenarios, not a Monte Carlo
+forecast, old fixed-size GO certification, or provider/live approval. Native
+portfolio resampling, simultaneous shared positions, automatic policy/risk-level
+optimization, mixed-instrument synchronization and live order routing remain out
+of this increment.
+
+Reports use the existing AnalysisStore, job catalogue, saved Prop Sim parent and
+normal downloads. `portfolio_frozen.json`, `allocation_results.json`,
+`source_checks.json`, and per-scenario cash/trade/sizing/control files are sealed
+in the report ZIP. Every sizing opportunity has aggregate counts; retained sizing
+details use the existing 10,000-decision limit per account/phase, with completeness
+explicit in account snapshots. All cash events are retained. Saved-source and
+attempt references prevent deletion underneath a portfolio. Deleting its saved
+simulation releases only its own unshared reports; datasets, backtests, campaign
+qualification and earlier evidence remain protected.
+
+Native portfolio input bars are spooled by session inside the normal job's
+private temporary directory. Pool children receive the small verified session
+index and load one actual session at a time; they do not retain an entire
+multi-year Bar history after a trial. Temporary input spools are removed after
+completion/cancellation. This is not an additional dataset or result store.
+When the zero-purchase baseline wins, the best invested **IS-only diagnostic** is
+also replayed/captured so its actual sizing, trades and fees can be inspected.
+It does not replace the frozen choice or run a new OOS selection.
+### Bounded Funded refit preparation reuse — 2026-11-14
+
+Saved-source Funded historical confidence now reuses immutable sampled-index
+prefixes and calendar rows inside the existing dated owner in `funded_profiles.py`.
+`oos_bootstrap.py` owns one preparation instance per loaded worker context;
+`oos_qualification._means` passes it to the same account calculation. No account
+answer is reused across different numerical daybooks. The seed/path-index law,
+scalar MT19937 draws, account transitions, receipts/cutoffs, ordered output and all
+requested inner paths/10,000 outer refits remain intact.
+
+Preparation has a 32 MiB accounted per-worker ceiling. Once full, the admitted
+prefix stays reusable and later entries use the original streaming sampler; no
+size-dependent path cap, clipping, eviction thrash or result-store duplication is
+introduced. Calendar-only reuse also applies within ordinary dated runs.
+Chronological replay never draws cached random indices. Workers continue to
+observe stop markers and retain the existing shared CPU reservations/four-worker
+default. The last context is released when replaced or its pool closes.
+
+Normal Funded OOS report downloads capture
+`qualification_bootstrap[].execution.funded_preparation`: preparation version,
+budget and maximum observed accounted bytes. These are execution diagnostics,
+not qualification rules. The numerical-owner and qualification file hashes
+change explicitly; prior reports/ZIPs and verdicts remain unchanged, and prior
+incompatible Funded freezes cannot launch under the new owner. No numerical
+source is excluded from identity to bypass that guard.
+
+Real-source comparisons matched 12,000 complete path/event/schedule records and
+sampled saved refit metrics exactly. Representative eight-refit timings improved
+2.55–2.64×; the projected full-workflow reduction from about 83 to 44 minutes has
+not been claimed as a completed full real-data run. Both account profiles are
+demonstrated through the normal backtest → configure → checked automatic Run →
+durable OOS report/download journey. [Saved evidence and reproduction](evidence/qualified_prop_sim/funded-preparation/README.md).
+
+## 2026-11-14: exact internal-refit acceleration and durable checkpoints
+
+Qualified fixed-quantity OOS historical refits now use compact capture in their
+existing phase owners: means and the required within-start Monte Carlo precision,
+without unused per-attempt/payout-event dictionaries, quantiles or schedule hashes.
+Published IS/OOS point simulations continue to retain their full path, schedule,
+cash and source evidence. The 10,000 historical refits, requested inner account
+counts, index-derived seeds, original retry/calendar guards and qualification
+policy are unchanged. Censored paths still withhold complete acquisition means;
+they are never dropped to improve results.
+
+`DatedPhasePreparation` in `phase_profiles.py` owns worker-local immutable civil
+calendars and exact RNG prefixes. Phase-specific compatibility names remain in
+`evaluation_profiles.py` and `funded_profiles.py`. The accounted budget is 32 MiB
+per worker. Evaluation MT19937 prefixes end at a block boundary and retain the
+unchanged tail; Apex renewal PCG64 prefixes restore the exact scalar tail. Budget
+misses stream the original draws and never shrink the requested path count.
+Lucid dated acquisition and Apex renewal execute their existing owner source
+through the matching optional compiled kernels; the Python reference remains
+available. Native percentage-risk session execution retains its original owner.
+Funded compact refits use the matching existing account class without event capture.
+
+Completed outer refits are checkpointed at most once per second and at cooperative
+exit in the existing AnalysisStore SQLite catalogue. Checkpoints bind full IS/OOS
+daybooks, candidates, search/calendar/costs, policy, seeds and numerical/runtime
+implementation identities. Retry evaluates only missing indices and restores
+ordered results. Hash corruption or conflicting numerical rows rejects reuse;
+a changed source, setting or implementation gets a different key. A partial
+checkpoint is operational work, never a published result or partial verdict.
+Successful publication clears the publishing attempt's checkpoints; deleting an
+inactive attempt removes its checkpoints. Older interrupted attempts may retain
+their checkpoint rows until deleted. Worker cancellation still drains siblings
+before releasing the shared CPU reservation. Abrupt process death can lose work
+since the last committed batch, and an unfinished refit restarts at its index.
+
+The existing **Retry incomplete phases** flow restores compatible completed refits.
+Prop Sim and Job history show the restored count; ETA uses newly computed refits
+rather than crediting restored work as new throughput. Full report downloads
+record compact-capture scope, preparation accounting and checkpoint identity/reuse.
+The four-worker default and shared reservations remain unchanged; the existing
+`ALPHAQUEST_PROP_WORKERS` setting can declare another supported count.
+
+Changed numerical sources receive new identities. Historical sealed reports are
+untouched, and old frozen numerical packages do not launch under the new owner.
+Start a new simulation for the new implementation; do not bypass frozen-package
+guards. Work started by a pre-checkpoint server cannot retroactively recover
+completed refits that it never saved.
+
+[Normal product evidence, exact oracles and reproduction](evidence/qualified_prop_sim/refit-acceleration/README.md).
+
+## Percentage-risk research increment — 2026-11-14
+
+The target extension is specified in [percentage risk research plan](percentage_risk_research_plan.md).
+The main Prop Sim automatic percentage optimizer is **not released**. Its existing
+fixed-size workflow, thresholds and path/refit counts are retained. The native
+research routes retain their existing explicit workload bounds and do not supply
+the proposed two-history OOS qualification.
+
+Campaign/backtest reports now expose **Risk-normalized research · diagnostics**.
+New decision-captured reports save `risk_metrics.json`; Broad/Narrow grids offer
+optional planned-net-R mean, median, total and coverage columns. The default
+varied-parameter visibility/freezing is unchanged. These measurements never add
+campaign eligibility conditions or mechanic-parity checkboxes.
+
+Planned net R divides actual net P&L by the filled quantity times causal initial
+stop loss, with that report's tick/point values, planned entry/stop-exit slippage
+and round-trip commission. The P&L is already net; these costs are not charged
+twice. Missing, invalid or late initial stops are unavailable. Full-history R
+summary statistics require every trade to have valid evidence. Complete observed
+calendar months use the source timezone, include zero-trade months, and retain
+coverage counts. Division uses 80-digit Decimal precision; UI values show 2dp.
+Actual-fill/initial-stop distance is a later diagnostic and never sizes an entry.
+
+Historical reports are not rewritten: verified saved trades and decision sidecars
+can derive the diagnostics on request without replaying the strategy. Sources
+without captured causal initial stops retain unavailable R values. The normal
+JSON download contains all rows and the input artifact hashes; the portal limits
+its visible trade-detail table to 100 rows. Panels load only when opened and do
+not start background calculations or alter saved screening verdicts.
+
+The existing native phase-research optimizers now prepare verified source-prefix
+snapshots once per candidate, with at most 32 MiB accounted snapshot storage.
+Every snapshot precedes its source block with entries disabled. Provider state,
+orders, positions and accepted quantities remain path-local. A cache miss uses
+the original full warmup. The source/strategy/account execution and requested
+paths remain unchanged; numerical implementation identities include the shared
+planned-loss owner. This is a verified preparation improvement, not production
+capacity qualification or a provider-parity claim.
+
+## Independent percentage-risk searches — 2026-11-15
+
+The main Prop Sim workflow supports **fixed contracts** and **percentage risk**.
+Percentage mode uses one qualified VWAP configuration and separate exact grids
+for Evaluation and Funded. It is available for Apex 50K EOD and LucidFlex 50K.
+This extends the independent optimizers; it does not change campaign screening,
+replace their one-contract research baseline, or optimize portfolio allocation.
+
+Choose the account, select Percentage of account risk, declare each phase's
+minimum/maximum/increment, reference and whole-MNQ ceiling, and click **Run IS and
+OOS**. The expanded grids and initial dollar budgets appear before Run. Source
+checking is integrated. The existing worker completes IS searches, automatic
+selection, immutable freezes and OOS qualification without another confirmation.
+The page can be closed; Job history and Prop Sim show the same saved progress.
+Preparation, account paths and historical refits are distinct progress stages.
+
+The references are initial configured USD 50,000 capital (default), current
+account balance, or available account drawdown cushion. `0.20` means **0.20%**.
+For an initial-capital reference it requests USD 100, or 5% of the account's
+initial USD 2,000 drawdown allowance. The existing sizing owner divides that
+budget by causal initial-stop loss per MNQ, including declared entry/stop-exit
+slippage and both commissions, then rounds down to whole contracts. It applies
+policy, user and current provider caps. Below-one-MNQ opportunities skip. Account
+and daily-cushion planning guards are explicit default-off options; actual account
+breach/DLL rules remain enforced. A daily planning guard requires DLL enabled.
+Gaps can exceed planned loss. Planned risk is never deducted from net P&L again.
+
+Each phase admits at most 60 aligned, positive exact Decimal percentages; decimal
+spellings normalize before candidate identity. Percentages and fixed-contract
+range fields cannot be mixed. The phase ceilings remain Apex Evaluation 60 MNQ,
+Apex Funded 40, and LucidFlex 40 in both, with Funded provider tiers applied at
+actual admission. A native candidate's legacy `micros` field is explicitly its
+user ceiling, not an executed quantity. Selection, labels and charts use the
+percentage policy, not that ceiling. JSON retains the complete policy and exact
+plain-decimal values, including values requiring more than two decimal places.
+
+### Native source and execution
+
+The new model is `native_percentage_observed_blocks_v2`. It requires VWAP,
+EOD-flat execution, strategy-local volume sizing disabled, one accepted entry
+per reset day, a same-day entry window ending by 17:00 Chicago, and an observed
+reset before every source day's first possible entry. Complete verified causal
+initial-stop evidence is required. Unsupported campaigns reject explicitly.
+
+NQ or MNQ supplies the observed reference prices. Execution uses MNQ's USD 2
+point value and the declared replacement MNQ commission once; the source report,
+its original multiplier and its own net results remain unchanged. This is an NQ
+reference-price model, not measured NQ/MNQ basis or live-fill parity.
+
+Original rows and timestamps are retained. Flat pre-entry gaps do not manufacture
+quotes. All possible holding minutes through actual next-open liquidation must
+be present, excluding reviewed venue closures. In particular, the historical
+15:15–15:30 Chicago pause ended on June 28, 2021; close-labelled 15:16 through
+15:30 bars before that date are closed-market time, not missing observations.
+See the [CME change notice](https://www.cmegroup.com/notices/electronic-trading/2021/06/20210614.html)
+and `prop/native_market_hours.py`. Genuine missing holding-period prices reject.
+Historical pauses remain inside their sampled original price paths; modeled
+target dates are not claims of observed future quotes.
+
+`native_preparation.py` compiles all causal opportunities, including opportunities
+a low budget might reject, using the actual strategy and original prior-only
+prefixes. It indexes observed price extrema to skip bars proved unable to fill
+an active order. The ordinary `execution.execute` still fills entries, resolves
+stops/targets/gaps and enforces provider floors through the existing phase
+controllers. It never scales the baseline's completed trade tape. Quantity,
+skipped opportunities, pauses, withdrawals and account state are recalculated.
+A proved flat session with no causal entry still runs the real calendar/account
+transitions. Terminal accounts omit only later economically inactive sessions.
+
+Preparation keeps bounded 32 MiB prior-prefix snapshots and 32 MiB common-uniform
+caches; overflow uses the exact uncached route. Source prices use an immutable
+integer-tick index. Worker source spools retain original UTC microseconds, row
+numbers and all nine original CSV fields through a checksummed read-only mapping.
+They do not repeatedly deserialize complete sessions. Detailed captures use the
+full original execution path for the first five source sessions of each declared
+captured path, then continue that same account through the exact indexed route.
+The report states where detail ends. All financial totals, payout events, sizing
+aggregates and requested path outcomes remain; every point path retains its
+source-index/schedule provenance. V2 has no aggregate report-byte ceiling. Quiet indexed paths do
+not claim to retain an intermediate MTM equity curve or measured tick MAE/MFE.
+Legacy V1 native requests keep their older 512-path/365-day bounds. V2 accepts the
+main 8–20,000 path range and up to 3,650 native calendar days; the normal Funded
+form retains its 365-day maximum. Full qualification is substantially more work
+than the point estimate; counts are never secretly reduced.
+
+### Separate objectives and automatic choices
+
+* **Apex Evaluation:** actual native first-attempt outcomes and session durations
+  feed the existing independent fresh-attempt IID renewal/calendar owner. Every
+  retry fee, activation and readiness interval remains included. The normal
+  native first-attempt window is 64 calendar days; unresolved attempts withhold
+  acquisition estimates. The separate renewal computation guard is 3,650 days.
+* **LucidFlex Evaluation:** actual dated acquisition/retries continue inside the
+  existing Evaluation controller, with 40% standard or explicitly priced 50%
+  consistency, no consistency cushion, fixed USD 1,200 DLL when enabled, and
+  30 calendar days' inactivity. The 3,650-day guard is computational, not a
+  provider deadline. Acquisition means require complete all-path outcomes.
+* **Funded:** actual native execution in one fresh Funded account per path
+  maximizes expected trader cash received within the frozen horizon. Zero-cash
+  accounts remain included. Requests, account deductions, pending receipts and
+  received cash remain separate. Evaluation fees, pass rates and acquisition
+  time do not enter this optimizer. No replacement account is implied.
+
+IS-only selection retains Evaluation's cheapest, fastest, and cheapest within
+1.25 times the fastest time (at most three), plus Funded's highest mean receipts
+and lowest percentage retaining 95% of that peak (at most two). Exact ties prefer
+the lower percentage, then candidate identity. Duplicate roles collapse. OOS
+cannot substitute a different percentage or rerank these frozen policies.
+Lower nominal percentage does not guarantee lower breach risk.
+
+Comparison/report evidence includes admitted quantity mean, median, p95/range,
+all pre-sizing opportunities, budget skips, account-halted opportunities, binding
+caps, and requested versus admitted planned risk. Quantity statistics concern
+admitted submissions; fills, cancellations and completed trades remain separately
+recorded. A skip rate excludes account-halted opportunities. Cap-binding counts
+count a decision once, even when multiple caps bind. Detailed reason counts can
+overlap. Normal downloads retain the full search, rules, source captures,
+financial paths, quantity summaries, selections and numerical identities.
+
+### Frozen percentage OOS qualification
+
+OOS uses the same complete frozen policy, rules, costs, horizon, seed and inner
+path count. Each candidate receives both an OOS observed-block forecast and a
+separately labeled actual chronological OOS replay. Neither selects replacements.
+
+`native_oos_bootstrap.py` supplies `native-percentage-two-history-v1` to the
+existing bounded Runtime and verified completed-refit checkpoints. There are
+10,000 historical refits. IS and OOS are resampled independently:
+
+1. Keep each catalogue's ordered original block origins. Resample circular runs
+   of origin-index positions, length `max(5, inner block sessions)`, until exactly
+   the original origin count is drawn. Only the last run is truncated.
+2. Derive role seed `SeedSequence([13742, role]).generate_state(1)[0]`, with IS=0,
+   OOS=1. `history_origin_weights` addresses each replicate by that role seed and
+   its index. Save derived seeds, origin-weight hashes and inner schedule hashes.
+3. Condition the frozen inner sampler on those origin frequencies within each
+   admissible calendar-shape pool. A required pool with zero weight is unavailable
+   evidence. Never redraw that historical refit or substitute uniform weights.
+4. Run the full native phase estimator on each history. All requested inner paths
+   remain. Only identical complete origin-frequency laws may reuse an identical
+   full calculation; the worker memo is bounded to 64 laws per role. Every outer
+   index is still recorded. No percentage is optimized inside a refit.
+
+V2 inner schedules use index-addressed PCG64 uniforms with
+`SeedSequence([seed, phase_index, path_index])`, then draw-slot order and weighted
+CDF selection. Worker count and percentage enumeration do not change these
+coordinates. This separately versioned native law is not numerically equivalent
+to the old saved-daybook bootstrap. Original prices and causal prefixes are
+never shuffled between IS and OOS. Overlapping origins and stationarity remain
+limitations, not additional independent market evidence.
+
+The existing economic policy remains: at least 12 complete OOS months and 100
+closed source trades, complete estimates and the full Funded horizon; nominal
+simultaneous 95% bounds with family budget 12; Evaluation OOS/IS cost and time
+upper bounds at most 1.50; Funded mean-receipts lower bound at least 0.70; maximum
+relative inner standard error 0.05. These are historical-model checks, not a
+universal safe-trading threshold. Missing ratios, sparse pools, censoring or
+inadequate precision yield **INSUFFICIENT EVIDENCE**. A clearly adverse interval
+can yield **NO-GO**. **GO** opens paper execution review, not live authorization.
+
+Completed-refit reuse binds the complete policy, both sources/catalogues, code,
+calendars, rules, counts and seeds. Stops drain active siblings before releasing
+CPU reservations. A partially computed refit restarts at that index. Point reports
+and historical reports remain sealed; reopening does not rerun or mutate them.
+
+### Forward review and compatibility
+
+The existing supplied-event forward conformance owner already supports the full
+percentage policy. It recomputes whole quantity from the causal signal/stop and
+pre-decision account state, verifies capital/caps/costs and prior cash/position
+reconciliation, and checks accepted versus skipped outcomes. Later fills never
+size the earlier decision. Provider state remains supplied evidence requiring
+manual review. Keep the existing minimum 20 distinct sessions, 30 closed trades,
+zero unexplained discrepancies and signal/execution parity review.
+
+Earlier fixed-size and V1 reports stay readable and unchanged. Numerical/source
+identity changes fail closed for a new frozen-package execution; they do not
+rewrite historical verdicts. Existing portfolio objectives and declared-risk
+portfolio execution remain separate from these independent phase searches.
+
+## Complementary Prop Sim evidence replaces nested refits (2026-11-15)
+
+Current default policy: `prop-complementary-evidence-v2`. This supersedes the
+10,000-history nested qualification gate for **new** fixed-contract and native
+percentage-risk Prop Sim assessments, for Apex 50K EOD and LucidFlex 50K, in both
+independent phases. Historical reports retain their original rules, captures and
+verdicts. The campaign OOS / final Monte Carlo gates and IS-only size selector are
+unchanged. This replacement is a different evidence design; it does not claim the
+same historical confidence coverage with fewer simulations.
+
+A single initial Run still performs source admission, both IS sizing searches,
+IS-only automatic selection/freeze, and both OOS assessments. No later user action
+is required to calculate the complementary package. The original IS searches keep
+the requested path count (default 1,000). The frozen comparison runs 5,000 accounts
+per IS/OOS history and measurement horizon; five predefined sensitivity scenarios
+use 1,000 accounts each. There are **zero outer historical refits**. Financial
+outcomes and source/policy/configuration identities are stored in the existing
+sealed phase report and `complementary_evidence.json`, not another result store.
+Summary API responses omit the full path payload. Identical current assessments
+reuse the canonical completed/running report; compatible completed comparison
+stages survive interruption using checksummed existing AnalysisStore checkpoints.
+Native execution keeps the existing shared Runtime, index-derived streams,
+ordinary strategy/execution and account controllers. Fixed-contract owners retain
+their saved-signal model; no filled trades are retrospectively risk-resized.
+
+### Measurements and resource budget
+
+Evaluation separately observes 90, 180 and 365 calendar-day acquisition windows.
+Each account can buy/retry under its saved account rules until funding or cutoff;
+every fee is charged. At each deadline report funding probability, all-path mean
+fees spent and capped waiting time, with conditional simulation intervals.
+Unfunded accounts remain in every denominator and expenditure/waiting mean. A
+365-day cutoff is a modeled observation window, not a provider expiry. Capped
+waiting is `min(time to funded, deadline)`, never eventual mean time to funding.
+Median/P90 acquisition time is available only when that fraction of **all** paths
+has reached funding. Early attempt/model guards are separately counted and make
+observation incomplete, rather than fabricating a 365-day observation. For native
+Apex, retain its causal first-attempt sample and existing independent empirical
+renewal owner; Lucid retains its calendar acquisition owner. Thus the original
+account-specific laws remain explicit.
+
+Fresh Funded comparison uses the original frozen calendar horizon and receipt
+lag. Report mean, median and P10 received cash, no-receipt probability, breach
+probability and pending cash. Include zero-receipt paths. Pending entitlements and
+gross account deductions are not receipts. Neither Evaluation fees nor implicit
+replacement accounts enter Funded selection or this objective.
+
+The primary/stress budget per frozen configuration is 35,000 Evaluation account
+paths (three deadlines × two histories × 5,000, plus 5 × 1,000), or 15,000 Funded
+paths (two histories × 5,000, plus 5 × 1,000), plus up to 24 chronological accounts.
+This excludes the original search and its ordinary OOS result. Relative to the
+former 20,000,000 nested paths per configuration/phase, those are approximately
+571× and 1,333× fewer path simulations; they are not wall-clock guarantees or
+equivalent statistical assurance. Different deadlines are executed explicitly so
+fees by deadline come from actual account transitions, not estimates from
+incomplete first/last-attempt captures. There is no automatic escalation or repeat
+until pass. Extra-path diagnostics remain explicit and do not overwrite a verdict.
+
+### Chronology and predefined stress
+
+Up to 24 evenly spaced, full-window OOS start dates are chosen using coverage and
+closures alone, before inspecting outcomes. Evaluation starts observe 180 days;
+Funded starts observe the frozen horizon. Use the existing actual-order owners;
+no shuffling or replacement sizes. Overlapping windows are dependent scenarios,
+not 24 independent market observations. Fewer than two covered starts is an
+explicit coverage gap; shorter substitute windows are not invented.
+
+The five stress scenarios are OOS blocks 1 and 10, OOS additional execution cost
+of USD 0.50 **per MNQ per side**, and the earlier/later chronological halves of IS
+(using the original sampling block). The fee surcharge is a cost stress, not a
+claim to model one-tick worse actual stop/limit fills. Native percentage policies
+rerun causal execution with the changed costs; fixed paths use their existing
+cost adaptation. Both IS halves keep the same policy/size. No OOS observation
+selects, replaces or reranks a candidate.
+
+### Reading the conclusion
+
+The server supplies six findings: historical coverage, account economics,
+simulation precision, IS→OOS stability, account-start sensitivity and stress
+resilience. A frozen optional Funded breach cap adds its own finding.
+
+- Evidence minima remain 12 complete OOS months and 100 closed source trades;
+  Funded needs its full horizon. Missing minima skip the expensive package and
+  explain that additional simulated paths do not add market history.
+- Pointwise nominal 95% simulation intervals use Wilson intervals for probabilities
+  and mean ± 1.96 MCSE for nonnegative fees/waiting/receipts. These are conditional
+  numerical intervals, not historical or simultaneous non-inferiority intervals.
+  Precision targets are ≤5% relative MCSE for positive monetary/waiting means and
+  probability interval half-width ≤2.5 percentage points. Zero receipts/funding
+  remain visible; zero observed means do not prove zero future probability.
+- Positive OOS modeled receipts or observed funding by 365 days establish a
+  positive account outcome, not full replacement-account profitability.
+- OOS/IS funding probability or Funded mean receipts below 0.70, or Evaluation
+  capped waiting above 1.50× IS, triggers **review**. Undefined comparisons also
+  trigger review. These are engineering review guardrails on point estimates,
+  not a statistical rejection or a historical confidence-bound requirement.
+- Any unsuccessful chronological start triggers a timing-sensitivity watch. A
+  stress scenario retaining below 70% of its comparable full-history funding
+  probability/receipts triggers a stress watch; an incomplete scenario is an
+  evidence gap. Neither check selects a different size.
+- `GO`: evidence ready for paper execution review. `REVIEW_REQUIRED`: usable
+  estimates but timing/deterioration/stress warrants investigation.
+  `INSUFFICIENT_EVIDENCE`: coverage, observation or precision unresolved.
+  `NO_GO`: no positive modeled account outcome, violated frozen constraint, or
+  failed prerequisite. No status grants live-trading authorization.
+
+The portal leads with the next step and compact labeled findings. The account
+comparison is visible; scenario/date tables and policy details are expandable.
+Older v1 results render their saved historical intervals and original verdicts;
+they are not reinterpreted as v2 outcomes. Supplied paper observations still need
+20 recorded sessions, 30 closed trades and zero unexplained sizing/execution
+issues, followed by cash-flow and deployment-control review.
+
+A completed compatible older automatic family exposes **Run current evidence
+review**. This explicitly applies the new policy to the same frozen choices,
+reusing a verified compatible OOS point capture and retaining the old assessment.
+It does not restart IS optimization. Incompatible numerical/source identities
+continue to reject. No upgrade or recalculation is triggered by merely opening a
+historical report.
+
+## Ordered trade source support — 15 November 2026
+
+[Trade tick datasets](tick_datasets.md) are now usable through normal campaign and
+Prop Sim routes. Fixed-size phase simulations consume saved tick-executed trade
+outcomes and observed ordered adverse jumps. Native percentage-risk searches and
+shared/separate portfolios retain source windows and rerun the supported VWAP
+strategy/account controllers against real trade prices. The optional completed-
+minute order-flow filter participates in those reruns. Evaluation/Funded goals,
+profile rules, qualification, frozen OOS selection and cash accounting are unchanged.
+
+Tick-based fill timestamps and minute-close decision/equity timestamps are distinct.
+Observed jumps can worsen stop fills. No queue/latency/liquidity reconstruction or
+new provider-parity claim is implied. Earlier sealed reports remain readable;
+numerical changes have new identities and incompatible frozen launches reject.
+
+
+## 2026-11-16 — MultiCharts-compatible OHLC execution
+
+For new native backtest/account replays, the shared execution owner follows
+[the MultiCharts minute-bar contract](multicharts_execution.md). Provider floors
+and active strategy brackets compete on the same nearest-extreme-first path,
+Low first on ties. Risk capture is restricted to the post-entry/pre-exit modeled
+path and identifies `held-price-path-equity-v2`; it is not measured tick MAE/MFE.
+Earlier held-OHLC-bound descriptions and sealed source reports retain their
+historical meaning. Saved-source simulations use their immutable captured risk;
+no report, qualification or frozen selection is silently migrated. Current
+source guards fail closed on incompatible new replays. Tick sources still use
+their observed chronological records; no additional tick work is introduced.
+
+## Strategy-owned sizing admission (2026-11-17)
+
+The current shared sizing contract and compatibility matrix are documented in
+[strategy_sizing.md](strategy_sizing.md). Fixed-path admission no longer enumerates
+strategy IDs. Native account execution uses the same controllers and execution
+engine for fixed and percentage policies; strategy-specific acceleration is
+optional. Twin's protected market and OCO entries are integrated. Consecutive
+Green Hold explicitly cannot supply stop-based percentage risk without a change
+to its trading rules. Earlier dated implementation descriptions remain
+historical where they refer to VWAP-only native admission.
+
+## Actual-exposure minute coverage (2026-11-18)
+
+The prepared percentage-risk model now uses
+`nq-observed-exposure-minute-coverage-v2` in `prop/native_market_hours.py`.
+This supersedes the possible-holding-window admission requirement in the earlier
+native-percentage sections above. Ordinary backtests and saved fixed-trade
+scaling retain their existing behavior; legacy native v1 retains its declared
+full-session admission contract.
+
+Source checking inventories original missing-minute ranges instead of rejecting
+all of them. Every actual IS forecast, OOS chronology and complementary native
+replay checks those ranges against its own execution state before filling orders:
+
+- Flat, with no working stop-entry order: retain the gap and continue using only
+  observed feature inputs. A next-open market order still means the next observed
+  Open under the existing execution contract; it does not imply a fill inside the
+  absent minute.
+- An actual position is open, including a pending exit: reject the replay before
+  executing through the gap. A rejected/zero-quantity opportunity is not exposure.
+- An accepted stop-entry/OCO order is working: reject too. Flat inventory alone
+  cannot establish that the missing minute contained no entry fill.
+
+The same checks apply to accelerated replay. Jumping over known observed no-op
+bars is allowed; jumping over an actual missing minute while exposed is not.
+A missing liquidation tail still cannot fabricate an EOF exit. Whole missing open
+sessions, invalid/duplicate/unordered timestamps and missing session boundaries
+retain their existing rejection rules. Reviewed historical venue pauses remain
+excluded according to the original source dates, not modeled target dates.
+
+A bad sampled path fails its analysis; there is no redraw, session deletion,
+forward fill or automatic replacement size. Errors identify the original missing
+minute in Chicago and UTC and whether the exposure was a position or a working
+stop entry. They are data-evidence failures, not profitability verdicts. Passing
+`Check` verifies source identity and inventories gaps; it does not certify all
+possible account paths before execution. `observed_coverage` records that scope
+and the immutable ranges in source checks and saved reports. Native implementation
+hashes include the coverage owner. Earlier sealed results, original strategy
+sources and frozen historical verdicts remain unchanged; incompatible old frozen
+prop packages require a new simulation rather than being silently migrated.
+
+## Observed-bar replay and diagnostic minute completeness (2026-11-18)
+
+`nq-observed-bars-gap-diagnostics-v3` supersedes the **actual-exposure v2
+rejection** described above for new prepared percentage-risk simulations.
+Campaign backtests and saved fixed-contract trade scaling already consume the
+observed bars; this change aligns native account replay with that convention.
+Legacy native v1 retains its explicit full-session admission contract.
+
+- Preserve every original retained bar and its timestamp. Do not add empty
+  minutes, forward-fill prices, delete sparse sessions or redraw affected paths.
+- An absent minute does not imply an observed trade, stop touch, target touch,
+  mark-to-market excursion or provider floor breach. No price-driven event is
+  reconstructed inside it. Strategy state advances through observed callbacks
+  and its existing timestamp rules; missing minutes are not synthetic callbacks.
+- Working entries and open positions continue to the next observed bar. Existing
+  execution handles that bar's Open and intrabar path. For example, a long entered
+  at 118 with a stop at 113 and the next observed Open at 110 exits at 110 under
+  zero slippage, not at an invented 113 fill. Existing costs apply once.
+- The assumption applies to both account types, Evaluation/Funded, IS search,
+  frozen chronological OOS, sampled account paths and complementary native
+  checks. It does not change phase objectives, sampling counts, frozen selections
+  or profitability/qualification gates. Gaps alone do not fail qualification.
+- Structural OHLC validation, ordering, duplicate timestamps, required session
+  inventory, flat-at-boundary requirements and actual mandatory liquidation
+  remain enforced. No EOF liquidation is invented. This is a relaxation of
+  **minute completeness**, not permission to publish corrupt or unfinished runs.
+
+`source_checks.json` retains the original missing-minute ranges, total missing
+minutes, longest source gap, policy version and diagnostic-only status. Reviewed
+historical venue pauses are excluded using the source date. Runtime
+`observed_bar_diagnostics` records crossed ranges, minutes, longest gap, exposure
+(position, working entry or flat), and completed trades exposed to a gap. A
+working-entry tag follows that accepted order only; cancellation clears it.
+`control_events` in retained detailed paths includes original-source UTC gap
+boundaries and the next observed source timestamp. Model dates remain separate.
+
+Both compact path summaries and the forecast retain diagnostics even when
+individual fill captures are disabled. Forecast counts sum encounters across
+account paths and are **not counts of unique source holes**. Leading/trailing
+omissions are in the source inventory; runtime counts cover crossed intervals
+before account termination. Acceleration skips only already-observed no-op bars;
+it does not invent missing-minute observations. Gap-exposed trading P&L is the
+signed actual P&L of those trades, not an estimate of the missing-data effect,
+provider cash withdrawals or trader receipts.
+
+The portal discloses the assumption before launch. IS results and OOS evidence
+show compact source-gap diagnostics with expandable detail and normal downloads.
+The lightweight OOS summary includes these counters without shipping all paths.
+No extra backtests or Monte Carlo paths are run to produce diagnostics.
+
+Observed-only replay can understate hidden excursions, fills and drawdowns. It
+does not establish that a gap was a no-trade interval or fix continuous-contract
+roll artifacts. Original datasets, old reports and their verdicts remain intact.
+Changed native implementation hashes distinguish new runs; incompatible old
+frozen prop packages are not silently migrated. Start a new simulation to use
+this convention; the campaign's strategy/backtest sources were not edited.
+
+## Twin market calculation reuse (2026-11-18)
+
+The native prepared percentage-risk owner now dispatches compatible Twin
+Continuation parameters to `prop/twin_preparation.py`. It works through the
+existing independent Evaluation/Funded searches, native forecast worker runtime,
+and frozen OOS forecasts. The ordinary strategy source, execution engine,
+provider account owners, sampling law, source prices, quantities/caps, requested
+path count and selection rules are preserved. There is no new execution engine,
+service or result store. Existing native v1 and unsupported specializations keep
+their original replay; Twin debug logging uses the full original path.
+
+The original Twin strategy compiles one causal market tape per checked source,
+parameters, execution-cost definition and research window. The tape contains
+15-minute ATR/pivot arm candidates, possible momentum crossings, necessary time
+boundaries and bounded flat-prefix snapshots. The compiler temporarily separates
+momentum's market crossing from its daily-consumption gate while preserving the
+original declined-entry prefix state. Actual held/flat state, consumed momentum
+opportunities, filled-trade counters, armed setups and frozen entry ATR/stops
+remain independently instantiated for each account path and sampled block.
+IS and OOS compile separately; OOS never contributes an IS feature or selection.
+The optimized interpreter is qualified against an explicit Twin source SHA-256.
+If the strategy changes, native replay falls back to the original full path until
+parity is reviewed and that cache compatibility fingerprint is updated. Future
+strategies remain usable without declaring or maintaining this optional cache.
+
+Immutable, bounded price caches reuse the strategy's fill-relative protection,
+normalized causal stop-entry plans and SL/TP formulas for identical inputs.
+They include the strategy parameters, tick size, setup, side, actual fill where
+required, frozen ATR and stop geometry. Quantity and account cash are excluded.
+An identical stop trigger is not treated as proof of an identical eventual fill.
+Whole-MNQ sizing, actual fills, provider floors, breaches, resets, requests,
+deductions and receipts still pass through the existing account/execution owners.
+
+A separate small **per-account** memo reuses `choose_quantity` results only while
+the complete sizing state and validated stop geometry are unchanged. Every
+submission first passes `KnownDecisionRisk` causality validation. Changes to
+equity, account/daily floors or contract caps clear the memo; entry permission
+and daily halt are checked before reuse. Each quote still receives its own
+acceptance ID, timestamps, cancellation and audit counts. The memo is bounded to
+128 geometries and copies returned mutable dictionaries/lists.
+
+The existing private `NativeEventPath` can skip known observed bars only until
+the next market/time decision or first possible strategy/provider price touch.
+Active or rejected armed entries and pending market/close orders continue one
+observed bar at a time, preserving every admission and cancellation. A tick
+index locates potential touches; `execution.execute` determines the actual fill
+and MultiCharts path ordering. Source prices that cannot use the exact integer
+tick index retain cached features but execute every observed bar. Gap diagnostics
+and required liquidation checks retain the current observed-bar convention.
+
+The first retained detailed path sessions use the original full strategy and
+execution. Actual eligibility state is then carried into any uncaptured tail.
+Uncaptured paths use the market tape. Skipped rows are not represented as measured
+intermediate MTM evidence. Preparation/report metadata identifies
+`twin-causal-market-cache-v1`, feature reuse, independent account state and the
+original account/fill engine. Native report source hashes include the new owner;
+old reports and frozen implementation guards are not bypassed or rewritten.
+Because strategy/execution source fingerprints were not changed, this increment
+itself does not require rerunning campaign qualification.
+
+This change avoids redundant market calculations; it does not promise a
+particular whole-grid speedup. Working-entry processing can still dominate Twin
+runs. See the measured normal-product and real-source comparisons in the review.
+
+
+## Native path progress and startup-independent ETA (2026-11-18)
+
+Native percentage Evaluation and Funded searches return one complete, indexed
+account path per task on the existing bounded Runtime. The same checked source
+spool and prepared market context remain cached per worker. Schedules, seeds,
+path counts, account transitions, capture limits and phase objectives are
+unchanged. This changes reporting granularity, not the simulated workload.
+
+`prop/native_progress.py` records exact completed path counts. Its timing
+metadata is stripped from task results and never enters calculations, selection
+or sealed numerical outputs. Catalogue writes remain throttled to once a
+second, except initial/state-transition/final notifications. Both Prop Sim and
+Job history read these existing metadata through `web/prop-progress.js`; opening
+or polling either page triggers no calculations.
+
+Elapsed time includes evidence capture and preparation. ETA instead uses time
+from the first worker's actual replay start, after its checked context loads;
+it excludes serial detailed evidence, source serialization and process startup.
+Until at least `min(remaining worker paths, max(4, 2 × allocated workers))` paths
+finish and each allocated worker has returned a result, show **Estimating…**.
+Subsequent ETA is remaining paths divided by aggregate completed-worker
+throughput. Variable path lengths can still move the estimate; it covers the
+current size only. Terminal progress is exact, with zero active workers and
+zero remaining time.
+
+Earlier running native jobs have no versioned ETA basis. Their batch count
+remains visible, but the portal hides the startup-biased estimate and explains
+that individual-path updates require the new worker code. Loading new Python
+code requires a server restart; do not interrupt an existing simulation without
+the user's approval. Saved reports are preserved.
+
+Actual source hashes remain recorded. `phase_dispatch.py` admits only the exact
+reviewed old-to-new progress revision of `native_preparation.py`, with every
+other numerical/kernel/environment field equal. Unknown revisions still reject;
+this is not a waiver for strategy, execution or account changes.
+
+## Lossless ZIP-backed detail JSON (2026-11-19)
+
+`alphaquest/prop_report_storage.py` owns the `analysis-zip-json-v1` storage
+contract. `calculations.json` and the legacy `joint_sizing.json` already have
+exact compressed copies inside every normal `analysis.zip`. After publication,
+verify those members against the original file-manifest byte counts/SHA-256,
+then remove their redundant unpacked copies. All other files, especially the
+normal `report.json` entry point and the original downloadable ZIP, remain in
+place. This is storage compaction, not a numerical/policy/report-version change.
+
+The existing report IDs, report/ZIP bytes and seals, frozen packages, logical
+artifact names, calculation values and CSVs stay unchanged. The report's `files`
+map describes **logical uncompressed exports**, not physical disk allocation.
+Readers prefer an unpacked file when present and otherwise read the original
+ZIP member. The normal APIs stream the same verified JSON bytes and filenames.
+Calculation reuse verifies the same original payload SHA. Fingerprinting uses
+logical artifact bytes; dependency-aware deletion retains its existing guards
+and removes the complete report folder/ZIP only when permitted.
+
+`AnalysisStore.seal_report()` performs compaction automatically for new reports,
+after the original ZIP is complete and verified. No UI setting or follow-up
+confirmation is needed. Keep uncompressed publication/resource checks and all
+requested simulation paths unchanged. No numerical phase owner, provider rule,
+selection objective, criterion or precision threshold changes for storage.
+
+For existing reports, first load the compatible server readers, then run:
+
+```sh
+# Verify eligible completed reports without removing files.
+.venv/bin/python scripts/compact_prop_reports.py --data-dir data \
+  --evidence artifacts/prop-storage-dry-NEW
+
+# Apply after the compatible server is running against this same data library.
+.venv/bin/python scripts/compact_prop_reports.py --data-dir data --apply \
+  --server-url http://127.0.0.1:8000 --evidence artifacts/prop-storage-apply-NEW
+
+# Restore exact original standalone JSON without replaying calculations.
+.venv/bin/python scripts/compact_prop_reports.py --data-dir data --apply \
+  --restore-unpacked --evidence artifacts/prop-storage-restore-NEW
+```
+
+Use a new evidence directory per invocation. Completed reports alone are
+eligible; queued/running/incompatible/error records and temporary work are not
+compacted. The live command checks reader version **and catalogue path**, and
+holds the catalogue's normal SQLite write reservation per completed analysis,
+serializing with deletion/publication. Offline application requires explicit
+`--offline` and refuses any active analysis records. All candidate members and
+originals are verified before any removal. Changed/missing/corrupt/symlinked
+sources reject without repairing or relabeling evidence. A crash between the
+two unlinks leaves a readable report; retry is idempotent. Do not instantiate
+another AnalysisStore or trigger its startup recovery from this maintenance tool.
+
+Historical JSON is not reserialized, so key order, whitespace and original
+checksums are preserved. The existing ZIP is the compressed source, with no new
+result store, sidecar payload database or second compressed copy. Exporting the
+ZIP also provides every original file for offline inspection. External scripts
+that previously opened the two physical detail paths should use their normal
+export APIs, `prop_report_storage.read_bytes()`, or explicitly restore unpacked
+files. Ordinary report reads/downloads and original ZIP access stay compatible.
+
+## Prop Sim launch validation (2026-11-19)
+
+Before launch, the existing configuration form names the prerequisite blocking
+**Run IS and OOS** and **Check source and settings**. A missing configuration,
+unsupported sizing mode, invalid phase grid or native required/range/integer
+input displays `Cannot run: ...` beside the buttons. Phase-specific fields name
+Evaluation or Funded. Editing another field must not replace the blocking
+reason with the generic settings-changed notice. Once corrected, both actions
+become available without a separate confirmation step.
+
+Both fixed and percentage searches require complete applicable settings. Fixed
+maximum contracts must be at least the minimum; percentage grids retain their
+exact positive/aligned decimal rules. Disabled controls from the unused sizing
+mode do not block launch. Optional closed-session and breach-cap fields remain
+optional. These are portal validation messages only: server-owned qualification,
+account/source admission, numerical identities and the automatic IS/OOS plan
+remain unchanged. Refresh the portal to load the updated static asset; no
+application restart is required.
+
+## Shared native replay allocation and validation optimization (2026-11-19)
+
+`prop/native_control.py` remains the common account boundary for fixed-contract,
+fixed-dollar and percentage-risk native execution in both phases. The public
+`sizing.choose_quantity()` law, ordinary execution owner and provider kernels
+are unchanged. Saved-trade fixed-contract optimizers retain their existing
+shared provider kernels; they are not forced through more expensive native
+replay. No second simulation engine or numerical result store is introduced.
+
+Repeated admission rechecks the actual UTC decision/stop/prior-exit clocks,
+side/timing and bounded Decimal inputs even on cache hits. Previously checked
+price geometry reuses its pure quantity calculation under the same complete
+account state. The 128-entry cache now replaces old geometries rather than
+stopping insertion once full. Each acceptance still has its own decision and
+mutable detail containers. Capture-free paths omit unused display fields while
+retaining every opportunity, cancellation, quantity/reason count and exact risk
+total. Detailed paths keep their original records. Cash projection and immutable
+risk orders are memoized only for identical input objects, including account
+reset/withdrawal offsets, both floors, halt state and session; changed Decimal
+representations invalidate those memos too.
+
+`NativeBarSequence` preserves the exact existing checked spool bytes, original
+CSV cells, timestamps, Decimal values, record order and private tick windows/
+flow. Decoded bars use a byte-accounted 32 MiB LRU. Short numeric source cells
+use an instance-local bounded Decimal LRU (conservatively charged at 512 bytes
+per slot, at most 4 MiB); cells longer than 128 characters decode uncached.
+Caches are not serialized into worker contexts, and close/release clears them.
+The existing worker context cache admits at most two contexts, so these added
+payload retention budgets total at most 72 MiB per worker. These bounds do not
+truncate source rows, paths, financial outcomes or requested captures.
+
+Numerical identities still include both changed source files. Existing report
+seals and captured identities are never rewritten and unknown frozen-source
+changes still reject. An authorized rerun uses a fresh request/phase package
+with the original settings; earlier cancelled records remain inspectable.
+Source feature compilation, requested path counts, seeds, phase independence,
+automatic selection and OOS qualification rules are unchanged. Working-order
+event skipping beyond the previously qualified behavior is a separate change.
+
+## 2026-11-20 — Configurable saved-trade account policies v2
+
+New main-portal fixed-contract and percentage searches freeze trade handling
+independently for Evaluation and Funded. Defaults: Skip trade when its actual
+whole-position stop risk reaches the remaining daily/account allowance; minimum
+one contract off. Alternatively, enter with an exact account-limit exit detected
+from captured source excursions, and optionally force one MNQ for percentage
+budgets too small to afford one. MAE never sizes entries. Provider caps remain
+mandatory. Missing excursion evidence rejects early-exit mode.
+
+IS and OOS show skip, daily/account-limit-exit and over-budget rates, counts,
+reasons, examples and mean/maximum actual planned risk percentage. Any nonzero
+deviation is a warning, not a new eligibility gate. Sampled opportunity counts
+are not unique source coverage. The numerical model is
+`saved-trade-account-policies-v2`; original reports retain their old identities.
+Frozen OOS/stress/start scenarios use the same settings without reselection.
+The complete formulas, restrictions, provenance and compatibility contract are
+in `docs/saved_trade_prop_simulation.md` under Account-policy v2.
+
+### 2026-11-20: Background preparation and multicore saved paths
+
+The main Prop Sim form renders defaults and saved runs before qualified sources
+finish loading. Its source picker shows an independent loading/error state.
+New portal requests set `background_prepare:true`: the initial POST saves a
+parent preparation record and returns 202 without hashing or replaying sources.
+The existing AnalysisStore worker then verifies sources and prepares already
+accessed IS/OOS causal stop plans using the existing bounded Runtime process pool.
+Preparation is visible and stoppable in Prop Sim and Job History. It has no
+financial report or duplicate evidence store. Publication retains source guards;
+source mutation fails rather than silently admitting stale evidence.
+
+Verified qualification is cached only against the current implementation,
+source-catalogue stamps, workflow membership, source files, current Monte Carlo
+membership and sealed artifacts. File identity includes inode/ctime and symlink
+target identity. A cache miss performs the complete server verification. Numeric
+progress writes do not invalidate the cache. Concurrent source-list readers share
+one asynchronous waiter. Worker readers do not run application recovery. Status
+polling reads phase metadata without deserializing full candidate manifests.
+The Job History membership query uses the existing indexed run-ID expression.
+
+Prop Sim exposes **Parallel workers**, default four, bounded by the shared CPU
+capacity (currently up to eight). The requested count is saved on each phase
+campaign and in AnalysisStore orchestration metadata, then inherited by its
+OOS/diagnostic jobs. It is separate from numerical search identity; changing a
+worker count does not make already completed numerical evidence different.
+The existing backtest Broad/Narrow/OOS grids already expose parallel backtests
+with four as default. A single chronological backtest remains sequential within
+one replay; parallelism applies to independent trials/paths, never to dependent
+bars or account transitions. Preparation/source hashing may use fewer workers.
+
+Lucid calendar Evaluation and dated Funded (Apex and Lucid; fixed and percentage
+sizing) dispatch small batches of independent globally indexed paths to the
+existing pool. Global indices retain original seeds, start-date strata and trace
+labels. The parent reduces results in index order, retaining all paths, original
+schedule hashes, exact sizing aggregates and the original bounded trace prefix.
+Progress reports completed paths and actual workers; cancellation signals active
+siblings and drains them before returning CPU reservations. No worker recursively
+creates a pool. Account controllers, costs, sampling laws and selection objectives
+are unchanged. Apex's legacy Evaluation attempt sampler has a shared sequential
+random stream; independent sizing candidates run in parallel instead of changing
+that law. Worker availability and independent task count determine actual usage.
+
+Earlier sealed reports retain their captured implementation and verdict. New
+parallel execution code is included in numerical provenance; no old hash is
+rewritten or source-compatibility guard bypassed. Repeating a prepared request
+reopens its canonical phase jobs after normal source/seal verification instead of
+queueing another preparation behind those jobs. Explicit stopped/error retries
+retain their settings and stop history and resume through the existing owners.
+
+Campaign full-period Monte Carlo also exposes Parallel workers (default four). Its original 128-path random-stream states are captured and evaluated in parallel, preserving every original path and summary exactly. This uses the same bounded Runtime and cancellation rather than a new Monte Carlo engine.
+
+### 2026-11-20: Lucid activity is an operator-maintained assumption
+
+Approved future policy: Lucid Evaluation and Funded simulations do not close an
+account merely because 30 calendar days have elapsed without a campaign trade
+meeting the activity threshold. The new model identity is
+`alphaquest-lucidflex50k-eod-v5-maintained-activity`. Each phase profile snapshots
+`lucid_inactivity_enforced:false`; IS choices carry that same profile into OOS,
+stress checks, chronological checks and percentage/fixed-size simulations.
+
+Rationale: inactivity is an operational task that the operator can address
+outside the campaign with a brief one-MNQ entry/exit when needed. The operator
+assumes the required price/P&L fluctuation can be achieved and that price P&L has
+zero expectation, because this activity has no assumed edge. At USD 0.50 per
+side the commission is approximately USD 1 per maintenance round trip. Explicit
+maintenance scheduling, synthetic executions, commission ledgers and edge-case
+account transitions add complexity for negligible per-account economic impact.
+The approved simplification omits this small expense entirely.
+
+No maintenance trades are inserted into the campaign, Monte Carlo source,
+account path or trade counts. No maintenance profit, fees, qualifying profitable
+days, payout credit or strategy signals are invented. Actual campaign commissions
+still apply normally. Maintenance activity is an operator responsibility, not an
+automated trading feature or a claim that the provider's rule has changed.
+
+Removing inactivity closure does not turn a nontrading strategy into a pass:
+Evaluation still needs its target/consistency checks and retains computational
+censoring; Funded still needs the original profitable-day/payout conditions.
+Drawdown, daily loss limits, account tiers and payout rules are unchanged. A
+Funded path with no campaign trades can remain open at its horizon with zero
+cash and zero qualifying days. An Evaluation path with no campaign trades stays
+unresolved at its computation guard; it is not restarted and charged another
+purchase solely for inactivity.
+
+Existing reports and the currently running simulation retain their captured v4
+rules and verdicts. They are not relabeled under v5. An explicit enforcement flag
+remains in the low-level rule/profile contracts for historical arithmetic
+qualification; the new portal default disables it. Old numerical packages must
+pass existing compatibility guards before any further launch; this change does
+not bypass those guards.
+
+Deployment status: the v4 automatic simulation completed both phases before
+application. The tested v5 code was then applied during an idle portal restart;
+no running job was interrupted or rerun. The completed v4 reports retain their
+original rules, findings and seals. Review and normal-product evidence are kept
+locally in `artifacts/lucid-maintained-activity-20261120/`.

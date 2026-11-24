@@ -80,10 +80,10 @@ def test_next_open_entry_includes_entry_bar_and_open_exit_excludes_later_prices(
 
 
 @pytest.mark.parametrize('side,o,h,l,expected',[
-    ('long','100','120','1',(D(50),D(50),D(0),D(200),'stop')),
-    ('long','100','120','97',(D(0),D(30),D(50),D(50),'target')),
-    ('short','100','999','80',(D(50),D(50),D(0),D(200),'stop')),
-    ('short','100','103','80',(D(0),D(30),D(50),D(50),'target')),
+    ('long','100','120','1',(D(0),D(0),D(50),D(50),'target')),
+    ('long','100','120','97',(D(30),D(30),D(50),D(50),'target')),
+    ('short','100','999','80',(D(0),D(0),D(50),D(50),'target')),
+    ('short','100','103','80',(D(30),D(30),D(50),D(50),'target')),
     ('long','90','999','1',(D(100),D(100),D(0),D(0),'open')),
     ('long','110','999','1',(D(0),D(0),D(100),D(100),'open')),
 ])

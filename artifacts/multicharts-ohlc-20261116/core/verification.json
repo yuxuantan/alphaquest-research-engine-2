@@ -1,0 +1,200 @@
+{
+  "core_only": true,
+  "platform_parity": false,
+  "observations": [
+    {
+      "case": "momentum-long",
+      "completed_bars": 23,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "momentum-short",
+      "completed_bars": 23,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "momentum-immediate-long",
+      "completed_bars": 23,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "momentum-immediate-short",
+      "completed_bars": 23,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "breakout-long",
+      "completed_bars": 107,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "breakout-short",
+      "completed_bars": 107,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "gaps-sessions",
+      "completed_bars": 9148,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "clock-shift",
+      "completed_bars": 9148,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "breakout-oco-long",
+      "completed_bars": 107,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "breakout-oco-short",
+      "completed_bars": 107,
+      "state_fields": 15,
+      "orders_match": true
+    },
+    {
+      "case": "breakout-gap",
+      "completed_bars": 107,
+      "state_fields": 15,
+      "orders_match": true
+    }
+  ],
+  "independent_replays": [
+    {
+      "case": "momentum-long-default",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-long-fractional",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-short-default",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-short-fractional",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-immediate-long-default",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-immediate-long-fractional",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-immediate-short-default",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "momentum-immediate-short-fractional",
+      "events": 31,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-long-default",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-long-fractional",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-short-default",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-short-fractional",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-oco-long-default",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-oco-long-fractional",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-oco-short-default",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-oco-short-fractional",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-gap-default",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    },
+    {
+      "case": "breakout-gap-fractional",
+      "events": 110,
+      "trades": 1,
+      "independently_driven_orders": true,
+      "exact_events_match": true
+    }
+  ]
+}

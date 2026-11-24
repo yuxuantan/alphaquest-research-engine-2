@@ -7,7 +7,7 @@ from dataclasses import asdict
 from hashlib import sha256
 from .adapter import canonical
 
-VERSION = 'provider-rule-review-2026-11-08-v1'
+VERSION = 'provider-rule-review-2026-11-08-v2-local-activity-assumption'
 REVIEWED_AT = '2026-11-08'
 APEX = 'https://apextraderfunding.com/help-center/'
 LUCID = 'https://support.lucidtrading.com/en/articles/'
@@ -51,12 +51,15 @@ def profile_review(profile, phase):
         fields.append(_field('daily_loss', 1200 if profile.daily_loss_limit else None,
             'DLL can be enabled in both phases; hitting it pauses the session. DLL-off removes the daily cap.',
             'lucid_customization', gap='The fixed 1200 amount and behavior above the trailing floor were not independently established on this page.' if profile.daily_loss_limit else None))
-        fields.append(_field('inactivity', dict(calendar_days=30, minimum_absolute_closed_result=1),
-            'At least one profit or loss of 1 dollar is required within 30 calendar days.', 'lucid_inactivity',
-            gap='Exact account creation time, inclusive boundary and enforcement timing remain unverified.'))
+        fields.append(_field('inactivity', dict(enforced=profile.lucid_inactivity_enforced,
+            calendar_days=30 if profile.lucid_inactivity_enforced else None,
+            maintenance_costs_simulated=False,maintenance_profitable_day_credit=False),
+            'Previously reviewed requirement: at least one profit or loss of 1 dollar within 30 calendar days.', 'lucid_inactivity',
+            gap=('Exact account creation time, inclusive boundary and enforcement timing remain unverified.' if profile.lucid_inactivity_enforced else
+                'User-approved operational assumption: manually maintain activity with brief one-MNQ trades; omit their small commissions and add no strategy profit or profitable-day credit. The provider requirement is not asserted to have changed.'),kind='model_assumption'))
         if phase == 'evaluation':
             fields.extend([
-                _field('target_and_consistency', dict(target=3000, maximum_best_day_fraction=.4, max_micros=40),
+                _field('target_and_consistency', dict(target=3000, maximum_best_day_fraction=profile.consistency_percent/100, max_micros=40),
                     '50K target 3000, 40% standard consistency, maximum 40 micros; 50% is a separate add-on.', 'lucid_evaluation'),
                 _field('expiry', None, 'The evaluation has no pass deadline or monthly rebilling.', 'lucid_evaluation'),
                 _field('activation_fee', profile.activation_fee, 'The published activation fee is zero.', 'lucid_evaluation',

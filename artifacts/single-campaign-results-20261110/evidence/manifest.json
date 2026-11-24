@@ -1,0 +1,50 @@
+{
+  "base_commit": "3e2bfcc",
+  "branch": "epic/revamp-workflow",
+  "synthetic": true,
+  "scope": "One canonical IS Broad result view for current/earlier campaign runs; standalone legacy viewer retained.",
+  "workflow_id": "55a105ed8906460cabe6ba89833f5f24",
+  "current_job_id": "c8ded000cffc4ecaa1bf76931f898537",
+  "earlier_job_id": "ff78862bee70406299870af5b044183d",
+  "checks": {
+    "backend": {
+      "passed": 4,
+      "seconds": 7.6
+    },
+    "canonical_view": {
+      "passed": 1,
+      "seconds": 12.22
+    },
+    "cancel_resume": {
+      "passed": 1,
+      "seconds": 6.23
+    },
+    "canonical_and_standalone_viewer": {
+      "passed": 2,
+      "seconds": 15.71
+    }
+  },
+  "preserved_native_artifacts": true,
+  "mc_parity": "Synthetic user-attestation exercise only; no measured MC/provider comparison.",
+  "temporary_servers": "Stopped through fixture teardown; no persistent server started.",
+  "files": {
+    "02-results-and-selection.png": "91b4674afecf9413cc37e0841b21ae4231b1e1a682af21800b3834cd87ac3f02",
+    "04-mobile.png": "fc9e24f9f0cb45bbd9bd67c377a0a89d7ecaf99097d8dc875405265ce235ec76",
+    "05-single-job-destination.png": "4951f2899ff5b8f7e9a9a69937e6afd15f3545cf7d1ea2755166b4e056a9ec33",
+    "06-earlier-run.png": "8560e4abbb652786e975a0200194753ce067e8b1a62715504e4080441efc8616",
+    "SYNTHETIC-source.csv": "fb0ba10c0f55d1fbf543d8fbe61c9b520a813737789c1ebd3250beb8230a6aa5",
+    "backend-checks.txt": "cbbb990dcd10658ac7c2a21759dcefee4e87f7214c855fab643ee00e2dc21373",
+    "browser-controls-check.txt": "4abe1498a755031a98d8e8ce6340f053488e3b75b57568176a5dd8a4d98d5434",
+    "browser-final-check.txt": "2501da31d221f84c30e4773624d5e51961c37f7cbfd21213f258881ee8d0717b",
+    "browser-standalone-check.txt": "86386a5efa85343992df1ccab1d75d3b321f755356aca0c3c1b3fff37f6bc38e",
+    "controls-journey.json": "fbf74f9af6a8acde2e75f65d112c0ae9be22e9fcc10f34bf353becbe179ca3f1",
+    "earlier-is-broad-package.json": "50e0284729bfdb75d4bab0f07704cb9bc4e575e018f82c8883c9abf0fbc28117",
+    "failed-with-resume.png": "3875e3e2d6ec0426e684cec3e62e6437055cd207c3132386b592cb69de6fda20",
+    "is-broad-package.json": "cae80701354d643b0130f5d9ccb1462caab11bbda1878f3736cc18ccb2f358bf",
+    "journey.json": "144659897459102fb15c80b9244c2dfc9ad698f1ac65f8f166fa153385dcd882",
+    "results.csv": "35e1a6c4593974a5492ecedb2e843a9f14076dae5448dfc8372137bf1ab7934e",
+    "results.json": "fe58a6ee4af079801adad608b52c00126e160f0ac2204f8dfd9e411f00071c7d",
+    "resumed-on-is-broad.png": "4891720fa0debe6af2cf3db3df548c63f4c50d295bfbe2a68eb7d90bda4be9e4",
+    "standalone-viewer-verification.json": "94314a9533e80c6c419b71b2f77ce05561a6b05f228c79ae0b136089f112927a"
+  }
+}

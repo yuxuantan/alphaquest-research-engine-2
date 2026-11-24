@@ -29,6 +29,14 @@ extension described in its guide. MultiCharts export parity remains unverified.
 
 ## Independent phase research
 
+The current **Prop Sim** tab's [Evaluation/Funded calculation guide](docs/prop_simulation_methodology.md)
+details IS selection, frozen OOS simulation and confidence checks, account rules,
+costs, result columns, independent percentage-risk sizing and the separate
+portfolio workflow. Main Prop Sim can independently optimize risk percentages
+for Evaluation and Funded in Apex 50K EOD or LucidFlex 50K, then automatically
+freeze IS choices and assess OOS. See the [percentage research contract](docs/percentage_risk_research_plan.md)
+for supported native strategy capabilities and qualification evidence.
+
 [Guided prop configuration](docs/prop_setup.md) starts from a saved report with
 a goal choice, relevant source/design/account steps and a review/check/run stage.
 Previous analyses and legacy tools remain separate and available.
@@ -127,8 +135,19 @@ Requires Python 3.12 or newer. From this repository:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]' -c requirements.lock
-python -m uvicorn alphaquest.app:app --host 127.0.0.1 --port 8000 --reload
+sh scripts/serve_portal.sh
 ```
+
+The stable launcher binds localhost, disables development reload and per-request
+terminal logging, and writes rotating logs to `data/portal_logs/server.log`
+(`ALPHAQUEST_DATA_DIR` overrides the data directory). Interpreter output goes to
+`portal_logs/process-output.log`. Stop the foreground server with Ctrl+C.
+Use `--port 8001` for an isolated data directory; it refuses a second owner of
+the same data. It also refuses queued/running jobs unless you explicitly request
+`--recover-interrupted` after the previous server has stopped. This prevents
+accidentally interrupting live analyses with a second application startup.
+For code development only, use `python -m uvicorn alphaquest.app:app --host
+127.0.0.1 --port 8000 --reload` while no long analysis needs to survive edits.
 
 Open **http://127.0.0.1:8000**. Choose a CSV (or download the example), set the dataset name and source timezone, click **Validate CSV**, inspect the preview, then **Save dataset**. Saved datasets can be reopened and downloaded from the library. Use **Delete** in a dataset row or its details to remove its saved CSV and metadata after confirmation. Deletion is permanent; the original file on your computer is unaffected and can be uploaded again. Reloading the page or restarting the server retains the library.
 
@@ -357,13 +376,65 @@ Select **Strategies** in the portal, choose an instrument to browse saved backte
 
 ## Verify
 
+**Job history** in the top bar (`/#jobs`) lists running/queued jobs, completed
+jobs and failures. Filter by status, type or strategy/dataset/ID; click a job for
+progress and links to its normal result page. Mechanic validations run in a
+server-owned background task, so leaving or reloading the browser does not stop
+them. Each retry retains its earlier attempt. A completed run still needs the
+separate mechanics review before IS Broad unlocks. Existing batches, saved
+backtests and prop analyses appear from their original catalogues. Legacy
+standalone backtests appear once saved; their in-flight HTTP executions are not
+registered jobs. A server/process interruption is recorded rather than silently
+resuming computation.
+
+To stop a running mechanic validation or parameter sweep, open its **Job
+history** entry and choose **Stop running job**. You can also stop it on its
+mechanic, IS Broad, IS Narrow or batch progress page. A one-off backtest has
+**Stop running backtest** on its live progress screen. A stop request takes
+effect at the next backtest checkpoint; Job history shows **Stopping** until
+the worker exits. Completed sweep trials and reports remain available, and
+**Resume remaining trials** runs only unfinished trials. A stopped mechanic
+validation has no partial report and can be run again. Queued sweeps can be
+cancelled before they start. A job that finishes publication before the stop
+request reaches a checkpoint is recorded as completed.
+
+After mechanic review, open **IS Broad** in the campaign's phase navigation.
+Set each parameter's start/end/step, calculate iterations, and run the native
+IS-only optimization. The results retain show/hide, freeze and reorder controls.
+Select one or two configurations passing all six agreed IS Broad criteria,
+then confirm to lock them and open IS Narrow with those saved inputs.
+Failed or insufficient-evidence rows cannot be selected. The portal shows the
+rules for every phase and each trial's six measured checks. See
+[the screening policy and future IS Narrow requirements](docs/workflow_screening.md).
+IS Narrow execution and
+OOS remain future work. Job history links back to the broad phase and its saved
+results; confirmed configurations and their source reports are retained.
+Campaign jobs have a single results destination: **IS Broad**. Earlier campaign
+batch URLs redirect to that run in IS Broad; superseded runs open read-only with
+their original results and downloads. Standalone legacy batches retain their
+existing viewer. Run progress, saved settings, queued cancellation and failed-run
+resume are available on IS Broad.
+
 ```bash
-python -m pytest
+.venv/bin/python -m pytest -q
 ```
 
-Chromium browser checks are optional: install `.[dev,browser]` with `requirements.lock` constraints, run `python -m playwright install chromium`, then `python -m pytest tests/test_backtests_browser.py -q`.
+During `epic/revamp-workflow`, the default run temporarily selects only the seventeen
+focused mechanics/job-history/IS Broad criteria checks. Other tests are preserved but excluded from
+default discovery; select a file or test explicitly when its behavior changes.
+For UI changes, opt into only the affected browser journey, for example:
 
-Tests cover datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter. Report checks compare every summary/trade/equity field and CSV row with independent expectations, verify reconciliations and precision, and exercise failure cleanup and bounded-memory export.
+```sh
+.venv/bin/python -m pytest -q tests/test_job_history_browser.py
+```
+
+Chromium checks require `.[dev,browser]` with `requirements.lock` constraints and
+`python -m playwright install chromium`. The older suite remains available with
+`.venv/bin/python -m pytest tests`; this explicit command runs all tests and is
+not the routine workflow-revamp check. Restore `testpaths = ["tests"]` in
+`pyproject.toml` to restore full default discovery.
+
+The preserved full regression suite covers datasets and the portal, reader snapshots and incremental parsing, exact execution/cost arithmetic, all reviewed trade/equity fixtures, causal callbacks, final-bar handling, explicit invalid-intent errors, and bounded memory for streamed execution results. Sample strategy checks cover green/reset behavior, no pyramiding, elapsed-time exits across bar intervals and gaps, re-entry rules, end-of-data handling, and changes/validation for each parameter. Report checks compare every summary/trade/equity field and CSV row with independent expectations, verify reconciliations and precision, and exercise failure cleanup and bounded-memory export.
 
 ## Structure
 

@@ -75,11 +75,15 @@ def review(output,url):
         response=client.post('/api/backtests',json=dict(dataset_id=dataset['id'],strategy_id='twin_continuation',
             strategy_parameters=values(replace(p,bo_max_stop_mult=Decimal('.25'))),sample_split=split,
             execution_settings=dict(initial_capital='10000',slippage_ticks=1,commission_per_contract_per_side='1')))
-        assert response.status_code==422 and 'Immediate entry protection is ambiguous' in response.text,response.text
-        (output/'ambiguous-entry-protection-rejection.json').write_text(response.text+'\n')
+        assert response.status_code==201,response.text
+        ambiguous=response.json()
+        assert ambiguous['entry_protection']['assumed_take_profits']==1
+        assert Decimal(ambiguous['summary']['total_net_pnl'])==318
+        assert Decimal(ambiguous['entry_protection_sensitivity']['scenarios']['high_first']['summary']['total_net_pnl'])==318
+        (output/'ambiguous-entry-protection-assumption.json').write_text(response.text+'\n')
         assert not errors,errors
         browser.close()
-    result=dict(synthetic=True,observations=observations,ambiguous_entry_rejected=True,browser_errors=errors,
+    result=dict(synthetic=True,observations=observations,ambiguous_entry_modeled_by_multicharts_path=True,browser_errors=errors,
         oos_run=False,windows_multicharts_verified=False)
     (output/'verification.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps([dict(case=o['case'],run_id=o['run_id'],net=o['actual']['net_pnl'],exit_bar=o['actual']['exit_bar_number']) for o in observations],indent=2))

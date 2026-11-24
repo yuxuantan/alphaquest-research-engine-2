@@ -1,0 +1,163 @@
+{
+  "cone": {
+    "horizon_trades": 6,
+    "observed_endpoint_percentile": null,
+    "percentiles": [
+      5,
+      25,
+      50,
+      75,
+      95
+    ],
+    "points": [
+      {
+        "bands": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "trade": 0
+      },
+      {
+        "bands": [
+          -800.0,
+          -600.0,
+          200.0,
+          800.0,
+          1000.0
+        ],
+        "trade": 1
+      },
+      {
+        "bands": [
+          -1400.0,
+          -600.0,
+          200.0,
+          400.0,
+          1800.0
+        ],
+        "trade": 2
+      },
+      {
+        "bands": [
+          -2000.0,
+          -800.0,
+          -200.0,
+          1000.0,
+          2200.0
+        ],
+        "trade": 3
+      },
+      {
+        "bands": [
+          -2400.0,
+          -1000.0,
+          0.0,
+          800.0,
+          2209.999999999991
+        ],
+        "trade": 4
+      },
+      {
+        "bands": [
+          -2400.0,
+          -1000.0,
+          0.0,
+          1000.0,
+          2600.0
+        ],
+        "trade": 5
+      },
+      {
+        "bands": [
+          -2800.0,
+          -1200.0,
+          0.0,
+          1000.0,
+          2800.0
+        ],
+        "trade": 6
+      }
+    ]
+  },
+  "current_drawdown": -1200.0,
+  "curve": [
+    {
+      "date": "2026-01-05T18:01:00+00:00",
+      "drawdown": 0.0,
+      "equity": 1000.0,
+      "role": "is",
+      "trade": 1
+    },
+    {
+      "date": "2026-01-06T18:01:00+00:00",
+      "drawdown": -600.0,
+      "equity": 400.0,
+      "role": "is",
+      "trade": 2
+    },
+    {
+      "date": "2026-01-07T18:01:00+00:00",
+      "drawdown": 0.0,
+      "equity": 1200.0,
+      "role": "is",
+      "trade": 3
+    },
+    {
+      "date": "2026-01-08T18:01:00+00:00",
+      "drawdown": -800.0,
+      "equity": 400.0,
+      "role": "is",
+      "trade": 4
+    },
+    {
+      "date": "2026-01-09T18:01:00+00:00",
+      "drawdown": -600.0,
+      "equity": 600.0,
+      "role": "is",
+      "trade": 5
+    },
+    {
+      "date": "2026-01-12T18:01:00+00:00",
+      "drawdown": -1200.0,
+      "equity": 0.0,
+      "role": "is",
+      "trade": 6
+    }
+  ],
+  "episodes": [
+    {
+      "depth": 600.0,
+      "duration_trades": 2,
+      "peak_trade": 1,
+      "recovered_at": 3,
+      "through_trade": 3,
+      "trough_trade": 2
+    },
+    {
+      "depth": 1200.0,
+      "duration_trades": 3,
+      "peak_trade": 3,
+      "recovered_at": null,
+      "through_trade": 6,
+      "trough_trade": 6
+    }
+  ],
+  "is_net": 0.0,
+  "is_trades": 6,
+  "longest_drawdown_trades": 3,
+  "matrix": [],
+  "matrix_horizons": [
+    10,
+    20,
+    30,
+    50,
+    100
+  ],
+  "maximum_drawdown": 1200.0,
+  "net": 0.0,
+  "observed_oos_net": null,
+  "oos_trades": 0
+}

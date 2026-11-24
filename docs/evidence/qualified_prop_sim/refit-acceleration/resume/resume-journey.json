@@ -1,0 +1,147 @@
+{
+  "synthetic": true,
+  "simulation": "a1f76b49803943c8aa944502288c595e",
+  "stopped_job": "8a16d74c111a4ca4bfba68cd2269839a",
+  "resumed_job": "750f5a53ca0a4f2f976c03077a67ea3b",
+  "checkpoint_count_before_stop": 1,
+  "execution": {
+    "capture": "Means and required within-start precision only; published point paths retain full evidence",
+    "checkpoint_context_sha256": "652597871c424d7b27b9cd2bd01fb5c2d23219170fc0eeca9dcbf6311a8f76c0",
+    "context": "Internal temporary input loaded once per process; removed after workers finish",
+    "elapsed_seconds": 7.22,
+    "evaluation_preparation": {
+      "budget_bytes_per_worker": 33554432,
+      "fallback": "Original streaming sampler; all requested paths retained",
+      "maximum_accounted_bytes": 1251584,
+      "version": "dated-evaluation-preparation-v1"
+    },
+    "nested_pool": false,
+    "ordered_by": "replicate_index",
+    "reused_resamples": 134,
+    "worker_pids": [
+      39287,
+      39288,
+      39289,
+      39290
+    ],
+    "workers_used": 4
+  },
+  "historical_replicates": 10000,
+  "qualification": {
+    "checks": [
+      {
+        "direction": "maximum",
+        "label": "Acquisition cost",
+        "limit": 1.5,
+        "lower": 1.0,
+        "metric": "cost_per_funded",
+        "point_ratio": 1.0,
+        "status": "PASS",
+        "upper": 1.0
+      },
+      {
+        "direction": "maximum",
+        "label": "Funding time",
+        "limit": 1.5,
+        "lower": 1.0,
+        "metric": "expected_calendar_days_to_funded",
+        "point_ratio": 1.0,
+        "status": "PASS",
+        "upper": 1.0
+      }
+    ],
+    "confidence": 0.95,
+    "evidence": [
+      {
+        "actual": 12,
+        "label": "Complete OOS calendar months",
+        "passed": true,
+        "required": 12
+      },
+      {
+        "actual": 1566,
+        "label": "Closed OOS source trades",
+        "passed": true,
+        "required": 100
+      },
+      {
+        "actual": "estimated",
+        "label": "Complete account estimates",
+        "passed": true,
+        "required": "estimated"
+      }
+    ],
+    "family_test_budget": 12,
+    "forward_execution": {
+      "minimum_closed_trades": 30,
+      "minimum_sessions": 20,
+      "status": "PENDING"
+    },
+    "historical_replicates": 10000,
+    "inner_precision_ok": true,
+    "interpretation": "GO supports forward review under the saved historical model. Insufficient evidence is not approval. The bounds do not imply a 95% probability of future success.",
+    "limitations": [
+      "Nominal block-bootstrap percentile bounds assume a representative, weakly dependent stationary history. They are not guaranteed future coverage.",
+      "The family budget covers at most four frozen Evaluation sizes \u00d7 two metrics plus four Funded sizes \u00d7 one metric. It does not repair earlier adaptive strategy search or already-accessed OOS.",
+      "Inner account paths retain the requested count and fixed random streams. Their numerical error is checked separately; MC precision is not additional market history.",
+      "GO qualifies the historical model for forward execution review, not provider certification, full replacement-account profitability or automatic live trading."
+    ],
+    "prerequisites": {
+      "passed": true,
+      "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+      "snapshot": {
+        "broad_trial": 1,
+        "dataset": {
+          "bytes": 909491,
+          "end": "2026-12-31T14:24:00Z",
+          "id": "d26b58afff0f48748e148763825ed412",
+          "instrument_settings": {
+            "point_value": "20",
+            "tick_size": ".25"
+          },
+          "name": "SYNTHETIC frozen OOS",
+          "row_count": 18816,
+          "sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+          "source_timezone": "UTC",
+          "start": "2024-01-01T09:00:00Z",
+          "symbol": "NQ"
+        },
+        "frozen_identity": "e1e8d4d50fd9d9ab6707903ec8b521b110a8f5d78ac9fa85d81cd227a11782f4",
+        "monte_carlo_report_sha256": "d299b49254ba700a350e58464cd1a83323917e09f3fcbdf1ec0fb130a143cb4a",
+        "narrow_trial": 2,
+        "oos_report_id": "e48a432e919c494a81be90367d721cd5",
+        "parameters": {
+          "contracts": 1,
+          "green_bar_count": 3,
+          "hold_minutes": 16
+        },
+        "plan": {
+          "is_bars": 12552,
+          "is_end": "2025-12-31",
+          "is_start": "2024-01-01",
+          "oos_bars": 6264,
+          "oos_end": "2026-12-31",
+          "oos_start": "2026-01-01",
+          "percentage_basis": "chronological whole trading dates; floor(IS% \u00d7 date count)",
+          "source_sha256": "042a8eedac9def21e6d57ddae7c999974f4010af0e929ecdbd8716662918a19c",
+          "source_timezone": "UTC",
+          "strategy_id": "consecutive_green_hold",
+          "version": 1
+        },
+        "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+        "selection": {
+          "candidate": 1,
+          "monte_carlo_id": "6fb7b492-e113-4f81-a291-52e0c982f200",
+          "oos_job_id": "27f875c1-b12a-4450-b9fc-0c204aaed61a",
+          "workflow_id": "dadc3d6e-3e4a-4c11-a678-384de7008442"
+        },
+        "source_backtest_id": "89c5f5d5c2204898a4d38a48e3d06392",
+        "strategy_id": "consecutive_green_hold"
+      }
+    },
+    "retrospective": true,
+    "status": "GO",
+    "tail_probability": 0.002083333333333335
+  },
+  "server": "Temporary server stopped by fixture teardown"
+}

@@ -1,0 +1,137 @@
+{
+  "members": [
+    {
+      "source_backtest_id": "83469ff477d64ac187dd2ca73bf71c96",
+      "oos_backtest_id": "24ab0fa77a1441b6827855db412a7245",
+      "weight": 1
+    },
+    {
+      "source_backtest_id": "ec4a1f03151e473b818731d3d77ae1b8",
+      "oos_backtest_id": "07092cfd98724cdebcca63e6a72a51ee",
+      "weight": 1
+    }
+  ],
+  "launches": {
+    "simulation-2-desktop": {
+      "request": {
+        "parent_id": "960bed09282f44d1a7a76f10b63972e2",
+        "source_backtest_id": "83469ff477d64ac187dd2ca73bf71c96",
+        "micros": 2,
+        "combination": null
+      },
+      "response": {
+        "id": "938792c6e8204502921b16991458be86",
+        "source_backtest_id": "83469ff477d64ac187dd2ca73bf71c96",
+        "created_at_utc": "2026-11-22T07:51:43.556035+00:00",
+        "phase": "evaluation",
+        "mode": "diagnostics",
+        "status": "queued",
+        "progress": "Queued Prop Desk strategy diagnostics",
+        "error": null
+      }
+    },
+    "simulation-4-desktop": {
+      "request": {
+        "parent_id": "960bed09282f44d1a7a76f10b63972e2",
+        "source_backtest_id": "ec4a1f03151e473b818731d3d77ae1b8",
+        "micros": 4,
+        "combination": null
+      },
+      "response": {
+        "id": "2e95da64d93c419ea9ee9462414b014b",
+        "source_backtest_id": "ec4a1f03151e473b818731d3d77ae1b8",
+        "created_at_utc": "2026-11-22T07:51:44.832135+00:00",
+        "phase": "evaluation",
+        "mode": "diagnostics",
+        "status": "queued",
+        "progress": "Queued Prop Desk strategy diagnostics",
+        "error": null
+      }
+    },
+    "optimise-mobile": {
+      "request": {
+        "parent_id": "1dffe5bac1ab4b50a62d217f4e5f8004",
+        "source_backtest_id": "83469ff477d64ac187dd2ca73bf71c96",
+        "micros": 4,
+        "combination": 1
+      },
+      "response": {
+        "id": "ef74330ee9f74a03ae011ddda205e6d9",
+        "source_backtest_id": "83469ff477d64ac187dd2ca73bf71c96",
+        "created_at_utc": "2026-11-22T07:51:46.958740+00:00",
+        "phase": "evaluation",
+        "mode": "diagnostics",
+        "status": "queued",
+        "progress": "Queued Prop Desk strategy diagnostics",
+        "error": null
+      }
+    }
+  },
+  "arithmetic": {
+    "is_net": [
+      500,
+      -300,
+      400,
+      -400,
+      100,
+      -300
+    ],
+    "oos_net": [
+      800,
+      -200,
+      -100,
+      200,
+      -500,
+      200,
+      -200,
+      100,
+      -100,
+      -100
+    ],
+    "second_strategy_per_trade_bonus": 400,
+    "commission_per_trade_per_mnq": 1,
+    "net_at_tested_inspections": [
+      100,
+      13000,
+      200
+    ],
+    "first_strategy_recovered": [
+      3,
+      7
+    ],
+    "first_strategy_open_through": 16,
+    "four_two_trade_paths": [
+      10,
+      2,
+      2,
+      -6
+    ],
+    "fixed_cone_end_bands": [
+      -4.8,
+      0,
+      2,
+      4,
+      8.8
+    ]
+  },
+  "sha256": {
+    "SYNTHETIC-diagnostics.csv": "a5a179f90d4cf65057b92c8efdb14f8d41f671b3d9e683b099debbd477d88869",
+    "is-only.json": "4251972c47bdbeec04e3d99400baf3d17f85f31cf3b72e15f8bf878046e1e146",
+    "optimise-mobile-analysis.zip": "cabbdf7fb86609ecd67b5f7dd85f892b8359f00414e1ffff5145c813fff42b60",
+    "optimise-mobile-reopened.png": "fa1f303d417d8dae04d3c29679d952787092cd2765d1f6e7bb9dedf8e96a74f7",
+    "optimise-mobile-report.json": "9dcf88f10271d5bd16fa621190322fbb0423daf688eb6625627c66e7a17e33dc",
+    "optimise-mobile-strategy_diagnostics.json": "6531cf4c172d1d5d4851da75d228028597a9d6cff6f5f1351e592600fcebffc2",
+    "optimise-mobile-strategy_trades.csv": "0b9e2cfbf78c0cab08de229ecca65d6441537c572942c50a35b973bfd047829e",
+    "rejected.json": "e1efca751ec6e9f13c8f86215f548efa096e8a1f7fda5a9078578037592e19f1",
+    "saved-rankings.json": "dcc9f248aad5aa781b24082f437456f6058bc73f15434f8202565f186bf9fc99",
+    "simulation-2-desktop-analysis.zip": "c2dc6dc89620b6ca8c57b36ff6ea9d60622c9813f29aa5a634dde8688c379241",
+    "simulation-2-desktop-report.json": "1d6dc3267ff46f2ec7e7397c7dfef999a65050285314b7288e1a57a1203b9a4f",
+    "simulation-2-desktop-strategy_diagnostics.json": "5c9b3ad308459de442095b76f2e79a6a9d07aaacaf5f80be3d31b2d8808a1d44",
+    "simulation-2-desktop-strategy_trades.csv": "9f094978e8f66e78406ef9564749b50aa91c559393bff1363d8c5716b2972ee0",
+    "simulation-2-desktop.png": "2eed58ec9e6163a4d30b32f0a3ffefd72d589998d1e4121ebb5e83d0f55d7590",
+    "simulation-4-desktop-analysis.zip": "65ebe29c2e1c26df1472067c2915f1a2ae1cae999fc2610426400f8f2cc5d316",
+    "simulation-4-desktop-report.json": "0fe4c293f97785a09dbc8c9a7c373c91d89831e38fa84f554720eda7dea185fa",
+    "simulation-4-desktop-strategy_diagnostics.json": "c1a4124da2330253ed298c18a3967aa91686d595b45a0d4e341e51aee5b4eb58",
+    "simulation-4-desktop-strategy_trades.csv": "ef0ec8d4e356540ebd4e30ecd16d148fd9f1cc2da9f6c0e1388703d71edbce0e"
+  }
+}

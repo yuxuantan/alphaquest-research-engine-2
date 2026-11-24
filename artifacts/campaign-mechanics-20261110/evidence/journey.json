@@ -1,0 +1,35 @@
+{
+  "workflow_id": "48f21a1d15f94c65a73636ee3e6c863d",
+  "report_id": "fbe52b8806474e53a3d8ceac00eaacf9",
+  "workflow_hash_route": "/#campaigns/workflows/48f21a1d15f94c65a73636ee3e6c863d/mechanic_validation",
+  "expected_trade_net": [
+    3,
+    43,
+    -37,
+    13,
+    23,
+    33
+  ],
+  "expected_net": 78,
+  "expected_sample_trade_numbers": [
+    1,
+    6,
+    2,
+    3,
+    4
+  ],
+  "mc_parity": "Synthetic UI attestation exercise; no automated or measured MultiCharts comparison",
+  "temporary_server": "Stopped by fixture teardown",
+  "files": {
+    "report.json": "cc467c21059ff13b6a1ca903dd59fc24737a4d463dafc4cbaf781f7ff6636674",
+    "03-confirmed.png": "34a6520d95f996be8defa678534a82fa3d6d0450b0b4e29ec07a4244795f09d4",
+    "04-mobile.png": "34a406918c88a44b19860b6eca8fb0c42a530f73c2af2de1435d2ba1a491e8c6",
+    "mechanic-review.json": "f0409e7f88a1aa84095b605da3a3897fdcd72f96b3235b55fa59f5fc7264e60f",
+    "datasets.sqlite3": "d5f8b697d1b5a431a45b18e48cf72c5a6c8ab37d5e5bb5d5609292bca5c874e5",
+    "01-ready.png": "d79aa66cc3ba0bc1a7b32dfb44770fa3cc8dadb0cdf1cdcb2567d286aed5c729",
+    "SYNTHETIC-mechanics.csv": "8f81c289679e30a1b0f2853f76cecc8837f366246fd269c91b07f40f287a7bdd",
+    "trades.csv": "c6cb2293935c8977f97369ef409944ca4915ab64bc8888859d8f38175d34aa5e",
+    "02-results-unreviewed.png": "bb860d32558cd4e33daf38e2d9955c3353d1a0ff6e70eb30fe7d8a5c51403f4e",
+    "backtests.sqlite3": "63f8f6a7902c356e2973d65e1e6cbb44fb80007813fa74e9a58b029ff2417976"
+  }
+}

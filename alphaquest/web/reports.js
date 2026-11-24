@@ -39,7 +39,7 @@
     document.querySelectorAll('[data-delete-run]').forEach(button => { if (button.dataset.deleteRun === record.id) button.disabled = true; });
     const status = get("#backtest-delete-status"); status.hidden = false; status.textContent = "Deleting backtest…";
     try {
-      const response = await fetch(`/api/backtests/${record.id}`, {method: "DELETE"});
+      const response = await window.portalLoading.fetch(`/api/backtests/${record.id}`, {method: "DELETE"});
       if (!response.ok && response.status !== 404) {
         const result = await response.json();
         throw new Error(typeof result.detail === "string" ? result.detail : `HTTP ${response.status}`);
@@ -71,10 +71,11 @@
     get("#report-exit-time-header").textContent = `Exit · ${tradeTimeZone}`;
     get("#report-trade-timezone-note").textContent = `${tradeTimeZone} timestamps · P&L in ${reportCurrency}`;
     get("#report-trade-timezone-hint").textContent = `Entry and exit times use ${tradeTimeZone} (source timezone). CSV exports use UTC. Scroll horizontally for all trade fields.`;
+    if(record.run_metadata.dataset.tick_data) get("#report-trade-timezone-hint").textContent += " Ordered trade prices resolve entries, protective exits and account barriers. Decisions use completed minutes; full fills and declared slippage remain modeling assumptions.";
   }
   const moneyClass = (value) => Number(value) < 0 ? "negative" : Number(value) > 0 ? "positive" : "";
   async function read(url, signal) {
-    const response = await fetch(url, { cache: "no-store", signal });
+    const response = await window.portalLoading.fetch(url, { cache: "no-store", signal });
     const result = await response.json();
     if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : `Report request failed (HTTP ${response.status}).`);
     return result;
@@ -144,6 +145,62 @@
     const balances = node("p", `Initial equity ${summary.initial_capital} ${reportCurrency} → Final equity ${summary.final_equity} ${reportCurrency}.${external ? ' Imported completed trades; open-position equity is not reconstructed.' : ' Account currency unspecified.'}`, "report-balances small");
     balances.id = "report-balances";
     holder.append(balances);
+    if(!external)window.attachRiskDiagnostics(holder,record.id);
+  }
+  function entryProtection(record) {
+    const panel = get('#report-entry-protection');
+    panel.replaceChildren();
+    const evidence = record.entry_protection_sensitivity;
+    panel.hidden = !evidence;
+    if (!evidence) return;
+    const mc = evidence.primary_policy === 'multicharts';
+    panel.append(node('h2', mc ? 'MultiCharts OHLC path · execution sensitivity' : 'Immediate protection · entry-bar sensitivity'));
+    const count = evidence.primary_ambiguities.ambiguous_entries;
+    panel.append(node('p', mc ? 'Primary: visit the extreme nearer Open first; Low first on ties. Entries and exits follow that modeled path. Protection starts at fill, using only the remaining path.' : `Primary result: ${count} ambiguous protection ${count === 1 ? 'entry' : 'entries'} assumed stop first. SL/TP remain active from entry fill.`));
+    if (evidence.scenarios && !mc) {
+      const ocoCount = evidence.primary_ambiguities.oco_ambiguous_entries;
+      panel.append(node('p', `${ocoCount} ambiguous OCO ${ocoCount === 1 ? 'entry uses' : 'entries use'} the fixed upper-entry-first assumption. Neither upper nor lower entry priority is inherently conservative; diagnostic profits never select the primary.`));
+      if (evidence.status === 'inconclusive') panel.append(node('p', 'Sensitivity inconclusive: at least one diagnostic could not complete. The primary completed independently; missing diagnostic totals are unavailable.', 'notice'));
+    }
+    if (mc && evidence.status === 'inconclusive') panel.append(node('p', 'Sensitivity inconclusive: a diagnostic could not complete; its result is unavailable. The primary completed independently.', 'notice'));
+    const labels = {high_first: 'Open → High → Low → Close · diagnostic', low_first: 'Open → Low → High → Close · diagnostic', favorable: 'Upper entry first · favorable exits', lower_adverse: 'Lower entry first · stop-first exits', lower_favorable: 'Lower entry first · favorable exits'};
+    const rows = [{label: 'Primary · used for screening', status: 'complete', summary: evidence.primary_summary, ambiguities: evidence.primary_ambiguities, minus_primary_net_pnl: '0'}];
+    if (evidence.scenarios) {
+      for (const [key, scenario] of Object.entries(evidence.scenarios)) rows.push({...scenario, label: labels[key] || key});
+    } else {
+      rows.push({label: 'Favorable · diagnostic only', status: 'complete', summary: evidence.favorable_summary, ambiguities: evidence.favorable_ambiguities, minus_primary_net_pnl: evidence.favorable_minus_primary_net_pnl});
+    }
+    const table = node('table', undefined, 'library-table');
+    const head = node('thead'), headings = node('tr');
+    for (const label of ['Full strategy replay', 'Status', 'Net P&L · '+reportCurrency, 'Trades', 'Protection ambiguities', 'OCO ambiguities', 'Maximum drawdown · '+reportCurrency, 'Net P&L minus primary']) headings.append(node('th', label));
+    head.append(headings); table.append(head);
+    const body = node('tbody');
+    for (const item of rows) {
+      const row = node('tr'), summary = item.summary, ambiguities = item.ambiguities;
+      for (const value of [item.label, item.status, summary?.total_net_pnl, summary?.trades_taken, ambiguities?.ambiguous_entries, ambiguities?.oco_ambiguous_entries, summary?.max_drawdown_amount, item.minus_primary_net_pnl]) row.append(node('td', value == null ? 'Unavailable' : String(value)));
+      body.append(row);
+      if (item.reason) {
+        const detail = node('tr'), cell = node('td', `${item.label}: ${item.reason}${item.failure_location?.timestamp_utc ? ' · '+item.failure_location.timestamp_utc : ''}`, 'entry-sensitivity-reason');
+        cell.colSpan = 8; detail.append(cell); body.append(detail);
+      }
+    }
+    table.append(body);
+    const scroll = node('div', undefined, 'report-table-scroll'); scroll.append(table); panel.append(scroll);
+    panel.append(node('p', 'Each diagnostic replays the full strategy with its own positions and later signals. Large differences require execution sensitivity review; no automatic pass threshold is applied.'));
+    panel.append(node('p', evidence.interpretation, 'small muted'));
+    const downloads = node('details'); downloads.append(node('summary', 'Evidence and downloads'));
+    const links = node('p', undefined, 'report-downloads');
+    const primaryLabels = {entry_protection_sensitivity: 'Sensitivity JSON ↓', entry_protection_ambiguities: 'Primary protection ambiguity CSV ↓', entry_oco_ambiguities: 'Primary OCO ambiguity CSV ↓'};
+    const suffixLabels = {report: 'report JSON', trades: 'trade CSV', equity: 'equity CSV', intratrade_risk: 'intratrade risk CSV', entry_protection_ambiguities: 'protection ambiguity CSV', entry_oco_ambiguities: 'OCO ambiguity CSV'};
+    for (const kind of Object.keys(record.artifacts)) {
+      let label = primaryLabels[kind];
+      if (!label) for (const [key, title] of Object.entries(labels)) {
+        const prefix = 'entry_protection_'+key+'_';
+        if (kind.startsWith(prefix)) label = title+' · '+(suffixLabels[kind.slice(prefix.length)] || kind)+' ↓';
+      }
+      if (label) { const link = node('a', label); link.href = `/api/backtests/${record.id}/exports/${encodeURIComponent(kind)}`; links.append(link); }
+    }
+    downloads.append(links); panel.append(downloads);
   }
   const usd = (value, digits = 0) => value == null ? "N/A" : new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);
   const probability = (value) => value == null ? "N/A" : `${number.format(Number((value * 100).toFixed(1)))}%`;
@@ -156,6 +213,9 @@
     parent.append(card);
   }
   async function propSummary(record, controller) {
+    const finishSectionLoading=window.portalLoading.begin(get("#report-prop-status"));
+    const finishAmountLoading=window.portalLoading.begin(get("#report-historical-net"));
+    try {
     void companionSummaries(record,controller);
     const automatic = record.run_metadata.automatic_prop_analysis;
     try {
@@ -245,8 +305,11 @@
       if (get("#report-historical-net")) get("#report-historical-net").textContent = "N/A";
       get("#report-prop-status").textContent = `Could not load saved prop analysis: ${exc.message}`;
     }
+    } finally { finishSectionLoading();finishAmountLoading(); }
   }
   async function companionSummaries(record,controller){
+    const finishSectionLoading=window.portalLoading.begin(get('#report-lucid-historical-net'));
+    try {
     const holder=get('#report-prop-companions');holder.replaceChildren();
     const companions=record.run_metadata.automatic_prop_analysis?.companions||[];holder.hidden=!companions.length;
     for(const item of companions){
@@ -267,11 +330,14 @@
         holder.append(block);
       }catch(error){if(active!==controller||controller.signal.aborted)return;holder.append(node('p','Could not load saved LucidFlex analysis: '+error.message));const amount=get('#report-lucid-historical-net');if(amount)amount.textContent='N/A';}
     }
+    } finally { finishSectionLoading(); }
   }
   async function performance(record, controller) {
     get('#report-performance-body').replaceChildren();
     get('#report-performance-status').textContent='Loading timing diagnostics…';
     get('#report-performance-download').hidden=true;
+    const finishSectionLoading=window.portalLoading.begin(get('#report-performance-status'));
+    try {
     if(record.run_metadata.source?.kind==='external_trade_export') { get('#report-performance-status').textContent='Native execution timing is unavailable for an imported trade source.'; return; }
     try {
       const data=await read(`/api/backtests/${record.id}/performance`,controller.signal);
@@ -287,6 +353,7 @@
       }
       const link=get('#report-performance-download');link.hidden=Boolean(data.unavailable);link.href=`/api/backtests/${record.id}/exports/performance`;
     } catch(exc) {if(active===controller&&!controller.signal.aborted)get('#report-performance-status').textContent=`Timing diagnostics unavailable: ${exc.message}`;}
+    } finally { finishSectionLoading(); }
   }
   function equityScale(min, max) {
     // Aim for about five labels, extending the domain to clean step multiples.
@@ -395,6 +462,8 @@
   async function trades(offset, controller) {
     get("#trades-previous").disabled = get("#trades-next").disabled = true;
     get("#report-trades-count").textContent = "Loading trades…";
+    const finishSectionLoading=window.portalLoading.begin(get("#report-trades-count"));
+    try {
     try {
       const page = await read(`/api/backtests/${runId}/trades?offset=${offset}&limit=${pageSize}`, controller.signal);
       if (controller !== active) return;
@@ -428,6 +497,7 @@
       get("#report-trades-count").textContent = "Trades unavailable. Reopen the report to retry.";
       throw exc;
     }
+    } finally { finishSectionLoading(); }
   }
   async function openReport(id) {
     const controller = new AbortController();
@@ -439,6 +509,8 @@
     get("#report-prop-metrics").replaceChildren();
     get("#report-prop-status").textContent = "Loading saved prop analysis…";
     error("Loading saved report…");
+    const finishSectionLoading=window.portalLoading.begin(get("#report-status"));
+    try {
     try {
       const record = await read(`/api/backtests/${id}`, controller.signal);
       if (active !== controller) return;
@@ -449,6 +521,7 @@
       get("#report-back-strategies").href=back;
       tradeTimezone(record);
       metrics(record);
+      entryProtection(record);
       const remove = get("#report-delete");
       remove.dataset.deleteRun = record.id;
       remove.disabled = deleting.has(record.id);
@@ -456,7 +529,8 @@
       propSummary(record, controller);
       performance(record, controller);
       window.dispatchEvent(new CustomEvent("report-loaded", { detail: record }));
-      get("#report-prop-setup").href = `#backtests/prop/new/${record.id}`;
+      get("#report-prop-setup").href = record.run_metadata.research?.workflow_id
+        ? `#prop-sim?source=${record.id}` : `#backtests/prop/new/${record.id}`;
       get("#report-run-id").textContent = `Run ${record.id} · ${stamp(record.created_at_utc)} UTC`;
       for (const kind of ["trades", "equity"]) get(`#report-${kind}-download`).href = `/api/backtests/${id}/exports/${kind}`;
       const [preview] = await Promise.all([
@@ -466,16 +540,18 @@
       get("#backtest-completion").hidden = false;
       chart(preview);
       get("#report-status").hidden = true;
-      get("#backtest-completion").scrollIntoView({ block: "start" });
     } catch (exc) {
       if (!controller.signal.aborted) error(`${exc.message} Use Backtests or Refresh reports to choose a saved report.`);
     }
+    } finally { finishSectionLoading(); }
   }
   async function history(offset = 0) {
     const version = ++historyVersion;
     get("#refresh-reports").disabled = true;
     get("#runs-previous").disabled = get("#runs-next").disabled = true;
     get("#completed-runs-status").textContent = "Loading completed reports…";
+    const finishSectionLoading=window.portalLoading.begin(get("#completed-runs-status"));
+    try {
     try {
       const page = await read(`/api/backtests?offset=${offset}&limit=25`);
       if (version !== historyVersion) return;
@@ -500,6 +576,7 @@
     } finally {
       if (version === historyVersion) get("#refresh-reports").disabled = false;
     }
+    } finally { finishSectionLoading(); }
   }
   function navigate() {
     active?.abort();

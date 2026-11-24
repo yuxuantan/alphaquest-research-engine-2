@@ -1,0 +1,30 @@
+{
+  "request_id": "3444051a-2ad9-4a70-9a39-b362115792c3",
+  "profile_id": "lucidflex-50k",
+  "automatic": true,
+  "daily_loss_limit": true,
+  "evaluation_consistency_percent": 50,
+  "selections": [
+    {
+      "workflow_id": "3a9a2493-6f3d-4034-b722-650547baedc3",
+      "oos_job_id": "5a604fc9-9a7b-4633-8f63-1b3e43100cc5",
+      "monte_carlo_id": "e17ac0ec-05c2-4652-9be3-fa479bffbc41",
+      "candidate": 2
+    }
+  ],
+  "evaluation_minimum_micros": 1,
+  "evaluation_maximum_micros": 40,
+  "funded_minimum_micros": 1,
+  "funded_maximum_micros": 40,
+  "simulations": 1000,
+  "seed": 42,
+  "block_weekdays": 5,
+  "evaluation_price": "90.3",
+  "activation_fee": "0",
+  "start_date": "2026-11-14",
+  "closures": [],
+  "funded_horizon_calendar_days": 90,
+  "receipt_delay_calendar_days": 2,
+  "maximum_funded_breach_probability": null,
+  "commission_per_mnq_side": "0.50"
+}

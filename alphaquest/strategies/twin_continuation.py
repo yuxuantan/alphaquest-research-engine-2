@@ -26,13 +26,22 @@ DESCRIPTION = (
     "Twin Continuation: 6-hour confirmed swing breakout plus 10-minute morning momentum. "
     "One position, setup-owned exits; Chicago one-minute close-labelled bars. "
     "Next-bar market/stop entries with immediate fill-activated SL/TP by default. "
-    "Ambiguous two-sided entries and uncertain post-stop-entry protection reject; "
-    "Open-entry and later held-bar brackets use stop first. "
+    "Minute OHLC uses the MultiCharts nearest-extreme-first continuous path (Low first on ties). "
+    "OCO entries and immediate/later protection share that path, with high-first and low-first full-strategy diagnostics. "
     "Local NQ/MNQ calendar supplies same-close session liquidation, including early closes; "
     "source Momentum half-day heuristic is retained."
 )
-EXECUTION_ASSUMPTION = "twin_selectable_fill_or_legacy_protection_reject_ambiguous_entry_path_calendar_session_close_v3"
+EXECUTION_ASSUMPTION = "twin_immediate_protection_multicharts_ohlc_calendar_v6"
+ENTRY_PROTECTION_POLICY = "multicharts"
 SUPPORTS_DECISION_CAPTURE = False
+from ..strategy_sizing import SizingSupport
+SIZING_SUPPORT = SizingSupport(
+    fixed_path_check=lambda p: None,
+    native_check=lambda p: ('Native Twin sizing requires immediate protection, the session calendar, Chicago clock_shift=0 and the 17:00–16:00 session.'
+                            if not p.immediate_protection or not p.use_session_calendar or p.clock_shift != 0
+                            or p.bo_session_open != 1700 or p.bo_session_close != 1600 else None),
+    session_settings=lambda p: (1600, 0),
+    holding_start=lambda p: (1701, True))
 SESSION_CALENDAR = dict(NQ_CALENDAR, instrument="NQ / MNQ futures",
                         symbol_pattern="(?:" + NQ_CALENDAR['symbol_pattern'] + "|" + MNQ_SYMBOL_PATTERN + ")")
 
@@ -74,7 +83,8 @@ class Parameters:
     clock_shift: int = number(0, "Source clock offset in minutes; AQ bars already close-labelled: use 0.", -1440, 1440)
     debug_log: bool = False
     immediate_protection: bool = field(default=True, metadata={"description":
-        "Activate SL/TP on entry fill, including the entry bar. Ambiguous intrabar stop-entry paths reject. "
+        "Activate SL/TP on entry fill, including the remaining modeled MultiCharts OHLC path; "
+        "reports include complete high-first and low-first sensitivity replays. These are OHLC assumptions. "
         "False reproduces the original next-bar protection timing."})
     max_bars_back: int = number(5, "Leading records skipped, matching manual MC Max Bars Back.", 0)
     use_session_calendar: bool = field(default=True, metadata={"description":
@@ -120,7 +130,7 @@ def source_fingerprint():
     root = Path(__file__).resolve().parents[1]
     digest = hashlib.sha256()
     for path in (Path(__file__), root / "strategy.py", root / "execution.py", root / "intratrade.py",
-                 root / "session_calendar.py", calendar_path()):
+                 root / "session_calendar.py", root / "entry_protection.py", root / "ohlc_path.py", calendar_path()):
         digest.update(path.name.encode() + b"\0" + path.read_bytes() + b"\0")
     return digest.hexdigest()
 
@@ -142,7 +152,10 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
     enabled = parameters.use_session_calendar
     return dict(enabled=enabled, mode="twin_csv_session_close_v2", lookahead=False,
                 protection_activation="on_entry_fill" if parameters.immediate_protection else "following_bar_legacy",
-                entry_bar_path="reject ambiguous post-stop-entry SL timing/order; market/Open entries use full remaining range",
+                entry_protection_ambiguity_policy=ENTRY_PROTECTION_POLICY if parameters.immediate_protection else 'not_applicable',
+                oco_entry_policy='multicharts',
+                entry_bar_path=("multicharts nearest extreme first; Low first on ties; only the path suffix after fill activates SL/TP"
+                                if parameters.immediate_protection else "following_bar_legacy; no attached entry-bar protection"),
                 calendar=(calendar or load_calendar(symbol=instrument_symbol)).metadata() if enabled else None,
                 calendar_selection="instrument_symbol", instrument_symbol=instrument_symbol,
                 calendar_id=resolve_calendar(instrument_symbol)['id'] if enabled else None,
@@ -156,11 +169,16 @@ def backtest_assumptions(parameters, *, calendar=None, instrument_symbol="NQ"):
 class TwinContinuation:
     def __init__(self, parameters=None, *, execution_config=None, instrument_symbol="NQ"):
         self.p = parameters if parameters is not None else Parameters()
+        self.parameters = self.p
+        self.config = execution_config
         if type(self.p) is not Parameters:
             raise ValueError("parameters must be Twin Continuation Parameters.")
         validate_instrument(self.p, instrument_symbol)
         self.instrument_symbol = instrument_symbol
         self.tick_size = execution_config.tick_size if execution_config is not None else D("0.25")
+        self.entry_protection_policy = ENTRY_PROTECTION_POLICY
+        self.oco_entry_policy = 'multicharts'
+        self.ohlc_path_policy = 'multicharts'
         self.calendar = load_calendar(symbol=instrument_symbol) if self.p.use_session_calendar else None
         self.session_plan = None
         self.session_digest = hashlib.sha256()
@@ -194,6 +212,7 @@ class TwinContinuation:
         self.setup = self.pending_setup = None
         self.was_holding = False
         self.previous_stamp = None
+        self.observed_bars = 0
 
     def _set_session(self, bar):
         if self.calendar is None:
@@ -304,6 +323,10 @@ class TwinContinuation:
             ctx.prec = 50
             return self._on_bar(bar, position)
 
+    def on_bar_controlled(self, bar, position, admit_entry):
+        from ..strategy_sizing import controlled_orders
+        return controlled_orders(self, bar, position, admit_entry)
+
     def on_entry_fill(self, entry, position):
         # Execution notification only: no candle/oscillator/entry calculation.
         # It also lets a same-bar round trip consume exactly one completed trade
@@ -315,22 +338,24 @@ class TwinContinuation:
         if not self.p.immediate_protection:
             return None
         if momentum:
-            return EntryProtection(stop_distance=self.p.mo_stop_points)
+            return EntryProtection(stop_distance=self.p.mo_stop_points, ambiguity_policy=self.entry_protection_policy)
         if self.arm_atr <= 0 and (self.p.bo_target_mult > 0 or self.p.bo_max_stop_mult > 0):
             raise ValueError("Immediate BO target/cap protection requires a positive frozen 15-minute ATR.")
         return EntryProtection(stop_price=stop,
+            ambiguity_policy=self.entry_protection_policy,
             max_stop_distance=self.p.bo_max_stop_mult*self.arm_atr if self.p.bo_max_stop_mult>0 else None,
             target_distance=self.p.bo_target_mult*self.arm_atr if self.p.bo_target_mult>0 else None)
 
     def _on_bar(self, bar, position):
         p = self.p
+        self.observed_bars += 1
         if bar.timestamp_utc.second or bar.timestamp_utc.microsecond:
             raise DatasetReadError("Twin Continuation requires minute-aligned one-minute bars.")
         if self.previous_stamp is not None and (bar.timestamp_utc - self.previous_stamp).total_seconds() < 60:
             raise DatasetReadError("Twin Continuation requires one-minute bars; subminute input is unsupported.")
         self.previous_stamp = bar.timestamp_utc
         plan = self._set_session(bar)
-        if bar.bar_number <= p.max_bars_back:
+        if self.observed_bars <= p.max_bars_back:
             return None
         stamp = bar.timestamp_utc.astimezone(CT)
         date = stamp.date()  # Source Date is unshifted, even when ClockShift wraps.

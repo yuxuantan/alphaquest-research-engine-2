@@ -1,0 +1,156 @@
+{
+  "synthetic": true,
+  "simulation_id": "d4db50f44070474b8353be410e25469b",
+  "workflow_id": "4f08d90be4eb470eaaba7a7eec2a8c7a",
+  "qualification": "mechanics, IS Broad, IS Narrow, OOS and Monte Carlo passed",
+  "source_backtest_id": "6477e443a7f64436b7e388586c3d4478",
+  "profile_id": "lucidflex-50k",
+  "sizes": {
+    "evaluation": [
+      1,
+      2,
+      3
+    ],
+    "funded": [
+      1,
+      2,
+      3
+    ]
+  },
+  "paths_per_size_per_phase": 32,
+  "expected_evaluation_cost_formula": "mean paid fees across all completed calendar paths",
+  "expected_funded_receipts_formula": "sum(path.cash_received for all starts) / 32",
+  "evaluation": [
+    {
+      "micros": 1,
+      "metrics": {
+        "cost_per_funded": 90.5625,
+        "expected_attempts_per_funded": 1.125,
+        "expected_calendar_days_to_funded": 23.78125,
+        "median_calendar_days_to_funded": 17.0,
+        "p90_calendar_days_to_funded": 50.0,
+        "pass_probability": 0.90625,
+        "pass_probability_bounds": [
+          0.90625,
+          0.90625
+        ],
+        "probability_acquisition_by_cutoff": 1.0,
+        "restricted_mean_observed_calendar_days": 23.78125,
+        "restricted_mean_paid_fees": 90.5625
+      },
+      "pareto": true
+    },
+    {
+      "micros": 3,
+      "metrics": {
+        "cost_per_funded": 90.5625,
+        "expected_attempts_per_funded": 1.125,
+        "expected_calendar_days_to_funded": 23.78125,
+        "median_calendar_days_to_funded": 17.0,
+        "p90_calendar_days_to_funded": 50.0,
+        "pass_probability": 0.90625,
+        "pass_probability_bounds": [
+          0.90625,
+          0.90625
+        ],
+        "probability_acquisition_by_cutoff": 1.0,
+        "restricted_mean_observed_calendar_days": 23.78125,
+        "restricted_mean_paid_fees": 90.5625
+      },
+      "pareto": true
+    },
+    {
+      "micros": 2,
+      "metrics": {
+        "cost_per_funded": 90.5625,
+        "expected_attempts_per_funded": 1.125,
+        "expected_calendar_days_to_funded": 23.78125,
+        "median_calendar_days_to_funded": 17.0,
+        "p90_calendar_days_to_funded": 50.0,
+        "pass_probability": 0.90625,
+        "pass_probability_bounds": [
+          0.90625,
+          0.90625
+        ],
+        "probability_acquisition_by_cutoff": 1.0,
+        "restricted_mean_observed_calendar_days": 23.78125,
+        "restricted_mean_paid_fees": 90.5625
+      },
+      "pareto": true
+    }
+  ],
+  "funded": [
+    {
+      "micros": 3,
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": null,
+        "expected_days_to_first_payout_conditional_on_payout": 35.27272727272727,
+        "expected_funded_cash_payouts_within_horizon": 2475.0,
+        "expected_gross_account_deductions": 2812.5,
+        "expected_number_of_payouts": 1.375,
+        "expected_payouts": 2475.0,
+        "expected_pending_cash": 56.25,
+        "median_payouts": 1800.0,
+        "p10_payouts": 0.0,
+        "p90_payouts": 5400.0,
+        "probability_first_payout": 0.6875,
+        "probability_inactivity": 0.59375,
+        "probability_payout_limit_completion": 0.03125,
+        "probability_surviving_to_horizon": 0.375,
+        "probability_zero_payout": 0.3125,
+        "restricted_mean_account_lifetime_calendar_days": 68.9375
+      },
+      "rank": 1
+    },
+    {
+      "micros": 1,
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": null,
+        "expected_days_to_first_payout_conditional_on_payout": 35.27272727272727,
+        "expected_funded_cash_payouts_within_horizon": 2475.0,
+        "expected_gross_account_deductions": 2812.5,
+        "expected_number_of_payouts": 1.375,
+        "expected_payouts": 2475.0,
+        "expected_pending_cash": 56.25,
+        "median_payouts": 1800.0,
+        "p10_payouts": 0.0,
+        "p90_payouts": 5400.0,
+        "probability_first_payout": 0.6875,
+        "probability_inactivity": 0.59375,
+        "probability_payout_limit_completion": 0.03125,
+        "probability_surviving_to_horizon": 0.375,
+        "probability_zero_payout": 0.3125,
+        "restricted_mean_account_lifetime_calendar_days": 68.9375
+      },
+      "rank": 2
+    },
+    {
+      "micros": 2,
+      "metrics": {
+        "account_breach_probability": 0.0,
+        "expected_account_lifetime": null,
+        "expected_days_to_first_payout_conditional_on_payout": 35.27272727272727,
+        "expected_funded_cash_payouts_within_horizon": 2475.0,
+        "expected_gross_account_deductions": 2812.5,
+        "expected_number_of_payouts": 1.375,
+        "expected_payouts": 2475.0,
+        "expected_pending_cash": 56.25,
+        "median_payouts": 1800.0,
+        "p10_payouts": 0.0,
+        "p90_payouts": 5400.0,
+        "probability_first_payout": 0.6875,
+        "probability_inactivity": 0.59375,
+        "probability_payout_limit_completion": 0.03125,
+        "probability_surviving_to_horizon": 0.375,
+        "probability_zero_payout": 0.3125,
+        "restricted_mean_account_lifetime_calendar_days": 68.9375
+      },
+      "rank": 3
+    }
+  ],
+  "portfolio_optimization": false,
+  "provider_parity": "Not claimed; local rule snapshot and held-OHLC bounds",
+  "server": "Temporary server stopped by fixture teardown."
+}

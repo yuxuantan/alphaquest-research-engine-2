@@ -1,0 +1,13 @@
+{
+  "parent": "58b9339ae2c64a50be070dd946cef3ba",
+  "saved_diagnostic": "74d595d8e1fe4ecca2934c004acbc59b",
+  "chosen_tested_mnq": 2,
+  "allocated_mnq": 1,
+  "sealed_model": "prop-desk-diagnostics-v1",
+  "ledger_rows": 1006,
+  "ledger_sha256": "17dece601364c9549770b1180a41fae3d393a4c656d25c73302e5f3595cfe1c6",
+  "receipt_to_charts_seconds": 1.272,
+  "ledger_net_reconciles": true,
+  "ledger_drawdown_reconciles": true,
+  "reopened_on_mobile": true
+}

@@ -36,7 +36,7 @@ def test_breakout_target_activates_after_intrabar_fill_on_same_bar(short):
     assert risk.entry_phase=='entry_stop' and risk.exit_phase=='target'
     # Neither the later Close nor prices past the target are known held.
     assert risk.mfe_lower==D(319) and risk.mfe_upper==D(319)  # $320 less the entry-side $1 fee.
-    assert risk.mae_lower==6 and risk.mae_upper==226
+    assert risk.mae_lower==risk.mae_upper==6
     assert s.total_trades==1
 
 
@@ -55,7 +55,7 @@ def sample(entry_bar):
 
 @pytest.mark.parametrize('ohlc',[(100,130,85,115),(100,115,85,100)])
 def test_unknown_adverse_extreme_order_rejects_instead_of_fabricating_stop(ohlc):
-    entry=EntryIntent(1,'BO-L',timing='next_open',protection=EntryProtection(stop_price=D(90),target_distance=D(10)))
+    entry=EntryIntent(1,'BO-L',timing='next_open',protection=EntryProtection(stop_price=D(90),target_distance=D(10),ambiguity_policy='reject'))
     with pytest.raises(ExecutionError,match='Immediate entry protection is ambiguous'):
         list(execute(sample(ohlc),EntryOnly(entry,D(110)),replace(config(),slippage_ticks=0)))
 
@@ -89,7 +89,7 @@ def test_zero_atr_rejects_enabled_native_target_or_cap_but_allows_absolute_stop_
     s=TwinContinuation(Parameters())
     with pytest.raises(ValueError,match='positive frozen 15-minute ATR'):s._protection(stop=D(90))
     s=TwinContinuation(Parameters(bo_target_mult=D(0)))
-    assert s._protection(stop=D(90))==EntryProtection(stop_price=D(90))
+    assert s._protection(stop=D(90))==EntryProtection(stop_price=D(90), ambiguity_policy='multicharts')
 
 
 def test_stop_cap_normalizes_adversely_and_is_active_on_entry_bar():

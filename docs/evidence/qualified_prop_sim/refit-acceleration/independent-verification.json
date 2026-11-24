@@ -1,0 +1,89 @@
+{
+  "real_source_refits": 20,
+  "complete_capture_boundary_cases": 78,
+  "all_exact": true,
+  "benchmarks": [
+    {
+      "profile": "apex",
+      "phase": "evaluation",
+      "micros": 27,
+      "inner_paths": 1000,
+      "refit_indices": [
+        0,
+        1,
+        2,
+        17
+      ],
+      "exact_metrics_precision_and_indices": true,
+      "original_warm_median_seconds": 0.1201170840067789,
+      "accelerated_warm_median_seconds": 0.031258458038792014,
+      "speedup": 3.8427066318406546
+    },
+    {
+      "profile": "apex",
+      "phase": "funded",
+      "micros": 13,
+      "inner_paths": 1000,
+      "refit_indices": [
+        0,
+        1,
+        2,
+        17
+      ],
+      "exact_metrics_precision_and_indices": true,
+      "original_warm_median_seconds": 0.36186933296266943,
+      "accelerated_warm_median_seconds": 0.22506833402439952,
+      "speedup": 1.607819840721971
+    },
+    {
+      "profile": "lucid",
+      "phase": "evaluation",
+      "micros": 3,
+      "inner_paths": 1000,
+      "refit_indices": [
+        0,
+        1,
+        2,
+        17
+      ],
+      "exact_metrics_precision_and_indices": true,
+      "original_warm_median_seconds": 8.847387125017121,
+      "accelerated_warm_median_seconds": 1.361719415988773,
+      "speedup": 6.497217430503366
+    },
+    {
+      "profile": "lucid",
+      "phase": "evaluation",
+      "micros": 21,
+      "inner_paths": 1000,
+      "refit_indices": [
+        0,
+        1,
+        2,
+        17
+      ],
+      "exact_metrics_precision_and_indices": true,
+      "original_warm_median_seconds": 2.6998919170582667,
+      "accelerated_warm_median_seconds": 0.9827888330910355,
+      "speedup": 2.747173987077829
+    },
+    {
+      "profile": "lucid",
+      "phase": "funded",
+      "micros": 21,
+      "inner_paths": 1000,
+      "refit_indices": [
+        0,
+        1,
+        2,
+        17
+      ],
+      "exact_metrics_precision_and_indices": true,
+      "original_warm_median_seconds": 0.2921231660293415,
+      "accelerated_warm_median_seconds": 0.2016438749851659,
+      "speedup": 1.4487083530349325
+    }
+  ],
+  "scope": "Small read-only serial samples under background live work. Warm medians exclude the first preparation call. No end-to-end 10000-refit production speed guarantee or provider parity claim.",
+  "original_commit": "dda9399"
+}

@@ -238,6 +238,13 @@ class DatasetStore:
                 ordinal INTEGER NOT NULL, data BLOB NOT NULL,
                 PRIMARY KEY(dataset_id, ordinal)
             )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS dataset_session_inventory (
+                dataset_id TEXT PRIMARY KEY REFERENCES datasets(id) ON DELETE CASCADE,
+                source_key TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                sha256 TEXT NOT NULL
+            )""")
+        self.persistent_session_inventory = True
 
         if (path.parent/'prop_analyses'/'catalog.sqlite3').is_file():
             from .research_access import attach_existing_access
@@ -320,12 +327,18 @@ class DatasetStore:
             if row is None:
                 return None
             dataset = json.loads(row[0])
+            if dataset.get('tick_data') and settings['tick_size']!=dataset['instrument_settings']['tick_size']:
+                raise ValueError('A tick dataset tick size is frozen by its validated price grid; import a new source to change it.')
             dataset["instrument_settings"] = settings
             conn.execute("UPDATE datasets SET metadata=? WHERE id=?", (json.dumps(dataset), dataset_id))
         return dataset
 
     def delete(self, dataset_id: str) -> bool:
         dataset=self.get(dataset_id)
+        if dataset is not None:
+            for child in self.list():
+                if dataset_id in child.get('tick_data',{}).get('parent_dataset_ids',[]):
+                    raise ValueError('This tick source is referenced by a composed dataset; delete the composed dataset first.')
         if dataset is not None and getattr(self,'research_access',None) is not None:
             self.research_access.assert_deletable(dataset)
         with self.connect() as conn:
