@@ -9,6 +9,7 @@ using AlphaQuest.MarketCalendars;
 #if !AQ_CALENDAR_ONLY
 using System.Drawing;
 using PowerLanguage;
+using PowerLanguage.Function;
 
 namespace PowerLanguage.Strategy
 {
@@ -20,6 +21,8 @@ namespace PowerLanguage.Strategy
     [IOGMode(IOGMode.Disabled)]
     public class ORB_VWAP_CONT__NQ_1M_PIVOT_V01 : SignalObject
     {
+        [Input] public string MultiAccountFollowers { get; set; }
+        private AQMultiAccountRouting multiAccount;
         private PowerLanguage.Function.ADX _adx;
         private IOrderMarket _longEntry, _shortEntry, _longFlat, _shortFlat;
         private IOrderPriced _longStop, _longTarget, _shortStop, _shortTarget;
@@ -67,6 +70,7 @@ namespace PowerLanguage.Strategy
 
         public ORB_VWAP_CONT__NQ_1M_PIVOT_V01(object ctx) : base(ctx)
         {
+            MultiAccountFollowers = string.Empty;
             UseVolSizing = false;
             PositionSize = 1;
             MM_Capital_USD = 500000;
@@ -142,6 +146,7 @@ namespace PowerLanguage.Strategy
 
         protected override void Create()
         {
+            multiAccount = new AQMultiAccountRouting(this);
             _adx = new PowerLanguage.Function.ADX(this);
 
             _longEntry = OrderCreator.MarketNextBar(new SOrderParameters(
@@ -226,6 +231,8 @@ namespace PowerLanguage.Strategy
 
         protected override void CalcBar()
         {
+            if (multiAccount.Service(this, MultiAccountFollowers)) return;
+
             if (ShowTradeValidation)
             {
                 ExpertCommentary.WriteLine("ORB / VWAP trade validation (completed Chicago bars)");
@@ -418,6 +425,8 @@ namespace PowerLanguage.Strategy
                         _activeTarget = longTarget;
                         _pendingEntrySession = UseEODFlat ? (DateTime?)_sessionPlan.Day : null;
                         _longEntry.Send(quantity);
+                        if (multiAccount.Active)
+                            multiAccount.Enter(1, quantity, new AccountBracket(_activeStop, _activeTarget, null, null, false));
                         if (ShowTradeValidation) submissions += "LONG submit qty=" + quantity + "; ";
                         LogEntry(stamp, "LONG", quantity, close, longDistance, adxValue);
                         _tradesToday++;
@@ -433,6 +442,8 @@ namespace PowerLanguage.Strategy
                         _activeTarget = shortTarget;
                         _pendingEntrySession = UseEODFlat ? (DateTime?)_sessionPlan.Day : null;
                         _shortEntry.Send(quantity);
+                        if (multiAccount.Active)
+                            multiAccount.Enter(-1, quantity, new AccountBracket(_activeStop, _activeTarget, null, null, false));
                         if (ShowTradeValidation) submissions += "SHORT submit qty=" + quantity + "; ";
                         LogEntry(stamp, "SHORT", quantity, close, shortDistance, adxValue);
                         _tradesToday++;
@@ -443,6 +454,7 @@ namespace PowerLanguage.Strategy
 
             // Same scheduled cutoff as AQ; no SessionLastBar or future-bar scan.
             bool flatten = UseEODFlat && (!_sessionPlan.Cutoff.HasValue || stamp >= _sessionPlan.Cutoff.Value);
+            if (flatten) multiAccount.Flatten();
             int openQuantity = (int)Math.Abs(position);
             if (position > 0)
             {

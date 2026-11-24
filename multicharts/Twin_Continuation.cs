@@ -9,6 +9,7 @@ using System.Text;
 #if !AQ_TWIN_CORE_ONLY
 using System.Drawing;
 using PowerLanguage;
+using PowerLanguage.Function;
 #endif
 
 namespace AlphaQuest.Twin
@@ -743,6 +744,8 @@ namespace PowerLanguage.Strategy
     [RecoverDrawings(false)]
     public class Twin_Continuation : SignalObject
     {
+        [Input] public string MultiAccountFollowers { get; set; }
+        private AQMultiAccountRouting multiAccount;
         private AlphaQuest.Twin.TwinCore core;
         private AlphaQuest.Twin.ValidationReplay validationReplay;
         private int lastProcessedBar;
@@ -757,6 +760,7 @@ namespace PowerLanguage.Strategy
         private readonly Dictionary<string,IOrderPriced> prices = new Dictionary<string,IOrderPriced>();
         public Twin_Continuation(object ctx) : base(ctx)
         {
+            MultiAccountFollowers = string.Empty;
             UseBreakout = true;
             UseMomentum = true;
             Qty = 1;
@@ -821,6 +825,7 @@ namespace PowerLanguage.Strategy
 
         protected override void Create()
         {
+            multiAccount = new AQMultiAccountRouting(this);
             markets["MO-L"] = OrderCreator.MarketNextBar(new SOrderParameters(Contracts.UserSpecified, "MO-L", EOrderAction.Buy));
             entries["MO-L"] = markets["MO-L"];
             markets["MO-S"] = OrderCreator.MarketNextBar(new SOrderParameters(Contracts.UserSpecified, "MO-S", EOrderAction.SellShort));
@@ -977,6 +982,8 @@ namespace PowerLanguage.Strategy
 
         protected override void CalcBar()
         {
+            if (multiAccount.Service(this, MultiAccountFollowers)) return;
+
             if(ShowTradeValidation)
             {
                 // Registration must execute even for an inspection-only callback.
@@ -1012,6 +1019,7 @@ namespace PowerLanguage.Strategy
             }
             orders=AlphaQuest.Twin.TwinOrderRouting.Active(orders,position,protectionSetup);
             if(ImmediateProtection) PrepareImmediateProtection(orders,position);
+            if (multiAccount.Active) RouteFollowerOrders(orders);
             foreach (var order in orders)
             {
                 // The native fill-relative target owns BO TP in immediate mode;
@@ -1038,6 +1046,39 @@ namespace PowerLanguage.Strategy
                     ExpertCommentary.WriteLine("{0}", BuildTradeValidationCommentary(stamp, position, orders));
                 DrawTradeValidation(stamp, position, orders);
             }
+        }
+
+        private void RouteFollowerOrders(IList<AlphaQuest.Twin.TwinOrder> orders)
+        {
+            if (Bars.LastBarInSession)
+            {
+                multiAccount.Flatten();
+                return;
+            }
+
+            var stopEntries = new List<AccountEntry>();
+            foreach (var order in orders)
+            {
+                if (order.Entry != null)
+                {
+                    if (order.Kind == "close" || order.Kind == "market")
+                        multiAccount.Flatten(order.Action == "Sell" ? 1 : -1);
+                    continue;
+                }
+                if (Qty < 1) continue;
+                int side = order.Action == "Buy" ? 1 : -1;
+                if (order.Kind == "market")
+                {
+                    multiAccount.Enter(side, Qty, new AccountBracket(null, null, core.MO_StopPoints, null, ImmediateProtection));
+                    return;
+                }
+                double? maximumRisk = core.BO_MaxStopMult > 0 ? (double?)(core.BO_MaxStopMult * core.AtrU) : null;
+                double? target = core.BO_TargetMult > 0 ? (double?)(core.BO_TargetMult * core.AtrU) : null;
+                var bracket = new AccountBracket(side > 0 ? core.StpL : core.StpS, null,
+                    maximumRisk, target, ImmediateProtection);
+                stopEntries.Add(new AccountEntry(side, Qty, order.Price, bracket));
+            }
+            multiAccount.StopEntries(stopEntries.ToArray());
         }
     }
 }

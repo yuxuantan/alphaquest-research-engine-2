@@ -1,5 +1,79 @@
 # MultiCharts .NET signals
 
+## One chart with multiple broker accounts
+
+All five signals support the optional `MultiAccountFollowers` input. The
+account in **Strategy Properties → Auto Trading** runs the original managed
+strategy and supplies its position, trade-count and loss-count inputs. The
+signal submits the same entry decisions directly to the listed followers via
+MultiCharts .NET `TradeManager`. Each follower has its own fill and order
+tracking. Leave the input blank for the original single-account path.
+
+1. In PowerLanguage .NET Editor, create a C# **Function** named
+   `AQMultiAccountRouting`, replace its source with
+   [AQMultiAccountRouting.cs](AQMultiAccountRouting.cs), and compile. Then
+   compile the updated signal you want to run. Re-add it to the chart so it
+   loads the updated function. [MultiCharts .NET function references and reloads](https://www.multicharts.com/discussion/viewtopic.php?f=19&t=45848)
+2. For a paper check, connect a Paper Trader profile with three flat accounts,
+   for example a profile named `Paper Trader Test` with accounts `SIM-A`,
+   `SIM-B` and `SIM-C`. Use the chart's data source in the paper profile and a
+   tradable dated futures contract. Select `SIM-A` in the chart's Auto Trading
+   properties. Clear **Require Order Confirmation** for the paper run.
+   [Paper Trader setup](https://www.multicharts.com/trading-software/index.php?title=Paper_Trader)
+3. Set `MultiAccountFollowers` to
+   `Paper Trader Test|SIM-B;Paper Trader Test|SIM-C`. Add one
+   `profile|account` pair per follower, including a different profile name for
+   a separate login. Use exact names and exclude the primary account. When the
+   broker reports a different symbol name in its position snapshot, an
+   optional third field identifies it, such as
+   `Other Profile|SIM-C|MNQZ6`. Configure the actual order mapping in
+   MultiCharts' **Symbol Mapping** for that broker.
+4. Enable Auto Trading and use **Output** and **Order and Position Tracker**.
+   Start both the primary and followers flat with no working orders. Expect an
+   armed message per follower and one order of the signal's quantity per
+   account on a qualifying entry. For Twin breakout, expect the eligible stop
+   entries grouped as OCO on each account. Compare order submission with
+   confirmed fills and protective quantities on each account. Run through a
+   bracket exit, a timed flatten and, for Noise, a reversal. On reversal,
+   each follower clears its working orders, closes its own position and waits
+   for confirmed flat before entering in the opposite direction.
+
+Use each follower account exclusively for the running signal while this mode
+is enabled. The router halts one follower on unexpected outside orders,
+unconfirmed status or connection loss and logs the account. Other accounts
+can continue. A failed account can still have positions or working orders.
+Review it in the broker tracker before restarting. Flatten and confirm that
+all working orders have cleared before disabling automation, removing the
+signal or changing account lists. Unmanaged orders can remain working after
+the chart stops.
+
+Follower market orders are submitted at the signal's live decision callback.
+Actual fill times and prices can differ from both the managed account and the
+backtest. Noise, Overnight Bias ORB and Twin's immediate mode submit
+protection after each confirmed follower fill. Relative Strength, VWAP and
+Twin's delayed mode wait until an eligible completed bar. Fill-relative
+levels use the follower's fill; absolute VWAP and Overnight Bias ORB prices
+are taken from the signal. The follower requests OCO handling through its
+broker profile. The fill-to-protection interval and whether the profile
+handles OCO at the broker depend on the installed connection. Rejections,
+partial fills, order cancellation and callback timing need a paper check on
+each intended broker profile.
+
+The follower router is active only in real-time Auto Trading. Keep broker
+trade copiers off for the same followers to avoid duplicate orders. The
+primary signal retains its own account-dependent decisions even when a
+follower is filled differently. The chart's performance report covers the
+managed strategy, while the follower orders and fills appear in Order and
+Position Tracker. [MultiCharts TradeManager](https://www.multicharts.com/trading-software/index.php?title=4.7.5.3_Trading_Functionality._TradingProfiles)
+
+The isolated router checks run with the .NET 9 SDK using
+`dotnet run --project tests/multicharts_account_routing/RoutingCheck.csproj`.
+They exercise multiple profiles and accounts, partial fills, OCO order
+requests, cancel acknowledgements, rejection isolation and callbacks using
+test doubles.
+
+## Signal setup
+
 Current minute-bar fill assumptions and matching chart settings are documented in
 [MultiCharts execution](../docs/multicharts_execution.md). New AQ backtests use the
 same nearest-extreme-first path (Low first on ties), with post-entry protection.

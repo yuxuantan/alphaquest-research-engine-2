@@ -9,5 +9,7 @@
   <ItemGroup>
     <Compile Include="../multicharts_orb_validation/HostDoubles.cs" Link="HostDoubles.cs" />
     <Compile Include="../../multicharts/OFB_RelStrength_Signal.cs" Link="Signal.cs" />
+    <Compile Include="../../multicharts/AQMultiAccountRouting.cs" />
+    <Compile Include="../multicharts_account_routing/TradingDoubles.cs" />
   </ItemGroup>
 </Project>

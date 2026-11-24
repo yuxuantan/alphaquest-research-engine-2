@@ -7,5 +7,7 @@
   <ItemGroup>
     <Compile Include="../../multicharts/OFB_Noise_Signal.cs" />
     <Compile Include="../multicharts_orb_validation/HostDoubles.cs" />
+    <Compile Include="../../multicharts/AQMultiAccountRouting.cs" />
+    <Compile Include="../multicharts_account_routing/TradingDoubles.cs" />
   </ItemGroup>
 </Project>

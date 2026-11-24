@@ -8,5 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../multicharts/ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs" Link="Signal.cs" />
+    <Compile Include="../../multicharts/AQMultiAccountRouting.cs" />
+    <Compile Include="../multicharts_account_routing/TradingDoubles.cs" />
   </ItemGroup>
 </Project>

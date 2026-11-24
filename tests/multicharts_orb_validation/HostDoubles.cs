@@ -101,10 +101,15 @@ namespace PowerLanguage
         public T this[int ago] { get { return Values[Values.Count-1-ago]; } }
     }
     public sealed class BarInfo
-    { public string Name="NQ"; public double MinMove=25, PriceScale=0.01, BigPointValue=20; public readonly ResolutionInfo Resolution=new ResolutionInfo(); }
+    {
+        public string Name="NQ", DataFeed="Test";
+        public object ASymbolInfo2;
+        public double MinMove=25, PriceScale=0.01, BigPointValue=20;
+        public readonly ResolutionInfo Resolution=new ResolutionInfo();
+    }
     public sealed class BarData
     {
-        public int CurrentBar; public EBarState Status=EBarState.Close; public bool LastBarOnChart=true;
+        public int CurrentBar; public EBarState Status=EBarState.Close; public bool LastBarOnChart=true, LastBarInSession;
         public readonly BarInfo Info=new BarInfo();
         public readonly Series<DateTime> Time=new Series<DateTime>();
         public readonly Series<double> Open=new Series<double>(), High=new Series<double>(), Low=new Series<double>(),
@@ -122,9 +127,28 @@ namespace PowerLanguage
         public readonly List<string> Written = new List<string>();
         public void WriteLine(string format, params object[] args) { Written.Add(string.Format(CultureInfo.InvariantCulture,format,args)); }
     }
-    public abstract class SignalObject
+    public class CStudyControl {}
+    public enum CalculationReason { Default, Timer, LeftMouseClick, RightMouseClick }
+    public sealed class CalculationEnvironment
+    {
+        public bool IsAutoTradingMode, IsRealTimeCalc, OrderConfirmationRequired;
+        public CalculationReason CalcReason;
+    }
+    public sealed class CalculationControl
+    {
+        public int Timers;
+        public void RecalcLastBarAfter(TimeSpan interval) { ++Timers; }
+    }
+}
+namespace PowerLanguage.Strategy
+{
+    public abstract class SignalObject : CStudyControl
     {
         protected SignalObject(object ctx) {}
+        public string Profile, Account;
+        public PowerLanguage.TradeManager.ITradeManager TradeManager;
+        public readonly CalculationEnvironment Environment = new CalculationEnvironment();
+        public readonly CalculationControl ExecControl = new CalculationControl();
         public readonly BarData Bars=new BarData();
         public readonly BarData SecondaryBars=new BarData();
         protected BarData BarsOfData(int number) { return number == 2 ? SecondaryBars : Bars; }

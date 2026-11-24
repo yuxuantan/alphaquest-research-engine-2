@@ -1,3 +1,4 @@
+using PowerLanguage.Function;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -11,6 +12,8 @@ namespace PowerLanguage.Strategy
     [IOGMode(IOGMode.Disabled)]
     public class OFB_RelStrength_Signal : SignalObject
     {
+        [Input] public string MultiAccountFollowers { get; set; }
+        private AQMultiAccountRouting multiAccount;
         [Input] public int DecideHHMM { get; set; }
         [Input] public double ZMin { get; set; }
         [Input] public int BetaDays { get; set; }
@@ -66,6 +69,7 @@ namespace PowerLanguage.Strategy
 
         public OFB_RelStrength_Signal(object ctx) : base(ctx)
         {
+            MultiAccountFollowers = string.Empty;
             DecideHHMM = 900;
             ZMin = 1.25;
             BetaDays = 20;
@@ -83,6 +87,7 @@ namespace PowerLanguage.Strategy
 
         protected override void Create()
         {
+            multiAccount = new AQMultiAccountRouting(this);
             longEntry = OrderCreator.MarketNextBar(new SOrderParameters(Contracts.UserSpecified, "RS.L", EOrderAction.Buy));
             shortEntry = OrderCreator.MarketNextBar(new SOrderParameters(Contracts.UserSpecified, "RS.S", EOrderAction.SellShort));
             longStop = OrderCreator.Stop(Exit("RS.LS", EOrderAction.Sell));
@@ -179,6 +184,8 @@ namespace PowerLanguage.Strategy
 
         protected override void CalcBar()
         {
+            if (multiAccount.Service(this, MultiAccountFollowers)) return;
+
             if (Bars.Status != EBarState.Close || Bars.CurrentBar <= lastBar) return;
             var esBars = BarsOfData(2);
             DateTime stamp = Bars.Time[0], previousStamp = Bars.Time[1];
@@ -258,6 +265,12 @@ namespace PowerLanguage.Strategy
                 if (signal == 1 && TradeDir >= 0) { longEntry.Send(NumContracts); submitted = 1; }
                 if (signal == -1 && TradeDir <= 0) { shortEntry.Send(NumContracts); submitted = -1; }
             }
+            if (submitted != 0 && multiAccount.Active)
+            {
+                double? stopDistance = StopFrac > 0 && averageRange > 0 ? (double?)(StopFrac * averageRange) : null;
+                double? targetDistance = TgtFrac > 0 && averageRange > 0 ? (double?)(TgtFrac * averageRange) : null;
+                multiAccount.Enter(submitted, NumContracts, new AccountBracket(null, null, stopDistance, targetDistance, false));
+            }
 
             bool sendStop = side != 0 && StopFrac > 0 && averageRange > 0;
             bool sendTarget = side != 0 && TgtFrac > 0 && averageRange > 0;
@@ -265,6 +278,8 @@ namespace PowerLanguage.Strategy
             if (sendStop) (side == 1 ? longStop : shortStop).Send(stopPrice, qty);
             if (sendTarget) (side == 1 ? longTarget : shortTarget).Send(targetPrice, qty);
             if (flatten) (side == 1 ? longFlat : shortFlat).Send(qty);
+            if (multiAccount.Active && (hhmm >= FlatHHMM || hhmm <= RthStartHHMM))
+                multiAccount.Flatten();
 
             if (showValidation)
             {

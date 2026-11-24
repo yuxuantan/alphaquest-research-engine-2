@@ -177,9 +177,40 @@ static class Program
         Check(Get(on,"_cumPV").Equals(Get(off,"_cumPV")) && Get(on,"_tradesToday").Equals(Get(off,"_tradesToday")),
             "live mode and off retain same numerical state");
     }
+
+    static void Followers()
+    {
+        var signal = Setup(false,false,1,null);
+        var broker = new PowerLanguage.TradeManager.TestBroker();
+        broker.AddProfile("Paper","SIM-A","SIM-B","SIM-C");
+        signal.TradeManager = broker;
+        signal.Profile = "Paper";
+        signal.Account = "SIM-A";
+        signal.MultiAccountFollowers = "Paper|SIM-B;Paper|SIM-C";
+        signal.Environment.IsAutoTradingMode = true;
+        signal.Environment.IsRealTimeCalc = true;
+        signal.Bars.Info.Name = "MNQ";
+        Step(signal,Start,false,0);
+        Check(signal.OrderCreator.Sent.SequenceEqual(new[] {"Long market 1"}),
+            "One managed entry remains on the primary");
+        Check(broker.Placed.Select(order => order.Snapshot.Account).SequenceEqual(new[] {"SIM-B","SIM-C"}),
+            "The same VWAP decision routes to both followers");
+        broker.Fill(broker.Placed[0],1,109,true);
+        signal.Environment.CalcReason = CalculationReason.Timer;
+        signal.Calculate();
+        Check(broker.Placed.Count == 2, "The VWAP follower waits for the next completed bar");
+        signal.Environment.CalcReason = CalculationReason.Default;
+        Step(signal,Start.AddMinutes(1),false,1);
+        Check(broker.Placed.Count == 4 && broker.Placed[2].Parameters.stop_price == 90 &&
+            broker.Placed[3].Parameters.limit_price == 120 &&
+            broker.Placed.Skip(2).All(order => order.Snapshot.Account == "SIM-B"),
+            "The filled follower receives the frozen VWAP bracket, while a pending follower receives none");
+    }
+
     static void Main(string[] args)
     {
         EntriesAndExits(args[0]); Rejections(args[0]); HistoryAndRestart(); PullbackSizingAndWindows(); LightweightAndOff();
+        Followers();
         Console.WriteLine("PASS: "+assertions+" assertions; actual signal compiled with C# 5 against test doubles. MC host/SDK/rendering/fills NOT verified.");
     }
 }

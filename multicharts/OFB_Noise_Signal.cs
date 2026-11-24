@@ -10,6 +10,8 @@ namespace PowerLanguage.Strategy
     [IOGMode(IOGMode.Disabled)]
     public class OFB_Noise_Signal : SignalObject
     {
+        [Input] public string MultiAccountFollowers { get; set; }
+        private AQMultiAccountRouting multiAccount;
         [Input] public int LookbackDays { get; set; }
         [Input] public double VolatilityMultiplier { get; set; }
         [Input] public int EMALength { get; set; }
@@ -39,6 +41,7 @@ namespace PowerLanguage.Strategy
 
         public OFB_Noise_Signal(object ctx) : base(ctx)
         {
+            MultiAccountFollowers = string.Empty;
             LookbackDays = 20;
             VolatilityMultiplier = 1;
             EMALength = 20;
@@ -56,6 +59,7 @@ namespace PowerLanguage.Strategy
 
         protected override void Create()
         {
+            multiAccount = new AQMultiAccountRouting(this);
             ema = new XAverage(this);
             longEntry = Market("NoiseLong", EOrderAction.Buy);
             shortEntry = Market("NoiseShort", EOrderAction.SellShort);
@@ -120,6 +124,8 @@ namespace PowerLanguage.Strategy
 
         protected override void CalcBar()
         {
+            if (multiAccount.Service(this, MultiAccountFollowers)) return;
+
             if (Bars.Status != EBarState.Close || Bars.CurrentBar <= lastBar) return;
             lastBar = Bars.CurrentBar;
 
@@ -197,6 +203,7 @@ namespace PowerLanguage.Strategy
                 (side > 0 ? flatLong : flatShort).Send(quantity);
                 order = side > 0 ? "FlatLong1430" : "FlatShort1430";
             }
+            if (hhmm == FlatSignalTime) multiAccount.Flatten();
             if (showValidation)
             {
                 bool observed = marketPosition != observedPosition || totalTrades != observedTotalTrades;
@@ -226,6 +233,7 @@ namespace PowerLanguage.Strategy
             if (side == 0 && mayEnter && (longSignal || shortSignal))
             {
                 (longSignal ? longEntry : shortEntry).Send(ContractsPerTrade);
+                if (multiAccount.Active) multiAccount.Enter(longSignal ? 1 : -1, ContractsPerTrade, FollowerBracket());
                 ++tradesToday;
                 return longSignal ? "NoiseLong" : "NoiseShort";
             }
@@ -236,22 +244,32 @@ namespace PowerLanguage.Strategy
                 if (mayEnter)
                 {
                     (side > 0 ? reverseShort : reverseLong).Send(ContractsPerTrade);
+                    if (multiAccount.Active) multiAccount.Reverse(-side, ContractsPerTrade, FollowerBracket());
                     ++tradesToday;
                     return side > 0 ? "LongRevExit + RevToShort" : "ShortRevExit + RevToLong";
                 }
+                multiAccount.Flatten(side);
                 return side > 0 ? "LongRevExit" : "ShortRevExit";
             }
             if (side > 0 && close < longTrail)
             {
                 longEmaExit.Send(quantity);
+                multiAccount.Flatten(1);
                 return "LongEMAExit";
             }
             if (side < 0 && close > shortTrail)
             {
                 shortEmaExit.Send(quantity);
+                multiAccount.Flatten(-1);
                 return "ShortEMAExit";
             }
             return "";
+        }
+
+        private AccountBracket FollowerBracket()
+        {
+            return new AccountBracket(null, null, StopLossPoints > 0 ? (double?)StopLossPoints : null,
+                StopLossPoints > 0 && RewardRisk > 0 ? (double?)(StopLossPoints * RewardRisk) : null, true);
         }
 
         private void ShowBar(DateTime stamp, string summary, string order, bool observed,

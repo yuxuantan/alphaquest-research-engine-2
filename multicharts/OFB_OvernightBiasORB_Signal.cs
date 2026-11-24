@@ -10,6 +10,8 @@ namespace PowerLanguage.Strategy
     [IOGMode(IOGMode.Disabled)]
     public class OFB_OvernightBiasORB_Signal : SignalObject
     {
+        [Input] public string MultiAccountFollowers { get; set; }
+        private AQMultiAccountRouting multiAccount;
         [Input] public int SessStart { get; set; }
         [Input] public int OREnd { get; set; }
         [Input] public int LastEntry { get; set; }
@@ -50,6 +52,7 @@ namespace PowerLanguage.Strategy
 
         public OFB_OvernightBiasORB_Signal(object ctx) : base(ctx)
         {
+            MultiAccountFollowers = string.Empty;
             SessStart = 930; OREnd = 945; LastEntry = 1300; FlatTime = 1530; SessEnd = 1600;
             MaxTradesPerDay = 4;
             BiasLongMin = 0.67; BiasShortMax = 0.33;
@@ -63,6 +66,7 @@ namespace PowerLanguage.Strategy
 
         protected override void Create()
         {
+            multiAccount = new AQMultiAccountRouting(this);
             adx = new ADX(this);
             longEntry = OrderCreator.MarketNextBar(new SOrderParameters(Contracts.UserSpecified, "ORB_L", EOrderAction.Buy));
             shortEntry = OrderCreator.MarketNextBar(new SOrderParameters(Contracts.UserSpecified, "ORB_S", EOrderAction.SellShort));
@@ -146,6 +150,8 @@ namespace PowerLanguage.Strategy
 
         protected override void CalcBar()
         {
+            if (multiAccount.Service(this, MultiAccountFollowers)) return;
+
             if (Bars.Status != EBarState.Close || Bars.CurrentBar <= lastBar) return;
             lastBar = Bars.CurrentBar;
             DateTime stamp = Bars.Time[0];
@@ -220,6 +226,8 @@ namespace PowerLanguage.Strategy
                 (isLong ? longEntry : shortEntry).Send(NumContracts);
                 (isLong ? longFillStop : shortFillStop).Send(stopPrice, NumContracts);
                 (isLong ? longFillTarget : shortFillTarget).Send(targetPrice, NumContracts);
+                if (multiAccount.Active)
+                    multiAccount.Enter(sign, NumContracts, new AccountBracket(stopPrice, targetPrice, null, null, true));
                 ++submissions;
                 if (showValidation)
                     action = isLong ? "ORB_L next open + L-SL-FB/L-TP-FB" : "ORB_S next open + S-SL-FB/S-TP-FB";
@@ -241,6 +249,8 @@ namespace PowerLanguage.Strategy
                 }
             }
             GenerateExitOnClose();
+            if (multiAccount.Active && (hhmm >= FlatTime || Bars.LastBarInSession))
+                multiAccount.Flatten();
 
             if (showValidation)
             {
